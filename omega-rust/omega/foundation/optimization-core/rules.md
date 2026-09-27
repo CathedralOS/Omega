@@ -1,6 +1,7 @@
 # Exact optimization rules
 
-This inventory is checked against the owning selection and stage catalogs.
+This inventory records the owning selection and stage catalogs; it is not an
+automatically checked release receipt.
 The [optimization contract](../../../../wiki/spec/build/optimizations.md#release-rollback-and-promotion)
 defines selection and promotion. Every current row is explicit, opt-in, and experimental.
 There is no debug/release bundle and no `O1`, `O2`, or `O3` alias.
@@ -56,12 +57,11 @@ There is no debug/release bundle and no `O1`, `O2`, or `O3` alias.
 | `SelectedEquivalentCompareRemovalV1` | PreAllocation | Target-independent | Experimental | `--disable-optimization SelectedEquivalentCompareRemovalV1` | Required |
 <!-- exact-rule-inventory:end -->
 
-The architecture test derives exact names and phases from `Optimization::ALL`'s
-owning source vocabulary and applicability from each surviving rule-owning stage catalog.
-Retired post-allocation machine rewrite spellings are rejected by native realization
-and are not rollout entries.
-A missing, duplicate, renamed, rephased, retargeted, or broad alias row fails
-the repository gate.
+Exact names and phases come from the source vocabulary and applicability from
+the rule-owning stage catalogs. Retired post-allocation rewrite spellings are
+not rollout entries. The former architecture inventory gate is absent; changes
+to this table must be reviewed against those source owners rather than treated
+as mechanically verified.
 
 ## Supported composition policy
 
@@ -96,12 +96,8 @@ effective receipt, and defines verification and restoration steps.
 
 ## Promotion rule
 
-Changing any row from `Experimental` to `Recommended` or `Default` requires a
-completed owner-reviewed record at
-`promotions/<ExactRuleName>.md`. The architecture gate rejects the
-status change unless that record names the exact rule and status and supplies
-semantic/corruption, differential, deterministic bounded-work, supported
-target, measurement, owner-approval, and exact rollback evidence — with each
-evidence field citing resolvable repository artifacts (`path` or
-`path::subject` confined to the checkout), so a promotion leg cannot pass on
-unverifiable prose.
+Changing a row from `Experimental` to `Recommended` or `Default` requires the
+owner decision and evidence specified by the public promotion contract.
+Completed records belong in [promotions/](promotions/README.md); unfinished
+investigation belongs in its linked draft. Markdown presence alone establishes
+neither successful validation nor approval.

@@ -7,7 +7,7 @@ separate entrances in [`operations`](src/operations/mod.rs).
 
 [Source selection](../../../wiki/spec/packages/sources.md) owns the
 requester-local graph and workspace-member contract. Acquisition enforces the
-[resolver security boundary](source-acquisition/SOURCE_RESOLVER_SECURITY.md).
+[resolver security boundary](../../../wiki/spec/packages/resolver_security.md).
 
 The ratified destination is Cargo-like repository install/update with
 compiler-derived reachability, unsafe API, and assumption review. The lock
@@ -395,7 +395,7 @@ certificate, reviewer receipt, or authentication of the project author.
 permission to publish. Reviewed publication joins these choices to candidate
 and project-file checks. Review-file loading/resume is command-owned.
 
-Return to the [package subsystem map](overview.md), or consult:
+Related contracts and usage:
 
 - [Package workflow](../../../wiki/language_guide/packages.md)
 - [Build declarations and identity](../../../wiki/spec/build/declarations.md)

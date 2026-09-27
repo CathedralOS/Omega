@@ -68,7 +68,7 @@ selected subtree. Retain declaration bytes outside that subtree for replay.
 All selections in one closure share the same pinned commit/root tree, including
 symbolic revisions; do not observe a moving branch separately for each member.
 
-The [resolver security contract](../../../omega-rust/omega/package-manager/source-acquisition/SOURCE_RESOLVER_SECURITY.md)
+The [resolver security contract](resolver_security.md)
 owns locator validation, host-routed Git/SSH, frozen operator-selected Git,
 containment, resource controls, and immutable snapshot publication. Host routing
 does not change authored lineage. Known adapters may establish namespace

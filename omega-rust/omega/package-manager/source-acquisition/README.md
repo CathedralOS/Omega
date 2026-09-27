@@ -149,5 +149,5 @@ must not depend back on either adapter. The local and Git adapters must not
 import one another. This keeps transport details out of exact-tree identity and
 makes the source lifecycle discoverable from the top down.
 
-The current enforced floor and remaining platform gaps are maintained in
-[`SOURCE_RESOLVER_SECURITY.md`](SOURCE_RESOLVER_SECURITY.md).
+The [resolver security contract](../../../../wiki/spec/packages/resolver_security.md)
+owns required trust and transport behavior; the source owners above implement it.

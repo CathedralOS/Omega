@@ -3,10 +3,10 @@
 The [public optimization contract](../wiki/spec/build/optimizations.md) owns
 exact selection, identity phases, semantic preservation, rollback, and policy
 authority. This page identifies implementation entrances, not another rule
-inventory. The [source-organization audit](../tests/architecture/optimizer_source_organization/README.md)
-owns navigation and size checks.
+inventory. The [pipeline architecture](pipeline.md#discoverability-architecture)
+owns source organization; it does not impose file-size quotas.
 
-The checked [exact-rule inventory](omega/foundation/optimization-core/rules.md)
+The [exact-rule inventory](omega/foundation/optimization-core/rules.md)
 records current experimental status, applicability, and composition limits.
 
 ## Selection and portable publication

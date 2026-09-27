@@ -1,4 +1,18 @@
 //! Content conservation, identity reshuffle, and partition-composition lowering.
+//!
+//! The upstream checking::value_custody::content_conservation normalizer checks
+//! projection calls, entry revisions, separation, and equality. This owner
+//! lowers those normalized projections and exact theorem/argument substitutions;
+//! neither stage infers sealed introductions or custody exits.
+//!
+//! Keep claim identity distinct from structural path and input/output equality.
+//! Compact report equality cannot justify changing the projection, algebra,
+//! call, or subject. Unsupported staged derivations reject.
+//!
+//! Static field, case, and fixed-index paths do not establish general runtime-
+//! indexed owned extraction: the frontier must identify the unique moved
+//! element. Passing reshuffle or partition helpers establishes neither an
+//! ambient mint route nor complete source-to-provider/native conservation.
 use super::{
     BTreeMap, BTreeSet, BoundaryContentGuarantee, CheckedContentAlgebraIdentity,
     CheckedContentConservationTerm, CheckedContentPlaceRoot, CheckedContentPlaceSegment,
