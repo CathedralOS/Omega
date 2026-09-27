@@ -26,9 +26,9 @@ use terminal_semantics::OperationSemanticTag;
 use terminal_verifier::ReconstructedTerminalObligationOwner;
 use terminal_verifier::trusted_surface::{
     CoveredSurface, LedgerFailure, SoundnessStatus, TrustedSurfaceEntry, all_entries,
-    check_dispatch_bijection, check_ledger_internals, check_source_coverage, checker_rule_entry,
-    evidence_route_entry, obligation_owner_entry, operation_schema_entry, primitive_judgment_entry,
-    terminator_fact_entry,
+    check_dispatch_bijection, check_ledger_internals, check_proved_evidence_machinery,
+    check_source_coverage, checker_rule_entry, evidence_route_entry, obligation_owner_entry,
+    operation_schema_entry, primitive_judgment_entry, terminator_fact_entry,
 };
 
 fn repository_root() -> PathBuf {
@@ -539,4 +539,66 @@ fn soundness_status_is_explicit_and_never_implied_by_coverage() {
         "trusted-surface ledger: {counts:?} over {total} entries; unfinished: {unfinished:?}"
     );
     assert!(counts.get("ExplicitlyTrusted").copied().unwrap_or(0) > 0);
+}
+
+#[test]
+fn proved_rows_bind_certificate_redecision_in_the_working_tree() {
+    let failures = check_proved_evidence_machinery(&repository_root());
+    assert!(
+        failures.is_empty(),
+        "every Proved row must register an implementation site that invokes \
+         the certificate checker; machinery failures:\n{}",
+        report(&failures)
+    );
+}
+
+#[test]
+fn machinery_check_fires_when_a_proved_row_loses_its_checker_call() {
+    let (_guard, root) = scratch_tree();
+    let regressing = "fact:boolean-polarity-implications";
+    // Give every proved row one registered site; only the regressing row's
+    // site lacks a certificate-checker call, so it alone may fail.
+    for entry in all_entries() {
+        if !matches!(entry.soundness, SoundnessStatus::Proved { .. }) {
+            continue;
+        }
+        let site = entry
+            .implementation
+            .first()
+            .copied()
+            .expect("a procedural proved row registers sites");
+        let path = root.join(site);
+        std::fs::create_dir_all(path.parent().expect("site has a parent")).expect("mkdir site");
+        let contents = if entry.id == regressing {
+            "// evidence replaced by an unchecked emission\n"
+        } else {
+            "fn discharge() { check_certificate(context, proof); }\n"
+        };
+        std::fs::write(&path, contents).expect("write site stub");
+    }
+    let failures = check_proved_evidence_machinery(&root);
+    assert_eq!(
+        failures,
+        vec![LedgerFailure::ProvedEntryWithoutCheckedMachinery { entry: regressing }],
+        "a Proved row whose sites never re-decide a certificate must fail, \
+         got:\n{}",
+        report(&failures)
+    );
+    // The check reads file contents, not path presence: restoring a checker
+    // call at the row's site clears the failure.
+    let entry = all_entries()
+        .find(|entry| entry.id == regressing)
+        .expect("proved row exists");
+    std::fs::write(
+        root.join(entry.implementation[0]),
+        "fn discharge() { check_certificate(context, proof); }\n",
+    )
+    .expect("restore checker call");
+    let failures = check_proved_evidence_machinery(&root);
+    assert!(
+        failures.is_empty(),
+        "a checker call at a registered site discharges the machinery leg, \
+         got:\n{}",
+        report(&failures)
+    );
 }
