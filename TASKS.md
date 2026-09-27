@@ -222,20 +222,67 @@ backend-visible; full corpus runs only at the end of an item.
   effect restored omits. Keep one effect in any program you shrink, or it
   measures nothing.
 
-- **COMPOSITE-STATE-PARAMETER.** (new-scope) A state parameter whose type is
-  not a scalar has no route, at
-  `state graph: terminator: jump successor: parameter transfer`. A sum, a
-  record, an array and a reference-to-record all omit; `i32`, `bool` and even
-  `i32 in Wrapping` all check. So it is neither sum-ness nor copyability --
-  `[copy]` on the sum changes nothing -- but scalar versus composite. Pinned at
-  `tests/omega/pending/control_flow/composite_state_parameter`. Found while
-  reducing FIELD-SUBJECT-NAMED-ARM-CHAIN, where it blocked the
-  parameter-subject axis. Passing the argument from a FIELD instead of a
-  literal yields a different and legitimate diagnostic, so the fixture uses a
-  literal. No sample is attributed yet: `systems/vending_machine` reports the
-  NEIGHBOURING `conditional successors: parameter transfer` and its state
-  parameters are `i32 in Wrapping`, measured to check, so its `-> Change`
-  return is the likelier subject -- measure before folding it in.
+- **COMPOSITE-TRANSITION-ARGUMENT.** (new-scope) A transition argument of
+  COMPOSITE type routes only when it is a LOCAL. A composite LITERAL, a
+  composite FIELD read and a composite VALUE CALL all omit at
+  `state graph: terminator: jump successor: parameter transfer`, in both the
+  unconditional and guarded forms; scalars route from any source. Pinned at
+  `tests/omega/pending/control_flow/composite_state_parameter`.
+  CORRECTS a claim landed earlier today as COMPOSITE-STATE-PARAMETER, which
+  said "a state parameter whose type is not a scalar has no route". That was
+  measured only with a composite LITERAL argument; a local of the identical
+  type passes, so the parameter's type is half the condition and the
+  argument's PROVENANCE is the other half. The old reading would have sent a
+  repair at the parameter list, where nothing is broken. Still standing from
+  that measurement: an arithmetic policy on a SCALAR parameter routes, and
+  `[copy]` changes nothing, so this is neither about policies nor
+  copyability. A reference-to-composite and a fixed array were measured only
+  on the literal reading -- do not assume the local exemption covers them.
+  Acceptance: the pending fixture checks and a composite literal, field read
+  and call argument all route.
+
+- **VALUE-CALL-TRANSITION-ARGUMENT.** (new-scope) A value call cannot be a
+  transition argument, at any type -- a callee and parameter both `i32` omit
+  at `state graph: terminator: jump successor: scalar arguments`, while
+  binding the call to a local first checks and ordinary arithmetic in the
+  same position checks. `samples/cli/systems/vending_machine`, whose
+  `transition self.a == 35 { true -> report(self.make_change(100, 55), 17) }`
+  hits this AND COMPOSITE-TRANSITION-ARGUMENT at once, since `report` also
+  takes a `Change`. Pinned at
+  `tests/omega/pending/calls/value_call_transition_argument`. SAME FAMILY as
+  VALUE-CALL-SUBEXPRESSION -- a call that is not the root of what its site
+  lowers -- with the same local-binding workaround, so expect one answer for
+  both. Acceptance: the pending fixture checks and `vending_machine` leaves
+  the omission cluster (it needs both items).
+
+- **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER.** (new-scope) A boundary-call
+  parameter whose declared type is a fixed array of PRIMITIVE elements has no
+  lowering route, and neither does such a result. Three GUI samples stop at
+  the same call, `self.gui.window_create(self.cls, self.title, ...)` over
+  `class_name: [u8; 7], title: [u8; 10]`: `gui/{window_app, window_demo,
+  image_viewer}`. Pinned at
+  `tests/omega/pending/providers/boundary_primitive_array_argument`. Nothing
+  about the call site matters -- not element type, length, argument count,
+  argument provenance, or return direction -- and declaring such a method
+  without calling it is fine; only the declared parameter type at a BOUNDARY
+  call. Narrower than "any composite by value": a record and a `[Point; 2]`
+  also fail at a boundary but at `completion`, a separate site, and a
+  composite by value at an ORDINARY call passes.
+  The guards are unconditional and read directly, in
+  `04_typed-trees-to-checked-trees/.../calls/trait_boundary_call.rs`:
+  `is_closed_primitive_array_type` on each `formal` inside the
+  `boundary arguments` phase loop, and on the substituted return just after
+  the `boundary result` phase. That predicate is true exactly for a
+  literal-length `FixedArray` of possibly-nested `Bool | I8..I64 | U8..U64 |
+  F32 | F64`, matching the measured behaviour including why `[Point; 2]`
+  escapes it. The argument guard sits BEFORE the byte-sequence-literal and
+  subslice admissions, which is why a string-literal argument declines too.
+  Untested prediction worth one line: nested `[[u8; 2]; 2]` should decline
+  identically. Acceptance: the pending fixture checks and all three samples
+  leave the cluster -- converting every array-typed boundary parameter to
+  `&mut` already makes `window_app` and `window_demo` check clean and leaves
+  `image_viewer` with only honest provider-absence diagnostics, which is the
+  removal test that proved one shared cause.
 
 - **CARRIER-LENGTH-STORE-CARRIER.** (new-scope) A carrier `.len` reaches the
   arithmetic walk with no carrier of its own, so a store into anything but
@@ -883,7 +930,9 @@ the complete product bar; focused successes below do not establish that baseline
   `cli/{basics/text_greeting, systems/status_report, text/string_catalog}`)
   and `call operation: boundary arguments` (3: `gui/{image_viewer, window_app,
   window_demo}`). The byte-sequence group is now diagnosed as
-  BYTE-CARRIER-STORE-LITERAL-ONLY; the boundary-arguments group is not. The two `other` rows are
+  BYTE-CARRIER-STORE-LITERAL-ONLY; the boundary-arguments group as
+  BOUNDARY-PRIMITIVE-ARRAY-PARAMETER. Every omission phase in the tree is now
+  attributed to an item. The two `other` rows are
   `cli/simulation/cellular_automaton` and `cli/systems/file_permissions`, both
   now taking the anonymous-bitwise diagnostic rather than omitting -- that is
   the check added earlier the same day doing its job, and both are sample

@@ -1,40 +1,36 @@
-// A state parameter whose type is not a scalar has no route. Scalars pass
-// fine. Found while reducing `samples/cli/basics/brightness_control`, where it
-// blocked measuring the parameter-subject axis.
+// A transition argument of COMPOSITE type routes only when it is a LOCAL.
+// Scalars route from anywhere.
 //
-//   state handle(&mut self, p: i32)              checks
-//   state handle(&mut self, p: bool)             checks
-//   state handle(&mut self, p: i32 in Wrapping)  checks
+//   let v: Pair = Pair { a: 1 };  handle(v)        checks
+//   handle(Pair { a: 1 })         (a literal)      OMITTED (this fixture)
+//   handle(self.pair)             (a field read)   OMITTED
+//   handle(self.give())           (a value call)   OMITTED
+//   handle(self.n)   / handle(7)  (scalars)        check
 //
-//   state handle(&mut self, p: Command)          OMITTED  (a sum, this fixture)
-//   state handle(&mut self, p: Command)  [copy]  OMITTED
-//   state handle(&mut self, p: Pair)     [copy]  OMITTED  (a record)
-//   state handle(&mut self, p: [i32; 3])         OMITTED  (an array)
-//   state handle(&mut self, p: &Pair)            OMITTED  (a reference to one)
+// all omissions at `state graph: terminator: jump successor: parameter
+// transfer`, in both the unconditional `_ ->` and the guarded `true ->` forms.
 //
-// all at `state graph: terminator: jump successor: parameter transfer`.
+// CORRECTION. An earlier version of this fixture, and the board item filed
+// with it, said "a state parameter whose type is not a scalar has no route".
+// That is WRONG and was landed. It was measured only with a composite LITERAL
+// argument, and a local of the identical type passes. The parameter's type is
+// half the condition; the argument's PROVENANCE is the other half, and the
+// original reading would have sent a repair at the parameter list, where
+// nothing is broken.
 //
-// So it is not about sums, and not about copyability -- `[copy]` on the sum
-// changes nothing, and an arithmetic policy on a SCALAR parameter still
-// checks. The dividing line is scalar versus composite.
+// What is still true from that measurement: an arithmetic policy on a SCALAR
+// parameter (`i32 in Wrapping`) routes, and `[copy]` on the composite changes
+// nothing -- so this is neither about policies nor about copyability.
 //
-// Passing the argument from a FIELD rather than a literal gives a different
-// and legitimate diagnostic instead ("cannot transfer a non-copy value out of
-// borrowed storage"), so this fixture passes a literal to reach the omission
-// cleanly.
-//
-// NOT a customer, though it looked like one: `samples/cli/systems/vending_machine`
-// reports the neighbouring `state graph: terminator: conditional successors:
-// parameter transfer`, and its state parameters are `i32 in Wrapping`, which
-// is measured above to check. Its states return a `Change`; that return, not a
-// parameter, is the likelier subject. Unattributed -- do not fold it in here
-// without measuring.
+// A reference to a composite (`&Pair`) and a fixed array (`[i32; 3]`) omit on
+// the same literal-argument reading; whether they pass from a local was not
+// re-measured after the correction, so do not assume the local exemption
+// covers them.
 use omega_language_std::console;
 use omega::language::core::binding;
 
-data Command {
-    case A;
-    case B;
+data Pair [copy] {
+    a: i32;
 }
 
 data Main {
@@ -42,9 +38,9 @@ data Main {
 }
 
 machine Main::main(&mut self) reaches Console {
-    transition { _ -> handle(Command::A) }
+    transition { _ -> handle(Pair { a: 1 }) }
 
-    state handle(&mut self, command: Command) {
+    state handle(&mut self, pair: Pair) {
         self.console.exit_process(0);
     }
 }

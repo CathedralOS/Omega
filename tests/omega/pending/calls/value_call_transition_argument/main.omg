@@ -1,0 +1,42 @@
+// A value (machine) call cannot be a transition argument, at any type. Binding
+// it to a local first and passing that checks. Reduced from
+// `samples/cli/systems/vending_machine`, whose own spelling is
+// `transition self.a == 35 { true -> report(self.make_change(100, 55), 17) ... }`
+// and whose header calls the line "value calls as transition arguments".
+//
+//   transition { _ -> handle(self.amount()) }        OMITTED (this fixture)
+//   transition true { true -> handle(self.amount()) } OMITTED
+//   let t: i32 = self.amount(); handle(t)            checks
+//   handle(self.n + 1)   (arithmetic, no call)       checks
+//
+// at `state graph: terminator: jump successor: scalar arguments`. The callee
+// here returns `i32` and the parameter is `i32`, so this is NOT the composite
+// gap pinned at
+// `tests/omega/pending/control_flow/composite_state_parameter`: a scalar value
+// call omits on its own. `vending_machine` happens to hit both at once, since
+// its `report` also takes a `Change`.
+//
+// SAME FAMILY as `tests/omega/pending/calls/value_call_subexpression`: there a
+// value call omits whenever it is not the ROOT of the expression its site
+// lowers. A transition argument is one more position where a call is not the
+// root, and it declines at its own phase. Expect one answer for both; the
+// local-binding workaround is identical.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::amount(&self) -> i32 {
+    transition { _ -> out() }
+    state out() -> i32 { 1 }
+}
+
+machine Main::main(&mut self) reaches Console {
+    transition { _ -> handle(self.amount()) }
+
+    state handle(&mut self, amount: i32) {
+        self.console.exit_process(0);
+    }
+}

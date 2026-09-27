@@ -1,0 +1,10 @@
+// PENDING build root: the program-entry binding is load-bearing -- the
+// omission this fixture pins appears only once an entry is established and the
+// Unit plan is demanded. Only macos_arm64 is bound because the provider below
+// is declared for that target.
+machine build(builder: &mut Build) {
+    builder.application("boundary_primitive_array_argument");
+    builder.identifier = "com.omega.boundary_primitive_array_argument";
+    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+}
