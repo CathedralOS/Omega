@@ -7,7 +7,9 @@ use package_evidence::encoding::{
     encode_package_review_canonical_row,
 };
 use package_evidence::project_checked_package_review;
-use package_evidence::record::{PackageReviewCanonicalRowKind, PackageReviewSourceLocationRole};
+use package_evidence::record::{
+    PackageReviewCanonicalRow, PackageReviewCanonicalRowKind, PackageReviewSourceLocationRole,
+};
 use semantic_vocabulary::PackageKeyIdentity;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -96,7 +98,7 @@ pub machine invoke_leaf()
 }
 
 #[test]
-fn canonical_rows_round_trip_with_validated_package_target_and_exact_source() {
+fn canonical_rows_roundtrip_and_reject_malformed_or_over_limit_frames() {
     let Some((target, rows)) = fixture_rows() else {
         return;
     };
@@ -186,8 +188,8 @@ fn canonical_rows_round_trip_with_validated_package_target_and_exact_source() {
     }));
     assert_eq!(PACKAGE_REVIEW_CANONICAL_ROW_RECOVERY_VERSION, 23);
 
-    for row in rows {
-        let envelope = encode_package_review_canonical_row(&row).expect("encode recovery row");
+    for row in &rows {
+        let envelope = encode_package_review_canonical_row(row).expect("encode recovery row");
         let decoded = decode_package_review_canonical_row(&envelope).expect("decode recovery row");
         assert_eq!(decoded.package(), package_identity());
         assert_eq!(decoded.target(), target);
@@ -197,13 +199,11 @@ fn canonical_rows_round_trip_with_validated_package_target_and_exact_source() {
         assert_eq!(decoded.canonical_bytes(), row.canonical_bytes());
         assert_eq!(decoded.source(), row.source());
     }
+    assert_malformed_noncanonical_and_over_limit_rows_reject(&rows);
+    assert_duplicate_and_unknown_derivation_sidecars_reject(&rows);
 }
 
-#[test]
-fn decoder_rejects_malformed_noncanonical_and_over_limit_recovery_rows() {
-    let Some((_target, rows)) = fixture_rows() else {
-        return;
-    };
+fn assert_malformed_noncanonical_and_over_limit_rows_reject(rows: &[PackageReviewCanonicalRow]) {
     let authored = rows
         .iter()
         .find(|row| row.kind() == PackageReviewCanonicalRowKind::PublicConformance)
@@ -286,7 +286,6 @@ fn decoder_rejects_malformed_noncanonical_and_over_limit_recovery_rows() {
     malformed[source.role] = 0xff;
     assert!(decode_package_review_canonical_row(&malformed).is_err());
 
-    let defaults = PackageReviewCanonicalRowRecoveryLimits::default();
     let too_small = PackageReviewCanonicalRowRecoveryLimits::new(
         envelope.len() - 1,
         usize::MAX,
@@ -325,7 +324,6 @@ fn decoder_rejects_malformed_noncanonical_and_over_limit_recovery_rows() {
         usize::MAX,
     );
     assert!(decode_package_review_canonical_row_with_limits(&envelope, too_small).is_err());
-    assert_ne!(defaults, too_small);
 
     let no_sources = PackageReviewCanonicalRowRecoveryLimits::new(
         usize::MAX,
@@ -360,11 +358,7 @@ fn decoder_rejects_malformed_noncanonical_and_over_limit_recovery_rows() {
     );
 }
 
-#[test]
-fn decoder_rejects_duplicate_compiler_derivation_sidecars() {
-    let Some((_target, rows)) = fixture_rows() else {
-        return;
-    };
+fn assert_duplicate_and_unknown_derivation_sidecars_reject(rows: &[PackageReviewCanonicalRow]) {
     let derived = rows
         .iter()
         .find(|row| row.kind() == PackageReviewCanonicalRowKind::ProjectionHeader)

@@ -198,7 +198,7 @@ fn used_selection_retains_the_complete_calling_application() {
 }
 
 #[test]
-fn foreign_producer_availability_and_local_consumer_selection_keep_distinct_owners() {
+fn foreign_demands_preserve_owners_and_rejoin_exact_producer_instances() {
     let fixture = Fixture::new(true, true, true);
     let consumer = project(&fixture.checked, package_identity());
     let producer = project(&fixture.checked, source::foreign_identity());
@@ -234,18 +234,6 @@ fn foreign_producer_availability_and_local_consumer_selection_keep_distinct_owne
         use_.selection_owner(),
         PackageReviewNominalOwner::Package(package_identity())
     );
-}
-
-#[test]
-fn foreign_demands_rejoin_exact_independently_compiled_producer_rows() {
-    let fixture = Fixture::new(true, true, true);
-    let consumer = project(&fixture.checked, package_identity());
-    let producer = project(&fixture.checked, source::foreign_identity());
-    assert!(consumer.demands().iter().any(|demand| {
-        demand.calling().opaque_uses().iter().any(|use_| {
-            use_.opaque().owner() == PackageReviewNominalOwner::Package(source::foreign_identity())
-        })
-    }));
     let instance = fixture
         .checked
         .custody
@@ -263,35 +251,17 @@ fn foreign_demands_rejoin_exact_independently_compiled_producer_rows() {
         }),
         Ok(())
     );
-}
-
-#[test]
-fn foreign_demand_rejects_absent_producer_policy() {
-    let fixture = Fixture::new(true, true, true);
-    let consumer = project(&fixture.checked, package_identity());
     assert!(matches!(
         consumer.rejoin_foreign_demands(|_| None),
         Err(PackagePolicyRepresentationAgreementError::ProducerPolicyAbsent { .. })
     ));
-}
-
-#[test]
-fn foreign_demand_rejects_producer_source_instance_mismatch() {
-    let fixture = Fixture::new(true, true, true);
-    let consumer = project(&fixture.checked, package_identity());
-    let producer = project(&fixture.checked, source::foreign_identity());
-    let reviewed = fixture
-        .checked
-        .custody
-        .source_consumption_commitment()
-        .expect("package-aware review compilation retains a source commitment");
     assert!(matches!(
         consumer.rejoin_foreign_demands(|package| {
             (package == source::foreign_identity()).then_some(
                 PackagePolicyRepresentationProducerInstance {
                     policy: &producer,
                     expected_source_instance: PackageSourceConsumptionCommitment::for_test([9; 32]),
-                    reviewed_source_instance: reviewed,
+                    reviewed_source_instance: instance,
                 },
             )
         }),
