@@ -40,8 +40,8 @@ pub(super) fn apply_action(
     }
     let consumer = block
         .instructions
-        .get_mut(literal_index)
-        .filter(|instruction| instruction.id == action.consumer_instruction)
+        .iter_mut()
+        .find(|instruction| instruction.id == action.consumer_instruction)
         .ok_or(LiteralFoldError::DecisionMismatch {
             function: function_index,
         })?;

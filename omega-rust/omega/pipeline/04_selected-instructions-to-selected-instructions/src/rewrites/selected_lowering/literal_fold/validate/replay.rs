@@ -45,11 +45,17 @@ pub(super) fn reconstruct_literal_fold(
         }
         validate_dense_identifiers(function_index, source)?;
 
+        // The validator binds the same decline contract compute does: a
+        // consistent classification row no enabled pair covers — kind or
+        // operand position — produces no fold and the recorded absence of
+        // an action replays; records inconsistent with the stream itself
+        // still reject.
         let action = recovery_function
             .classification
             .as_ref()
             .map(|classification| reconstruct_action(function_index, source, classification, rows))
-            .transpose()?;
+            .transpose()?
+            .flatten();
         if let Some(action) = action {
             rebuild_function(
                 function_index,
@@ -72,7 +78,7 @@ fn reconstruct_action(
     function: &SelectedFunction,
     candidate: &register_homes::PressureRecoveryClassification,
     rows: &ValidationImmediateRows<'_>,
-) -> Result<LiteralFoldAction, LiteralFoldError> {
+) -> Result<Option<LiteralFoldAction>, LiteralFoldError> {
     if candidate.role != RecoveryVictimRole::Incoming {
         return Err(LiteralFoldError::UnsupportedVictimRole {
             function: function_index,
@@ -86,9 +92,9 @@ fn reconstruct_action(
         ..
     } = &candidate.classification
     else {
-        return Err(LiteralFoldError::ClassificationNotAdmitted {
-            function: function_index,
-        });
+        // A non-candidate classification declines the same way compute
+        // binds it: no fold applied and the spill decision stood.
+        return Ok(None);
     };
     let literal_u64 =
         u64::try_from(*value).map_err(|_| LiteralFoldError::UnsupportedImmediate {
@@ -121,13 +127,20 @@ fn reconstruct_action(
             function: function_index,
         })?;
     let literal = &block.instructions[literal_index];
-    let consumer = block
+    // Same consumer contract `derive_action` binds: the victim's single
+    // recorded use, anywhere later in the same block — an adjacent
+    // materialize–consumer pair still matches, but the chooser only
+    // names the literal the incoming victim when its interval out-lives
+    // every reclaimable resident.
+    let consumer_index = block
         .instructions
-        .get(literal_index + 1)
-        .filter(|instruction| instruction.id == future_use.instruction)
+        .iter()
+        .position(|instruction| instruction.id == future_use.instruction)
+        .filter(|index| *index > literal_index)
         .ok_or(LiteralFoldError::ConsumerMismatch {
             function: function_index,
         })?;
+    let consumer = &block.instructions[consumer_index];
 
     if literal.kind
         != (SelectedInstructionKind::MaterializeI64 {
@@ -587,7 +600,21 @@ fn reconstruct_action(
     // operand-1 subtrahend operand hosts two value-disjoint families —
     // the right-zero identity on every carrier and the upper-bound fold
     // on the unsigned ones.
-    let row = row.ok_or_else(|| {
+    // A bound row missing on a consistent record whose consumer
+    // kind-family no enabled grammar admits at all is a coverage state,
+    // not an inconsistency — the row declines and the spill decision
+    // stands. Within a covered family the admission errors still name
+    // the axis: an unadmitted kind is a consumer mismatch, an admitted
+    // kind whose literal sits at a position no enabled grammar covers
+    // is a future-use mismatch, and a literal lying outside every
+    // enabled bound at an admitted position is an unsupported
+    // immediate.
+    let consistent_use = consumer.operands.iter().any(|operand| {
+        operand.operand == future_use.operand
+            && operand.access == RegisterOperandAccess::Use
+            && operand.virtual_register == candidate.victim
+    });
+    let row = match row.ok_or_else(|| -> Option<LiteralFoldError> {
         let same_position_families = match consumer.kind {
             SelectedInstructionKind::BitwiseAndI64 => {
                 rows.and_zero.is_some() || rows.and_ones.is_some()
@@ -600,13 +627,13 @@ fn reconstruct_action(
         };
         if same_position_families {
             if future_use.operand == shape.victim_operand() {
-                LiteralFoldError::UnsupportedImmediate {
+                Some(LiteralFoldError::UnsupportedImmediate {
                     function: function_index,
-                }
+                })
             } else {
-                LiteralFoldError::FutureUseMismatch {
+                Some(LiteralFoldError::FutureUseMismatch {
                     function: function_index,
-                }
+                })
             }
         } else if matches!(
             consumer.kind,
@@ -622,13 +649,13 @@ fn reconstruct_action(
             if future_use.operand == 1
                 && (rows.remainder.is_some() || rows.remainder_minus_one.is_some())
             {
-                LiteralFoldError::UnsupportedImmediate {
+                Some(LiteralFoldError::UnsupportedImmediate {
                     function: function_index,
-                }
+                })
             } else {
-                LiteralFoldError::FutureUseMismatch {
+                Some(LiteralFoldError::FutureUseMismatch {
                     function: function_index,
-                }
+                })
             }
         } else if let SelectedInstructionKind::SaturatingSubtract { carrier } = consumer.kind {
             // The zero-minuend and upper-bound grammars bind only the
@@ -646,9 +673,21 @@ fn reconstruct_action(
                 || (!carrier.is_signed()
                     && (rows.saturating_subtract_zero_minuend.is_some()
                         || rows.saturating_subtract_upper_bound.is_some()));
+            let family_admitted = rows.saturating_subtract_zero.is_some()
+                || rows.saturating_subtract_zero_minuend.is_some()
+                || rows.saturating_subtract_upper_bound.is_some();
             if !kind_admitted {
-                LiteralFoldError::ConsumerMismatch {
-                    function: function_index,
+                // The kind itself no enabled subtrahend family can
+                // serve — a signed carrier under an unsigned-only
+                // selection is a fabricated record when the family is
+                // enabled at all; only when no `SaturatingSubtract`
+                // grammar is enabled does a consistent record decline.
+                if family_admitted || !consistent_use {
+                    Some(LiteralFoldError::ConsumerMismatch {
+                        function: function_index,
+                    })
+                } else {
+                    None
                 }
             } else if (future_use.operand == 1
                 && (rows.saturating_subtract_zero.is_some()
@@ -657,13 +696,29 @@ fn reconstruct_action(
                     && !carrier.is_signed()
                     && rows.saturating_subtract_zero_minuend.is_some())
             {
-                LiteralFoldError::UnsupportedImmediate {
+                Some(LiteralFoldError::UnsupportedImmediate {
                     function: function_index,
-                }
+                })
             } else {
-                LiteralFoldError::FutureUseMismatch {
+                Some(LiteralFoldError::FutureUseMismatch {
                     function: function_index,
-                }
+                })
+            }
+        } else if let SelectedInstructionKind::SaturatingAdd { .. } = consumer.kind {
+            // The saturating-add family reaching here admits nothing for
+            // this record — `same_position_families` already excluded
+            // every admitted carrier — so the record is a fabricated
+            // claim whenever the family is enabled at all, and declines
+            // only when no `SaturatingAdd` grammar is bound.
+            if rows.saturating_add_zero.is_some()
+                || rows.saturating_add_upper_bound.is_some()
+                || !consistent_use
+            {
+                Some(LiteralFoldError::ConsumerMismatch {
+                    function: function_index,
+                })
+            } else {
+                None
             }
         } else if (matches!(
             consumer.kind,
@@ -675,15 +730,23 @@ fn reconstruct_action(
             ) && (rows.saturating_divide_one.is_some()
                 || rows.saturating_divide_zero.is_some()))
         {
-            LiteralFoldError::FutureUseMismatch {
+            Some(LiteralFoldError::FutureUseMismatch {
                 function: function_index,
-            }
+            })
+        } else if consistent_use {
+            // The kind names no family any enabled grammar admits — the
+            // consistent record declines so the spill decision stands.
+            None
         } else {
-            LiteralFoldError::ConsumerMismatch {
+            Some(LiteralFoldError::ConsumerMismatch {
                 function: function_index,
-            }
+            })
         }
-    })?;
+    }) {
+        Ok(row) => row,
+        Err(Some(error)) => return Err(error),
+        Err(None) => return Ok(None),
+    };
     if future_use.operand != shape.victim_operand() {
         return Err(LiteralFoldError::FutureUseMismatch {
             function: function_index,
@@ -1964,7 +2027,7 @@ fn reconstruct_action(
     if matches!(
         shape,
         SourceShape::CompareLeftImmediate | SourceShape::CompareLeftZero
-    ) && !swapped_condition_flow_admitted(function, block_index, literal_index + 1, consumer)
+    ) && !swapped_condition_flow_admitted(function, block_index, consumer_index, consumer)
     {
         return Err(LiteralFoldError::EffectSurfaceMismatch {
             function: function_index,
@@ -2014,7 +2077,7 @@ fn reconstruct_action(
         | SourceShape::AndOnes => consumer.operands[0].virtual_register,
     };
 
-    Ok(LiteralFoldAction {
+    Ok(Some(LiteralFoldAction {
         block: candidate.block,
         pressure_point: candidate.point,
         literal_instruction: *defining_instruction,
@@ -2024,7 +2087,7 @@ fn reconstruct_action(
         result,
         immediate,
         immediate_constraint: row.key,
-    })
+    }))
 }
 
 /// The consumer source grammar the validator admits: the binary immediate
@@ -2596,8 +2659,8 @@ fn rebuild_function(
     }
     let consumer = block
         .instructions
-        .get_mut(literal_index)
-        .filter(|instruction| instruction.id == action.consumer_instruction)
+        .iter_mut()
+        .find(|instruction| instruction.id == action.consumer_instruction)
         .ok_or(LiteralFoldError::DecisionMismatch {
             function: function_index,
         })?;

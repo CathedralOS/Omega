@@ -33,11 +33,19 @@ pub(super) fn derive_function_folds(
         }
         validate_dense_identifiers(function_index, source)?;
 
+        // A classification row describes only that the victim is a
+        // rematerialization candidate; whether an enabled pair covers its
+        // consumer is a separate admission. When no enabled pair covers
+        // the row's kind or operand position — a partial selection or a
+        // consumer this rule family cannot serve — no fold applies and
+        // the row declines so the spill decision stands untouched.
+        // Records inconsistent with the stream itself still reject.
         let action = recovery_function
             .classification
             .as_ref()
             .map(|classification| derive_action(function_index, source, classification, rows))
-            .transpose()?;
+            .transpose()?
+            .flatten();
         if let Some(action) = action {
             apply_action(
                 function_index,
