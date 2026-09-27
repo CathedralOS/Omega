@@ -19,6 +19,7 @@
 //! comparison records, not a substitute for canonical artifact admission.
 
 mod artifact_admission;
+mod boundary_application_settlement;
 mod callback_settlement;
 mod comparison_settlement;
 mod entry_settlement;
@@ -30,12 +31,16 @@ pub use artifact_admission::{
     AdmittedNativeArtifact, AdmittedOptimizationArtifact, ArtifactLoweringError, ArtifactSections,
     TerminalPlacedViewEstablishment, VerifiedNativeArtifactInput, lower_artifact,
 };
+pub use boundary_application_settlement::{
+    BoundaryApplicationSettlement, validate_terminal_boundary_application_coverage,
+};
 pub use callback_settlement::{
     CallbackRegistrarOccurrence, settle_callback_registrar_imports,
     validate_callback_thunk_settlement,
 };
 pub use comparison_settlement::{
     settle_ieee_float_comparison_occurrences, settle_integer_comparison_occurrences,
+    validate_terminal_comparison_coverage,
 };
 pub use entry_settlement::{
     NativeProgramEntrySettlement, NativeProgramEntrySettlementError,

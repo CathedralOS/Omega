@@ -2171,6 +2171,7 @@ dependencies = [
  "effects",
  "installation-evidence",
  "lowered-psi",
+ "lowered-psi-to-terminal-psi",
  "optimization-unit",
  "optimization-unit-semantics",
  "program-entry-plan",
@@ -2178,8 +2179,10 @@ dependencies = [
  "provider-planning",
  "selected-dispatch",
  "semantic-vocabulary",
+ "source",
  "source-files-to-tokens",
  "symbol-resolved-trees-to-typed-trees",
+ "symbols",
  "syntax-trees-to-symbol-resolved-trees",
  "target",
  "terminal-codec",
@@ -2189,7 +2192,9 @@ dependencies = [
  "terminal-semantics",
  "terminal-verifier",
  "tokens-to-syntax-trees",
+ "typed-trees",
  "typed-trees-to-checked-trees",
+ "validation",
 ]
 
 [[package]]

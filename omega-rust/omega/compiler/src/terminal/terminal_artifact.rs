@@ -7,7 +7,7 @@
 //! under the request admission profile before anything downstream sees them.
 
 use crate::checked::{CheckedCompilation, OptimizationRollback};
-use crate::terminal::{application_coverage, native_proposal};
+use crate::terminal::native_proposal;
 use artifacts::allocations::AllocationDelta;
 use artifacts::compile_timings::{CompileTimings, StageMeta, TimingCategory};
 use diagnostics::Diagnostic;
@@ -452,11 +452,21 @@ pub fn produce_program_entry_terminal_artifact(
         &selected_integer_comparison_occurrences,
     )?;
     let boundary_application_coverage =
-        application_coverage::project_terminal_boundary_application_coverage(
+        terminal_psi_to_abstract_operations::BoundaryApplicationSettlement {
             checked,
-            &artifact,
-            &checked_boundary_operator_scope,
-        )?;
+            selected_provider_plans: checked.selected_provider_plans(),
+            selected_provider_provenance: checked.selected_provider_provenance(),
+            exact_toolchain_sources: checked.exact_toolchain_sources(),
+            target_profile: checked.selected_target_profile(),
+            console_exit_binding: checked.resolved_semantic_binding(
+                package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
+            ),
+            process_exit_binding: checked.resolved_semantic_binding(
+                package_compilation::AcceptedSemanticBindingRole::ProcessExitExitProcessI32,
+            ),
+            calling_plan_realizations: checked.boundary_calling_plan_realizations(),
+        }
+        .settle(&artifact, &checked_boundary_operator_scope)?;
     Ok(ProgramEntryTerminalArtifact {
         artifact,
         checked_program_entry,

@@ -4,11 +4,9 @@
 //! compilation and produces the Terminal artifact: the retained product with
 //! its callback custody and native-realization proposal, or the program-entry
 //! artifact the direct native route realizes. `native_proposal` projects what
-//! a later native realization may consume, `application_coverage` rejoins
-//! boundary applications to their checked realizations. Omega stage 00 owns
-//! comparison settlement from authored occurrences to selected provider evidence.
+//! a later native realization may consume. Omega stage 00 owns boundary-application
+//! and comparison settlement from authored occurrences to selected provider evidence.
 
-mod application_coverage;
 mod native_proposal;
 mod terminal_artifact;
 

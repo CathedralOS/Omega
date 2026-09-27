@@ -3,7 +3,6 @@
 //! thunks, IEEE float custody, and the closed external binding rows.
 
 use crate::checked::CheckedCompilation;
-use crate::terminal::application_coverage::project_terminal_boundary_application_coverage;
 use crate::terminal::terminal_artifact::verification::verify_terminal_artifact;
 use diagnostics::Diagnostic;
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
@@ -83,11 +82,22 @@ pub(crate) fn project_terminal_native_realization_proposal(
             checked.selected_provider_provenance(),
             selected_integer_comparison_occurrences,
         )?;
-    let boundary_application_coverage = project_terminal_boundary_application_coverage(
-        checked,
-        artifact,
-        &checked_boundary_operator_scope,
-    )?;
+    let boundary_application_coverage =
+        terminal_psi_to_abstract_operations::BoundaryApplicationSettlement {
+            checked,
+            selected_provider_plans: checked.selected_provider_plans(),
+            selected_provider_provenance: checked.selected_provider_provenance(),
+            exact_toolchain_sources: checked.exact_toolchain_sources(),
+            target_profile: checked.selected_target_profile(),
+            console_exit_binding: checked.resolved_semantic_binding(
+                package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
+            ),
+            process_exit_binding: checked.resolved_semantic_binding(
+                package_compilation::AcceptedSemanticBindingRole::ProcessExitExitProcessI32,
+            ),
+            calling_plan_realizations: checked.boundary_calling_plan_realizations(),
+        }
+        .settle(artifact, &checked_boundary_operator_scope)?;
     let (
         boundary_application_demands,
         boundary_application_realizations,

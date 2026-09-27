@@ -23,6 +23,11 @@ The entry map is [lib.rs](src/lib.rs). Responsibilities are separate modules:
   plan and selected import row. The retained-Terminal and direct-native routes
   share this operation; exact operation multiplicity and check-only absence of
   an import remain explicit.
+- [boundary_application_settlement.rs](src/boundary_application_settlement.rs):
+  join the sealed artifact-bound Psi scope to canonical demand identities, exact
+  checked-body or intrinsic realizations, and opaque ABI application custody.
+  The coordinator supplies borrowed selection inputs; the stage owns role
+  selection, const/type identity validation and retained-provenance replay.
 - [comparison_settlement.rs](src/comparison_settlement.rs): join emitted IEEE
   and integer comparisons to their exact authored application, selected plan,
   retained provenance and rederived intrinsic execution. Retained output, direct
