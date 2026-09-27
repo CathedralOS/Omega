@@ -6,7 +6,6 @@
 //! subordinate control, value, call, storage, and evidence owners.
 
 pub mod abstract_operations;
-pub use abstract_operations::StructuralScalarStoreDestination;
 pub use abstract_operations::{
     AbstractAtomicEvent, AbstractAtomicFenceOrdering, AbstractAtomicReadModifyWrite,
     AbstractBlockEntry, AbstractBoundaryResult, AbstractDynamicDescriptorArgument,
@@ -20,3 +19,4 @@ pub use abstract_operations::{
     ValueBinding, atomic, calls, control_flow, happens_before_atomic_coherence_violation,
     operations, ownership, values,
 };
+pub use abstract_operations::{StructuralScalarStoreDestination, StructuralWindowRoot};

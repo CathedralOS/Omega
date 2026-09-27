@@ -65,9 +65,15 @@ pub(super) fn establish(
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 };
                 let reference_bearing = super::references::contains_reference(types, nested);
+                // A sum or mixed member rides as one completed value the way
+                // a record member does.
                 if !matches!(
                     types.get(&nested).map(|declaration| &declaration.shape),
-                    Some(StructuralTypeShape::Record { .. })
+                    Some(
+                        StructuralTypeShape::Record { .. }
+                            | StructuralTypeShape::Sum { .. }
+                            | StructuralTypeShape::Mixed { .. }
+                    )
                 ) && !reference_bearing
                     && terminal_semantics::scalar_array_leaf_shape(types.values().copied(), nested)
                         .is_none()

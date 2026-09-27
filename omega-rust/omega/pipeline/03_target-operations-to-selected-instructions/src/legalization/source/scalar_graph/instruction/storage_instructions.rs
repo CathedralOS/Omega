@@ -100,7 +100,7 @@ pub(super) fn project_borrowed_window(
             )?;
             Ok(LegalizedScalarInstructionKind::StructuralLeafCopy {
                 result: result.clone(),
-                source: source.place,
+                source: source.place(),
                 path: extent.path,
                 byte_offset: extent.byte_offset,
                 shape: extent.shape,

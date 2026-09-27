@@ -114,7 +114,7 @@ pub enum TargetUnitOperation {
     /// borrowed root regains full custody of the field.
     StoreStructuralField {
         psi_operation: OperationId,
-        destination: StructuralParameterDeclaration,
+        destination: abstract_operations::StructuralWindowRoot,
         path: Vec<StructuralPathSegment>,
         field: StructuralFieldId,
         value_home: TargetStructuralHomeRequirement,

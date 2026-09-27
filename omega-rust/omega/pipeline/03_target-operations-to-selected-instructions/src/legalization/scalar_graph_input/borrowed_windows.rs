@@ -19,7 +19,7 @@ use calling_conventions::ValueShape;
 use semantic_vocabulary::{StructuralFieldId, StructuralTypeId};
 use terminal_psi::{
     StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralOperationResult,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeShape,
+    StructuralPathSegment, StructuralTypeShape,
 };
 
 /// The resolved bytes one window names beneath its root.
@@ -44,18 +44,37 @@ pub(in crate::legalization) struct WindowExtent {
 /// subtree carries loan custody a byte copy cannot relocate.
 pub(in crate::legalization) fn extent(
     function: &PsiOptimizationFunction,
-    root: &StructuralParameterDeclaration,
+    root: &abstract_operations::StructuralWindowRoot,
     path: &[StructuralPathSegment],
     field: StructuralFieldId,
     plan: &AbstractOperationPlan,
 ) -> Result<WindowExtent, LegalizationError> {
     let invalid = LegalizationError::custody;
-    if root.access != StructuralAccess::MutableBorrow
-        || !function.structural_parameters.contains(root)
-        || !function.entry_claims.is_empty()
-    {
-        return Err(invalid());
-    }
+    let root_type = match root {
+        abstract_operations::StructuralWindowRoot::BorrowedParameter(root) => {
+            if root.access != StructuralAccess::MutableBorrow
+                || !function.structural_parameters.contains(root)
+                || !function.entry_claims.is_empty()
+            {
+                return Err(invalid());
+            }
+            root.structural_type
+        }
+        // An owned completed local home carries no borrowed-window custody;
+        // its authority was admitted upstream from the completing producer.
+        abstract_operations::StructuralWindowRoot::OwnedResult { result, .. } => {
+            if !matches!(
+                result.multiplicity,
+                StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
+            ) || !result.claims.is_empty()
+                || !result.qualifications.is_empty()
+                || !result.projected_qualifications.is_empty()
+            {
+                return Err(invalid());
+            }
+            result.structural_type
+        }
+    };
     let types = &plan.structural_types;
     let (full, field_type) = if matches!(
         path.last(),
@@ -69,7 +88,7 @@ pub(in crate::legalization) fn extent(
             .rposition(|segment| matches!(segment, StructuralPathSegment::Field(_)))
             .ok_or_else(invalid)?;
         let (owner, ..) = structural_reference_input::runtime_projection(
-            root.structural_type,
+            root_type,
             &path[..field_position],
             types,
         )
@@ -90,13 +109,12 @@ pub(in crate::legalization) fn extent(
         }) {
             return Err(invalid());
         }
-        let (element, ..) =
-            structural_reference_input::runtime_projection(root.structural_type, path, types)
-                .ok_or_else(invalid)?;
+        let (element, ..) = structural_reference_input::runtime_projection(root_type, path, types)
+            .ok_or_else(invalid)?;
         (path.to_vec(), element)
     } else {
-        let (parent, _) = structural_reference_input::project(root.structural_type, path, types)
-            .ok_or_else(invalid)?;
+        let (parent, _) =
+            structural_reference_input::project(root_type, path, types).ok_or_else(invalid)?;
         let (StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. }) =
             &types
                 .iter()
@@ -118,7 +136,7 @@ pub(in crate::legalization) fn extent(
         (full, field_type)
     };
     let (endpoint, byte_offset, elements) =
-        structural_reference_input::runtime_projection(root.structural_type, &full, types)
+        structural_reference_input::runtime_projection(root_type, &full, types)
             .ok_or_else(invalid)?;
     if endpoint != field_type || super::reference_custody::contains_reference(types, field_type) {
         return Err(invalid());
@@ -138,7 +156,7 @@ pub(in crate::legalization) fn extent(
 /// shared or linear multiplicity, qualification or claim.
 pub(in crate::legalization) fn moved(
     function: &PsiOptimizationFunction,
-    root: &StructuralParameterDeclaration,
+    root: &abstract_operations::StructuralWindowRoot,
     path: &[StructuralPathSegment],
     field: StructuralFieldId,
     result: &StructuralOperationResult,

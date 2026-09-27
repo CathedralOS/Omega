@@ -49,4 +49,4 @@ pub use values::{AbstractFunctionResult, AbstractParameter, AbstractResult, Valu
 pub mod operations;
 pub use operations::AbstractOperation;
 mod structural_stores;
-pub use structural_stores::StructuralScalarStoreDestination;
+pub use structural_stores::{StructuralScalarStoreDestination, StructuralWindowRoot};

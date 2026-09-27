@@ -120,13 +120,15 @@ fn source(access: StructuralAccess) -> abstract_operations::AbstractOperationPla
             AbstractOperation::MoveStructuralField {
                 psi_operation: operation(2),
                 result: result(3),
-                source: root(access),
+                source: abstract_operations::StructuralWindowRoot::BorrowedParameter(root(access)),
                 path: Vec::new(),
                 field: StructuralFieldId::new(2).unwrap(),
             },
             AbstractOperation::StoreStructuralField {
                 psi_operation: operation(3),
-                destination: root(access),
+                destination: abstract_operations::StructuralWindowRoot::BorrowedParameter(root(
+                    access,
+                )),
                 path: Vec::new(),
                 field: StructuralFieldId::new(2).unwrap(),
                 value: StructuralArgument {

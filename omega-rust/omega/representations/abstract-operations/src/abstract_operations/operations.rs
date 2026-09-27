@@ -233,7 +233,7 @@ pub enum AbstractOperation {
     MoveStructuralField {
         psi_operation: OperationId,
         result: StructuralOperationResult,
-        source: StructuralParameterDeclaration,
+        source: super::StructuralWindowRoot,
         path: Vec<StructuralPathSegment>,
         field: semantic_vocabulary::StructuralFieldId,
     },
@@ -251,14 +251,14 @@ pub enum AbstractOperation {
     },
     /// Reseat one whole owned structural subtree into the exact field
     /// `path` + `field` beneath `destination`, closing the restoration window
-    /// `MoveStructuralField` opened there. `destination` retains the complete
-    /// borrowed parameter row; `value` is the consumed whole-place owned
+    /// `MoveStructuralField` opened there. `destination` retains the window
+    /// root's complete authority; `value` is the consumed whole-place owned
     /// argument whose declared type the verifier matched to the declared
     /// field. This is only the repair of an open hole — it never replaces a
     /// live field and it re-disposes nothing.
     StoreStructuralField {
         psi_operation: OperationId,
-        destination: StructuralParameterDeclaration,
+        destination: super::StructuralWindowRoot,
         path: Vec<StructuralPathSegment>,
         field: semantic_vocabulary::StructuralFieldId,
         value: StructuralArgument,

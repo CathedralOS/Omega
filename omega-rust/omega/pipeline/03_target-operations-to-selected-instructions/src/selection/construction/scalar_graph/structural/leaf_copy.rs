@@ -126,14 +126,21 @@ pub(super) fn reseat(
     else {
         return Err(invalid());
     };
-    let signature = source.structural.as_ref().ok_or_else(|| invalid())?;
-    if row.result.is_some()
-        || destination.access != terminal_psi::StructuralAccess::MutableBorrow
-        || !signature
-            .parameters
-            .iter()
-            .any(|parameter| parameter.semantic == *destination)
-    {
+    let destination_admits = match destination {
+        abstract_operations::StructuralWindowRoot::BorrowedParameter(destination) => {
+            source.structural.as_ref().is_some_and(|signature| {
+                destination.access == terminal_psi::StructuralAccess::MutableBorrow
+                    && signature
+                        .parameters
+                        .iter()
+                        .any(|parameter| parameter.semantic == *destination)
+            })
+        }
+        // An owned completed home's authority is its live transport pointer,
+        // resolved against `destination.place` below.
+        abstract_operations::StructuralWindowRoot::OwnedResult { .. } => true,
+    };
+    if row.result.is_some() || !destination_admits {
         return Err(invalid());
     }
     if shape.byte_size == 0 {
@@ -153,7 +160,7 @@ pub(super) fn reseat(
             .map(|(_, pointer)| *pointer)
             .ok_or_else(|| invalid())
     };
-    let root = pointer_of(destination.place)?;
+    let root = pointer_of(destination.place())?;
     let home = pointer_of(*value)?;
     // The spelled path may end in a runtime element (`nodes[i] = node`): the
     // destination pointer scales each selector by its stride, in path order,
@@ -161,7 +168,7 @@ pub(super) fn reseat(
     let root = super::runtime_address::scale(
         builder,
         row,
-        destination.place,
+        destination.place(),
         *byte_offset,
         root,
         indices,
@@ -176,7 +183,7 @@ pub(super) fn reseat(
             elements: &[],
         },
         CopyEnd {
-            place: destination.place,
+            place: destination.place(),
             pointer: root,
             byte_offset: *byte_offset,
             elements: indices,

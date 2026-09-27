@@ -44,7 +44,7 @@ pub(super) fn validate(
                 optimized, root, spelled, *field, result, plan,
             )?;
             if psi_operation != expected_operation
-                || *source != root.place
+                || *source != root.place()
                 || *path != extent.path
                 || *byte_offset != extent.byte_offset
                 || !super::runtime_indices_rejoin(indices, &extent.elements, sources)

@@ -406,7 +406,7 @@ pub(super) fn validate(
                 field,
                 ..
             },
-        ) if result == expected && *source == root.place && {
+        ) if result == expected && *source == root.place() && {
             let extent = scalar_graph_input::borrowed_windows::moved(
                 optimized, root, spelled, *field, expected, plan,
             )?;

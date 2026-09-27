@@ -500,10 +500,10 @@ fn written_or_exclusive(operation: &O) -> Vec<PlaceId> {
         | O::ByteSequenceWrite { destination, .. }
         | O::StructuralByteSequenceFieldByteStore { destination, .. }
         | O::StructuralByteSequenceFieldStore { destination, .. } => vec![*destination],
-        O::WriteOnlyPrimitiveStore { destination, .. }
-        | O::StoreStructuralField { destination, .. } => vec![destination.place],
+        O::WriteOnlyPrimitiveStore { destination, .. } => vec![destination.place],
+        O::StoreStructuralField { destination, .. } => vec![destination.place()],
         O::StructuralScalarFieldStore { destination, .. } => vec![destination.place()],
-        O::MoveStructuralField { source, .. } => vec![source.place],
+        O::MoveStructuralField { source, .. } => vec![source.place()],
         _ => Vec::new(),
     }
 }

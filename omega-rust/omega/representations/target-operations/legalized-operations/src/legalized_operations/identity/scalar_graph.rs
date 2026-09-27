@@ -219,7 +219,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     indices,
                 } => {
                     bytes.push(88);
-                    super::structural_types::encode_structural_parameter(bytes, destination);
+                    super::structural_types::encode_window_root(bytes, destination);
                     super::structural_types::encode_structural_path(bytes, path);
                     bytes.extend_from_slice(&field.get().to_le_bytes());
                     bytes.extend_from_slice(&value.get().to_le_bytes());

@@ -156,7 +156,7 @@ pub(crate) fn validate_operation_places(
             require(destination.place(), known)?;
         }
         O::MoveStructuralField { source, .. } => {
-            require(source.place, known)?;
+            require(source.place(), known)?;
         }
         O::StructuralLeafCopy { source, .. } => {
             require(*source, known)?;
@@ -164,7 +164,7 @@ pub(crate) fn validate_operation_places(
         O::StoreStructuralField {
             destination, value, ..
         } => {
-            require(destination.place, known)?;
+            require(destination.place(), known)?;
             require(value.place, known)?;
         }
         O::CallUnit {
