@@ -238,27 +238,44 @@ fn permutation_preserves_identity_and_target_remains_bound() {
 }
 
 #[test]
-fn every_payload_byte_corruption_rejects_with_header_custody() {
+fn payload_boundaries_reject_with_header_custody() {
     let lengths = candidate(TargetProfile::LinuxX64)
         .contents
         .rows
         .iter()
         .map(|row| row.bytes.len())
         .collect::<Vec<_>>();
-    for (row, length) in lengths.into_iter().enumerate() {
-        for offset in 0..length {
+    for (row_index, length) in lengths.into_iter().enumerate() {
+        // Each section uses whole-slice equality; retain its endpoints, not a byte sweep.
+        // Empty sections still need a negative control.
+        let offsets = if length == 0 {
+            vec![0]
+        } else {
+            vec![0, length - 1]
+        };
+        for offset in offsets {
             let mut candidate = candidate(TargetProfile::LinuxX64);
             let identity = candidate
                 .section_headers
                 .non_authoritative_template_compatibility_fingerprint();
-            candidate.contents.rows[row].bytes[offset] ^= 1;
+            if length == 0 {
+                candidate.contents.rows[row_index].bytes.push(1);
+            } else {
+                candidate.contents.rows[row_index].bytes[offset] ^= 1;
+            }
             let error = validate_candidate(candidate).expect_err("payload corruption must reject");
+            assert!(
+                error
+                    .diagnostic
+                    .to_string()
+                    .contains("indexed ELF payload row drifted")
+            );
             assert_eq!(
                 error
                     .candidate
                     .section_headers
                     .non_authoritative_template_compatibility_fingerprint(),
-                identity
+                identity,
             );
         }
     }

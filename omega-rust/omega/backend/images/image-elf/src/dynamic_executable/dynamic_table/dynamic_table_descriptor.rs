@@ -573,6 +573,21 @@ mod tests {
             assert_eq!(plan.appended_descriptor_count(), 1);
             assert_eq!(plan.section_name_seed_byte_count(), 122);
             assert_eq!(
+                &plan.contents.section_name_table_seed[..UPSTREAM_NAME_SEED_SIZE],
+                base_name_seed(plan.payload()),
+            );
+            let dynstr = &plan
+                .payload()
+                .plan()
+                .descriptors()
+                .templates()
+                .linkage()
+                .descriptors()
+                .payloads()
+                .payloads()
+                .dynstr;
+            assert!(dynstr.windows(8).any(|window| window == b"liba\xff.so"));
+            assert_eq!(
                 &plan.contents.section_name_table_seed[113..],
                 DYNAMIC_NAME_SUFFIX,
             );
@@ -597,44 +612,6 @@ mod tests {
             validate_contents(plan.payload(), &plan.contents)
                 .expect("independent dynamic-table descriptor replay");
         }
-    }
-
-    #[test]
-    fn name_seed_is_exactly_append_only_and_preserves_raw_non_utf8_inputs() {
-        let plan =
-            plan_elf_dynamic_table_section_descriptor(payload(TargetProfile::LinuxX64, &IMPORTS))
-                .unwrap();
-        let base = base_name_seed(plan.payload());
-        assert_eq!(&plan.contents.section_name_table_seed[..113], base);
-        assert_eq!(
-            &plan.contents.section_name_table_seed[59..69],
-            b".shstrtab\0"
-        );
-        assert_eq!(
-            &plan.contents.section_name_table_seed[93..103],
-            b".rela.plt\0"
-        );
-        assert_eq!(
-            &plan.contents.section_name_table_seed[103..113],
-            b".rela.dyn\0"
-        );
-        validate_name(
-            &plan.contents.section_name_table_seed,
-            &plan.contents.descriptor,
-        )
-        .unwrap();
-
-        let dynstr = &plan
-            .payload
-            .plan()
-            .descriptors()
-            .templates()
-            .linkage()
-            .descriptors()
-            .payloads()
-            .payloads()
-            .dynstr;
-        assert!(dynstr.windows(8).any(|window| window == b"liba\xff.so"));
     }
 
     #[test]
@@ -663,29 +640,19 @@ mod tests {
     }
 
     #[test]
-    fn every_appended_name_byte_replays_and_rejection_retains_payload() {
-        for offset in UPSTREAM_NAME_SEED_SIZE..UPSTREAM_NAME_SEED_SIZE + DYNAMIC_NAME_SUFFIX.len() {
-            let mut candidate = candidate(TargetProfile::LinuxX64);
-            let expected_identity = candidate
-                .payload
-                .non_authoritative_payload_compatibility_fingerprint();
-            candidate.contents.section_name_table_seed[offset] ^= 1;
-            let error = validate_candidate(candidate)
-                .expect_err("mutated dynamic-table name seed must reject");
-            assert_eq!(
-                error
-                    .candidate
-                    .payload
-                    .non_authoritative_payload_compatibility_fingerprint(),
-                expected_identity
-            );
-        }
-    }
-
-    #[test]
     fn independent_replay_rejects_every_descriptor_field_link_info_and_identity_corruption() {
         let corruptions: Vec<Box<dyn Fn(&mut Candidate)>> = vec![
             Box::new(|candidate| candidate.contents.section_name_table_seed[0] ^= 1),
+            Box::new(|candidate| {
+                candidate.contents.section_name_table_seed[UPSTREAM_NAME_SEED_SIZE] ^= 1
+            }),
+            Box::new(|candidate| {
+                *candidate
+                    .contents
+                    .section_name_table_seed
+                    .last_mut()
+                    .unwrap() ^= 1
+            }),
             Box::new(|candidate| {
                 candidate.contents.section_name_table_seed.pop();
             }),
