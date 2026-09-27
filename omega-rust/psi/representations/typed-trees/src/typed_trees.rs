@@ -129,6 +129,15 @@ pub struct TypedTrees {
     /// before checked lowering. The template keeps its declaration symbol;
     /// this record is the cache/audit identity of the concrete argument tuple.
     pub machine_specializations: Vec<MachineSpecialization>,
+    /// Product-scope target-machine families: one record per authored
+    /// contract name implemented under target heads, keying each target's
+    /// body. The compiler coordinator populates it from the retained
+    /// target-machine roster after typing and before the per-target swap and
+    /// check run; later stages carry it so realization can select a family
+    /// member without the frontend observing the realized target. Empty for
+    /// programs without product-scope target-scoped declarations and for
+    /// producers that never admit the roster.
+    pub target_machine_families: Vec<crate::machine::TargetMachineFamily>,
     /// Canonical calling-policy identities evaluated for concrete boundary
     /// requirements. The key is semantic (boundary trait + requirement
     /// machine), while the policy type/source body is deliberately absent:
@@ -362,6 +371,7 @@ impl TypedTrees {
             wire_encode_obligations: Arena::new(),
             wire_schema_plans: Vec::new(),
             machine_specializations: Vec::new(),
+            target_machine_families: Vec::new(),
             boundary_calling_plans: Vec::new(),
             fused_service_erasures: Vec::new(),
             open_index_normalizations: Vec::new(),

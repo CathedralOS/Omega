@@ -78,6 +78,51 @@ impl Machine {
     }
 }
 
+/// One target-scoped machine family: the authored contract path plus every
+/// target's checked body.
+///
+/// The frontend installs one target's body at the authored path and lowers
+/// every other target's body as a sibling declaration (`<path>::<target>`),
+/// and `SelectedTargetMachineDeclarations::select_product_target` later
+/// re-marks those roles for the realized target — so neither the sibling
+/// marker nor the symbol spelling is a durable family record. This record
+/// is: it is installed from the admission roster before the realized
+/// target's swap runs and names each member's machine symbol, which stays
+/// valid across the swap's renames. `members` keys every authored body by
+/// its authored target name, including the canonical one; the canonical
+/// member's `Machine::target` reads `None` until a swap for another target
+/// re-marks it. Lowering and Terminal Psi retain this record so realization
+/// can select `members[target]` without the frontend ever observing the
+/// realized target. Families whose every target name resolves to no real
+/// target have no canonical member and are not recorded here: their bodies
+/// stay inert siblings that no portable call can name.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetMachineFamily {
+    /// The authored contract path every member implements
+    /// (`StatLayout::plan`); equal to each member machine's `name`.
+    pub name: Identifier,
+    /// The machine the frontend placed at the family path: the canonical
+    /// body, selected as the first recognized target in name order.
+    /// Portable call sites bind this symbol. When `select_product_target`
+    /// runs for another target it renames the realized member's symbol to
+    /// the family path and demotes this one; `canonical` still names the
+    /// originally canonical body.
+    pub canonical: SymbolHandle,
+    /// Every authored body keyed by its authored target name, ordered by
+    /// target name. The canonical body appears under its own authored
+    /// target.
+    pub members: Vec<TargetMachineFamilyMember>,
+}
+
+/// One target's body within a [`TargetMachineFamily`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetMachineFamilyMember {
+    /// The authored target name (`linux_x86_64`, `demo_target`, ...).
+    pub target: Identifier,
+    /// The typed machine declaration holding this target's body.
+    pub machine: SymbolHandle,
+}
+
 impl Default for Machine {
     fn default() -> Self {
         Self {
