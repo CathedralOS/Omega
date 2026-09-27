@@ -18,8 +18,9 @@ mod symbol;
 mod table;
 
 pub use builtin::{
-    BUILTIN_TYPE_COUNT, BuiltinFunction, BuiltinType, BuiltinTypeAtom, builtin_function_symbols,
-    builtin_type_member_symbols, builtin_type_symbols,
+    BUILTIN_TYPE_COUNT, BuiltinFunction, BuiltinType, BuiltinTypeAtom, FixedCoreDeclaration,
+    builtin_function_symbols, builtin_type_member_symbols, builtin_type_symbols,
+    fixed_core_declaration_symbols,
 };
 pub use fast_map::{BuildSymbolHasher, SymbolHasher, SymbolKeyMap, SymbolMap};
 pub use symbol::kind::SymbolKind;

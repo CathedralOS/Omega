@@ -60,6 +60,17 @@ pub(super) fn top_level_type_symbol_for_source(
     symbols: &SymbolTable,
     name: &symbol_resolved_trees::name::DiagnosticName,
 ) -> SymbolHandle {
+    // The fixed `core::*` mathematical declarations are compiler-known
+    // vocabulary that owns its canonical spellings: an exact `core::*` name
+    // binds its installed declaration before any authored lookup, so a
+    // same-spelled package declaration can never shadow a sort. References
+    // carrying the spelling without the declaration installed stay
+    // unresolved for the transitional classifiers downstream.
+    if let Some(symbol) = symbols::FixedCoreDeclaration::from_name(name.as_str())
+        .and_then(|declaration| symbols.fixed_core_declaration_symbol(declaration))
+    {
+        return symbol;
+    }
     symbols
         .find_top_level_by_name_and_kinds_from_source(
             name.as_str(),

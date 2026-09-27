@@ -5,8 +5,9 @@
 //! `symbols/mod.rs`) run after the symbol table is built. Declaration symbols
 //! are matched by position, not looked up by name: it walks the root's
 //! children in the order `symbol_table::build_symbol_table` inserted them,
-//! skips the builtin type and function symbols, and hands the remaining
-//! children to one step per declaration kind, in this order:
+//! skips the builtin type and function symbols and the fixed `core::*`
+//! mathematical declarations, and hands the remaining children to one step
+//! per declaration kind, in this order:
 //!
 //! 1. domains (`domains`), then data (`data`);
 //! 2. named conformances, done here: each takes its symbol, then
@@ -46,7 +47,8 @@ mod traits;
 use arena::Arena;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{
-    SymbolHandle, SymbolKind, SymbolTable, builtin_function_symbols, builtin_type_symbols,
+    FixedCoreDeclaration, SymbolHandle, SymbolKind, SymbolTable, builtin_function_symbols,
+    builtin_type_symbols,
 };
 
 use super::top_level::data::assign_data_symbols;
@@ -67,6 +69,12 @@ pub(super) fn assign_top_level_symbols(
         let _ = root_children.next();
     }
     for _ in 0..builtin_function_symbols().len() {
+        let _ = root_children.next();
+    }
+    // The fixed `core::*` mathematical declarations occupy the slots before
+    // every authored declaration (see `FixedCoreDeclaration::ordinal`); they
+    // assign no authored declaration, so this walk only steps over them.
+    for _ in 0..FixedCoreDeclaration::COUNT {
         let _ = root_children.next();
     }
 

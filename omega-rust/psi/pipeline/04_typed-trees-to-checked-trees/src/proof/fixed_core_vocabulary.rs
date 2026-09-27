@@ -6,15 +6,14 @@
 //! bindings spec fixes their identity so a same-spelled authored
 //! declaration can never become a sort, and no display alias changes it.
 //!
-//! Once the fixed declarations exist, references resolve to their symbols
-//! and classification is symbol identity alone. Until they land, resolution
-//! leaves the `core::*` names unbound, so an *unresolved* authored spelling
-//! is the only marker a reference can carry — the spelling match below is
-//! that transitional case, never a classification of resolved symbols. A
-//! reference that did resolve is whatever its symbol is, however it is
-//! spelled.
+//! The declarations are compiler-installed root children at the fixed
+//! slots [`symbols::FixedCoreDeclaration`] defines, so a reference that
+//! resolved classifies by symbol identity alone. A reference still carrying
+//! no symbol — the pipeline that produced it never bound the spelling — is
+//! classified by its `core::*` spelling as the transitional case; a
+//! resolved symbol is whatever it resolved to, however it is spelled.
 
-use symbols::{SymbolHandle, SymbolKind, SymbolTable};
+use symbols::{FixedCoreDeclaration, SymbolHandle, SymbolTable};
 use typed_trees::name::Identifier;
 
 /// One fixed `core::*` vocabulary member.
@@ -31,13 +30,24 @@ pub(crate) enum FixedCore {
 }
 
 impl FixedCore {
-    /// The spelling the compiler-known declaration will resolve under.
+    /// The spelling the compiler-known declaration resolves under.
     pub(crate) const fn name(self) -> &'static str {
         match self {
             Self::Level => "core::Level",
             Self::Type => "core::Type",
             Self::Strict => "core::Strict",
             Self::Squash => "core::Squash",
+        }
+    }
+
+    /// The symbol-table identity this member occupies — the closed
+    /// compiler-installed declaration, not a spelling.
+    const fn declaration(self) -> FixedCoreDeclaration {
+        match self {
+            Self::Level => FixedCoreDeclaration::Level,
+            Self::Type => FixedCoreDeclaration::Type,
+            Self::Strict => FixedCoreDeclaration::Strict,
+            Self::Squash => FixedCoreDeclaration::Squash,
         }
     }
 }
@@ -57,14 +67,15 @@ pub(crate) struct FixedCoreVocabulary {
 }
 
 impl FixedCoreVocabulary {
-    /// Resolve the fixed vocabulary against `symbols`. The declarations land
-    /// as `SymbolKind::MathematicalDefinition` root children under their
-    /// `core::*` names; until they exist every handle stays invalid.
+    /// Resolve the fixed vocabulary against `symbols` by exact
+    /// compiler-installed slot identity. A table without the fixed
+    /// declarations — a synthetic test fixture or a foreign producer's
+    /// evidence — leaves every handle invalid, and `classify` then has only
+    /// the transitional spelling arm.
     pub(crate) fn resolve(symbols: &SymbolTable) -> Self {
         let find = |member: FixedCore| -> SymbolHandle {
             symbols
-                .root_children_named(member.name())
-                .find(|symbol| symbols.get(*symbol).kind == SymbolKind::MathematicalDefinition)
+                .fixed_core_declaration_symbol(member.declaration())
                 .unwrap_or_else(SymbolHandle::invalid)
         };
         Self {
@@ -104,48 +115,67 @@ impl FixedCoreVocabulary {
 }
 
 /// The unresolved-spelling fallback: the fixed `core::*` names in iteration
-/// order. The arm is reached only when a reference carries no resolved
-/// symbol, so it cannot misname a declaration the program actually has.
+/// order, spelled once on `FixedCore::name`. The arm is reached only when a
+/// reference carries no resolved symbol, so it cannot misname a declaration
+/// the program actually has.
 const FIXED_CORE_FALLBACK: &[(FixedCore, &str)] = &[
-    (FixedCore::Level, "core::Level"),
-    (FixedCore::Type, "core::Type"),
-    (FixedCore::Strict, "core::Strict"),
-    (FixedCore::Squash, "core::Squash"),
+    (FixedCore::Level, FixedCore::Level.name()),
+    (FixedCore::Type, FixedCore::Type.name()),
+    (FixedCore::Strict, FixedCore::Strict.name()),
+    (FixedCore::Squash, FixedCore::Squash.name()),
 ];
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use symbols::{SymbolNameRef, SymbolTableBuilder};
+    use symbols::{
+        SymbolKind, SymbolNameRef, SymbolTableBuilder, builtin_function_symbols,
+        builtin_type_symbols, fixed_core_declaration_symbols,
+    };
     use typed_trees::name::Identifier;
 
-    /// A symbol table carrying a fixed `core::Type` declaration plus one
-    /// ordinary declaration that happens to share nothing but a spelling —
-    /// the shape the supplied-declarations leg creates.
-    fn table() -> (SymbolTable, SymbolHandle, SymbolHandle) {
+    /// A symbol table carrying the builtin slots, the installed fixed
+    /// `core::*` declarations, then one same-spelled authored declaration
+    /// and one ordinary declaration — the shape the real builder produces.
+    /// Returns `(table, fixed core::Type, authored core::Type, user data)`.
+    fn table() -> (SymbolTable, SymbolHandle, SymbolHandle, SymbolHandle) {
         let mut builder = SymbolTableBuilder::new();
         let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
-        let children = SymbolTableBuilder::child_handles(builder.insert_children(
-            root,
-            [
-                (
-                    SymbolKind::MathematicalDefinition,
-                    SymbolNameRef::Static("core::Type"),
-                ),
-                (SymbolKind::Data, SymbolNameRef::Static("UserData")),
-            ],
-        ));
+        let children = SymbolTableBuilder::child_handles(
+            builder.insert_children(
+                root,
+                builtin_type_symbols()
+                    .into_iter()
+                    .chain(builtin_function_symbols())
+                    .chain(fixed_core_declaration_symbols())
+                    .chain([
+                        (
+                            SymbolKind::MathematicalDefinition,
+                            SymbolNameRef::Static("core::Type"),
+                        ),
+                        (SymbolKind::Data, SymbolNameRef::Static("UserData")),
+                    ]),
+            ),
+        );
         let mut children = children;
-        let fixed_type = children.next().expect("fixed core::Type");
+        let offset = symbols::BUILTIN_TYPE_COUNT + symbols::BuiltinFunction::COUNT;
+        for _ in 0..offset + FixedCoreDeclaration::Type.ordinal() {
+            children.next();
+        }
+        let fixed_type = children.next().expect("fixed core::Type slot");
+        for _ in 0..FixedCoreDeclaration::COUNT - 1 - FixedCoreDeclaration::Type.ordinal() {
+            children.next();
+        }
+        let authored_twin = children.next().expect("same-spelled authored declaration");
         let user_data = children.next().expect("user data");
-        (builder.finish(), fixed_type, user_data)
+        (builder.finish(), fixed_type, authored_twin, user_data)
     }
 
     /// A resolved reference to the fixed `core::Type` classifies by its
     /// symbol — no spelling read is needed.
     #[test]
     fn a_resolved_fixed_symbol_classifies_by_identity() {
-        let (symbols, fixed_type, _) = table();
+        let (symbols, fixed_type, _, _) = table();
         let vocabulary = FixedCoreVocabulary::resolve(&symbols);
         assert_eq!(
             vocabulary.classify(
@@ -162,10 +192,24 @@ mod tests {
     /// identities").
     #[test]
     fn a_resolved_same_spelled_symbol_is_not_the_fixed_vocabulary() {
-        let (symbols, _, user_data) = table();
+        let (symbols, _, _, user_data) = table();
         let vocabulary = FixedCoreVocabulary::resolve(&symbols);
         assert_eq!(
             vocabulary.classify(user_data, &Identifier::generated_static("core::Type")),
+            None,
+        );
+    }
+
+    /// The strongest false twin: an *authored* `MathematicalDefinition`
+    /// spelled `core::Type` in the same table. Slot identity is the only
+    /// thing that distinguishes them, so a resolved reference to the twin
+    /// must never classify as the fixed sort.
+    #[test]
+    fn a_same_spelled_authored_declaration_is_not_the_fixed_vocabulary() {
+        let (symbols, _, authored_twin, _) = table();
+        let vocabulary = FixedCoreVocabulary::resolve(&symbols);
+        assert_eq!(
+            vocabulary.classify(authored_twin, &Identifier::generated_static("core::Type")),
             None,
         );
     }
