@@ -393,6 +393,12 @@ pub(super) fn build(
                     let checked_trees::CheckedScalarBranchDestination::Jump(selected) =
                         &exit.destination
                     else {
+                        // Only the closing arm may carry a returned value; a
+                        // mid-chain `(expression)` arm has no successor plan.
+                        trace.phase(
+                            "state graph: terminator: guarded jump successors: mid-arm return",
+                        );
+                        trace.statement(Some(arm_ordinal));
                         return None;
                     };
                     if exit.guard_statement_ordinal != arm_ordinal
@@ -415,6 +421,8 @@ pub(super) fn build(
                         SuccessorEdge::GuardedJump,
                     )?;
                     if successor.target_state != selected.target {
+                        trace.phase(SuccessorEdge::GuardedJump.phase(SuccessorGuard::TargetState));
+                        trace.statement(Some(arm_ordinal));
                         return None;
                     }
                     arms.push(CheckedGuardedJumpPlan { guard, successor });
@@ -450,6 +458,10 @@ pub(super) fn build(
                             SuccessorEdge::GuardedJump,
                         )?;
                         if fallback.target_state != selected.target {
+                            trace.phase(
+                                SuccessorEdge::GuardedJump.phase(SuccessorGuard::TargetState),
+                            );
+                            trace.statement(Some(fallback_ordinal));
                             return None;
                         }
                         checked_trees::CheckedGuardedJumpFallbackPlan::Successor(fallback)
