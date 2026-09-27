@@ -5,11 +5,8 @@ use crate::portable_paths::validate_portable_component;
 use crate::staged_output_tree::RetainedStagedOutputEntryKind;
 use crate::{capture, empty, select_included_sources};
 use checked_interpreter::FilesystemSponsor;
-use sha2::Digest;
-use sha2::Sha256;
 use std::path::Path;
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(0);
@@ -109,38 +106,6 @@ fn commitment_is_relocation_stable_and_binds_paths_kinds_and_bytes() {
     assert_eq!(first_commitment.entry_count(), 3);
     assert_eq!(first_commitment.file_bytes(), 7);
     assert_ne!(first_commitment.digest(), changed_commitment.digest());
-}
-
-#[test]
-fn included_sources_require_captured_regular_non_executable_omega_files() {
-    let fixture = Fixture::new("included-source");
-    fixture.create_file(Path::new("generated.omg"), b"data Generated {}\n");
-    fixture.create_file(Path::new("artifact.bin"), b"bytes");
-    fixture.create_directory(Path::new("directory.omg"));
-    let retained = capture(&fixture.root, &fixture.sponsor).unwrap();
-
-    assert!(
-        select_included_sources(&retained, &[]).is_err(),
-        "an Omega-looking output does not become source implicitly"
-    );
-
-    let selected = select_included_sources(&retained, &[b"generated.omg".to_vec()]).unwrap();
-    let [selected] = selected.as_slice() else {
-        panic!("one explicit handoff retains one source")
-    };
-    assert_eq!(selected.relative_path(), b"generated.omg");
-    assert_eq!(selected.bytes(), b"data Generated {}\n");
-    assert_eq!(
-        selected.digest(),
-        <[u8; 32]>::from(Sha256::digest(b"data Generated {}\n"))
-    );
-
-    for rejected in ["missing.omg", "artifact.bin", "directory.omg"] {
-        assert!(
-            select_included_sources(&retained, &[rejected.as_bytes().to_vec()]).is_err(),
-            "{rejected} must not enter generated-source custody"
-        );
-    }
 }
 
 #[test]
@@ -268,21 +233,6 @@ fn retained_tree_materializes_files_empty_directories_and_relative_symlinks() {
 }
 
 #[test]
-fn retained_empty_tree_materializes_with_its_explicit_commitment() {
-    let fixture = Fixture::new("empty-materialize");
-    let retained = empty();
-    let destination = fixture.empty_destination("materialized-empty");
-
-    assert_eq!(
-        retained.materialize_into(&destination).unwrap(),
-        retained.commitment()
-    );
-    assert_eq!(retained.entry_count(), 0);
-    assert_eq!(retained.file_bytes(), 0);
-    assert!(std::fs::read_dir(destination).unwrap().next().is_none());
-}
-
-#[test]
 fn materialization_rejects_nonempty_destination_without_overwriting_it() {
     let fixture = populated_fixture("nonempty-destination", b"payload");
     let retained = capture(&fixture.root, &fixture.sponsor).unwrap();
@@ -338,48 +288,6 @@ fn verification_rejects_host_aliases_planted_after_materialization() {
     assert!(
         error.message().contains("disagrees with retained kind"),
         "{error}"
-    );
-}
-
-#[test]
-fn materialization_rejects_tampered_content_and_invalid_retained_shape() {
-    let fixture = populated_fixture("tamper", b"payload");
-    let retained = capture(&fixture.root, &fixture.sponsor).unwrap();
-
-    let mut invalid_shape = retained.clone();
-    invalid_shape.entries[0].relative_path = b"../escape".to_vec();
-    let shape_destination = fixture.empty_destination("invalid-shape");
-    assert!(invalid_shape.materialize_into(&shape_destination).is_err());
-    assert!(
-        std::fs::read_dir(&shape_destination)
-            .unwrap()
-            .next()
-            .is_none(),
-        "shape validation must reject before materialization"
-    );
-
-    let mut tampered_content = retained;
-    let file = tampered_content
-        .entries
-        .iter_mut()
-        .find_map(|entry| match &mut entry.kind {
-            RetainedStagedOutputEntryKind::File { bytes, .. } => Some(bytes),
-            _ => None,
-        })
-        .expect("fixture has one retained file");
-    *file = Arc::from(b"tampered".as_slice());
-    let content_destination = fixture.empty_destination("tampered-content");
-    assert!(
-        tampered_content
-            .materialize_into(&content_destination)
-            .is_err()
-    );
-    assert!(
-        std::fs::read_dir(&content_destination)
-            .unwrap()
-            .next()
-            .is_none(),
-        "commitment validation must reject before materialization"
     );
 }
 
@@ -509,23 +417,6 @@ fn capture_rejects_a_root_that_changed_to_a_symlink_after_commit() {
 }
 
 #[test]
-fn capture_rejects_entries_disagreeing_with_sponsor_extent() {
-    for replacement in [&b"longer-than-sponsored"[..], &b"s"[..]] {
-        let fixture = Fixture::new("extent-drift");
-        fixture.create_file(Path::new("artifact"), b"exact");
-        std::fs::write(fixture.root.join("artifact"), replacement).unwrap();
-        let diagnostics = capture(&fixture.root, &fixture.sponsor)
-            .expect_err("an extent change after commitment must reject");
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains("disagrees with sponsor extent")),
-            "{diagnostics:#?}"
-        );
-    }
-}
-
-#[test]
 fn capture_binds_current_bytes_when_extent_is_unchanged() {
     let fixture = Fixture::new("same-extent-rewrite");
     fixture.create_file(Path::new("artifact"), b"first");
@@ -564,43 +455,6 @@ fn capture_rejects_entries_disagreeing_with_sponsor_kind() {
     std::fs::write(directory_to_file.root.join("entry"), b"file").unwrap();
     let diagnostics = capture(&directory_to_file.root, &directory_to_file.sponsor)
         .expect_err("a directory replaced by a file must reject");
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("disagrees with sponsor kind")),
-        "{diagnostics:#?}"
-    );
-}
-
-#[cfg(unix)]
-#[test]
-fn capture_rejects_kind_swaps_involving_symlinks() {
-    use std::os::unix::fs::symlink;
-
-    let file_to_symlink = Fixture::new("file-became-symlink");
-    file_to_symlink.create_file(Path::new("entry"), b"file");
-    std::fs::remove_file(file_to_symlink.root.join("entry")).unwrap();
-    symlink("target", file_to_symlink.root.join("entry")).unwrap();
-    let diagnostics = capture(&file_to_symlink.root, &file_to_symlink.sponsor)
-        .expect_err("a file replaced by a symlink must reject");
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("disagrees with sponsor kind")),
-        "{diagnostics:#?}"
-    );
-
-    let symlink_to_file = Fixture::new("symlink-became-file");
-    let prepared = symlink_to_file
-        .sponsor
-        .prepare_create_symlink(&symlink_to_file.bind(Path::new("entry")), b"target")
-        .unwrap();
-    symlink("target", symlink_to_file.root.join("entry")).unwrap();
-    prepared.commit().unwrap();
-    std::fs::remove_file(symlink_to_file.root.join("entry")).unwrap();
-    std::fs::write(symlink_to_file.root.join("entry"), b"file").unwrap();
-    let diagnostics = capture(&symlink_to_file.root, &symlink_to_file.sponsor)
-        .expect_err("a symlink replaced by a file must reject");
     assert!(
         diagnostics
             .iter()

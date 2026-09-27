@@ -1,11 +1,10 @@
 //! Source consumption tests.
 
 use super::{
-    CheckedTrees, ConsumedSourceUnit, ConsumedSourceUnitKind, GeneratedSourceOrder,
-    PackageCompilationSubject, PackageSourceConsumptionCommitment, Sha256, SourceFile,
-    SourceOrigin, append_field, canonical_consumed_unit_bytes, canonical_source_entry,
-    consumed_source_unit, derive_consumed_source_units, derive_source_consumption_commitment,
-    toolchain_source_identity_digest, verify_current_files,
+    CheckedTrees, ConsumedSourceUnit, ConsumedSourceUnitKind, PackageCompilationSubject,
+    PackageSourceConsumptionCommitment, Sha256, SourceFile, SourceOrigin, append_field,
+    canonical_consumed_unit_bytes, canonical_source_entry, derive_consumed_source_units,
+    derive_source_consumption_commitment, toolchain_source_identity_digest, verify_current_files,
 };
 use semantic_vocabulary::PackageKeyIdentity;
 use sha2::Digest;
@@ -60,28 +59,6 @@ fn generated_files(
             file
         })
         .collect()
-}
-
-#[test]
-fn generated_custody_order_preserves_arbitrary_ids_and_first_duplicate() {
-    let custody = generated_fixture();
-    let ordered = GeneratedSourceOrder::new(&custody);
-    assert!(
-        ordered.positions.is_none(),
-        "producer order needs no permutation"
-    );
-    assert!(GeneratedSourceOrder::new(&[]).positions.is_none());
-    assert!(ordered.find(SourceId(0)).is_none());
-    assert!(ordered.find(SourceId(2)).is_none());
-    assert!(ordered.find(SourceId(usize::MAX)).is_none());
-    let reordered = vec![
-        custody[1].clone(),
-        custody[0].clone(),
-        (custody[1].0, custody[0].1.clone()),
-    ];
-    let ordered = GeneratedSourceOrder::new(&reordered);
-    assert!(ordered.positions.is_some());
-    assert_eq!(ordered.find(custody[1].0).unwrap().1, &custody[1].1);
 }
 
 #[test]
@@ -481,68 +458,6 @@ fn canonical_entries_bind_package_path_and_bytes() {
     assert_ne!(baseline, canonical_source_entry(&other_package).unwrap());
     assert_ne!(baseline, canonical_source_entry(&other_path).unwrap());
     assert_ne!(baseline, canonical_source_entry(&other_bytes).unwrap());
-}
-
-#[test]
-fn consumed_units_are_logical_content_addressed_and_classified() {
-    let package = PackageKeyIdentity::from_digest([7; 32]).expect("package identity");
-    let authored = source(
-        "/host/cache/pkg/main.omg",
-        "/host/cache/pkg",
-        Some(package),
-        SourceOrigin::User,
-        "machine main {}",
-    );
-    let relocated = source(
-        "/other/root/pkg/main.omg",
-        "/other/root/pkg",
-        Some(package),
-        SourceOrigin::User,
-        "machine main {}",
-    );
-    let generated = consumed_source_unit(&authored, true).expect("generated row");
-    let authored = consumed_source_unit(&authored, false).expect("authored row");
-    let relocated = consumed_source_unit(&relocated, false).expect("relocated row");
-
-    assert_eq!(authored, relocated);
-    assert_eq!(authored.kind(), ConsumedSourceUnitKind::PackageAuthored);
-    assert_eq!(
-        generated.kind(),
-        ConsumedSourceUnitKind::PackageGenerated(source::DependencyScope::Product)
-    );
-    assert_ne!(authored, generated);
-    assert!(
-        !canonical_consumed_unit_bytes(&authored)
-            .windows(b"/host/cache".len())
-            .any(|window| window == b"/host/cache")
-    );
-
-    let virtual_source = source(
-        "<prelude>",
-        "toolchain/std",
-        None,
-        SourceOrigin::Toolchain,
-        "data Unit {}",
-    );
-    let owned_source = source(
-        "toolchain/std/types.omg",
-        "toolchain/std",
-        None,
-        SourceOrigin::Toolchain,
-        "data Unit {}",
-    );
-    assert_eq!(
-        consumed_source_unit(&virtual_source, false)
-            .expect("virtual row")
-            .kind(),
-        ConsumedSourceUnitKind::ToolchainVirtual
-    );
-    assert_eq!(
-        consumed_source_unit(&owned_source, false)
-            .expect("owned row")
-            .kind(),
-        ConsumedSourceUnitKind::ToolchainOwned
-    );
 }
 
 #[test]

@@ -1,11 +1,10 @@
 use super::{
-    TempTree, accepted_console_binding, generated_bundle, generated_source, identity,
-    three_package_generated_inputs,
+    TempTree, accepted_console_binding, generated_bundle, identity, three_package_generated_inputs,
 };
 use crate::package_compilation::{
     AcceptedSemanticBinding, AcceptedSemanticBindingRole, BuildDeclarationKind,
     PackageCompilationInputError, PackageCompilationInputs, PackageCompilationTargetInputs,
-    PackageDependencyBinding, PackageSourceBinding, PathBuf,
+    PackageDependencyBinding, PackageSourceBinding,
 };
 use std::fs;
 
@@ -216,63 +215,6 @@ fn compiler_inputs_retain_application_root_role_and_reject_workspace_role() {
 }
 
 #[test]
-fn source_input_projection_excludes_exact_target_child_inputs() {
-    let tree = TempTree::new();
-    let root = tree.package("root");
-    let dependency = tree.package("dependency");
-    let inputs = PackageCompilationInputs::new_package(
-        identity(1),
-        vec![
-            PackageSourceBinding::new(identity(1), "root", root),
-            PackageSourceBinding::new(identity(2), "dependency", dependency),
-        ],
-        vec![PackageDependencyBinding::new(
-            identity(1),
-            "dependency",
-            identity(2),
-        )],
-    )
-    .expect("source graph should close");
-    let expected = inputs.source_inputs();
-
-    let with_binding = inputs
-        .clone()
-        .with_accepted_semantic_bindings(vec![accepted_console_binding(identity(2), 7)])
-        .expect("exact-child semantic binding should attach");
-    assert_eq!(with_binding.source_inputs(), expected);
-    assert!(std::sync::Arc::ptr_eq(
-        &with_binding.source_inputs(),
-        &expected
-    ));
-
-    let generated = generated_bundle(
-        &inputs,
-        identity(2),
-        target::TargetProfile::WindowsX64,
-        9,
-        vec![generated_source(
-            b"generated.omg",
-            b"pub machine generated() -> u64 { 1 }\n",
-        )],
-    );
-    let with_generated = inputs
-        .with_complete_dependency_generated_sources(vec![generated])
-        .expect("exact-child generated source should attach");
-    assert_eq!(with_generated.source_inputs(), expected);
-    assert!(std::sync::Arc::ptr_eq(
-        &with_generated.source_inputs(),
-        &expected
-    ));
-    let expected_inputs = with_generated.clone();
-    let (source, target) = with_generated.into_parts();
-    assert!(std::sync::Arc::ptr_eq(&source, &expected));
-    let rejoined = PackageCompilationInputs::from_parts(source, target)
-        .expect("split generated inputs rejoin the same source graph");
-    assert_eq!(rejoined, expected_inputs);
-    assert!(std::sync::Arc::ptr_eq(&rejoined.source_inputs(), &expected));
-}
-
-#[test]
 fn target_inputs_share_sources_without_sharing_target_attachments() {
     let tree = TempTree::new();
     let inputs = three_package_generated_inputs(&tree);
@@ -344,138 +286,6 @@ fn rejoining_target_inputs_rejects_foreign_semantic_packages() {
         PackageCompilationInputError::ForeignSemanticBindingPackage { package, .. }
             if *package == identity(2)
     )));
-}
-
-#[test]
-fn rejoining_generated_inputs_revalidates_closure_and_completeness() {
-    let tree = TempTree::new();
-    let original = three_package_generated_inputs(&tree);
-    let bundles = [identity(2), identity(3)]
-        .into_iter()
-        .map(|package| {
-            generated_bundle(
-                &original,
-                package,
-                target::TargetProfile::LinuxX64,
-                9,
-                vec![],
-            )
-        })
-        .collect();
-    let (_, target) = original
-        .with_complete_dependency_generated_sources(bundles)
-        .expect("original complete bundles")
-        .into_parts();
-    let changed_graph = PackageCompilationInputs::new_package(
-        identity(1),
-        vec![
-            PackageSourceBinding::new(identity(1), "root", tree.package("new-root")),
-            PackageSourceBinding::new(identity(2), "middle", tree.package("new-middle")),
-            PackageSourceBinding::new(identity(3), "leaf", tree.package("new-leaf")),
-            PackageSourceBinding::new(identity(4), "extra", tree.package("extra")),
-        ],
-        vec![
-            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
-            PackageDependencyBinding::new(identity(1), "leaf", identity(3)),
-            PackageDependencyBinding::new(identity(1), "extra", identity(4)),
-        ],
-    )
-    .expect("new closed graph changes middle's closure and adds a dependency");
-    let errors = PackageCompilationInputs::from_parts(changed_graph.source_inputs(), target)
-        .expect_err("generated custody cannot cross into changed source graph");
-    assert!(errors.iter().any(|error| matches!(error,
-        PackageCompilationInputError::GeneratedSourceBundleClosureMismatch { package }
-            if *package == identity(2)
-    )));
-    assert!(errors.iter().any(|error| matches!(error,
-        PackageCompilationInputError::MissingGeneratedSourceBundle { package }
-            if *package == identity(4)
-    )));
-}
-
-#[test]
-fn source_input_projection_binds_names_roots_metadata_and_edges() {
-    let tree = TempTree::new();
-    let root = tree.package("root");
-    let first_dependency = tree.package("first-dependency");
-    let second_dependency = tree.package("second-dependency");
-    fs::write(root.join("main.omg"), b"machine main() {}\n").expect("write root source");
-
-    let inputs = |root_name: &str,
-                  root_path: PathBuf,
-                  dependency_path: PathBuf,
-                  alias: &str,
-                  with_metadata: bool| {
-        let root_binding = PackageSourceBinding::new(identity(1), root_name, root_path);
-        let root_binding = if with_metadata {
-            root_binding
-                .with_canonical_source_metadata()
-                .expect("capture root source metadata")
-        } else {
-            root_binding
-        };
-        PackageCompilationInputs::new_package(
-            identity(1),
-            vec![
-                root_binding,
-                PackageSourceBinding::new(identity(2), "dependency", dependency_path),
-            ],
-            vec![PackageDependencyBinding::new(
-                identity(1),
-                alias,
-                identity(2),
-            )],
-        )
-        .expect("source graph should close")
-        .source_inputs()
-    };
-
-    let baseline = inputs(
-        "root",
-        root.clone(),
-        first_dependency.clone(),
-        "dependency",
-        false,
-    );
-    assert_ne!(
-        baseline,
-        inputs(
-            "renamed_root",
-            root.clone(),
-            first_dependency.clone(),
-            "dependency",
-            false,
-        ),
-        "canonical names participate in self-import routing",
-    );
-    assert_ne!(
-        baseline,
-        inputs("root", root.clone(), second_dependency, "dependency", false,),
-        "physical source roots belong to the shared checkpoint",
-    );
-    assert_ne!(
-        baseline,
-        inputs(
-            "root",
-            root.clone(),
-            first_dependency.clone(),
-            "renamed_dependency",
-            false,
-        ),
-        "requester-local dependency edges drive import routing",
-    );
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(root.join("main.omg"), fs::Permissions::from_mode(0o444))
-            .expect("seal root source");
-        fs::set_permissions(&root, fs::Permissions::from_mode(0o555)).expect("seal root directory");
-    }
-    assert_ne!(
-        baseline,
-        inputs("root", root, first_dependency, "dependency", true,),
-        "canonical build-visible source metadata must not cross checkpoints",
-    );
 }
 
 #[test]

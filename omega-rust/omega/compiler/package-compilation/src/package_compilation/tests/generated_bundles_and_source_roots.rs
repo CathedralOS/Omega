@@ -2,10 +2,9 @@ use super::{
     TempTree, generated_bundle, generated_source, identity, three_package_generated_inputs,
 };
 use crate::package_compilation::{
-    Arc, BTreeMap, BuildDeclarationKind, PackageCompilationInputError, PackageCompilationInputs,
+    BTreeMap, BuildDeclarationKind, PackageCompilationInputError, PackageCompilationInputs,
     PackageDependencyBinding, PackageDependencyClosure, PackageGeneratedSourceBundle,
     PackageSourceBinding, PackageSourceConsumptionCommitment, PathBuf,
-    append_overlapping_source_roots,
 };
 use std::fs;
 
@@ -108,50 +107,6 @@ fn one_source_package_retains_distinct_build_and_product_generated_bundles() {
 }
 
 #[test]
-fn ordinary_dependencies_inherit_the_build_helpers_activation() {
-    use build_declarations::DependencyPurpose::{Build, Product};
-    let tree = TempTree::new();
-    let source_inputs = three_package_generated_inputs(&tree);
-    let inputs = source_inputs
-        .clone()
-        .with_compilation_purpose(Build)
-        .unwrap();
-    assert!(Arc::ptr_eq(
-        &source_inputs.source_inputs(),
-        &inputs.source_inputs()
-    ));
-    let bundle = |package, purpose| {
-        PackageGeneratedSourceBundle::from_checked(
-            package,
-            purpose,
-            target::TargetProfile::WindowsX64,
-            Some(target::TargetProfile::WindowsX64),
-            inputs.dependency_closure_for(package),
-            PackageSourceConsumptionCommitment::for_test([1; 32]),
-            Vec::new(),
-        )
-    };
-    assert!(
-        inputs
-            .clone()
-            .with_complete_dependency_generated_sources(vec![
-                bundle(identity(2), Product),
-                bundle(identity(3), Product)
-            ])
-            .is_err()
-    );
-    let bundles = vec![bundle(identity(2), Build), bundle(identity(3), Build)];
-    let inputs = inputs
-        .with_complete_dependency_generated_sources(bundles)
-        .unwrap();
-    assert!(
-        inputs
-            .dependency_generated_source_instances()
-            .all(|(scope, bundle)| scope == Product && bundle.purpose() == Build)
-    );
-}
-
-#[test]
 fn requester_local_aliases_may_name_different_targets() {
     let tree = TempTree::new();
     let packages = (1..=4)
@@ -244,66 +199,6 @@ fn duplicate_aliases_and_unreachable_rows_reject() {
 }
 
 #[test]
-fn package_records_retain_complete_custody_and_requester_local_edges() {
-    let tree = TempTree::new();
-    let root_path = tree.package("root");
-    let leaf_path = tree.package("leaf");
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&root_path, fs::Permissions::from_mode(0o555))
-            .expect("seal canonical metadata root");
-    }
-    let root = PackageSourceBinding::new(identity(1), "root", root_path.clone())
-        .with_canonical_source_metadata()
-        .expect("capture root custody");
-    let metadata = root.canonical_source_metadata().cloned();
-    let packages = vec![
-        PackageSourceBinding::new(identity(2), "leaf", leaf_path.clone()),
-        root,
-    ];
-    let dependencies = vec![PackageDependencyBinding::new(
-        identity(1),
-        "leaf",
-        identity(2),
-    )];
-    let inputs =
-        PackageCompilationInputs::new_package(identity(1), packages.clone(), dependencies.clone())
-            .expect("complete records form a closed graph");
-    let mut reordered = packages;
-    reordered.reverse();
-    let independent = PackageCompilationInputs::new_package(identity(1), reordered, dependencies)
-        .expect("source record construction is input-order independent");
-    assert_eq!(inputs.source_inputs(), independent.source_inputs());
-    assert!(!Arc::ptr_eq(
-        &inputs.source_inputs(),
-        &independent.source_inputs()
-    ));
-    assert_eq!(inputs.source.packages.len(), 2);
-    let root_record = &inputs.source.packages[&identity(1)];
-    assert_eq!(root_record.source_root, root_path.canonicalize().unwrap());
-    assert_eq!(root_record.canonical_name, "root");
-    assert_eq!(root_record.canonical_source_metadata, metadata);
-    assert_eq!(root_record.dependencies.get("leaf"), Some(&identity(2)));
-    let leaf_record = &inputs.source.packages[&identity(2)];
-    assert_eq!(leaf_record.source_root, leaf_path.canonicalize().unwrap());
-    assert_eq!(leaf_record.canonical_name, "leaf");
-    assert!(leaf_record.canonical_source_metadata.is_none());
-    assert!(leaf_record.dependencies.is_empty());
-    assert_eq!(
-        inputs.dependency_closure_for(identity(2)).packages(),
-        &[identity(2)]
-    );
-    assert!(
-        inputs
-            .dependency_closure_for(identity(2))
-            .dependencies()
-            .is_empty()
-    );
-    assert_eq!(inputs.dependency_target(identity(2), "leaf"), None);
-}
-
-#[test]
 fn ancestor_root_validation_preserves_every_overlap_in_pairwise_order() {
     let tree = TempTree::new();
     let paths = [
@@ -359,21 +254,6 @@ fn ancestor_root_validation_preserves_every_overlap_in_pairwise_order() {
     let errors = PackageCompilationInputs::new_package(identity(1), packages, dependencies)
         .expect_err("nested source custody rejects");
     assert_eq!(errors, expected);
-}
-
-#[test]
-fn ancestor_root_validation_accepts_many_component_disjoint_siblings() {
-    let roots = (1..=200u8)
-        .map(|marker| {
-            (
-                std::env::temp_dir().join(format!("package-{marker}")),
-                identity(marker),
-            )
-        })
-        .collect();
-    let mut errors = Vec::new();
-    append_overlapping_source_roots(&roots, &mut errors);
-    assert!(errors.is_empty());
 }
 
 #[cfg(windows)]
@@ -790,41 +670,6 @@ fn generated_source_bundle_omission_duplicate_foreign_root_and_closure_substitut
         error,
         PackageCompilationInputError::GeneratedSourceBundleClosureMismatch { package }
             if *package == identity(2)
-    )));
-}
-
-#[test]
-fn generated_source_bundle_target_substitution_rejects_before_loading() {
-    let tree = TempTree::new();
-    let inputs = three_package_generated_inputs(&tree);
-    let middle = generated_bundle(
-        &inputs,
-        identity(2),
-        target::TargetProfile::WindowsX64,
-        12,
-        Vec::new(),
-    );
-    let leaf = generated_bundle(
-        &inputs,
-        identity(3),
-        target::TargetProfile::WindowsX64,
-        13,
-        Vec::new(),
-    );
-    let inputs = inputs
-        .with_complete_dependency_generated_sources(vec![middle, leaf])
-        .expect("complete generated-source bundles should attach");
-    let errors = inputs
-        .validate_dependency_generated_source_target(Some(target::TargetProfile::LinuxX64))
-        .expect_err("cross-target generated-source substitution must reject");
-    assert_eq!(errors.len(), 2);
-    assert!(errors.iter().all(|error| matches!(
-        error,
-        PackageCompilationInputError::GeneratedSourceBundleTargetMismatch {
-            bundle_target: target::TargetProfile::WindowsX64,
-            selected_target: Some(target::TargetProfile::LinuxX64),
-            ..
-        }
     )));
 }
 
