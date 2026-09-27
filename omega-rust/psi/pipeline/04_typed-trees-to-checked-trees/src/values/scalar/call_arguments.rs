@@ -13,6 +13,7 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
+use typed_trees::statement::TransitionGuardNode;
 use typed_trees::types::TypeReferenceHandle;
 use typed_trees::types::TypeReferenceNode;
 
@@ -147,6 +148,7 @@ pub(crate) fn retain_nested_structural_call_arguments(
                             flow,
                             captured,
                             machine,
+                            statement,
                             statement_index,
                         )
                     })
@@ -206,16 +208,29 @@ pub(super) fn nested_structural_call_sites<'program>(
     flow: &FlowFacts,
     source: &checked_trees::FlowStateFact,
     machine: &typed_trees::machine::Machine,
+    statement: &StatementNode,
     statement_index: usize,
 ) -> Vec<(usize, crate::semantic::calls::CallSite<'program>)> {
     let Some(calls) = flow.control.calls.span(source.calls) else {
         return Vec::new();
     };
+    // A transition's guarded call is the statement's first call site yet its
+    // arguments belong to the guard computation, not to the statement kind's
+    // own root roster: no planner mints its operand rows elsewhere, and its
+    // scalar result keeps it out of the structural-return admission below.
+    let transition_guard = match statement {
+        StatementNode::Transition(transition) => match transition.guard {
+            TransitionGuardNode::When(expression) => Some(expression),
+            TransitionGuardNode::Always => None,
+        },
+        _ => None,
+    };
     calls
         .iter()
         .filter_map(|source| {
+            let is_transition_guard = transition_guard == Some(source.authored_expression);
             if source.statement_index != statement_index
-                || source.call_ordinal == 0
+                || (source.call_ordinal == 0 && !is_transition_guard)
                 || !program
                     .expression_table
                     .expression_is_valid(source.authored_expression)
@@ -240,7 +255,9 @@ pub(super) fn nested_structural_call_sites<'program>(
             {
                 return None;
             }
-            nested_structural_call_return_type(program, machine.symbol, call)?;
+            if !is_transition_guard {
+                nested_structural_call_return_type(program, machine.symbol, call)?;
+            }
             if source.has_receiver != call.receiver.is_valid()
                 || source.receiver_symbol
                     != if call.receiver.is_valid() {
