@@ -1,0 +1,5 @@
+machine build(builder: &mut Build) {
+    builder.application("probe_runtime_index_arg");
+    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+}

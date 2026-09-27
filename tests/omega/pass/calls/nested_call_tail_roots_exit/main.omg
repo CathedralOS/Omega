@@ -8,11 +8,16 @@
 //     terminal-psi verification (indexed-member borrow argument paths)
 //   * `x.f()` / `self.f[i].f()` receiver tails — StructuralCallContractMismatch
 //     in abstract-operations initial validation
-//   * calls as or inside transition Value targets with runtime indexes —
-//     "nested structural arguments contain unsupported syntax" (the walk's
-//     Indexed arm only statically checks Integer/Range indexes)
-//   * case-payload parameters used as receivers — "Unit graph case-payload
-//     subject type drifted" (terminator/graph-side)
+//   * calls as or inside transition Value targets with runtime indexes — the
+//     authored walk's Indexed arm now admits runtime selectors (nested.rs);
+//     these shapes instead reach StructuralCallContractMismatch in omega-side
+//     abstract-operations InitialValidation (see
+//     nested_call_runtime_index_arg_exit)
+//   * case-payload parameters used as receivers — past "Unit graph
+//     case-payload subject type drifted"; the arm-bound payload dispatch now
+//     reaches terminal emission, declining InvalidTerminalModule(
+//     UnknownStructuralArgument) — the Named-target payload argument has no
+//     registered structural-argument entry (this fixture's current wall)
 // Landed as evidence for the census family; revisit as each wall opens.
 
 use omega_language_std::console;
