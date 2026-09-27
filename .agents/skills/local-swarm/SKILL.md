@@ -150,15 +150,15 @@ the real running count, not the spawn count.
 
 Concurrency is bounded by the org-wide message budget shared with cloud waves
 and other machines, not by this host. A burst of ~20 died in minutes; 8 held
-while the budget was quiet. When the user gives no count, run 6 subagents in
-parallel plus the coordinator's own item — 7 workers total on the machine —
-and keep the tank there constantly: every completion notification (landed,
-blocked, superseded, or death) immediately frees a slot, and the coordinator
-spawns the next unclaimed path-disjoint item into it on the same turn, without
-waiting for the user. Treat a slot showing zero filesystem output for ~30
-minutes (clean worktree, no commits, no new files) as dead — relaunch it in a
-fresh worktree rather than waiting. Keep the tank full only while the user
-asked the wave to keep running.
+while the budget was quiet. When the user gives no count, run up to 6
+subagents in parallel plus the coordinator's own item. Every completion
+notification frees a slot; the coordinator refills it on the same turn with
+the next unclaimed item whose program is nearest to running (AGENTS.md
+straight line). When no such item is claimable, the slot stays empty — the
+wave's width is the number of runnable programs available, not a target.
+Treat a slot showing zero filesystem output for ~30 minutes (clean worktree,
+no commits, no new files) as dead and relaunch it in a fresh worktree. Refill
+only while the user asked the wave to keep running.
 
 Host capacity bounds the wave separately from the message budget. On an
 interactive desktop — this Windows machine is one — run at most 3-4 slots and

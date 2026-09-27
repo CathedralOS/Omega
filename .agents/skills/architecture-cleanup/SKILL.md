@@ -17,36 +17,32 @@ workflow.
 
 Respect the requested area and mode: an audit asks for evidence and proposals;
 a cleanup authorizes implementation. Follow repository worktree, claims and
-landing procedures. Campaign duration, overlapping-claim permission and broader
-e2e recovery come from the invocation, not from a standing skill exception.
+landing procedures. Campaign duration and overlapping-claim permission come
+from the invocation.
 
 ## Choose a consequential problem
 
 For repository cleanup, fetch current main and inspect recent work unless the
-request pins a revision. Keep supplied-artifact reviews within their provided
-evidence. Start from a real operation, customer failure or repeated implementation
-cost, not a ranking of file sizes. Scout enough to choose a defensible improvement,
-then work it through rather than generating an ever-growing list of possible
-cleanups.
+request pins a revision. Start from a real operation, a program failure, or a
+repeated implementation cost. Scout enough to choose one improvement, then
+work it through.
 
 First check whether the machinery serves an accepted product requirement.
 Compare deletion, consolidation and repair before polishing an abstraction.
-Preserve ratified semantics and required evidence; apparently unnecessary trust
-or ownership checks need investigation, not removal. Raise an actual unresolved
-design conflict through the existing owner process.
+Preserve ratified semantics and required evidence; investigate a trust or
+ownership check before touching it. Raise an unresolved design conflict
+through `OWNER_QUESTIONS.md`.
 
 Trace the operation from the file tree through its entrypoint, subordinate
 decisions, work and result/error handling. Name the reader's question and the
-specific point where responsibility or sequencing becomes hard to find. Follow
-the route below the crate root: a tidy coordinator above tangled children is
-not a completed discoverability improvement.
+specific point where responsibility or sequencing becomes hard to find, and
+follow the route below the crate root.
 
-Favor targets with demonstrated cost: duplicated stage orchestration, options
-encoded as families of entrypoints, recognizers for incidental combinations of
-otherwise supported operations, misplaced policy, or repeated reconstruction of
-relationships that a producer could retain directly. Suspicious names and maps
-are search clues, not verdicts. Evaluate the complete workload before changing
-storage or adding an index, cache or parallel layer.
+Targets with demonstrated cost: duplicated stage orchestration, options encoded
+as families of entrypoints, recognizers for incidental combinations of otherwise
+supported operations, misplaced policy, or repeated reconstruction of
+relationships a producer could retain directly. Evaluate the complete workload
+before changing storage.
 
 ## Repair the ownership or representation
 
@@ -56,44 +52,33 @@ replaces the special cases. Real semantic, ABI, effect and ownership differences
 remain explicit; generalization must not turn them into unchecked fallbacks.
 
 Make sequencing visible at the owner of each meaningful multi-step operation.
-Choose cohesive names and APIs that expose the domain rather than forwarding
-through generic context objects or wrapper chains. A representation crate may
-start with its principal data structure; it does not need an invented pipeline.
-Move responsibilities and dependency direction, not just source chunks. Leaving
-a cohesive file intact can be the right result.
+Choose cohesive names and APIs that expose the domain. A representation crate
+may start with its principal data structure. Move responsibilities and
+dependency direction. Leaving a cohesive file intact can be the right result.
 
-Carry one checked route through producer and consumers before multiplying
-implementations. Remove replaced paths as the repair lands; do not retain a
-second implementation merely as a migration convenience unless a real contract
-requires it. Preserve the non-obvious reasoning at the entry or decision site
-where the next reader needs it, rather than in a new architecture diary.
+Carry one checked route through producer and consumers. Remove replaced paths
+as the repair lands. Write the non-obvious reasoning at the entry or decision
+site where the next reader needs it.
 
-Delegate only independent, bounded work that helps the selected outcome, with
-explicit edit ownership and one integration owner. Review findings and changes;
-do not parallelize speculative variants of an unproven representation.
+Delegate only independent, bounded work with explicit edit ownership and one
+integration owner, and review the returned changes.
 
 ## Validate the actual improvement
 
-For bug fixes, witness the failure and exercise the real customer command. For
+For bug fixes, witness the failure and run the real program command. For
 composition or ownership repairs, challenge the mechanism with a small valid
-variation and a relevant invalid control, reusing existing coverage where it
-suffices. A helper passing is not evidence that the outer workflow works. For
-organization-only changes, trace the before/after navigation route and verify
-affected behavior, test selectors and source readers. Follow repository scoped
-checks; do not run the full corpus merely to find a reason for more cleanup.
+variation and a relevant invalid control. For organization-only changes, trace
+the before/after navigation route and verify affected behavior, test selectors
+and source readers. Follow repository scoped checks.
 
-If an e2e failure prevents validation, attribute it. Repair an in-scope dependency
-when necessary and justified; record unrelated baseline failures without quietly
-starting a general rescue. Do not weaken checks, simplify the customer, or rewrite
-expectations to obtain a pass. State precisely which boundaries were verified.
+If an e2e failure prevents validation, attribute it on the base commit and
+repair an in-scope dependency when the change needs it. Checks, the program,
+and expectations stay as they are; the pass comes from the code. State which
+boundaries were verified.
 
-At each checkpoint, report what became easier to find, what duplicated work or
-mechanism disappeared, what behavior was verified and what remains. File counts,
-smaller functions and anticipated reuse do not establish improvement. Publish
-validated checkpoints when authorized through the normal landing protocol.
+At each checkpoint, report what became easier to find, what duplicated
+mechanism disappeared, what behavior was verified and what remains. Publish
+validated checkpoints through the normal landing protocol.
 
-Stop a bounded assignment when its named problem is resolved. Under a continuing
-goal, reassess the next high-impact target against the same criteria rather than
-automatically splitting the next large file. A well-supported no-change finding
-is valid; it is not a delivered refactor. Apply the repository's scope checkpoints
-when work accumulates infrastructure without improving the customer or audit path.
+Stop when the named problem is resolved. Under a continuing goal, choose the
+next target by the same demonstrated-cost criteria.

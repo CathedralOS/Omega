@@ -323,10 +323,12 @@ lists them; `get` returning 403 means foreign-parented.
 - **Assign items with known remaining legs** when recycling (check the last
   verdict's `remaining_legs` in outcomes.json); a recycled worker on a finished
   item just reports superseded and costs a drain cycle.
-- **Never park a worker on a `blocked` verdict.** A blocked lane stays pushed
-  for later resume; the worker itself immediately gets the next *unblocked*
-  leaf — chain-dep parking wastes slot-hours (measured: ~6h idle on a small
-  pool) and a different unblocked leaf always exists or mining does.
+- **A `blocked` verdict frees the worker.** The blocked lane stays pushed for
+  later resume; the worker gets the next unblocked item whose program is
+  nearest to running (AGENTS.md straight line), or sleeps into the reserve
+  when none is claimable. Chain-dep parking wastes slot-hours (measured: ~6h
+  idle on a small pool); so does a worker kept busy on an item no program
+  needs.
 - **Slice-first landing rule.** Dispatches that turn out chunk-sized (a leg
   spanning a chain of sub-discoveries) should land the first verifiable slice
   and report the rest as named residuals rather than holding the lane for

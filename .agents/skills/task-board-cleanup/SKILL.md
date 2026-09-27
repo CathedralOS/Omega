@@ -6,91 +6,77 @@ description: Audit and debloat Omega execution boards into actionable unfinished
 # Task Board Cleanup
 
 Make the requested board trustworthy enough to assign work without rediscovering
-the problem. Shorter is useful only when the remaining requirements stay clear.
+the problem.
 
-Read [AGENTS.md](../../../AGENTS.md) and
-[AGENTS.md](../../../AGENTS.md), especially the workflow and
-validation rules. Follow its worktree, claims and publication procedures. The invocation
-determines scope, persistence and any overlap permission; this skill grants no
-standing exception. A review-only request produces findings, not board edits.
+Read [AGENTS.md](../../../AGENTS.md), especially the board and validation
+rules, and follow its worktree, claims and publication procedures. The
+invocation determines scope, persistence and overlap permission. A review-only
+request produces findings.
 
 ## Audit before compressing
 
 For repository cleanup, fetch current main and inspect recent changes in the
-affected lane unless the request pins a revision. Keep supplied-artifact reviews
-within their provided evidence. Identify the requested board or section and work
-in coherent groups of related items. For a whole-board assignment, retain coverage
-of the original items across checkpoints in session context; do not create another
-tracked ledger. Do not reread the whole board on every continuation or silently
-stop after the easiest section.
+affected lane unless the request pins a revision. Identify the requested board
+or section and work in coherent groups of related items. For a whole-board
+assignment, track coverage of the original items in session context and work
+every section.
 
 For each item, locate the governing requirement, owning implementation and
-acceptance evidence. Read relevant test bodies and their harness, not just names
-or counts. Distinguish declaration, checked source, retained representation,
-independent verification and actual execution when the task depends on them.
-Commit messages, mined findings and repeated reports are leads, not proof of
-completion. Source absence alone does not make a required feature obsolete.
+acceptance evidence. Read relevant test bodies and their harness. Distinguish
+declaration, checked source, retained representation, independent verification
+and actual execution when the task depends on them. Commit messages and repeated
+reports are leads; running the acceptance is proof.
 
-Investigate the uncertainty that changes the disposition. Reuse evidence whose
-inputs remain applicable; run a focused probe when inspection cannot resolve it.
-Do not establish a full compiler baseline just to edit a task. If status cannot
-be verified, retain the precise verification needed rather than asserting that
-the work is complete or blocked.
+Investigate the uncertainty that changes the disposition: reuse evidence whose
+inputs remain applicable, run a focused probe when inspection cannot resolve
+it. If status cannot be verified, write the precise verification needed.
 
 ## Keep the actual remaining assignment
 
-- Delete completed or superseded work only when its acceptance is accounted for.
-  Remove revoked or out-of-scope assignments using the governing decision, not
-  an agent's preference. Missing implementation is not grounds for deletion.
-- Consolidate duplicates under the owner of the missing capability. Preserve
-  distinct acceptance cases and dependencies; do not merge unrelated work merely
-  because it touches the same file. Split only when it enables independent work,
-  not once per feature permutation or landed substep.
-- Challenge dependencies. Separate an executable concurrency witness from model
+- Delete completed or superseded work when its acceptance is accounted for.
+  Remove revoked or out-of-scope assignments using the governing decision.
+  Missing implementation is unfinished work, and stays.
+- Consolidate duplicates under the owner of the missing capability, preserving
+  distinct acceptance cases and dependencies. Split only when it enables
+  independent work.
+- Challenge dependencies: separate an executable concurrency witness from model
   work that can proceed without a runtime, for example. Engineering difficulty
-  and an old ownership stamp are not design blockers.
-- Distinguish implementation gaps from genuinely unsettled language or trust
-  decisions. Use `OWNER_QUESTIONS.md` under the existing escalation criteria;
-  ordinary engineering decisions stay with the implementer.
+  and an old ownership stamp are engineering, not design blockers.
+- Distinguish implementation gaps from unsettled language or trust decisions;
+  the latter go to `OWNER_QUESTIONS.md`.
 - Flag proposed source-shape workarounds, duplicated pipeline paths or misplaced
-  ownership. Keep the valid customer requirement while correcting the assignment;
-  do not implement the repair during a board cleanup.
+  ownership, keeping the valid program requirement while correcting the
+  assignment. The repair itself is the advance skill's work.
 
-Each retained item should explain the missing behavior, owning code/specification,
-necessary context, real dependencies and concrete acceptance. Include a current
-reproduction or decisive symbol/test link when it saves rediscovery. Keep relevant
-failure-path and independent-checking requirements. Use natural prose or bullets,
-not a compulsory field template or word quota.
+Each retained item explains the missing behavior, owning code/specification,
+necessary context, real dependencies and concrete acceptance, with a current
+reproduction or decisive symbol/test link when it saves rediscovery, in
+natural prose or bullets.
 
-Replace accumulated history with the current state once. Remove dated landing
-logs, expired claims, repeated rationale, test totals and copied repository rules.
-Keep rationale that would change the next implementation decision. Do not erase
-a real dependency merely to make the item look immediately actionable.
+Replace accumulated history with the current state once: remove dated landing
+logs, expired claims, repeated rationale, test totals and copied repository
+rules. Keep rationale that would change the next implementation decision and
+every real dependency.
 
-Diagnosis-only additions do not establish new work ownership. Fold distinct
-reproductions into the existing capability assignment, keeping its customer
-acceptance and integration owner. Rewrite "another agent should investigate"
-as the actual remaining repair or verification when supported by the evidence.
-Do not turn observations into one new task per failure, commit, or stage. Preserve
-unverified leads as such; neither deleting noise nor reducing line count proves
-that a feature is complete.
+Fold distinct reproductions into the existing capability assignment, keeping
+its acceptance and integration owner. Rewrite "another agent should
+investigate" as the actual remaining repair or verification when the evidence
+supports it. Mark unverified leads as unverified.
 
 ## Publish an audited batch
 
-Check the diff against the original items: no required acceptance disappeared,
-no uncertain status became a fact, and no new assignment was invented to replace
-deleted noise. Preserve referenced task identities where practical and update
-active references to consolidated or removed items. Keep bootstrap and optimizer
-work with their owning boards; leave historical records alone.
+Check the diff against the original items: every required acceptance is still
+present, every status is verified, and every assignment traces to an original
+item. Preserve referenced task identities where practical and update active
+references to consolidated or removed items. Keep bootstrap and optimizer work
+with their owning boards; leave historical records alone.
 
 Validate links, ownership, dependency references and consistency. Reconcile
-incoming board edits by their meaning; neither union-merge obsolete paragraphs
-nor overwrite new requirements with a stale snapshot. Commit and publish coherent
-batches when authorized, following the repository landing protocol.
+incoming board edits by their meaning. Commit and publish coherent batches when
+authorized, following the repository landing protocol.
 
 Report the meaningful deletions/consolidations, unresolved questions and the
-coverage still remaining. Counts are supporting information, not the objective.
-Continue when the requested campaign remains unfinished; claim a complete audit
-only after all in-scope items are accounted for. New findings belong on the board
-only when needed to preserve a real requirement or explain an existing task, not
-as a fresh speculative mining campaign.
+coverage still remaining. Continue while the requested campaign remains
+unfinished; a complete audit means all in-scope items are accounted for. New
+findings go on the board when they preserve a real requirement or explain an
+existing task.

@@ -8,11 +8,10 @@ when the partition is stale; delete it outright when the repair and basis
 sections are empty.
 
 The premise: red trees are tolerable while the basis is unstable, so repair
-and basis work outranks feature work. **Repair** means current behavior is
-wrong, unsound, or measured red. **Basis** means pipeline-shape conformance
-and the gates that define and measure stability. Everything else on the
-boards is feature work and waits behind this list unless a basis item depends
-on it.
+and basis work outranks feature work. **Repair** means a valid program that
+the compiler rejects, omits, or runs wrong. **Basis** means the pipeline
+shape a repair lands on. Everything else on the boards is feature work and
+waits behind this list unless a basis item depends on it.
 
 ## Ordering
 
@@ -124,19 +123,14 @@ exists; admission declines or omits without diagnostic), not new-capability:
 - Fewer lanes than a feature wave; repair and basis lanes hold claims on the
   shared paths they touch so a concurrent feature landing cannot silently
   revert the fix (the `912b490c8f` failure mode).
-- **A slot idles rather than fills with churn.** Refill order is: named
+- **A slot idles when no program is claimable.** Refill order is: named
   residuals on the settled item, then unclaimed repair items, then
   unclaimed basis items — and if none claim cleanly, the slot stays empty.
-  Coverage-migration and fixture-hygiene legs are not a reason to keep a
-  worker busy; they are what the wave does only while repair paths are
-  contested. (repair-local-r1 violated this — seven custody-matrix legs and
-  two evidence-matrix legs landed because the true repair pool was claimed
-  elsewhere; that output was defensible hygiene, not repair.)
-- No "repaired" claim without the item's witness command re-run at current
-  HEAD. A red test that stopped rejecting needs an attribution (stale
-  fixture vs. lost check), not a green by default.
+- "Repaired" means the item's program runs at current HEAD, witnessed by
+  its command. A red test that went green names what changed in the
+  compiler to make it pass.
 - Baseline rows in `wiki/drafts/measurements/known_baseline_failures.md` are
-  the work queue; each row closes by fix, re-attribution to a task diff, or
-  measured obsolescence — not by deletion.
+  the work queue; a row closes when its program runs, or when the harness
+  that measured it is gone and the row is re-measured against what exists.
 - All landings through `tools/landing.py`; check
   `python tools/claims.py status` before touching shared paths.

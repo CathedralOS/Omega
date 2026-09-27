@@ -25,13 +25,9 @@ chain.
 `omega run <program.omg>` on a supported host compiles the program and
 executes it, and the run produces the program's authored result. Today that
 line is not usable end-to-end. Work counts when a real program that
-previously failed to compile or run now compiles and runs correctly — the
-program itself changed lanes, not a test asserting about it. Writing new
-checks, tests, pins, coverage matrices, custody sweeps, audit records, or
-hygiene passes does not count; the corpus and its gates are evidence about
-the product, never the product. Given a choice between repairing a red
-compiling path and widening a test matrix, fix the path. A slot that cannot
-claim such work idles; do not fill it with churn.
+previously failed to compile or run now compiles and runs correctly. Pick
+the red program nearest that line and make it run. A slot with no such
+program to claim idles.
 
 - `omega-rust/` — the Rust reference producer: the working development
   compiler and differential comparator. Not canonical, not a language rung.
@@ -115,8 +111,7 @@ The rules that touch every edit:
   debug/export payload, not identity. Source text stays in loading,
   diagnostic, and debug payload roles.
 - Entrypoints stay prominent: `main.rs` owns startup and visible dispatch
-  to real subsystems, never a forwarding stub built to satisfy a size rule.
-  Split at genuine responsibility boundaries, not file-count quotas.
+  to real subsystems. Split at responsibility boundaries.
 - Comments explain non-obvious intent; `lib.rs` headers carry the reasoning
   signatures cannot — mechanism, justification, honest boundaries,
   provenance.
@@ -132,14 +127,13 @@ The rules that touch every edit:
   needs a documented usable entrypoint on each — a `.ps1` alone is not
   macOS support; either document `pwsh` as an explicit prerequisite or
   provide the portable route. Omega is the intended implementation language
-  for tooling: existing Python/shell implementations are temporary support,
-  kept bounded and removed when Omega replaces them.
+  for tooling; existing Python/shell implementations are removed when Omega
+  replaces them.
 - Language fixtures name the compiler behavior they pin
   (`tests/omega/{pass,fail,run}/<behavior>/`), not the sample that exposed
   it; `samples/` are language pressure tests; a Rust test of one crate stays
   beside that crate.
-- Write direct prose — state the idea; no metaphor performing for the
-  reader.
+- Write direct prose: state the idea in literal words.
 - Read the matching skill before starting: `.agents/skills/` — `advance` for
   board work, `rust-systems-programmer` for Rust implementation and review,
   `architecture-cleanup`, `task-board-cleanup`, `local-swarm`, `cloud-swarm`.
@@ -153,34 +147,25 @@ canonical source and evidence identities are byte-sensitive.
 ## Scope and escalation
 
 - Before a milestone, name the program it will get running and the
-  dependencies still missing. A board item or a passing helper test is not
-  by itself a reason to build machinery.
-- Two consecutive milestones that only add supporting machinery without
-  moving a running program or a named proof obligation: pause, summarize
-  the accumulated cost, and reassess before a third. Helper passes do not
-  reset the count.
-- Pauses bind a strategy, not its customer — missing implementation does
-  not make the customer unavailable, and resuming under a new helper name
-  is not a new assessment. Do not present a pause as a delivered advance.
+  dependencies still missing. Every change traces to a program that runs
+  because of it.
+- A session ends in one of two states: a program runs that did not, or the
+  session is blocked on a named dependency and idle. Report which.
 - Language/architecture decisions go in `OWNER_QUESTIONS.md` with the
-  dependency referenced on the owning task; ordinary engineering decisions
-  stay with the implementer. Never invent semantics or validation evidence
-  to satisfy a gate. Experiments do not discharge proofs or change the
-  accepted bootstrap chain.
+  dependency referenced on the owning task; engineering decisions stay with
+  the implementer. Gates pass on real behavior. The accepted bootstrap
+  chain changes only through its proofs.
 
 ## Delegation
 
-- One edit owner per change; parallelize only genuinely independent work.
+- One edit owner per change; parallelize only independent work.
   Assignments carry the objective, governing design links, ownership
-  boundary, dependencies, and the acceptance command — a file list is not
-  an assignment.
+  boundary, dependencies, and the acceptance command.
 - Workers report through `python tools/claims.py note --ticket` and the
-  session report, never `board:` commits; the coordinator owns board edits.
-  A slice blocked on a sibling-owned path reports `blocked-path` rather
-  than editing it.
-- A diagnosis is not a delivered fix: continue when the design answers it,
-  or hand off the exact missing dependency. Report which happened —
-  implementation done, verification only, diagnosed blocker, still running.
+  session report; the coordinator owns board edits. A slice that reaches a
+  sibling-owned path stops there and reports it.
+- Continue implementation when the design answers the question; hand off
+  the exact missing dependency when it does not.
 
 ## Commit naming
 
