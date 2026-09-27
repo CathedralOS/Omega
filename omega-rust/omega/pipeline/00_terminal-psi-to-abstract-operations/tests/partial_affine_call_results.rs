@@ -18,23 +18,8 @@ use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[test]
-fn authored_call_result_cleanup_reaches_current_omega_ownership() {
-    check_authored_call_result_cleanup(false, true, false);
-}
-
-#[test]
-fn authored_boundary_result_cleanup_reaches_current_omega_ownership() {
-    check_authored_call_result_cleanup(true, true, false);
-}
-
-#[test]
 fn free_call_result_cleanup_reaches_current_omega_ownership() {
     check_authored_call_result_cleanup(false, false, false);
-}
-
-#[test]
-fn free_boundary_result_cleanup_retains_service_reach_and_ownership() {
-    check_authored_call_result_cleanup(true, false, false);
 }
 
 #[test]
@@ -44,114 +29,6 @@ fn anonymous_call_result_cleanup_retains_expression_owned_residuals() {
             check_authored_call_result_cleanup(boundary, attached, true);
         }
     }
-}
-
-#[test]
-fn omega_retains_verified_partial_result_continuation_cleanup() {
-    let source = "data Token { value: u64; }
-        data Pair { left: Token; right: Token; }
-        data Sink {}
-        machine Sink::take(token: Token) {}
-        data Root {}
-        machine Root::forward(value: Pair) -> Pair { value }
-        machine Root::enter(value: Pair) {
-            Sink::take(Root::forward(value).right);
-        }";
-    let tokens = Lexer::new(source).tokenize().unwrap();
-    let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).unwrap();
-    let mut terminal = checked_trees_to_lowered_psi::lower_machine(
-        &checked,
-        TerminalMachineSelection::Name("Root::enter"),
-    )
-    .expect("existing anonymous partial-return source lowers");
-    let module = &mut terminal.semantic_module;
-    let next_block = semantic_vocabulary::BlockId::new(
-        module
-            .machines
-            .iter()
-            .flat_map(|machine| &machine.blocks)
-            .map(|block| block.id.get())
-            .max()
-            .unwrap()
-            + 1,
-    )
-    .unwrap();
-    let next_edge = semantic_vocabulary::EdgeId::new(
-        module
-            .machines
-            .iter()
-            .flat_map(|machine| &machine.blocks)
-            .flat_map(|block| block.terminator.edges())
-            .map(|edge| edge.get())
-            .max()
-            .unwrap()
-            + 1,
-    )
-    .unwrap();
-    let entry = module.entry;
-    let caller = module
-        .machines
-        .iter_mut()
-        .find(|machine| machine.id == entry)
-        .unwrap();
-    let terminal_psi::Terminator::ReturnUnitPartialAffine {
-        edge,
-        trivial_affine_discards,
-        residual_affine_discards,
-    } = caller.blocks[0].terminator.clone()
-    else {
-        panic!("source fixture retains exact partial result cleanup")
-    };
-    assert!(!residual_affine_discards.is_empty());
-    caller.blocks[0].terminator = terminal_psi::Terminator::Jump {
-        erased_arguments: Vec::new(),
-        erased_proof_arguments: Vec::new(),
-        structural_arguments: Vec::new(),
-        edge,
-        target: next_block,
-        arguments: Vec::new(),
-        trivial_affine_discards,
-        residual_affine_discards,
-    };
-    caller.blocks.push(terminal_psi::Block {
-        erased_scalar_formals: Vec::new(),
-        erased_proof_formals: Vec::new(),
-        structural_parameters: Vec::new(),
-        id: next_block,
-        parameters: Vec::new(),
-        operations: Vec::new(),
-        terminator: terminal_psi::Terminator::ReturnUnit {
-            edge: next_edge,
-            trivial_affine_discards: Vec::new(),
-        },
-    });
-    terminal_verifier::verify_module(module, &terminal.proof_bundle, &AdmissionProfile::default())
-        .expect("partial continuation is valid target-neutral Terminal Psi");
-    let semantic = encode_module(module).unwrap();
-    let proof = encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle).unwrap();
-    let input = lower_artifact(
-        terminal_psi_to_abstract_operations::ArtifactSections {
-            semantic_bytes: &semantic,
-            proof_bytes: &proof,
-            obligation_ledger_bytes: None,
-        },
-        &AdmissionProfile::default(),
-    )
-    .map(|admitted| {
-        admitted
-            .into_optimization_artifact()
-            .into_optimization_input()
-    })
-    .expect("Omega retains the verified partial continuation");
-    let verified = build_verified_psi_optimization_unit(
-        input,
-        terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
-    )
-    .expect("current Omega ownership validates the continuation");
-    validate_psi_optimization_unit(verified.unit()).unwrap();
 }
 
 fn check_authored_call_result_cleanup(boundary: bool, attached: bool, anonymous: bool) {

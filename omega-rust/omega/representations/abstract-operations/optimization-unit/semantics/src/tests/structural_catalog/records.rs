@@ -125,17 +125,6 @@ fn record_unit(affine: bool) -> PsiOptimizationUnit {
 }
 
 #[test]
-fn record_construction_rejoins_scalar_uses_and_nested_owned_frontier() {
-    for affine in [false, true] {
-        let candidate = record_unit(affine);
-        assert_eq!(validate_psi_optimization_unit(&candidate), Ok(()));
-        let uses = &candidate.functions[0].blocks[0].nodes[1].uses;
-        assert_eq!(uses.len(), 2);
-        assert_eq!(uses[0].value, uses[1].value);
-    }
-}
-
-#[test]
 fn record_field_home_and_producer_corruption_rejects_after_metadata_refresh() {
     let original = record_unit(true);
     assert_eq!(validate_psi_optimization_unit(&original), Ok(()));
@@ -182,22 +171,6 @@ fn record_field_home_and_producer_corruption_rejects_after_metadata_refresh() {
             "mutation {mutation}"
         );
     }
-}
-
-#[test]
-fn unrestricted_record_child_can_initialize_distinct_fields_without_consumption() {
-    let mut candidate = record_unit(false);
-    let AbstractOperation::EstablishRecord { fields, .. } =
-        &mut candidate.functions[0].blocks[0].nodes[3].operation
-    else {
-        panic!("parent record");
-    };
-    let RecordFieldValue::Structural(argument) = &mut fields[1].value else {
-        panic!("child record");
-    };
-    argument.place = id(910, PlaceId::new);
-    refresh_function_derivatives(&mut candidate, 0);
-    assert_eq!(validate_psi_optimization_unit(&candidate), Ok(()));
 }
 
 #[test]

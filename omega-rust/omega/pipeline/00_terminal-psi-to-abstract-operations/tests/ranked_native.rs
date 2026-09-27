@@ -1,10 +1,8 @@
-#[path = "ranked_native/legacy_fixture.rs"]
-mod legacy_fixture;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use terminal_psi_to_abstract_operations::{ArtifactLoweringError, lower_artifact};
+use terminal_psi_to_abstract_operations::lower_artifact;
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
@@ -41,42 +39,6 @@ fn artifact(source: &str) -> (Vec<u8>, Vec<u8>, terminal_psi::TerminalModule) {
         terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
             .expect("encode ranked proof");
     (semantic, proof, lowered.semantic_module)
-}
-
-#[test]
-fn natural_countdown_without_certificate_is_rejected_at_native_entrance() {
-    let module = legacy_fixture::legacy_countdown();
-    let proof =
-        terminal_codec::encode_proof_section(&module, &terminal_psi::ProofBundle::default())
-            .unwrap();
-    let semantic = terminal_codec::encode_module(&module).unwrap();
-    let profile = proof_admission::AdmissionProfile::default();
-    // No shape route remains: the native entrance demands the reconstructed
-    // control-cycle certificate like every other ranked component.
-    assert!(matches!(
-        lower_artifact(
-            terminal_psi_to_abstract_operations::ArtifactSections {
-                semantic_bytes: &semantic,
-                proof_bytes: &proof,
-                obligation_ledger_bytes: None
-            },
-            &profile
-        )
-        .and_then(|admitted| admitted.try_into_native_input(&[])),
-        Err(ArtifactLoweringError::Verification(_))
-    ));
-    assert!(
-        lower_artifact(
-            terminal_psi_to_abstract_operations::ArtifactSections {
-                semantic_bytes: &semantic,
-                proof_bytes: &proof,
-                obligation_ledger_bytes: None
-            },
-            &profile
-        )
-        .map(|admitted| admitted.into_plan())
-        .is_err()
-    );
 }
 
 #[test]

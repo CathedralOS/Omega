@@ -18,8 +18,6 @@ use terminal_psi::{
 #[derive(Clone, Copy)]
 pub(crate) enum OperationResultCfgShape {
     DominatingNonTopological,
-    SiblingReturn,
-    PartialPredecessor,
 }
 
 pub(crate) fn operation_result_cfg_unit(shape: OperationResultCfgShape) -> PsiOptimizationUnit {
@@ -154,69 +152,6 @@ pub(crate) fn operation_result_cfg_unit(shape: OperationResultCfgShape) -> PsiOp
                 jump(id(387, EdgeId::new)),
                 call(),
                 conditional(),
-            ],
-        ),
-        OperationResultCfgShape::SiblingReturn => (
-            vec![
-                AbstractBlockEntry {
-                    structural_parameters: Vec::new(),
-                    block: entry,
-                    parameters: Vec::new(),
-                    operation_offset: 0,
-                },
-                AbstractBlockEntry {
-                    structural_parameters: Vec::new(),
-                    block: producer_block,
-                    parameters: Vec::new(),
-                    operation_offset: 1,
-                },
-                AbstractBlockEntry {
-                    structural_parameters: Vec::new(),
-                    block: bypass_block,
-                    parameters: Vec::new(),
-                    operation_offset: 3,
-                },
-            ],
-            vec![
-                conditional(),
-                call(),
-                return_result(id(385, EdgeId::new)),
-                return_result(id(386, EdgeId::new)),
-            ],
-        ),
-        OperationResultCfgShape::PartialPredecessor => (
-            vec![
-                AbstractBlockEntry {
-                    structural_parameters: Vec::new(),
-                    block: entry,
-                    parameters: Vec::new(),
-                    operation_offset: 0,
-                },
-                AbstractBlockEntry {
-                    structural_parameters: Vec::new(),
-                    block: producer_block,
-                    parameters: Vec::new(),
-                    operation_offset: 1,
-                },
-                AbstractBlockEntry {
-                    structural_parameters: Vec::new(),
-                    block: bypass_block,
-                    parameters: Vec::new(),
-                    operation_offset: 3,
-                },
-                AbstractBlockEntry {
-                    structural_parameters: Vec::new(),
-                    block: join,
-                    parameters: Vec::new(),
-                    operation_offset: 4,
-                },
-            ],
-            vec![
-                conditional(),
-                call(),
-                jump(id(385, EdgeId::new)),
-                jump(id(386, EdgeId::new)),
-                return_result(id(387, EdgeId::new)),
             ],
         ),
     };

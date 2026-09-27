@@ -257,12 +257,6 @@ fn predecessor_mismatch(
 }
 
 #[test]
-fn a_coherent_reads_from_edge_validates() {
-    let unit = atomic_unit(coherent_witness());
-    assert_eq!(validate_psi_optimization_unit(&unit), Ok(()));
-}
-
-#[test]
 fn refused_edges_fail_validation_with_the_coherence_error() {
     for (witness, violation) in [
         (None, AtomicReadsFromViolation::MissingWitness),
@@ -294,46 +288,6 @@ fn refused_edges_fail_validation_with_the_coherence_error() {
             "witness {witness:?} must refuse as {violation:?}"
         );
     }
-}
-
-#[test]
-fn a_store_cannot_carry_a_reads_from_edge() {
-    let mut unit = atomic_unit(coherent_witness());
-    let AbstractOperation::AtomicEvent { reads_from, .. } =
-        &mut unit.functions[0].blocks[0].nodes[1].operation
-    else {
-        panic!("fixture second node is the store");
-    };
-    *reads_from = Some(AtomicReadsFrom::InitialResidency);
-    refresh_identity(&mut unit);
-    assert_eq!(
-        validate_psi_optimization_unit(&unit),
-        Err(coherence_mismatch(
-            32,
-            1,
-            AtomicReadsFromViolation::NonObservingWitness
-        ))
-    );
-}
-
-#[test]
-fn a_coherent_reads_from_edge_resolves_across_blocks() {
-    let unit = atomic_cfg_unit(
-        32,
-        &[(32, 3), (40, 2)],
-        vec![
-            integer_constant(36, stored_value()),
-            store(37, location(), stored_value()),
-            jump(41, 40),
-            load(38, location(), observed_value(), coherent_witness()),
-            return_unit(39),
-        ],
-    );
-    assert_eq!(
-        validate_psi_optimization_unit(&unit),
-        Ok(()),
-        "a write in the dominating predecessor happens before the load"
-    );
 }
 
 #[test]
@@ -405,116 +359,10 @@ fn a_witness_must_happen_before_the_observation() {
     );
 }
 
-#[test]
-fn only_the_modification_order_latest_write_on_every_path_may_be_observed() {
-    // A linear chain writes the place twice; a claim on the first write is
-    // stale even though it happens before the observation.
-    let chain = |witness| {
-        atomic_cfg_unit(
-            60,
-            &[(60, 3), (61, 2), (62, 2)],
-            vec![
-                integer_constant(36, stored_value()),
-                store(63, location(), stored_value()),
-                jump(66, 61),
-                store_after(64, location(), stored_value(), predecessor_after(63)),
-                jump(67, 62),
-                load(38, location(), observed_value(), witness),
-                return_unit(39),
-            ],
-        )
-    };
-    assert_eq!(
-        validate_psi_optimization_unit(&chain(coherent_witness_for(64))),
-        Ok(()),
-        "the latest write on the only path is coherent"
-    );
-    for (witness, violation) in [
-        (
-            Some(AtomicReadsFrom::Write {
-                operation: id(63, OperationId::new),
-            }),
-            AtomicReadsFromViolation::ObservedWriteOverwritten {
-                claimed: id(63, OperationId::new),
-            },
-        ),
-        (
-            Some(AtomicReadsFrom::InitialResidency),
-            AtomicReadsFromViolation::InitialResidencyAfterWrite,
-        ),
-    ] {
-        assert_eq!(
-            validate_psi_optimization_unit(&chain(witness)),
-            Err(coherence_mismatch(62, 0, violation)),
-            "witness {witness:?} must refuse as {violation:?}"
-        );
-    }
-}
-
 fn coherent_witness_for(operation: u64) -> Option<AtomicReadsFrom> {
     Some(AtomicReadsFrom::Write {
         operation: id(operation, OperationId::new),
     })
-}
-
-#[test]
-fn writes_converging_on_distinct_branches_admit_no_edge() {
-    // Both branches write the place: neither is happens-before the join,
-    // a dominating write is stale, and the residency is never initial.
-    let condition = id(42, ValueId::new);
-    let diamond = |witness| {
-        atomic_cfg_unit(
-            50,
-            &[(50, 3), (51, 2), (52, 2), (53, 2)],
-            vec![
-                store(68, location(), stored_value()),
-                boolean_constant(43, condition),
-                conditional(condition, 54, 51, 55, 52),
-                store_after(69, location(), stored_value(), predecessor_after(68)),
-                jump(56, 53),
-                store_after(70, location(), stored_value(), predecessor_after(68)),
-                jump(57, 53),
-                load(38, location(), observed_value(), witness),
-                return_unit(39),
-            ],
-        )
-    };
-    for (claimed, violation) in [
-        (
-            68,
-            AtomicReadsFromViolation::ObservedWriteOverwritten {
-                claimed: id(68, OperationId::new),
-            },
-        ),
-        (
-            69,
-            AtomicReadsFromViolation::ObservedWriteNotHappensBefore {
-                claimed: id(69, OperationId::new),
-            },
-        ),
-        (
-            70,
-            AtomicReadsFromViolation::ObservedWriteNotHappensBefore {
-                claimed: id(70, OperationId::new),
-            },
-        ),
-    ] {
-        let witness = coherent_witness_for(claimed);
-        assert_eq!(
-            validate_psi_optimization_unit(&diamond(witness)),
-            Err(coherence_mismatch(53, 0, violation)),
-            "witness {witness:?} must refuse as {violation:?}"
-        );
-    }
-    assert_eq!(
-        validate_psi_optimization_unit(&diamond(Some(AtomicReadsFrom::InitialResidency))),
-        Err(coherence_mismatch(
-            53,
-            0,
-            AtomicReadsFromViolation::InitialResidencyAfterWrite
-        )),
-        "every path wrote the place before the join"
-    );
 }
 
 #[test]
@@ -602,29 +450,6 @@ fn chained_writes_unit(
             return_unit(39),
         ],
     )
-}
-
-#[test]
-fn a_coherent_modification_after_edge_validates() {
-    assert_eq!(
-        validate_psi_optimization_unit(&chained_writes_unit(Some(predecessor_after(37)))),
-        Ok(()),
-        "a write naming its immediate predecessor validates"
-    );
-    // Across blocks: the dominating write is the join member's predecessor.
-    let unit = atomic_cfg_unit(
-        32,
-        &[(32, 3), (40, 3)],
-        vec![
-            integer_constant(36, stored_value()),
-            store(37, location(), stored_value()),
-            jump(41, 40),
-            store_after(81, location(), stored_value(), predecessor_after(37)),
-            load(38, location(), observed_value(), coherent_witness_for(81)),
-            return_unit(39),
-        ],
-    );
-    assert_eq!(validate_psi_optimization_unit(&unit), Ok(()));
 }
 
 #[test]

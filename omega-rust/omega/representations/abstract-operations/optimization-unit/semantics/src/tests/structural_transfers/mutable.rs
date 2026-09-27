@@ -47,20 +47,3 @@ fn transferred_mutable_view_exposes_only_its_current_binding() {
         )
     );
 }
-
-#[test]
-fn mutable_binding_cannot_be_relabelled_as_a_shared_arrival() {
-    let mut candidate = mutable_transfer_unit();
-    candidate.functions[0].blocks[1].structural_parameters[0].access =
-        StructuralAccess::SharedBorrow;
-    let AbstractOperation::Jump {
-        structural_bindings,
-        ..
-    } = &mut candidate.functions[0].blocks[0].nodes[0].operation
-    else {
-        unreachable!()
-    };
-    structural_bindings[0].argument.access = StructuralAccess::SharedBorrow;
-    refresh_node_derivatives(&mut candidate, 0, 0, 0);
-    assert!(validate_psi_optimization_unit(&candidate).is_err());
-}

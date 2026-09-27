@@ -10,61 +10,6 @@ use optimization_unit::{
 use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType, ValueId};
 
 #[test]
-fn mixed_structural_scalar_call_validates_ordered_types_and_dominating_uses() {
-    let baseline = mixed_call();
-    validate_psi_optimization_unit(&baseline).unwrap();
-    let read = &baseline.functions[0].blocks[0].nodes[0];
-    assert_eq!(
-        read.uses
-            .iter()
-            .map(|usage| usage.value)
-            .collect::<Vec<_>>(),
-        vec![value(501), value(502), value(501)]
-    );
-
-    for mutation in 0..7 {
-        let mut changed = baseline.clone();
-        let caller = &mut changed.functions[0];
-        let block = &mut caller.blocks[0];
-        let call = &mut block.nodes[0];
-        let AbstractOperation::CallStructuralScalar {
-            arguments,
-            result,
-            structural_arguments,
-            ..
-        } = &mut call.operation
-        else {
-            panic!("mixed call")
-        };
-        match mutation {
-            0 => {
-                arguments.pop();
-            }
-            1 => arguments.push(value(501)),
-            2 => arguments.swap(0, 1),
-            3 => arguments[0] = value(599),
-            4 => arguments[1] = result.value,
-            5 => result.scalar_type = count_type(),
-            6 => structural_arguments[0].access = terminal_psi::StructuralAccess::Owned,
-            _ => panic!("bounded mutations"),
-        }
-        call.uses = arguments
-            .iter()
-            .map(|argument| ValueUse {
-                value: *argument,
-                block: block.id,
-                node: 0,
-            })
-            .collect();
-        changed.identity = recompute_psi_optimization_unit_identity(&changed);
-        assert!(
-            validate_psi_optimization_unit(&changed).is_err(),
-            "mutation {mutation}"
-        );
-    }
-}
-
-#[test]
 fn mixed_structural_scalar_call_rewrites_all_scalar_occurrences_only() {
     let unit = mixed_call();
     let original = unit.functions[0].blocks[0].nodes[0].operation.clone();

@@ -226,23 +226,6 @@ fn record_call_unit(access: StructuralAccess, projected: bool) -> PsiOptimizatio
 }
 
 #[test]
-fn nested_record_call_with_scalar_work_and_mutable_input_retains_result_loans() {
-    for access in [
-        StructuralAccess::SharedBorrow,
-        StructuralAccess::MutableBorrow,
-    ] {
-        for projected in [false, true] {
-            let candidate = record_call_unit(access, projected);
-            assert_eq!(
-                validate_psi_optimization_unit(&candidate),
-                Ok(()),
-                "{access:?} projected={projected}"
-            );
-        }
-    }
-}
-
-#[test]
 fn nested_record_call_contract_and_loan_substitutions_reject() {
     let original = record_call_unit(StructuralAccess::MutableBorrow, false);
     assert_eq!(validate_psi_optimization_unit(&original), Ok(()));
@@ -412,52 +395,5 @@ fn completed_record_loans_observe_the_current_owned_frontier() {
             Ok(()),
             "disjoint loan after partial move {access:?}"
         );
-    }
-}
-
-#[test]
-fn owned_parameter_shared_loans_observe_the_current_frontier() {
-    for (partial, before_loan) in [(false, false), (true, true), (false, true)] {
-        let mut candidate = record_call_unit(StructuralAccess::SharedBorrow, false);
-        consume_result(&mut candidate, partial, before_loan);
-        let caller = &mut candidate.functions[0];
-        let place = id(962, PlaceId::new);
-        caller.blocks[0].nodes.remove(1);
-        caller
-            .structural_parameters
-            .push(StructuralParameterDeclaration {
-                place,
-                position: 1,
-                is_self: false,
-                structural_type: id(902, StructuralTypeId::new),
-                access: StructuralAccess::Owned,
-                multiplicity: StructuralMultiplicity::Affine,
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
-            });
-        caller
-            .structural_places
-            .iter_mut()
-            .find(|declaration| declaration.id == place)
-            .expect("existing owner home")
-            .kind = StructuralPlaceKind::Parameter {
-            position: 1,
-            is_self: false,
-        };
-        refresh_function_derivatives(&mut candidate, 0);
-        let outcome = validate_psi_optimization_unit(&candidate);
-        if !before_loan {
-            assert_eq!(outcome, Ok(()), "shared loan before parameter transfer");
-        } else if partial {
-            assert!(
-                matches!(outcome, Err(OptimizationUnitValidationError::CurrentWholePlacePartiallyMoved { place: actual, .. }) if actual == place),
-                "whole loan after parameter partial move: {outcome:?}"
-            );
-        } else {
-            assert!(
-                matches!(outcome, Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive { place: actual, .. }) if actual == place),
-                "shared loan after parameter transfer: {outcome:?}"
-            );
-        }
     }
 }

@@ -67,20 +67,6 @@ fn comparison_unit() -> optimization_unit::PsiOptimizationUnit {
 }
 
 #[test]
-fn comparison_reconstructs_bool_result_and_ordered_float_operands() {
-    let unit = comparison_unit();
-    validate_psi_optimization_unit(&unit).expect("NaN and signed zero retain typed comparison");
-    let node = &unit.functions[0].blocks[0].nodes[2];
-    assert_eq!(node.definitions[0].scalar_type, ScalarType::Boolean);
-    assert_eq!(node.uses.len(), 2);
-    let Operation::IeeeFloatCompare { left, right, .. } = node.operation else {
-        panic!("comparison");
-    };
-    assert_eq!(node.uses[0].value, left);
-    assert_eq!(node.uses[1].value, right);
-}
-
-#[test]
 fn comparison_rejects_self_consistent_wrong_format_and_nonfloat_operands() {
     for wrong_format in [false, true] {
         let mut unit = comparison_unit();

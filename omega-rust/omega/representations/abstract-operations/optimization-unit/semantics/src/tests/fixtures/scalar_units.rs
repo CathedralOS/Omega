@@ -149,14 +149,6 @@ pub(crate) fn write_only_store_unit() -> PsiOptimizationUnit {
     .expect("valid write-only store fixture")
 }
 
-pub(crate) fn write_only_store_before_value_unit() -> PsiOptimizationUnit {
-    reconstruct_psi_optimization_unit_seed(
-        &write_only_store_plan(true),
-        TerminalFuelSchedule::CURRENT.identity(),
-    )
-    .expect("structural reconstruction permits independent dominance validation")
-}
-
 pub(crate) fn exact_add_unit() -> PsiOptimizationUnit {
     let machine = id(201, MachineId::new);
     let block = id(202, BlockId::new);

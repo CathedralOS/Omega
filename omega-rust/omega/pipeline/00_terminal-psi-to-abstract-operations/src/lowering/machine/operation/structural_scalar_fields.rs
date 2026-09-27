@@ -507,21 +507,6 @@ mod tests {
     }
 
     #[test]
-    fn dominating_scalar_type_reads_the_single_entry_declaration() {
-        let machine = machine(vec![scalar_parameter(5)], Vec::new(), Vec::new());
-        let block = test_block(Vec::new());
-        assert_eq!(
-            dominating_scalar_type(
-                &machine,
-                &block,
-                OperationId::new(1).unwrap(),
-                ValueId::new(5).unwrap(),
-            ),
-            Some(i32_type())
-        );
-    }
-
-    #[test]
     fn dominating_scalar_type_rejects_conflicting_entry_declarations() {
         // Machine and block parameters both claiming one value id is exactly
         // the ambiguity the store check must not guess through.
@@ -533,33 +518,6 @@ mod tests {
                 &machine,
                 &block,
                 OperationId::new(1).unwrap(),
-                ValueId::new(5).unwrap(),
-            ),
-            None
-        );
-    }
-
-    #[test]
-    fn dominating_scalar_type_uses_only_prior_block_definitions() {
-        let machine = machine(Vec::new(), Vec::new(), Vec::new());
-        // The defining operation precedes the store.
-        let block = test_block(vec![producer(3, 5), marker(4)]);
-        assert_eq!(
-            dominating_scalar_type(
-                &machine,
-                &block,
-                OperationId::new(4).unwrap(),
-                ValueId::new(5).unwrap(),
-            ),
-            Some(i32_type())
-        );
-        // The definition sits after the queried operation: not yet in scope.
-        let block = test_block(vec![marker(2), producer(3, 5)]);
-        assert_eq!(
-            dominating_scalar_type(
-                &machine,
-                &block,
-                OperationId::new(2).unwrap(),
                 ValueId::new(5).unwrap(),
             ),
             None

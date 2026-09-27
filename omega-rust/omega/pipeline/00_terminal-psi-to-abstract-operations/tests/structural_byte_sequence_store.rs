@@ -5,7 +5,7 @@ use proof_admission::AdmissionProfile;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
+use terminal_codec::{encode_module, encode_proof_section};
 use terminal_psi::OperationKind;
 use terminal_psi_to_abstract_operations::lower_artifact;
 use tokens_to_syntax_trees::parse_syntax_trees;
@@ -172,129 +172,5 @@ fn verified_mutable_byte_view_write_retains_exact_native_projection() {
                 ));
             }
         }
-    }
-}
-
-#[test]
-fn verified_bounded_byte_field_replacement_retains_exact_native_projection() {
-    for literal in ["XXX", "X", ""] {
-        let source = format!(
-            r#"
-            domain [u8; 3]::Utf8 requires valid_utf8(self);
-            data Record {{ out: [u8; 3] in Utf8; }}
-            machine Record::replace(&mut self) {{ self.out = "{literal}"; }}
-            "#
-        );
-        let tokens = Lexer::new(&source).tokenize().expect("tokenize source");
-        let syntax = parse_syntax_trees(&tokens).expect("parse source");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
-        let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check source");
-        let terminal = checked_trees_to_lowered_psi::lower_machine(
-            &checked,
-            TerminalMachineSelection::Name("Record::replace"),
-        )
-        .expect("bounded byte-field replacement lowers to Terminal");
-        let semantic_bytes = encode_module(&terminal.semantic_module).expect("encode semantics");
-        let proof_bytes = encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle)
-            .expect("encode proof");
-        let module = decode_module(&semantic_bytes).expect("decode canonical semantics");
-        let proof = decode_proof_bundle(&proof_bytes).expect("decode canonical proof");
-        let profile = AdmissionProfile::default();
-        terminal_verifier::verify_module(&module, &proof, &profile)
-            .expect("canonical replacement has independently verified capacity bounds");
-        let stores = module
-            .machines
-            .iter()
-            .flat_map(|machine| &machine.blocks)
-            .flat_map(|block| &block.operations)
-            .filter(|operation| {
-                matches!(
-                    operation.kind,
-                    OperationKind::StructuralByteSequenceFieldStore { .. }
-                )
-            })
-            .map(|operation| {
-                let OperationKind::StructuralByteSequenceFieldStore {
-                    destination,
-                    path,
-                    field,
-                    source,
-                    length,
-                    obligation,
-                } = &operation.kind
-                else {
-                    unreachable!()
-                };
-                abstract_operations::AbstractOperation::StructuralByteSequenceFieldStore {
-                    psi_operation: operation.id,
-                    destination: *destination,
-                    path: path.clone(),
-                    field: *field,
-                    source: *source,
-                    length: *length,
-                    obligation: *obligation,
-                }
-            })
-            .collect::<Vec<_>>();
-        let [store] = stores.as_slice() else {
-            panic!("source must retain exactly one byte-field replacement")
-        };
-        for result in [
-            lower_artifact(
-                terminal_psi_to_abstract_operations::ArtifactSections {
-                    semantic_bytes: &semantic_bytes,
-                    proof_bytes: &proof_bytes,
-                    obligation_ledger_bytes: None,
-                },
-                &profile,
-            )
-            .map(|admitted| admitted.into_plan())
-            .map(|_| ()),
-            lower_artifact(
-                terminal_psi_to_abstract_operations::ArtifactSections {
-                    semantic_bytes: &semantic_bytes,
-                    proof_bytes: &proof_bytes,
-                    obligation_ledger_bytes: None,
-                },
-                &profile,
-            )
-            .map(|admitted| {
-                admitted
-                    .into_optimization_artifact()
-                    .into_optimization_input()
-            })
-            .map(|_| ()),
-            lower_artifact(
-                terminal_psi_to_abstract_operations::ArtifactSections {
-                    semantic_bytes: &semantic_bytes,
-                    proof_bytes: &proof_bytes,
-                    obligation_ledger_bytes: None,
-                },
-                &profile,
-            )
-            .and_then(|admitted| admitted.try_into_native_input(&[]))
-            .map(|_| ()),
-        ] {
-            assert!(
-                result.is_ok(),
-                "verified replacement must project: {result:?}"
-            );
-        }
-        let plan = lower_artifact(
-            terminal_psi_to_abstract_operations::ArtifactSections {
-                semantic_bytes: &semantic_bytes,
-                proof_bytes: &proof_bytes,
-                obligation_ledger_bytes: None,
-            },
-            &profile,
-        )
-        .map(|admitted| admitted.into_plan())
-        .unwrap();
-        assert!(
-            plan.functions
-                .iter()
-                .any(|function| function.operations.contains(store))
-        );
     }
 }

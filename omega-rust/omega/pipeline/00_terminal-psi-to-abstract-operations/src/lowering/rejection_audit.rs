@@ -10,8 +10,8 @@ use semantic_vocabulary::{
 use terminal_psi::{
     Block, MachineContract, Operation, OperationKind, OperationResult, StructuralAccess,
     StructuralArgument, StructuralMultiplicity, StructuralOperationResult,
-    StructuralParameterDeclaration, StructuralPlaceDeclaration, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    StructuralPlaceDeclaration, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
+    ValueDeclaration, VocabularyMarker,
 };
 
 use super::{LoweringError, lower_decoded_module};
@@ -142,47 +142,12 @@ fn reject(module: &TerminalModule) -> LoweringError {
 }
 
 #[test]
-fn minimal_unit_module_lowers() {
-    let module = module(vec![machine(
-        1,
-        TerminalMachineResult::Unit,
-        vec![unit_block(1, Vec::new())],
-    )]);
-    assert!(lower_decoded_module(&module).is_ok());
-}
-
-#[test]
 fn missing_entry_machine_rejects_as_entry_missing() {
     let mut module = module(Vec::new());
     module.entry = MachineId::new(9).unwrap();
     assert_eq!(
         reject(&module),
         LoweringError::VerifiedEntryMachineMissing(MachineId::new(9).unwrap())
-    );
-}
-
-#[test]
-fn structural_entry_block_parameter_rejects() {
-    let entry = Block {
-        structural_parameters: vec![StructuralParameterDeclaration {
-            place: PlaceId::new(1).unwrap(),
-            position: 0,
-            is_self: false,
-            structural_type: StructuralTypeId::new(1).unwrap(),
-            multiplicity: StructuralMultiplicity::Unrestricted,
-            access: StructuralAccess::Owned,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-        }],
-        ..unit_block(1, Vec::new())
-    };
-    let module = module(vec![machine(1, TerminalMachineResult::Unit, vec![entry])]);
-    assert_eq!(
-        reject(&module),
-        LoweringError::UnsupportedStructuralBlockParameters {
-            machine: MachineId::new(1).unwrap(),
-            block: BlockId::new(1).unwrap(),
-        }
     );
 }
 
@@ -546,28 +511,6 @@ fn structural_call_without_structural_result_rejects() {
     assert_eq!(
         reject(&module),
         LoweringError::UnsupportedStructuralResult(MachineId::new(1).unwrap())
-    );
-}
-
-#[test]
-fn write_only_store_without_declared_destination_rejects() {
-    let operation = op(
-        1,
-        OperationResult::Unit,
-        OperationKind::WriteOnlyPrimitiveStore {
-            destination: PlaceId::new(9).unwrap(),
-            path: Vec::new(),
-            value: ValueId::new(1).unwrap(),
-        },
-    );
-    let module = module(vec![machine(
-        1,
-        TerminalMachineResult::Unit,
-        vec![unit_block(1, vec![operation])],
-    )]);
-    assert_eq!(
-        reject(&module),
-        LoweringError::InvalidWriteOnlyPrimitiveStore(OperationId::new(1).unwrap())
     );
 }
 

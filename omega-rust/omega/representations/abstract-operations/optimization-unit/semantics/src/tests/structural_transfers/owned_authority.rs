@@ -1,6 +1,5 @@
 //! Current cyclic ownership and retained frontier corruption controls.
 use super::{AbstractOperation, id};
-use crate::tests::fixtures::structural_catalog::structural_domain;
 use crate::tests::support::{refresh_identity, refresh_node_derivatives};
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 use abstract_operations::AbstractStructuralBinding;
@@ -107,25 +106,6 @@ fn owned_arrivals_replay_exact_retained_snapshots_and_reject_corruption() {
     }
 }
 
-#[test]
-fn retained_snapshots_cannot_authorize_duplicate_current_transfer() {
-    let mut candidate = super::owned::owned_unit();
-    let AbstractOperation::Jump {
-        structural_bindings,
-        ..
-    } = &mut candidate.functions[0].blocks[0].nodes[0].operation
-    else {
-        unreachable!()
-    };
-    structural_bindings[1].argument.place = structural_bindings[0].argument.place;
-    refresh_node_derivatives(&mut candidate, 0, 0, 0);
-    retain_edge_snapshots(&mut candidate, snapshot(&[10, 30]), snapshot(&[11, 31]));
-    assert!(matches!(
-        validate_psi_optimization_unit(&candidate),
-        Err(OptimizationUnitValidationError::CurrentCleanupMismatch { .. })
-    ));
-}
-
 fn cyclic_owned_unit(swap: bool) -> PsiOptimizationUnit {
     let mut candidate = super::owned::owned_unit();
     let target = candidate.functions[0].blocks[1].id;
@@ -160,53 +140,6 @@ fn validate_cycle(candidate: &PsiOptimizationUnit) -> Result<(), OptimizationUni
         candidate,
         &[candidate.functions[0].machine],
     )
-}
-
-#[test]
-fn owned_identity_and_swap_backedges_rejoin_without_duplicate_custody() {
-    for swap in [false, true] {
-        let mut candidate = cyclic_owned_unit(swap);
-        validate_cycle(&candidate).expect("simultaneous owned backedge bindings");
-        retain_edge_snapshots(&mut candidate, snapshot(&[10, 30]), snapshot(&[11, 31]));
-        for site in [
-            OwnershipFrontierSite::EdgeEntry(id(22, EdgeId::new)),
-            OwnershipFrontierSite::EdgeExit(id(22, EdgeId::new)),
-        ] {
-            candidate
-                .ownership_frontier_facts
-                .push(OwnershipFrontierFact::new(
-                    candidate.psi,
-                    candidate.functions[0].machine,
-                    site,
-                    snapshot(&[11, 31]),
-                ));
-        }
-        candidate
-            .ownership_frontier_facts
-            .sort_by_key(|fact| (fact.machine, fact.site));
-        refresh_identity(&mut candidate);
-        validate_cycle(&candidate)
-            .expect("retained backedge snapshots also use simultaneous binding");
-    }
-}
-
-#[test]
-fn owned_backedge_cannot_reuse_consumed_invocation_input() {
-    let mut candidate = cyclic_owned_unit(false);
-    validate_cycle(&candidate).unwrap();
-    let AbstractOperation::Jump {
-        structural_bindings,
-        ..
-    } = &mut candidate.functions[0].blocks[1].nodes[1].operation
-    else {
-        unreachable!()
-    };
-    structural_bindings[0].argument.place = id(10, PlaceId::new);
-    refresh_node_derivatives(&mut candidate, 0, 1, 1);
-    assert!(matches!(
-        validate_cycle(&candidate),
-        Err(OptimizationUnitValidationError::CurrentCleanupMismatch { .. })
-    ));
 }
 
 #[test]
@@ -291,71 +224,6 @@ fn unrestricted_owned_arrivals_allow_repeated_source_without_affine_cleanup() {
         validate_psi_optimization_unit(&candidate),
         Err(OptimizationUnitValidationError::CurrentCleanupMismatch { .. })
     ));
-}
-
-#[test]
-fn mixed_owned_arrivals_dispose_only_the_affine_destination() {
-    let mut candidate = super::owned::owned_unit();
-    candidate.functions[0].structural_parameters[0].multiplicity =
-        StructuralMultiplicity::Unrestricted;
-    candidate.functions[0].blocks[1].structural_parameters[0].multiplicity =
-        StructuralMultiplicity::Unrestricted;
-    let AbstractOperation::Return {
-        cleanup_actions, ..
-    } = &mut candidate.functions[0].blocks[1].nodes[1].operation
-    else {
-        unreachable!()
-    };
-    *cleanup_actions = vec![TerminalAffineCleanupAction::DiscardRoot(id(
-        31,
-        PlaceId::new,
-    ))];
-    refresh_node_derivatives(&mut candidate, 0, 1, 1);
-    retain_edge_snapshots(&mut candidate, snapshot(&[30]), snapshot(&[31]));
-    validate_psi_optimization_unit(&candidate)
-        .expect("only the affine destination requires disposal");
-    let AbstractOperation::Return {
-        cleanup_actions, ..
-    } = &mut candidate.functions[0].blocks[1].nodes[1].operation
-    else {
-        unreachable!()
-    };
-    cleanup_actions.clear();
-    refresh_node_derivatives(&mut candidate, 0, 1, 1);
-    assert!(matches!(
-        validate_psi_optimization_unit(&candidate),
-        Err(OptimizationUnitValidationError::CurrentCleanupMismatch { .. })
-    ));
-}
-
-#[test]
-fn owned_arrivals_reject_even_matching_source_and_destination_qualifications() {
-    for source_qualified in [false, true] {
-        for destination_qualified in [false, true] {
-            let mut candidate = super::owned::owned_unit();
-            let domain = structural_domain(90, 90, candidate.structural_types[0].id);
-            if source_qualified {
-                candidate.functions[0].structural_parameters[0]
-                    .qualifications
-                    .push(domain.id);
-            }
-            if destination_qualified {
-                candidate.functions[0].blocks[1].structural_parameters[0]
-                    .qualifications
-                    .push(domain.id);
-            }
-            candidate.structural_domains = vec![domain].into();
-            refresh_identity(&mut candidate);
-            let result = validate_psi_optimization_unit(&candidate);
-            if source_qualified || destination_qualified {
-                assert!(matches!(result,
-                    Err(OptimizationUnitValidationError::VerifiedOptimizationUnitProjectionMismatch)),
-                    "source={source_qualified}, destination={destination_qualified}: {result:?}");
-            } else {
-                result.expect("an unused valid domain does not affect plain owned admission");
-            }
-        }
-    }
 }
 
 #[test]

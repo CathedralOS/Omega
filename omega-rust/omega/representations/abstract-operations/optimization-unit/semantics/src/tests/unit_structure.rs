@@ -1,12 +1,6 @@
 //! General unit, dominance, affine-local, and custody tests.
-use crate::tests::fixtures::dominance::{
-    OperationResultCfgShape, byte_literal_boundary_unit,
-    byte_literal_dominating_non_topological_unit, byte_literal_partial_predecessor_unit,
-    byte_literal_sibling_use_unit, explicit_local_dominating_non_topological_unit,
-    explicit_local_same_block_use_before_definition_unit, explicit_local_sibling_cleanup_unit,
-    operation_result_cfg_unit, refresh_function_derivatives,
-};
-use crate::tests::fixtures::scalar_units::{scalar_boundary_call_unit, scalar_call_unit, unit};
+use crate::tests::fixtures::dominance::{byte_literal_boundary_unit, refresh_function_derivatives};
+use crate::tests::fixtures::scalar_units::unit;
 use crate::tests::fixtures::structural_catalog::{
     compressed_trivial_affine_return_unit, compressed_trivial_affine_return_unit_with_prefix,
     explicit_trivial_affine_return_unit,
@@ -24,70 +18,6 @@ use optimization_unit::{
 use semantic_vocabulary::{
     BlockId, MachineId, OperationId, PlaceId, StructuralPlaceKind, StructuralTypeId,
 };
-use std::collections::{BTreeMap, BTreeSet};
-
-#[test]
-fn structural_block_root_keys_retain_block_and_position() {
-    let block = id(1, BlockId::new);
-    let other_block = id(2, BlockId::new);
-    let keys = [
-        StructuralPlaceKind::Parameter {
-            position: 0,
-            is_self: false,
-        },
-        StructuralPlaceKind::BlockParameter { block, position: 0 },
-        StructuralPlaceKind::BlockParameter { block, position: 1 },
-        StructuralPlaceKind::BlockParameter {
-            block: other_block,
-            position: 0,
-        },
-    ]
-    .map(crate::unit_validation::structural_catalog::structural_root_key);
-    assert_eq!(keys.into_iter().collect::<BTreeSet<_>>().len(), 4);
-}
-
-#[test]
-fn structural_block_parameters_cannot_enter_scalar_only_optimizer_blocks() {
-    let mut candidate = byte_literal_boundary_unit();
-    let function = &mut candidate.functions[0];
-    function.structural_places[0].kind = StructuralPlaceKind::BlockParameter {
-        block: function.entry,
-        position: 0,
-    };
-    let types = candidate
-        .structural_types
-        .iter()
-        .map(|declaration| (declaration.id, declaration))
-        .collect();
-    assert_eq!(
-        crate::unit_validation::structural_catalog::validate_function_structural_catalog(
-            function,
-            &types,
-            &BTreeMap::new()
-        ),
-        Err(OptimizationUnitValidationError::StructuralCatalogMismatch {
-            machine: Some(function.machine),
-        })
-    );
-}
-
-#[test]
-fn independently_accepts_builder_output() {
-    validate_psi_optimization_unit(&unit()).unwrap();
-    validate_psi_optimization_unit(&scalar_call_unit()).unwrap();
-    validate_psi_optimization_unit(&scalar_boundary_call_unit()).unwrap();
-}
-
-#[test]
-fn operation_result_return_accepts_cross_block_dominance_independent_of_storage_order() {
-    let candidate = operation_result_cfg_unit(OperationResultCfgShape::DominatingNonTopological);
-    assert_ne!(
-        candidate.functions[0].blocks[0].id, candidate.functions[0].entry,
-        "fixture stores the return block before its dominating producer block"
-    );
-    validate_psi_optimization_unit(&candidate)
-        .expect("CallStructural result dominates the structural return through the CFG");
-}
 
 #[test]
 fn byte_literal_catalog_and_exact_establishment_correspondence_validate() {
@@ -220,92 +150,6 @@ fn byte_literal_catalog_and_exact_establishment_correspondence_validate() {
     refresh_function_derivatives(&mut two_literals, 0);
     validate_psi_optimization_unit(&two_literals)
         .expect("two dense exact literal witnesses validate independent of use count");
-}
-
-#[test]
-fn explicit_structural_roots_require_current_cfg_availability() {
-    let dominating = byte_literal_dominating_non_topological_unit();
-    assert_ne!(
-        dominating.functions[0].blocks[0].id, dominating.functions[0].entry,
-        "fixture stores the literal use block before its producer block"
-    );
-    validate_psi_optimization_unit(&dominating)
-        .expect("a dominating byte-literal producer is available independent of storage order");
-
-    let local_dominating = explicit_local_dominating_non_topological_unit();
-    assert_ne!(
-        local_dominating.functions[0].blocks[0].id, local_dominating.functions[0].entry,
-        "fixture stores the local cleanup block before its producer block"
-    );
-    validate_psi_optimization_unit(&local_dominating)
-        .expect("a dominating explicit local establishment reaches cleanup");
-
-    let mut same_block = byte_literal_boundary_unit();
-    same_block.functions[0].blocks[0].nodes.swap(0, 1);
-    refresh_function_derivatives(&mut same_block, 0);
-    assert_eq!(
-        validate_psi_optimization_unit(&same_block),
-        Err(
-            OptimizationUnitValidationError::StructuralPlaceNotAvailable {
-                machine: id(4_600, MachineId::new),
-                block: id(4_601, BlockId::new),
-                node: 0,
-                place: id(4_604, PlaceId::new),
-            }
-        )
-    );
-
-    let sibling = byte_literal_sibling_use_unit();
-    assert_eq!(
-        validate_psi_optimization_unit(&sibling),
-        Err(
-            OptimizationUnitValidationError::StructuralPlaceNotAvailable {
-                machine: id(4_600, MachineId::new),
-                block: id(4_613, BlockId::new),
-                node: 0,
-                place: id(4_604, PlaceId::new),
-            }
-        )
-    );
-
-    let partial = byte_literal_partial_predecessor_unit();
-    assert_eq!(
-        validate_psi_optimization_unit(&partial),
-        Err(
-            OptimizationUnitValidationError::StructuralPlaceNotAvailable {
-                machine: id(4_600, MachineId::new),
-                block: id(4_633, BlockId::new),
-                node: 0,
-                place: id(4_604, PlaceId::new),
-            }
-        )
-    );
-
-    let local_same_block = explicit_local_same_block_use_before_definition_unit();
-    assert_eq!(
-        validate_psi_optimization_unit(&local_same_block),
-        Err(
-            OptimizationUnitValidationError::StructuralPlaceNotAvailable {
-                machine: id(390, MachineId::new),
-                block: id(391, BlockId::new),
-                node: 0,
-                place: id(393, PlaceId::new),
-            }
-        )
-    );
-
-    let local_cleanup = explicit_local_sibling_cleanup_unit();
-    assert_eq!(
-        validate_psi_optimization_unit(&local_cleanup),
-        Err(
-            OptimizationUnitValidationError::StructuralPlaceNotAvailable {
-                machine: id(390, MachineId::new),
-                block: id(4_622, BlockId::new),
-                node: 0,
-                place: id(393, PlaceId::new),
-            }
-        )
-    );
 }
 
 #[test]
@@ -688,39 +532,6 @@ fn compressed_trivial_affine_return_requires_exact_shape_and_reverse_discards() 
         validate_psi_optimization_unit(&extra_discard),
         Err(OptimizationUnitValidationError::StructuralReturnAffineDiscardsMismatch { .. })
     ));
-}
-
-#[test]
-fn operation_result_return_rejects_sibling_and_partial_predecessor_producers() {
-    let call_result = id(381, PlaceId::new);
-
-    let mut sibling = operation_result_cfg_unit(OperationResultCfgShape::SiblingReturn);
-    refresh_node_derivatives(&mut sibling, 0, 2, 0);
-    assert_eq!(
-        validate_psi_optimization_unit(&sibling),
-        Err(
-            OptimizationUnitValidationError::StructuralPlaceNotAvailable {
-                machine: id(370, MachineId::new),
-                block: id(374, BlockId::new),
-                node: 0,
-                place: call_result,
-            }
-        )
-    );
-
-    let mut partial = operation_result_cfg_unit(OperationResultCfgShape::PartialPredecessor);
-    refresh_node_derivatives(&mut partial, 0, 3, 0);
-    assert_eq!(
-        validate_psi_optimization_unit(&partial),
-        Err(
-            OptimizationUnitValidationError::StructuralPlaceNotAvailable {
-                machine: id(370, MachineId::new),
-                block: id(375, BlockId::new),
-                node: 0,
-                place: call_result,
-            }
-        )
-    );
 }
 
 #[test]

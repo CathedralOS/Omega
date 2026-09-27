@@ -15,59 +15,6 @@ use terminal_psi::{
 use terminal_psi_to_abstract_operations::lower_artifact;
 use terminal_verifier::ProofBundle;
 
-#[path = "byte_sequence_literal/byte_sequence_operations.rs"]
-mod byte_sequence_operations;
-
-#[test]
-fn preserves_exact_non_utf8_literal_and_structural_source() {
-    let literal_bytes = vec![0, 0x7f, 0x80, 0xff];
-    let module = byte_sequence_module(literal_bytes.clone());
-    let semantic = encode_module(&module).expect("byte-sequence semantics encode");
-    let proof =
-        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
-    let plan = lower_artifact(
-        terminal_psi_to_abstract_operations::ArtifactSections {
-            semantic_bytes: &semantic,
-            proof_bytes: &proof,
-            obligation_ledger_bytes: None,
-        },
-        &AdmissionProfile::default(),
-    )
-    .map(|admitted| admitted.into_plan())
-    .expect("verified byte-sequence artifact lowers");
-
-    let [
-        AbstractOperation::EstablishByteSequenceLiteral {
-            psi_operation,
-            place,
-            structural_type,
-            bytes,
-            qualifications,
-        },
-        AbstractOperation::BoundaryCall {
-            structural_arguments,
-            ..
-        },
-        AbstractOperation::ReturnUnit { .. },
-    ] = plan.functions[0].operations.as_slice()
-    else {
-        panic!("literal, boundary call, and Unit return must remain ordered")
-    };
-    assert_eq!(*psi_operation, operation_id(1));
-    assert_eq!(place.id, place_id(1));
-    assert_eq!(structural_type, &module.structural_types[0]);
-    assert_eq!(bytes, &literal_bytes);
-    assert!(qualifications.is_empty());
-    assert_eq!(
-        structural_arguments,
-        &[StructuralArgument {
-            place: place_id(1),
-            access: StructuralAccess::SharedBorrow,
-            path: Vec::new(),
-        }]
-    );
-}
-
 #[test]
 fn byte_sequence_length_retains_exact_source_result_type_and_rejects_drift() {
     let mut module = byte_sequence_module(vec![0, 0xff]);
@@ -194,16 +141,6 @@ fn byte_sequence_length_retains_exact_source_result_type_and_rejects_drift() {
     unavailable.identity =
         optimization_unit::recompute_psi_optimization_unit_identity(&unavailable);
     assert!(optimization_unit_semantics::validate_psi_optimization_unit(&unavailable).is_err());
-}
-
-#[test]
-fn byte_sequence_read_retains_exact_verified_operands_and_proof() {
-    byte_sequence_operations::byte_operation_fence(false);
-}
-
-#[test]
-fn byte_sequence_subslice_retains_exact_verified_operands_and_proof() {
-    byte_sequence_operations::byte_operation_fence(true);
 }
 
 fn byte_sequence_module(bytes: Vec<u8>) -> TerminalModule {

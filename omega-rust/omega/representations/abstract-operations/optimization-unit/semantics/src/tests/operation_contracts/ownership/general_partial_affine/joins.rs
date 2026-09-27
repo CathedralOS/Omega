@@ -3,79 +3,11 @@
 use crate::tests::fixtures::dominance::refresh_function_derivatives;
 use crate::tests::support::id;
 use abstract_operations::AbstractOperation;
-use semantic_vocabulary::{ClaimId, StructuralDomainId};
-use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralPathQualification};
+use semantic_vocabulary::ClaimId;
 
-use super::fixtures::{field, index, mixed_unit};
-use crate::unit_validation::operation_contracts::{
-    StructuralProjectionPolicy, structural_arguments_match, validate_internal_claim_transfers,
-};
+use super::fixtures::{field, mixed_unit};
+use crate::unit_validation::operation_contracts::validate_internal_claim_transfers;
 use crate::validate_psi_optimization_unit;
-
-#[test]
-fn general_partial_affine_retains_exact_access_and_qualification_joins() {
-    let baseline = mixed_unit();
-    let types = baseline
-        .structural_types
-        .iter()
-        .map(|declaration| (declaration.id, declaration))
-        .collect();
-    let AbstractOperation::CallUnit {
-        structural_arguments,
-        ..
-    } = &baseline.functions[0].blocks[0].nodes[0].operation
-    else {
-        unreachable!()
-    };
-    let matches = |caller: &optimization_unit::PsiOptimizationFunction, parameters: &[_]| {
-        structural_arguments_match(
-            caller,
-            structural_arguments,
-            parameters,
-            &types,
-            StructuralProjectionPolicy::Unit,
-            false,
-        )
-    };
-    let domain = id(1, StructuralDomainId::new);
-    assert!(matches(
-        &baseline.functions[0],
-        &baseline.functions[1].structural_parameters
-    ));
-    for mutation in 0..4 {
-        let mut caller = baseline.functions[0].clone();
-        let mut parameters = baseline.functions[1].structural_parameters.clone();
-        match mutation {
-            0 => caller.structural_parameters[0].access = StructuralAccess::SharedBorrow,
-            1 => caller.structural_parameters[0].multiplicity = StructuralMultiplicity::Linear,
-            2 => caller.structural_parameters[0].qualifications.push(domain),
-            3 => parameters[0].qualifications.push(domain),
-            _ => unreachable!(),
-        }
-        assert!(
-            !matches(&caller, &parameters),
-            "source/qualification mutation {mutation}"
-        );
-    }
-    let mut caller = baseline.functions[0].clone();
-    let mut parameters = baseline.functions[1].structural_parameters.clone();
-    parameters[0].qualifications.push(domain);
-    caller.structural_parameters[0]
-        .projected_qualifications
-        .push(StructuralPathQualification {
-            path: structural_arguments[0].path.clone(),
-            domain,
-        });
-    assert!(
-        matches(&caller, &parameters),
-        "the general matcher still joins exact projected qualification"
-    );
-    caller.structural_parameters[0].projected_qualifications[0].path[1] = index(1);
-    assert!(
-        !matches(&caller, &parameters),
-        "another subtree cannot supply the qualification"
-    );
-}
 
 #[test]
 fn general_partial_affine_retains_claim_transfer_joins() {

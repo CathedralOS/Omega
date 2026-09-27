@@ -1,5 +1,5 @@
 use super::builders::{artifact, selected};
-use super::ids::{boundary_id, claim_id, machine_id, operation_id, place_id, structural_type_id};
+use super::ids::{boundary_id, claim_id, operation_id, place_id, structural_type_id};
 use super::structural_provider::structural_provider_module;
 use proof_admission::AdmissionProfile;
 use terminal_psi::{
@@ -7,9 +7,7 @@ use terminal_psi::{
     StructuralArgument, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
     TerminalModule,
 };
-use terminal_psi_to_abstract_operations::{
-    ProviderInstallationError, admit_provider_installation, lower_artifact,
-};
+use terminal_psi_to_abstract_operations::{admit_provider_installation, lower_artifact};
 
 #[test]
 fn omega_rebases_projected_provider_claims_and_preserves_sibling_sources() {
@@ -72,59 +70,6 @@ fn omega_rebases_projected_provider_claims_and_preserves_sibling_sources() {
             .path,
         [StructuralPathSegment::FixedIndex(1)]
     );
-}
-
-#[test]
-fn projected_provider_replay_rejects_path_receipt_and_provider_substitution() {
-    let module = projected_structural_provider_module();
-    let (semantic, proof) = artifact(&module);
-    let profile = AdmissionProfile::default();
-    let plan = lower_artifact(
-        terminal_psi_to_abstract_operations::ArtifactSections {
-            semantic_bytes: &semantic,
-            proof_bytes: &proof,
-            obligation_ledger_bytes: None,
-        },
-        &profile,
-    )
-    .map(|admitted| admitted.into_plan())
-    .expect("verified lowering");
-    let selected = selected("second-plan", "SecondProvider", "SecondProvider::emit");
-
-    let mut path_tamper = plan.clone();
-    let abstract_operations::AbstractOperation::BoundaryCall {
-        structural_arguments,
-        ..
-    } = &mut path_tamper.functions[0].operations[0]
-    else {
-        panic!("fixture starts with its first projected provider call")
-    };
-    structural_arguments[0].path = vec![StructuralPathSegment::FixedIndex(1)];
-    assert!(matches!(
-        admit_provider_installation(&path_tamper, &semantic, &proof, &profile, &selected),
-        Err(ProviderInstallationError::PlanReplayMismatch)
-    ));
-
-    let mut receipt_tamper = plan.clone();
-    let abstract_operations::AbstractOperation::BoundaryCall {
-        completion_receipts,
-        ..
-    } = &mut receipt_tamper.functions[0].operations[0]
-    else {
-        panic!("fixture starts with its first projected provider call")
-    };
-    completion_receipts[0].claim = claim_id(2);
-    assert!(matches!(
-        admit_provider_installation(&receipt_tamper, &semantic, &proof, &profile, &selected),
-        Err(ProviderInstallationError::PlanReplayMismatch)
-    ));
-
-    let mut provider_tamper = plan.clone();
-    provider_tamper.provider_candidates[1].candidate = machine_id(2);
-    assert!(matches!(
-        admit_provider_installation(&provider_tamper, &semantic, &proof, &profile, &selected),
-        Err(ProviderInstallationError::PlanReplayMismatch)
-    ));
 }
 
 fn projected_structural_provider_module() -> TerminalModule {

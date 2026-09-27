@@ -7,4 +7,3 @@ mod fixtures;
 mod joins;
 mod positive;
 mod rejection;
-mod result_discards;

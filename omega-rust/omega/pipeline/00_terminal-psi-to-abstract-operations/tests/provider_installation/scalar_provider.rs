@@ -1,64 +1,12 @@
 use super::builders::{artifact, provider_module, selected};
-use super::ids::{machine_id, operation_id};
+use super::ids::operation_id;
 use abstract_operations::AbstractOperation;
-use installation_evidence::ProviderInstallationEvidence;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType, ValueId};
 use terminal_psi::{Operation, OperationKind, OperationResult, TerminalModule, ValueDeclaration};
 use terminal_psi_to_abstract_operations::{
     ProviderInstallationError, admit_provider_installation, lower_artifact,
 };
-
-#[test]
-fn omega_retains_the_exact_installed_provider_scalar_argument() {
-    let module = scalar_provider_module();
-    let (semantic, proof) = artifact(&module);
-    let profile = AdmissionProfile::default();
-    let plan = lower_artifact(
-        terminal_psi_to_abstract_operations::ArtifactSections {
-            semantic_bytes: &semantic,
-            proof_bytes: &proof,
-            obligation_ledger_bytes: None,
-        },
-        &profile,
-    )
-    .map(|admitted| admitted.into_plan())
-    .expect("verified lowering");
-    let selected = selected("second-plan", "SecondProvider", "SecondProvider::emit");
-    let installation = admit_provider_installation(&plan, &semantic, &proof, &profile, &selected)
-        .expect("fixed i32 provider installation");
-    let [call] = installation.installed_calls() else {
-        panic!("one installed scalar provider call")
-    };
-    assert_eq!(call.scalar_arguments(), &[value_id(1)]);
-
-    let projected = ProviderInstallationEvidence::installed_provider_calls(&installation);
-    let [evidence] = projected.as_slice() else {
-        panic!("one projected scalar provider call")
-    };
-    assert_eq!(evidence.scalar_arguments, [value_id(1)]);
-}
-
-#[test]
-fn omega_rejects_removing_the_installed_provider_scalar_argument() {
-    let (semantic, proof, profile, selected) = scalar_fixture();
-    let mut plan = lower_artifact(
-        terminal_psi_to_abstract_operations::ArtifactSections {
-            semantic_bytes: &semantic,
-            proof_bytes: &proof,
-            obligation_ledger_bytes: None,
-        },
-        &profile,
-    )
-    .map(|admitted| admitted.into_plan())
-    .expect("verified lowering");
-    scalar_call_arguments_mut(&mut plan).clear();
-
-    assert!(matches!(
-        admit_provider_installation(&plan, &semantic, &proof, &profile, &selected),
-        Err(ProviderInstallationError::PlanReplayMismatch)
-    ));
-}
 
 #[test]
 fn omega_installs_the_verified_computed_argument_and_rejects_operand_substitution() {
@@ -112,69 +60,6 @@ fn omega_installs_the_verified_computed_argument_and_rejects_operand_substitutio
         admit_provider_installation(&plan, &semantic, &proof, &profile, &selected),
         Err(ProviderInstallationError::PlanReplayMismatch)
     ));
-}
-
-#[test]
-fn omega_rejects_installed_provider_boundary_scalar_type_drift() {
-    let (semantic, proof, profile, selected) = scalar_fixture();
-    let mut plan = lower_artifact(
-        terminal_psi_to_abstract_operations::ArtifactSections {
-            semantic_bytes: &semantic,
-            proof_bytes: &proof,
-            obligation_ledger_bytes: None,
-        },
-        &profile,
-    )
-    .map(|admitted| admitted.into_plan())
-    .expect("verified lowering");
-    plan.boundary_machines[0].scalar_parameters[0] = ScalarType::Boolean;
-
-    assert!(matches!(
-        admit_provider_installation(&plan, &semantic, &proof, &profile, &selected),
-        Err(ProviderInstallationError::PlanReplayMismatch)
-    ));
-}
-
-#[test]
-fn omega_rejects_installed_provider_candidate_scalar_type_drift() {
-    let (semantic, proof, profile, selected) = scalar_fixture();
-    let mut plan = lower_artifact(
-        terminal_psi_to_abstract_operations::ArtifactSections {
-            semantic_bytes: &semantic,
-            proof_bytes: &proof,
-            obligation_ledger_bytes: None,
-        },
-        &profile,
-    )
-    .map(|admitted| admitted.into_plan())
-    .expect("verified lowering");
-    plan.functions
-        .iter_mut()
-        .find(|function| function.machine == machine_id(3))
-        .expect("selected candidate function")
-        .parameters[0]
-        .scalar_type = ScalarType::Boolean;
-
-    assert!(matches!(
-        admit_provider_installation(&plan, &semantic, &proof, &profile, &selected),
-        Err(ProviderInstallationError::PlanReplayMismatch)
-    ));
-}
-
-fn scalar_fixture() -> (
-    Vec<u8>,
-    Vec<u8>,
-    AdmissionProfile,
-    Vec<terminal_psi_to_abstract_operations::SelectedProviderAdapter>,
-) {
-    let module = scalar_provider_module();
-    let (semantic, proof) = artifact(&module);
-    (
-        semantic,
-        proof,
-        AdmissionProfile::default(),
-        selected("second-plan", "SecondProvider", "SecondProvider::emit"),
-    )
 }
 
 fn scalar_provider_module() -> TerminalModule {

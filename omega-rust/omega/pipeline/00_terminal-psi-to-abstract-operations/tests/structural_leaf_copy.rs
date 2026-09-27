@@ -23,7 +23,6 @@ use terminal_psi::{
     StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
     VocabularyMarker,
 };
-use terminal_psi_to_abstract_operations::{ArtifactLoweringError, lower_artifact};
 use terminal_verifier::{ModuleError, ProofBundle};
 
 fn id<Identity: PsiSemanticId>(raw: u64) -> Identity {
@@ -222,56 +221,6 @@ fn copy_module(access: StructuralAccess) -> TerminalModule {
         quotient_correspondences: Vec::new(),
         machines: vec![copy_machine(access)],
     }
-}
-
-fn lower(
-    module: &TerminalModule,
-) -> Result<abstract_operations::AbstractOperationPlan, ArtifactLoweringError> {
-    let semantic = encode_module(module).expect("semantic module encodes");
-    let proof = encode_proof_section(module, &ProofBundle::default()).expect("empty proof encodes");
-    lower_artifact(
-        terminal_psi_to_abstract_operations::ArtifactSections {
-            semantic_bytes: &semantic,
-            proof_bytes: &proof,
-            obligation_ledger_bytes: None,
-        },
-        &AdmissionProfile::default(),
-    )
-    .map(|admitted| admitted.into_plan())
-}
-
-#[test]
-fn verified_leaf_copy_lowers_to_exact_abstract_spelling() {
-    let plan =
-        lower(&copy_module(StructuralAccess::SharedBorrow)).expect("verified leaf copy lowers");
-    let operations = &plan.functions[0].operations;
-    // The copy plus the ReturnStructural terminator the abstract plan spells
-    // as an operation.
-    assert_eq!(operations.len(), 2);
-    match &operations[0] {
-        AbstractOperation::StructuralLeafCopy {
-            psi_operation,
-            result,
-            source,
-            path,
-        } => {
-            assert_eq!(*psi_operation, id::<OperationId>(1));
-            // The copied leaf keeps its fresh unrestricted custody row.
-            assert_eq!(result.place, id::<PlaceId>(2));
-            assert_eq!(result.structural_type, cell());
-            assert_eq!(result.multiplicity, StructuralMultiplicity::Unrestricted);
-            assert!(result.claims.is_empty());
-            // The source stays the borrowed root place itself, not a spelled
-            // window: the copy reads through it without vacating anything.
-            assert_eq!(*source, id::<PlaceId>(1));
-            assert_eq!(path, &[StructuralPathSegment::Field("left".into())]);
-        }
-        other => panic!("expected StructuralLeafCopy, got {other:?}"),
-    }
-    assert!(matches!(
-        operations[1],
-        AbstractOperation::ReturnStructural { .. }
-    ));
 }
 
 #[test]

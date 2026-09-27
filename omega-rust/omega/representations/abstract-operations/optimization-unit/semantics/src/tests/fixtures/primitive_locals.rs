@@ -1,7 +1,6 @@
 //! Primitive locals retain their own operation-result place and scalar observations.
 use crate::tests::support::id;
 use abstract_operations::{AbstractOperation, AbstractOperationPlan, AbstractResult};
-use optimization_unit::{PsiOptimizationUnit, reconstruct_psi_optimization_unit_seed};
 use semantic_vocabulary::{
     BlockId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId, PlaceId,
     ScalarType, ValueId,
@@ -50,14 +49,6 @@ pub(crate) fn primitive_local_plan() -> AbstractOperationPlan {
         ],
     );
     plan
-}
-
-pub(crate) fn primitive_local_unit() -> PsiOptimizationUnit {
-    reconstruct_psi_optimization_unit_seed(
-        &primitive_local_plan(),
-        terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
-    )
-    .unwrap()
 }
 
 pub(crate) fn primitive_local_call_plan() -> AbstractOperationPlan {
