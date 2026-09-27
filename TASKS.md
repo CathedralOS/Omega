@@ -7341,7 +7341,21 @@ release acceptance still requires complete coverage. Remaining reported failures
   724 fixtures. The file existed before that but held only its header, so the
   leg had zero recorded rows and nothing could detect movement in it.
   **724 fixtures: 287 checked, 187 built, 250 rejected; 137 EXECUTED, of which
-  105 exit 70**, 0 with stdout differing from expected. Six take `signal:5`
+  105 exit 70**, 0 with stdout differing from expected. The 250 rejections
+  are ATTRIBUTED in
+  [macos_arm64_native_rejections](wiki/drafts/measurements/macos_arm64_native_rejections.md),
+  and the headline reframes this item: **144 of them are unit-plan omissions
+  that never reach code generation**, plus 19 host provider-absence and a
+  dozen authoring rows. The genuinely native-side population is about **50**
+  -- Terminal production 34, canonical abstract optimization 6, authority
+  closure 6, artifact and target lowering 6. Size this matrix against 50, not
+  250. The largest omission phase (27 at `statement sequence: local data:
+  structural call binding`) is dominated by `recast/` and `slices/` rows, and
+  the recast ones are confirmed REFERENCE-LOCAL-BINDING-ROUTES customers --
+  `runtime_bool_representation_recast_exit` spells
+  `let flag_bits: &u8 = &self.flag as &u8;`, two of that item's three
+  triggers on one line. Seven phases carrying 39 rows have no filed owner and
+  are ranked there as the places new diagnosis pays. Six take `signal:5`
   and all six are the `*trapping*`/`*_traps*` fixtures, where the trap IS the
   asserted behavior (`runtime_trapping_overflow_traps` says so outright) --
   read them as passes, not crashes. The remaining executed rows exit their own
