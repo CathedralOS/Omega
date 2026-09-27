@@ -792,133 +792,102 @@ the complete product bar; focused successes below do not establish that baseline
   suffix-recommending diagnostics; require suffix rejection in every type
   position, preserve the unrelated range constructs, and delete the recipe.
 
-- **SQUALR-HEADLESS.** Drive the independently versioned
-  [Squalr application](samples/apps/README.md) through nested package builds and
-  native geometry, supplied-byte scanning, and repeat filtering. Its board owns
-  the essentially 1:1 Rust port; this item owns compiler integration and unchanged
-  application acceptance.
+- **SQUALR-HEADLESS.** Run the independently versioned
+  [Squalr application](samples/apps/README.md) through its ordinary nested
+  packages to native geometry, supplied-byte scanning and repeat filtering.
+  Its board owns the essentially 1:1 Rust port; this item owns compiler
+  integration and unchanged application acceptance.
 
-  Run `python samples/apps/squalr/tools/verify.py native --target linux_x86_64
-  --timeout 600 --omega <binary>` through ordinary package review on a matching
-  host. Connect
-  **VEC-NATIVE-GROWTH** to partitioned scan results and repeated filtering;
-  **BUMP-ALLOCATOR-CANARY** and **PLAN-LAID-VIEWS** supply allocation and placed
-  access. Follow the application's actual next missing operation rather than
-  waiting for every related task to close.
+  Restore the acceptance route in `squalr-tests/main.omg` and
+  `squalr-tests/src/command_driver.omg`. The pinned entry skips expansion,
+  ordering and string parsing, leaves the six scalar `FixtureKit` scan/repeat
+  checks disconnected, and prints PASS after seeded snapshot/tombstone checks.
+  Connect those checks and production new-scan, element-scan, repeat, delete
+  and list execution before success. Direct executor helpers do not cover the
+  privileged-command dispatcher. Keep exact address/value and RLE-range oracles,
+  including no/all matches, tails, genuine empty input and overlapping candidates.
+  The current `verify_empty` supplies nonmatching bytes; `verify_overlap` scans
+  one-byte values at stride two. Neither establishes its named edge case.
 
-  Foreign-package `Optional<T>` state patterns for `ScanFunctionScalar` and
-  `SnapshotRegionFilter` now retain their nominal declaration identity during
-  value-root validation. The actual API-type probe clears the unresolved-owner
-  diagnostics, then rejects borrowing an owned affine case payload into a
-  successor at `state graph: terminator: conditional successors: parameter
-  transfer`. Complete `case_payload_transfer` in stage 04's
-  `execution/terminal_unit/state_graph/mod.rs`: a shared successor argument may
-  borrow the selected owned payload subtree, not only forward a payload that
-  is already a shared reference. Restore the intended sum API through that
-  lowering and native acceptance.
-  Boolean-plus-payload and package-local sum substitutions are not proof of
-  parity. Ordinary marker-data namespaces are an implementation choice, not an
-  owner decision. Port work stays with this customer through native acceptance.
+  True multi-byte overlap also needs production raw-byte storage:
+  `SnapshotRegion::read_current_elements` divides
+  `(base_delta + position * stride)` by element width, repeating decoded values
+  when stride is smaller than width. Preserve byte coverage separately from
+  candidate stride and growable output. The command fixture's eight-byte-spaced
+  oracle needs explicit `Alignment8`; retain production's `Alignment1` default.
 
-  The pinned win64 frontier is
-  `native_win64_write_byte_catalog_frontier`: the win64 x86-64 target package
-  carries no closed native catalog identity for byte emission, so
-  output-bearing sink providers cannot select a `write_byte` row there.
-  Result-writing sink paths must keep refusing on win64 until the target
-  catalog gains that identity; linux_x86_64 remains the native witness host.
+  Restore the real foreign-package `Optional<T>` APIs for `ScanFunctionScalar`
+  and `SnapshotRegionFilter`. Stage 04's `case_payload_transfer` in
+  `execution/terminal_unit/state_graph/mod.rs` still only forwards an existing
+  shared-reference payload to a shared successor; add the checked loan of a
+  selected owned affine payload subtree. Boolean-plus-payload or package-local
+  sum replacements do not close that customer. Ordinary marker-data namespaces
+  need no language decision. Reproduce the restored application on the current
+  compiler before assigning any further source-signature or structural-argument
+  failure: old diagnostics and expired claims are not current blockers.
 
-  Preserve geometry acceptance on Windows and Linux ARM64, alignment parsing
-  and refusal/error-text parity, `set_alignment` calls, native clone/serialization
-  (including case-bearing alignment values), and token/named ordering agreement:
-  order by base address with equal-base equivalence while `equals` remains
-  size-sensitive. Existing parsing, ordering and clone/wire helpers need
-  application execution; in-package checking does not close those gates.
-  Keep remaining parity gaps explicit in the app-owned work.
-  Debug-assertion parity uses the settled assertion/build contracts, not an
-  invented implicit debug/release switch.
+  Preserve Windows and Linux ARM64 geometry, `set_alignment`, parsing/refusal
+  and error-text parity, native clone/serialization of case-bearing alignment,
+  and token/named ordering agreement: order by base, equal-base order equivalence,
+  size-sensitive `equals`. Apply settled assertion/build contracts to Rust's
+  debug assertions. Windows byte output still needs an admitted native route:
+  `HostedWriteByteI32Realization` selects `HostedIntrinsicBundle`, whose current
+  profiles exclude Windows despite std's declared `write_byte` provider.
 
-  Acceptance: geometry prints `Squalr geometry: PASS`; scans and repeat filters
-  match Rust's exact addresses/ranges, including overlap, tails and empty input.
-  Retain the 17-package/37-edge layout and application verification harness;
-  record exact compiler/application pins and host. No Rust FFI scanner,
-  fixed-capacity substitute, pull-only workaround, or application-specific
-  compiler behavior. Source presence, package checking and Terminal publication
-  are not native acceptance. Ordinary artifact production has
+  Run `python3 samples/apps/squalr/tools/verify.py native --target linux_x86_64
+  --timeout 600 --omega <binary>` with Python 3.11+ and ordinary package review
+  on Linux x86-64; the pinned entry and filesystem/time providers target Linux.
+  The harness checks the host and calls `omega run --keep` without a compiler
+  `--target` flag, since that flag only emits. Acceptance requires actual exit 0
+  with `Squalr geometry: PASS` after the restored checks, plus exact scan/repeat
+  addresses and ranges matching pinned Rust and independent expected cases.
+  Preserve the 17-package/37-edge layout and verification harness; record compiler,
+  std, application and upstream pins and host. Layout checks, source checking,
+  Terminal publication and cross-emission do not establish execution.
+
+  Connect **VEC-NATIVE-GROWTH** to partitioned scan output and repeat filtering;
+  **BUMP-ALLOCATOR-CANARY** and **PLAN-LAID-VIEWS** supply backing and placed access.
+  Follow the application's next missing operation without waiting for every
+  related task to close. Keep growable storage, shared snapshots and the full
+  port contract; no Rust FFI scanner, fixed-capacity substitute, pull-only
+  workaround or application-specific compiler behavior. Artifact production keeps
   [conditional loading premises](wiki/spec/build/component_publication.md#products-and-authority),
-  not a fabricated runtime installation grant or mandatory Rust supervisor.
-
-  The published application pin is
-  `be5c4c5546e645109697a29a85b8f8c96b3ebcc6`, including canonical scalar
-  contracts and a native harness that executes on the matching host. Explicit
-  `--target` on `omega run` only emits; the harness validates its requested host
-  and omits that compiler flag for execution. With compiler `210c832a7b37` on
-  macOS ARM64 and application source `5fd89ec0a100`,
-  `RUST_MIN_STACK=67108864 OMEGA_REVIEW_TIMINGS=1 omega update --project
-  samples/apps/squalr/squalr-tests --target linux_x86_64`, followed by exact
-  package review and `update --resume`, publishes the accepted lock for all
-  17 package occurrences. The subsequent `omega run --keep --target
-  linux_x86_64 samples/apps/squalr/squalr-tests/main.omg` exits 200 at
-  Terminal production: `ordered scalar control lost its exact source signature`.
-  Rejoin the ordered scalar body's source signature before native emission;
-  The active `MIXED-SIGNATURE-BORROWED-PARAMS` claim owns the related signature route.
-  Run the execution harness on Linux x86-64: the actual `Main::main` and
-  filesystem/time realizations currently target Linux. Cross-emission on
-  macOS is not execution, and a macOS build declaration supplies no entry/provider.
-
-  Restore the full acceptance route in `squalr-tests/main.omg` and
-  `squalr-tests/src/command_driver.omg`. The published entry skips expansion,
-  ordering and string-parsing states, leaves the six `FixtureKit` scalar
-  scan/repeat checks dormant, and prints PASS after seeded snapshot/tombstone
-  checks. Connect those existing checks and the production new-scan,
-  element-scan, repeat, delete and list executors before success. The command
-  fixture's eight-byte-spaced address oracle requires explicit `Alignment8`;
-  keep the production `Alignment1` default. Also assert exact RLE ranges and
-  a genuinely empty input: current tails/overlap checks assert addresses,
-  and `verify_empty` means nonmatching bytes. The so-called overlap fixture
-  actually scans one-byte values at stride two. True overlapping multi-byte
-  scanning still needs raw-byte storage: `SnapshotRegion::read_current_elements`
-  indexes decoded values with `(base_delta + position * stride) / unit`, which
-  repeats a value instead of reading overlapping bytes when stride is smaller
-  than width. Preserve this production gap alongside growable storage work.
-  Executing the command helpers
-  does not establish coverage of the privileged-command dispatcher.
-
-  The restored full route against application `5fd89ec0a100`, checked with
-  compiler `ea7846053e` plus the published static-call signature ceiling fix,
-  clears the earlier `Main::gate` write-frame failure. It now rejects at
-  `CommandDriver::run` -> `CommandDriver::do_element_scan` ->
-  `call operation: structural arguments: source symbol`. Rejoin the actual
-  argument place in stage 04's `execution/terminal_unit/calls/structural_arguments.rs`;
-  The active `STRUCTURAL-ARGUMENTS-PARAMETER-PATH` claim owns that repair. Keep the
-  restored source unchanged through the next outer check and native acceptance.
-
-  Whole-graph checking remains expensive: the successful discovery above took
-  roughly 42 minutes. **CHECK-CLOSURE-ONCE** owns repeated package/checked-stage
-  work. Preliminary and settled products have different authority receipts;
-  reuse requires exact inputs, not weakening the second check. Keep live runs
-  until a verdict and distinguish a timeout from a source rejection.
+  without a fabricated runtime installation grant or mandatory Rust supervisor.
+  **CHECK-CLOSURE-ONCE** owns repeated checking: reuse only exact inputs and
+  authority receipts, keep live runs to a verdict, and record timeout separately
+  from source rejection.
 
 - **VEC-NATIVE-GROWTH.** (split-of:BUMP-ALLOCATOR-CANARY) Implement ordinary
-  library `Vec<T>` for Squalr's growable scan results. Owners:
-  `source/library/core/vec.omg`, `source/library/alloc/`, and the compiler
-  operations exercised by the source. The current empty data/machine surface
-  has no runtime storage or construction implementation. Its compiler-owned
-  buffer/Arena comments are not the [allocation contract](wiki/spec/resources/allocation.md).
+  library `Vec<T>` for Squalr's growable scan results under the
+  [allocation contract](wiki/spec/resources/allocation.md). Owners are
+  `source/library/core/vec.omg`, `source/library/alloc/vec.omg`, and the ordinary
+  compiler operations exercised by that source.
+
+  Core's generic storage/construction surface remains empty. The alloc package
+  now has a nongeneric `Vec` containing inline `u32` arrays of length 4, 8 and 16:
+  growth copies between those fixed fields, rejection returns zero without
+  requesting storage, and close clears tag/length without consuming custody.
+  This is a bounded copying witness, not allocator-backed growth or indirection.
+  `pass/collections/runtime_vec_u32_growth_exit` records macOS native exit 70,
+  but manually copies backing fields and accepts repeated close. Its weighted
+  failure exit also needs a verdict that cannot lose high bits at process exit.
+  The duplicate-cleanup and invalidated-loan fail fixtures use separate local
+  types; preserve their controls and exercise the actual library implementation.
 
   Acceptance: native `Vec<u32>` takes explicit backing, appends through two
-  growths, reads its preserved prefix and new elements, then cleans up and
-  returns backing under the allocator contract. Cover empty cleanup, allocation
-  failure preserving contents, invalidated loans and duplicate cleanup.
-  Growth transfers exact element custody and returns or retains old backing
-  explicitly; variable retained storage uses indirection, not an infinitely
-  recursive inline record or compiler vector special case.
+  growths through allocation, verifies the preserved prefix and new elements, cleans up
+  exactly once and returns backing under the allocator contract. Cover empty
+  cleanup, real allocation failure preserving contents/custody, invalidated
+  loans and duplicate cleanup. Transfer exact element custody and explicitly
+  return or retain old backing; variable retained storage requires indirection,
+  not an infinitely recursive inline record or compiler-owned vector/Arena.
 
   **BUMP-ALLOCATOR-CANARY** owns allocation/returned extents;
   **PLAN-LAID-VIEWS** owns establishment/access/retirement;
   **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS** owns content-preserving
   transfer; **BORROWED-STORAGE-RESTORATION** owns move-out/replace when needed.
-  Keep the source program as outer acceptance through checking, interpretation
-  and native emission, then use that same implementation in Squalr.
+  Keep the source program through checking, interpretation and native execution,
+  then use that same implementation in Squalr.
 
 - **MACOS-APPLICATION-PUBLICATION.** Finish the
   [macOS publication contract](wiki/spec/build/macos_application.md) for
@@ -3385,47 +3354,42 @@ syntax and other terminal services are not prerequisites.
 
 ## P5 - Cathedral over general Omega primitives
 
-- **BUMP-ALLOCATOR-CANARY.** Deliver an executable package allocator over a
-  qualified `Extent` under [allocation](wiki/spec/resources/allocation.md).
-  Strategy stays ordinary Omega source. Reuse `source/library/alloc/bump.omg`
-  and the `bump_allocator_canary` package-dependency fixture: the package exists,
-  but `Main::main` is empty, no storage provider is selected, and its `BumpVec`
-  exercise carries capacity rather than elements.
+- **BUMP-ALLOCATOR-CANARY.** Deliver an executable ordinary package allocator
+  over qualified `Extent` under [allocation](wiki/spec/resources/allocation.md),
+  supplying **VEC-NATIVE-GROWTH** and Squalr. Reuse
+  `source/library/alloc/bump.omg` and `pass/memory/bump_allocator_canary`.
+  The fixture selects `BumpRootProvider`, but its entry is empty and it selects
+  no executable partition/resident-storage provider. `BumpVec` reserves extents
+  without elements, and `RetiredSlot` holds only one old buffer.
 
-  Complete these connected parts:
-
-  - Connect `ExtentPartition` to the invoked partition/conservation route
-    owned by CONSERVATION-CONTRACT and TERMINAL-CONTENT-CLAIMS. Prove aligned
-    request geometry and the counted-residual/tail relationship; returned
-    length laws alone do not establish that a request fits. Preserve exact
-    alternatives, caller substitution and independent custody reconstruction.
-  - Replace fixture-local `ResidentStorage` with PLAN-LAID-VIEWS' evaluated
-    layout/access, establishment, element transfer and retirement. A resident
-    marker is not establishment; live residents cannot merge as vacant.
-    Complete core's `Vacant`/`Resident` establishment-route declarations alongside
-    these operations, using DOMAIN-ISSUER-ROUTES' ordinary enforcement. Empty
-    declarations are unrestricted tags, not protected custody. Keep cast-forgery
-    refusals against explicitly routed declarations, not linearity heuristics.
+  - Complete the invoked `ExtentPartition`/conservation route through
+    **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS**. Prove aligned request
+    geometry and the counted-residual/tail relationship; returned length laws
+    alone do not establish fit. Preserve exact alternatives, caller substitution
+    and independent custody reconstruction.
+  - Replace fixture-local `ResidentStorage` with **PLAN-LAID-VIEWS**' evaluated
+    layout/access, establishment, element transfer and retirement. Core's bare
+    `Vacant`/`Resident` declarations need authorized establishment routes under
+    **DOMAIN-ISSUER-ROUTES**. Enforce those declarations and exact resident indices;
+    the current cast-forgery diagnostic relies on a heuristic about the
+    carrier's other domains. An empty tag or linear carrier does not establish resident custody,
+    and live residents cannot merge as vacant.
   - Implement temporary exclusive strategy borrowing through
-    BORROWED-STORAGE-RESTORATION, ending at allocation return so allocations
-    coexist without a permanently borrowed compiler arena.
-  - Implement explicit retired storage, traversal and full recomposition.
-    `RetiredSlot` holds only one old buffer. Current `release`/`shrink`
-    restore the allocatable tail immediately; that specialized reuse behavior
-    is not the specified monotonic release, which retains returned extents
-    until reset. Preserve the contract rather than treating tail-adjacent return
-    as the general return implementation.
-  - Supply real backing and execute the package in the interpreter and on a
-    supported native host; record unavailable hosts separately.
-    VEC-NATIVE-GROWTH consumes this allocator and owns
-    the element-bearing container customer.
+    **BORROWED-STORAGE-RESTORATION**, ending at allocation return so allocations
+    coexist. The existing API moves the strategy through result records.
+  - Implement general retired storage, traversal and full recomposition.
+    Current `release`/`shrink` immediately restore the tail; specified monotonic
+    release cleans values and retains returned extents until reset. Tail-adjacent
+    reuse does not satisfy that contract, and bulk reset cannot waive cleanup.
 
-  Acceptance: coexisting allocations, unchanged state on failed requests,
-  exact cleanup/return, and reset to original backing only after every allocation
-  and resident returns. Live reset, dropped custody, double placement, wrong
-  resident indices and unrouted introduction reject. Preserve the
-  `fail/memory/bump_allocator_*` and live-resident controls. An empty entry,
-  finite reservation exercise or checked-only pass is not executable acceptance.
+  Acceptance: supply real backing and execute coexisting allocations, unchanged
+  state on failure, exact cleanup/return, and reset/finish to original backing
+  only after all allocations and residents return. Run in the interpreter and on
+  a supported native host, recording unavailable hosts separately. Live reset,
+  dropped custody, double placement, wrong resident indices and unrouted
+  introduction reject; retain `fail/memory/bump_allocator_*` and live-resident
+  controls against the completed routes. Empty entry or finite checked-only
+  reservations do not close executable acceptance.
 
 - **ADDRESS-TRANSLATION-CANARY.** Execute Cathedral-owned mapping
   installation and teardown under
