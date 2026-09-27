@@ -19,7 +19,8 @@ use semantic_vocabulary::{MachineId, ObligationId, Proposition, ScalarTerm, Valu
 use terminal_psi::{ScalarBlockInvariantArrival, Terminator};
 use terminal_verifier::{ReconstructedTerminalObligationOwner, ReconstructedTerminalObligationSet};
 
-use crate::lowering_error::LoweringError;
+use crate::lowering_error::{LoweringError, ProofSearchCapacity};
+use crate::proofs::ProofSearchDeclines;
 use crate::proofs::nonzero_divisor_certificate::{
     produce_checked_canonical_integer_proof, produce_relaxed_integer_proof,
 };
@@ -35,13 +36,31 @@ mod retained_evidence;
 #[cfg(test)]
 mod tests;
 
-pub(crate) fn retain_provable(lowered: &mut LoweredPsi) -> Result<(), LoweringError> {
+/// Run optional inference under the production provisions, returning the
+/// capacities that declined so a later unmet obligation can name the
+/// resource that refused instead of reading as a disproof. Only tests call
+/// this spelling: production reaches the same pass through finalization
+/// with the explicit provision.
+#[cfg(test)]
+pub(crate) fn retain_provable(
+    lowered: &mut LoweredPsi,
+) -> Result<ProofSearchDeclines, LoweringError> {
+    retain_provable_bounded(lowered, MAX_ROSTER_ROUNDS)
+}
+
+/// The same pass under an explicit roster-round provision: the ledger a
+/// caller gets back records every named capacity the pass declined against.
+pub(crate) fn retain_provable_bounded(
+    lowered: &mut LoweredPsi,
+    roster_rounds: usize,
+) -> Result<ProofSearchDeclines, LoweringError> {
+    let mut declines = ProofSearchDeclines::default();
     if !lowered.semantic_module.scalar_block_invariants.is_empty() {
-        return Ok(());
+        return Ok(declines);
     }
     let original = terminal_verifier::reconstruct_terminal_obligations(&lowered.semantic_module)
         .map_err(LoweringError::InvalidTerminalModule)?;
-    retain_provable_roster(lowered, &original)?;
+    retain_provable_roster_bounded(lowered, &original, roster_rounds, &mut declines)?;
     // A cyclic machine's guarantee may still be open once the ordinary
     // roster is retained; its strengthening is a separate all-or-nothing
     // transaction that leaves this roster unchanged when it cannot help.
@@ -52,7 +71,12 @@ pub(crate) fn retain_provable(lowered: &mut LoweredPsi) -> Result<(), LoweringEr
     // strengthening reads that reconstruction instead of repeating it. A
     // retained roster is a different module and reconstructs its own.
     let retained_nothing = lowered.semantic_module.scalar_block_invariants.is_empty();
-    cyclic_guarantees::strengthen(lowered, retained_nothing.then_some(&original))
+    cyclic_guarantees::strengthen(
+        lowered,
+        retained_nothing.then_some(&original),
+        &mut declines,
+    )?;
+    Ok(declines)
 }
 
 /// Aggregate bound on the roster pass's repeated whole-module work: each
@@ -64,30 +88,40 @@ pub(crate) fn retain_provable(lowered: &mut LoweredPsi) -> Result<(), LoweringEr
 /// schedule. Declining a round drops only provisional proposals — every
 /// retained row still passes the all-arrival proof transaction — so
 /// exhaustion is never itself a reason to reject the module.
-const MAX_ROSTER_ROUNDS: usize = 128;
+pub(crate) const MAX_ROSTER_ROUNDS: usize =
+    ProofSearchCapacity::ScalarInvariantRosterRounds.limit() as usize;
 
-fn retain_provable_roster(
-    lowered: &mut LoweredPsi,
-    original: &ReconstructedTerminalObligationSet,
-) -> Result<(), LoweringError> {
-    retain_provable_roster_bounded(lowered, original, MAX_ROSTER_ROUNDS)
-}
+/// The shared candidate-transport pool the field-bound and join producers
+/// draw from, one provisioned work budget across every discovery iteration.
+const MAX_CANDIDATE_WORK: usize =
+    ProofSearchCapacity::ScalarInvariantCandidateWork.limit() as usize;
 
 fn retain_provable_roster_bounded(
     lowered: &mut LoweredPsi,
     original: &ReconstructedTerminalObligationSet,
     mut rounds: usize,
+    declines: &mut ProofSearchDeclines,
 ) -> Result<(), LoweringError> {
     let module = &mut lowered.semantic_module;
-    let mut remaining = 4096usize;
+    let mut remaining = MAX_CANDIDATE_WORK;
     let mut candidates = entry_ranges::candidates(module);
-    candidates.extend(field_bounds::candidates(module, original, &mut remaining));
+    candidates.extend(field_bounds::candidates(
+        module,
+        original,
+        &mut remaining,
+        declines,
+    ));
     if remaining == 0 {
-        crate::proofs::proof_timing::count_budget_exhaustion();
+        declines.record(ProofSearchCapacity::ScalarInvariantCandidateWork);
     }
-    candidates.extend(joins::candidates(module, original, &mut remaining));
+    candidates.extend(joins::candidates(
+        module,
+        original,
+        &mut remaining,
+        declines,
+    ));
     if remaining == 0 {
-        crate::proofs::proof_timing::count_budget_exhaustion();
+        declines.record(ProofSearchCapacity::ScalarInvariantCandidateWork);
     }
     // A guarded bound the cycle's own update can break is rewritten into the
     // lockstep family the induction step needs; the prove-or-drop boundary
@@ -142,7 +176,7 @@ fn retain_provable_roster_bounded(
                 ))?;
             for edge in header_arrival_edges(machine, candidate.header) {
                 let Some(fresh) = next.checked_add(1) else {
-                    crate::proofs::proof_timing::count_budget_exhaustion();
+                    declines.record(ProofSearchCapacity::TerminalObligationIdentities);
                     if !restore_seeds(&mut module.scalar_block_invariants, &mut seeds) {
                         module.scalar_block_invariants.clear();
                     }
@@ -177,7 +211,7 @@ fn retain_provable_roster_bounded(
         // is spent, keep the merged roster for the proof transaction to judge
         // and stop discovering instead of looping without bound.
         let Some(next_round) = rounds.checked_sub(1) else {
-            crate::proofs::proof_timing::count_budget_exhaustion();
+            declines.record(ProofSearchCapacity::ScalarInvariantRosterRounds);
             break;
         };
         rounds = next_round;
@@ -190,9 +224,9 @@ fn retain_provable_roster_bounded(
             }
             break;
         };
-        candidates = joins::candidates(module, &questions, &mut remaining);
+        candidates = joins::candidates(module, &questions, &mut remaining, declines);
         if remaining == 0 {
-            crate::proofs::proof_timing::count_budget_exhaustion();
+            declines.record(ProofSearchCapacity::ScalarInvariantCandidateWork);
         }
     }
     // A proof verdict is a pure function of the producer inputs below: the
@@ -227,7 +261,7 @@ fn retain_provable_roster_bounded(
         // provisional roster: the pass is optional inference, so running out
         // of rounds is never itself a reason to reject the module.
         let Some(next_round) = rounds.checked_sub(1) else {
-            crate::proofs::proof_timing::count_budget_exhaustion();
+            declines.record(ProofSearchCapacity::ScalarInvariantRosterRounds);
             module.scalar_block_invariants.clear();
             return Ok(());
         };

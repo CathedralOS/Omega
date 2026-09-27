@@ -29,16 +29,18 @@ use terminal_verifier::{ReconstructedTerminalObligationOwner, ReconstructedTermi
 
 use super::joins::{ArrivalEquations, scoped_goal, uses_header};
 use super::{header_arrival_edges, retained_evidence};
-use crate::lowering_error::LoweringError;
+use crate::lowering_error::{LoweringError, ProofSearchCapacity};
+use crate::proofs::ProofSearchDeclines;
 use crate::proofs::nonzero_divisor_certificate::produce_checked_canonical_integer_proof;
 use lowered_psi::LoweredPsi;
 
 /// Shared finite budget for equation transport and candidate discovery.
-const BUDGET: usize = 4096;
+const BUDGET: usize = ProofSearchCapacity::CyclicGuaranteeCandidateWork.limit() as usize;
 
 pub(super) fn strengthen(
     lowered: &mut LoweredPsi,
     retained: Option<&ReconstructedTerminalObligationSet>,
+    declines: &mut ProofSearchDeclines,
 ) -> Result<(), LoweringError> {
     let _scope = crate::proofs::proof_timing::Scope::enter("cyclic_guarantees::strengthen");
     // The roster owner hands over its own reconstruction when it left the
@@ -76,7 +78,13 @@ pub(super) fn strengthen(
                 &context,
                 original,
                 &mut remaining,
+                declines,
             ));
+        }
+        // A producer that left the pool empty hit its provision, whether or
+        // not a draw site happened to report the refusal itself.
+        if remaining == 0 {
+            declines.record(ProofSearchCapacity::CyclicGuaranteeCandidateWork);
         }
         (demanding, candidates)
     };
@@ -84,7 +92,9 @@ pub(super) fn strengthen(
         return Ok(());
     }
     let baseline = lowered.semantic_module.scalar_block_invariants.clone();
-    if merge(&mut lowered.semantic_module, candidates)? && proves(lowered, original, &demanding)? {
+    if merge(&mut lowered.semantic_module, candidates, declines)?
+        && proves(lowered, original, &demanding)?
+    {
         return Ok(());
     }
     lowered.semantic_module.scalar_block_invariants = baseline;
@@ -144,6 +154,7 @@ fn header_candidates(
     context: &PropositionContext,
     questions: &ReconstructedTerminalObligationSet,
     remaining: &mut usize,
+    declines: &mut ProofSearchDeclines,
 ) -> Vec<ScalarBlockInvariant> {
     let mut candidates = Vec::new();
     let Some(entry) = machine
@@ -242,7 +253,7 @@ fn header_candidates(
         let mut pending = machine.contract.requires.iter().collect::<Vec<_>>();
         while let Some(requirement) = pending.pop() {
             let Some(next) = remaining.checked_sub(1) else {
-                crate::proofs::proof_timing::count_budget_exhaustion();
+                declines.record(ProofSearchCapacity::CyclicGuaranteeCandidateWork);
                 return candidates;
             };
             *remaining = next;
@@ -308,7 +319,7 @@ fn header_candidates(
         )
     }) {
         let Some(next) = remaining.checked_sub(1) else {
-            crate::proofs::proof_timing::count_budget_exhaustion();
+            declines.record(ProofSearchCapacity::CyclicGuaranteeCandidateWork);
             return candidates;
         };
         *remaining = next;
@@ -355,6 +366,7 @@ fn successor_arguments(terminator: &Terminator, header: BlockId) -> Vec<&[ValueI
 fn merge(
     module: &mut TerminalModule,
     mut candidates: Vec<ScalarBlockInvariant>,
+    declines: &mut ProofSearchDeclines,
 ) -> Result<bool, LoweringError> {
     candidates.sort_by_key(|candidate| (candidate.machine, candidate.header));
     let mut grouped: Vec<ScalarBlockInvariant> = Vec::new();
@@ -393,6 +405,10 @@ fn merge(
             ))?;
         for edge in header_arrival_edges(machine, candidate.header) {
             let Some(fresh) = next.checked_add(1) else {
+                // The identity-space provision declined; account it like
+                // every other named capacity so an unmet guarantee reports
+                // the capacity instead of reading as a disproof.
+                declines.record(ProofSearchCapacity::TerminalObligationIdentities);
                 return Ok(false);
             };
             next = fresh;

@@ -39,7 +39,7 @@ use semantic_vocabulary::{
     ContentPlaceVersion, ContentProjectionExpression, ContentProjectionIdentity,
     ContentProjectionScalar, ContentStructuralPlace, ContentTerm, EvidenceIdentity, EvidenceTermId,
     IeeeFloatFormat, IeeeFloatStructuralField, IntegerSign, IntegerType, IntegerValue, MachineId,
-    PlaceId, Proposition, PropositionContext, PropositionId, ScalarTerm, ScalarType,
+    ObligationId, PlaceId, Proposition, PropositionContext, PropositionId, ScalarTerm, ScalarType,
     StructuralCaseSubject, StructuralPlaceKind, StructuralTypeId,
 };
 use terminal_psi::{
@@ -67,7 +67,7 @@ use crate::emission::scalar_types::{
     integer_landing_scalar_type, integer_scalar_type, integer_value, terminal_scalar_type,
 };
 use crate::expression_preparation::prepare_expression::lower_checked_scalar_expression;
-use crate::lowering_error::{LoweringError, unsupported};
+use crate::lowering_error::{LoweringError, ProofSearchCapacity, unsupported};
 use crate::terminal_identities::{
     dense_identity, lookup_claim_id, machine_id, obligation_id, proposition_id, value_id,
 };
@@ -85,6 +85,48 @@ pub(crate) mod operation_proofs;
 pub(crate) mod proof_recursion;
 pub(crate) mod quotient_correspondence;
 pub(crate) mod scalar_block_invariants;
+
+/// The named proof-search capacities that declined a request during one
+/// finalization's optional inference. A decline is accounted, not silent:
+/// the ledger keeps the first mention of each capacity so that an
+/// obligation which later proves unmet reports the named capacity — the
+/// publication contract's `Incomplete` outcome — instead of the ordinary
+/// unavailable-proof rejection.
+#[derive(Debug, Default)]
+pub(crate) struct ProofSearchDeclines {
+    capacities: Vec<ProofSearchCapacity>,
+}
+
+impl ProofSearchDeclines {
+    /// Account one refusal of `capacity`: the process-wide exhaustion
+    /// aggregate ticks once per refusal, and the ledger retains the first
+    /// mention of each named capacity.
+    pub(crate) fn record(&mut self, capacity: ProofSearchCapacity) {
+        proof_timing::count_budget_exhaustion();
+        if !self.capacities.contains(&capacity) {
+            self.capacities.push(capacity);
+        }
+    }
+
+    /// The refusal an unproved obligation reports: the earliest recorded
+    /// capacity's `Incomplete` refusal when any decline happened during this
+    /// finalization's optional inference, else the ordinary
+    /// unavailable-proof rejection.
+    ///
+    /// The mapping is deliberately coarse: once a named capacity declined,
+    /// the pass can no longer establish whether the unproved site was
+    /// genuinely unprovable or simply beyond the provisioned search, so the
+    /// outcome must not read as a disproof of the module.
+    pub(crate) fn unproved_obligation_error(&self, obligation: ObligationId) -> LoweringError {
+        match self.capacities.first() {
+            Some(&capacity) => LoweringError::ProofSearchCapacityExhausted {
+                capacity,
+                obligation,
+            },
+            None => LoweringError::OperationProofUnavailable(obligation),
+        }
+    }
+}
 
 /// Scratch instrumentation for C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT attribution.
 /// Enabled by OMEGA_PROOF_TIMINGS=1; prints to stderr.

@@ -221,13 +221,24 @@ fn an_exhausted_roster_round_budget_declines_inference_without_rejecting() {
         .expect("the cleared module reconstructs");
     let exhaustions =
         crate::proofs::proof_timing::BUDGET_EXHAUSTIONS.load(std::sync::atomic::Ordering::Relaxed);
-    super::retain_provable_roster_bounded(&mut lowered, &original, 0)
+    let mut declines = crate::proofs::ProofSearchDeclines::default();
+    super::retain_provable_roster_bounded(&mut lowered, &original, 0, &mut declines)
         .expect("a declined round is not a rejection");
     assert!(lowered.semantic_module.scalar_block_invariants.is_empty());
     assert!(
         crate::proofs::proof_timing::BUDGET_EXHAUSTIONS.load(std::sync::atomic::Ordering::Relaxed)
             > exhaustions,
         "the declined rounds are accounted",
+    );
+    // The ledger names the capacity so an obligation left unmet reports the
+    // `Incomplete` refusal rather than a disproof of the module.
+    let unmet = semantic_vocabulary::ObligationId::new(u64::MAX - 1).unwrap();
+    assert_eq!(
+        declines.unproved_obligation_error(unmet),
+        crate::lowering_error::LoweringError::ProofSearchCapacityExhausted {
+            capacity: crate::lowering_error::ProofSearchCapacity::ScalarInvariantRosterRounds,
+            obligation: unmet,
+        },
     );
     // The module stands on its own: ordinary finalization re-runs inference
     // under the production budget, and the finished module verifies.
@@ -240,3 +251,4 @@ fn an_exhausted_roster_round_budget_declines_inference_without_rejecting() {
     )
     .expect("the module still verifies");
 }
+

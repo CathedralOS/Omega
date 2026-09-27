@@ -26,6 +26,7 @@ const MAX_PROOF_WORKERS: usize = 8;
 pub(crate) fn finalize_operation_proofs(lowered: &mut LoweredPsi) -> Result<(), LoweringError> {
     finalize_operation_proofs_inner(
         lowered,
+        crate::proofs::scalar_block_invariants::MAX_ROSTER_ROUNDS,
         #[cfg(test)]
         &|_| {},
     )
@@ -33,11 +34,13 @@ pub(crate) fn finalize_operation_proofs(lowered: &mut LoweredPsi) -> Result<(), 
 
 fn finalize_operation_proofs_inner(
     lowered: &mut LoweredPsi,
+    roster_rounds: usize,
     #[cfg(test)] prepared_machine: &(impl Fn(MachineId) + Sync),
 ) -> Result<(), LoweringError> {
     let _retain_scope =
         crate::proofs::proof_timing::Scope::enter("finalize_operation_proofs:retain_provable");
-    crate::proofs::scalar_block_invariants::retain_provable(lowered)?;
+    let declines =
+        crate::proofs::scalar_block_invariants::retain_provable_bounded(lowered, roster_rounds)?;
     drop(_retain_scope);
     let started = std::time::Instant::now();
     let validated = terminal_verifier::validate_module(&lowered.semantic_module)
@@ -141,7 +144,10 @@ fn finalize_operation_proofs_inner(
                 &site.semantic_axioms,
             )
         };
-        let proof = proof.ok_or(LoweringError::OperationProofUnavailable(site.obligation.id))?;
+        // An unproved site is the ordinary rejection only while no named
+        // capacity declined: after a decline the refusal is the publication
+        // contract's `Incomplete` outcome, never a claim the site is false.
+        let proof = proof.ok_or_else(|| declines.unproved_obligation_error(site.obligation.id))?;
         Ok::<_, LoweringError>(ObligationEvidence {
             obligation: site.obligation.id,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
@@ -202,7 +208,7 @@ fn finalize_operation_proofs_inner(
         .proof_bundle
         .evidence
         .sort_by_key(|evidence| evidence.obligation);
-    crate::proofs::control_cycle_proofs::finalize(lowered)?;
+    crate::proofs::control_cycle_proofs::finalize(lowered, &declines)?;
     crate::proofs::proof_timing::report("finalize_operation_proofs done");
     Ok(())
 }

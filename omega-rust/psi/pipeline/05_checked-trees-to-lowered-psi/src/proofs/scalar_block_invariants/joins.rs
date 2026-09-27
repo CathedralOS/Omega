@@ -49,6 +49,7 @@ pub(super) fn candidates(
     module: &TerminalModule,
     questions: &ReconstructedTerminalObligationSet,
     remaining: &mut usize,
+    declines: &mut crate::proofs::ProofSearchDeclines,
 ) -> Vec<ScalarBlockInvariant> {
     let mut candidates = Vec::new();
     let Ok(validated) = terminal_verifier::validate_module(module) else {
@@ -139,12 +140,18 @@ pub(super) fn candidates(
             let mut cursor = 0;
             while cursor < imported.len() {
                 let Some(next) = remaining.checked_sub(1) else {
-                    crate::proofs::proof_timing::count_budget_exhaustion();
+                    declines.record(
+                        crate::lowering_error::ProofSearchCapacity::ScalarInvariantCandidateWork,
+                    );
                     return candidates;
                 };
                 *remaining = next;
                 if let Proposition::Conjunction(members) = imported[cursor] {
                     if members.len() > *remaining {
+                        // The expansion cannot afford this conjunct: the
+                        // capacity declined, not merely the candidate.
+                        declines
+                            .record(crate::lowering_error::ProofSearchCapacity::ScalarInvariantCandidateWork);
                         return candidates;
                     }
                     imported.extend(members);
@@ -189,7 +196,9 @@ pub(super) fn candidates(
                 })
             {
                 let Some(next) = remaining.checked_sub(1) else {
-                    crate::proofs::proof_timing::count_budget_exhaustion();
+                    declines.record(
+                        crate::lowering_error::ProofSearchCapacity::ScalarInvariantCandidateWork,
+                    );
                     return candidates;
                 };
                 *remaining = next;
