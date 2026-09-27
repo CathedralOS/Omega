@@ -73,11 +73,26 @@ machine ping_leaf() satisfies Host::ping via ForeignBinding::Syscall(60);
 
 #[test]
 fn atomic_family_coordinates_rejoin_complete_normalized_plans() {
-    let fixture = Fixture::local(
-        fixtures::FAMILY,
-        fixtures::FAMILY_BUILD,
-        TargetProfile::WindowsX64,
+    assert_atomic_family_coordinates_rejoin_complete_normalized_plans(fixtures::FAMILY);
+}
+
+#[test]
+fn token_machine_family_coordinates_rejoin_complete_normalized_plans() {
+    assert_atomic_family_coordinates_rejoin_complete_normalized_plans(
+        r#"pub data CheckedMath {}
+pub boundary machine % CheckedMath::convert(value: u64, divisor: u64) -> u64;
+pub boundary machine % CheckedMath::convert(value: i32, divisor: i32) -> i32;
+pub data ConvertProvider {}
+pub machine ConvertProvider::convert_u64(input: u64, divisor: u64) -> u64
+satisfies CheckedMath::convert { input }
+pub machine ConvertProvider::convert_i32(input: i32, divisor: i32) -> i32
+satisfies CheckedMath::convert { input }
+"#,
     );
+}
+
+fn assert_atomic_family_coordinates_rejoin_complete_normalized_plans(source: &str) {
+    let fixture = Fixture::local(source, fixtures::FAMILY_BUILD, TargetProfile::WindowsX64);
     let policy = project(&fixture);
     let [family] = policy.families() else {
         panic!("one atomic family")
