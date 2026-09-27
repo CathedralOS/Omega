@@ -284,11 +284,8 @@ fn projected_argument_path_impl(
             }
             facts::PlaceSegment::Index { expression } => {
                 runtime_index_bounds?;
-                let position = runtime_index_parameter_position(
-                    program,
-                    state_symbol,
-                    *expression,
-                )?;
+                let position =
+                    runtime_index_parameter_position(program, state_symbol, *expression)?;
                 path.push(CheckedUnitStructuralPathSegment::RuntimeIndex(
                     checked_trees::CheckedRuntimeIndex::Parameter { position },
                 ));
@@ -321,6 +318,29 @@ fn runtime_index_parameter_position(
     };
     let parameters = program.state_parameters(state);
     let authored_position = crate::values::parameter_position(program, name, parameters)?;
+    // A mutable selector's live value is storage, not the immutable entry
+    // operand the dense position names; no storage read is minted for path
+    // segments, so only an immutable parameter may be a selector. Terminal
+    // replays the bound against an integer operand, so a non-integer
+    // primitive (bool, float, address) is refused here.
+    let parameter = &parameters[authored_position];
+    if parameter.is_mutable
+        || !matches!(
+            program.primitive_type_reference(parameter.type_reference),
+            Some(
+                typed_trees::types::PrimitiveType::U8
+                    | typed_trees::types::PrimitiveType::U16
+                    | typed_trees::types::PrimitiveType::U32
+                    | typed_trees::types::PrimitiveType::U64
+                    | typed_trees::types::PrimitiveType::I8
+                    | typed_trees::types::PrimitiveType::I16
+                    | typed_trees::types::PrimitiveType::I32
+                    | typed_trees::types::PrimitiveType::I64
+            )
+        )
+    {
+        return None;
+    }
     let selector = parameters[..authored_position]
         .iter()
         .filter(|parameter| crate::values::occupies_scalar_position(program, parameter))
@@ -560,10 +580,42 @@ pub(crate) fn ordinary_projected_call_is_supported(
                 });
                 match argument.access {
                     CheckedStructuralAccess::SharedBorrow => {
-                        source.multiplicity == Multiplicity::Unrestricted
-                            && crate::checks::type_multiplicity(program, target.type_reference)
+                        // A shared subloan replays statically or through a
+                        // runtime index: the verifier re-proves each
+                        // selector's bound against the array it selects in.
+                        let borrow_path = static_path
+                            || (argument.path.iter().all(|segment| {
+                                matches!(
+                                    segment,
+                                    CheckedUnitStructuralPathSegment::Field(_)
+                                        | CheckedUnitStructuralPathSegment::FixedIndex(_)
+                                        | CheckedUnitStructuralPathSegment::RuntimeIndex(_)
+                                )
+                            }) && argument.path.iter().any(|segment| {
+                                matches!(segment, CheckedUnitStructuralPathSegment::RuntimeIndex(_))
+                            }));
+                        if source.multiplicity == Multiplicity::Unrestricted {
+                            crate::checks::type_multiplicity(program, target.type_reference)
                                 == Multiplicity::Unrestricted
-                            && static_path
+                                && borrow_path
+                        } else {
+                            // An affine source lends a shared view of one
+                            // subtree: custody of the root stays with the
+                            // caller's place, so the loan presents
+                            // unrestricted. Terminal verification admits the
+                            // subloan only when the source is a borrow or an
+                            // owned affine root.
+                            source.multiplicity == Multiplicity::Affine
+                                && matches!(
+                                    source.access,
+                                    CheckedStructuralAccess::SharedBorrow
+                                        | CheckedStructuralAccess::MutableBorrow
+                                        | CheckedStructuralAccess::Owned
+                                )
+                                && crate::checks::type_multiplicity(program, target.type_reference)
+                                    == Multiplicity::Unrestricted
+                                && borrow_path
+                        }
                     }
                     CheckedStructuralAccess::MutableBorrow => {
                         source.access == CheckedStructuralAccess::MutableBorrow

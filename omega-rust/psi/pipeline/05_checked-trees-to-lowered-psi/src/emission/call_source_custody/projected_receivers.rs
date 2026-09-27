@@ -218,6 +218,91 @@ fn resolve_source(
                 });
                 cursor = indexed.collection;
             }
+            // A receiver's runtime selector is the calling state's own dense
+            // scalar parameter: the value Terminal names is the immutable
+            // integer operand at that position, and Terminal re-proves its
+            // bound against the fixed array it selects in.
+            ExpressionNode::Indexed(indexed)
+                if let ExpressionNode::Name(name) =
+                    checked.expression_table.expression(indexed.index)
+                    && name.symbol.is_valid()
+                    && name.head_symbol == name.symbol
+                    && checked
+                        .expression_table
+                        .name_path_members(name.members)
+                        .len()
+                        == 1
+                    && let Some(position) = checked
+                        .state_parameters(state)
+                        .iter()
+                        .position(|parameter| parameter.symbol == name.symbol)
+                        .filter(|position| {
+                            let parameter = &checked.state_parameters(state)[*position];
+                            !parameter.is_mutable
+                                && matches!(
+                                    checked.primitive_type_reference(parameter.type_reference),
+                                    Some(
+                                        checked_trees::types::PrimitiveType::U8
+                                            | checked_trees::types::PrimitiveType::U16
+                                            | checked_trees::types::PrimitiveType::U32
+                                            | checked_trees::types::PrimitiveType::U64
+                                            | checked_trees::types::PrimitiveType::I8
+                                            | checked_trees::types::PrimitiveType::I16
+                                            | checked_trees::types::PrimitiveType::I32
+                                            | checked_trees::types::PrimitiveType::I64
+                                    )
+                                )
+                        })
+                        .map(|position| {
+                            checked.state_parameters(state)[..position]
+                                .iter()
+                                .filter(|parameter| {
+                                    !parameter.relevance.is_erased()
+                                        && checked
+                                            .primitive_type_reference(parameter.type_reference)
+                                            .is_some()
+                                })
+                                .count()
+                        })
+                        .and_then(|position| u32::try_from(position).ok()) =>
+            {
+                if !validation::place_has_builtin_coordinates(
+                    &checked.typed,
+                    machine,
+                    Some(state),
+                    cursor,
+                ) {
+                    return unsupported("projected receiver index has no builtin address meaning");
+                }
+                let reference = validation::declared_place_type_raw(
+                    &checked.typed,
+                    machine,
+                    Some(state),
+                    indexed.collection,
+                )
+                .and_then(|reference| {
+                    validation::unwrapped_type_reference(&checked.typed, reference)
+                })
+                .ok_or(LoweringError::Unsupported(
+                    "projected receiver index has no declared collection",
+                ))?;
+                if !matches!(
+                    checked.type_reference_table.type_reference(reference),
+                    TypeReferenceNode::FixedArray {
+                        length: checked_trees::types::FixedArrayLength::Literal(_),
+                        ..
+                    }
+                ) {
+                    return unsupported("projected receiver index has no literal array length");
+                }
+                path.push(CheckedUnitStructuralPathSegment::RuntimeIndex(
+                    checked_trees::CheckedRuntimeIndex::Parameter { position },
+                ));
+                captured_segments.push(facts::PlaceSegment::Index {
+                    expression: indexed.index,
+                });
+                cursor = indexed.collection;
+            }
             ExpressionNode::Indexed(indexed) => {
                 let ExpressionNode::Integer(index) =
                     checked.expression_table.expression(indexed.index)

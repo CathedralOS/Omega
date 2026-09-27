@@ -1725,6 +1725,13 @@ fn validate_operand_producers(
                 super::super::parameters::source_path(
                     checked,
                     source_machine,
+                    Some(
+                        crate::expression_preparation::source_custody::authored_state(
+                            checked,
+                            caller.state,
+                        )?
+                        .1,
+                    ),
                     local.type_reference,
                     expression,
                 )
@@ -1782,6 +1789,13 @@ fn validate_operand_producers(
                 let (root, path, access) = super::super::parameters::source_place_path(
                     checked,
                     source_machine,
+                    Some(
+                        crate::expression_preparation::source_custody::authored_state(
+                            checked,
+                            caller.state,
+                        )?
+                        .1,
+                    ),
                     signature.return_type,
                     expression.unwrap(),
                 )?;

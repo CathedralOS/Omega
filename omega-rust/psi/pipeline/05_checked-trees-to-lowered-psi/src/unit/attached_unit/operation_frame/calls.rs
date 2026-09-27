@@ -323,6 +323,8 @@ impl OperationFrame<'_, '_> {
             &earlier,
             self.next_place,
             self.operations,
+            Some(self.values),
+            Some(&mut *self.calls),
         )?;
         drop(earlier);
         self.publish_result(operation, result, declaration, discard_on_return)
@@ -671,6 +673,8 @@ impl OperationFrame<'_, '_> {
                     &earlier,
                     inputs.byte_places,
                     self.primitive_locals,
+                    Some(self.values),
+                    Some(&mut *self.calls),
                 )?,
                 claim_transfers: emitted_claim_transfers(
                     structural_arguments,

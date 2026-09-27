@@ -117,3 +117,58 @@ fn dynamic_indexed_parameter_receiver_can_supply_shared_receiver() {
         "the receiver argument lends the bounded runtime-indexed element shared: {receiver:#?}"
     );
 }
+
+#[test]
+fn explicit_shared_dynamic_indexed_argument_lends_the_element_in_call_operation() {
+    let checked = checked_program_result(
+        "data Cell { value: u64; }
+         data Rack { cells: [Cell; 2]; }
+         machine take(view: &Cell) -> u64 { view.value }
+         machine Rack::run(&mut self, i: u64 [0..=1]) -> u64 { take(&self.cells[i]) }",
+    )
+    .unwrap_or_else(|diagnostics| panic!("source still checks: {diagnostics:#?}"));
+    let run = machine_named(&checked, "run");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(run)
+        .unwrap_or_else(|| {
+            panic!(
+                "a shared subloan of a runtime-indexed element is planned: {:?}",
+                checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .omission_for_machine(run)
+            )
+        });
+    let calls = plan
+        .operations
+        .iter()
+        .filter_map(|operation| match operation {
+            checked_trees::CheckedUnitEffectOperationPlan::ScalarCall {
+                structural_arguments,
+                ..
+            } => Some(structural_arguments),
+            _ => None,
+        })
+        .flatten()
+        .collect::<Vec<_>>();
+    let [argument] = calls.as_slice() else {
+        panic!("the indexed element call passes one structural argument: {calls:#?}")
+    };
+    // `i` is the first dense scalar parameter of `run`, so the segment
+    // selects by parameter position 0; Terminal re-proves its bound.
+    assert!(
+        argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow
+            && argument.path.as_slice()
+                == [
+                    checked_trees::CheckedUnitStructuralPathSegment::Field("cells".into()),
+                    checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
+                        checked_trees::CheckedRuntimeIndex::Parameter { position: 0 }
+                    ),
+                ],
+        "the affine receiver lends its runtime-indexed element shared: {argument:#?}"
+    );
+}

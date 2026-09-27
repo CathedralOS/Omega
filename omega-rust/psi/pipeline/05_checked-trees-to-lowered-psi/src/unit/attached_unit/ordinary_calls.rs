@@ -215,6 +215,8 @@ pub(super) fn prepare(
         structural_result_places,
         call_byte_places,
         primitive_local_places,
+        Some(caller_scalar_values),
+        Some(calls),
     )?;
 
     if target.scalar_parameters.len() != terminal_scalar_values.len() {

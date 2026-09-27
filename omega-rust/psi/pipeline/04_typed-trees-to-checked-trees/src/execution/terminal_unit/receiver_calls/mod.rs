@@ -644,8 +644,12 @@ fn receiver_argument(
             ) | (Owned, MutableBorrow | WriteOnlyBorrow)
                 | (SharedBorrow, SharedBorrow)
                 | (WriteOnlyBorrow, WriteOnlyBorrow)
-        ) || parameter.multiplicity != Multiplicity::Unrestricted
-            || !parameter.qualifications.is_empty()
+        ) || !matches!(
+            parameter.multiplicity,
+            // An affine root lends the projected subtree under the same
+            // loan a shared view grants; its custody stays with the place.
+            Multiplicity::Unrestricted | Multiplicity::Affine
+        ) || !parameter.qualifications.is_empty()
             || !place.segments.iter().all(|segment| {
                 matches!(segment, facts::PlaceSegment::Field { .. })
                     || (matches!(

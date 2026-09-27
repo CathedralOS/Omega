@@ -92,6 +92,8 @@ impl MachineEmission<'_> {
             &self.structural_result_places,
             &[],
             &self.primitive_local_places,
+            None,
+            None,
         )?;
         let declaration = reference_results::emit(
             result,

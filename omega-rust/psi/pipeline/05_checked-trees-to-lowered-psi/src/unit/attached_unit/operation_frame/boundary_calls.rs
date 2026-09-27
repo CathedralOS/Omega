@@ -294,6 +294,8 @@ impl OperationFrame<'_, '_> {
             &earlier,
             inputs.byte_places,
             self.primitive_locals,
+            Some(self.values),
+            Some(&mut *self.calls),
         )?;
         let completion_receipts = completion_receipts
             .iter()
