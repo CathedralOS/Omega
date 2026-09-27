@@ -116,62 +116,53 @@ backend-visible; full corpus runs only at the end of an item.
   (`unwrapped_type_reference` is the existing helper). Widening the shared
   one silently re-routes 54 unrelated decisions.
 
-- **REFERENCE-LOCAL-BINDING-ROUTES.** (new-scope) Binding a REFERENCE into a
-  `let` local is routed for one narrow shape only: a `&mut` of a self-rooted
-  place named directly. `&mut self.size`, `&mut self.inner.a`, `&mut self.buf`
-  and `&mut self.buf[0]` check. Every shared `&` binding measured omits, at any
-  depth and through any place -- `&self.size`, `&self.inner.a`, `&self.buf`,
-  `&self.buf[0]` -- and on the `&mut` side a RUNTIME index
-  (`&mut self.buf[off]`), a reference RECAST (`as &mut Desc`, and `as &mut u32`
-  to a non-record) and borrowing a plain LOCAL all omit too. Pinned at
-  `tests/omega/pending/borrows/reference_local_binding_routes`, which carries
-  the full one-token-apart matrix.
-  `samples/cli/systems/descriptor_walk` is OVER-DETERMINED and this is the
-  correction that matters: its single line
-  `let d: &Desc = &self.buf[off] as &Desc;` packs THREE independently
-  sufficient triggers -- the shared borrow, the runtime index, the recast --
-  each of which omits alone against its own checking control. The earlier
-  attribution to the recast was not wrong, only incomplete: removing the recast
-  leaves the sample omitting at the same site, so a repair aimed at one trigger
-  will not clear the sample. Acceptance: the pending fixture checks, all three
-  triggers check independently, and `descriptor_walk` leaves the omission
-  cluster. Likely one defect rather than three -- all three initializer forms
-  plausibly lower to a call the local-data binder does not bind while the
-  admitted forms lower to direct places -- but that is a hypothesis about the
-  planner, not a measurement, and it is unread.
+- **REFERENCE-LOCAL-BINDING-ROUTES.** (new-scope) Establish reference-valued
+  locals from every admitted producer, then preserve their loan identity,
+  backing and access through reads, calls and explicit state transfers.
+  Governed by [ownership](wiki/spec/language/ownership.md#borrows-and-aliases)
+  and [loan formation/replay](wiki/spec/terminal-psi/loans.md). Owners:
+  `execution/terminal_unit/control/statement_sequence/local_data.rs`,
+  `terminal_unit/receiver_aliases/`, and stage 05 argument evaluation and
+  `expression_preparation/bindings`.
 
-  WIDER than first filed, from attributing the native roster: a CALL RESULT
-  that is a reference is a FOURTH producer that does not route.
-  `let v: &[u8] = self.buf.as_slice();` omits at `statement sequence: call:
-  flow call` (four corpus fixtures, led by
-  `pass/dependent/runtime_sibling_len_index_exit`), and an own machine
-  returning `&u32` omits at `state graph: operation custody: reference
-  custody` -- while the same machine returning `u32` checks, and a STATEMENT
-  call with a `&mut` argument checks. So it is a reference in RESULT position,
-  not calls and not references as arguments. Pinned at
-  `tests/omega/pending/borrows/reference_result_call_binding`. That also
-  strengthens the hypothesis above rather than the alternative: the admitted
-  form is the one that lowers to a direct place.
+  The existing direct-place exclusive-loan route supplies a control:
+  `borrow/runtime_exclusive_loan_local_write_exit` writes through `&mut self.raw`,
+  reads the original storage afterwards and has recorded native exit 70.
+  Remaining producer cases are shared borrows, runtime-indexed places, reference
+  recasts, plain-local borrows, and reference-returning calls. The pending
+  fixtures `borrows/reference_local_binding_routes` and
+  `borrows/reference_result_call_binding` exercise shared binding and a returned
+  reference; their comments record the wider reduction matrix, not executable
+  coverage of every row. Preserve ordinary scalar-result and reference-argument
+  calls as controls. `dependent/runtime_sibling_len_index_exit` exercises the
+  library returned-view form `let view: &[u8] = self.buf.as_slice()`.
 
-  LOCATED, for the shared-borrow trigger, in
-  [macos_arm64_native_rejections](wiki/drafts/measurements/macos_arm64_native_rejections.md):
-  the `&mut` form takes the erased-ALIAS early exit in
-  `statement_sequence/local_data.rs`, and membership is gated in
-  `terminal_unit/receiver_aliases/mod.rs` on `Mutable | WriteOnly` behind an
-  `exclusive_access` lookup, so a shared borrow is never an alias and falls
-  through to a route with nothing for it. Widening that match is a change to
-  the ALIASING MODEL rather than a missing branch -- the module, its
-  predicate and a later `parent_borrow.access != Mutable` guard are all
-  deliberately exclusive -- so settle whether a shared borrow joins that
-  route or needs its own before editing it.
-  SEVEN phase labels now name this one capability, which is why it reads as
-  several unrelated clusters -- `structural call binding`, `result custody
-  accounting`, `call: flow call`, `operation custody: reference custody`, and
-  `unsupported statement kind`. The last also shows the label follows the
-  SURROUNDING program, not just the statement: the identical borrow reports
-  differently once a transition follows it. Do not split this by label, and
-  pin no repair on any of the strings. Extended acceptance: both pending
-  fixtures check and the four `flow call` corpus rows move.
+  `samples/cli/systems/descriptor_walk` combines three independent triggers in
+  `let d: &Desc = &self.buf[off] as &Desc`: shared access, runtime selection and
+  recast. Test each separately and the unchanged sample together; coordinate
+  **RECAST-SOURCE-POSITIONS** rather than declaring success after one trigger.
+  Omissions vary with surrounding control flow; phase labels do not define
+  separate capabilities.
+
+  `receiver_aliases` admits Mutable/WriteOnly access and checks exclusive parent
+  lineage; shared loans cannot gain mutation authority by widening that match.
+  Establish their exact local carrier and projection in stage 05's
+  `structural_locals` relation. `shared_structural_place` currently requires an
+  empty stored path, so projected backing also needs path composition at use.
+  Retain the local symbol as the loan subject: rewriting it to the root place
+  loses borrow/write-frame/release identity and disagrees with independent
+  local-field replay. A known-place loan need not become a fresh affine
+  `EstablishReference` result. Preserve the supported exclusive marker/store
+  route while extending observations and successor forwarding.
+
+  Acceptance: every producer form, reads through scalar/record loan names,
+  borrowed calls and state forwarding reach verified Terminal and matching-host
+  execution with exact backing and no implicit copies. Both pending fixtures
+  and the full sample must advance. Reject conflicting loans, source/path
+  substitution and invalid escapes. Verify constrained referents such as
+  `u8 [0..=1]` borrowed as `&mut u8` against the actual loan/store contract;
+  normalized type equality must not erase the original storage's obligations.
+  **STATE-LOCAL-VALUE-FRONTIER** owns integration with the composed caller.
 
 - **DEFERRED-LOCAL-INITIALIZATION.** (new-scope) A local declared without an
   initializer and completed afterwards. Four combinations, two of them broken,
@@ -1044,6 +1035,192 @@ the complete product bar; focused successes below do not establish that baseline
   `Incomplete(UnsupportedEvidence)`; retain bundle placement coverage when it
   closes. Resources and `image_viewer` bundle-relative lookup are outside v1;
   do not silently change working directories.
+
+- **STATE-LOCAL-VALUE-FRONTIER.** Complete ordinary expression, call and
+  storage composition through checked plans, source-free Terminal replay and
+  native execution. Preserve the
+  [evaluation schedule](wiki/spec/language/expressions.md#evaluation-schedule)
+  and [argument/result custody](wiki/spec/terminal-psi/calls_and_outcomes.md#argument-and-result-ordering):
+  exact producer, authored parameter position, result owner, loan activation
+  and once-only effects. **CML4** owns residual cleanup;
+  **GENERAL-CYCLIC-EXECUTION** owns cyclic control. Owners are
+  `04_typed-trees-to-checked-trees/src/execution/terminal_unit/`, its checked
+  computation producers, and `05_checked-trees-to-lowered-psi` argument
+  evaluation, source-custody replay and attached Unit emission; Omega stage 02
+  owns the remaining target admission. Extend common operations and remove
+  superseded whole-machine recognizers as composition replaces them.
+
+  Prioritize the operations blocking maintained programs, then finish their
+  custody/ABI matrix. **SAMPLE-CORPUS** and **CANARY-CORPUS** retain the full
+  outer program oracles; a moved omission or verified helper is not closure.
+
+  - **Runtime-selected record fields and typed observations.** Complete
+    `fixed_array[index].field` for `entity_list`, `bouncing_particles` and
+    runtime case selection in `dutch_flag`. The pending reproductions are
+    `collections/runtime_indexed_record_field_store` and
+    `control_flow/runtime_indexed_case_dispatch` under `tests/omega/pending`.
+    Stage 04's `scalar_lowering::view_element_field_read` still excludes fixed
+    arrays via `through_view`; stage 05 must carry the element path after the
+    selector. The Terminal obstacle remains in
+    `terminal-psi/semantics/src/primitive_place.rs`: `primitive_projection_type`
+    follows fields only into structural children, so it cannot end on a Scalar
+    field. `IntegerStructuralField` instead takes a canonical, static path;
+    `ElementViewRead` lacks the fixed-array carrier path. Complete one portable
+    projection/observation route under the [product contract](wiki/spec/terminal-psi/product.md),
+    with exact runtime-index bounds and independent type reconstruction.
+    Removing the stage 04 guard alone cannot deliver this operation.
+
+    Float field observation needs the same typed-read design, not another
+    integer/Boolean-shaped copy. Store admission already accepts structural
+    float reads, but `expression_preparation/prepare_expression.rs` still
+    rejects non-integer `StructuralParameterField` observations. The current
+    `src/tests/structural_float_member_read.rs` pins an integer-member clone
+    that verifies, a float-member clone that declines, and nested calls in
+    a record tail that fail call ordering. Carry the float source, computation,
+    policy and observation through replay and execution; coordinate
+    **OPERATOR-BOUNDARY-CALLS** / **FLOAT-PROVIDERS** for executable arithmetic.
+
+  - **Computed calls and state transfers.** `vending_machine` passes
+    `report(self.make_change(100, 55), 17)`: preserve the inline call and exact
+    normalized argument occurrence. **VALUE-CALL-TRANSITION-ARGUMENT** and
+    **COMPOSITE-TRANSITION-ARGUMENT** own its scalar-call and composite-source
+    gaps; **VALUE-CALL-SUBEXPRESSION** covers the related operand position.
+    The structural result transfer vocabulary already exists. Account the
+    nested call as consumed by the normalized successor argument, include it
+    in the state's ordered operations, then emit the terminator-site operation.
+    `state_graph/mod.rs::operation_end` currently excludes Transition calls;
+    `control/call_occurrences.rs` rejects an unconsumed nested transition call.
+    Bypassing those guards without producer/consumer correspondence is unsound.
+
+    Finish mixed scalar/structural operands, effectful arguments/returns,
+    nested mutable-receiver calls, dependent/public-trait results and boundary
+    consumers on that common route. Selected case edges retain the invocation
+    receiver and local ownership. Preserve source evaluation order even when
+    the physical signature drops an unread reference `self`:
+    `Random::next_u32(&mut self, state: &mut RandomState)` needs the exact
+    authored-to-dense parameter mapping in planning, operation frames and stores.
+    `machine_lowering/machine_dispatch.rs` still rejects competing scalar/Unit
+    dynamic plans; `unit/structural_unit_control.rs` still refuses checked
+    expressions in its specialized scalar-successor route. Remove those shape
+    limits through ordinary argument evaluation, not another whole-body plan.
+
+  - **Loan locals and projected storage.** **REFERENCE-LOCAL-BINDING-ROUTES**
+    owns shared/exclusive local establishment, reads, returned references and
+    state forwarding; **RECAST-SOURCE-POSITIONS** owns typed recasts. Preserve
+    the local's loan identity and exact backing through every consumer,
+    including local-rooted stores and borrowed-record calls followed by reads.
+    `structural_values::is_record_value` still gates on StructLiteral/Match
+    roots; generalize the operation instead of rewriting a local observation
+    into a different source subject. Primitive borrowed-local mutation already
+    has serialized Terminal execution and forged-binding controls in
+    `tests/borrowed_scalar_call_source.rs`; retain them as controls for the
+    record extension. Fresh linear-record custody and non-vacated replacement
+    must preserve bounds, layout, loans and claim lifecycle; construction does
+    not itself issue authority.
+
+  - **Aggregate construction, replacement and subsequent reads.** Keep
+    whole-place and match-produced values, fixed-index element replacements,
+    whole nominal receiver replacement, qualified byte-slice literals, case literals,
+    and array literal elements that read storage. Policy-bearing nested arrays
+    in `matrix_multiply` and record arrays in `dungeon_render` are owned by
+    **MEMBER-POLICY-REMOVES-COMPOSITE-ROWS**; do not widen the shared bare-array
+    classifier merely to route one store. The old request to construct relevant
+    `UInt`/`Int` fields was invalid: these unbounded proof integers have no
+    runtime representation, and checking now diagnoses them. Preserve erased
+    proof fields and use represented carriers for runtime storage.
+
+    Ordinary record-field replacement already uses `OpenWindows::replace`
+    with move-out/store and exact displaced-value cleanup. Omega's
+    `lowering/control_flow/borrowed_windows.rs` now resolves Record and Mixed
+    parents, but still requires an owned activation home and rejects
+    reference-bearing, linear, claimed or qualified replacement values.
+    Complete those valid custody cases, including values arriving as owned
+    parameters/block arguments, without double disposal or a fabricated move
+    window. Verify empty-record locals both when forwarded and when discarded;
+    a successful forwarding path does not prove edge cleanup. Non-scalar-leaf
+    zero-length arrays still reject in native structural layout; preserve
+    empty-index and literal-arity rejection while admitting empty construction.
+    `filesystem/windows_canonicalize_exit` needs its stored UnitResult;
+    `data/runtime_case_reassignment_exit` and
+    `structs/deep_nested_write_paths_exit` need observations through case paths,
+    which `bindings/structural_fields` still rejects. Coordinate
+    **FILESYSTEM-RELEASE-CONTRACT**, **WRITE-ONLY-BORROW** and
+    **NOMINAL-FIELD-FLOW**.
+
+  - **Claim-bearing results and native receiving.** Carry claim transfers on
+    calls before a composed structural return. The checked state planner still
+    refuses nonempty call claim transfers although attached-call admission
+    supports them. Extend returned custody to extracted projections, freshly
+    established claims and claims from distinct owned inputs; retain temporary
+    shared/mutable/write-only loans, self consumers and content guarantees
+    independently of claim identity. Whole-array forwarding in
+    `effects/structural_callback_reach/projected.omg` is only a control.
+
+    Complete both native customers in Omega stage 00's integration tests:
+    `scalar_affine_cleanup/structural_return.rs` preserves a qualified linear
+    result and entry claims through Terminal-to-abstract lowering, but its
+    successful target-lowering leg explicitly clears those claims and changes
+    multiplicity to Unrestricted. Execute the original custody case; stage 02
+    still rejects entry claims/observed owned-linear parameters. In
+    `partial_affine_call_results/continuations.rs`, direct-register results
+    reach target lowering, while wider/nested structural results still assert
+    rejection. Carry both distinct result owners and ordered residual cleanup
+    through native execution, including boundary-produced results and indirect/
+    stack ABI slots such as Windows x64's 12-byte Msg, and scalar returns from
+    borrowed service calls.
+
+  - **Saved observations and arithmetic dependencies.** Stable unwritten
+    mutable carriers already contribute saved facts in
+    `checking/src/proof_contracts/contract_entailment/ranking_range/saved_arguments.rs`.
+    Finish snapshots across actual writes/exclusive exposure, retaining
+    case/index/generic/reference/float identity and totality. Share capture with
+    **CRASH-CONTRACT**; body facts cannot impersonate entry observations and
+    loop invariants must cover backedges. Complete bounded-slice endpoint,
+    window, call and state transport through Terminal replay and native
+    execution; the deleted `compiler --test bounded_slice_selectors` is no
+    longer evidence for those distinct obligations.
+
+    **ARITHMETIC-POLICY-REALIZATION** owns mixed-integer comparisons, including
+    both current refusals: `boolean_lowering::construct_integer_comparison`
+    requires equal carriers, while `operand_reports::report_mismatched_width_operands`
+    rejects declared places earlier and prescribes a cast. Preserve the bitwise
+    restriction while implementing exact mathematical comparison with original
+    subjects/carriers through interpretation, replay and native selection.
+    `pending/expressions/mixed_integer_{guard_comparison,comparison_places}`
+    and the unchanged text cursor/length samples are the customers; relaxing
+    admission alone can expose wrong unsigned-promotion behavior.
+    Carry exact anonymous arithmetic through generic/evidence-adapted,
+    boundary, aggregate, parameter/constant, float and proof uses, retaining
+    rational intermediates, result carrier/policy custody and warning origins/
+    suppression. **OPERATOR-MACHINE-SUPPLY** owns executable selected helpers;
+    nonconstant proof-Int arithmetic still needs independent evidence beyond
+    source entailment in `contract_entailment/arithmetic_judgment.rs`.
+
+  Preserve implemented controls while completing the remaining matrix:
+  `borrow/runtime_exclusive_loan_local_write_exit` and
+  `calls/runtime_value_call_nested_entry_call_exit` have recorded macOS native
+  exit 70; the latter still needs matching-host coverage beyond an old Windows
+  rejection. Record/case destructuring must execute bind-all, `as _` waivers,
+  literal `__` field names, renamed fields and rest opt-out, including non-place
+  subjects evaluated once.
+  Keep `data/record_pattern_let_exit` and
+  `control_flow/{record_pattern_arm_rename_guard_exit,arm_pattern_rest_optout_exit,case_pattern_rename_waive_exit,runtime_nonplace_record_pattern_single_evaluation_exit}`.
+  Case-payload transfer emission now exists in `emission/successor_edge.rs`;
+  `state_graph/tests/case_payload_edges.rs` checks forged source/target replay,
+  so retain that coverage and execute a consumer of the selected payload.
+
+  Acceptance: a composed caller tolerates renamed/reordered states and inserted
+  computations; operands execute left-to-right once, skipped calls never run,
+  and saved values/normal guarantees agree after serialization, replay and
+  matching-host native execution. Explicit state transfers preserve custody
+  without mandatory copies; implicit cross-state use rejects. Forged producers,
+  bindings/origins, stale snapshots, conflicting loans, missing provider
+  authority and incorrect guarantees reject. Preserve guard-operand write
+  invalidation and claim/return-substitution controls; a failed custody rejoin
+  never falls back to a weaker recognizer or synthesized arm states.
+  Keep `7 / 2 * 2 == 7` and `4097 / 4096 * 4096 == 4097` with their warnings,
+  reject fractional integer landing, and retain typed truncation (the `4097u32`
+  case gives 4096), signed quotient/remainder laws and zero-divisor rejection.
 
 - **SAMPLE-CORPUS.** Close every maintained `samples/cli|gui|uefi` project
   through checked semantics, native publication for its authored targets, and
@@ -4776,427 +4953,6 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   Preserve `terminal-verifier`'s `jump_edge_residual_discards_close_the_projected_argument_root_in_order`
   and `owned_successors_reject_same_arity_aliases_and_transfer_after_disposal`
   controls. No affine occurrence disappears or survives past its required edge.
-
-- **STATE-LOCAL-VALUE-FRONTIER.** Complete compositional evaluation and
-  value/storage transport through Psi argument normalization, checked
-  computations/call plans and Terminal production, with independent replay
-  and native realization. Follow
-  [evaluation order](wiki/spec/language/expressions.md#evaluation-schedule)
-  and [argument/result custody](wiki/spec/terminal-psi/calls_and_outcomes.md#argument-and-result-ordering).
-  Retain exact producer, parameter position, result owner and loan activation;
-  **CML4** owns residual cleanup. Start at the actual omission in
-  `04_typed-trees-to-checked-trees/src/execution/terminal_unit/`, not a historical
-  failure histogram. Preserve record-pattern and fresh record/case operand
-  support rather than recreating it.
-
-  **`fixed_array[runtime index].field` is a 05 gap before it is a 04 one,
-  and the obvious order is backwards.** The checked vocabulary already
-  spells it: `CheckedScalarExpression::StructuralParameterIndexedRead`
-  carries an `element_path` whose own documentation says "record fields for
-  a record element of a view (`entries[index].value`)". 04 produces it in
-  `values/scalar/scalar_lowering.rs`'s `view_element_field_read`, which
-  refuses a FIXED array through one line, `if !selection.through_view`;
-  `through_view` is set true for a `Slice` and false for a `FixedArray`,
-  and the fixed case is the easier addressing -- static stride plus the
-  index's own declared range.
-
-  It was built, all four layers, and the last one is a TERMINAL VOCABULARY
-  gap rather than a gate. Working through it in order -- lift the 04 line,
-  let 05's `prepare_expression` carry an `element_path` beside a non-empty
-  carrier path, walk that path to its scalar leaf in
-  `primitive_store::lower_indexed_path`, and append it after the
-  `RuntimeIndex` segment at emission -- reaches Terminal validation, which
-  refuses with `InvalidPrimitiveScalarRead`. The reason is that NO current
-  Terminal operation can spell the read, proven by exhaustion rather than
-  guessed:
-  - `PrimitiveScalarRead { source, path }` admits a `RuntimeIndex` segment,
-    but `primitive_projection_type`'s `Field` arm steps only into
-    `StructuralFieldType::Structural`, so the path cannot END at a scalar
-    leaf field.
-  - `IntegerStructuralField { source, path, field }` DOES name the scalar
-    leaf separately -- it is what `self.cells[2].hp` emits, and that program
-    builds and exits 70 -- but its path is
-    `Vec<CanonicalStructuralPathSegment>`, and canonical spelling exists
-    precisely to exclude runtime selection.
-  - `ElementViewRead { source, index, path }` carries an index AND an
-    element path, which is the right shape, but its source is a view, so
-    the carrier path is empty.
-
-  So the choice is an owner's: give `IntegerStructuralField` a runtime
-  index, give `ElementViewRead` a carrier path, or let a
-  `PrimitiveScalarRead` path end at a scalar field. Terminal Psi is the
-  portable boundary, so this belongs with its
-  [product contract](wiki/spec/terminal-psi/product.md) rather than in a
-  lowering patch. Everything below Terminal already works: `cells[2].hp`
-  runs, and the 04/05 route above was measured to reach validation with the
-  element path intact.
-
-  **A mixed-carrier integer guard retains no Guard fact, and the spec says
-  it must.** `construct_integer_comparison`
-  (`omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/values/scalar/boolean_lowering.rs`)
-  ends with
-
-      if !is_integer(left_type) || scalar_expression_type(&right)? != left_type {
-          return None;
-      }
-
-  so `self.i < self.text.len` with an `i32` index and a `u64` length lowers
-  to nothing, no `Guard` fact is recorded, and the terminator omits the plan
-  at `conditional successors: guard expression`. Isolated in 27 lines at
-  `tests/omega/pending/expressions/mixed_integer_guard_comparison`: the same
-  program with `i: u64` checks.
-
-  [numeric values](wiki/spec/language/numeric_values.md) settles the question
-  against the gate -- builtin fixed-integer comparisons "require no common
-  operand carrier, implicit cast, or representability", and "Terminal
-  normalization and target realization implement it; neither may substitute
-  an unsigned promotion or reject source operands merely because their
-  integer carriers differ". `af32a85a4e4` closed that owner question as a
-  documentation checkpoint carrying "No compiler behavior changes", so the
-  implementation is owed, not the design.
-
-  The checked representation is not the obstacle:
-  `CheckedBooleanExpression::IntegerComparison` holds two independent scalar
-  expressions and never required them to agree. But the same spec paragraph
-  says source-independent verification "retains the exact operand subjects,
-  carriers, relation and polarity", so rewriting a mixed comparison into a
-  sign test over same-carrier compares is NOT the shape -- it must survive
-  as itself through 05, Terminal verification and selection. Three samples
-  wait on it: `cli/text/{parse_int,roman_numeral,string_hash}`.
-
-  **The same unimplemented rule has a SECOND, contradictory behaviour, and
-  it is the one to fix first.**
-  `omega-rust/psi/checking/src/proof_contracts/arithmetic_domains/operand_reports.rs`
-  refuses a comparison between two declared places of different integer
-  types with "the operands have different integer types and the operation
-  would silently truncate the wider one to the narrower width; convert one
-  with an `as` cast so both are the same type". That is the spec's own
-  first truth-table row -- `-1` of type `i32` against `10` of type `u64` --
-  and the `as` cast it prescribes is both the conversion the spec says is
-  not required and, for this row, unavailable: neither value is
-  representable in the other's carrier. A LENGTH PROJECTION has no declared
-  primitive type, which is exactly why `self.i < self.text.len` escapes
-  that rule, passes checking, and is refused a second time and silently in
-  the lowering instead. Two sites, one missing rule, opposite failure
-  modes.
-  `tests/omega/pending/expressions/mixed_integer_comparison_places` pins
-  the declared-place row beside the guard one, with an exit that
-  distinguishes the right answer from an unsigned promotion.
-
-  Order the work so the last step is not skipped: delete the comparison
-  half of the `operand_reports` rule (it stays correct for bitwise, which
-  IS carrier-bound), let the lowering keep two carriers, and only then make
-  Terminal and native compare by mathematical value. Relaxing the first two
-  alone was measured: the guard reduction compiles immediately, which is
-  what would let a promoted comparison answer wrongly instead of being
-  refused.
-
-  A second traced omission with its route mapped. `samples/cli/systems/
-  vending_machine` omits at `state graph: terminator: conditional successors:
-  parameter transfer` because `handoff` passes a structural call inline as a
-  successor argument, `report(self.make_change(100, 55), 17)`. A minimal pair
-  isolates it: hoisting the call into `let bound: Change = ...` and passing
-  `bound` **compiles**, so the consumer side is already proven end to end and
-  only the inline arrangement is missing -- the compositional-lowering case,
-  not a new producer family.
-
-  Four gates stand between, and the first two were demonstrated movable
-  before being reverted. The third's obstacle is not effort: by the time
-  `outer_calls_before_traced` runs, a transition's successor arguments are
-  already normalized, so `report(self.make_change(10), 17)` presents two
-  arguments of the same node kind and neither is the authored
-  `self.make_change(10)`. `collect_argument_calls`, which every other
-  statement family uses to mark a nested call consumed, matches on that
-  authored expression and so finds nothing. Relate the nested call's own fact
-  to the normalized argument instead of reaching for its source spelling. `CheckedStructuralControlTransferSourcePlan::
-  StructuralResult` already exists for "an earlier state-local call result",
-  so the transfer route can name a planned call instead of requiring a
-  forwarded parameter. `operation_end` in `state_graph/mod.rs` deliberately
-  cuts calls at the terminator index, so the sequence's `calls` slice is
-  empty for such a state and nothing can plan the call; bumping it past a
-  transition that performs one restores the occurrence. The third gate is the
-  real one: `call_occurrences.rs` then refuses at `outer calls: unconsumed
-  nested call in a transition`, and its own comment says that is "the shape
-  the composed route still lacks" -- a call consumed by a successor argument
-  must be accounted as consumed before it may be planned. The fourth is
-  `composed_control`'s body count, which must accept an operation whose
-  statement index is the terminator's. Do the consumption accounting first;
-  admitting the call without it defeats the guard that exists to catch
-  exactly an unconsumed nested call.
-
-  A traced omission that is general and cheap to reproduce. `local_data.rs`
-  routes every structural local through `statement sequence: local data:
-  structural call binding` and returns `None` unless the initializer is a
-  `Call`, so a reference-typed local bound to a place loan has no producer
-  there, while the same read inline in a guard operand plans and reaches
-  realization.
-
-  Exclusive loans are the exception now. An immutable `&mut T` loan whose
-  place roots at a structural parameter and whose projection bottoms out in
-  exactly the declared referent is admitted as a compile-time carrier, for a
-  record referent as well as a primitive one: it plans no
-  operation, `structural_scalar_store::destination` rejoins each write through
-  the name to the loaned place, and `composed_control`'s body count recognizes
-  it as a marker. A reference cannot be reseated and the binding is immutable,
-  so the name denotes one place for its scope and the write is the ordinary
-  store of that place; it adds no authority over the checked loan.
-
-  Still omitting: every shared loan, and any *read* through a loan name.
-  The read has a supported analogue to copy. `scalar_lowering`'s name branch
-  already lowers a mutable reference *parameter* to
-  `CheckedScalarExpression::StorageRead { symbol, primitive_type }` through
-  `mutable_scalar_parameter_type`, and `self.out = r;` with `r: &mut u8`
-  compiles on that path today. A loan local is in neither `parameters` nor
-  the scalar `locals` list, so it has no operand form at all and
-  `transition r == 0` omits at `state graph: terminator: conditional
-  successors: guard expression`. Establish the loan local rather than
-  rewriting its reads: rejoining at the producer was tried and does not
-  compose. Rewriting the observation's subject in
-  `values/scalar/computations/structural_fields.rs` to the loaned root, with
-  the loan's segments in front of the field path, moves `let r: &Inner =
-  &self.inner; r.v` past "computed shared argument lost its established
-  local" and into "record read carrier field is absent":
-  `scalar_graph/scalar_computations/fields.rs` reconstructs the source
-  independently with `validation::local_scalar_record_field` and walks from
-  the local's own declared type, so the checked contract there is a local
-  plus a path relative to it. The loan has to become an established local in
-  `structural_locals`, not a rewritten subject. Separately, passing
-  `&mut self.raw` as a transition successor argument omits earlier still, at
-  `state graph: terminator: jump successor: parameter transfer`, so a
-  reference cannot yet be handed to a successor state either.
-  Do not close those by making the local alias its place in
-  `resolve_contextual_name_path_root`: it roots a local at its own symbol so
-  borrow facts, write frames and releases keep a loan identity to key on.
-  `EstablishReference` and its Terminal operation exist for a `(place)` return
-  target, at `Multiplicity::Affine` with a returned-carrier release; a `let`
-  loan of a known place needs no such value, and minting one is dropped by
-  `composed_control`'s state graph as an added body effect.
-
-  The shared half is one consumer away, and the consumer is named. Admitting
-  `shared_borrowed_parts` beside `parts` in the producer and its
-  `composed_control` marker is corpus-clean over 1119 fixtures and makes
-  `let r: &Inner = &self.inner; transition r.v == 0` check; realization then
-  stops at "computed shared argument lost its established local".
-  `expression_preparation/bindings`'s `shared_structural_argument` resolves a
-  `StructuralLocal { symbol }` through the `structural_locals` registry, which
-  a loan planning no operation never enters. That registry already states a
-  `&T` local "is itself a shared-borrow join result", so the entry belongs
-  there, but three edits are needed and not one: `argument_evaluation`
-  registers only from a lowered structural value's `produced.place`, so a
-  loan needs its own registration from the parameter place and projection;
-  the entry's `path` is then non-empty, which `shared_structural_argument`
-  refuses outright today; and the two paths must compose at the use.
-  Do not instead rejoin at the argument sites, the way the store destination
-  does -- `StructuralLocal` sources are built at ten sites across
-  `values/scalar/computations/` and `execution/terminal_cleanup.rs`. A bare scalar read through the name
-  (`let r: &bool = &self.flag; transition r`) stops earlier still, at
-  `state graph: terminator: conditional successors: guard expression`.
-
-  That shape now executes. `let seen: &mut u8 = &mut self.raw; seen = 0;`
-  realizes to a Mach-O product on macOS AArch64 and exits 70, pinned by
-  `checked-trees-to-lowered-psi`'s `tests::exclusive_loan_locals`.
-
-  One loan shape remains refused past checking: loaning a ranged field
-  (`u8 [0..=1]`) as `&mut u8` reaches "receiver alias changes its referent
-  type" in `projected_receivers/aliases.rs`, because
-  `normalized_type_identity` equates the two while that owner does not. Decide
-  whether the weakening is admissible before widening either side; validation
-  admits the program today.
-
-  A traced omission to start from. `samples/cli/collections/matrix_multiply`
-  stops at `structural field store: scalar field type` (state 0, statement 0),
-  which is `self.a = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]` into a
-  `[[i32 in Wrapping; 3]; 3]` field. The whole-array route exists --
-  `structural_scalar_store/primitive.rs::array_literal_stores`, reached before
-  `plan_assignment` -- and every gate in it passes for this store except the
-  last: `closed_array_store_type` and `closed_array_extents` resolve, the
-  destination is a field segment with builtin coordinates and no shadowing
-  local, `borrowed_parameter_destination` resolves (it excludes `is_self` only
-  for a `whole` store, and this route asks for `whole = false`),
-  `TargetSelectors::resolve` and `checked_unit_path` both succeed, and
-  `control::scalar_arrays::elements` returns `None`. That last call delegates
-  to `validation::scalar_array_elements`, which is where the nested literal is
-  refused.
-
-  One prerequisite is not on `main`.
-  `validation::is_closed_primitive_array_type` walks `FixedArray` to its
-  element but has no `Constrained` arm, so an `i32 in Wrapping` element stopped
-  the walk one level down even though `closed_array_store_type` strips exactly
-  that wrapper at the top and admits `ArithmeticDomain` constraints there.
-  Adding the arm moves this store from failing the first gate to failing only
-  `scalar_array_elements`, and it was measured to move no corpus fixture on its
-  own, so it is unlanded and belongs with the element repair.
-
-  `terminal-vocabulary-for-unit-bodies` is delegated implementation work:
-  extend or add operations for non-vacated structural replacement, typed recast
-  views, and fresh linear-record custody. This item owns integration with
-  RECAST-SOURCE-POSITIONS and the existing ownership consumers through source,
-  codec, independent verification, and native execution. Preserve bounds, layout,
-  loans, and claim lifecycle; do not fake a move window or equate fresh linear
-  custody with authority issuance. No owner approval of the IR shape is needed.
-
-  Current source-to-native customers and gaps:
-  - Execute `data/record_pattern_{let_exit,bind_all_exit,double_underscore_field}`
-    and `control_flow/{arm_pattern_rest_optout_exit,case_pattern_rename_waive_exit,record_pattern_arm_rename_guard_exit}`
-    through ordinary package review; native publication alone is not execution.
-    Retain owned sum parameter slots for indirect/stack passing, including
-    Windows x64's 12-byte `Msg`, and complete serviceful borrowed-call scalar ABI.
-  - `state_graph/tests/case_payload_edges.rs` admits
-    `OpenResult::Opened { info } -> have(info)` but lacks the `CasePayload`
-    Terminal transfer in `state_graph/emission/state.rs`. Carry the exact
-    tested payload through verification of `Root::run`.
-  - Reconcile authored parameter positions with dense Terminal positions when
-    `calls/signatures.rs` omits an unread reference `self`.
-    `Random::next_u32(&mut self, state: &mut RandomState)` exposes mismatches in
-    store planning, `attached_unit/operation_frame.rs` and
-    `emission/structural_scalar_store.rs`. Preserve the authored-to-retained
-    relation; admitting the planner alone does not repair lowering.
-  - Complete store sources for float reads/arithmetic and policy casts,
-    recast reference locals, case and qualified byte-slice literals, nested
-    mutable-receiver calls, Boolean call results, and local-rooted
-    destinations. `calls/runtime_value_call_nested_entry_call_exit`
-    (`self.flag = self.helper.check(1)`) now stops natively at
-    `UnknownValue`: `lowering/unit/structural_scalar.rs` sources a Boolean
-    field store only from a parameter or constant.
-    `structural_scalar_store/primitive.rs` must retain the referent behind a
-    `self`-rooted alias;
-    `computation_arguments::structural_computation_argument` must compose
-    mutable calls without treating them as shared. Coordinate FLOAT-PROVIDERS,
-    RECAST-SOURCE-POSITIONS and ARITHMETIC-POLICY-REALIZATION.
-    A float field read has no Terminal operation: only `IntegerStructuralField`
-    and `BooleanStructuralField` exist. So `self.a = self.b` over `f64` fields
-    stops at `structural_scalar_store/value.rs::admits`, and admitting it there
-    stops at 05's integer-only field observation, then at the verifier's
-    `IntegerStructuralFieldRequiresIntegerResult`. Float arithmetic has no row
-    either: `self.b + 1.0` builds no computation, and `0.0 - 3.7` has no pure
-    landing because `land_anonymous_scalar_expression` lands integers only.
-    Together these stop 39 float run canaries and 10 samples at `pure source:
-    scalar expression row` or `value shape`. The two reads have identical
-    payloads and appear in 152 files; they differ only in semantic-row custody
-    and frontier policy (`terminal-semantics/src/structural_effect.rs`). So
-    the float read should be one observation typed by its result declaration
-    that reconciles those rows, not a third copy.
-  - Add ordinary construction for record members typed `UInt` and `&[u8] in
-    Utf8`. A closed array literal stored into a primitive-array field already
-    lands as element stores (`primitive::array_literal_stores`), including
-    under a whole-array policy shell. A shell on the element type
-    (`[[i32 in Wrapping; 3]; 3]`, `samples/cli/collections/matrix_multiply`)
-    still declines at `structural field store: scalar field type`. So do
-    literal elements that read storage. Aggregate replacement must keep the
-    custody checks below.
-  Remaining work:
-
-  - Close two distinct receiving cases in
-    `abstract-operations-to-target-operations`, exercised by
-    `terminal-psi-to-abstract-operations` integration tests:
-    `scalar_affine_cleanup::structural_return::omega_preserves_exact_singleton_structural_return_custody`
-    reaches `lowering/control_flow.rs`'s rejection of entry claims and an
-    observed Owned/Linear structural parameter. Preserve both authority
-    premises rather than dropping either check to admit it.
-    `partial_affine_call_results::continuations::source_continuations_retain_distinct_result_owners_and_ordered_residuals`
-    passes entry admission with Owned/Affine parameters but reaches
-    `UnsupportedStructuralArray`. Retain its distinct result owners and
-    ordered residuals through target lowering and native execution.
-
-  - Replace competing whole-machine plans with ordinary evaluation/control
-    operations. Cover effectful state arguments/returns, dynamic and
-    borrowed/projected storage, mixed
-    scalar/structural operands and boundary consumers. Selected case edges
-    retain the invocation receiver and local ownership. Preserve
-    `transition_argument_call_result_derives_the_exact_entry_subject`,
-    `jump_operand_mutation_cannot_replay_the_taken_guard` and
-    `composed_unit_claims` controls. `machine_lowering/machine_dispatch.rs`
-    still rejects simultaneous scalar/Unit dynamic joins. Preserve authored
-    guard-operand order and `checks/contracts/guard_operands.rs`'s invalidation
-    after an earlier operand's write; do not reintroduce synthesized arm states.
-    Delete superseded shape producers as their operations compose; a failed
-    custody rejoin must never fall back to a weaker recognizer.
-  - Carry claim transfers on a composed state's calls before structural
-    returns. The shared call admission (`attached_unit/admission/calls.rs`)
-    admits them in a state, but the checked planner refuses them
-    (`terminal_unit/state_graph/mod.rs`, "state graph: operation custody:
-    call claim transfers"). Extend ordinary ordered operations, not a
-    fallback recognizer. Retain record/array/generic return-substitution and
-    affine-transfer rejection controls.
-  - Complete structural/Unit control-flow composition with computed successor
-    arguments, preserving owned values, loans and ordered operations through
-    joins and calls. `unit/structural_unit_control.rs` still rejects checked
-    expressions in its specialized scalar-successor route. Extend ordinary
-    argument evaluation/custody, not another whole-body recognizer. Preserve
-    structural-call publication controls and exercise source-rooted branch/join
-    customers through Terminal replay and matching-host native execution;
-    **GENERAL-CYCLIC-EXECUTION** owns cyclic control.
-    General non-scalar-leaf zero-length arrays still lack native structural
-    admission; checked empty construction and the native rejection pin already
-    exist. Preserve empty-index/literal-arity rejection as storage support grows.
-  - Extend returned structural custody to extracted projections, freshly
-    established claims and claims from distinct owned inputs. Preserve
-    shared/mutable/write-only temporary loans, self consumers and content
-    guarantees independently of claim identity.
-    `effects/structural_callback_reach/projected.omg` supplies a whole-array
-    forwarding baseline, not extracted-projection or native closure.
-  - Complete aggregate field replacement for nonliteral sources (whole
-    places, match-assigned values), fixed-index element holes
-    (`samples/cli/algorithms/dutch_flag`'s `self.items[0] = Color::White`)
-    and whole nominal receiver replacement. Constructions, structural call
-    results and copied places already replace a record field through
-    `OpenWindows::replace` (move-out, store, continuation discard of an
-    affine displaced value) in both ordinary and state-graph lowering, and
-    native target lowering realizes that window pair as two extent copies
-    (`02_abstract-operations-to-target-operations/src/lowering/control_flow/borrowed_windows.rs`).
-    It still refuses a reference-bearing field, a field of a `Mixed` parent,
-    and a store whose value has no activation home (an owned parameter or
-    block arrival stored directly). An empty-record local reaches native
-    code only when passed on: `terminator.rs::owned_root_type` knows homes
-    and arrivals, so an unconsumed one's edge discard would reject (read from
-    source, no fixture probed). The customer is
-    `filesystem/windows_canonicalize_exit`'s stored `UnitResult`. Case-payload
-    reads of a replaced field then stop in lowering at `runtime field
-    observation requires a record-only field path`
-    (`data/runtime_case_reassignment_exit`,
-    `structs/deep_nested_write_paths_exit`): Terminal field observations admit
-    no case step. Coordinate **FILESYSTEM-RELEASE-CONTRACT**,
-    **WRITE-ONLY-BORROW** and **NOMINAL-FIELD-FLOW**; do not dispose a moved
-    value twice.
-  - Complete borrowed local record calls and subsequent observations without
-    the root-expression shape gate in
-    `values/scalar/computations/structural_values.rs::is_record_value`.
-    `declared_range_inference_local_effects_retain_pending_terminal_boundaries`
-    pins a record-copy/borrowed-mutation customer still lacking its scalar
-    control plan. Primitive borrowed-local mutation already has encoded
-    execution coverage in `borrowed_scalar_call_source`.
-  - Complete exact saved-value snapshots across actual writes/exclusive
-    exposure, plus dependent/public-trait results and subslice bounds.
-    `omega-rust/psi/checking/src/proof_contracts/contract_entailment/ranking_range/saved_arguments.rs`
-    already accepts stable unwritten mutable carriers; `mut` alone is not
-    the gap. Share capture with **CRASH-CONTRACT**, preserving case/index/
-    generic/reference/float identities and totality. Current body facts
-    cannot impersonate entry observations; loop invariants cover backedges.
-    `compiler --test bounded_slice_selectors` pins separate endpoint-signature,
-    window-statement-sequence and main scalar-control-plan omissions.
-    Replace those expectations with source-free Terminal and matching-host
-    native slice execution; scalar endpoint success does not close transport.
-  - Carry [exact anonymous arithmetic](wiki/language_guide/chapter_5_expressions_evaluation.md#exact-anonymous-division-and-landing)
-    through newly admitted generic/evidence-adapted, boundary, aggregate,
-    parameter/constant, float and proof routes, preserving rational
-    intermediates, result carrier/policy custody and warning origins/suppression.
-    Keep [typed quotient/remainder](wiki/language_guide/chapter_5_expressions_evaluation.md#typed-integer-quotient-and-remainder)
-    separate. Authored const/helper selection already has resolver and
-    build-time admission controls; preserve them rather than folding builtin
-    meaning. **OPERATOR-MACHINE-SUPPLY** owns executable supply.
-    Nonconstant proof-`Int` arithmetic still needs independent evidence beyond
-    source entailment in `omega-rust/psi/checking/src/proof_contracts/contract_entailment/arithmetic_judgment.rs`.
-
-  Acceptance: one composed caller tolerates reordered/renamed states and
-  inserted computations; selected operands execute left-to-right once,
-  skipped calls never execute, and saved values/normal guarantees agree in
-  replay and native execution. Explicit state transfers preserve custody
-  without mandatory copies; implicit cross-state use rejects. Forged
-  bindings/origins, stale snapshots, conflicting loans, missing provider
-  authority and incorrect guarantees reject. Keep `7 / 2 * 2 == 7` and
-  `4097 / 4096 * 4096 == 4097` with their warnings, reject fractional
-  integer landing, and retain typed truncation (the `4097u32` case is 4096),
-  signed quotient/remainder laws and zero-divisor rejection.
 
 - **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP.** Complete ordinary
   consuming `drop<T>` and exact owner-attached hook execution under
