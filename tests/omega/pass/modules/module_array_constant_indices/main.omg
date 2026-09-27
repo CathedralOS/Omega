@@ -1,3 +1,8 @@
+// COMPILE-ONLY. A module's array constants index a const-generic data
+// binder: `SIZE`/`OTHER` are resolved through `use settings;` and their
+// elements select the instance. Resolution and const indexing are checking
+// properties, so the entry is deliberately empty -- there is no executable
+// half to invoke.
 use settings;
 const SIZE: [u64; 2] = [1, 2];
 const OTHER: [u64; 2] = [2, 1];

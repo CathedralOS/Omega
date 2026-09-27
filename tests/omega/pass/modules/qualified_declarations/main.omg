@@ -1,3 +1,8 @@
+// COMPILE-ONLY. A data type and a machine imported from the same module by
+// qualified path (`use combat::Damage;`, `use combat::damage;`) stay distinct
+// declarations at the use site rather than colliding on their shared leaf.
+// Resolution is a checking property, so the entry is deliberately empty --
+// there is no executable half to invoke.
 use combat::Damage;
 use combat::damage;
 

@@ -1,3 +1,8 @@
+// COMPILE-ONLY. A constant imported by qualified path (`use combat::DAMAGE;`)
+// keeps its declaring module's identity at the use site, and a module
+// imported whole (`use rooms;`) resolves its members by qualification. Both
+// are resolution properties, so the entry is deliberately empty -- there is
+// no executable half to invoke.
 use combat::DAMAGE;
 use rooms;
 

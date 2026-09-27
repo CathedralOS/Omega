@@ -813,9 +813,13 @@ the complete product bar; focused successes below do not establish that baseline
   `where` type equation binding before layout, or a module's declaration
   surface, has no executable half to invoke.
 
-  The two `terminal_psi` rows were the only ones carrying NO header at all,
-  so the distinction this item draws could not be applied to them; both now
-  state their subject. `content_custody_exit` is the anomaly: it takes the
+  Five of the sixteen carried no stated subject, so the distinction this item
+  draws could not be applied to them: the two `terminal_psi` rows and
+  `modules/{module_array_constant_indices,qualified_constants,
+  qualified_declarations}`. All five now state one. The three `modules` rows
+  are honest compile canaries -- module resolution, qualified constants and
+  qualified declarations are checking properties with no executable half --
+  and say so. `content_custody_exit` is the anomaly: it takes the
   `_exit` run-canary suffix while having no `build.omg`, no console binding
   and an empty `Root::main`, so `Root::enter` -- which holds its subject --
   is never invoked. Its execution is owed, by an invoking entry or a rename.
