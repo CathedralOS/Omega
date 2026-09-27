@@ -33,11 +33,9 @@
 // what declined -- read it as "the structural field store declined", nothing
 // finer.
 //
-// SAME FAMILY as `tests/omega/pending/structs/policy_field_record_local_read`:
-// there, an arithmetic policy on a record's FIELD removes the field-read row
-// for a local of that record; here, a policy on an array's ELEMENT removes the
-// whole-array store row. In both, the policy on the COMPOSITE is fine and the
-// policy on the MEMBER is not. Worth one Terminal answer rather than two.
+// Local record-field observations have their own native regression at
+// `tests/omega/pass/structs/runtime_local_record_policy_exit`. This fixture
+// retains the separate whole-array establishment/store failure.
 use omega_language_std::console;
 use omega::language::core::binding;
 

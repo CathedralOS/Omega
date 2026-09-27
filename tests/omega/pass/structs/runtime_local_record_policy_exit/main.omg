@@ -1,0 +1,28 @@
+// Local record observations keep member policies, including through nested storage.
+// Overflow must wrap/clamp at the operation, before explicit policy erasure.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Reading [copy] {
+    wrapping: u8 in Wrapping;
+    saturating: u8 in Saturating;
+    trapping: u8 in Trapping;
+    plain: u64;
+}
+data Record [copy] { reading: Reading; }
+data Main { console: Binding<Console>; }
+
+machine Main::main(&mut self) reaches Console {
+    let record: Record = Record { reading: Reading {
+        wrapping: 255, saturating: 255, trapping: 5, plain: 70
+    } };
+    let wrapped: u8 = (record.reading.wrapping + 1) as u8;
+    let saturated: u8 = (record.reading.saturating + 1) as u8;
+    let trapped: u8 = (record.reading.trapping + 1) as u8;
+    transition wrapped == 0 && saturated == 255 && trapped == 6 && record.reading.plain == 70 {
+        true -> passed()
+        false -> failed()
+    }
+    state passed(&mut self) { self.console.exit_process(70); }
+    state failed(&mut self) { self.console.exit_process(71); }
+}

@@ -930,6 +930,34 @@ pub(super) fn return_discards(
             return unsupported("Unit return parameter cleanup roster drifted");
         }
     }
+    // A closed-sum edge disposes its whole subject before entering the arm's
+    // return block. Its checked exit drop remains required evidence, but must
+    // not become a second disposal at that return. Boolean guard observations
+    // have no such consuming edge and retain their ordinary return cleanup.
+    if let CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, .. } = &state.terminator
+        && let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
+            subject.source
+    {
+        let index = parameter_index as usize;
+        let parameter =
+            state
+                .structural_parameters
+                .get(index)
+                .ok_or(LoweringError::Unsupported(
+                    "case return lost its consumed parameter",
+                ))?;
+        if subject.access != checked_trees::CheckedStructuralAccess::Owned
+            || !subject.path.is_empty()
+            || parameter.access != checked_trees::CheckedStructuralAccess::Owned
+            || parameter.multiplicity != Multiplicity::Affine
+            || parameter.type_identity != subject.type_identity
+            || !drops.contains(&index)
+            || consumed.contains(&index)
+        {
+            return unsupported("case return changed its subject disposal custody");
+        }
+        consumed.push(index);
+    }
     drops.retain(|index| !consumed.contains(index));
     Ok(drops)
 }
