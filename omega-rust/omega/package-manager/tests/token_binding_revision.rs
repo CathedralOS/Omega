@@ -4,7 +4,7 @@
 //! revision that re-reviews the same tokenless declaration must report no
 //! policy rows at all (no churn on existing locks).
 
-use package_evidence::record::PackagePolicyRowKind;
+use package_evidence::record::{PackagePolicyRowKind, PackageReviewCallableSupply};
 use package_manager::lock::{
     HistoricalPackagePolicyDecisions, HistoricalPackagePolicyLimits, PackageLockTarget,
 };
@@ -219,8 +219,8 @@ fn a_changed_token_binding_is_a_breaking_revision_of_the_reviewed_callables() {
     assert!(!baseline_add.contains("token-bound"));
 
     // The admission claim is an explicit acceptance row: its token change
-    // retires the accepted row, and the token-bound form now reviews as a
-    // public boundary operator declaration rather than a callable.
+    // retires the accepted row. Under the machine supply rules, the bodyless
+    // token-bound form is a top-level requirement, not an accepted claim.
     let changes = compare_package_policy_changes(
         Some(&accepted),
         &bound_reviews,
@@ -258,19 +258,40 @@ fn a_changed_token_binding_is_a_breaking_revision_of_the_reviewed_callables() {
             .all(|row| !row.canonical_text().contains("token-bound")),
         "the retired tokenless row carried no token coordinate"
     );
-    // The bound revision still publishes the claim's surface: the fixed token
-    // marks `trusted_product` a boundary operator requirement.
-    let bound_operators = bound_reviews.reviews()[0].policy().public_api().operators();
-    let [operator] = bound_operators else {
-        panic!("one boundary operator requirement: {bound_operators:?}");
+    // A fixed token belongs to the machine signature, not a separate operator
+    // declaration. Keep checking that review retains the requirement and its
+    // contract instead of mistaking removal of the accepted claim for omission.
+    let bound_requirements = bound_reviews.reviews()[0]
+        .policy()
+        .callables()
+        .callables()
+        .iter()
+        .filter(|callable| {
+            callable
+                .identity()
+                .path()
+                .contains("Wrapped::trusted_product")
+        })
+        .collect::<Vec<_>>();
+    let [requirement] = bound_requirements.as_slice() else {
+        panic!("one boundary machine requirement: {bound_requirements:?}");
     };
-    assert!(operator.is_boundary());
-    assert!(operator.spelling().is_some());
+    assert_eq!(
+        requirement.supply(),
+        PackageReviewCallableSupply::TopLevelRequirement
+    );
+    assert_eq!(
+        requirement.spelling().map(|spelling| spelling.symbol()),
+        Some("*")
+    );
+    assert!(requirement.identity().path().contains("token-bound"));
+    assert!(requirement.identity().path().contains("1:*"));
+    assert!(!requirement.contracts().is_empty());
     assert!(
-        operator
-            .coordinate()
-            .identity()
-            .path()
-            .contains("trusted_product")
+        bound_reviews.reviews()[0]
+            .policy()
+            .public_api()
+            .operators()
+            .is_empty()
     );
 }
