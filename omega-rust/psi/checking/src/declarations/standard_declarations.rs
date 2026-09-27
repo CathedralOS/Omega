@@ -22,9 +22,9 @@ pub fn standard_calling_traits(
 /// file is still a distinct declaration pair, so consumers that must select
 /// the vocabulary a boundary references join on the relationship symbol
 /// rather than the first match.
-pub fn standard_calling_vocabularies<'program>(
-    program: &'program TypedTrees,
-) -> Vec<(&'program TraitDefinition, &'program TraitDefinition)> {
+pub fn standard_calling_vocabularies(
+    program: &TypedTrees,
+) -> Vec<(&TraitDefinition, &TraitDefinition)> {
     let mut per_file: std::collections::BTreeMap<
         usize,
         (Option<&TraitDefinition>, Option<&TraitDefinition>),

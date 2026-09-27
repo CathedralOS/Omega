@@ -129,6 +129,11 @@ impl ServiceReachRowTable {
         self.rows.len()
     }
 
+    /// Whether no rows are interned; the canonical empty row counts as a row.
+    pub fn is_empty(&self) -> bool {
+        self.rows.is_empty()
+    }
+
     /// Every retained row ID must still name the same normalized service set.
     pub fn starts_with(&self, retained: &Self) -> bool {
         self.rows.starts_with(&retained.rows)

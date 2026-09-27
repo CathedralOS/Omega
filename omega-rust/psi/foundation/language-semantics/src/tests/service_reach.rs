@@ -1,6 +1,25 @@
 use crate::{ServiceReachId, ServiceReachRowId, ServiceReachRowTable, ServiceReachTable};
 
 #[test]
+fn row_table_emptiness_counts_interned_rows_not_their_services() {
+    let mut rows = ServiceReachRowTable::default();
+    assert_eq!(rows.len(), 0);
+    assert!(rows.is_empty());
+
+    let empty_row = rows.intern(Vec::new());
+    assert_eq!(empty_row, ServiceReachRowTable::EMPTY_ROW);
+    assert!(rows.services(empty_row).is_empty());
+    assert_eq!(rows.len(), 1);
+    assert!(!rows.is_empty());
+
+    assert_eq!(rows.intern(Vec::new()), empty_row);
+    assert_eq!(rows.len(), 1);
+    rows.intern(vec![ServiceReachId(2)]);
+    assert_eq!(rows.len(), 2);
+    assert!(!rows.is_empty());
+}
+
+#[test]
 fn abstract_rows_intern_per_bound_and_report_the_bound_as_ceiling() {
     let readable = ServiceReachId(2);
     let queryable = ServiceReachId(3);

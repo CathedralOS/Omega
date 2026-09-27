@@ -37,6 +37,11 @@ impl SemanticDomainTable {
         self.names.len()
     }
 
+    /// Whether no names are interned, including the pre-seeded arithmetic policies.
+    pub fn is_empty(&self) -> bool {
+        self.names.is_empty()
+    }
+
     /// The fixed identity of the `Wrapping` arithmetic policy.
     pub const WRAPPING: SemanticDomainId = SemanticDomainId(1);
     /// The fixed identity of the `Saturating` arithmetic policy.
