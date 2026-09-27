@@ -942,6 +942,8 @@ fail/termination/subtraction_spelling_retired rejected 1656ms expected
 	the use-site subtraction `terminates by limit - index` on machine Main::walk is retired: spell the ranking as `terminates by (index, limit) -> Nat::BoundedDistance` (the tuple lists the ranked subjects, bound in order to the view's (lower, upper) parameters)
 fail/text/bounded_carrier_growth_overflow_rejected rejected 2174ms expected
 	the value assigned to `self.line` in Main::main can be up to 18 byte(s), exceeding the 16-byte capacity of its `[u8; 16]` carrier; a bounded text carrier requires every write to provably fit
+fail/text/carrier_length_cross_carrier_store rejected 54ms expected
+	store in machine `Main::main` state `main` assignment implicitly converts `u64` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
 fail/traits/conformance_item_missing_member rejected 773ms expected
 	data `Point` does not satisfy trait `Shape`: no written or default machine `Point::code`
 fail/traits/dyn_finite_family_non_member rejected 802ms expected

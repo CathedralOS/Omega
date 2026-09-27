@@ -1,10 +1,18 @@
 // Compute the right-padding needed to align a message to a fixed column width,
-// from the message's carrier length. `self.padding = 16 - self.message.len` reads
-// the `[u8; N] in Utf8` carrier's length (10 for "ALERT temp") as an ordinary
-// arithmetic operand -- carrier `.len` resolves uniformly in every value position
-// (guards, host-call args, field writes, arithmetic, let bindings) since it lives
-// in the shared place resolver. The `Saturating` domain means an over-long message
-// yields 0 padding instead of underflowing. 16 - 10 = 6.
+// from the message's carrier length (10 for "ALERT temp").
+//
+// A carrier `.len` is a COUNT, and a count is `u64` -- see
+// `wiki/spec/language/counts_and_addresses.md`. It is not carrier-free, and it
+// does not silently take the destination's type: `self.padding = 16 -
+// self.message.len` into an `i32 in Saturating` is a cross-carrier store and
+// is refused, naming the `as` that spells it. Subtracting an unconverted
+// length from a literal would also be `u64` arithmetic, which underflows for
+// a message longer than the width, so the conversion is where the intent gets
+// stated rather than a formality.
+//
+// Converting at the read puts the subtraction in the destination's carrier,
+// where `Saturating` means an over-long message yields 0 padding instead of
+// underflowing. 16 - 10 = 6.
 // Expected exit: 6.
 // Expected output contains: ALERT temp
 
@@ -28,7 +36,7 @@ data Main {
 machine Main::main(&mut self) reaches Console {
     self.console.write_line("text_padding: computes right-padding to a 16-column width from carrier length");
     self.message = "ALERT temp";
-    self.padding = 16 - self.message.len;
+    self.padding = 16 - (self.message.len as i32 in Saturating);
     self.console.write_line(self.message);
 
     transition { _ -> done() }

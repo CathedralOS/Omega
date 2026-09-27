@@ -284,38 +284,6 @@ backend-visible; full corpus runs only at the end of an item.
   `image_viewer` with only honest provider-absence diagnostics, which is the
   removal test that proved one shared cause.
 
-- **CARRIER-LENGTH-STORE-CARRIER.** (new-scope) A carrier `.len` reaches the
-  arithmetic walk with no carrier of its own, so a store into anything but
-  `u64` escapes the store-conversion check and surfaces as a unit-plan
-  omission instead of a diagnostic. `let total: u64 = self.message.len` checks
-  and so does `.len + 1` into a `u64`; only the mismatch diverges, which is
-  what says the TYPE layer already calls a length `u64` and only the proof
-  layer disagrees. The contract agrees with the type layer --
-  `wiki/spec/language/counts_and_addresses.md` gives Count as "a nonnegative
-  magnitude. General lengths, sizes, and compiler-facing policy geometry use
-  `u64`" -- so this is an implementation gap, not an open design question.
-  Both halves sit in
-  `psi/checking/src/proof_contracts/arithmetic_domains/expression_analysis/folded_values.rs`:
-  a literal-length fixed array folds to a point interval built with
-  `..NEUTRAL` (leaving `primitive: None`), and a length off a CONSTRAINED
-  carrier (`[u8; 32] in Utf8`) is refused outright -- deliberately, a live
-  length is not capacity -- then falls through to the place analysis, which is
-  NEUTRAL because a `.len` member is not a place. Either way the source
-  primitive is `None`, `check_narrowing_assignment` returns before its
-  mismatch arm, and the store lands by range: a `[u8; 32]` length fits `i32`,
-  nothing rejects it, and the Terminal plan has no row for it. Stamp `u64` on
-  the fold and give the constrained carrier `[0, capacity]` with the same
-  carrier. Leave `domain: None` -- the same `Analysis` feeds arithmetic, and
-  eight green `tests/omega/pass/{slices,operators,dependent}` fixtures do
-  arithmetic on a `.len` today, so stamping a domain would put them under
-  overflow proof. Acceptance: the pending fixture
-  `tests/omega/pending/text/carrier_length_store_carrier` takes
-  IMPLICIT-STORE-CONVERSION rather than omitting, those eight stay green, and
-  `samples/cli/text/text_padding` moves from the omission cluster to the
-  implicit-store-conversion cluster (its repair is the `as` cast, already
-  measured to check). Not started: the file was held by another lane
-  (SCALAR-RANGE-CONTRACTS-5) when this was diagnosed.
-
 - **OPERATOR-BOUNDARY-CALLS.** (split-of:PROVIDER-SELECTION-AFTER-TERMINAL)
   Finish routing every boundary-operator application through its requirement's
   `BoundaryCall` and Omega stage 00 installation, including legacy named
@@ -942,7 +910,8 @@ the complete product bar; focused successes below do not establish that baseline
   2, non-tail self recursion 1, default-domain field requirement 1.
 
   What moved since `cf9d37120c6`: omissions 27 -> 25 and TWELVE phases -> TEN;
-  `structural field store: pure source: scalar expression row` 5 -> 4;
+  `structural field store: pure source: scalar expression row` 5 -> 4, and
+  now 3 with `text_padding` repaired;
   `structural field store: scalar field type` 1 -> 2 (`dungeon_render` joined
   `matrix_multiply`); two phases appeared that the old list does not name,
   `structural field store: byte sequence carrier` (3:
@@ -997,10 +966,11 @@ the complete product bar; focused successes below do not establish that baseline
       a field read off a LOCAL record whose type carries an arithmetic
       policy (`grid_walk` -- pinned at
       `tests/omega/pending/structs/policy_field_record_local_read`), and a
-      carrier length in a destination that is not `u64` (`text_padding` --
-      pinned at `tests/omega/pending/text/carrier_length_store_carrier`, and
-      located below as CARRIER-LENGTH-STORE-CARRIER; the arithmetic is not
-      what carries it)
+      and a carrier length in a destination that is not `u64`
+      (`text_padding`) -- REPAIRED 2026-09-27: a length now carries `u64`
+      through the arithmetic walk, so the store takes the ordinary
+      implicit-conversion diagnostic and the sample checks clean. Guarded at
+      `tests/omega/fail/text/carrier_length_cross_carrier_store`
       `grid_walk`'s entry above USED to read "a local record's field inside
       arithmetic, with `v` bound from a call". Both halves were wrong. The
       bisect alternated each candidate against its control and the
