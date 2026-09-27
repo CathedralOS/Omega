@@ -13,7 +13,6 @@ mod optimization_stage;
 mod physical_stage;
 mod realization_diagnostics;
 mod realization_request;
-pub(crate) mod source_evaluated_imports;
 mod target_stage;
 pub use abstract_operations_to_target_operations::provider_admission::terminal_authority_permissions;
 

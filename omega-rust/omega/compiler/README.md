@@ -239,6 +239,15 @@ Target, entry and calling plans, provider and external settlements, authority
 policies, callbacks, FMA admission and physical evidence stay per target. The
 reuse is an optimization, not review, proof or audit evidence.
 
+Direct compilation and retained Terminal re-entry share the target stage's
+[source-import preparation](../pipeline/02_abstract-operations-to-target-operations/src/provider_admission/source_evaluated_imports.rs).
+It joins demanded imports to exact selected plans, derives execution and stack
+inputs when none are supplied, and rejects incomplete or substituted supplied
+rosters. The coordinator forwards the prepared settlements; it does not derive
+report identities, assign foreign-call stack reserves, or select import plans.
+Independent provider admission still checks strong plan commitments, retained
+locators, calling contracts, targets, stack custody and receiving authority.
+
 ### Program-entry settlement
 
 [Entry roots](../../../wiki/spec/build/entry_roots.md) owns the source/arrival

@@ -1,5 +1,10 @@
-//! Optimizer module role: executable entrance. Provider coordination for native realization: settle external executions,
-//! then admit the exact checked-provider installation retained by the plan.
+//! Provider admission for native realization.
+//!
+//! `source_evaluated_imports` prepares selected import executions and stack
+//! inputs for both direct compilation and retained Terminal re-entry.
+//! `admit_native_providers` independently checks those inputs, settles external
+//! executions, and admits the exact checked-provider installation and authority
+//! closure retained by the plan.
 
 mod adapters;
 mod compiler_builtins;
@@ -7,10 +12,16 @@ mod diagnostics;
 mod installation;
 mod request;
 mod settlements;
+mod source_evaluated_imports;
 mod terminal_authority_permission_policy;
 pub mod terminal_authority_permissions;
 mod terminal_authority_policy;
 mod terminal_authority_review;
+
+pub use source_evaluated_imports::{
+    PreparedSourceEvaluatedImports, SourceEvaluatedImportSettlement,
+    prepare_source_evaluated_imports,
+};
 
 pub use request::{
     NativeBoundaryRealization, NativeCompilerBuiltinSettlement, NativeProviderSettlement,

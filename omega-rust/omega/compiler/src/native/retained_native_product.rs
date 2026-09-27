@@ -1,43 +1,12 @@
 //! Native re-entry for a retained Terminal product with source-evaluated imports.
 //!
-//! This coordinator owns the exact-plan join. Callers supply only independently
+//! Provider admission owns the exact-plan join. Callers supply only independently
 //! admitted execution and same-stack evidence; they cannot select a provider
 //! plan, locator, target, compiler builtin, or checked-scope receipt.
 
+pub use abstract_operations_to_target_operations::provider_admission::SourceEvaluatedImportSettlement;
+use abstract_operations_to_target_operations::provider_admission::prepare_source_evaluated_imports;
 use diagnostics::Diagnostic;
-use installation_evidence::ProviderExecutionEvidence;
-use std::collections::{BTreeMap, BTreeSet};
-use task_plans::AdmittedSameStackContribution;
-
-/// Externally admitted custody for one demanded source-evaluated import.
-///
-/// Construction does not admit either input. Native realization independently
-/// rejoins both values to the exact retained provider plan and import row.
-#[derive(Debug, Clone, Copy)]
-pub struct SourceEvaluatedImportSettlement<'evidence> {
-    provider_execution: &'evidence dyn ProviderExecutionEvidence,
-    same_stack: &'evidence AdmittedSameStackContribution,
-}
-
-impl<'evidence> SourceEvaluatedImportSettlement<'evidence> {
-    pub const fn new(
-        provider_execution: &'evidence dyn ProviderExecutionEvidence,
-        same_stack: &'evidence AdmittedSameStackContribution,
-    ) -> Self {
-        Self {
-            provider_execution,
-            same_stack,
-        }
-    }
-
-    pub const fn provider_execution(self) -> &'evidence dyn ProviderExecutionEvidence {
-        self.provider_execution
-    }
-
-    pub const fn same_stack(self) -> &'evidence AdmittedSameStackContribution {
-        self.same_stack
-    }
-}
 
 /// Explicit policy, image custody, and admitted imports for native re-entry.
 ///
@@ -195,30 +164,12 @@ pub fn realize_retained_native_artifact(
         })?;
         let demanded =
             provider_planning::compiler_intrinsics::demanded_boundary_identities(&module)?;
-        let exact_import_plans = exact_demanded_import_plans(&proposal, &demanded)?;
-        // A compile that installed no provider supplies no import evidence;
-        // a demanded source-evaluated import then settles from the selected
-        // plan itself, exactly as the direct route mints it.
-        let minted_imports = if imports.is_empty() && !exact_import_plans.is_empty() {
-            crate::native::native_realization::source_evaluated_imports::mint_source_evaluated_imports(
-                proposal.selected_provider_plans().plans(),
-                &demanded,
-            )?
-        } else {
-            Vec::new()
-        };
-        let minted_settlements = minted_imports
-            .iter()
-            .map(|minted| {
-                SourceEvaluatedImportSettlement::new(&minted.execution, &minted.same_stack)
-            })
-            .collect::<Vec<_>>();
-        let imports = if imports.is_empty() {
-            minted_settlements.as_slice()
-        } else {
-            imports
-        };
-        let native_settlements = rejoin_external_import_settlements(&exact_import_plans, imports)?;
+        let prepared_imports = prepare_source_evaluated_imports(
+            proposal.selected_provider_plans().plans(),
+            &demanded,
+            imports,
+        )?;
+        let native_settlements = prepared_imports.settlements();
 
         let selected_plans = proposal.selected_provider_plans().plans();
         let compiler_builtins = proposal
@@ -443,101 +394,6 @@ pub(crate) fn admitted_native_callbacks(
         );
     }
     Ok(admitted)
-}
-
-fn exact_demanded_import_plans<'proposal>(
-    proposal: &'proposal crate::report::TerminalNativeRealizationProposal,
-    demanded: &BTreeSet<String>,
-) -> Result<BTreeMap<String, &'proposal effects::provider_plan::ProviderPlan>, Vec<Diagnostic>> {
-    let mut exact = BTreeMap::new();
-    for requirement in demanded {
-        let matches = proposal
-            .selected_provider_plans()
-            .plans()
-            .iter()
-            .flat_map(|plan| {
-                plan.rows
-                    .iter()
-                    .filter(move |row| {
-                        row.requirement_identity == *requirement
-                            && matches!(
-                                row.binding,
-                                effects::provider_plan::ProviderBinding::Import { .. }
-                            )
-                    })
-                    .map(move |_| plan)
-            })
-            .collect::<Vec<_>>();
-        match matches.as_slice() {
-            [] => {}
-            [plan] => {
-                exact.insert(requirement.clone(), *plan);
-            }
-            _ => {
-                return Err(diagnostic(
-                    "Terminal native proposal",
-                    format!(
-                        "demanded source-evaluated import `{requirement}` resolves to {} selected import plans",
-                        matches.len()
-                    ),
-                ));
-            }
-        }
-    }
-    Ok(exact)
-}
-
-fn rejoin_external_import_settlements<'proposal, 'evidence>(
-    exact_plans: &BTreeMap<String, &'proposal effects::provider_plan::ProviderPlan>,
-    imports: &[SourceEvaluatedImportSettlement<'evidence>],
-) -> Result<Vec<crate::native::NativeProviderSettlement<'proposal>>, Vec<Diagnostic>>
-where
-    'evidence: 'proposal,
-{
-    let mut seen = BTreeSet::new();
-    let mut settlements = Vec::with_capacity(imports.len());
-    for import in imports {
-        let requirement = import.provider_execution.requirement_identity();
-        if !seen.insert(requirement) {
-            return Err(diagnostic(
-                "source-evaluated import settlement",
-                format!("requirement `{requirement}` was supplied more than once"),
-            ));
-        }
-        let provider_plan = exact_plans.get(requirement).copied().ok_or_else(|| {
-            diagnostic(
-                "source-evaluated import settlement",
-                format!("requirement `{requirement}` is not a demanded selected import"),
-            )
-        })?;
-        if provider_plan.report_fingerprint()
-            != import.provider_execution.provider_plan_report_identity()
-        {
-            return Err(diagnostic(
-                "source-evaluated import settlement",
-                format!(
-                    "execution evidence for `{requirement}` names a different provider-plan report coordinate"
-                ),
-            ));
-        }
-        settlements.push(crate::native::NativeProviderSettlement {
-            provider_execution: import.provider_execution,
-            provider_plan,
-            realization: crate::native::NativeBoundaryRealization::NormalizedForeignCall(
-                import.same_stack,
-            ),
-        });
-    }
-    if let Some(missing) = exact_plans
-        .keys()
-        .find(|requirement| !seen.contains(requirement.as_str()))
-    {
-        return Err(diagnostic(
-            "source-evaluated import settlement",
-            format!("demanded import `{missing}` has no supplied execution and stack custody"),
-        ));
-    }
-    Ok(settlements)
 }
 
 fn diagnostic(context: &str, message: impl std::fmt::Display) -> Vec<Diagnostic> {
