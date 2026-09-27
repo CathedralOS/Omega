@@ -386,7 +386,7 @@ type OwnedFieldDomainIdentities = Vec<(
 type FieldDomainSlot = Option<
     Option<(
         *const typed_trees::TypedTrees,
-        std::collections::HashMap<TypeReferenceHandle, OwnedFieldDomainIdentities>,
+        symbols::SymbolKeyMap<TypeReferenceHandle, OwnedFieldDomainIdentities>,
     )>,
 >;
 
@@ -464,7 +464,7 @@ pub(crate) fn declared_owned_field_domain_identities(
                     slot_none @ None => {
                         *slot_none = Some((
                             program,
-                            std::collections::HashMap::from([(reference, identities.clone())]),
+                            symbols::SymbolKeyMap::from_iter([(reference, identities.clone())]),
                         ));
                     }
                     Some(_) => {}
@@ -585,7 +585,7 @@ thread_local! {
         Option<(
             typed_trees::ProgramIdentity,
             u64,
-            std::collections::HashMap<SymbolHandle, usize>,
+            symbols::SymbolKeyMap<SymbolHandle, usize>,
         )>,
     > = const { std::cell::RefCell::new(None) };
 }
@@ -600,7 +600,7 @@ fn domain_by_symbol(
         let fresh = matches!(&*slot, Some((owner, seen, _))
             if owner.get() == program.identity.get() && *seen == revision);
         if !fresh {
-            let mut by_symbol = std::collections::HashMap::new();
+            let mut by_symbol = symbols::SymbolKeyMap::default();
             for (position, domain) in program.domain_definitions().iter().enumerate() {
                 // `find` returns the first matching row; keep it.
                 by_symbol.entry(domain.symbol).or_insert(position);
