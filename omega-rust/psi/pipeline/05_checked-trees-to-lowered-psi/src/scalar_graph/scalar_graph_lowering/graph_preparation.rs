@@ -144,6 +144,14 @@ fn prepare_scalar_graph_machine_with_contract_mode(
     let entry_state = states.first().ok_or(LoweringError::Unsupported(
         "checked scalar control plan must contain an entry state",
     ))?;
+    // A scalar graph whose machine returns a structural value still carries
+    // the state's scalar guards, locals, and calls — but it is never emitted
+    // as a scalar machine: the structural result belongs to the Unit path.
+    if states.iter().any(|state| state.result_type.is_none()) {
+        return unsupported(
+            "scalar control plan with a structural result has no scalar machine emission",
+        );
+    }
     let (_, result_type) = qualifications.scalar_state_types(checked, entry_state.state)?;
     // Structural formals belong to one body (`terminal_scalar::
     // build_machine_graph`): only a graph of one state carries them, on the
@@ -235,8 +243,11 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         computations.refresh_proof_scope(&state.erased_proof_parameters);
         let (parameter_types, state_result_type) =
             qualifications.scalar_state_types(checked, state.state)?;
+        let Some(state_result_carrier) = state.result_type else {
+            return unsupported("scalar graph state lost its scalar result carrier");
+        };
         if state_result_type != result_type
-            || state_result_type.scalar_type != terminal_scalar_type(state.result_type)?
+            || state_result_type.scalar_type != terminal_scalar_type(state_result_carrier)?
             || parameter_types.len() != state.parameter_types.len()
         {
             return unsupported("scalar graph state result types must match exactly");

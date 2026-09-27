@@ -122,7 +122,10 @@ pub struct CheckedScalarStateGraph {
     pub bindings: Vec<CheckedScalarBinding>,
     /// Ordered Unit effects retain authored coordinates independently of scalar slots.
     pub unit_operations: Vec<CheckedUnitEffectOperationPlan>,
-    pub result_type: PrimitiveType,
+    /// The state's scalar result type, or `None` when the authored return is
+    /// structural — the value then belongs to the Unit/structural path and
+    /// this graph still owns the state's scalar guards, locals, and calls.
+    pub result_type: Option<PrimitiveType>,
     pub terminator: CheckedScalarStateTerminator,
 }
 

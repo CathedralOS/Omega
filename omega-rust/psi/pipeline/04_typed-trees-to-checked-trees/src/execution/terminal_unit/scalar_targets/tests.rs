@@ -75,7 +75,7 @@ fn mixed_graph_target_rejects_stale_parameter_and_shape_namespaces() {
             4 => {
                 let _ = graph.states[0].scalar_parameters.pop();
             }
-            5 => graph.states[0].result_type = PrimitiveType::Bool,
+            5 => graph.states[0].result_type = Some(PrimitiveType::Bool),
             _ => unreachable!(),
         }
         assert!(

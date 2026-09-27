@@ -44,7 +44,7 @@ pub(super) fn registered_structural_graph_target<'facts>(
     };
     if graphs.next().is_some()
         || retained.state != state_symbol
-        || retained.result_type != result
+        || retained.result_type != Some(result)
         || retained.structural_parameters.is_empty()
         || !retained.parameter_storage.is_empty()
         || scalar_callees
@@ -256,7 +256,9 @@ pub(super) fn available_target(
             &plan.structural_parameters,
             &plan.scalar_parameters,
             &[][..],
-            plan.result_type,
+            // A registered scalar-graph callee must return a scalar; a
+            // structural result is never callable in scalar position.
+            plan.result_type?,
         )
     } else if scalar_callees
         .structural_returns

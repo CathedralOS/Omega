@@ -217,7 +217,7 @@ fn nested_state_contract_projects_an_exact_terminal_block_parameter() {
             primitive_locals: Vec::new(),
             bindings: Vec::new(),
             unit_operations: Vec::new(),
-            result_type: PrimitiveType::Bool,
+            result_type: Some(PrimitiveType::Bool),
             terminator: checked_trees::CheckedScalarStateTerminator::Return {
                 statement_ordinal: 0,
             },
