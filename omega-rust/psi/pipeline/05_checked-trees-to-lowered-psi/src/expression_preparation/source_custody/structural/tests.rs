@@ -414,7 +414,8 @@ fn carrier_selection_receipt_replay_rejects_mutated_claim_sets() {
     let checked = crate::front_end::checked_program(
         "data Token [linear] { code: u64; }
          data Holder { left: Token; right: Token; }
-         machine Token::settle(self) {}
+         boundary requirement Token::retire(self);
+         machine Token::settle(self) { Token::retire(self); }
          machine choose(selected: bool, x: Holder) -> u64 {
              let picked: Holder = match selected { true -> x, false -> x };
              Token::settle(picked.left);

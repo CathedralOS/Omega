@@ -25,7 +25,8 @@ fn carrier_match_moves_the_whole_claim_frontier_and_reconsumes_each_child() {
             "one linear child, uniform source",
             "data Token [linear] { code: u64; }
              data Holder { left: Token; }
-             machine Token::settle(self) {}
+             boundary requirement Token::retire(self);
+             machine Token::settle(self) { Token::retire(self); }
              machine choose(selected: bool, x: Holder) -> u64 {
                  let picked: Holder = match selected { true -> x, false -> x };
                  let code: u64 = picked.left.code;
@@ -39,7 +40,8 @@ fn carrier_match_moves_the_whole_claim_frontier_and_reconsumes_each_child() {
             "two linear children, uniform source",
             "data Token [linear] { code: u64; }
              data Holder { left: Token; right: Token; }
-             machine Token::settle(self) {}
+             boundary requirement Token::retire(self);
+             machine Token::settle(self) { Token::retire(self); }
              machine choose(selected: bool, x: Holder) -> u64 {
                  let picked: Holder = match selected { true -> x, false -> x };
                  let code: u64 = picked.left.code;
@@ -54,7 +56,8 @@ fn carrier_match_moves_the_whole_claim_frontier_and_reconsumes_each_child() {
             "two linear children, distinct sources",
             "data Token [linear] { code: u64; }
              data Holder { left: Token; right: Token; }
-             machine Token::settle(self) {}
+             boundary requirement Token::retire(self);
+             machine Token::settle(self) { Token::retire(self); }
              machine choose(selected: bool, x: Holder, y: Holder) -> u64 {
                  let picked: Holder = match selected { true -> x, false -> y };
                  let code: u64 = picked.left.code;
@@ -167,7 +170,8 @@ fn carrier_match_rejects_post_join_source_and_double_consumption() {
         let errors = crate::front_end::checked_program_result(&format!(
             "data Token [linear] {{ code: u64; }}
              data Holder {{ left: Token; right: Token; }}
-             machine Token::settle(self) {{}}
+             boundary requirement Token::retire(self);
+             machine Token::settle(self) {{ Token::retire(self); }}
              machine choose(selected: bool, x: Holder) -> u64 {{
                  let picked: Holder = match selected {{ true -> x, false -> x }};
                  {tail}

@@ -7,7 +7,9 @@ use crate::front_end::checked_program;
 use checked_trees::CheckedUnitEffectOperationPlan;
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
-const RECEIPT: &str = "data Receipt [linear] { code: i32; }\nmachine Receipt::ack(self) {}\n";
+// Keep an ordinary consumer call in the caller while giving its linear
+// receiver an explicit disposition; returning alone cannot consume `self`.
+const RECEIPT: &str = "data Receipt [linear] { code: i32; }\nboundary requirement Receipt::settle(self);\nmachine Receipt::ack(self) { Receipt::settle(self); }\n";
 
 fn produce(source: &str, entry: &str) -> Result<terminal_codec::CanonicalTerminalArtifact, String> {
     let checked = checked_program(source);
