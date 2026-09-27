@@ -1,0 +1,50 @@
+// A state parameter whose type is not a scalar has no route. Scalars pass
+// fine. Found while reducing `samples/cli/basics/brightness_control`, where it
+// blocked measuring the parameter-subject axis.
+//
+//   state handle(&mut self, p: i32)              checks
+//   state handle(&mut self, p: bool)             checks
+//   state handle(&mut self, p: i32 in Wrapping)  checks
+//
+//   state handle(&mut self, p: Command)          OMITTED  (a sum, this fixture)
+//   state handle(&mut self, p: Command)  [copy]  OMITTED
+//   state handle(&mut self, p: Pair)     [copy]  OMITTED  (a record)
+//   state handle(&mut self, p: [i32; 3])         OMITTED  (an array)
+//   state handle(&mut self, p: &Pair)            OMITTED  (a reference to one)
+//
+// all at `state graph: terminator: jump successor: parameter transfer`.
+//
+// So it is not about sums, and not about copyability -- `[copy]` on the sum
+// changes nothing, and an arithmetic policy on a SCALAR parameter still
+// checks. The dividing line is scalar versus composite.
+//
+// Passing the argument from a FIELD rather than a literal gives a different
+// and legitimate diagnostic instead ("cannot transfer a non-copy value out of
+// borrowed storage"), so this fixture passes a literal to reach the omission
+// cleanly.
+//
+// NOT a customer, though it looked like one: `samples/cli/systems/vending_machine`
+// reports the neighbouring `state graph: terminator: conditional successors:
+// parameter transfer`, and its state parameters are `i32 in Wrapping`, which
+// is measured above to check. Its states return a `Change`; that return, not a
+// parameter, is the likelier subject. Unattributed -- do not fold it in here
+// without measuring.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Command {
+    case A;
+    case B;
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    transition { _ -> handle(Command::A) }
+
+    state handle(&mut self, command: Command) {
+        self.console.exit_process(0);
+    }
+}
