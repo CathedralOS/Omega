@@ -595,11 +595,18 @@ the complete product bar; focused successes below do not establish that baseline
   The review preserves existing authority under local source/host replacement;
   these checkout-local locks are not application publication.
 
-  Continue `omega update --project <application>/squalr-tests --target
-  linux_x86_64` through ordinary review, then the application check/native
-  harness. The previous full run passed scanning's widened-byte requirement
-  and stopped at the now-closed native-targets result guarantees. Keep the
-  17-package/37-edge graph intact. The native
+  Full Linux and macOS package runs subsequently reached the engine's two
+  `supplied_module_count` subslices. An explicit borrowed receiver lost the
+  returned arena bundle's origin, making later call frames opaque and clearing
+  the already-proven count bound. Owned receiver origin recovery now retains
+  that explicit borrow; the real session/API dependency probe passes source
+  checking with the descriptor clone present. Continue the unchanged full
+  `omega update --project <application>/squalr-tests --target macos_arm64`,
+  then ordinary review and the matching-host application check/native harness.
+  The probe still reports `EnginePrivilegedState::copy_supplied_modules` as an
+  unresolved `UnrecognizedInductiveBody` guarantee; project decisions cannot
+  discharge it. Coordinate that proof repair with the active scalar-contract
+  implementation owner. Keep the 17-package/37-edge graph intact. The native
   `structs/affine_record_state_clone` witness exits 70; neither that witness
   nor package acceptance establishes full application native acceptance.
 
