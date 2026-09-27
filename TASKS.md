@@ -2369,28 +2369,6 @@ syntax and other terminal services are not prerequisites.
   rejection and shared/disjoint admission. Run matching supported hosts or
   explicitly retain unavailable runtime legs.
 
-- **SYMBOLIC-MATERIALIZATION.** Obtain the missing matching-host Linux AArch64
-  execution evidence for the existing recursive
-  [derived consumer](wiki/spec/layouts/plans.md#derived-consumers).
-  Owners: `backend/layout/src/sum_materialization/`,
-  `psi/foundation/layout-plans/src/symbolic_materialization.rs` and
-  `compiler/tests/layout_plans/writer_lowering.rs`.
-  Both Linux ISA fragments already replay in the harness; recorded Linux
-  x86-64 and macOS AArch64 runs do not close Linux AArch64 runtime acceptance.
-
-  On Linux AArch64 run
-  `mbx nextest run -p compiler --test layout_plans -E 'test(~writer_lowering)'`
-  and `mbx nextest run -p layout --lib -E 'test(~fenced)'`.
-  Acceptance: nested field/index writes match reference destination and guard
-  bytes, with the same normalized fragment identity/invocation across ISA-specific
-  bytes. Retain empty-array, sibling-write and nested/generic controls.
-
-  Open templates, non-closed member applications and runtime value counts in
-  static layout remain deliberate rejection boundaries—not missing symbolic
-  capacity. Closed generic applications already substitute literal lengths;
-  do not add depth-specific reports or turn a host-validation task into an
-  implementation project.
-
 - **DEVICE-EXTENT-ACCESS.** Complete the admitted device-loan/ordering route
   through actual release and CPU-view restoration under
   [device custody and ordering](wiki/spec/resources/device_access.md).
@@ -2623,6 +2601,37 @@ syntax and other terminal services are not prerequisites.
   and codec-substitution, invalid-input and loan-conflict controls reject.
   Preserve unique historical-migration selection; generated-codec verification
   and trust remain with their existing owner.
+
+- **SYMBOLIC-MATERIALIZATION.** Restore repeatable native acceptance for the
+  existing recursive [derived consumer](wiki/spec/layouts/plans.md#derived-consumers),
+  including the outstanding Linux AArch64 execution leg. The cited compiler
+  `layout_plans` test target and `writer_lowering.rs` were removed; that command
+  cannot supply the missing evidence.
+
+  Reuse `backend/layout/src/sum_materialization/tests/recursive.rs` for checked
+  layout projection and closed generic substitution, and
+  `psi/foundation/layout-plans/src/symbolic_materialization.rs` for nested
+  field/index derivation. `executable-installation`'s
+  `post_handoff_writer/tests/writer_execution.rs` compares portable Rust writes;
+  `program-entry-plan/src/post_handoff_writer/mod.rs` lowers both Linux ISAs,
+  checks normalized identity and replays bytes. These controls do not execute
+  the emitted fragment.
+
+  Provide a registered native harness connecting checked source geometry to
+  the generated writer and its exact installed invocation, following
+  [writer custody](wiki/spec/build/hardware_materialization.md#generated-writers-and-publication).
+  On Linux AArch64 require complete destination bytes and surrounding guards
+  to match the reference execution. Preserve the same normalized fragment and
+  invocation across ISA-specific bytes, empty arrays, sibling writes and
+  nested/generic cases. Retain other matching-host controls and explicitly
+  identify unavailable runtime legs. Focused portable checks are
+  `mbx nextest run -p layout --lib -E 'test(~sum_materialization::tests::recursive)'`
+  and `mbx nextest run -p program-entry-plan --lib -E 'test(~post_handoff_writer)'`;
+  neither substitutes for native execution.
+
+  Keep open templates, non-closed member applications and runtime counts in
+  static layout rejected. Reuse the recursive consumer and closed literal
+  substitution; no depth-specific representation is needed.
 
 ## P3 - Terminal Psi, PCC, and observation
 
