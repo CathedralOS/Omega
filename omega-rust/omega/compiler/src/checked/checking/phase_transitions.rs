@@ -212,7 +212,6 @@ pub(crate) fn typed_trees_to_checked_trees(
         let check_result = typed_trees_to_checked_trees::lower_typed_trees(typed, &request);
         super::record_settled_check(check_started.elapsed());
         let mut program = check_result?;
-        provider_planning::approval::check_boundary_provider_approval(&program)?;
         if let Some(package_inputs) = settlement.package_inputs {
             crate::checked::package::declaration_admission::validate_authored_declaration_selections(
                 &program,
@@ -445,7 +444,6 @@ pub(crate) fn typed_trees_to_preliminary_checked_trees(
         super::record_preliminary_check(check_started.elapsed());
         let program = check_result?;
         let program = typed_trees_to_checked_trees::prune_target_siblings(program)?;
-        provider_planning::approval::check_boundary_provider_approval(&program)?;
         Ok(Arc::new(program))
     })
 }

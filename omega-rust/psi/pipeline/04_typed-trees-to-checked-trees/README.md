@@ -56,6 +56,14 @@ only during preliminary checking while the evaluator retains their continuation.
 The stage owns their source-spanned diagnostics; the compiler does not repeat
 this source validation before invoking it.
 
+Before publishing checked trees, the stage validates exact boundary-call
+coordinates and source authority through
+[boundary call validation](../../checking/src/machine_calls/boundary_calls.rs).
+An ordinary whole-trait implementation cannot mint a boundary capability;
+requirement-level satisfiers remain supply edges. This source-only obligation
+runs for every checking caller, independently of Omega's later provider selection
+and native permission checks.
+
 Unit planning borrows an explicit `ScalarCalleePlans` roster: independent boundary
 and primitive-reference returns precede the Unit closure, and the complete
 structural-scalar return roster follows that closure. Preliminary call-free

@@ -2,6 +2,52 @@ use crate::tests::front_end::checked_program;
 use checked_trees::AcceptanceView;
 
 #[test]
+fn checking_owns_exact_boundary_call_admission() {
+    let source = r#"
+        pub boundary trait Host {
+            machine mark(value: u64);
+        }
+        machine run() reaches Host {
+            Host::mark(1);
+        }
+    "#;
+    let local_implementation = r#"
+        data Local {}
+        LocalHost: Local satisfies Host {
+            machine mark(value: u64) {}
+        }
+    "#;
+    let exact_satisfier = r#"
+        machine checked_mark(value: u64) satisfies Host::mark {}
+    "#;
+    for request in [
+        crate::CheckingRequest::preliminary(),
+        crate::CheckingRequest::settled(),
+    ] {
+        crate::lower_typed_trees(crate::tests::front_end::typed_program(source), &request)
+            .expect("an abstract boundary call retains its external supply obligation");
+        crate::lower_typed_trees(
+            crate::tests::front_end::typed_program(&format!("{source}\n{exact_satisfier}")),
+            &request,
+        )
+        .expect("an exact requirement satisfier does not implement the whole boundary trait");
+        let result = crate::lower_typed_trees(
+            crate::tests::front_end::typed_program(&format!("{source}\n{local_implementation}")),
+            &request,
+        );
+        let Err(diagnostics) = result else {
+            panic!("ordinary whole-trait implementation cannot mint boundary authority");
+        };
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| { diagnostic.message.contains("unapproved boundary call") }),
+            "{diagnostics:?}",
+        );
+    }
+}
+
+#[test]
 fn exposes_checked_operation_acceptance_from_one_query_surface() {
     let source = r#"
         data Main {}

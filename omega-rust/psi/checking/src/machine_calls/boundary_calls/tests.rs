@@ -1,6 +1,9 @@
-//! Provider approval tests.
+//! Source boundary authority and checked-coordinate rejection controls.
 
-use super::{SymbolHandle, check_boundary_provider_approval, checked_boundary_call_coordinates};
+use super::{
+    BoundaryCallCoordinate, SymbolHandle, checked_boundary_call_coordinates,
+    validate_boundary_calls,
+};
 
 struct CoordinateFixture {
     checked: checked_trees::CheckedTrees,
@@ -146,7 +149,7 @@ fn checked_coordinates_preserve_exact_order_and_identity() {
     assert_eq!(
         checked_boundary_call_coordinates(&fixture.checked).expect("valid checked flow"),
         vec![
-            effects::BoundaryCallCoordinate {
+            BoundaryCallCoordinate {
                 machine_symbol: fixture.machine,
                 state_symbol: fixture.state,
                 target_state_symbol: fixture.first_target,
@@ -155,7 +158,7 @@ fn checked_coordinates_preserve_exact_order_and_identity() {
                 statement_index: 0,
                 call_ordinal: 0,
             },
-            effects::BoundaryCallCoordinate {
+            BoundaryCallCoordinate {
                 machine_symbol: fixture.machine,
                 state_symbol: fixture.state,
                 target_state_symbol: fixture.other_boundary_signature,
@@ -166,7 +169,7 @@ fn checked_coordinates_preserve_exact_order_and_identity() {
             },
         ]
     );
-    assert_eq!(check_boundary_provider_approval(&fixture.checked), Ok(()));
+    assert_eq!(validate_boundary_calls(&fixture.checked), Ok(()));
 }
 
 #[derive(Clone, Copy)]
@@ -198,6 +201,61 @@ enum CoordinateCorruption {
     CrossOwnedBoundarySignature,
     DuplicateExactBoundaryEdge,
     DuplicateDirectBoundaryRequirement,
+}
+
+#[test]
+fn source_boundary_approval_is_exact_to_the_called_capability() {
+    for (implements_called_trait, carrier_owned, rejects) in [
+        (true, true, true),
+        (false, true, false),
+        (true, false, false),
+    ] {
+        let mut fixture = coordinate_fixture();
+        let (owner, requirement) = (fixture.boundary_trait, fixture.boundary_signature);
+        attach_boundary_edge(&mut fixture, owner, requirement);
+        fixture
+            .checked
+            .typed
+            .push_conformance(typed_trees::trait_definition::Conformance {
+                subject: if carrier_owned {
+                    typed_trees::trait_definition::ConformanceSubject::Carrier(
+                        typed_trees::name::Identifier::generated("Local"),
+                    )
+                } else {
+                    typed_trees::trait_definition::ConformanceSubject::Subjectless
+                },
+                trait_symbol: if implements_called_trait {
+                    fixture.boundary_trait
+                } else {
+                    fixture.other_boundary_trait
+                },
+                ..Default::default()
+            });
+        let result = validate_boundary_calls(&fixture.checked);
+        if rejects {
+            let diagnostics =
+                result.expect_err("another approved trait cannot grant this capability");
+            assert_eq!(diagnostics.len(), 1);
+            assert!(diagnostics[0].message.contains("unapproved boundary call"));
+        } else {
+            result
+                .expect("only a carrier implementation of the exact called trait revokes approval");
+        }
+    }
+}
+
+#[test]
+fn source_boundary_approval_rejects_colliding_declaration_names() {
+    let mut fixture = coordinate_fixture();
+    let (owner, requirement) = (fixture.boundary_trait, fixture.boundary_signature);
+    attach_boundary_edge(&mut fixture, owner, requirement);
+    fixture.checked.typed.traits.for_each_mut(|_, definition| {
+        definition.name = typed_trees::name::Identifier::generated("Collision");
+    });
+    let diagnostics = validate_boundary_calls(&fixture.checked)
+        .expect_err("same-scope declaration names cannot grant an exact capability");
+    assert_eq!(diagnostics.len(), 1);
+    assert!(diagnostics[0].message.contains("unapproved boundary call"));
 }
 
 #[test]
