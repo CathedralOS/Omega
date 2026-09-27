@@ -4045,58 +4045,53 @@ syntax and other terminal services are not prerequisites.
   [static type equality](wiki/spec/language/generics.md#static-type-equality),
   [structural equations](wiki/spec/language/generics.md#structural-type-equations-and-inference)
   and [canonical domain indices](wiki/spec/language/generics.md#canonical-domain-index-matching)
-  through specialization, layout and source-free artifacts. Reuse
-  `preparation/type_equations/`, `machine_equations.rs` and canonical argument
-  identity; no second evaluator or generic-specific storage plan.
-  **CANONICALIZE-SCALAR-RANGE-CONTRACTS** owns retiring range-shell inference.
+  through specialization, layout and source-free execution.
 
+  First make the spec's TinyBytes infer Capacity from `u64::AtMost<256>` before
+  layout, then construct and access its nested backing through serialized
+  Terminal and native execution. Extend
+  `generics/omitted_data_binder_range_equation`: its `Bytes`
+  declaration preserves the domain-index direction, but `constructed_value`
+  only casts a scalar qualification. Neither it nor `generics/machine_type_equations`
+  binds a native entry. Include invalid-initializer controls.
+  **STATE-LOCAL-VALUE-FRONTIER** owns storage and borrowed-local mutation;
+  const staging, initialization and stack supply remain separate obligations.
+  **CANONICALIZE-SCALAR-RANGE-CONTRACTS** owns the remaining range-shell migration.
+
+  Reuse `preparation/type_equations/` and `machine_equations.rs`. Array,
+  anonymous reference/slice and integer/Boolean application matching exist;
+  registered `omitted_data_binders`, `domain_application_tests` and resolution's
+  `machine_type_equations` exercise synthesis and rejection, not native execution.
   Remaining work:
 
+  - Combine equations with argument/result inference and preserve obligations
+    through forwarding, retained extensions, late-selected receivers, operator/
+    conformance supply and machine/evidence/value binders. Machine preparation
+    still requires closed explicit calls; keep unsolved-equation rejection
+    until each route discharges them.
+  - Complete domain matching by exact package/declaration and generic-carrier identity.
+    `DomainHead` joins `u64::AtMost<256>` with `u64 in AtMost<256>`, but its
+    local head lookup still declines generic carriers. Existing carrier-head
+    name normalization does not close that matching route. Add selected
+    named-lifetime identity and remaining const-index kinds;
+    **WRITE-ONLY-BORROW** owns write-only admission.
   - Check unspecialized machine/requirement bodies under every admitted
     type-equality alternative, including finite disjunctions and branch-local
-    equalities that cannot escape joins. Closed case-equation decisions do
-    not establish this general route.
-  - Complete package selection and generic-carrier domain identity; generic
-    heads still use a data-only identity route. Reuse `DomainHead`'s common
-    selection for `u64::AtMost<256>` and `u64 in AtMost<256>`, preserving
-    equivalent-application deduplication and distinct-index separation.
-    Distinct domain indices gain no implicit variance; compatibility evidence
-    does not rename their identities.
-  - Support selected named-lifetime identity and remaining const-index kinds;
-    anonymous reference/slice and integer/Boolean application matching already
-    exist. **WRITE-ONLY-BORROW** owns write-only type admission.
-  - Combine equations with argument/result inference instead of requiring
-    closed explicit machine tuples. Preserve obligations through forwarding,
-    retained compilation extensions, late-selected receivers, operator/
-    conformance supply and machine/evidence/value binders. Keep rejection of
-    undisclosed equations until those routes can discharge them; selection
-    during typing must not bypass the equation check.
-  - Evaluate computed const arguments through ordinary semantic evaluation and
-    invocation admission, retaining declared carrier, arithmetic policy,
-    selected operation and canonical identity. Match an open index as a whole;
-    no arbitrary equation solving, predicate maximum search or flow-derived
-    capacities. Share normalization across equality, matching, layout and
-    artifact readers, deduplicating equivalent closed tuples.
-    **ARITHMETIC-POLICY-REALIZATION** owns trapping-call exclusion;
-    **RUNTIME-VALUE-GENERICS** owns runtime subjects, not const-folding them.
+    equalities that cannot escape joins. Closed case decisions are insufficient.
+  - Extend the existing typed const-expression and invocation evaluators to
+    the remaining equation/index combinations. Retain declared carrier,
+    arithmetic policy, selected operation and canonical identity through
+    matching, layout and artifact replay; equivalent closed computations must
+    select one instance. **ARITHMETIC-POLICY-REALIZATION** owns trapping-call
+    exclusion; **RUNTIME-VALUE-GENERICS** owns runtime subjects.
 
-  Acceptance: the spec's TinyBytes infers Capacity from `u64::AtMost<256>`
-  before layout; equivalent closed computations select one instance. Data/
-  machine array and application equations infer omitted arguments while
-  preserving all obligations. Repeated/explicit conflicts, missing indices,
-  occurs cycles, kind mismatches, false constructor predicates and unmet
-  conformances reject. Flow narrowing cannot alter layout or domain identity.
-  Extend `array_type_equations`, `machine_type_equations` and
-  `application_type_equations` through source-free Terminal/native checking.
-
-  Preserve the domain-index `Bytes` migration in
-  `generics/omitted_data_binder_range_equation`, its nested backing array and
-  invalid-initializer controls; migrate its remaining range-shell half under
-  that owner. The current `constructed_value` only casts a scalar qualification.
-  Complete a customer actually constructing and accessing the nested backing;
-  **STATE-LOCAL-VALUE-FRONTIER** owns that storage and borrowed-local mutation,
-  not a generic-specific plan. Const staging, initialization and stack supply
-  remain separate obligations.
+  Acceptance: data/machine array and application equations infer omitted
+  arguments without losing obligations. Reject repeated/explicit conflicts,
+  missing indices, occurs cycles, kind mismatches, false constructor predicates
+  and unmet conformances. Match open indices as whole expressions; no arbitrary
+  equation solving or predicate maximum search. Distinct indices retain their
+  identities without implicit variance; flow bounds cannot choose capacity,
+  specialization or layout. Reuse ordinary evaluation and storage plans.
 
 - **FINITE-GENERIC-DISPATCH.** Complete runtime selection under the
   [finite specialization contract](wiki/spec/language/generics.md#finite-specialization-boundary)
