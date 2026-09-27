@@ -1,0 +1,6 @@
+# Omega corpus outcomes, written by `python tools/corpus_gate.py --record`.
+# One fixture per line: <tier/group/name> <status> <milliseconds>ms, then
+# `expected` or `unexpected` when its expected.txt fragments were weighed,
+# then any execution facts such as exit:70 or stdout:match.
+# Tab-indented lines under a fixture are its diagnostics, in order.
+pass/structs/affine_record_state_clone built 1612ms exit:70

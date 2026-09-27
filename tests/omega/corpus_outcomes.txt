@@ -824,6 +824,8 @@ fail/slices/unguarded_slice_parameter_index_compile rejected 1667ms expected
 	cannot prove index `index` is within unknown slice length of `entries` in Main::main::choose
 fail/slices/window_shrink_index_out_of_length rejected 1697ms expected
 	cannot prove index `3` is within length 3
+fail/structs/affine_result_constructor_reuse rejected 139ms expected
+	affine value `kind` was already transferred or consumed; it cannot be moved here
 fail/targets/sibling_body_type_error_rejected rejected 3221ms expected
 	machine `Helper::paradigm_internal` state `paradigm_internal` local `wrong` stores a boolean into a `i32` local, which holds a numeric value
 fail/targets/single_target_internal_caller_rejected rejected 2333ms expected
@@ -1803,6 +1805,7 @@ pass/storage/runtime_machine_owned_indexed_integer_write_exit rejected 4836ms
 	native artifact native artifact lowering failed: Lowering(UnsupportedElementViewFieldRead(OperationId(6)))
 pass/storage/runtime_machine_owned_indexed_struct_copy_exit rejected 4692ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: record literal source` (state 0, statement 2)
+pass/structs/affine_record_state_clone checked 976ms
 pass/structs/deep_nested_write_paths_exit rejected 4774ms
 	native-artifact Terminal production failed: Lowering(Unsupported("runtime field observation requires a record-only field path"))
 pass/structs/runtime_nested_struct_construction_exit checked 5835ms

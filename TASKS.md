@@ -548,6 +548,22 @@ the complete product bar; focused successes below do not establish that baseline
   [conditional loading premises](wiki/spec/build/component_publication.md#products-and-authority),
   not a fabricated runtime installation grant or mandatory Rust supervisor.
 
+  Compiler integration at `e520528f327` with application
+  `5fd89ec0a100e214a8bc45ba8874b106875b4928` (canonical-range migration,
+  not yet published), on macOS ARM64: `omega update --project
+  <application>/squalr-engine-api --target linux_x86_64` reaches package
+  review with four open entailment obligations in
+  `StorageSizeConversions::{metric_scale,binary_scale,metric_place,binary_place}`.
+  The first two require `1 <= result <= u64::MAX`; the latter two require
+  `0 <= result <= 6`. The entailment body judge in
+  `omega-rust/psi/checking/src/proof_contracts/contract_entailment/inductive_judgment.rs`
+  declines local bindings and multiple states; successful later exit checks
+  do not discharge package review. Close these exact proofs and rerun the
+  update before proceeding through the remaining packages. The native
+  `structs/affine_record_state_clone` corpus witness now exits 70 and checks
+  that the returned copy survives mutation of its original; this is compiler
+  evidence for the clone pattern, not full application clone acceptance.
+
 - **VEC-NATIVE-GROWTH.** (split-of:BUMP-ALLOCATOR-CANARY) Implement ordinary
   library `Vec<T>` for Squalr's growable scan results. Owners:
   `source/library/core/vec.omg`, `source/library/alloc/`, and the compiler

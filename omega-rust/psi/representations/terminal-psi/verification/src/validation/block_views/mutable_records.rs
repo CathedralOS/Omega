@@ -270,14 +270,14 @@ pub(crate) fn validate_terminator(
                 successor(arm.edge, arm.target, &arm.structural_arguments)?;
             }
         }
-        Terminator::StructuralCase { source, .. } | Terminator::ReturnStructural { source, .. } => {
-            if !usable_source(module, machine, aliases, available, *source) {
-                return Err(ModuleError::StructuralReturnSourceNotLive {
-                    machine: machine.id,
-                    block: block.id,
-                    place: *source,
-                });
-            }
+        Terminator::StructuralCase { source, .. } | Terminator::ReturnStructural { source, .. }
+            if !usable_source(module, machine, aliases, available, *source) =>
+        {
+            return Err(ModuleError::StructuralReturnSourceNotLive {
+                machine: machine.id,
+                block: block.id,
+                place: *source,
+            });
         }
         _ => {}
     }
