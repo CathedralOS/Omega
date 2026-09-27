@@ -49,19 +49,43 @@ impl CurrentFunctionFragmentInput {
         &self,
         replay: &FunctionFragmentReplayInputs,
     ) -> Result<(), FunctionFragmentEmissionError> {
-        let expected = Self::retain(replay);
-        // Compare complete artifacts and admitted facts, not just rehashable IDs.
-        if self.program != expected.program
-            || self.machine != expected.machine
-            || self.homes != expected.homes
-            || self.environment != expected.environment
-            || self.exit != expected.exit
-            || self.manifest != expected.manifest
-            || self.post_allocation_manifest != expected.post_allocation_manifest
-            || !Arc::ptr_eq(&self.target_input, &expected.target_input)
+        let ResolvedMachineProgram {
+            selected,
+            homes,
+            effects,
+            machine,
+            encoding,
+            layout,
+            frame,
+            protocol,
+        } = &self.program;
+        // Compare complete artifacts and admitted facts directly with replay
+        // inputs. Retaining a second current carrier would clone the register
+        // environment solely to discard it after this comparison.
+        if selected != &replay.shared_selected_plan()
+            || !matches_shared_plan(homes, replay.register_homes().plan())
+            || !matches_shared_plan(effects, replay.machine().effects().plan())
+            || !matches_shared_plan(machine, replay.machine().machine().plan())
+            || !matches_shared_plan(encoding, replay.encoding().program())
+            || !matches_shared_plan(layout, replay.layout_optimization().layout())
+            || !matches_shared_plan(frame, replay.fixed_frame().frame().plan())
+            || !matches_shared_plan(protocol, replay.fixed_frame().protocol().plan())
+            || &self.machine != replay.machine()
+            || &self.homes != replay.register_homes()
+            || &self.environment != replay.register_environment()
+            || &self.exit != replay.exit_contract()
+            || &self.manifest != replay.function_relative_manifest()
+            || &self.post_allocation_manifest != replay.post_allocation_manifest()
+            || !Arc::ptr_eq(&self.target_input, replay.target_input_owner())
         {
             return Err(FunctionFragmentEmissionError::RootMismatch);
         }
         Ok(())
     }
+}
+
+/// Preserve Arc equality's shared-owner fast path while borrowing the replay
+/// plan. Distinct allocations must still compare their complete contents.
+fn matches_shared_plan<Plan: Eq>(current: &Arc<Plan>, replay: &Plan) -> bool {
+    std::ptr::eq(current.as_ref(), replay) || current.as_ref() == replay
 }
