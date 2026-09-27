@@ -792,6 +792,17 @@ pub(super) fn first_unsupported_statement(
                                 )
                         ))
             }
+            // Each transition arm lowers to its own statement, so a dispatch
+            // is a trailing RUN of transitions ending the state body. The
+            // sequence plans the statements before it and the terminator
+            // machinery owns the run; a transition anywhere else would mean
+            // authored statements the take_while below silently skips.
+            StatementNode::Transition(_) => program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .skip(*index)
+                .all(|rest| matches!(rest, StatementNode::Transition(_))),
             _ => false,
         })
         .map(|(index, _)| index)

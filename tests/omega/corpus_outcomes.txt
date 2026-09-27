@@ -136,6 +136,8 @@ fail/borrows/borrow_unknown_index_pair_mut rejected 2151ms expected
 	statement 2 creates local borrow `right` while local borrow `left` is still active (borrowed at statement 1; it is reassigned at statement 3)
 	cannot prove index `left_index` is within length 2 in Main::main::main
 	cannot prove index `right_index` is within length 2 in Main::main::main
+fail/borrows/mutable_record_state_alias rejected 266ms expected
+	state `finish` receives `cell` as mutable more than once
 fail/boundary/bare_field_value_rejected rejected 1111ms expected
 	field `console` on data `Main` names bare boundary trait `Console` in value position; the intrinsic `Binding<R>` carrier is the only service value spelling
 fail/build/build_effects_undeclared rejected 332ms expected
@@ -1047,6 +1049,12 @@ pass/build/runtime_main_source_builder_is_ordinary_exit rejected 2196ms
 pass/build/uefi_os_handoff_invocation rejected 11102ms
 	native-artifact Terminal production failed: Lowering(Unsupported("checked permission event names no declared machine"))
 pass/calls/by_value_case_param_self_write_exit checked 5770ms
+pass/calls/callback_private_materialization rejected 1360ms
+	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(WindowRegistrar::register),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\(Spread<ForeignRecord>\\)\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/calls/case_scrutinee_param_clone_exit rejected 1247ms
+	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`ScanResult::clone`), which was itself omitted at local construction at `result ownership`
+pass/calls/case_scrutinee_self_dispatch_exit rejected 1251ms
+	native-artifact Terminal production failed: Lowering(InvalidTerminalModule(UnknownStructuralArgument { operation: OperationId(4), argument_index: 0, place: PlaceId(7) }))
 pass/calls/guarded_value_call_arm_exit checked 6158ms
 pass/calls/machine_self_call_recursion_compile checked 2855ms
 pass/calls/mutable_output_host_call checked 8515ms
@@ -1058,8 +1066,7 @@ pass/calls/nested_value_call_arg_compile rejected 5371ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `outer calls: unconsumed nested call in a local initializer` (state 0, statement 0)
 pass/calls/runtime_alias_write_through_guarded_transition_exit rejected 5996ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: initializer expression` (state 0, statement 0)
-pass/calls/runtime_assignment_call_post_mutation_value_exit rejected 16783ms
-	native-artifact Terminal production failed: Lowering(Unsupported("structural scalar store lost exact exclusive custody"))
+pass/calls/runtime_assignment_call_post_mutation_value_exit checked 1220ms
 pass/calls/runtime_constructor_computed_field_exit rejected 7681ms
 	native artifact canonical abstract optimization failed: explicit optimization pipeline failed: Run(InitialValidation(StructuralCallContractMismatch { machine: MachineId(1), block: BlockId(1), node: 1 }))
 pass/calls/runtime_cross_machine_substate_name_exit checked 8802ms
@@ -1076,8 +1083,7 @@ pass/calls/runtime_dispatch_slice_element_terminal_exit rejected 5107ms
 pass/calls/runtime_distinct_receiver_value_calls_exit checked 5913ms
 pass/calls/runtime_enum_self_method_exit rejected 9279ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: case field type` (state 0, statement 0)
-pass/calls/runtime_explicit_discard_executes_exit rejected 9260ms
-	native-artifact Terminal production failed: Lowering(Unsupported("structural scalar store lost exact exclusive custody"))
+pass/calls/runtime_explicit_discard_executes_exit checked 847ms
 pass/calls/runtime_guard_call_vs_call_exit checked 8266ms
 pass/calls/runtime_guarded_effectful_transition_argument_exit rejected 5674ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: scalar arguments` (state 0, statement 1)
@@ -1090,8 +1096,8 @@ pass/calls/runtime_mutable_call_before_transition_args_exit rejected 7489ms
 	native artifact target lowering failed: StructuralTypeTooLarge(StructuralTypeId(1))
 pass/calls/runtime_mutable_local_parameter_write_exit rejected 6520ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: caller structural result` (state 0, statement 2)
-pass/calls/runtime_nested_value_call_guard_exit rejected 10130ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `call operation: projected operand support` (state 0, statement 2)
+pass/calls/runtime_nested_value_call_guard_exit rejected 1206ms
+	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Duration::saturating_subtract`), which was itself omitted at local construction at `state graph: terminator: conditional successors: parameter transfer` (state 0, statement 2)
 pass/calls/runtime_option_value_call_exit checked 12564ms
 pass/calls/runtime_owned_case_temporaries_exhaustive_dispatch_exit checked 7474ms
 pass/calls/runtime_param_receiver_second_instance_exit rejected 6387ms
@@ -1111,8 +1117,7 @@ pass/calls/runtime_value_call_dispatch_results_exit checked 11359ms
 pass/calls/runtime_value_call_literal_len_arm_guard_exit checked 6688ms
 pass/calls/runtime_value_call_nested_entry_call_exit checked 10433ms
 pass/calls/runtime_value_call_return_types_exit checked 9801ms
-pass/calls/runtime_value_call_single_execution_exit rejected 11302ms
-	native-artifact Terminal production failed: Lowering(Unsupported("structural scalar store lost exact exclusive custody"))
+pass/calls/runtime_value_call_single_execution_exit checked 892ms
 pass/calls/runtime_value_call_statement_recursive_walk_exit rejected 5610ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::count`), which was itself omitted at an unavailable scalar target (`Main::walk`), which was itself omitted at local construction at `state graph: natural ranks`
 pass/calls/runtime_value_call_terminal_exit rejected 21080ms
@@ -1125,6 +1130,7 @@ pass/calls/value_call_as_host_arg_exit rejected 5600ms
 pass/calls/value_call_element_view_arg_compile checked 2166ms
 pass/calls/value_call_embedded_in_binary_exit rejected 7685ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: scalar local: pure initializer` (state 0, statement 1)
+pass/calls/value_call_param_effect_arm checked 904ms
 pass/capabilities/aarch64_hfa_import_compile checked 8867ms
 pass/capabilities/acquires_through_helper_return checked 4001ms
 pass/capabilities/boundary_trait_multiple_effects checked 2960ms
@@ -1155,8 +1161,8 @@ pass/collections/runtime_dutch_flag_partition_exit rejected 10820ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 3, statement 0)
 pass/collections/runtime_fixed_vec_round_trip_exit rejected 10885ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`FixedVecI32x4::push`), which was itself omitted at local construction at `structural field store: destination parameter`
-pass/collections/runtime_frame_indexed_param_read_exit rejected 5523ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: unsupported statement kind`
+pass/collections/runtime_frame_indexed_param_read_exit rejected 1049ms
+	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `scalar field store sequence: write frame agreement`
 pass/collections/runtime_hoisted_index_write_exit checked 8168ms
 pass/collections/runtime_indexed_struct_field_rmw_exit rejected 7928ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: guard expression` (state 0)
@@ -1195,21 +1201,14 @@ pass/control_flow/explicit_state_value_frontier checked 1902ms
 pass/control_flow/field_view_transfer_exit checked 5119ms
 pass/control_flow/guarded_jump_field_view_forward rejected 2182ms
 	native-artifact Terminal production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`Main::main` has no admitted body (local construction stopped at state graph: terminator: jump successor: parameter transfer, state 0, statement 2)") })
-pass/control_flow/guarded_leaf_branch_expansion rejected 1998ms
-	cannot make a boundary or service call at statement 4 while `self.first` is absent: restore the value moved out of borrowed storage at statement 4 first
-	cannot make a boundary or service call at statement 5 while `self.first` is absent: restore the value moved out of borrowed storage at statement 4 first
-	cannot make a boundary or service call at statement 5 while `self.second` is absent: restore the value moved out of borrowed storage at statement 5 first
-	cannot make a boundary or service call at statement 7 while `self.first` is absent: restore the value moved out of borrowed storage at statement 4 first
-	cannot make a boundary or service call at statement 7 while `self.second` is absent: restore the value moved out of borrowed storage at statement 5 first
-	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `Main::main`, state `main` (statement 4): `self.first` must hold a value again before this state's exits consume the borrow
-	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `Main::main`, state `main` (statement 5): `self.second` must hold a value again before this state's exits consume the borrow
-pass/control_flow/guarded_value_transition_roster rejected 4928ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: unsupported tail: transition chain` (state 0)
+pass/control_flow/guarded_leaf_branch_expansion checked 296ms
+pass/control_flow/guarded_value_transition_roster rejected 1013ms
+	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: guarded jump successors: roster` (state 0)
 pass/control_flow/nested_parameter_receiver_call checked 1854ms
 pass/control_flow/no_payload_case_variant_after_payload_dispatch_exit checked 6152ms
 pass/control_flow/record_pattern_arm_rename_guard_exit checked 5708ms
-pass/control_flow/runtime_branching_helper_string rejected 2543ms
-	native-artifact Terminal production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`Main::main` calls `Main::pick`, which has no plan; `Main::pick` has no admitted body (local construction stopped at statement sequence: unsupported statement kind, statement 0)") })
+pass/control_flow/runtime_branching_helper_string rejected 337ms
+	native-artifact Terminal production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`Main::main` calls `Main::pick`, which has no plan; `Main::pick` has no admitted body (local construction stopped at result ownership)") })
 pass/control_flow/runtime_captured_local_remutated_field_exit checked 5967ms
 pass/control_flow/runtime_compare_pair_dispatch_exit checked 5148ms
 pass/control_flow/runtime_integer_literal_dispatch_exit checked 5276ms
@@ -1218,10 +1217,10 @@ pass/control_flow/runtime_nonplace_record_pattern_single_evaluation_exit rejecte
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: unsupported tail: jump followed by a transition` (state 0)
 pass/control_flow/runtime_string_literal_dispatch_exit rejected 5601ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field` (state 0, statement 0)
-pass/control_flow/runtime_sum_tuple_matrix_exhaustive_exit rejected 4749ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: unsupported tail: transition chain` (state 0)
-pass/control_flow/runtime_tuple_case_destructure_exit rejected 4885ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: unsupported tail: transition chain` (state 0)
+pass/control_flow/runtime_sum_tuple_matrix_exhaustive_exit rejected 724ms
+	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: guarded jump successors: roster` (state 0)
+pass/control_flow/runtime_tuple_case_destructure_exit rejected 730ms
+	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: guarded jump successors: roster` (state 0)
 pass/control_flow/runtime_tuple_transition_exit rejected 4855ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable scalar target (`Main::run`), which was itself omitted at local construction at `state graph: terminator: guarded jump successors: receiver transfer` (state 1, statement 0)
 pass/control_flow/self_case_payload_both_arms_exit checked 5954ms
@@ -1392,8 +1391,7 @@ pass/expressions/owned_match_projected_field checked 2244ms
 pass/expressions/owned_match_record_values checked 2557ms
 pass/expressions/owned_match_values checked 3476ms
 pass/expressions/qualified_call_result_argument checked 3632ms
-pass/expressions/runtime_flat_boolean_logic_exit rejected 5890ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: prefix initializers: short-circuit boolean` (state 4, statement 0)
+pass/expressions/runtime_flat_boolean_logic_exit checked 978ms
 pass/expressions/runtime_numeric_cast_exit rejected 17329ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: pure source: scalar expression row` (state 0, statement 2)
 pass/expressions/runtime_widened_comparison_exit checked 8925ms
@@ -1930,8 +1928,8 @@ pass/termination/rank_range_state_cycle checked 1781ms
 pass/termination/ranked_callee_projected_receiver_compile checked 1874ms
 pass/termination/remainder_actual_call_component checked 1803ms
 pass/termination/remainder_literal_call_component checked 1833ms
-pass/termination/runtime_shrinking_slice_recursion_exit rejected 4697ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: unsupported statement kind`
+pass/termination/runtime_shrinking_slice_recursion_exit rejected 1599ms
+	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `scalar field store sequence: write frame agreement`
 pass/termination/stored_reference_endpoint_arrivals checked 1839ms
 pass/termination/symbolic_quotient_endpoints checked 1850ms
 pass/termination/unsigned_identity_measure_rank_range checked 1828ms
