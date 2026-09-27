@@ -83,7 +83,9 @@ pub(crate) fn build_operator_uses(
     let mut uses = Arena::default();
     let mut named_uses = Arena::default();
     let mut candidates = Arena::default();
-    let mut seen = HashSet::new();
+    // Membership only: the walk never iterates this set, so its handle and
+    // origin keys take the integer hasher instead of SipHash.
+    let mut seen = HashSet::with_hasher(symbols::BuildSymbolHasher);
 
     for (_, value) in values.values.iter() {
         // The recursive walk already visits every child with its enclosing
@@ -414,7 +416,7 @@ fn collect_expression_operator_use(
     program: &TypedTrees,
     expression: ExpressionHandle,
     origin: CheckedValueOrigin,
-    seen: &mut HashSet<(ExpressionHandle, CheckedValueOrigin)>,
+    seen: &mut HashSet<(ExpressionHandle, CheckedValueOrigin), symbols::BuildSymbolHasher>,
     uses: &mut Arena<CheckedOperatorUseFact>,
     named_uses: &mut Arena<CheckedNamedOperatorUseFact>,
     candidates: &mut Arena<CheckedOperatorCandidateFact>,

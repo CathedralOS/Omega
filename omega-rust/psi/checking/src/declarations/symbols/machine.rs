@@ -42,8 +42,8 @@ impl<'program> MachineSymbols<'program> {
         // One child index per machine build: a fresh `find_child_by_name`
         // walk per member is O(children) each, so member lookups composed to
         // O(members * children). First match wins, matching that lookup.
-        let mut children_by_name: std::collections::HashMap<&str, SymbolHandle> =
-            std::collections::HashMap::new();
+        let mut children_by_name: symbols::SymbolKeyMap<&str, SymbolHandle> =
+            symbols::SymbolKeyMap::default();
         if machine_symbol.is_valid()
             && let Some(children) = program.symbols.child_handles(machine_symbol)
         {
@@ -56,12 +56,12 @@ impl<'program> MachineSymbols<'program> {
         // Duplicate verdicts read whether a same-named earlier member carries
         // a valid symbol, so the seen maps store name -> symbol.is_valid()
         // rather than the names alone.
-        let mut member_verdicts: std::collections::HashMap<&str, bool> =
-            std::collections::HashMap::new();
-        let mut owned_data_verdicts: std::collections::HashMap<&str, bool> =
-            std::collections::HashMap::new();
-        let mut state_verdicts: std::collections::HashMap<&str, bool> =
-            std::collections::HashMap::new();
+        let mut member_verdicts: symbols::SymbolKeyMap<&str, bool> =
+            symbols::SymbolKeyMap::default();
+        let mut owned_data_verdicts: symbols::SymbolKeyMap<&str, bool> =
+            symbols::SymbolKeyMap::default();
+        let mut state_verdicts: symbols::SymbolKeyMap<&str, bool> =
+            symbols::SymbolKeyMap::default();
         let mut symbols = Self {
             callable_fields: Vec::new(),
             member_symbols: Vec::with_capacity(program.machine_owned_data(machine).len()),

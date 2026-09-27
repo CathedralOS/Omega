@@ -2,7 +2,9 @@ use crate::semantic::calls::MeasureReceiver;
 use checked_trees::{CheckFacts, ContractProofFact, ContractProofFactOwner};
 use language_semantics::declaration_selection::CollectionMeasure;
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
+/// Handle-keyed indexes and reach sets take the integer hasher.
+type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>;
+type HashSet<T> = std::collections::HashSet<T, symbols::BuildSymbolHasher>;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableMemberExpression};
@@ -1384,7 +1386,7 @@ fn build_owner_environment_index(program: &TypedTrees, facts: &CheckFacts) -> Ow
         index.add_all(reached, || environment);
     }
     for domain in program.domain_definitions() {
-        let mut reached = HashSet::new();
+        let mut reached = HashSet::default();
         for fact in program.proof_facts(domain) {
             reached.extend(proof_fact_reachable_expressions(program, fact));
         }
@@ -1408,7 +1410,7 @@ fn proof_fact_reachable_expressions(
     program: &TypedTrees,
     fact: &typed_trees::domain::ProofFact,
 ) -> HashSet<ExpressionHandle> {
-    let mut reached = HashSet::new();
+    let mut reached = HashSet::default();
     match fact {
         typed_trees::domain::ProofFact::Expression(root) => {
             reached.extend(
@@ -1453,7 +1455,7 @@ fn type_reference_reachable_expressions(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> HashSet<ExpressionHandle> {
-    let mut reached = HashSet::new();
+    let mut reached = HashSet::default();
     collect_type_reference_expressions(program, type_reference, &mut Vec::new(), &mut reached);
     reached
 }
@@ -1534,7 +1536,7 @@ fn index_proposition_environments(program: &TypedTrees, index: &mut OwnerIndex) 
         let PropositionBody::Transparent { proposition: body } = &proposition.body else {
             continue;
         };
-        let mut reached = HashSet::new();
+        let mut reached = HashSet::default();
         match body {
             PropositionFormula::Application(application) => {
                 for root in program
@@ -1571,7 +1573,7 @@ fn index_measure_environments(program: &TypedTrees, index: &mut OwnerIndex) {
         let Some(parameter) = measure.parameter.as_ref() else {
             continue;
         };
-        let mut reached = HashSet::new();
+        let mut reached = HashSet::default();
         for root in program.expression_table.expression_handles(measure.body) {
             reached.extend(
                 crate::authored_selections::member_targets::reachable_expressions(program, *root),
@@ -1653,7 +1655,7 @@ fn index_ranking_environments(program: &TypedTrees, index: &mut OwnerIndex) {
         let Some(machine) = crate::lookup::machine_by_symbol(program, custody.machine) else {
             continue;
         };
-        let mut reached = HashSet::new();
+        let mut reached = HashSet::default();
         let roots = custody
             .subjects
             .iter()

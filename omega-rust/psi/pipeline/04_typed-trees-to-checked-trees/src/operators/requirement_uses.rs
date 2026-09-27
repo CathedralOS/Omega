@@ -49,7 +49,7 @@ pub(crate) fn collect_named_requirement_uses(
     values: &CheckedValueFacts,
 ) -> Arena<CheckedNamedRequirementUseFact> {
     let mut uses = Arena::default();
-    let mut seen = HashSet::new();
+    let mut seen = HashSet::with_hasher(symbols::BuildSymbolHasher);
     for (_, value) in values.values.iter() {
         if matches!(value.origin, CheckedValueOrigin::NestedExpression { .. }) {
             continue;
@@ -69,7 +69,7 @@ fn collect(
     program: &TypedTrees,
     expression: ExpressionHandle,
     origin: CheckedValueOrigin,
-    seen: &mut HashSet<(ExpressionHandle, CheckedValueOrigin)>,
+    seen: &mut HashSet<(ExpressionHandle, CheckedValueOrigin), symbols::BuildSymbolHasher>,
     uses: &mut Arena<CheckedNamedRequirementUseFact>,
 ) {
     if !expression.is_valid() || !seen.insert((expression, origin)) {

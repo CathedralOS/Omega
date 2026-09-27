@@ -1,6 +1,7 @@
 //! Contextual domain, value and statement member targets.
 
-use std::collections::HashSet;
+/// Membership sets over expression handles; never iterated for output order.
+type HashSet<T> = std::collections::HashSet<T, symbols::BuildSymbolHasher>;
 
 use crate::authored_selections::CheckedResolutionTarget;
 use crate::authored_selections::call_targets::declaration_target;
@@ -345,7 +346,7 @@ pub(crate) fn expression_contains(
     root: typed_trees::expression::ExpressionHandle,
     target: typed_trees::expression::ExpressionHandle,
 ) -> bool {
-    reaches(program, root, target, &mut HashSet::new())
+    reaches(program, root, target, &mut HashSet::default())
 }
 
 /// Every expression the containment walk reaches from `root`.
@@ -360,7 +361,7 @@ pub(crate) fn reachable_expressions(
     program: &TypedTrees,
     root: typed_trees::expression::ExpressionHandle,
 ) -> HashSet<typed_trees::expression::ExpressionHandle> {
-    let mut reached = HashSet::new();
+    let mut reached = HashSet::default();
     // Arena index zero is the invalid address; `is_valid` rejects it below,
     // so no recorded expression can equal it.
     reaches(
