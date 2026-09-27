@@ -6,18 +6,26 @@ use super::{
 use proof_admission::{
     CertificateObligation, RecursiveComponentCertificate, RecursiveEdgeCertificate,
 };
+use std::collections::btree_map::{BTreeMap, Entry};
 use terminal_psi::ControlCycleEvidence;
 
 pub(crate) fn finalize(lowered: &mut LoweredPsi) -> Result<(), LoweringError> {
+    let started = std::time::Instant::now();
     let questions =
         terminal_verifier::reconstruct_control_cycle_obligations(&lowered.semantic_module)
             .map_err(LoweringError::InvalidTerminalModule)?;
+    crate::proofs::proof_timing::count_reconstruct(started.elapsed());
     if questions.is_empty() {
         return Ok(());
     }
+    let started = std::time::Instant::now();
     let validated = terminal_verifier::validate_module_for_interpretation(&lowered.semantic_module)
         .map_err(LoweringError::InvalidTerminalModule)?;
+    crate::proofs::proof_timing::count_validate(started.elapsed());
     let mut evidence = Vec::new();
+    // A value context is machine-local: questions on one machine share it
+    // instead of rebuilding the machine's proposition context per question.
+    let mut contexts = BTreeMap::new();
     for question in questions {
         let machine = lowered
             .semantic_module
@@ -25,9 +33,18 @@ pub(crate) fn finalize(lowered: &mut LoweredPsi) -> Result<(), LoweringError> {
             .iter()
             .find(|machine| machine.id == question.machine)
             .ok_or(LoweringError::Unsupported("cycle proof owner disappeared"))?;
-        let context = validated
-            .value_context(machine)
-            .map_err(LoweringError::InvalidTerminalModule)?;
+        let context = match contexts.entry(machine.id) {
+            Entry::Occupied(entry) => entry.into_mut(),
+            Entry::Vacant(entry) => {
+                let started = std::time::Instant::now();
+                let context = validated
+                    .value_context(machine)
+                    .map_err(LoweringError::InvalidTerminalModule)?;
+                crate::proofs::proof_timing::count_value_context(started.elapsed());
+                entry.insert(context)
+            }
+        };
+        let context = &*context;
         let parameters = machine
             .parameters
             .iter()
@@ -43,7 +60,7 @@ pub(crate) fn finalize(lowered: &mut LoweredPsi) -> Result<(), LoweringError> {
                 })
             } else {
                 crate::proofs::nonzero_divisor_certificate::produce_checked_canonical_integer_proof(
-                    &context,
+                    context,
                     &obligation.obligation.proposition,
                     &obligation.assumptions,
                     &obligation.semantic_axioms,

@@ -12,7 +12,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use semantic_vocabulary::{ObligationId, Proposition, ScalarTerm};
+use semantic_vocabulary::{MachineId, ObligationId, Proposition, ScalarTerm, ValueId};
 use terminal_psi::{ScalarBlockInvariantArrival, Terminator};
 use terminal_verifier::{ReconstructedTerminalObligationOwner, ReconstructedTerminalObligationSet};
 
@@ -60,7 +60,13 @@ fn retain_provable_roster(
     let mut remaining = 4096usize;
     let mut candidates = entry_ranges::candidates(module);
     candidates.extend(field_bounds::candidates(module, original, &mut remaining));
+    if remaining == 0 {
+        crate::proofs::proof_timing::count_budget_exhaustion();
+    }
     candidates.extend(joins::candidates(module, original, &mut remaining));
+    if remaining == 0 {
+        crate::proofs::proof_timing::count_budget_exhaustion();
+    }
     // A guarded bound the cycle's own update can break is rewritten into the
     // lockstep family the induction step needs; the prove-or-drop boundary
     // below still decides every clause.
@@ -114,6 +120,7 @@ fn retain_provable_roster(
                 ))?;
             for edge in header_arrival_edges(machine, candidate.header) {
                 let Some(fresh) = next.checked_add(1) else {
+                    crate::proofs::proof_timing::count_budget_exhaustion();
                     if !restore_seeds(&mut module.scalar_block_invariants, &mut seeds) {
                         module.scalar_block_invariants.clear();
                     }
@@ -143,27 +150,57 @@ fn retain_provable_roster(
         // Discover that demand before rejecting the outer proposal. These rows are
         // provisional: the unchanged all-arrival proof/drop transaction below is
         // the acceptance boundary, including every discovered prerequisite.
-        let Ok(questions) = terminal_verifier::reconstruct_terminal_obligations(module) else {
+        let started = std::time::Instant::now();
+        let questions = terminal_verifier::reconstruct_terminal_obligations(module);
+        crate::proofs::proof_timing::count_reconstruct(started.elapsed());
+        let Ok(questions) = questions else {
             if !restore_seeds(&mut module.scalar_block_invariants, &mut seeds) {
                 module.scalar_block_invariants.clear();
             }
             break;
         };
         candidates = joins::candidates(module, &questions, &mut remaining);
+        if remaining == 0 {
+            crate::proofs::proof_timing::count_budget_exhaustion();
+        }
     }
+    // A proof verdict is a pure function of the producer inputs below: the
+    // machine-local value context, the goal, the reconstructed requirements and
+    // axioms, and the parameter roster. A roster round that leaves a site's
+    // inputs unchanged cannot change its verdict, so rounds re-proving an
+    // unchanged site reuse the recorded verdict instead of re-searching.
+    let mut verdicts = BTreeMap::<
+        (
+            MachineId,
+            Proposition,
+            Vec<Proposition>,
+            Vec<Proposition>,
+            BTreeSet<ValueId>,
+        ),
+        bool,
+    >::new();
+    // Machine-local proposition contexts shared across sites and rounds; a
+    // context reads the machine's own places, which roster pruning never
+    // mutates.
+    let mut contexts = BTreeMap::new();
     loop {
         // A candidate may not name the verifier's canonical feedback header.
         // The original module was validated above; optional inference must not
         // turn an unsupported candidate shape into a new program restriction.
-        let Ok(validated) = terminal_verifier::validate_module(module) else {
+        let started = std::time::Instant::now();
+        let validated = terminal_verifier::validate_module(module);
+        crate::proofs::proof_timing::count_validate(started.elapsed());
+        let Ok(validated) = validated else {
             if restore_seeds(&mut module.scalar_block_invariants, &mut seeds) {
                 continue;
             }
             module.scalar_block_invariants.clear();
             return Ok(());
         };
+        let started = std::time::Instant::now();
         let questions = terminal_verifier::reconstruct_terminal_obligations(module)
             .map_err(LoweringError::InvalidTerminalModule)?;
+        crate::proofs::proof_timing::count_reconstruct(started.elapsed());
         let mut rejected = BTreeSet::new();
         // Members of a rejected header's conjunction that fail on their own at
         // some arrival, by position, with the conjunction's arity at that arrival.
@@ -182,13 +219,43 @@ fn retain_provable_roster(
                 .ok_or(LoweringError::Unsupported(
                     "invariant proof owner disappeared",
                 ))?;
-            let context = validated
-                .value_context(owner)
-                .map_err(LoweringError::InvalidTerminalModule)?;
-            let parameters = owner.parameters.iter().map(|value| value.id).collect();
-            let proves = |goal: &Proposition| {
-                produce_checked_canonical_integer_proof(
-                    &context,
+            // A value context is machine-local; sites on one machine share
+            // it instead of rebuilding the machine's proposition context.
+            let context = match contexts.entry(owner.id) {
+                std::collections::btree_map::Entry::Occupied(entry) => entry.into_mut(),
+                std::collections::btree_map::Entry::Vacant(entry) => {
+                    let vc_started = std::time::Instant::now();
+                    let context = validated
+                        .value_context(owner)
+                        .map_err(LoweringError::InvalidTerminalModule)?;
+                    crate::proofs::proof_timing::count_value_context(vc_started.elapsed());
+                    entry.insert(context)
+                }
+            };
+            let context = &*context;
+            let parameters = owner
+                .parameters
+                .iter()
+                .map(|value| value.id)
+                .collect::<BTreeSet<ValueId>>();
+            let mut proves = |goal: &Proposition| {
+                let key = (
+                    machine,
+                    goal.clone(),
+                    site.requirements.clone(),
+                    site.semantic_axioms.clone(),
+                    parameters.clone(),
+                );
+                if let Some(verdict) = verdicts.get(&key) {
+                    crate::proofs::proof_timing::count_verdict_hit();
+                    return *verdict;
+                }
+                crate::proofs::proof_timing::count_verdict_miss();
+                let counted = crate::proofs::proof_timing::Counted::enter(
+                    crate::proofs::proof_timing::count_producer,
+                );
+                let verdict = produce_checked_canonical_integer_proof(
+                    context,
                     goal,
                     &site.requirements,
                     &site.semantic_axioms,
@@ -203,14 +270,17 @@ fn retain_provable_roster(
                 // retained. Guarded `Implication` premises keep their scope.
                 .or_else(|| {
                     produce_relaxed_integer_proof(
-                        &context,
+                        context,
                         goal,
                         &site.requirements,
                         &site.semantic_axioms,
                         &parameters,
                     )
                 })
-                .is_some()
+                .is_some();
+                drop(counted);
+                verdicts.insert(key, verdict);
+                verdict
             };
             if !proves(&site.obligation.proposition) {
                 rejected.insert((machine, header));
