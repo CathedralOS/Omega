@@ -165,8 +165,13 @@ pub(super) fn lower_terminator(
     structural_types: &StructuralTypeLookup<'_>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<TargetControlTerminator, LoweringError> {
+    // A nonreturning settlement permits only custody-only discards afterward.
+    // The ReturnUnit arm still validates their exact homes and residual paths.
     if live.nonreturning
-        && !matches!(operation, AbstractOperation::ReturnUnit { cleanup_actions, .. } if cleanup_actions.is_empty())
+        && !matches!(operation, AbstractOperation::ReturnUnit { cleanup_actions, .. }
+            if cleanup_actions.iter().all(|action| matches!(action,
+                TerminalAffineCleanupAction::DiscardRoot(_)
+                    | TerminalAffineCleanupAction::DiscardResidual(_))))
     {
         return Err(LoweringError::InvalidHostedExitProcessShape(
             function.machine,

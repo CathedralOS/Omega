@@ -66,8 +66,8 @@ pub(super) fn fields(
                 super::scalar_call_abi::scalar_shape(kind.scalar_type()?)?
             }
             (RecordFieldValue::Structural(argument), StructuralFieldType::Structural(nested)) => {
-                // A nested record copies bytes; a reference child is a
-                // zero-byte custody leaf with no payload of its own.
+                // Records and primitive arrays copy owned bytes; a reference
+                // child is a zero-byte custody leaf with no payload of its own.
                 if !declarations.iter().any(|declaration| {
                     declaration.id == *nested
                         && matches!(
@@ -75,7 +75,13 @@ pub(super) fn fields(
                             StructuralTypeShape::Record { .. }
                                 | StructuralTypeShape::Reference { .. }
                         )
-                }) {
+                })
+                    && crate::structural_inputs::structural_reference_input::primitive_array_shape(
+                        *nested,
+                        declarations,
+                    )
+                    .is_none()
+                {
                     return None;
                 }
                 if argument.access != terminal_psi::StructuralAccess::Owned
@@ -118,6 +124,14 @@ pub(super) fn fields(
                                         ..
                                     }
                                     | LegalizedScalarInstructionKind::EstablishReference {
+                                        result,
+                                        ..
+                                    }
+                                    | LegalizedScalarInstructionKind::EstablishScalarArray {
+                                        result,
+                                        ..
+                                    }
+                                    | LegalizedScalarInstructionKind::StructuralLeafCopy {
                                         result,
                                         ..
                                     } => result,

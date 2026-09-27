@@ -42,7 +42,7 @@ use terminal_psi::{
     StructuralAccess, StructuralArgument, StructuralFieldType, StructuralOperationResult,
     StructuralParameterDeclaration, StructuralPathSegment, StructuralResultClaimTransfer,
     StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
-    TerminalDynamicRequirement,
+    TerminalAffineCleanupAction, TerminalDynamicRequirement,
 };
 
 use super::reference_results;
@@ -506,7 +506,7 @@ pub(super) fn validate(
                                 TargetControlTerminator::Return {
                                     cleanup_actions,
                                     ..
-                                } if cleanup_actions.is_empty()
+                                } if no_code_cleanup(cleanup_actions)
                             ),
                     },
                 ),
@@ -3484,10 +3484,20 @@ fn matches_referent_argument(
         && actual.element_stride.is_none()
 }
 
+fn no_code_cleanup(actions: &[TerminalAffineCleanupAction]) -> bool {
+    actions.iter().all(|action| {
+        matches!(
+            action,
+            TerminalAffineCleanupAction::DiscardRoot(_)
+                | TerminalAffineCleanupAction::DiscardResidual(_)
+        )
+    })
+}
+
 /// A `HostedExitProcessI32` settlement never returns: the source boundary
 /// call is the last non-terminator operation of its block and the block
-/// closes on a `ReturnUnit` with no cleanup — the shape the producer's
-/// nonreturning guard requires.
+/// closes on a `ReturnUnit` with only no-code discards. Independent graph
+/// replay checks their exact source equality, owned homes and residual paths.
 fn hosted_exit_source_tail(source: &AbstractFunction, position: usize) -> bool {
     let mut block_end = None;
     for (index, entry) in source.block_entries.iter().enumerate() {
@@ -3509,7 +3519,7 @@ fn hosted_exit_source_tail(source: &AbstractFunction, position: usize) -> bool {
             Some(AbstractOperation::ReturnUnit {
                 cleanup_actions,
                 ..
-            }) if cleanup_actions.is_empty()
+            }) if no_code_cleanup(cleanup_actions)
         )
 }
 

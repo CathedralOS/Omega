@@ -805,18 +805,57 @@ impl Emission<'_, '_, '_> {
                 path,
                 type_identity,
             } => {
-                // The root owner evaluates once: a local keeps its established
-                // place, a structural product emits its producing call. The
-                // selected edge then moves only the projected child while the
-                // root's residual complement dies on that same edge.
-                let continuation = continuation.ok_or(LoweringError::Unsupported(
-                    "projected selection requires a structural continuation",
-                ))?;
+                // Copied provenance observes its original backing; an owned
+                // projection instead transfers one child on the selected edge
+                // and disposes of the root's residual complement there. Only
+                // the owned transfer requires a structural continuation.
                 if path.is_empty()
                     || lookup_type_id(self.type_ids, &type_identity)? != self.structural_type
                 {
                     return unsupported("projected selection changed its moved child type");
                 }
+                if let CheckedStructuralValueKind::CopiedStructuralPlace {
+                    source: copied, ..
+                } = &self
+                    .checked
+                    .facts
+                    .values
+                    .structural_values
+                    .nodes
+                    .get(source)
+                    .kind
+                {
+                    // A projection of a copy observes the selected subtree of
+                    // its original backing. It neither transfers the root nor
+                    // creates affine residuals. Source replay has rejoined the
+                    // copied root independently; retain its complete path when
+                    // appending the projection and publish one fresh leaf.
+                    if copied.access != checked_trees::CheckedStructuralAccess::SharedBorrow
+                        || self.multiplicity != StructuralMultiplicity::Unrestricted
+                    {
+                        return unsupported("copied projection changed its readable copy custody");
+                    }
+                    let authored = crate::expression_preparation::source_custody::authored_state(
+                        self.checked,
+                        self.state,
+                    )?;
+                    let mut argument =
+                        crate::expression_preparation::bindings::ScalarBindings::new(
+                            self.values.len(),
+                        )
+                        .with_structural_parameters(&self.evaluation.structural_parameters)
+                        .with_structural_locals(&self.evaluation.structural_locals)
+                        .shared_structural_argument(
+                            copied,
+                            authored.0,
+                            self.checked.state_parameters(authored.1),
+                        )?;
+                    argument.path.extend(lower_structural_path(&path)?);
+                    return self.copied_leaf_place(&argument, continuation);
+                }
+                let continuation = continuation.ok_or(LoweringError::Unsupported(
+                    "projected selection requires a structural continuation",
+                ))?;
                 let projected = self.projected_root(source, path, type_identity)?;
                 self.complete_value(projected.root, Some(&projected), continuation)?;
                 Ok(continuation.place)
