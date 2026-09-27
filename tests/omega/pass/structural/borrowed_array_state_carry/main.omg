@@ -1,0 +1,26 @@
+// Regression for multi-state machines carrying a borrowed fixed-array
+// parameter across re-entry edges. `write_bytes` forwards `out: &mut [u8; 17]`
+// through fill/write_digit on every loop edge and stores each element through
+// the borrow; the scalar-control signature declined the shape outright
+// ("mixed signature": the Reference arm admitted only slice referees, and the
+// access filter admitted only Owned or Unrestricted formals). A borrowed
+// closed primitive array is a bounded-view carrier: the referent stays
+// caller-owned and the graph forwards the same borrow on each re-entry.
+
+machine write_bytes(out: &mut [u8; 17], value: u8, width: u64) -> u64 {
+    transition {
+        _ -> fill(out, value, width, 0)
+    }
+    state fill(out: &mut [u8; 17], value: u8, width: u64, position: u64) -> u64 {
+        transition (position < width && position < out.len) {
+            true -> write_digit(out, value, width, position)
+            false -> (width)
+        }
+    }
+    state write_digit(out: &mut [u8; 17], value: u8, width: u64, position: u64) -> u64 {
+        out[position] = value;
+        transition {
+            _ -> fill(out, value, width, ((position as u64 in Wrapping) + (1 as u64 in Wrapping)) as u64)
+        }
+    }
+}
