@@ -1056,6 +1056,29 @@ fn local_value_provenance(
     let Some(StatementNode::LocalData(local)) = statements.get(statement) else {
         return unsupported("owned local origin has no declaration");
     };
+    // A `let mut` local with no initializer keys its zeroed establishment
+    // on the invalid initializer handle; the expression walk has nothing to
+    // read, so the recorded events carry the declaration's own provenance.
+    if !checked
+        .typed
+        .expression_table
+        .expression_is_valid(local.initial_value)
+        && let Ok(ordinal) = u32::try_from(statement)
+        && checked
+            .facts
+            .values
+            .structural_values
+            .root_at(state, ordinal)
+            .is_some_and(|root| root.expression == local.initial_value)
+    {
+        return Ok(PermissionProvenance::Established {
+            machine_symbol: machine,
+            state_symbol: state,
+            source: PermissionEventSource::Statement {
+                statement_index: statement,
+            },
+        });
+    }
     let origin = validation::expression_permission_provenance(
         &checked.typed,
         local.initial_value,
