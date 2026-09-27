@@ -868,6 +868,66 @@ the complete product bar; focused successes below do not establish that baseline
   reject fractional integer landing, and retain typed truncation (the `4097u32`
   case gives 4096), signed quotient/remainder laws and zero-divisor rejection.
 
+- **LOWERING-ROUTE-CONSOLIDATION.** Replace competing whole-machine
+  recognizers with composable checked operations and one shared lowering
+  catalog, preserving the [pipeline](omega-rust/pipeline.md) boundaries.
+  Owners: stage 04 execution planning, checked-tree plan rosters, and stage 05
+  `machine_lowering/machine_dispatch.rs`. Dispatch wrappers already share
+  publication, but `CheckedReturnPlan::for_machine` precedence, scalar/Unit
+  assembly forks and `CompetingCandidates` still choose among overlapping
+  bodies. Prioritize operation gaps blocking **STATE-LOCAL-VALUE-FRONTIER**
+  and maintained programs; each replacement removes its superseded recognizer.
+
+  - **Ordinary/state-graph parity.** Both use `operation_frame` and shared call
+    admission. Finish claim transfers through state-graph calls and linear
+    boundary-result custody: `ClaimBindings::Fixed` cannot mint a result claim,
+    and `Evaluation::establish_structural_result` accepts linear locals only
+    from ordinary structural-call producers. Preserve exact result ownership,
+    qualifications and cleanup. Boundary scalar calls and scalar-call byte
+    literals already have composed emission; keep
+    `calls/runtime_value_call_literal_len_arm_guard_exit`'s two distinct results
+    and recorded native exit 70 instead of reopening those repairs.
+  - **One scalar closure assembler.** Fold `scalar_call_closure` into the shared
+    Unit catalog; its pure assembler still refuses content effects across
+    member calls. Preserve source mappings, structural types, services and
+    proofs. Transfer multi-state scalar bodies from scalar-owner precedence
+    only with continuation-arm custody, later-state mutable scalar stores and
+    crash predicates, float prefix initializers and debug maps accounted for.
+    `CheckedStructuralControlSuccessorPlan` still lacks continuation identity.
+    Keep result guarantees, including distinct exits returning 20 and 30 under
+    `ensures result >= 20`; the current `composed_scalar_results` guarantee
+    control covers common exit facts. Preserve constant-stack mutual tail
+    fusion and `calls/mutual_cycle_tail_admitted_exit`'s native exit 70.
+  - **Returns and structural control.** Replace structural-scalar,
+    boundary-scalar, structural, claim-free affine, trait-operator and guarded
+    payloadless return rosters with ordinary operations plus result completion.
+    Preserve outcome-selected evidence and proof-only tail arguments: the
+    `payloadless_case_return_source/selected_witness_tail_uses.rs` customer
+    independently verifies and interprets its guarded result within four fuel
+    units. Coordinate operator returns with **OPERATOR-BOUNDARY-CALLS**;
+    `providers/specialized_structural_fixed_operator_terminal_custody` contains
+    an unused `exercise` beside an empty entry, so its native build does not
+    prove operator execution. Fold `unit/structural_unit_control.rs` into the
+    general graph while retaining ranked loops, transfer/cleanup frontiers,
+    diamond joins and resumable execution from `tests::structural_control_cases`.
+    That suite mixes source programs and injected legacy plans; port the latter's
+    corruption checks to the replacement representation.
+  - **Shared custody and namespaces.** Embed common dynamic-call custody in
+    scalar and Unit plans instead of maintaining `DynamicCallCustody`, builder
+    macros and separate lowering/join views. Preserve exhaustive control;
+    relaxing the dynamic join's `_` check alone does not admit a two-case sum
+    dispatch. Build nominal cleanup once rather than in both Unit candidates
+    and `finalize_execution`. Replace per-roster `ShapeCollector` namespaces
+    and the manual `UnitPlans::with_staged` union with shared type ownership
+    inside the existing checked/lowered representations.
+
+  Acceptance: each removed route's programs lower through the common path,
+  retain codec/debug/source-custody evidence, independently verify and preserve
+  interpreter/native outcomes. Keep distinct return, continuation, cleanup and
+  tampering cases when replacing tests of retired plan types. The affected
+  corpus and execution oracles must pass; fewer dispatch branches or an empty
+  entry compiling do not establish closure.
+
 - **SAMPLE-CORPUS.** Close every maintained `samples/cli|gui|uefi` project
   through checked semantics, native publication for its authored targets, and
   documented exit/output on matching hosts under the
@@ -3510,145 +3570,6 @@ syntax and other terminal services are not prerequisites.
 
 ## Parallel language and compiler lanes
 
-- **LOWERING-ROUTE-CONSOLIDATION.** (new-scope) Checked-to-lowered Psi picks
-  one of seven whole-module producers per machine
-  (`machine_lowering/machine_dispatch.rs::lower_selected_machine`), and the
-  checked stage mirrors that with parallel plan rosters chosen by `or_else`
-  precedence and a `CompetingCandidates` omission stage. Each family
-  re-implements the same operation for one arrangement, so a feature
-  combination works in one family and not in another. Do not add new
-  arrangements to a family below. Widen the general route and delete the
-  family instead. Ranked targets, measured 2026-09-24 against `3f797950ea`:
-
-  2. Scalar machines take two routes: the shared-catalog Unit closure and
-     the scalar call closure, chosen by `requires_shared_catalog`. The pure
-     closure assembler drops each member module's structural types and
-     refuses content effects across member calls, so fold it into the shared
-     catalog rather than widen it. Structural formals now stay with one
-     scalar-graph body (`terminal_scalar::build_machine_graph`): a
-     multi-state machine with structural formals is the Unit state graph's,
-     which Unit closures reach through the scalar call lane
-     (`tests::composed_scalar_results`). The scalar graph still owns the
-     multi-state machines whose formals are all scalar (131 in the 2034
-     pass/run fixtures), so the state graph still yields to it (`state
-     graph: result signature: scalar owner precedence`). Declining every
-     authored multi-state machine in `build_machine_graph` and dropping the
-     precedence changes no native canary: the machines the state graph
-     cannot take are all in checked-only fixtures, and the 14 run canaries
-     whose fixtures hold one keep their status and message. It fails 73 c2l
-     and ttct tests. The state graph now publishes a result guarantee
-     (`ensures`, a closed result range; `callable::scalar_guarantees`),
-     which 6 of them and 110 checked-only corpus machines need. Terminal
-     proves one only from facts every exit shares (`guaranteed_exit_facts`),
-     so `ensures result >= 20` over `(20)` and `(30)` exits stops lowering
-     (`a_guarantee_no_shared_exit_fact_proves_stops_lowering`). The other 67
-     pin capabilities only the scalar graph has:
-     - a guarded transition with a continuation arm (the combined arm form
-       `scalar_return_calls_source` replays, 26 tests):
-       `CheckedStructuralControlSuccessorPlan` has no continuation flag, so a
-       composed edge cannot name the `TransitionContinuationArgument` roles;
-     - crash predicates over a later state's values ("crash predicate value
-       position is outside the selected scalar namespace", 6), a primitive
-       store to a mutable scalar formal of a later state ("Unit graph
-       primitive store has no retained parameter destination", 6), and 10
-       more bodies with no state-graph plan (`mutable_scalar_parameters`,
-       `owned_scalar_graphs::record_stores`, `scalar_storage_source`);
-     - a debug map for a composed root (`DebugPublication::Omit`), 6
-       `owned_scalar_graphs::record_locals` tests;
-     - ttct `terminal_scalar::tests::record_locals` (8) and tests that forge
-       `CheckedScalarMachineGraph` rows (`pure_source_custody`), to re-express
-       against composed plans.
-     A tail arm entering another single-state machine (`-> self.pong(n -
-     1)`, 22 machines, `mutual_cycle_tail_admitted_exit`) has no state-graph
-     form: the fused scalar graph keeps a mutual tail cycle on constant
-     stack, so fusion of single-state scalar bodies stays. A float `let` in
-     a state prefix (`state graph: prefix initializers: bound expression`,
-     std `math::is_finite`) is a state-graph gap its callers already hit.
-  3. The checked dynamic join (`composed_control/dynamic_join.rs`) still
-     requires an authored `_` fallback, but relaxing it to
-     `execution::guard_complement::complementary` has no customer yet: the
-     front end rejects a Unit two-guard tail without `_` unless it is a
-     `true`/`false` pair, which typing already lowers to `_`, and a two-case
-     sum subject (`transition choice { Choice::First -> .. Choice::Second ->
-     .. }`) checks but the join still declines it with the fallback check
-     relaxed. The scalar and Unit call
-     plans still spell the same 33 custody fields, so the one builder moves
-     them through `call_plans.rs::DynamicCallCustody` and a plan macro, and
-     lowering and the checked join each borrow them through their own view
-     (`dynamic_lanes.rs::DynamicCallView`, `join.rs::JoinBranchView`). One
-     custody struct embedded in both plans would delete all four.
-  4. Ordinary bodies and composed-graph states emit every call through
-     `attached_unit/operation_frame` and admit it through one call
-     admission, `admission/calls.rs::admit`, over a `CallerView` of the
-     ordinary body or of one state. Shapes that admission accepts still stop
-     in a state outside it. `BoundaryScalarCall` has no arm in
-     `state_graph/body.rs` ("Unit graph reordered a source effect").
-     `CallUnit` and `ScalarCall` claim transfers stop at the checked planner
-     (`terminal_unit/state_graph/mod.rs`, "state graph: operation custody:
-     call claim transfers") and at `body.rs`'s `CallUnit` arm. A linear
-     boundary result needs a caller claim binding for the claim its
-     statement establishes: `operation_frame.rs::ClaimBindings::Fixed`
-     cannot mint one, and the graph's claim roster (`state_graph/emission.rs`)
-     publishes only entry claims. It also needs
-     `Evaluation::establish_structural_result` to register a linear local
-     from a boundary producer, and the graph's boundary check ("Unit graph
-     boundary requires additional provider or result custody") to admit a
-     linear result. Neither route materializes a byte-sequence literal for a
-     scalar call's structural operand (the literal rosters in
-     `ordinary_machine.rs` and `composed_control/literal_arguments.rs` cover
-     Unit, structural and boundary calls), so
-     `runtime_value_call_literal_len_arm_guard_exit` stops at "byte-sequence
-     argument place is absent". Selected-operator calls keep an
-     ordinary-only admission (`selected_operator.rs`, over the ordinary plan).
-  5. Seven return families each have their own builder, roster and module
-     assembly (`checked_trees::flow::terminal::return_plans`, `returns/`).
-     Families the general route still refuses, with c2l tests only they
-     lower: StructuralScalar 40, ClaimFreeAffine 16, PayloadlessGuardedCall
-     12, BoundaryScalar 8, Structural 6, TraitOperator 1. The guarded
-     payloadless call (`returns/payloadless_guarded_call_return.rs`) lowers
-     its callee through the shared Unit closure but still owns its caller:
-     identity case arms collapsed to one call and return, the
-     selected-evidence rows on that call
-     (`proofs/evidence_lowering/guarded_call_evidence.rs`) and a proof-only
-     tail target. The callers have no general Unit plan: single-state callers
-     stop at `statement sequence: unsupported statement kind` (the transition
-     over the saved result), tail-use callers at `state graph: state
-     signature: contract shape unadmitted` (the tail's evidence `requires`).
-     Deleting it needs the composed route to dispatch over a call result whose
-     arms bind outcome-specific call evidence, at the current four fuel units
-     (`payloadless_case_return_source`).
-     The selected-operator return
-     (`returns/structural_scalar_return/selected_operator.rs`) is still the
-     only lowering of a selected boundary operator returned over structural
-     operands (`exercise` in
-     `providers/specialized_structural_fixed_operator_terminal_custody`). The
-     `let` form now plans all three selected-operator calls on the Unit route
-     (`terminal_unit/selected_operator.rs`): the realization comes from its
-     scalar graph, cleanup-free structural-scalar return or claim-free affine
-     return row, and each scalar operand from its values-stage binding
-     (`CheckedScalarExpressionRole::SelectedOperatorOperand`), which c2l
-     replays like a call argument. Next: plan the return form as the same
-     Unit call completed by its scalar result, as
-     `control/statement_sequence.rs` does for the `let`, then delete the
-     family and
-     `boundary_operator_custody/structural_returns.rs`.
-  6. Structural Unit Control is a second multi-state control-graph family
-     with a countdown-loop recognizer (`unit/structural_unit_control.rs`).
-     Widen state-graph admission to cover it rather than extending it. The
-     general route refuses all eight `tests::structural_control_cases`
-     programs; start from those.
-  7. The checked stage builds the nominal cleanup plan twice
-     (`terminal_unit/mod.rs` candidates and
-     `build_checked_nominal_affine_unit_cleanup_plans`).
-  8. There are nine structural-type namespaces, one `ShapeCollector` per
-     plan roster, rejoined by hand (`finalize_execution.rs`,
-     `attached_unit/bodies.rs::UnitPlans::with_staged`).
-  The Terminal module literals already start from
-  `TerminalModule::for_entry` (`c62baba3ca`). Acceptance for each target:
-  the replaced family and its recognizer are deleted; programs it lowered
-  still lower and verify; the pass-canary and run-test groups show no new
-  failures.
-
 - **IMPLICIT-STORE-CONVERSION.** (new-scope) Validation admits a store whose
   value has another integer type or arithmetic policy than its destination
   when the value's range fits (`self.output = self.state & 255` with
@@ -3821,7 +3742,7 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
     `runtime_tuple_transition_exit`), and `conditional successors` (2).
   - Of the projected-receiver callers that once stopped at the per-state
     scalar-call admission copy (now the one call admission,
-    LOWERING-ROUTE-CONSOLIDATION target 4),
+    **LOWERING-ROUTE-CONSOLIDATION**, ordinary/state-graph parity),
     `runtime_param_receiver_second_instance_exit` stops in Terminal
     verification (`OverlappingExclusiveStructuralArguments`). The fail canary
     `calls/value_call_param_effect_arm_rejected` produces an invalid Terminal
@@ -3842,129 +3763,30 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   kind), and the Unit closure rejects its `count`/`step` recursion.
   Acceptance: the run canaries named in the omission roster execute.
 
-- **FILTERED-CALLEE-CALL-SITES.** (new-scope) A source-authored statement call
-  whose callee has no declaration in the selected program is dropped from the
-  checked call facts with no diagnostic. `checked_statement_call_target`
-  returns an invalid symbol, `facts.flow.control` records no call row for the
-  statement, and nothing rejects; the body compiles as if the statement were
-  absent. Only the surviving authored call selection reports it, from
-  `finalization.rs`, naming an occurrence number rather than the call
-  (expression calls already have `undeclared_checked_call_callee`, which names
-  the callee). The target-machine filter states the intended rule in
-  `omega-rust/omega/compiler/build-evaluation/src/admission/target_machines.rs`: a name
-  implemented by ONE foreign target is that target's paradigm internal and is
-  "filtered silently with its callers" -- but only the declaration is
-  filtered, never a caller. Witness: before
-  `library: uefi handoff legs are module machines, not per-target contract
-  rows`, `UefiOsHandoffCycle::acquire`'s `self.legs.acquire()` reached the end
-  of checking with no call row for every non-uefi selection, targetless
-  included.
+- **FILTERED-CALLEE-CALL-SITES.** Finish command-level acceptance for calls
+  whose target-scoped callee is unavailable to a realization. Current code has
+  `reject_inert_sibling_callers` in compiler build-evaluation's
+  `admission/target_machines.rs` indexes machine and entry-state symbols,
+  walks statement and expression calls, and reports the caller, callee and
+  realized target. A caller scoped to the callee's own unrealized target is
+  exempt. Do not add a blanket invalid-symbol rejection or receiver-type lookup;
+  legitimate trait/provider calls can remain unresolved at earlier passes.
 
-  The rule is settled by the filter's own comment and needs no owner: a
-  surviving caller is by definition not filtered, so its call must reject; a
-  caller that is itself target-scoped and unselected vanishes with the callee.
+  Remaining evidence: `fail/targets/single_target_internal_caller_rejected`
+  covers a value-call initializer and records the expected refusal.
+  `pass/targets/single_target_internal_machine_skipped` declares `demo_target`
+  and never calls its helper; it does not exercise the exemption. The two
+  previously cited target-machine unit tests are gone. Cover an ordinary
+  statement call, the value call, and a same-target caller/callee pair using a
+  real foreign profile and actual Build entries; repeat through a dependency
+  package. Assert diagnostic names and the positive program's execution, not
+  merely the presence of an unused declaration. The old UEFI handoff witness
+  is now an unscoped boundary machine and cannot establish this behavior.
 
-  This row is NOT Psi's, though its symptom appears there. Naming the selected
-  target is half the acceptance, and `CheckingRequest` carries no target
-  because the firewall keeps 04 target-neutral. The other half needs typing:
-  the witness `self.legs.acquire()` is a receiver call whose callee name is not
-  syntactically resolvable to the filtered full name, so
-  `filter_target_machines_by_scope`, which runs on syntax trees, cannot see it
-  either. Only build-evaluation after typing holds both facts -- it already
-  takes `TypedTrees` in `admit_provider_default_calls` and
-  `settle_provider_defaults`, and `SelectedTargetMachineDeclarations` is
-  already threaded there. Carry the filtered names into that pass, match calls
-  whose `target_symbol` is invalid against them, and reject naming both.
-
-  The described mechanism does not reproduce in product scope, and the minimal
-  pair says why. A `linux_x86_64 machine Legs::bump` called by an unscoped
-  `Main::main`, built for `macos_arm64`, is not filtered at all: instrumenting
-  `admit_provider_default_calls` shows an empty filtered set, `Legs::bump` in
-  the selected set, and zero statement calls anywhere in the program with an
-  invalid `target_symbol`. `canonical_product_targets` makes a single-target
-  family its own canonical target, so it is selected, and
-  `select_product_target` already says such a helper "stays an inert sibling
-  with its callers".
-
-  The defect survives that correction in a different form. `omega --check
-  --target macos_arm64` accepts the program, and realization then fails at
-  `Lowering(Unsupported("attached Unit member has no checked terminal
-  selection"))` -- internal text with no source span, naming neither the call
-  nor the target. Changing one word to `macos_arm64 machine Legs::bump`
-  builds and exits 70, so the pair isolates the foreign-only declaration.
-  Re-measure the `UefiOsHandoffCycle::acquire` witness before assuming the
-  no-call-row shape still exists in dependency scope; product scope no longer
-  produces it.
-
-  The obvious form of that check is refuted, and the reason names a missing
-  dependency. Rejecting every statement call whose `target_symbol` is invalid
-  at `admit_provider_default_calls` -- on the item's own reasoning that an
-  undeclared spelling already rejects by name earlier, so a survivor here is
-  the filtered case -- turns 22 passing corpus fixtures red. The legitimate
-  shapes that reach that point unresolved are trait static dispatch
-  (`pass/traits/trait_generic_bound_static_dispatch`), provider adapters
-  (`pass/core/{carry_permission,extent_root}_provider_adapter`), every
-  `pass/wire/*` codec, the optimizer-component fixtures, the interrupt-table
-  and secondary-processor canaries, and
-  `pass/control_flow/nested_parameter_receiver_call`; eight `fail/` rows also
-  lose their expected fragment to the extra diagnostic. So the check must
-  match the filtered names specifically, which needs the receiver's owner
-  type -- and that is what build-evaluation does not have. `TypedTrees`
-  exposes no public symbol-to-declared-type lookup, and the one that exists,
-  `04_typed-trees-to-checked-trees`'s `resolution::symbol_type_position`,
-  is the wrong direction for an Omega-side crate to depend on. Supply a
-  receiver-type lookup on `TypedTrees` first, or have the syntax-level filter
-  record enough to rejoin its removed declarations without one.
-
-  There is no separable Psi half. Measured on a1dcb8dc48 (revision not on main): an undeclared name
-  already rejects by name in both call positions before any authored-selection
-  check runs -- `missing_helper()` as a value call reports "does not resolve to
-  a state of this machine, an attached sibling machine, or a free machine", and
-  as a statement "machine `Main::main` has no local state `missing_helper`".
-  The occurrence-number message appears only once those checks pass, which is
-  exactly the filtered-callee case, so improving
-  `undeclared_checked_call_callee` moves nothing here.
-
-  The product-scope half is closed. `reject_inert_sibling_callers` runs at the
-  end of `select_product_target` and rejects a call resolving into a machine
-  declared only for a target this build does not realize, unless the caller is
-  itself scoped to that same target and goes inert with it. It needs no name
-  matching and no receiver-type lookup, because the call resolves: it indexes
-  each inert machine's states beside its own symbol, since a call names the
-  callee's entry state rather than its machine.
-
-  The dependency-scope half has no witness left. `UefiOsHandoffLegs::acquire`
-  is now `boundary machine UefiOsHandoffLegs::acquire(&mut self)` in
-  `std/targets/uefi_x86_64/handoff.omg` -- a module machine with no target
-  scope, exactly what the library commit this item cites changed it into. The
-  check is scope-independent in any case: it indexes every target-scoped
-  machine in `typed.machines()`, which includes the dependency's, and std's
-  own `windows_x86_64` rows appear in that index when building for macOS.
-
-  `target_machines`'s own tests pin both halves against typed trees:
-  `an_unscoped_caller_of_a_foreign_only_machine_rejects` and
-  `a_caller_scoped_to_the_same_foreign_target_goes_inert_with_it`. The corpus
-  fail canary is `fail/targets/single_target_internal_caller_rejected`, the
-  caller half of `pass/targets/single_target_internal_machine_skipped`.
-
-  Its scope must name a REAL target. The `demo_target` those sibling fixtures
-  use resolves to nothing, so the declaration is dropped before resolution and
-  the call fails as an ordinary unresolved name, never reaching this rule; an
-  inert sibling is a declaration that SURVIVES typing while its target goes
-  unrealized. `uefi_x86_64` is the portable choice -- a real profile that is
-  nobody's development host -- and the expected fragment stays clear of the
-  `This build realizes ...` clause that names the host. The rule also runs at
-  the end of product-target selection, so the fixture needs a `build.omg`
-  root rather than a bare `--check`.
-
-  With that canary landed the item's own remaining work is discharged: both
-  scope halves are pinned, the dependency-scope witness no longer exists, and
-  the legitimately-filtered sibling still checks. It is a deletion candidate
-  on the next board pass.
-
-  Acceptance: a statement call whose callee no declaration in the selected
-  program supplies rejects, naming the callee and the selected target, and the
-  authored source that legitimately filters with its callee keeps compiling.
+  Keep these controls with **PROVIDER-SELECTION-AFTER-TERMINAL** as selection
+  moves into Omega: every body remains checked and retained, and a missing
+  called body rejects only the affected realization. Retire this item when
+  the executable acceptance is accounted for.
 
 - **BORROWED-STORAGE-RESTORATION.** (split-of:OMEGA-PRODUCT-COMPILER-SOURCE)
   Complete consuming-transform/replacement execution under

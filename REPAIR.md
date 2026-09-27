@@ -37,8 +37,8 @@ Land in this order so each repair collides with the fewest in-flight changes:
 
 ## Basis: structural conformance
 
-- `LOWERING-ROUTE-CONSOLIDATION` — seven parallel whole-module producers
-  collapse to one route.
+- `LOWERING-ROUTE-CONSOLIDATION` — consolidate competing producers while
+  preserving ordinary/composed operation coverage and execution oracles.
 - `PCC-CANONICAL-SEMANTIC-LEDGER` — trusted fusion replaced by a checkable
   ledger.
 
@@ -46,7 +46,8 @@ Land in this order so each repair collides with the fewest in-flight changes:
 
 - `OWNED-SELF-RECEIVER-AFFINE-DISCARD` — receiver-only exemption bypasses
   cleanup validation.
-- `FILTERED-CALLEE-CALL-SITES` — dropped calls produce no diagnostic.
+- `FILTERED-CALLEE-CALL-SITES` — finish statement-call and same-target-caller
+  acceptance for the existing unavailable-callee diagnostic.
 - `CALLBACK-PRIVATE-MATERIALIZATION` — reported `fragment import lacks
   selected call custody` failure; the item says reproduce and repair.
 - `NOMINAL-FIELD-FLOW` — receiver-specific default-domain exception;
