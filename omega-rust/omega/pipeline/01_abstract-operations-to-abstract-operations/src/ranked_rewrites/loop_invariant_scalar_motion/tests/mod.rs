@@ -12,6 +12,10 @@ mod place_observations;
 mod scheduled_step;
 mod structural_establishments;
 
+/// The component declines when no single preheader reaches every entry:
+/// the shared-boundary refusal the evidence matrix exercises.
+pub(crate) use computations::MULTI_SOURCE_ENTRY_SOURCE;
+
 use crate::VerifiedPsiOptimizationSession;
 use abstract_operations::AbstractOperation;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
