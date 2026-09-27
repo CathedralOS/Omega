@@ -167,8 +167,8 @@ pub(crate) use place::{
     canonical_place_segments_equal, canonical_place_segments_may_overlap, effective_member_symbol,
     expression_place_type_reference, expression_type_symbol, index_place_segment,
     literal_argument_access_places, literal_value_path_is_inactive, literal_value_projections,
-    normalize_attached_place_root, place_case_has_value, place_cases_are_selected,
-    place_segment_has_unresolved_identity, push_field_place_segments,
+    narrow_pinned_index_segments, normalize_attached_place_root, place_case_has_value,
+    place_cases_are_selected, place_segment_has_unresolved_identity, push_field_place_segments,
     resolve_member_symbol_from_type_symbol, symbol_type_symbol,
 };
 use reach::attach_reach_summaries;

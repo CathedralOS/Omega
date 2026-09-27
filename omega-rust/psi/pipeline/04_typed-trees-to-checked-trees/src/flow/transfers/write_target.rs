@@ -162,32 +162,14 @@ pub(super) fn narrow_pinned_selectors(
         .place_segments
         .span_or_empty(semantic.places.get(target_place).segments)
         .to_vec();
-    for segment in &mut target_segments {
-        let facts::PlaceSegment::Index { expression } = *segment else {
-            continue;
-        };
-        let Some(selector) = crate::flow::canonical_place_from_expression_in_state(
-            program,
-            state_symbol,
-            statement_index,
-            expression,
-        ) else {
-            continue;
-        };
-        let Some(facts::ScalarValue::Integer(index)) = crate::values::scalar_value_at_place(
-            program,
-            semantic,
-            context_handles
-                .iter()
-                .map(|handle| semantic.contexts.get(*handle)),
-            &selector,
-        ) else {
-            continue;
-        };
-        if let Some(index) = index.to_u64().and_then(|index| usize::try_from(index).ok()) {
-            *segment = facts::PlaceSegment::FixedIndex { index };
-        }
-    }
+    crate::flow::narrow_pinned_index_segments(
+        program,
+        semantic,
+        state_symbol,
+        statement_index,
+        context_handles,
+        &mut target_segments,
+    );
     let stable_value_target = target_segments.iter().all(|segment| {
         matches!(
             segment,

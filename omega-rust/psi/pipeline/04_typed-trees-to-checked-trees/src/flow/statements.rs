@@ -231,8 +231,33 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         // source value, before invalidating the overwritten destination.
         let assignment_source_contexts = *active_contexts;
         let mut mutated_places = storage_writes
-            .map(|places| (*places).clone())
+            .as_ref()
+            .map(|places| (**places).clone())
             .unwrap_or_default();
+        // A runtime `Index` selector whose scalar value is pinned in the live
+        // contexts names exactly one element. Narrow it to that `FixedIndex`
+        // before overlap matching so the write retires only the element it
+        // actually reaches — the same narrowing the write-target transfer
+        // applies when it records the established fact.
+        {
+            let context_handles: Vec<facts::FactContextHandle> = build
+                .contexts
+                .semantic_context_refs
+                .span_or_empty(assignment_source_contexts)
+                .iter()
+                .map(|context_ref| context_ref.context)
+                .collect();
+            for place in &mut mutated_places {
+                crate::flow::narrow_pinned_index_segments(
+                    program,
+                    semantic,
+                    state.symbol,
+                    statement_index,
+                    &context_handles,
+                    &mut place.segments,
+                );
+            }
+        }
         if let StatementNode::Call(call) = statement {
             mutated_places.extend(operator_statement_call_mutated_places(
                 program,
