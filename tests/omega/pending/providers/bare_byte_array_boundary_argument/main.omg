@@ -1,0 +1,64 @@
+// PENDING: a boundary parameter of BARE `[u8; 7]` omits the machine's unit
+// plan at `call operation: boundary arguments`, with no diagnostic — the
+// program is refused with the downstream "selected ProgramEntry
+// establishment rejoins 0 Terminal attachment identities".
+//
+// The cause is one token. `byte_sequence_carrier`
+// (`04_typed-trees-to-checked-trees/src/execution/terminal_unit/types/mod.rs`)
+// recognizes an OWNED `[u8; N]` as a byte-sequence carrier only when it
+// carries a DOMAIN; a borrowed `&[u8]` needs none. Without one the formal is
+// a closed primitive array, and `trait_boundary_call.rs` returns None
+// outright before it plans any argument.
+//
+// Measured as a pair. This program omits. The same program with
+//
+//     pub domain [u8; 7]::CName requires self[6] == 0;
+//     ... take(name: [u8; 7] in CName) ...
+//
+// instead reports "cannot prove requires contract for call take from
+// Main::main: self.buf in `[u8; N]::CName`" — an honest, actionable
+// refusal naming the obligation the caller has not discharged. So the
+// domain-carrying spelling is the supported one and the compiler engages
+// with it properly.
+//
+// This is why all three `samples/gui/{image_viewer,window_app,window_demo}`
+// omit at the same phase and nothing else in the tree does: each declares
+// `Gui::window_create(class_name: [u8; 7], title: [u8; 11], ...)` with bare
+// arrays. Their repair is a carrier domain, which is `samples/gui`'s owner
+// to spell.
+//
+// The bare form deserves a diagnostic rather than an omission, but that
+// refusal cannot live in the planner: a `return None` there means "this
+// machine has no unit plan", and a machine whose plan nobody needs must
+// stay silent. It belongs in a validation pass over boundary declarations,
+// which is why this is pinned rather than patched.
+//
+// Promote to `pass/providers/` with an exit when a bare closed primitive
+// array is either planned or refused by name.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+pub boundary trait Sink { machine take(name: [u8; 7]) -> u64; }
+
+pub data SinkProvider { seen: u64; }
+
+pub macos_arm64 machine SinkProvider::provider_defaults(defaults: &mut SinkProvider) {
+    defaults.select_provider<Sink, SinkProvider>();
+}
+
+pub macos_arm64 machine SinkProvider::take(name: [u8; 7]) -> u64 satisfies Sink::take {
+    transition { _ -> ret() }
+    state ret() -> u64 { 7 }
+}
+
+data Main {
+    console: Binding<Console>;
+    sink: Binding<Sink>;
+    buf: [u8; 7];
+    out: u64;
+}
+
+machine Main::main(&mut self) reaches Console + Sink {
+    self.out = self.sink.take(self.buf);
+    self.console.exit_process(0);
+}

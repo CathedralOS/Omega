@@ -1,0 +1,8 @@
+// PENDING build root. The program-entry root is load-bearing: the omission
+// this pins appears only once an entry is established and the Unit plan is
+// demanded.
+machine build(builder: &mut Build) {
+    builder.application("bare_byte_array_boundary_argument");
+    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+}
