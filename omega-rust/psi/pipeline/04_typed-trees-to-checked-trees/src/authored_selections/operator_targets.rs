@@ -32,7 +32,7 @@ fn intrinsic_operator_operand_is_primitive(
     crate::operators::expression_type_reference_for_origin(program, operand, origin)
         .and_then(|type_reference| program.primitive_type_reference(type_reference))
         .is_some()
-        || expression_is_intrinsic_primitive_without_origin(program, operand)
+        || expression_is_intrinsic_primitive_without_origin(program, operand, None)
 }
 
 /// The checked value facts whose expression contains each expression.
@@ -253,10 +253,20 @@ fn checked_operator_target(
             )
             .and_then(|type_reference| program.primitive_type_reference(type_reference))
             .is_some()
-                || expression_is_intrinsic_primitive_without_origin(program, operand)
+                || expression_is_intrinsic_primitive_without_origin(
+                    program,
+                    operand,
+                    owner_index.map(super::contexts::OwnerEnvironmentIndex::program_only),
+                )
                 || checked_operator_expression_is_intrinsic_primitive(facts, operand)
                 || expression_is_contextual_domain_primitive(program, expression, operand)
-                || expression_is_contextual_statement_primitive(program, expression, operand))
+                || expression_is_contextual_statement_primitive(
+                    program,
+                    facts,
+                    expression,
+                    operand,
+                    owner_index,
+                ))
             .then_some(CheckedResolutionTarget::Intrinsic(
                 AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
             ))
@@ -732,7 +742,7 @@ pub(crate) fn typed_operator_has_no_authored_selection(
         // primitive/candidate distinction before build-time execution, while
         // leaving compatible domain operators subject to authored admission.
         || (matches!(node, ExpressionNode::Binary(_))
-            && expression_is_intrinsic_primitive_without_origin(program, expression))
+            && expression_is_intrinsic_primitive_without_origin(program, expression, None))
 }
 
 pub(crate) fn typed_operator_authored_selection_candidates(

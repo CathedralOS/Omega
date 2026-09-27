@@ -106,9 +106,34 @@ struct ExecutableSite {
 /// instead. Callers outside such a walk pass `None` and keep the per-query
 /// rescan — building the index costs more than one scan.
 #[derive(Default)]
-pub(crate) struct OwnerEnvironmentIndex(RefCell<Option<OwnerIndex>>);
+pub(crate) struct OwnerEnvironmentIndex {
+    index: RefCell<Option<OwnerIndex>>,
+    /// The walk's index over no checked facts, for queries inside it that ask
+    /// what the program alone determines.
+    program_only: std::cell::OnceCell<Box<OwnerEnvironmentIndex>>,
+}
 
 impl OwnerEnvironmentIndex {
+    /// The same walk's index built over `CheckFacts::default()`; queries that
+    /// pass default facts use it so both indexes answer as their rescans do.
+    pub(crate) fn program_only(&self) -> &OwnerEnvironmentIndex {
+        self.program_only.get_or_init(Box::default)
+    }
+
+    /// Every `(machine, state, statement)` position whose statement tree
+    /// contains `expression`, in program order. Facts never add a site.
+    pub(super) fn containing_statement_sites(
+        &self,
+        program: &TypedTrees,
+        facts: &CheckFacts,
+        expression: ExpressionHandle,
+    ) -> Vec<(usize, usize, usize)> {
+        self.executable_sites(program, facts, expression)
+            .into_iter()
+            .map(|site| (site.machine, site.state, site.statement))
+            .collect()
+    }
+
     fn environments(
         &self,
         program: &TypedTrees,
@@ -163,12 +188,12 @@ impl OwnerEnvironmentIndex {
         facts: &CheckFacts,
     ) -> std::cell::Ref<'a, OwnerIndex> {
         {
-            let mut borrow = self.0.borrow_mut();
+            let mut borrow = self.index.borrow_mut();
             if borrow.is_none() {
                 *borrow = Some(build_owner_environment_index(program, facts));
             }
         }
-        std::cell::Ref::map(self.0.borrow(), |index| index.as_ref().unwrap())
+        std::cell::Ref::map(self.index.borrow(), |index| index.as_ref().unwrap())
     }
 }
 
