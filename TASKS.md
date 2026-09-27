@@ -912,36 +912,39 @@ the complete product bar; focused successes below do not establish that baseline
   never reaches `admits`. Use the sample command as this policy's acceptance
   check; a corpus fixture passes with the policy reverted and pins nothing.
 
-  `fail/calls/ambiguous_spliced_second_receiver_rejected` is refused by nothing,
-  including native realization, and that is a correctness risk rather than a
-  stale pin. Its subject is two inline value calls from one state into the same
-  data family through different receivers (`self.first.get()`,
-  `self.second.get()`); the recorded defect is that `b` silently delivered 7
-  instead of 9 because the by-type fallback read the first receiver for both.
-  The pinned fence -- "attached Unit closure is missing a checked transitive
-  machine plan" -- no longer fires. Before repinning it, run the program and
-  compare `self.flag` against 9: if it is 7 the old miscompile is back without
-  its fence, and if it is 9 the fixture belongs in the run tier with that exit
-  rather than in `fail`.
+  One UEFI fail fixture is left of the two this row used to name.
+  `uefi_program_entry_local_physical_contract` is gone;
+  `uefi_program_entry_missing_storage_roots` reaches
+  "exposes exactly image and initial-storage roots" and is green.
+  `uefi_program_entry_wrong_calling_policy` still pins
+  "requires MicrosoftX64" while stopping on "target root slot
+  `uefi_x86_64::ProgramEntry` requires exactly one loaded `UefiApplication`
+  boundary schema, but found 2".
 
-  Two UEFI fail fixtures are stale rather than unrefused, and the corpus gate
-  now shows it: `fail/build/uefi_program_entry_wrong_calling_policy` pins
-  "requires MicrosoftX64" and `fail/build/uefi_program_entry_local_physical\
-_contract` pins "require either the exact bundled UEFI contract or one accepted
-  package-owned UEFI binding", while both actually stop on a duplicate:
-  "trait `UefiApplication` parent `Calling` has 2 matching conformances" and
-  "target root slot `uefi_x86_64::ProgramEntry` requires exactly one loaded
-  `UefiApplication` boundary schema, but found 2".
+  The prescription this row used to carry -- rewrite onto the library surface
+  and vary only the calling policy -- is refuted, and the fixture's header
+  now carries the measurement. The slot resolves its schema by BARE NAME over
+  every loaded boundary trait, and the bundled std declares an application
+  schema for all six targets that name one, so a package declaring its own
+  always makes two. The duplicate is not this file's imports: dropping
+  `use omega::language::std::calling;` leaves the count at 2, because the
+  library's target entry loads with the TARGET rather than with the import.
+  And the policy cannot be varied from the library surface either --
+  `CallingPolicy` lives only in `std/calling.omg`, and the library's schema is
+  bound to `Calling<UefiX86_64>`, which plans MicrosoftX64 on every route. A
+  package can supply a wrong policy only by declaring its own schema, and
+  declaring its own schema is exactly what stops it.
 
-  The duplicate is the fixtures' own construction, not a compiler defect. Both
-  declare their own `UefiPhysicalEntry`, `EfiSystemTable` and `EfiStatus` and
-  import `omega::language::std::calling` with no `builder.depend` on std, so
-  the bundled `source/library/std/targets/uefi_x86_64/entry.omg` surface stands
-  beside the local one. The passing `pass/build/uefi_program_entry_storage\
-_roots` shows the current shape: `use omega_language_std::targets::uefi_x86_64`
-  plus `builder.depend(Source::Path { location: ".../source/library/std" })`,
-  with no local redeclaration. Rewrite both onto the library surface and vary
-  only the calling policy, then confirm each reaches its pinned fragment.
+  So the physical/semantic convention check in
+  `build-evaluation/src/admission/selection.rs` has NO customer: not in the
+  corpus, and not in Rust either, since `BoundaryCallingPlanRealization` seals
+  `exact_boundary_entry_plan` and `materialized_signature` to
+  `provider-planning` and a `build-evaluation` unit test cannot build one.
+  Giving it one means deciding what a locally declared schema means against
+  the target's own -- shadow, or conflict -- and resolving the slot by owning
+  package or requirement identity rather than by bare name. That is the
+  entry-slot owner's call, so the fixture stays pinned `unexpected` rather
+  than repinned onto the duplicate, which would cement one answer to it.
   41 of 1258 fail fixtures carry no `expected.txt`, so the gate records that
   they reject without being able to say whether the reason is theirs. The
   `fail/arithmetic` group is pinned; the rest of the groups are not. Pin from a
