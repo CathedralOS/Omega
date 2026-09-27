@@ -2404,49 +2404,38 @@ syntax and other terminal services are not prerequisites.
   Protocols, queues, isolation and translation policy stay provider/OS-owned;
   a CPU barrier is not device completion.
 
-- **PLACED-ACCESS-NATIVE-OPS.** Extend contract-fact index derivation to remaining
-  placed-access operations. Reuse
-  `ClosedScalarValueContractPlan::requires_bound_interval`, the per-segment
-  `RuntimeIndex` obligation the verifier reconstructs
-  (`terminal_semantics::runtime_index_bound`), native `indexed_stores.rs`, and
-  the controls in `terminal-interpreter/tests/unit/runtime_index_arguments.rs`.
-  Stores plan through `structural_scalar_store/`: every selector of an
-  assignment target is its own `AssignmentIndex { depth }` coordinate
-  (`validation::assignment_target_selectors`), a primitive leaf is one
-  `WriteOnlyPrimitiveStore` and a record field one `StructuralScalarFieldStore`
-  whose path composes fields and literal or runtime elements in any order
-  (`self.grid[i][j]`, `self.ents[i].pos.y`); c2l's `emission/runtime_elements.rs`
-  evaluates the selectors before the value, and the verifier re-proves each
-  element's bound; the Omega backend lowers each runtime element as an
-  `(index, stride)` run carrying its accepted certificate (a2t
-  `structural_layout::runtime_projection`, t2s `legalization/runtime_indices.rs`,
-  selection `runtime_address.rs`). `runtime_machine_owned_indexed_integer_write_exit`
-  and `compiler_body_machine_indexed_integer_write` stop at the element-view
-  field read `room_slice[index].exit_count` (`UnsupportedElementViewFieldRead`,
-  TERMINAL-SLICE-VIEW-VOCABULARY). Leaf copies still admit only
-  incoming-parameter selectors (a2t `control_flow/leaf_copy.rs`).
-  Field-held loop counters
-  (`runtime_{write_first_loop_index,nested_loop_fill,indexed_rmw_loop}_exit`)
-  reach c2l, but no fact at the store bounds the field read
-  (`OperationProofUnavailable`) until storage-field loop invariants reach
-  Terminal. A selector narrower than `u64` must be a parameter or stored
-  field read (`structural_scalar_store/selectors.rs`): proving a computed one
-  through its `u64` widening fails only after minutes of search
-  (`runtime_hoisted_index_write_exit`), so the limit lifts with
-  C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT.
-  The dynamic shared receiver `cells[i].get()` still needs CML4's checked
-  argument-path admission, DOMAIN-ISSUER-ROUTES' scalar-wrapper path, and call
-  emission that evaluates the selector and allocates its obligation (c2l's
-  `lower_structural_path` refuses a runtime segment); follow
-  `dynamic_indexed_shared_receiver_lane_pends_on_upstream_legs`.
-  Coordinate source fixtures with **CANONICALIZE-SCALAR-RANGE-CONTRACTS**:
-  use contract/domain facts, not the revoked annotation syntax.
+- **PLACED-ACCESS-NATIVE-OPS.** Close source-to-native indexed access under
+  [structural access](wiki/spec/terminal-psi/structural_access.md), preserving
+  original caller storage. Start with `collections/runtime_double_indexed_rmw_exit`
+  and `runtime_indexed_struct_field_rmw_exit`, still rejected in the committed
+  corpus snapshots; re-run them to locate the current failure. The macOS native
+  snapshot already records `storage/runtime_machine_owned_indexed_integer_write_exit`
+  at exit 79 and `collections/runtime_hoisted_index_write_exit` at exit 7;
+  Windows records rejection. These are recorded observations, not fresh runs.
 
-  Acceptance: source-driven native `&write` and `&mut` calls mutate the
-  caller-selected element and leave its neighbors untouched; invalid indices,
-  substituted bounds or access authority reject. **PLAN-LAID-VIEWS** separately
-  owns provider-backed view establishment and access-plan realization; this
-  indexed-store delivery does not complete that larger contract.
+  Reuse checked `structural_scalar_store/selectors.rs`, c2l
+  `emission/runtime_elements.rs`, and Omega's `structural_layout::runtime_projection`
+  and `control_flow/scalar_sources.rs`. Computed integer selectors, stored-value
+  leaf-copy selectors and field-loop invariant inference already exist.
+  `dynamic_indexed_shared_receiver_emits_a_runtime_index_argument` checks
+  `cells[i].get()` through Terminal production; the static-only
+  `lower_structural_path` helper is not its missing lowering route.
+  Keep one `AssignmentIndex { depth }` per selector, evaluation before the
+  stored value, and independently reconstructed bounds on every `RuntimeIndex`.
+  Interpreter tests in `runtime_index_arguments.rs` execute constructed Terminal
+  artifacts; selection's `primitive_stores/runtime_elements.rs` checks four
+  targets' strides, footprints and replay, without executing native code.
+
+  Acceptance: source-driven native `&write` and `&mut` calls modify the selected
+  element in the caller, leaving neighbors untouched. Cover interleaved fields
+  and nested indices, computed selectors, field-held loop counters, leaf copies
+  and shared receiver reads; reject invalid indices and substituted bounds,
+  operands or access authority. Use contract/domain facts with
+  **CANONICALIZE-SCALAR-RANGE-CONTRACTS**, then run the repaired cases through
+  `python3 tools/corpus_gate.py --native --filter <fixture>` on matching hosts.
+  **WRITE-ONLY-BORROW** and **STRUCTURAL-BORROW-IDENTITY** own general source
+  loan admission; **TERMINAL-SLICE-VIEW-VOCABULARY** owns broader view bounds;
+  **PLAN-LAID-VIEWS** owns provider-backed establishment and access plans.
 
 - **ADDRESS-EXPOSURE.** (new-scope) Implement the settled
   [`address_of` queries](wiki/spec/language/counts_and_addresses.md#address-exposure)
@@ -2966,30 +2955,34 @@ syntax and other terminal services are not prerequisites.
   Any demonstrated need to change the selected calculus goes to
   `OWNER_QUESTIONS.md`, not an implementation shortcut.
 
-- **C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT.** (new-scope) Remove repeated
-  whole-module reconstruction and oversized certificates, then bound aggregate
-  compile-time proof work with explicit accounting. **WRITE-ONLY-BORROW**'s
-  computed-selector limit and **RC-PCC-REPLAY**'s terminated proof-search case
-  depend on this repair. [Proof outcomes](wiki/spec/proofs/publication.md#outcomes)
-  already classify named resource/search exhaustion as `Incomplete`, not
-  `Reject`; [kernel budgets](wiki/spec/proofs/kernel_metatheory.md) are
-  implementation policy. No owner decision is pending. A cap does not excuse
-  the redundant work.
+- **C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT.** (new-scope) Finish aggregate
+  proof-search accounting and [outcome publication](wiki/spec/proofs/publication.md#outcomes).
+  Reuse c2l's `proofs/operation_proofs.rs` machine preparation cache and
+  `scalar_block_invariants.rs` verdict cache, shared roster-round/candidate
+  budgets and cyclic-guarantee budget. Their exhaustion reaches
+  `ProofSearchCapacityExhausted` and the compiler's `incomplete:` diagnostic;
+  source-derived tests already distinguish a declined inference budget from
+  invalid source. The computed-selector guard is gone, and the committed macOS
+  snapshot records `runtime_hoisted_index_write_exit` running at exit 7.
 
-  The customer is WRITE-ONLY-BORROW's: `runtime_hoisted_index_write_exit`
-  checks in 180 ms today only because a selector narrower than `u64` must be a
-  parameter or stored field read; proving a computed one through its `u64`
-  widening is what takes minutes. Reproduce that by admitting the computed
-  selector, not by removing the guard and declaring the search acceptable. For
-  scale, the slowest fixture in the whole 3302-fixture corpus is 11.2 s
-  (`filesystem/native_wrapper_write_all_result`, measured 2026-09-24), so the
-  blowup is not visible in ordinary corpus timings.
+  Remaining work: `nonzero_divisor_certificate/integer_selection/direct_add/conjunction`
+  discards its usage and turns exhaustion into `None`. Carry such declines
+  through fallback search and finalization when no other route proves the
+  obligation. Preserve resource identity, limit, requested work and obligation
+  coordinate into the [compiler-request outcome](wiki/spec/build/compiler_request.md);
+  `compiler/request/outcomes.rs` currently maps every diagnostic failure to
+  `BatchChildOutcome::Rejected`, including an `incomplete:` diagnostic.
+  Complete production-path exhaustion controls beyond the existing helper-budget
+  tests, retaining independent certificate verification.
 
-  Acceptance: the computed-selector customer checks with its guard lifted,
-  aggregate proof work is accounted explicitly, and exhaustion publishes as
-  `Incomplete` with the [compiler request](wiki/spec/build/compiler_request.md)
-  representation. Rejecting valid source, accepting without required evidence,
-  or warning while claiming bounded execution violate those contracts.
+  Rebaseline **RC-PCC-REPLAY**'s terminated case and the computed-selector
+  customer with `OMEGA_PROOF_TIMINGS=1`. Measure aggregate reconstruction/search
+  work and certificate size; remove remaining demonstrated duplication/growth
+  instead of using caps to hide it. Acceptance requires completed source checks,
+  accounted bounded work, and resource exhaustion reported as `Incomplete`
+  through publication. Invalid evidence still rejects; missing evidence cannot
+  authorize acceptance. [Kernel budgets](wiki/spec/proofs/kernel_metatheory.md)
+  remain implementation policy, not narrower language semantics.
 
 - **PROOF-CONTRACT-MIGRATION.** Deliver general mathematics from Omega
   source through Terminal evidence and independent checking, using
