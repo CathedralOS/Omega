@@ -56,6 +56,20 @@ pub(crate) fn land_exact_fixed_byte_array_literals_from(
                 }) else {
                     continue;
                 };
+                // A STILL-GENERIC template is not a landing site. Its
+                // `[u8; N]` member has a const-parameter width, which is
+                // never a literal, and its constructions are rewritten onto
+                // the synthesized instance whose width IS one -- that copy
+                // lands below like any other. The numeric-range probe types
+                // the program BEFORE generic-data synthesis on purpose (the
+                // synthesis consumes the canonical ranges that pass
+                // produces), so refusing here reported std's
+                // `"kernel32.dll"` as the author's error in every program
+                // pairing a range-constrained generic argument with a
+                // library.
+                if !definition.type_parameters.is_empty() {
+                    continue;
+                }
                 for field in program.expression_table.struct_fields(literal.fields) {
                     if let Some(field_type) = construction_field_type(
                         program,
