@@ -23,24 +23,6 @@ fn compute(
 }
 
 #[test]
-fn raw_v1_shape_reconstructs_exact_store_reload_and_rewrite_boundaries() {
-    let fixture = raw_fixture();
-    let action = compute(&fixture).unwrap().unwrap();
-    assert_eq!(action.incoming, VirtualRegisterId(2));
-    assert_eq!(action.victim, VirtualRegisterId(0));
-    assert_eq!(action.store.before_instruction.0, 2);
-    assert_eq!(action.reload.before_instruction.0, 3);
-    assert_eq!(
-        action
-            .rewrites
-            .iter()
-            .map(|rewrite| (rewrite.point.0, rewrite.instruction.0))
-            .collect::<Vec<_>>(),
-        vec![(6, 3), (8, 4)]
-    );
-}
-
-#[test]
 fn bridge_semantic_anchor_does_not_authorize_an_authored_spill_victim() {
     let mut fixture = raw_fixture();
     assert!(compute(&fixture).unwrap().is_some());

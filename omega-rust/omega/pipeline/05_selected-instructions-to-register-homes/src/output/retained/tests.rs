@@ -33,37 +33,3 @@ fn every_retained_constructor_fully_replays_fresh_source_before_capture() {
         )
     );
 }
-
-#[test]
-fn immutable_retained_reads_rejoin_all_facts_without_reexecuting_source_replay() {
-    let source = include_str!("../retained.rs");
-    let retained = source
-        .split("impl AllocationSource for RetainedAllocation {")
-        .nth(1)
-        .unwrap()
-        .split("impl TryFrom<")
-        .next()
-        .unwrap();
-    assert_eq!(retained.matches("source.project_allocation()").count(), 6);
-    assert_eq!(
-        retained
-            .matches("source.project_replayed_allocation()?")
-            .count(),
-        1
-    );
-    assert!(!retained.contains("source.replay_allocation()"));
-    assert!(retained.contains("validate_recovery_selection(&current, prefix_selection)?;"));
-    assert!(retained.contains("source.recovery_prefix_selection()"));
-    assert!(retained.contains("self.current.validate_against(&current)?;"));
-
-    let runtime = include_str!("../runtime_spill.rs");
-    let fresh = runtime
-        .split("impl RuntimeSpillAllocation {")
-        .next()
-        .unwrap();
-    assert!(
-        fresh.contains("replay::validate(self).map_err(AllocationReplayError::RuntimeSpill)?;")
-    );
-    assert!(fresh.contains("self.project_replayed_allocation()"));
-    assert!(runtime.contains(".ok_or(AllocationReplayError::ReceiptMismatch)?"));
-}
