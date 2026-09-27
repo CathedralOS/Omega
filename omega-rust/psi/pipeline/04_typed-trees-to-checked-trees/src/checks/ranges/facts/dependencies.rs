@@ -513,6 +513,26 @@ impl<'field> RangeFacts<'field> {
         preserved
     }
 
+    /// An owned integer slot has no referent: complete storage writes suffice
+    /// even when other locals prevent alias expansion. Keep all the ordinary
+    /// identity and same-label collision checks before selecting these rows.
+    pub(super) fn preserved_scalar_binding_labels(
+        &self,
+        program: &TypedTrees,
+        machine: &Machine,
+        state: &State,
+        storage_writes: Option<&[CanonicalPlace]>,
+    ) -> Vec<String> {
+        let mut preserved =
+            self.preserved_expression_labels(program, machine, state, storage_writes);
+        preserved.retain(|label| {
+            self.scalar_binding_dependencies.iter().any(|row| {
+                row.machine == machine.symbol && row.state == state.symbol && row.label == *label
+            })
+        });
+        preserved
+    }
+
     pub(super) fn affected_expression_labels(
         &self,
         program: &TypedTrees,

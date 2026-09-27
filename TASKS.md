@@ -706,14 +706,17 @@ the complete product bar; focused successes below do not establish that baseline
   The review preserves existing authority under local source/host replacement;
   these checkout-local locks are not application publication.
 
-  The full macOS package run with captured scalar write ceilings still
-  reports one engine `supplied_module_count` subslice failure. The unchanged
-  15-package session/API probe passes the assembled-view prefix, its bounds,
-  and package proofs, so it does not cover the remaining loss in the complete
-  caller. Isolate the full start/validation executor before repeating the
-  long `omega update --project <application>/squalr-tests --target macos_arm64`
-  run. Retain exact scalar storage identity and checked signature ceilings;
-  reassignment and exclusive scalar argument writes still retire bounds.
+  The complete start/validation executor prefix now checks all 15 imported
+  source packages on macOS ARM64 and reaches ordinary capability review.
+  Shared-only owned arrays retain their own storage writes without requiring
+  exclusive referent origins. Exact captured scalar bounds survive disjoint
+  storage writes when alias expansion is incomplete; reference and descriptor
+  facts remain conservative, and writes through exclusive aggregate fields
+  still retire the count bound. Rerun the unchanged full 17-package
+  `omega update --project <application>/squalr-tests --target macos_arm64`,
+  complete ordinary review, then run the application harness. The previous
+  full run's engine subslice failure is closed in the full prefix, but full
+  application acceptance remains unverified.
 
   A native probe importing the actual `squalr_engine_api::NormalizedRegion`
   now completes three-package review and exits 70 on macOS ARM64. It checks
