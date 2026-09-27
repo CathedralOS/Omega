@@ -205,7 +205,14 @@ is not made safe by calling it from Omega.
 | Coding intelligence becomes powerful and cheap. | Design around checking abundant generated code, not merely making it easier to write. |
 | Waste becomes unacceptable. | Stop treating garbage collection, emulation, and layers of bloat as unavoidable costs. |
 
-## Building
+## Installation
+
+Published experimental bundles do not require Rust or a native linker.
+See [installation, a first native program, and upgrades](wiki/installation.md).
+That guide distinguishes published downloads from draft releases and installation
+channels still undergoing validation.
+
+## Building from source
 
 Install Rust with `rustup`, clone this repository, and run from its root.
 The checked-in toolchain file selects the required Rust version.
