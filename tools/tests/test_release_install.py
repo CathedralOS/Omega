@@ -13,6 +13,24 @@ import install_upgrade as installation
 
 
 class InstallationTests(unittest.TestCase):
+    def test_winget_cleanup_uses_the_last_installed_local_manifest(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            inputs = []
+            for number in (1, 2):
+                version = f"0.1.0-alpha.{number}"
+                archive = workspace / f"omega-{version}-x86_64-pc-windows-msvc.zip"
+                archive.write_bytes(b"fixture")
+                inputs.append((archive, dict(version=version, host="x86_64-pc-windows-msvc")))
+            with patch.dict(os.environ, LOCALAPPDATA=str(workspace)), \
+                 patch.object(installation.package, "run") as run, \
+                 patch.object(installation, "installed_identity"), \
+                 patch.object(installation.package, "git_source_smoke"), \
+                 patch.object(installation, "rebuild_existing_project", return_value="digest"):
+                self.assertEqual(installation.winget_upgrade(*inputs, "http://127.0.0.1:1234", workspace), "digest")
+            self.assertEqual(run.call_args.args[0][:4],
+                             ["winget", "uninstall", "--manifest", workspace / "upgrade.yaml"])
+
     def test_installer_mutation_rejects_non_ci_hosts(self):
         arguments = ["install_upgrade", "check", "--manager", "winget",
                      "--previous-tag", "v0.1.0-alpha.2", "--tag", "v0.1.0-alpha.3"]
