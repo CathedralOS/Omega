@@ -749,9 +749,16 @@ the complete product bar; focused successes below do not establish that baseline
   access. Follow the application's actual next missing operation rather than
   waiting for every related task to close.
 
-  Reproduce the port's reported foreign-package `Optional<T>` payload rejection
-  in state patterns (`ScanFunctionScalar` and `SnapshotRegionFilter`), then fix
-  any remaining resolution/lowering gap and restore the intended sum API.
+  Foreign-package `Optional<T>` state patterns for `ScanFunctionScalar` and
+  `SnapshotRegionFilter` now retain their nominal declaration identity during
+  value-root validation. The actual API-type probe clears the unresolved-owner
+  diagnostics, then rejects borrowing an owned affine case payload into a
+  successor at `state graph: terminator: conditional successors: parameter
+  transfer`. Complete `case_payload_transfer` in stage 04's
+  `execution/terminal_unit/state_graph/mod.rs`: a shared successor argument may
+  borrow the selected owned payload subtree, not only forward a payload that
+  is already a shared reference. Restore the intended sum API through that
+  lowering and native acceptance.
   Boolean-plus-payload and package-local sum substitutions are not proof of
   parity. Ordinary marker-data namespaces are an implementation choice, not an
   owner decision. Port work stays with this customer through native acceptance.
@@ -792,8 +799,12 @@ the complete product bar; focused successes below do not establish that baseline
   `RUST_MIN_STACK=67108864 OMEGA_REVIEW_TIMINGS=1 omega update --project
   samples/apps/squalr/squalr-tests --target linux_x86_64` completes discovery
   and binding for all 17 package occurrences in about 59 minutes, then exits 3
-  at ordinary review with 130 pending decisions. The earlier engine subslice
-  count rejection is cleared. Complete exact review/resume and lock publication,
+  at ordinary review with 130 decisions. Exact comparison attributes those
+  decisions to source relocation, updated local package identities and host
+  metadata, preserving permission and capability rows. They are accepted in
+  the isolated Linux-target review; resume is still running without a lock
+  publication verdict. The earlier engine subslice count rejection is cleared.
+  Complete review/resume and lock publication,
   then native compilation and execution; checked packages are not native
   acceptance. Run the harness on Linux x86-64: the actual `Main::main` and
   filesystem/time realizations currently target Linux.
@@ -816,6 +827,14 @@ the complete product bar; focused successes below do not establish that baseline
   than width. Preserve this production gap alongside growable storage work.
   Executing the command helpers
   does not establish coverage of the privileged-command dispatcher.
+
+  The restored full route, checked with compiler `da93dcf45ae1` against
+  application `5fd89ec0a100`, rejects Terminal construction at
+  `scalar field store sequence: write frame agreement` in `Main::gate`.
+  That state is unchanged; its retained write frame includes reachable callees.
+  Isolated restored geometry and the command fixture's nested alignment store
+  check successfully. Trace the scan callees' opaque write frames without
+  weakening independent frame replay, then rerun the full restored route.
 
   Whole-graph checking remains expensive: the successful discovery above took
   roughly 42 minutes. **CHECK-CLOSURE-ONCE** owns repeated package/checked-stage
