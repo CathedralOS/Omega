@@ -93,7 +93,7 @@ fn exact_top_level_requirement_schema_retains_its_typed_operational_shape() {
 }
 
 #[test]
-fn top_level_requirement_schema_fences_static_generics_not_package_visibility() {
+fn top_level_requirement_schema_admits_static_generics_not_package_visibility() {
     let typed = typed_source(
         r#"
         boundary requirement Private::complete(value: u32);
@@ -103,16 +103,23 @@ fn top_level_requirement_schema_fences_static_generics_not_package_visibility() 
         "#,
     );
 
-    // A static type parameter names no one callable signature, so there is no
-    // exact row to install and the declaration stays outside this rung. A
+    // A static generic template projects its authored schema: the normalized
+    // identity pins the telescope exactly, and the specialization roster is
+    // the exact carrier joining the template to its closed applications. A
     // lifetime telescope erases instead, which the next test pins.
-    assert!(
-        provider_planning::service_schema::from_typed_boundary_requirement(
-            &typed,
-            requirement(&typed, "StaticGeneric::complete")
-        )
-        .is_none(),
-        "StaticGeneric::complete must remain outside the first planning rung"
+    let generic = requirement(&typed, "StaticGeneric::complete");
+    let schema =
+        provider_planning::service_schema::from_typed_boundary_requirement(&typed, generic)
+            .expect("a static generic requirement template reifies its authored schema");
+    let [method] = schema.methods.as_slice() else {
+        panic!("one exact top-level requirement method")
+    };
+    assert_eq!(
+        method.requirement_identity,
+        typed
+            .normalized_machine_overload_identity(generic)
+            .expect("normalized requirement identity")
+            .identity()
     );
 
     // Package visibility is not a planning fence. A private requirement keeps
