@@ -109,6 +109,48 @@ pub(super) fn append_operation(
             canonical_certificate: true,
         });
     }
+    if let OperationKind::EstablishByteSequenceConcatenation {
+        capacity_obligation,
+        ..
+    } = operation.kind
+    {
+        let result = operation
+            .result
+            .structural()
+            .ok_or(ModuleError::InvalidByteSequenceConcatenation(operation.id))?;
+        let capacity = module
+            .structural_types
+            .iter()
+            .find_map(|declaration| {
+                if declaration.id != result.structural_type {
+                    return None;
+                }
+                match declaration.shape {
+                    terminal_psi::StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
+                    ) => Some(capacity),
+                    _ => None,
+                }
+            })
+            .ok_or(ModuleError::InvalidByteSequenceConcatenation(operation.id))?;
+        let proposition =
+            terminal_semantics::byte_sequence_concatenation_capacity_goal(operation, capacity)
+                .map_err(ModuleError::OperationSemanticSchema)?;
+        operation_obligations.push(ReconstructedOperationObligation {
+            owner: ReconstructedTerminalObligationOwner::Operation {
+                machine: machine.id,
+                operation: operation.id,
+            },
+            obligation: Obligation {
+                id: capacity_obligation,
+                proposition,
+                class: ObligationClass::Derivable,
+            },
+            semantic_axioms: axioms.clone(),
+            canonical_certificate: true,
+        });
+        return Ok(());
+    }
     if matches!(operation.kind, OperationKind::EstablishRecord { .. }) {
         return record::append(module, machine, operation, axioms, operation_obligations);
     }
@@ -565,6 +607,7 @@ pub(super) fn append_operation(
         | OperationKind::StructuralByteSequenceFieldLength { .. }
         | OperationKind::StructuralByteSequenceFieldByteStore { .. }
         | OperationKind::StructuralByteSequenceFieldRead { .. }
+        | OperationKind::EstablishByteSequenceConcatenation { .. }
         | OperationKind::EstablishByteSequenceLiteral { .. }
         | OperationKind::ByteSequenceLength { .. }
         | OperationKind::ByteSequenceRead { .. }

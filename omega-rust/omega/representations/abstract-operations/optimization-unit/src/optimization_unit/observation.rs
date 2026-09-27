@@ -432,6 +432,7 @@ fn operation_observations(
         | O::StoreDynamicDescriptor { .. }
         | O::EstablishScalarArray { .. }
         | O::EstablishCase { .. }
+        | O::EstablishByteSequenceConcatenation { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::EstablishZeroedStructural { .. }

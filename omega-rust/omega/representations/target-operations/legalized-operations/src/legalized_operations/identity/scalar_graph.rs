@@ -86,6 +86,20 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     bytes.extend_from_slice(&left.get().to_le_bytes());
                     bytes.extend_from_slice(&right.get().to_le_bytes());
                 }
+                LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation {
+                    result,
+                    left,
+                    right,
+                    capacity_obligation,
+                    accepted_fact,
+                } => {
+                    bytes.push(240);
+                    super::structural_result::encode_operation_result(bytes, result);
+                    encode_byte_operand(bytes, left);
+                    encode_byte_operand(bytes, right);
+                    bytes.extend_from_slice(&capacity_obligation.get().to_le_bytes());
+                    bytes.extend_from_slice(&accepted_fact.bytes());
+                }
                 LegalizedScalarInstructionKind::EstablishScalarArray {
                     result,
                     elements,
@@ -999,5 +1013,28 @@ fn encode_runtime_indices(
         bytes.extend_from_slice(&index.extent.to_le_bytes());
         bytes.extend_from_slice(&index.obligation.get().to_le_bytes());
         bytes.extend_from_slice(&index.accepted_fact.bytes());
+    }
+}
+
+fn encode_byte_operand(
+    bytes: &mut Vec<u8>,
+    operand: &terminal_psi::control_flow::ByteSequenceOperand,
+) {
+    match operand {
+        terminal_psi::control_flow::ByteSequenceOperand::Whole { source, length } => {
+            bytes.push(0);
+            bytes.extend_from_slice(&source.get().to_le_bytes());
+            bytes.extend_from_slice(&length.get().to_le_bytes());
+        }
+        terminal_psi::control_flow::ByteSequenceOperand::Field {
+            source,
+            field,
+            length,
+        } => {
+            bytes.push(1);
+            super::structural_types::encode_structural_argument(bytes, source);
+            bytes.extend_from_slice(&field.get().to_le_bytes());
+            bytes.extend_from_slice(&length.get().to_le_bytes());
+        }
     }
 }

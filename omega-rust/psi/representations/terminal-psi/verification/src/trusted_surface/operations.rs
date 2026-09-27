@@ -464,6 +464,20 @@ static OP_ESTABLISH_SCALAR_ARRAY: TrustedSurfaceEntry = entry(
         TS_SCALAR_ARRAY,
     ],
 );
+static OP_ESTABLISH_BYTE_SEQUENCE_CONCATENATION: TrustedSurfaceEntry = entry(
+    "operation:establish-byte-sequence-concatenation",
+    "two readable byte sources with exact dominating live-length observations and a checked capacity obligation",
+    "fresh owned bytes in operand order; a later length observation equals the exact sum, not capacity",
+    &["fact:byte-extent-length", "formation:operation-validation"],
+    &[
+        VOCAB,
+        TS_ROWS,
+        OP_FACTS,
+        VAL_OPS,
+        "omega-rust/psi/representations/terminal-psi/semantics/src/byte_sequence_concatenation.rs",
+        "omega-rust/psi/representations/terminal-psi/verification/src/validation/byte_sequence/concatenation.rs",
+    ],
+);
 static OP_ESTABLISH_BYTE_SEQUENCE_LITERAL: TrustedSurfaceEntry = entry(
     "operation:establish-byte-sequence-literal",
     "a validated byte-sequence literal establishment carrying the byte-predicate domain memberships its check discharged as occurrence qualifications",
@@ -1126,6 +1140,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
     OP_ESTABLISH_SCALAR_CASE,
     OP_ESTABLISH_STRUCTURAL_CASE,
     OP_ESTABLISH_SCALAR_ARRAY,
+    OP_ESTABLISH_BYTE_SEQUENCE_CONCATENATION,
     OP_ESTABLISH_BYTE_SEQUENCE_LITERAL,
     OP_BYTE_SEQUENCE_LENGTH,
     OP_BYTE_SEQUENCE_WRITE,
@@ -1220,6 +1235,9 @@ pub fn operation_schema_entry(tag: OperationSemanticTag) -> &'static TrustedSurf
         OperationSemanticTag::EstablishStructuralCase => &OP_ESTABLISH_STRUCTURAL_CASE,
         OperationSemanticTag::EstablishScalarArray => &OP_ESTABLISH_SCALAR_ARRAY,
         OperationSemanticTag::EstablishZeroedStructural => &OP_ESTABLISH_ZEROED_STRUCTURAL,
+        OperationSemanticTag::EstablishByteSequenceConcatenation => {
+            &OP_ESTABLISH_BYTE_SEQUENCE_CONCATENATION
+        }
         OperationSemanticTag::EstablishByteSequenceLiteral => &OP_ESTABLISH_BYTE_SEQUENCE_LITERAL,
         OperationSemanticTag::ByteSequenceLength => &OP_BYTE_SEQUENCE_LENGTH,
         OperationSemanticTag::ByteSequenceWrite => &OP_BYTE_SEQUENCE_WRITE,

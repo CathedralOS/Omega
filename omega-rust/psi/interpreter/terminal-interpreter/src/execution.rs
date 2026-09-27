@@ -577,6 +577,9 @@ impl TerminalExecution {
                     OperationKind::EstablishScalarCase { .. } => {
                         self.execute_establish_scalar_case(operation)?
                     }
+                    OperationKind::EstablishByteSequenceConcatenation { .. } => {
+                        self.execute_byte_sequence_concatenation(operation)?
+                    }
                     OperationKind::EstablishByteSequenceLiteral { .. } => {
                         self.execute_establish_byte_sequence_literal(operation)?
                     }

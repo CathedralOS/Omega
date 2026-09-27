@@ -263,6 +263,16 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             result_case,
             fields,
         } => value_operations::encode_establish_scalar_case(writer, result_case, fields)?,
+        OperationKind::EstablishByteSequenceConcatenation {
+            left,
+            right,
+            capacity_obligation,
+        } => value_operations::encode_establish_byte_sequence_concatenation(
+            writer,
+            left,
+            right,
+            capacity_obligation,
+        )?,
         OperationKind::EstablishByteSequenceLiteral {
             destination,
             bytes,
@@ -760,6 +770,9 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
         }
         operation_tags::ESTABLISH_SCALAR_CASE => {
             value_operations::decode_establish_scalar_case(reader)?
+        }
+        operation_tags::ESTABLISH_BYTE_SEQUENCE_CONCATENATION => {
+            value_operations::decode_establish_byte_sequence_concatenation(reader)?
         }
         operation_tags::ESTABLISH_BYTE_SEQUENCE_LITERAL => {
             value_operations::decode_establish_byte_sequence_literal(reader)?

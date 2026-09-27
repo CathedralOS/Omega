@@ -8,6 +8,7 @@
 mod address_join_input;
 mod aggregate_result_input;
 mod block_order;
+mod byte_concatenation_input;
 mod byte_view_homes;
 mod constraints;
 mod construction;

@@ -612,3 +612,40 @@ pub(super) fn project_element_view_subslice(
     };
     Ok(kind)
 }
+
+/// Retain both exact observations and the accepted sum bound. Selection chooses
+/// activation storage only after rejoining the result's declared capacity.
+pub(super) fn project_byte_sequence_concatenation(
+    node: &optimization_unit::OptimizationNode,
+    optimized: &optimization_unit::PsiOptimizationFunction,
+    unit: &PsiOptimizationUnit,
+) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
+    let AbstractOperation::EstablishByteSequenceConcatenation {
+        psi_operation,
+        result,
+        left,
+        right,
+        capacity_obligation,
+    } = &node.operation
+    else {
+        return Err(Error::custody());
+    };
+    let fact = unit
+        .accepted_obligation_facts
+        .iter()
+        .find(|fact| {
+            fact.machine == optimized.machine
+                && fact.operation == *psi_operation
+                && fact.obligation == *capacity_obligation
+        })
+        .ok_or(Error::custody())?;
+    Ok(
+        LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation {
+            result: result.clone(),
+            left: left.clone(),
+            right: right.clone(),
+            capacity_obligation: *capacity_obligation,
+            accepted_fact: fact.identity,
+        },
+    )
+}

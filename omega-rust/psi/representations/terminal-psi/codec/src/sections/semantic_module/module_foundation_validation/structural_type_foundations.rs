@@ -25,10 +25,10 @@ pub(super) fn validate_type_shape(
             }
         }
         StructuralTypeShape::PrimitiveScalar(_) => {}
-        StructuralTypeShape::ByteSequence(carrier) if carrier.is_borrowed() => {}
-        StructuralTypeShape::ByteSequence(_) => {
-            return malformed("first-class byte-sequence type must be a borrowed view");
-        }
+        // Completed owned concatenations retain their bounded carrier here.
+        // Formation and readers independently validate result custody; the
+        // carrier declaration alone creates no source or borrowing authority.
+        StructuralTypeShape::ByteSequence(_) => {}
         StructuralTypeShape::Record { fields } => {
             require_unique_nonempty_identities(
                 fields.iter().map(|field| field.identity.as_str()),

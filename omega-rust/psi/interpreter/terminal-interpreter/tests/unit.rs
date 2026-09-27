@@ -16,6 +16,8 @@ mod borrowed_storage_windows;
 mod boundary_borrows;
 #[path = "unit/bounded_fields.rs"]
 mod bounded_fields;
+#[path = "unit/byte_sequence_concatenation.rs"]
+mod byte_sequence_concatenation;
 #[path = "unit/byte_sequence_forwarding.rs"]
 mod byte_sequence_forwarding;
 #[path = "unit/byte_sequence_length.rs"]
@@ -44,12 +46,12 @@ mod embedding_lifetimes;
 mod evidence_substitution;
 #[path = "unit/ieee_float_comparisons.rs"]
 mod ieee_float_comparisons;
-#[path = "unit/mixed_integer_comparisons.rs"]
-mod mixed_integer_comparisons;
 #[path = "unit/indexed_primitive_stores.rs"]
 mod indexed_primitive_stores;
 #[path = "unit/indexed_structural_store.rs"]
 mod indexed_structural_store;
+#[path = "unit/mixed_integer_comparisons.rs"]
+mod mixed_integer_comparisons;
 #[path = "unit/nominal_affine_modules.rs"]
 mod nominal_affine_modules;
 #[path = "unit/primitive_arrays.rs"]

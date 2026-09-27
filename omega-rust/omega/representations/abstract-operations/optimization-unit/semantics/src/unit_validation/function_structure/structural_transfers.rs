@@ -211,7 +211,8 @@ fn source_contract(
                 )),
                 _ => None,
             },
-            O::CallStructural { result, .. }
+            O::EstablishByteSequenceConcatenation { result, .. }
+            | O::CallStructural { result, .. }
             | O::EstablishCase { result, .. }
             | O::EstablishRecord { result, .. }
             | O::EstablishZeroedStructural { result, .. }

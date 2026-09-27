@@ -10,6 +10,43 @@ use semantic_vocabulary::{
     SuspensionCrossingId, ValueId,
 };
 
+/// One already-observed byte sequence read by an owned concatenation.
+/// Field operands retain the parent root and exact field identity; their live
+/// length must come from the same observation, not the field's capacity.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ByteSequenceOperand {
+    Whole {
+        source: PlaceId,
+        length: ValueId,
+    },
+    Field {
+        source: StructuralArgument,
+        field: StructuralFieldId,
+        length: ValueId,
+    },
+}
+
+impl ByteSequenceOperand {
+    pub const fn length(&self) -> ValueId {
+        match self {
+            Self::Whole { length, .. } | Self::Field { length, .. } => *length,
+        }
+    }
+
+    pub const fn source(&self) -> PlaceId {
+        match self {
+            Self::Whole { source, .. } => *source,
+            Self::Field { source, .. } => source.place,
+        }
+    }
+
+    pub fn remap_length(&mut self, map: &mut impl FnMut(ValueId) -> ValueId) {
+        match self {
+            Self::Whole { length, .. } | Self::Field { length, .. } => *length = map(*length),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Operation {
     /// Full-telescope binder position in this machine's closed reach contract.
@@ -335,6 +372,15 @@ pub enum OperationKind {
         source: PlaceId,
         /// Ordered canonical projection from the live whole root to the leaf.
         path: Vec<CanonicalStructuralPathSegment>,
+    },
+    /// Materialize two live byte sequences into one owned bounded result.
+    /// The capacity obligation proves the mathematical sum of the two exact
+    /// observed lengths fits the result declaration. Both reads complete before
+    /// publication; neither input is consumed or aliases the new backing.
+    EstablishByteSequenceConcatenation {
+        left: ByteSequenceOperand,
+        right: ByteSequenceOperand,
+        capacity_obligation: ObligationId,
     },
     /// Establish one immutable borrowed byte-sequence literal in a declared
     /// structural place. `bytes` are exact octets; no text transcoding occurs.
@@ -805,6 +851,10 @@ impl OperationKind {
             }
         }
         match self {
+            Self::EstablishByteSequenceConcatenation { left, right, .. } => {
+                left.remap_length(map);
+                right.remap_length(map);
+            }
             Self::EstablishScalarArray { elements } => {
                 for element in elements {
                     *element = map(*element);

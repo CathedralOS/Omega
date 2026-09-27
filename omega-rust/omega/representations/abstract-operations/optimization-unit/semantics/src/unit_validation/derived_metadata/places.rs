@@ -45,7 +45,8 @@ pub(crate) fn reconstruct_declared_places(
                 | O::EstablishTrivialAffineLocal { place, .. } => {
                     known_places.insert(place.id);
                 }
-                O::EstablishPrimitiveLocal { result, .. }
+                O::EstablishByteSequenceConcatenation { result, .. }
+                | O::EstablishPrimitiveLocal { result, .. }
                 | O::ByteSequenceSubslice { result, .. }
                 | O::EstablishElementView { result, .. }
                 | O::ElementViewSubslice { result, .. }
@@ -109,6 +110,10 @@ pub(crate) fn validate_operation_places(
         }
     };
     match operation {
+        O::EstablishByteSequenceConcatenation { left, right, .. } => {
+            require(left.source(), known)?;
+            require(right.source(), known)?;
+        }
         O::EstablishCase { fields, .. } | O::EstablishRecord { fields, .. } => {
             for initializer in fields {
                 if let terminal_psi::RecordFieldValue::Structural(argument) = &initializer.value {

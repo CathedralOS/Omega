@@ -138,6 +138,7 @@ pub enum ModuleError {
     InvalidStructuralByteSequenceFieldStore(OperationId),
     InvalidStructuralByteSequenceFieldAccess(OperationId),
     InvalidByteSequenceSubslice(OperationId),
+    InvalidByteSequenceConcatenation(OperationId),
     ByteSequenceSubsliceReturnUnsupported {
         machine: MachineId,
         place: PlaceId,

@@ -9,6 +9,7 @@
 //! observes a field's length and stores one byte through it.
 
 pub(crate) mod binding;
+pub(crate) mod concatenation;
 pub(crate) mod field_index_store;
 pub(crate) mod field_store;
 pub(crate) mod subslice;

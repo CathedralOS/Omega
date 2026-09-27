@@ -39,7 +39,8 @@ pub(super) fn requires_graph_storage_replay(operations: &[AbstractOperation]) ->
         }
         matches!(
             operation,
-            AbstractOperation::EstablishPrimitiveLocal { .. }
+            AbstractOperation::EstablishByteSequenceConcatenation { .. }
+                | AbstractOperation::EstablishPrimitiveLocal { .. }
                 | AbstractOperation::EstablishCase { .. }
                 | AbstractOperation::EstablishRecord { .. }
                 | AbstractOperation::EstablishScalarArray { .. }
@@ -240,7 +241,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 }
                 AbstractOperation::StructuralByteSequenceFieldStore { .. } => {
                     structural_fields::replacement_retained(abstracted, operation, targeted)
-                        && structural_fields::replacement_footprints_retained(operation, &selected.memory_accesses)
+                        && structural_fields::replacement_footprints_retained(abstracted, operation, &selected.memory_accesses)
                 }
                 AbstractOperation::PrimitiveScalarRead { path, .. } if !path.is_empty() => {
                     structural_fields::retained(abstracted, operation, targeted)
@@ -298,6 +299,9 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 AbstractOperation::IeeeFloatConstant { .. } => {
                     ieee_literal_retained(operation, targeted.graph.blocks.iter()
                         .flat_map(|block| &block.operations))
+                }
+                AbstractOperation::EstablishByteSequenceConcatenation { .. } => {
+                    byte_concatenation_retained(operation, targeted.graph.blocks.iter().flat_map(|block| &block.operations))
                 }
                 AbstractOperation::EstablishByteSequenceLiteral {
                     psi_operation, place, structural_type, bytes, qualifications,
@@ -463,6 +467,30 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
         }
     }
     Ok(())
+}
+
+/// Account for both ordered sources and the exact owned result. Mandatory
+/// object/source replay has checked copies, sum evidence and storage lifetime.
+fn byte_concatenation_retained<'operation>(
+    operation: &AbstractOperation,
+    operations: impl IntoIterator<Item = &'operation target_operations::TargetUnitOperation>,
+) -> bool {
+    let AbstractOperation::EstablishByteSequenceConcatenation {
+        psi_operation,
+        result,
+        left,
+        right,
+        capacity_obligation,
+    } = operation
+    else {
+        return false;
+    };
+    let mut matching = operations.into_iter().filter(|candidate| matches!(candidate,
+        target_operations::TargetUnitOperation::EstablishByteSequenceConcatenation { psi_operation: retained, .. } if retained == psi_operation));
+    matches!(matching.next(), Some(target_operations::TargetUnitOperation::EstablishByteSequenceConcatenation {
+        result: actual_result, left: actual_left, right: actual_right, capacity_obligation: actual_obligation, ..
+    }) if actual_result == result && actual_left == left && actual_right == right && actual_obligation == capacity_obligation)
+        && matching.next().is_none()
 }
 
 /// Account for one exact typed literal; mandatory source replay validates its realization.

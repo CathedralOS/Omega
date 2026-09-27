@@ -61,7 +61,7 @@ fn unsigned(function: &AbstractFunction, bits: u16) -> Result<ScalarType, Loweri
 /// The bounded byte field `path`/`field` beneath a readable borrowed
 /// parameter, as the structural argument its observations keep. Neither a
 /// length nor a byte read establishes a borrowed view or other authority.
-fn readable_byte_field(
+pub(super) fn readable_byte_field(
     function: &AbstractFunction,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     source: semantic_vocabulary::PlaceId,

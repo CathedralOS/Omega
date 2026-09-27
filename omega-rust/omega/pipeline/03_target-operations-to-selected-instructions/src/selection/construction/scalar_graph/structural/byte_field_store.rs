@@ -46,7 +46,7 @@ pub(super) fn replace(
         || !parameter.semantic.qualifications.is_empty()
         || !parameter.semantic.projected_qualifications.is_empty()
         || *source == destination.place
-        || crate::selection::established_view_input::view_type(function, *source).is_none()
+        || crate::selection::established_view_input::readable_byte_type(function, *source).is_none()
     {
         return Err(invalid());
     }
@@ -65,7 +65,7 @@ pub(super) fn replace(
     {
         return Err(invalid());
     }
-    let mut source_pointer = byte_views::backing_pointer(builder, row, *source)?;
+    let mut source_pointer = byte_views::backing_pointer(function, builder, row, *source)?;
     // A subslice retains root backing plus a view offset. Its own first byte,
     // rather than the backing's first byte, is the copy's source.
     if let Some(view) = builder
@@ -132,7 +132,11 @@ pub(super) fn replace(
             builder,
             row,
             *source,
-            0,
+            if crate::selection::byte_concatenation_input::owned_type(function, *source).is_some() {
+                8
+            } else {
+                0
+            },
             0,
             SelectedMemoryAccessRole::ReadByteSpan {
                 length: *length,
@@ -314,7 +318,7 @@ pub(super) fn replace_byte(
     )
 }
 
-fn scratch(
+pub(super) fn scratch(
     builder: &mut Builder<'_>,
     operand: u16,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {

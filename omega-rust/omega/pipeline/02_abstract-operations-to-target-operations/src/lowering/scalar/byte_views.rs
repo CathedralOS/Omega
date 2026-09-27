@@ -284,8 +284,12 @@ pub(in crate::lowering) fn lower_byte_observation_with_lengths(
                 psi_operation,
                 source_value: result.value,
                 source,
+                length_byte_offset: if matches!(view, TargetByteView::Owned { .. }) {
+                    0
+                } else {
+                    8
+                },
                 view: Box::new(view),
-                length_byte_offset: 8,
             }
         }
         AbstractOperation::ByteSequenceRead {
@@ -347,6 +351,24 @@ pub(in crate::lowering) fn view_for_place(
     let invalid = || LoweringError::UnsupportedOperationInScalarFunction(function.machine);
     if active.contains(&place) {
         return Err(invalid());
+    }
+    if let Some(AbstractOperation::EstablishByteSequenceConcatenation {
+        psi_operation, result, ..
+    }) = function.operations.iter().find(|operation| matches!(operation,
+        AbstractOperation::EstablishByteSequenceConcatenation { result, .. } if result.place == place))
+    {
+        if result.multiplicity != StructuralMultiplicity::Unrestricted
+            || !result.qualifications.is_empty() || !result.projected_qualifications.is_empty()
+            || !result.claims.is_empty()
+            || !structural_types.get(&result.structural_type).is_some_and(|declaration|
+                matches!(declaration.shape, StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. })))
+        {
+            return Err(invalid());
+        }
+        return Ok(TargetByteView::Owned {
+            psi_operation: *psi_operation, place, structural_type: result.structural_type,
+        });
     }
     if let Some(AbstractOperation::EstablishByteSequenceLiteral {
         psi_operation, place: declaration, structural_type, ..

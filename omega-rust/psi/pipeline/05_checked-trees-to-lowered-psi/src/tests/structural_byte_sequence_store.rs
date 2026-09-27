@@ -149,7 +149,10 @@ fn byte_field_store_receiving_rejects_literal_path_access_and_omission_drift() {
                 panic!("byte store");
             };
             match mutation {
-                0 => store.bytes = b"YYY".to_vec(),
+                0 => {
+                    *store.value.nodes.get_mut(store.value.root) =
+                        checked_trees::CheckedByteSequenceValue::Literal(b"YYY".to_vec())
+                }
                 1 => store.field_identity = "Record::other".into(),
                 2 => store
                     .carrier_path

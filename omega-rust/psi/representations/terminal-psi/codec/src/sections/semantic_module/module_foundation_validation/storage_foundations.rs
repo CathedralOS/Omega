@@ -141,6 +141,7 @@ pub(super) fn validate_structural_byte_sequence_field_store(
     else {
         return malformed("byte field store source is unknown");
     };
+    let mut owned_concatenation = false;
     let source_type = match source_place.kind {
         StructuralPlaceKind::ByteSequenceLiteral {
             structural_type, ..
@@ -189,10 +190,14 @@ pub(super) fn validate_structural_byte_sequence_field_store(
                 .flat_map(|block| &block.operations)
                 .filter(|operation| operation.id == producer);
             let Some(producer) = producers.next() else {
-                return malformed("byte field store subslice source has no producer");
+                return malformed("byte field store source has no producer");
             };
             if producers.next().is_some()
-                || !matches!(producer.kind, OperationKind::ByteSequenceSubslice { .. })
+                || !matches!(
+                    producer.kind,
+                    OperationKind::ByteSequenceSubslice { .. }
+                        | OperationKind::EstablishByteSequenceConcatenation { .. }
+                )
                 || !producer.result.structural().is_some_and(|result| {
                     result.place == *source
                         && result.structural_type == structural_type
@@ -202,14 +207,22 @@ pub(super) fn validate_structural_byte_sequence_field_store(
                         && result.claims.is_empty()
                 })
             {
-                return malformed("byte field store subslice source has inexact producer custody");
+                return malformed("byte field store source has inexact producer custody");
             }
+            owned_concatenation = matches!(
+                producer.kind,
+                OperationKind::EstablishByteSequenceConcatenation { .. }
+            );
             structural_type
         }
         _ => return malformed("byte field store source is not an immutable whole view"),
     };
     if !module.structural_types.iter().any(|declaration| declaration.id == source_type
-        && matches!(declaration.shape, StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView { .. })))
+        && match declaration.shape {
+            StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView { .. }) => !owned_concatenation,
+            StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }) => owned_concatenation,
+            _ => false,
+        })
         || !machine.blocks.iter().flat_map(|block| &block.operations).any(|candidate| {
             matches!(candidate.kind, OperationKind::ByteSequenceLength { source: measured } if measured == *source)
                 && candidate.result.scalar_ref().is_some_and(|result| result.id == *length

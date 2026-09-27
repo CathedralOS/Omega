@@ -245,6 +245,36 @@ pub(in crate::validation) fn exact_length_is_current(
     })
 }
 
+/// A concatenation captures content as well as extent. A byte write preserves
+/// length but changes the value being read, so it also invalidates this interval.
+pub(crate) fn field_content_length_is_current(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    use_site: OperationId,
+    root: PlaceId,
+    path: &[StructuralPathSegment],
+    field: StructuralFieldId,
+    length: semantic_vocabulary::ValueId,
+) -> bool {
+    let Some(exact_path) = field_path(module, machine, root, path, field, false, false) else {
+        return false;
+    };
+    let Some(producer) = machine.blocks.iter().flat_map(|block| &block.operations).find(|candidate| {
+        candidate.result.scalar().is_some_and(|result| result.id == length)
+            && matches!(&candidate.kind, OperationKind::StructuralByteSequenceFieldLength { source, path: measured_path, field: measured_field }
+                if *source == root && measured_path == path && *measured_field == field)
+    }) else { return false; };
+    unchanged_since(machine, producer.id, use_site, |candidate| {
+        changes_length(module, machine, root, &exact_path, candidate)
+            || matches!(&candidate.kind,
+                OperationKind::StructuralByteSequenceFieldByteStore {
+                    destination, path: written, field: written_field, ..
+                } if *destination == root
+                    && field_path(module, machine, root, written, *written_field, true, false)
+                        .is_none_or(|written| overlaps(&exact_path, &written)))
+    })
+}
+
 pub(crate) fn replacement_length_equation(
     module: &TerminalModule,
     machine: &TerminalMachine,

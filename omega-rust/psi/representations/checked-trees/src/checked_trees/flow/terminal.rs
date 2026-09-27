@@ -55,7 +55,8 @@ pub use composed_unit_control_plans::{
     CheckedStructuralCaseReturnPlan,
 };
 pub use result_binding_plans::{
-    CheckedByteSequenceStoreValue, CheckedByteSequenceWritePlan, CheckedPrimitiveStoreDestination,
+    CheckedByteSequenceStoreValue, CheckedByteSequenceValue, CheckedByteSequenceValuePlan,
+    CheckedByteSequenceWritePlan, CheckedPrimitiveStoreDestination,
     CheckedStructuralByteSequenceFieldByteStorePlan, CheckedStructuralByteSequenceFieldStorePlan,
     CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralResultBindingPlan,
 };

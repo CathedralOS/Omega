@@ -127,6 +127,7 @@ pub(super) fn register_scalar_result_operation(
         | OperationKind::StructuralLeafCopy { .. }
         | OperationKind::StructuralCaseLeafCopy { .. }
         | OperationKind::PortWrite { .. }
+        | OperationKind::EstablishByteSequenceConcatenation { .. }
         | OperationKind::EstablishByteSequenceLiteral { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. }
         | OperationKind::AtomicAccess { .. } => {

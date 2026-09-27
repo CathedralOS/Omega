@@ -41,6 +41,7 @@ impl TerminalFuelSchedule {
             | OperationKind::EstablishScalarCase { .. }
             | OperationKind::EstablishScalarArray { .. }
             | OperationKind::EstablishZeroedStructural { .. }
+            | OperationKind::EstablishByteSequenceConcatenation { .. }
             | OperationKind::EstablishByteSequenceLiteral { .. }
             | OperationKind::ByteSequenceLength { .. }
             | OperationKind::ByteSequenceRead { .. }

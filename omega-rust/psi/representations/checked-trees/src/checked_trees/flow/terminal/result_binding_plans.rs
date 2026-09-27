@@ -36,8 +36,36 @@ pub struct CheckedStructuralByteSequenceFieldStorePlan {
     pub destination_parameter_position: u32,
     pub carrier_path: Vec<CheckedUnitStructuralPathSegment>,
     pub field_identity: String,
-    /// The first admitted source is a literal; Terminal consumes a shared view.
-    pub bytes: Vec<u8>,
+    pub value: CheckedByteSequenceValuePlan,
+}
+
+/// Pure byte values retain authored evaluation order through arena children.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedByteSequenceValuePlan {
+    pub nodes: arena::Arena<CheckedByteSequenceValue>,
+    pub root: arena::Handle<CheckedByteSequenceValue>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedByteSequenceValue {
+    Literal(Vec<u8>),
+    Field {
+        parameter_position: u32,
+        carrier_path: Vec<CheckedUnitStructuralPathSegment>,
+        field_identity: String,
+        capacity: u64,
+    },
+    Concatenation {
+        left: arena::Handle<CheckedByteSequenceValue>,
+        right: arena::Handle<CheckedByteSequenceValue>,
+        capacity: u64,
+    },
+}
+
+impl Default for CheckedByteSequenceValue {
+    fn default() -> Self {
+        Self::Literal(Vec::new())
+    }
 }
 
 /// The scalar source a byte-sequence store replays. Every byte-store

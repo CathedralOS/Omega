@@ -591,3 +591,45 @@ pub(super) fn validate_byte_sequence_read(
     }
     Ok(())
 }
+
+pub(super) fn validate_byte_sequence_concatenation(
+    actual: &LegalizedScalarInstruction,
+    node: &optimization_unit::OptimizationNode,
+    optimized: &optimization_unit::PsiOptimizationFunction,
+    unit: &PsiOptimizationUnit,
+) -> Result<(), LegalizationError> {
+    let (
+        LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation {
+            result,
+            left,
+            right,
+            capacity_obligation,
+            accepted_fact,
+        },
+        AbstractOperation::EstablishByteSequenceConcatenation {
+            psi_operation,
+            result: expected_result,
+            left: expected_left,
+            right: expected_right,
+            capacity_obligation: expected_obligation,
+        },
+    ) = (&actual.kind, &node.operation)
+    else {
+        return Err(Error::NonCanonicalLegalizedPlan);
+    };
+    if actual.operation != *psi_operation
+        || result != expected_result
+        || left != expected_left
+        || right != expected_right
+        || capacity_obligation != expected_obligation
+        || !unit.accepted_obligation_facts.iter().any(|fact| {
+            fact.machine == optimized.machine
+                && fact.operation == *psi_operation
+                && fact.obligation == *capacity_obligation
+                && fact.identity == *accepted_fact
+        })
+    {
+        return Err(Error::NonCanonicalLegalizedPlan);
+    }
+    Ok(())
+}

@@ -115,9 +115,9 @@ rows! {
         "conversion:value-equality-denotation",
         NormalizationConversion,
         "a proposition plus an ordered roster of proved value-to-term equations",
-        "the denotation normal form under exactly those equations; mathematical value endpoints retain their exact typed scalar identities, only representable closed literals may change carrier without changing value, and operand order and unknown carriers remain unchanged",
+        "the denotation normal form under exactly those equations; mathematical constructors recursively retain operand order and substitute typed values through the existing exact fixed-integer lift; wrapping and other opaque scalar constructors remain unchanged, and only representable closed literals may change carrier without changing value",
         &["conversion:predicate-denotation"],
-        &[pa!( "predicate_denotation.rs"), pa!( "predicate_denotation/value_equalities.rs")]
+        &[pa!( "predicate_denotation.rs"), pa!( "predicate_denotation/value_equalities.rs"), pa!( "proof/integer_math_normalization.rs")]
     );
     NORM_CLOSED_INTEGER_EVALUATOR => (
         "normalization:closed-integer-evaluator",

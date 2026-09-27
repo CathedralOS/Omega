@@ -19,6 +19,24 @@ pub(super) fn lower(
     lowered_byte_sequence_literals: &mut usize,
 ) -> Result<AbstractOperation, LoweringError> {
     Ok(match operation.kind.clone() {
+        OperationKind::EstablishByteSequenceConcatenation {
+            left,
+            right,
+            capacity_obligation,
+        } => {
+            let result = operation.result.structural().cloned().ok_or(
+                LoweringError::InvalidByteSequenceConcatenation(operation.id),
+            )?;
+            // Preserve the validated live extents and source projections. An
+            // owned result is fresh storage, never a view into either operand.
+            AbstractOperation::EstablishByteSequenceConcatenation {
+                psi_operation: operation.id,
+                result,
+                left,
+                right,
+                capacity_obligation,
+            }
+        }
         OperationKind::EstablishScalarArray { elements } => {
             let Some(result) = operation.result.structural().cloned() else {
                 return Err(LoweringError::UnsupportedScalarArray(operation.id));

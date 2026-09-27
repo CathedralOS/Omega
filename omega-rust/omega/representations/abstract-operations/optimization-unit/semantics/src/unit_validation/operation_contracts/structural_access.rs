@@ -522,6 +522,7 @@ fn structural_operation_result_contract(
                 // A leaf copy establishes fresh owned storage the way an
                 // establishment does: consumers must not alias it back into
                 // the readable root's custody.
+                | O::EstablishByteSequenceConcatenation { result, .. }
                 | O::StructuralLeafCopy { result, .. }
                 | O::CallStructural { result, .. }
                 | O::BoundaryCall {

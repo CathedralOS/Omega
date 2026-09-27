@@ -192,6 +192,17 @@ fn touched_regions(
         )
     };
     match &operation.kind {
+        OperationKind::EstablishByteSequenceConcatenation { left, right, .. } => [left, right]
+            .into_iter()
+            .map(|operand| match operand {
+                terminal_psi::control_flow::ByteSequenceOperand::Whole { source, .. } => {
+                    (*source, Vec::new())
+                }
+                terminal_psi::control_flow::ByteSequenceOperand::Field {
+                    source, field, ..
+                } => field_region(&source.place, &source.path, *field),
+            })
+            .collect(),
         OperationKind::EstablishReference { source } => {
             vec![argument_region(module, machine, source)]
         }

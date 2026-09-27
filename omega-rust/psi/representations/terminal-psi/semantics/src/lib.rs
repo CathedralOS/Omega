@@ -13,6 +13,7 @@
 //! modules cover call composition, proof-bearing scalars, record fields,
 //! primitive places, scalar arrays and structural effects.
 
+mod byte_sequence_concatenation;
 mod call_composition;
 mod placed_view_referent;
 mod primitive_place;
@@ -28,6 +29,9 @@ mod structural_effect;
 mod tests;
 mod zeroed_structural;
 
+pub use byte_sequence_concatenation::{
+    byte_sequence_concatenation_capacity_goal, byte_sequence_concatenation_length_equation,
+};
 pub use call_composition::{
     CallArgumentRule, CallCompositionSchema, CallCompositionSemanticRow, CallCrashRule,
     CallEvidenceRule, CallFrontierRule, CallFuelPolicy, CallOutcomeRule, CallRequirementRule,

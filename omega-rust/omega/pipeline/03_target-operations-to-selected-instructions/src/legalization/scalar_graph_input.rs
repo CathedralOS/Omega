@@ -22,7 +22,7 @@ pub(super) use custody::validate_unit_custody;
 pub(super) mod address_joins;
 pub(super) mod aggregate_results;
 pub(super) mod borrowed_windows;
-mod byte_views;
+pub(super) mod byte_views;
 mod header;
 mod hosted_scalar;
 pub(in crate::legalization) mod normalized_foreign;
@@ -424,6 +424,7 @@ pub(super) fn match_input(
         | AbstractOperation::ByteSequenceWrite { psi_operation, obligation, .. }
         | AbstractOperation::StructuralByteSequenceFieldByteStore { psi_operation, obligation, .. }
         | AbstractOperation::StructuralByteSequenceFieldRead { psi_operation, obligation, .. }
+        | AbstractOperation::EstablishByteSequenceConcatenation { psi_operation, capacity_obligation: obligation, .. }
         | AbstractOperation::StructuralByteSequenceFieldStore { psi_operation, obligation, .. }
         | AbstractOperation::ByteSequenceRead {
             psi_operation,

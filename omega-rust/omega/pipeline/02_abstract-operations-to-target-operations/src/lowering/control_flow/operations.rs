@@ -482,6 +482,17 @@ pub(super) fn lower_operation(
             operations,
             provenance,
         ),
+        AbstractOperation::EstablishByteSequenceConcatenation { .. } => {
+            super::byte_concatenation::lower(
+                operation,
+                function,
+                structural_types,
+                prepared,
+                live,
+                operations,
+                provenance,
+            )
+        }
         AbstractOperation::EstablishByteSequenceLiteral {
             psi_operation,
             place,

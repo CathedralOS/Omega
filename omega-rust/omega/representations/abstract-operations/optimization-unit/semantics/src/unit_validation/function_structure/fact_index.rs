@@ -62,7 +62,12 @@ pub(crate) fn reconstruct_fact_index(function: &PsiOptimizationFunction) -> Vec<
                 }));
             }
 
-            O::ByteSequenceSubslice {
+            O::EstablishByteSequenceConcatenation {
+                psi_operation,
+                capacity_obligation: obligation,
+                ..
+            }
+            | O::ByteSequenceSubslice {
                 psi_operation,
                 obligation,
                 ..

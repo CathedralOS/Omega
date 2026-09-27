@@ -78,7 +78,7 @@ pub(super) fn validate(
     Ok(())
 }
 
-fn field_path(
+pub(super) fn field_path(
     function: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     root: PlaceId,
@@ -109,7 +109,7 @@ fn overlaps(left: &[StructuralPathSegment], right: &[StructuralPathSegment]) -> 
     left.starts_with(right) || right.starts_with(left)
 }
 
-fn changes_length(
+pub(super) fn changes_length(
     function: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     root: PlaceId,
@@ -164,6 +164,7 @@ fn changes_length(
         | O::ByteSequenceRead { .. }
         | O::ByteSequenceLength { .. }
         | O::ByteSequenceSubslice { .. }
+        | O::EstablishByteSequenceConcatenation { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::EstablishPrimitiveLocal { .. }
@@ -228,7 +229,7 @@ fn changes_length(
 /// Every finite path arriving at the use must reach the observation first,
 /// without a length-changing operation. Revisiting a point closes only that
 /// graph search branch; other predecessors and mutations on backedges still run.
-fn unchanged_since(
+pub(super) fn unchanged_since(
     function: &PsiOptimizationFunction,
     predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
     producer: (usize, usize),

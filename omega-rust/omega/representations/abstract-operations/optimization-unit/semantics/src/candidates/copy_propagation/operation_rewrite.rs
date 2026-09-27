@@ -167,6 +167,7 @@ pub(crate) fn rewrite_block_parameter_operation(
         }
         O::DynamicDescriptorParameter { .. }
         | O::StoreDynamicDescriptor { .. }
+        | O::EstablishByteSequenceConcatenation { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::CallUnitWithDynamicArguments { .. }

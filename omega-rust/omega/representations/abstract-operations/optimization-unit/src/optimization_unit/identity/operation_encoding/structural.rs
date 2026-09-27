@@ -12,6 +12,37 @@ use super::{AbstractOperation, CanonicalBytes};
 pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
     use AbstractOperation as O;
     match operation {
+        O::EstablishByteSequenceConcatenation {
+            psi_operation,
+            result,
+            left,
+            right,
+            capacity_obligation,
+        } => {
+            bytes.u8(92);
+            bytes.id(*psi_operation);
+            encode_structural_operation_result(bytes, result);
+            for operand in [left, right] {
+                match operand {
+                    terminal_psi::control_flow::ByteSequenceOperand::Whole { source, length } => {
+                        bytes.u8(0);
+                        bytes.id(*source);
+                        bytes.id(*length);
+                    }
+                    terminal_psi::control_flow::ByteSequenceOperand::Field {
+                        source,
+                        field,
+                        length,
+                    } => {
+                        bytes.u8(1);
+                        encode_structural_argument(bytes, source);
+                        bytes.id(*field);
+                        bytes.id(*length);
+                    }
+                }
+            }
+            bytes.id(*capacity_obligation);
+        }
         O::EstablishScalarArray {
             psi_operation,
             result,

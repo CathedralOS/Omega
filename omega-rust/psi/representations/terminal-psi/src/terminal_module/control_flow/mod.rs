@@ -12,7 +12,7 @@ mod trapping_integer;
 pub use atomic::{AtomicAccessEvent, AtomicReadModifyWrite, MemoryOrdering};
 pub use machines::{Block, TerminalMachine};
 pub use operations::{
-    Operation, OperationKind, OperationResult, StructuralOperationResult,
+    ByteSequenceOperand, Operation, OperationKind, OperationResult, StructuralOperationResult,
     StructuralResultClaimBinding,
 };
 pub use ranking::{

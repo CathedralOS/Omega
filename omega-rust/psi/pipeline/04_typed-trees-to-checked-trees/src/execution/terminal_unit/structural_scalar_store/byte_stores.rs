@@ -133,12 +133,25 @@ pub(super) fn field_store(
     let (AssignmentSource::Authored, Some(capacity)) = (source, capacity) else {
         return None;
     };
-    let ExpressionNode::String(bytes) = program.expression_table.expression(assignment.value)
-    else {
+    if !domains.iter().all(|symbol| plain_domain(*symbol, false)) {
         return None;
-    };
-    if u64::try_from(bytes.len()).ok()? > capacity
-        || !domains.into_iter().all(|symbol| plain_domain(symbol, true))
+    }
+    let mut value = checked_trees::CheckedByteSequenceValuePlan::default();
+    let (root, _) = byte_value_plan(
+        program,
+        facts,
+        state,
+        statement_index,
+        assignment.value,
+        &domains,
+        &mut value,
+        0,
+    )?;
+    value.root = root;
+    // Source checking owns the receiving bound. Each concat owns its separate
+    // checked sum bound; never reject a short value merely for carrier capacity.
+    if let checked_trees::CheckedByteSequenceValue::Literal(bytes) = value.nodes.get(root)
+        && u64::try_from(bytes.len()).ok()? > capacity
     {
         return None;
     }
@@ -149,10 +162,148 @@ pub(super) fn field_store(
                 destination_parameter_position,
                 carrier_path,
                 field_identity: terminal_field_identity(program, field.symbol)?,
-                bytes: bytes.to_vec(),
+                value,
             },
         ),
     )
+}
+
+/// Preserve only the selected built-in byte law. Leaves are immutable literals
+/// or readable declared fields; there is no delayed call evaluation in this plan.
+fn byte_value_plan(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    state: &typed_trees::state::State,
+    statement_index: u32,
+    expression: typed_trees::expression::ExpressionHandle,
+    domains: &[symbols::SymbolHandle],
+    plan: &mut checked_trees::CheckedByteSequenceValuePlan,
+    depth: usize,
+) -> Option<(arena::Handle<checked_trees::CheckedByteSequenceValue>, u64)> {
+    use checked_trees::{
+        CheckedByteSequenceValue as Value, CheckedUnitStructuralPathSegment as Segment,
+    };
+    if depth > 128 {
+        return None;
+    }
+    let (value, capacity) = match program.expression_table.expression(expression) {
+        ExpressionNode::String(bytes) => {
+            if !domains.iter().all(|domain| {
+                crate::facts::field_domain::string_literal_expression_grants_domain(
+                    program, expression, *domain,
+                )
+            }) {
+                return None;
+            }
+            (
+                Value::Literal(bytes.to_vec()),
+                u64::try_from(bytes.len()).ok()?,
+            )
+        }
+        ExpressionNode::Binary(binary)
+            if binary.operator == typed_trees::expression::BinaryOperator::Add
+                && crate::values::operator_is_builtin(&facts.operators, expression) =>
+        {
+            if !domains.iter().all(|domain| {
+                crate::facts::field_domain::domain_is_concat_preserving(program, *domain)
+            }) {
+                return None;
+            }
+            let (left, left_capacity) = byte_value_plan(
+                program,
+                facts,
+                state,
+                statement_index,
+                binary.left,
+                domains,
+                plan,
+                depth + 1,
+            )?;
+            let (right, right_capacity) = byte_value_plan(
+                program,
+                facts,
+                state,
+                statement_index,
+                binary.right,
+                domains,
+                plan,
+                depth + 1,
+            )?;
+            let capacity = left_capacity.checked_add(right_capacity)?;
+            (
+                Value::Concatenation {
+                    left,
+                    right,
+                    capacity,
+                },
+                capacity,
+            )
+        }
+        _ => {
+            let place = crate::flow::canonical_place_from_expression_in_state(
+                program,
+                state.symbol,
+                statement_index as usize,
+                expression,
+            )?;
+            let root = crate::flow::normalized_event_place_root(program, place.root);
+            let parameter_position =
+                program
+                    .state_parameters(state)
+                    .iter()
+                    .position(|parameter| {
+                        crate::flow::normalized_event_place_root(
+                            program,
+                            facts::PlaceRoot::Symbol(parameter.symbol),
+                        ) == root
+                    })?;
+            let type_reference = crate::flow::canonical_place_type_reference(
+                program,
+                state.symbol,
+                statement_index as usize,
+                &place,
+            )?;
+            let checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity } =
+                byte_sequence_carrier(program, type_reference, &[])?
+            else {
+                return None;
+            };
+            let source_domains =
+                crate::facts::field_domain::domain_constraint_symbols(program, type_reference);
+            if !domains.iter().all(|domain| {
+                source_domains.iter().any(|source| {
+                    crate::facts::field_domain::declared_domain_implies(program, *source, *domain)
+                })
+            }) {
+                return None;
+            }
+            let mut carrier_path = Vec::new();
+            for segment in &place.segments {
+                carrier_path.push(match segment {
+                    facts::PlaceSegment::Field { symbol } => {
+                        Segment::Field(terminal_field_identity(program, *symbol)?)
+                    }
+                    facts::PlaceSegment::FixedIndex { index } => {
+                        Segment::FixedIndex(u64::try_from(*index).ok()?)
+                    }
+                    _ => return None,
+                });
+            }
+            let Segment::Field(field_identity) = carrier_path.pop()? else {
+                return None;
+            };
+            (
+                Value::Field {
+                    parameter_position: u32::try_from(parameter_position).ok()?,
+                    carrier_path,
+                    field_identity,
+                    capacity,
+                },
+                capacity,
+            )
+        }
+    };
+    Some((plan.nodes.insert(value), capacity))
 }
 
 /// Whether the field's declared type passes through an exclusive `&mut`

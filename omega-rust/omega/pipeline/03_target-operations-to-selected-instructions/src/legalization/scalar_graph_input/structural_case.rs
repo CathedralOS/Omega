@@ -21,6 +21,11 @@ pub(in crate::legalization) fn source_result(
                 result,
                 ..
             }
+            | AbstractOperation::EstablishByteSequenceConcatenation {
+                psi_operation,
+                result,
+                ..
+            }
             | AbstractOperation::EstablishRecord {
                 psi_operation,
                 result,

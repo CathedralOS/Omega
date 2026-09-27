@@ -1,0 +1,134 @@
+//! Reconstruct owned byte storage and readable operands from exact declarations.
+use legalized_operations::{
+    LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
+};
+use semantic_vocabulary::{PlaceId, StructuralPlaceKind, StructuralTypeId};
+use terminal_psi::control_flow::ByteSequenceOperand;
+use terminal_psi::{
+    ByteSequenceCarrier, StructuralAccess, StructuralMultiplicity, StructuralTypeShape,
+};
+
+pub(super) fn owned_type(
+    function: &LegalizedScalarFunction,
+    place: PlaceId,
+) -> Option<StructuralTypeId> {
+    function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.instructions)
+        .find_map(|row| {
+            let LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation {
+                result, ..
+            } = &row.kind
+            else {
+                return None;
+            };
+            (result.place == place).then_some(result.structural_type)
+        })
+}
+
+pub(super) fn capacity(
+    function: &LegalizedScalarFunction,
+    row: &LegalizedScalarInstruction,
+) -> Option<u32> {
+    let LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation {
+        result,
+        left,
+        right,
+        ..
+    } = &row.kind
+    else {
+        return None;
+    };
+    let signature = function.structural.as_ref()?;
+    if row.result.is_some()
+        || result.multiplicity != StructuralMultiplicity::Unrestricted
+        || !result.claims.is_empty()
+        || !result.qualification_establishments.is_empty()
+        || !result.qualifications.is_empty()
+        || !result.projected_qualifications.is_empty()
+        || !signature.structural_places.iter().any(|place| {
+            place.id == result.place
+                && place.kind
+                    == (StructuralPlaceKind::OperationResult {
+                        producer: row.operation,
+                        structural_type: result.structural_type,
+                    })
+        })
+    {
+        return None;
+    }
+    let StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity }) =
+        signature
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == result.structural_type)?
+            .shape
+    else {
+        return None;
+    };
+    for operand in [left, right] {
+        if operand.source() == result.place {
+            return None;
+        }
+        match operand {
+            ByteSequenceOperand::Whole { source, .. } => {
+                super::established_view_input::readable_byte_type(function, *source)?;
+            }
+            ByteSequenceOperand::Field { .. } => {
+                field_offset(function, operand)?;
+            }
+        }
+    }
+    u32::try_from(capacity).ok()?.checked_add(8)?;
+    u32::try_from(capacity).ok()
+}
+
+pub(super) fn field_offset(
+    function: &LegalizedScalarFunction,
+    operand: &ByteSequenceOperand,
+) -> Option<u32> {
+    let ByteSequenceOperand::Field { source, field, .. } = operand else {
+        return None;
+    };
+    if source.access != StructuralAccess::SharedBorrow {
+        return None;
+    }
+    let signature = function.structural.as_ref()?;
+    let parameter = signature
+        .parameters
+        .iter()
+        .map(|parameter| &parameter.semantic)
+        .chain(
+            function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters),
+        )
+        .find(|parameter| parameter.place == source.place);
+    let structural_type = if let Some(parameter) = parameter {
+        if !matches!(
+            parameter.access,
+            StructuralAccess::Owned
+                | StructuralAccess::SharedBorrow
+                | StructuralAccess::MutableBorrow
+        ) || parameter.multiplicity == StructuralMultiplicity::Linear
+            || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
+        {
+            return None;
+        }
+        parameter.structural_type
+    } else {
+        super::aggregate_result_input::home(function, source.place)?
+            .1
+            .structural_type
+    };
+    let (offset, _) = crate::structural_inputs::structural_reference_input::byte_field_storage(
+        structural_type,
+        &source.path,
+        *field,
+        &signature.structural_types,
+    )?;
+    offset.checked_add(8)
+}

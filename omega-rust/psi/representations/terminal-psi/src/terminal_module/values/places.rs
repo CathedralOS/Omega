@@ -157,6 +157,14 @@ impl OperationKind {
     pub fn structural_projections(&self) -> Vec<OperationProjection<'_>> {
         let mut projections = Vec::new();
         match self {
+            Self::EstablishByteSequenceConcatenation { left, right, .. } => {
+                for operand in [left, right] {
+                    if let crate::control_flow::ByteSequenceOperand::Field { source, .. } = operand
+                    {
+                        projections.push(argument_projection(source));
+                    }
+                }
+            }
             Self::EstablishReference { source } | Self::EstablishElementView { source, .. } => {
                 projections.push(argument_projection(source));
             }
@@ -302,6 +310,14 @@ impl OperationKind {
     pub fn structural_projection_paths_mut(&mut self) -> Vec<&mut Vec<StructuralPathSegment>> {
         let mut paths = Vec::new();
         match self {
+            Self::EstablishByteSequenceConcatenation { left, right, .. } => {
+                for operand in [left, right] {
+                    if let crate::control_flow::ByteSequenceOperand::Field { source, .. } = operand
+                    {
+                        paths.push(&mut source.path);
+                    }
+                }
+            }
             Self::EstablishReference { source } | Self::EstablishElementView { source, .. } => {
                 paths.push(&mut source.path);
             }

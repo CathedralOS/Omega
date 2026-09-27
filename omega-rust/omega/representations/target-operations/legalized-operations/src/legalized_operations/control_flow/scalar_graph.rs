@@ -91,6 +91,14 @@ impl LegalizedScalarInstruction {
     /// reads; a value appears once per operand position that reads it.
     pub fn visit_scalar_operands(&self, mut visit: impl FnMut(ValueId)) {
         match &self.kind {
+            LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation {
+                left,
+                right,
+                ..
+            } => {
+                visit(left.length());
+                visit(right.length());
+            }
             LegalizedScalarInstructionKind::EstablishScalarArray { elements, .. } => {
                 elements.iter().copied().for_each(visit)
             }
@@ -239,6 +247,13 @@ pub enum LegalizedScalarInstructionKind {
         format: semantic_vocabulary::IeeeFloatFormat,
         left: ValueId,
         right: ValueId,
+    },
+    EstablishByteSequenceConcatenation {
+        result: terminal_psi::StructuralOperationResult,
+        left: terminal_psi::control_flow::ByteSequenceOperand,
+        right: terminal_psi::control_flow::ByteSequenceOperand,
+        capacity_obligation: semantic_vocabulary::ObligationId,
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity,
     },
     EstablishScalarArray {
         result: terminal_psi::StructuralOperationResult,

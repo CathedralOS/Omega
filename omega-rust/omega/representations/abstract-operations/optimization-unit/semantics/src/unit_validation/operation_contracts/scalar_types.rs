@@ -36,7 +36,8 @@ pub(crate) fn operation_scalar_types_match(
         return false;
     }
     match operation {
-        O::StructuralByteSequenceFieldStore { .. }
+        O::EstablishByteSequenceConcatenation { .. }
+        | O::StructuralByteSequenceFieldStore { .. }
         | O::StructuralByteSequenceFieldByteStore { .. }
         | O::ByteSequenceWrite { .. }
         | O::ByteSequenceRead { .. }

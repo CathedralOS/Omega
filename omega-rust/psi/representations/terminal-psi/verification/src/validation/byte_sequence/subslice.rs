@@ -117,6 +117,7 @@ pub(in crate::validation) fn validate_uses(
 ) -> Result<(), ModuleError> {
     let require = |place| {
         if (borrowed_result(machine, place).is_some()
+            || super::concatenation::owned_result(machine, place).is_some()
             || machine.structural_parameters.iter().any(|parameter| {
                 parameter.place == place
                     && parameter.access == StructuralAccess::MutableBorrow
@@ -149,6 +150,10 @@ pub(in crate::validation) fn validate_uses(
         }
     };
     match &operation.kind {
+        OperationKind::EstablishByteSequenceConcatenation { left, right, .. } => {
+            require(left.source())?;
+            require(right.source())
+        }
         OperationKind::ByteSequenceLength { source }
         | OperationKind::IntegerStructuralField { source, .. }
         | OperationKind::BooleanStructuralField { source, .. }

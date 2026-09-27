@@ -7,6 +7,7 @@ use crate::validation::{
     TerminalModule, resolve_structural_path,
 };
 mod freshness;
+pub(crate) use freshness::field_content_length_is_current;
 pub(crate) use freshness::replacement_length_equation;
 pub(crate) use freshness::view_length_is_current;
 

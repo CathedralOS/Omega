@@ -197,6 +197,15 @@ pub enum TargetUnitOperation {
         length: ValueId,
         obligation: semantic_vocabulary::ObligationId,
     },
+    /// Copy the two checked live extents into a fresh activation-owned result.
+    /// The exact source paths survive target refinement for independent replay.
+    EstablishByteSequenceConcatenation {
+        psi_operation: OperationId,
+        result: StructuralOperationResult,
+        left: terminal_psi::control_flow::ByteSequenceOperand,
+        right: terminal_psi::control_flow::ByteSequenceOperand,
+        capacity_obligation: semantic_vocabulary::ObligationId,
+    },
     EstablishByteSequenceLiteral {
         psi_operation: OperationId,
         place: StructuralPlaceDeclaration,

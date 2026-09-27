@@ -396,6 +396,7 @@ fn operation_effect(
         | O::EstablishScalarArray { .. }
         | O::EstablishCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
+        | O::EstablishByteSequenceConcatenation { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::EstablishZeroedStructural { .. }
         | O::EstablishRecord { .. }

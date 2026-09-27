@@ -108,6 +108,28 @@ pub(super) fn validate_byte_view_source(
         }
         _ => return Ok(()),
     };
+    validate_source(
+        function,
+        block,
+        node,
+        operation,
+        source_kind,
+        structural_types,
+        source,
+        length,
+    )
+}
+
+pub(super) fn validate_source(
+    function: &PsiOptimizationFunction,
+    block: BlockId,
+    node: u32,
+    operation: &AbstractOperation,
+    source_kind: Option<&StructuralPlaceKind>,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    source: semantic_vocabulary::PlaceId,
+    length: Option<semantic_vocabulary::ValueId>,
+) -> Result<(), OptimizationUnitValidationError> {
     let permitted_access = |access| match operation {
         AbstractOperation::ByteSequenceWrite { .. } => access == StructuralAccess::MutableBorrow,
         AbstractOperation::ByteSequenceLength { .. } => matches!(
@@ -159,6 +181,11 @@ pub(super) fn validate_byte_view_source(
                     psi_operation,
                     result,
                     ..
+                }
+                | AbstractOperation::EstablishByteSequenceConcatenation {
+                    psi_operation,
+                    result,
+                    ..
                 } if psi_operation == producer
                     && result.place == source
                     && result.structural_type == *structural_type
@@ -178,8 +205,10 @@ pub(super) fn validate_byte_view_source(
         .is_some_and(|declaration| {
             matches!(
                 declaration.shape,
-                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
-            )
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. } | ByteSequenceCarrier::BoundedView { .. })
+            ) || (matches!(declaration.shape, StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. }))
+                && function.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
+                    AbstractOperation::EstablishByteSequenceConcatenation { result, .. } if result.place == source)))
         })
         && function
             .entry_claim_declarations
@@ -207,6 +236,16 @@ pub(super) fn validate_byte_view_source(
             ..
         } => {
             result.place != source
+                && structural_types
+                    .get(&result.structural_type)
+                    .is_some_and(|declaration| {
+                        matches!(
+                            declaration.shape,
+                            StructuralTypeShape::ByteSequence(
+                                ByteSequenceCarrier::BorrowedView { .. }
+                            )
+                        )
+                    })
                 && Some(result.structural_type) == structural_type
                 && result.multiplicity == StructuralMultiplicity::Unrestricted
                 && result.qualifications.is_empty()

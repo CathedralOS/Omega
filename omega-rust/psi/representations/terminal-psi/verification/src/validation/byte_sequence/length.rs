@@ -101,6 +101,7 @@ pub(in crate::validation) fn validate_source(
         }
         StructuralPlaceKind::OperationResult { .. } => {
             crate::validation::byte_sequence::subslice::borrowed_result(machine, source)
+                .or_else(|| super::concatenation::owned_result(machine, source))
                 .ok_or_else(&invalid)?
                 .structural_type
         }
@@ -108,13 +109,19 @@ pub(in crate::validation) fn validate_source(
     };
     if !module.structural_types.iter().any(|declaration| {
         declaration.id == structural_type
-            && matches!(
+            && (matches!(
                 declaration.shape,
                 StructuralTypeShape::ByteSequence(
                     terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
                         | terminal_psi::ByteSequenceCarrier::BoundedView { .. }
                 )
-            )
+            ) || (super::concatenation::owned_result(machine, source).is_some()
+                && matches!(
+                    declaration.shape,
+                    StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                    )
+                )))
     }) {
         return Err(invalid());
     }

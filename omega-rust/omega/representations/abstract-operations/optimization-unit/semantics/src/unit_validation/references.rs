@@ -384,7 +384,8 @@ fn operation_structural_result(operation: &O) -> Option<&terminal_psi::Structura
     match operation {
         O::EstablishPrimitiveLocal { result, .. }
         | O::ByteSequenceSubslice { result, .. }
-        | O::EstablishScalarArray { result, .. }
+        | O::EstablishByteSequenceConcatenation { result, .. }
+                | O::EstablishScalarArray { result, .. }
         | O::EstablishCase { result, .. }
         | O::EstablishRecord { result, .. }
         | O::EstablishZeroedStructural { result, .. }

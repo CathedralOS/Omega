@@ -413,6 +413,11 @@ fn validate_operation_foundation(
         OperationKind::EstablishScalarCase { .. } => {
             value_foundations::validate_establish_scalar_case(module, machine, operation)?
         }
+        OperationKind::EstablishByteSequenceConcatenation { .. } => {
+            value_foundations::validate_establish_byte_sequence_concatenation(
+                module, machine, operation,
+            )?
+        }
         OperationKind::EstablishByteSequenceLiteral { .. } => {
             value_foundations::validate_establish_byte_sequence_literal(module, machine, operation)?
         }

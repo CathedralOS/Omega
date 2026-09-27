@@ -48,7 +48,7 @@ pub(super) fn write(
     {
         return Err(replay.invalid());
     }
-    let pointer = backing_pointer(replay, row, destination)?;
+    let pointer = backing_pointer(function, replay, row, destination)?;
     let address = result(replay, destination, 0)?;
     replay.check_instruction(
         SelectedInstructionKind::ByteViewAddress,
@@ -133,8 +133,22 @@ pub(in crate::selection) fn byte_observation(
     };
     // An addressable record is not a byte descriptor. Reconstruct the semantic
     // view type before interpreting any pointer home as backing and length.
-    if crate::selection::established_view_input::view_type(function, source).is_none() {
+    if crate::selection::established_view_input::readable_byte_type(function, source).is_none() {
         return Err(replay.invalid());
+    }
+    if let LegalizedScalarInstructionKind::ByteSequenceLength {
+        length_byte_offset, ..
+    } = row.kind
+    {
+        let expected =
+            if crate::selection::byte_concatenation_input::owned_type(function, source).is_some() {
+                0
+            } else {
+                8
+            };
+        if length_byte_offset != expected {
+            return Err(replay.invalid());
+        }
     }
     match row.kind {
         LegalizedScalarInstructionKind::ByteSequenceRead { .. } => {
@@ -177,7 +191,7 @@ fn byte_sequence_read(
     {
         return Err(replay.invalid());
     }
-    let pointer = backing_pointer(replay, row, source)?;
+    let pointer = backing_pointer(function, replay, row, source)?;
     let view = replay
         .transport
         .views
@@ -242,7 +256,11 @@ fn byte_sequence_read(
             replay,
             row,
             source,
-            0,
+            if crate::selection::byte_concatenation_input::owned_type(function, source).is_some() {
+                8
+            } else {
+                0
+            },
             1,
             SelectedMemoryAccessRole::ReadByteSequence {
                 index,
@@ -271,6 +289,7 @@ fn byte_sequence_read(
 }
 
 pub(super) fn backing_pointer(
+    function: &LegalizedScalarFunction,
     replay: &mut Replay<'_>,
     row: &LegalizedScalarInstruction,
     source: PlaceId,
@@ -290,6 +309,20 @@ pub(super) fn backing_pointer(
         .find(|(place, _)| *place == source)
         .map(|(_, register)| *register)
         .ok_or_else(|| replay.invalid())?;
+    if crate::selection::byte_concatenation_input::owned_type(function, source).is_some() {
+        let pointer = result(replay, source, 8)?;
+        replay.check_instruction(
+            SelectedInstructionKind::AddressOffset { byte_offset: 8 },
+            replay
+                .constraints
+                .keys
+                .address_offset
+                .ok_or_else(|| replay.invalid())?,
+            &[descriptor, pointer],
+            &provenance(row),
+        )?;
+        return Ok(pointer);
+    }
     let pointer = result(replay, source, 0)?;
     memory(
         replay,
@@ -319,7 +352,7 @@ fn byte_sequence_length(
     length_byte_offset: u32,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
     let result = row.result.ok_or_else(|| replay.invalid())?;
-    if length_byte_offset != 8
+    if !matches!(length_byte_offset, 0 | 8)
         || result.scalar_type
             != ScalarType::Integer(
                 IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| replay.invalid())?,

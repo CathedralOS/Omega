@@ -5,6 +5,12 @@ use semantic_vocabulary::{BlockId, ObligationId, OperationId, PlaceId, Structura
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetByteView {
+    /// Immutable read descriptor for fresh bounded storage in this activation.
+    Owned {
+        psi_operation: OperationId,
+        place: PlaceId,
+        structural_type: StructuralTypeId,
+    },
     /// Immutable backing established by this exact operation, not a parameter
     /// descriptor or authority to manufacture additional literal bytes.
     Literal {

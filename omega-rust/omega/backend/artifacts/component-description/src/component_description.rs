@@ -778,7 +778,8 @@ pub(crate) fn derive_component_inventory(
                     // grants no outgoing boundary or port authority.
                     | OperationKind::TrappingInteger { .. }
                     | OperationKind::MoveStructuralField { .. }
-                    | OperationKind::StoreStructuralField { .. } => {}
+                    | OperationKind::StoreStructuralField { .. }
+                    | OperationKind::EstablishByteSequenceConcatenation { .. } => {}
                 }
             }
         }

@@ -350,39 +350,38 @@ backend-visible; full corpus runs only at the end of an item.
   through its nested calls and transitions and exit **70**. Its historical
   slot-collision comment is not a diagnosis of the current compiler.
 
-- **BYTE-CARRIER-STORE-LITERAL-ONLY.** (new-scope) Admit carrier copies and
-  concatenation into owned bounded byte fields, including nested fields and
-  borrowed output parameters. The producer in
-  `terminal_unit/structural_scalar_store/byte_stores.rs` requires
-  `ExpressionNode::String`, and `CheckedStructuralByteSequenceFieldStorePlan`
-  carries constant bytes. Widen that checked source and its stage 05 emission.
-  Terminal's `StructuralByteSequenceFieldStore` already carries a source
-  place, measured length and capacity obligation; Omega lowering/selection
-  already copies a runtime view's live bytes before publishing its length.
-  The pending fixture's claim that Terminal only carries `Vec<u8>` confuses
-  these two representations. Existing whole replacement supplies neither
-  carrier-field view production nor concatenation/append semantics by itself.
-  Retain source identity/backing, prove total length fits and establish `Utf8`
-  where required. Follow [bounded replacement](wiki/spec/terminal-psi/structural_access.md):
-  publish live bytes and length together, preserve siblings, allow empty and
-  shorter replacements, and distinguish raw fixed arrays' exact-length rule.
-  Literal-only interpretation already covers lengths **3, 1, 0** and sibling
-  preservation; extend coverage to runtime sources without mutating shared
-  immutable backing or treating capacity as readable content.
-  `tests/omega/pending/text/byte_carrier_store_literal_only` assigns two
-  literals' concatenation but prints unrelated `"done"`. Observe the assigned
-  bytes/length and keep a demanded executable entry and terminal effect.
-  Cover plain copies, literal/runtime multi-segment concatenation, nested
-  destinations and borrowed outputs; keep literal and capacity-overflow
-  controls. Acceptance after Terminal reload/verification and native execution:
+- **BYTE-CARRIER-STORE-LITERAL-ONLY.** (new-scope) Finish plain carrier
+  copies, nested destinations and whole borrowed output stores into bounded
+  byte storage. Stage 04's
+  `terminal_unit/structural_scalar_store/byte_stores.rs` now plans literal and
+  runtime-field concatenation; stage 05 emits fresh owned concatenation with
+  exact live lengths and a total-capacity proof. Terminal verification,
+  interpretation, Omega lowering and native publication retain those operands
+  and establish the result before replacing the destination. This does not
+  yet provide direct field-to-field copies or whole borrowed output assignment.
+  Follow [bounded replacement](wiki/spec/terminal-psi/structural_access.md):
+  preserve siblings and source backing, allow empty and shorter replacements,
+  establish `Utf8` where required, and distinguish raw fixed arrays' exact-length
+  rule. Capacity is not readable content.
 
-  - `samples/cli/{basics/text_greeting,systems/status_report,text/string_catalog}`
-    produce **Hello, Ada!**, **ALERT temp** (also retain the normal branch),
-    and **[Alpha+Beta]** with total **70**, respectively; each exits **70**.
-  - `tests/omega/pass/text/{runtime_bounded_carrier_concat_exit,
-    runtime_bounded_carrier_alias_concat_exit}` produce **Room A1** and
-    **== Gate ==**, exit **70**; the latter writes through a mutable output
-    parameter across a call. Check exact live bytes/length, not only admission.
+  On macOS arm64, `omega run samples/cli/basics/text_greeting/main.omg`
+  now prints **Hello, Ada!** and exits **70** unchanged; the native corpus
+  command `python3 tools/corpus_gate.py --native --filter
+  pass/text/runtime_bounded_carrier_concat_exit` also executes and exits **70**.
+  Keep these as regression controls. Remaining acceptance after Terminal
+  reload/verification and native execution:
+
+  - `samples/cli/{systems/status_report,text/string_catalog}` produce
+    **ALERT temp** (also retain the normal branch) and **[Alpha+Beta]** with
+    total **70**, respectively; each exits **70**. Their execution remains
+    unverified by the concatenation milestone.
+  - `tests/omega/pass/text/runtime_bounded_carrier_alias_concat_exit`
+    produces **== Gate ==** and exits **70** through a mutable output
+    parameter across a call. Preserve aliasing and exact live bytes/length.
+  - Cover plain copies, nested destinations and borrowed outputs, retaining
+    literal and capacity-overflow controls. Make the assigned bytes/length
+    observable in `tests/omega/pending/text/byte_carrier_store_literal_only`,
+    whose current output is unrelated `"done"`.
 
 - **COMPOSITE-TRANSITION-ARGUMENT.** (new-scope) Finish legal record literals,
   field projections and composite call results supplied directly to internal
@@ -1011,7 +1010,7 @@ the complete product bar; focused successes below do not establish that baseline
   | `collections/entity_list`, `rendering/bouncing_particles`, `algorithms/dutch_flag` | **STATE-LOCAL-VALUE-FRONTIER** and **MATCH-SELECTIVE-LOWERING**: runtime-indexed record-field reads and case selection, pinned by `pending/collections/runtime_indexed_record_field_store` and `pending/control_flow/runtime_indexed_case_dispatch`. `dutch_flag` must construct, read and swap the actual Color array, interact with Console and exit 70; integer substitutes are not acceptance. |
   | `systems/descriptor_walk`, `systems/elapsed_timer` | **REFERENCE-LOCAL-BINDING-ROUTES** / **RECAST-SOURCE-POSITIONS** for the borrowed local recast; **PASS-TIER-GUARDS-OWED** for the copy projection from a borrowed receiver, also a product-compiler customer. Rerun complete samples after the focused operation is repaired. |
   | `collections/matrix_multiply`, `rendering/dungeon_render`, `systems/wire_protocol`, `probes/value_call_in_expr`, `systems/vending_machine` | **MEMBER-POLICY-REMOVES-COMPOSITE-ROWS**, **RECORD-LITERAL-ARRAY-FIELD**, **VALUE-CALL-SUBEXPRESSION**, and both **COMPOSITE-TRANSITION-ARGUMENT** / **VALUE-CALL-TRANSITION-ARGUMENT** own the respective operations. Retain `dungeon_render`'s field/glyph evidence under **NOMINAL-FIELD-FLOW** while verifying its complete program; transition transport is already implemented. |
-  | `basics/text_greeting`, `systems/status_report`, `text/string_catalog` | **BYTE-CARRIER-STORE-LITERAL-ONLY** owns carrier copies and concatenation into bounded `Utf8` storage. The producer admits only String literals; a plain copy also fails, as pinned by `pending/text/byte_carrier_store_literal_only`. Preserve `self.t = "a" + self.s + "b"` and the alias case through Terminal verification, interpretation and lowering. Existing prefix replacement and live-byte stores do not supply append semantics; unrolling by capacity is not the general operation. Keep corpus customers `text/runtime_bounded_carrier{,_alias}_concat_exit`. |
+  | `basics/text_greeting`, `systems/status_report`, `text/string_catalog` | **BYTE-CARRIER-STORE-LITERAL-ONLY** owns remaining plain carrier copies, nested destinations and whole borrowed output stores. Literal/runtime field concatenation now carries exact live lengths and capacity proofs through native execution: unchanged `text_greeting` prints **Hello, Ada!** and exits **70**, and `text/runtime_bounded_carrier_concat_exit` exits **70**. Verify the remaining sample outputs and finish `text/runtime_bounded_carrier_alias_concat_exit` through its mutable output parameter. |
   | `gui/{image_viewer,window_app,window_demo}` | **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER** owns the authored by-value primitive-array boundary arguments/results. Changing every parameter to a domain carrier or reference evades that acceptance. Exact fixture/sample provider selection remains required. |
   | `systems/file_journal`, `systems/note_vault`, `interpreters/calculator_rpn` | **STATE-LOCAL-VALUE-FRONTIER**: result custody, library callee composition, and indexed nested-field initialization. Follow `Filesystem::create_dir_all` in `note_vault`; for `calculator_rpn`, retain the Console-bearing receiver and `let a: i32 in Saturating = self.stack.slots[0]`. Its std-free reduction does not reproduce the full program. |
   | Integer type/policy migration verification | **IMPLICIT-STORE-CONVERSION**: the rejection rule and many explicit casts are implemented. Recheck the previously affected cohort without changing arithmetic policy or algorithms: `longest_run`, `maze_flood`, `collatz_sequence`, `prime_sieve`, `multiplication_table`, `heat_grid`, `dice_histogram`, `dungeon_crawler_cli`, `rpn_calculator`, `stack_calculator`, `self_mutation_between_calls`, `histogram`, `game_of_life`, `rule_30`, `luhn_checksum`, `substring_search`, and `windowed_calculator`. Re-measure the current set instead of treating an old refusal count as a baseline. |

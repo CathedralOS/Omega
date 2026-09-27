@@ -101,6 +101,9 @@ pub(crate) fn structural_shape(
                 },
                 structural_type,
             ),
+            StructuralTypeShape::ByteSequence(
+                carrier @ terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+            ) => byte_sequence_shape(*carrier, structural_type),
             StructuralTypeShape::ByteSequence(_) => Err(
                 LoweringError::UnsupportedStructuralByteSequence(structural_type),
             ),

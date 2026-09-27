@@ -194,7 +194,7 @@ unit, charged before execution.
 | --- | --- |
 | `WriteOnlyPrimitiveStore` | Original destination root, path to a primitive structural leaf (empty for a whole primitive), and already-defined, exactly typed SSA value. Path elements may be `RuntimeIndex` segments, each with the obligation the store owns. The referent is not represented as a synthetic record. |
 | `StructuralScalarFieldStore` | Destination structural home, ordered path to the carrier record, final relevant scalar field identity, and already-defined, exactly typed SSA value. The carrier composes record fields and fixed-array elements, literal or `RuntimeIndex`, in any order; each runtime element's bound is an obligation the store owns. A whole, unqualified, claim-free owned record home (entry, block parameter, or completed establishment/call result) supplies write authority directly; mutable and write-only borrowed parameters retain their existing authority. An empty carrier path denotes a field directly on the root record. |
-| `StructuralByteSequenceFieldStore` | Destination parameter, carrier path, final bounded-owned byte field, whole immutable source view, exact dominating source-length observation, and capacity obligation. |
+| `StructuralByteSequenceFieldStore` | Destination parameter, carrier path, final bounded-owned byte field, whole immutable source (borrowed view or established owned concatenation), exact dominating source-length observation, and capacity obligation. |
 | `StructuralByteSequenceFieldByteStore` | Destination parameter, carrier path, bounded-owned field, exact runtime `u64` index, `u8` value, current field-length observation, and index obligation. |
 | `ByteSequenceWrite` | Whole mutable borrowed view, exact runtime `u64` index, `u8` value, current same-view length observation, and index obligation. It needs no synthetic record or field identity. |
 
@@ -257,6 +257,31 @@ retain value identity; integer, Boolean, and IEEE literals retain their exact
 type and value or raw bits. Fuel is consumed before mutation; suspension and
 resumption must not repeat a committed store. Referent backing survives callee
 frames so a completed write remains visible to the caller.
+
+`EstablishByteSequenceConcatenation` establishes an ordinary structural operation
+result with a `BoundedOwned` byte carrier. Each operand retains its exact live
+length and either a whole immutable byte source or a readable bounded byte field
+identified by root, complete carrier path, and final field. A field operand needs
+shared read authority; write-only access cannot supply its contents. Its length
+observation dominates concatenation, and no overlapping content mutation may
+intervene, including length-preserving writes or mutation on a backedge.
+
+The operation owns an obligation proving the mathematical sum of the two observed
+lengths is at most the result declaration's capacity. The result's live length is
+that sum, never its capacity. Both sources are read before the independent result
+is published; replacing an aliasing destination afterward cannot change either
+operand. Each execution establishes fresh activation-owned backing. The admitted
+result is unrestricted, unqualified and claim-free, remains immutable, and enters
+ordinary structural result availability checks. Length reads, byte reads and
+whole-field replacement may consume this exact owned result without inventing a
+borrowed view or granting mutable access. Its backing follows activation lifetime
+and needs no affine disposal frontier entry.
+
+Concatenation costs one logical operation unit, charged before execution. Encoding
+predicates remain independent source-level evidence: neither capacity nor the new
+owned carrier establishes `Utf8`. A subsequent field replacement proves its own
+receiving bound against the completed result's live length; larger operand carrier
+capacities do not by themselves refute that bound.
 
 Bounded byte replacement writes the source's live bytes and live length together,
 without observing displaced contents. The verifier resolves capacity from the

@@ -239,6 +239,9 @@ pub(super) fn project(
                 node, optimized, unit,
             )?
         }
+        AbstractOperation::EstablishByteSequenceConcatenation { .. } => {
+            storage_instructions::project_byte_sequence_concatenation(node, optimized, unit)?
+        }
         AbstractOperation::StructuralByteSequenceFieldStore { .. } => {
             storage_instructions::project_structural_byte_sequence_field_store(
                 node, optimized, unit,
@@ -253,7 +256,16 @@ pub(super) fn project(
         AbstractOperation::ByteSequenceLength { source, .. } => {
             LegalizedScalarInstructionKind::ByteSequenceLength {
                 source: *source,
-                length_byte_offset: 8,
+                length_byte_offset:
+                    if crate::legalization::scalar_graph_input::byte_views::owned_concatenation(
+                        optimized, *source,
+                    )
+                    .is_some()
+                    {
+                        0
+                    } else {
+                        8
+                    },
             }
         }
         AbstractOperation::ElementViewLength { source, .. } => {

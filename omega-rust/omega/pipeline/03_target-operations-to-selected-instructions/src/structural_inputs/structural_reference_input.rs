@@ -607,14 +607,11 @@ fn shape_inner(
         .find(|declaration| declaration.id == root)?;
     let result = match &declaration.shape {
         StructuralTypeShape::PrimitiveScalar(scalar) => scalar_shape(*scalar),
-        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
-            ..
-        }) => Some(ValueShape::integer(16, 8)),
-        // The bounded descriptor is one pointer cell — the capacity lives in
-        // the type, not the referent storage.
-        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedView {
-            ..
-        }) => Some(ValueShape::integer(8, 8)),
+        StructuralTypeShape::ByteSequence(carrier) => field_shape(
+            &StructuralFieldType::ByteSequence(*carrier),
+            declarations,
+            active,
+        ),
         // An element view rides the same borrowed descriptor pair: base
         // pointer plus extent, realized as one borrowed aggregate slot.
         StructuralTypeShape::ElementView { .. } => Some(ValueShape::integer(16, 8)),
