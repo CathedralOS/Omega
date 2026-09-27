@@ -4,10 +4,35 @@ Omega's compiler is experimental. A working installation is not a claim that
 every language feature or every program in the repository is implemented.
 
 Use the [GitHub releases page](https://github.com/CathedralOS/Omega/releases)
-for **published** prereleases. Drafts are not public downloads. If no prerelease
-is published yet, [build from source](../README.md#building-from-source).
-Homebrew and WinGet channels are being validated; no public channel is advertised
-until its install and upgrade paths are verified and published.
+for published prereleases. Windows x64, Apple Silicon macOS, and Linux x64/ARM64
+bundles are available. These initial releases are unsigned and experimental.
+
+## Homebrew
+
+With Homebrew installed, on Apple Silicon macOS 14+ or Linux:
+
+```sh
+brew install cathedralos/omega/omega
+omega --version
+```
+
+This installs the complete prebuilt compiler/library bundle and Git. It does not
+build Rust. The [Cathedral-owned tap](https://github.com/CathedralOS/homebrew-omega)
+is the experimental release channel. Public installation and native compilation
+are tested on macOS ARM64 and Linux x64; Linux ARM64 has bundle-level validation.
+
+Upgrade or uninstall through Homebrew:
+
+```sh
+brew update
+brew upgrade cathedralos/omega/omega
+# To remove it:
+brew uninstall cathedralos/omega/omega
+```
+
+Windows users can use the archive instructions below. WinGet catalog publication
+is pending; generating and testing a manifest does not make it available through
+`winget install` yet.
 
 ## Install an archive
 
