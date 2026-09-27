@@ -2017,111 +2017,34 @@ _run_natively_with_zero_extent_nonconsumption` was the coverage claimed here,
   cycle. Start with `src/tests/termination/rank_ranges/` and matching
   `tests/omega/{pass,fail}/termination/` controls.
 
-- **CHECK-CLOSURE-ONCE.** (new-scope) `omega --check` of a std-importing
-  sample is dominated by checking the bundled library twice. Reproduced on
-  macOS arm64 at `587697f037 (revision not on main)` with the release binary on
-  `samples/cli/basics/print_squares`: 41.2 s total, of which `--timings` names
-  only 4.3 s (Stage 05 TypedTrees -> CheckedTrees 2.1 s, build step 1.1 s,
-  settle step 1.1 s). `OMEGA_REVIEW_TIMINGS=1` now attributes the rest per
-  pass and per package:
+- **CHECK-CLOSURE-ONCE.** (new-scope) Make a std-importing `omega --check`
+  invocation check the library once across package discovery, binding and
+  production. Owners: package-manager's
+  [candidate compilation](omega-rust/omega/package-manager/src/review/candidate/compilation.rs)
+  and compiler's `checked/checking/`.
 
-      review_pass discovery  18.39 s   omega_language_std 16.39 s
-                                       print_squares       1.98 s
-      review_pass bound      18.21 s   omega_language_std 16.23 s
-        (5 discovered bindings)        print_squares       1.98 s
-      candidate_compilation  36.60 s
+  Exact-input check memoization, typed-frontier reuse and carrying unchanged
+  package compilations already exist. `ImmutableBoundLookup` also shares one
+  index per frozen program; constructing another lookup no longer rebuilds it.
+  The remaining preliminary/settled split belongs to BUILD-EVALUATES-ONCE.
+  Changed provider bindings currently change checked products: do not erase
+  them from reuse keys to manufacture a cache hit.
 
-  The 27.5k-line library costs 16.3 s per pass. A fixture without std checks
-  in 14 ms. With the fresh-arena span path and symbol-first claim-frontier
-  lookup, the optimized binary on macOS arm64 checks `print_squares` in
-  50.0 s against 58.4 s before, std at 22.3 s per pass.
+  `compilation/tests.rs::bound_pass_compiles_only_the_occurrences_its_bindings_changed`
+  carries one unchanged dependency and reuses typed frontiers for two changed
+  occurrences, but still requests preliminary and settled checks for each.
+  It does not prove the complete CLI/std invocation checks once. Keep source
+  drift, exact request identity, per-pass custody and restricted-grant checks.
+  Reuse must retain preparation outputs and component discovery and reconcile
+  sponsored evaluation, including discarded attempts; carried evaluations are
+  charged only to the session that ran them, with zero usage for an empty one.
 
-  Owner: `packages/manager` `review/candidate/compilation.rs::compile_candidate`,
-  which runs `compile_pass` with `&[]` bindings and
-  `TargetEntryDiscovery::Dependencies`, then, when discovery proposed bindings,
-  drops that result and runs `compile_pass` again with them and
-  `TargetEntryDiscovery::Disabled`.
-
-  WHERE STD'S TIME GOES (sampled 2026-09-24 on macOS arm64, optimized binary,
-  7.4k samples over 10 s of std's first compile): each `compile_to_checked`
-  checks std TWICE. `build_continuation::evaluate_build_and_continue` calls
-  `declaration_admission::validate_authored_declaration_selections_before_build`,
-  which runs a full `CheckingRequest::preliminary()` check of the frozen source
-  graph as the authority gate before the build executes (2.5k samples); the
-  settled check in `execution_settlement::check_selected_execution` follows
-  (4.4k). A `--check` of `print_squares` therefore checks std four times. The
-  hottest leaves are linear arena scans (`Handle<Symbol>` equality,
-  `valid_span_range` on machine/state/data arenas, `find_data_definition`).
-
-  CHECK-LEVEL REUSE LANDED (02acfcd35b): `lower_typed_trees` memoizes by
-  exact input (equal `TypedTrees` under an equal request) and a candidate
-  review retains its checks on first sight, so the bound pass and the
-  production compile reuse the discovery pass's checks whenever the bound
-  bindings leave a package's typed program unchanged. `omega --check
-  samples/cli/basics/print_squares/main.omg` (dev profile, macOS arm64)
-  went 102.5 s -> 66.3 s. What remains is the library checked twice inside
-  one pass: the pre-build gate's preliminary check and the settled check
-  (BUILD-EVALUATES-ONCE deletes the former), plus any package whose typed
-  program the bound bindings do change. `samples/cli/algorithms/
-  insertion_sort` `--check` now takes 54.9 s (was 113.6 s): the discovery
-  pass 43.9 s (std 40.7 s) and the bound pass 8.9 s (std 8.3 s). The bound
-  pass still reruns std's front end and build evaluation, whose inputs the
-  bindings leave unchanged; sharing that prefix within one review session is
-  the next cut.
-
-  Skipping any compile must still account for what it did: the compile in
-  `package_pass.rs` writes back `prepared_source_output` for the preparation
-  slots, fills `IndependentComponentDiscovery`, and consumes sponsored build
-  evaluation that `ReviewBuildSession::dispose` reconciles, so a reused result
-  leaves the next session's accounting (whose empty session peak must then
-  read as zero). Custody verification keeps running per pass; it is the trust
-  gate, not the cost.
-
-  RE-MEASURED 2026-09-24 after that day's landings, optimized binary,
-  macOS arm64: `omega --check samples/cli/basics/print_squares/main.omg`
-  takes 35.4 s, of which `--timings` still names only 3.2 s (Stage 05
-  1.59 s, build step 0.82 s, settle step 0.81 s). The double-check
-  structure above is unchanged.
-
-  WHAT DOMINATES THE REMAINING TIME IS NO LONGER A SCAN BUT AN INDEX BUILT
-  PER LEAF. `sample` over 20 s of that run, by top of stack:
-
-      ImmutableBoundLookup::new                        1476
-      DefaultHasher::write_u32 (validation)             903
-      TypedTrees::machine_states                        888
-      hashbrown RawTable reserve_rehash
-        <Handle<Symbol>, Option<&TableLocalData>>       348
-      SymbolTable::lookup_top_level                     306
-      flow::place::resolution::symbol_type_position     265
-      monomorphization::callee_proposals::
-        collect_expression_tree                         249
-      value_custody::expression_types::
-        named_value_type_reference                      230
-      TypedTrees::state_parameters                      229
-
-  `ImmutableBoundLookup::new` walks every machine, state, parameter and
-  local in the program and fills four `HashMap`s. `checks/borrows/overlap/
-  premises.rs` constructs one at each of two premise sites,
-  `checks/ranges/incoming_guards.rs` at `immutable_argument_symbol`, and
-  `checks/ranges/facts/dependencies/captures.rs` at
-  `integer_value_identity` -- so it is rebuilt per borrow-overlap premise
-  and per bound leaf, reached from `check_flow_call_borrows`. Its own
-  construction is what drives most of `machine_states` and
-  `state_parameters` above. Together with the hashing that fills it, that
-  is over half the non-idle profile.
-
-  That index is **CHECK-BOUND-LOOKUP-INDEX**'s work in flight (claimed by
-  `Devin / leaf/check-bound-lookup-index`, whose note says "one shared
-  lookup index"); the index exists but is not yet threaded through its
-  callers. Hoisting one construction per checking pass is that row's to
-  land, not this one's, and it is the largest single win available to
-  either. Re-measure here afterwards: the leaves this row can still own
-  are the symbol-table and place-resolution lookups below it.
-
-  Acceptance: `omega --check` of that sample checks the library once per
-  invocation, and an owner test compiles its fixture without a second
-  whole-program check of the library. `--timings` already prints the
-  per-pass and per-package review lines.
+  Acceptance: `omega --check --timings samples/cli/basics/print_squares/main.omg`
+  plus an owner regression proves one actual whole-program library check per
+  invocation. Use existing per-package/pass compilation, carry, frontier-reuse
+  and check timing counters; distinguish memo requests from executed checks.
+  Changed sources or authority must still revalidate. Profile residual costs
+  against that current route rather than treating historical timings as a gate.
 
 ## Automatic service reach
 
