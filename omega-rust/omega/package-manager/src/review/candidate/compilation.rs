@@ -359,6 +359,7 @@ fn compile_candidate_for_check(
         reviews,
         checked_root,
         occurrences: _,
+        carried: _,
     } = compiled;
     checked_root
         .map(|checked| (*checked, reviews))
@@ -481,8 +482,9 @@ fn compile_candidate(
 
 /// Run one review pass, then attribute its checked work beside the pass's
 /// stage line when review timings are enabled: how many occurrences it
-/// holds, how many it actually compiled, and how many typed frontiers a
-/// later occurrence reused instead of re-assembling identical source.
+/// holds, how many it actually compiled, how many a prior pass's identical
+/// compile carried forward untouched, and how many typed frontiers a later
+/// occurrence reused instead of re-assembling identical source.
 fn note_pass_accounting(
     pass: &'static str,
     run: impl FnOnce() -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError>,
@@ -491,9 +493,10 @@ fn note_pass_accounting(
     let frontiers_before = compiler::typed_frontier_reuse_count();
     let result = run()?;
     let occurrences = result.occurrences.len();
+    let carried = result.carried;
     timings::note(|| {
         format!(
-            "review_pass {pass} occurrences={occurrences} compiled={} frontier_reused={}",
+            "review_pass {pass} occurrences={occurrences} compiled={} carried={carried} frontier_reused={}",
             compiler::checked_compilation_call_count() - compilations_before,
             compiler::typed_frontier_reuse_count() - frontiers_before,
         )
