@@ -2303,23 +2303,6 @@ syntax and other terminal services are not prerequisites.
   supply reject; legitimate issuance and identity-preserving transfers succeed
   without re-minting capacity.
 
-- **NATIVE-WRAPPER-ENCODING-AARCH64.** (new-scope) Reconcile wrapper selection
-  with the target-authored [entry contracts](wiki/spec/build/entry_roots.md).
-  `select_optimized_program_storage_semantic_wrapper_encoding` currently
-  selects the x86-64 template; its recipe assumes the UEFI indirect Extent
-  arrival and caller-owned copies. AArch64 declarations instead use register
-  fragments, and current AArch64 profiles expose hosted entry, not
-  ProgramStorage entry. Do not assume they need the UEFI wrapper.
-  Verify the shipped Linux and macOS AArch64 profiles through their hosted
-  bridges. Add a separate wrapper only if an actual authored profile requires
-  it; do not invent a profile to justify an encoder. If needed, preserve the
-  authored value-register arrival and continuation with architecture-correct
-  branch relocation and independent substitution checks. If no profile needs
-  it, keep the UEFI recipe target-specific and pin rejection of incompatible
-  recipe/plan combinations. Acceptance is that reconciliation and the matching
-  profile controls, not an owner decision or a mandatory peer encoding.
-  AArch64 hosted execution remains with the native matrix owners.
-
 ## P2 - Materialization and placed access
 
 - **PLAN-LAID-VIEWS.** Complete executable placed-view establishment, access
