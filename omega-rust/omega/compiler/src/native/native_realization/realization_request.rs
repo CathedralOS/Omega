@@ -74,7 +74,7 @@ pub struct NativeRealizationRequest<'request> {
     /// for a production that carried none. A requested physical-authority
     /// absence is adjudicated against the admitted mechanism closure whether
     /// or not the request carries a receiver permission policy.
-    pub behavior_exclusions: &'request build_evaluation::BehaviorExclusions,
+    pub behavior_exclusions: &'request effects::BehaviorExclusions,
 }
 
 /// Source-free native result selected by the exact object-bound image request.

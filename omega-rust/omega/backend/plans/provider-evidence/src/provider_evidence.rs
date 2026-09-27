@@ -3,8 +3,8 @@
 //! digest. The retained evidence beside it: `providers` records provider
 //! plans, approvals and boundary-call audits; `authority` the terminal
 //! authority dispositions and service permissions; `executable_scopes` the
-//! executable bytes and services admitted into a scope; `component_eras` the
-//! era ledger and progress manifests.
+//! executable bytes, services and behavior exclusions admitted into a scope;
+//! `component_eras` the era ledger and progress manifests.
 
 pub(crate) mod authority;
 pub(crate) mod component_eras;

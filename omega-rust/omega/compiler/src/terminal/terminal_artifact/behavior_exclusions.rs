@@ -20,11 +20,12 @@
 //! converted into the other.
 
 use crate::checked::CheckedCompilation;
-use build_evaluation::{
-    AuthoredBehaviorExclusion, BehaviorExclusionReport, BehaviorExclusionVerdict, EvidenceGapKind,
-    ProhibitedSite, authored_behavior_exclusion_set_in, establish_behavior_exclusions_with_owners,
-};
+use build_evaluation::{AuthoredBehaviorExclusion, authored_behavior_exclusion_set_in};
 use diagnostics::Diagnostic;
+use effects::{
+    BehaviorExclusionReport, BehaviorExclusionVerdict, EvidenceGapKind, ProhibitedSite,
+    establish_behavior_exclusions_with_owners,
+};
 use semantic_vocabulary::MachineId;
 use std::collections::BTreeMap;
 
@@ -286,7 +287,7 @@ fn verify_module_behavior_exclusions(
 pub(crate) fn boundary_service_owners(
     checked: &CheckedCompilation,
     module: &terminal_psi::TerminalModule,
-) -> build_evaluation::BoundaryServiceOwners {
+) -> effects::BoundaryServiceOwners {
     let mut owning_service: BTreeMap<String, String> = BTreeMap::new();
     for definition in checked
         .typed
@@ -304,7 +305,7 @@ pub(crate) fn boundary_service_owners(
             );
         }
     }
-    build_evaluation::BoundaryServiceOwners::from_module(module, &|boundary_identity| {
+    effects::BoundaryServiceOwners::from_module(module, &|boundary_identity| {
         owning_service.get(boundary_identity).cloned()
     })
 }
@@ -394,13 +395,13 @@ fn behavior_exclusion_diagnostics(
 
 fn describe_exclusion(
     module: &terminal_psi::TerminalModule,
-    exclusion: build_evaluation::BehaviorExclusion,
+    exclusion: effects::BehaviorExclusion,
 ) -> String {
     match exclusion {
-        build_evaluation::BehaviorExclusion::CrashCause(cause) => {
+        effects::BehaviorExclusion::CrashCause(cause) => {
             format!("crash cause {cause:?}")
         }
-        build_evaluation::BehaviorExclusion::Service(service) => {
+        effects::BehaviorExclusion::Service(service) => {
             match module
                 .services
                 .iter()
@@ -413,7 +414,7 @@ fn describe_exclusion(
         // A physical-class selection is a demand on the mechanism closure:
         // this walk never yields a prohibited site for it, but the arm keeps
         // the description total if one is ever named.
-        build_evaluation::BehaviorExclusion::PhysicalAuthorityClass(class) => {
+        effects::BehaviorExclusion::PhysicalAuthorityClass(class) => {
             format!("physical authority class {class:?}")
         }
     }

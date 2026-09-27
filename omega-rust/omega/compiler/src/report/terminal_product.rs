@@ -203,7 +203,7 @@ pub struct TerminalNativeRealizationProposal {
     /// producing build required. It is retained beside the artifact so a
     /// source-free consumer replays the identical absence policy against the
     /// committed semantic subject; it grants no exclusion authority itself.
-    behavior_exclusions: build_evaluation::BehaviorExclusions,
+    behavior_exclusions: effects::BehaviorExclusions,
 }
 
 /// Everything a Terminal native realization proposal is built from besides
@@ -236,7 +236,7 @@ pub struct TerminalNativeRealizationInputs {
         boundary_applications::TerminalBoundaryApplicationRealizations,
     pub checked_boundary_operator_scope:
         lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
-    pub behavior_exclusions: build_evaluation::BehaviorExclusions,
+    pub behavior_exclusions: effects::BehaviorExclusions,
 }
 
 impl TerminalNativeRealizationProposal {
@@ -421,7 +421,7 @@ impl TerminalNativeRealizationProposal {
         // the bounded entry/call closure the walk enforces; their
         // adjudication waits for the mechanism-closure review at native
         // realization, which consumes this same retained union.
-        match build_evaluation::establish_behavior_exclusions(
+        match effects::establish_behavior_exclusions(
             &module,
             &[module.entry],
             &self.behavior_exclusions,
@@ -429,13 +429,13 @@ impl TerminalNativeRealizationProposal {
         )
         .verdict()
         {
-            build_evaluation::BehaviorExclusionVerdict::Satisfied => {}
-            build_evaluation::BehaviorExclusionVerdict::Prohibited => {
+            effects::BehaviorExclusionVerdict::Satisfied => {}
+            effects::BehaviorExclusionVerdict::Prohibited => {
                 return Err(
                     "Terminal native proposal retains a possible behavior its authored exclusions prohibit",
                 );
             }
-            build_evaluation::BehaviorExclusionVerdict::InsufficientEvidence => {
+            effects::BehaviorExclusionVerdict::InsufficientEvidence => {
                 return Err(
                     "Terminal native proposal cannot establish the absence its authored exclusions require",
                 );
@@ -841,7 +841,7 @@ impl TerminalNativeRealizationProposal {
     /// Physical-authority-class rows are retained for realization: native
     /// realization adjudicates them against the mechanism-closure review
     /// even when the request supplies no receiving permission policy.
-    pub const fn behavior_exclusions(&self) -> &build_evaluation::BehaviorExclusions {
+    pub const fn behavior_exclusions(&self) -> &effects::BehaviorExclusions {
         &self.behavior_exclusions
     }
 

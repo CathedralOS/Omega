@@ -631,6 +631,7 @@ dependencies = [
  "sha2",
  "symbols",
  "target",
+ "terminal-psi",
  "typed-trees",
 ]
 

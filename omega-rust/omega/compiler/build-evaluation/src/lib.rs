@@ -67,11 +67,8 @@ pub mod test_support;
 mod tests;
 
 pub use admission::behavior_exclusions::{
-    AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind, BehaviorExclusion,
-    BehaviorExclusionReport, BehaviorExclusionVerdict, BehaviorExclusions, BoundaryServiceOwners,
-    EvidenceGap, EvidenceGapKind, ProhibitedBehavior, ProhibitedSite,
-    authored_behavior_exclusion_set, authored_behavior_exclusion_set_in,
-    establish_behavior_exclusions, establish_behavior_exclusions_with_owners,
+    AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind, authored_behavior_exclusion_set,
+    authored_behavior_exclusion_set_in,
 };
 pub use admission::component_assumptions::{
     AuthoredComponentAssumptionAcceptance, harvest_component_assumption_acceptances,
