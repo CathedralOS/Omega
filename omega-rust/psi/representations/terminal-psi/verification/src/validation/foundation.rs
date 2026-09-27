@@ -155,10 +155,9 @@ pub(crate) fn view_extent_leaf_has_extent(
 }
 
 fn validate_structural_fields(
-    module: &TerminalModule,
     structural_type: StructuralTypeId,
     fields: &[terminal_psi::StructuralFieldDeclaration],
-    permit_provider_attachment: bool,
+    is_provider_attachment: bool,
 ) -> Result<(), ModuleError> {
     let mut field_ids = BTreeSet::new();
     let mut field_names = BTreeSet::new();
@@ -172,11 +171,6 @@ fn validate_structural_fields(
                 field: field.id,
             });
         }
-        let is_provider_attachment = permit_provider_attachment
-            && module
-                .machines
-                .iter()
-                .any(|machine| machine.attachment == Some(structural_type));
         match &field.field_type {
             StructuralFieldType::Erased { type_identity } if type_identity.is_empty() => {
                 return Err(ModuleError::InvalidErasedStructuralField {
@@ -210,7 +204,6 @@ fn validate_structural_fields(
 }
 
 fn validate_structural_cases(
-    module: &TerminalModule,
     structural_type: StructuralTypeId,
     cases: &[terminal_psi::StructuralCaseDeclaration],
 ) -> Result<(), ModuleError> {
@@ -229,7 +222,7 @@ fn validate_structural_cases(
                 case: case.id,
             });
         }
-        validate_structural_fields(module, structural_type, &case.fields, false)?;
+        validate_structural_fields(structural_type, &case.fields, false)?;
     }
     Ok(())
 }

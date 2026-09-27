@@ -64,8 +64,20 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
         "boundary machine identity",
     )?;
 
+    let types = module
+        .structural_types
+        .iter()
+        .map(|declaration| (declaration.id, declaration))
+        .collect();
+    let attachment_storage = structural_type_foundations::attachment_storage_types(
+        &types,
+        module
+            .machines
+            .iter()
+            .filter_map(|machine| machine.attachment),
+    );
     for declaration in &module.structural_types {
-        structural_type_foundations::validate_type_shape(module, declaration)?;
+        structural_type_foundations::validate_type_shape(module, declaration, &attachment_storage)?;
     }
     validate_structural_type_graph(module)?;
     declaration_foundations::validate_domains(module)?;

@@ -3,6 +3,8 @@
 
 use super::{has_structural_type, require_unique_nonempty_identities};
 use crate::codec_error::{CodecError, malformed};
+use semantic_vocabulary::StructuralTypeId;
+use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::StructuralTypeDeclaration;
 use terminal_psi::{StructuralFieldType, StructuralTypeShape, TerminalModule};
 
@@ -12,6 +14,7 @@ use terminal_psi::{StructuralFieldType, StructuralTypeShape, TerminalModule};
 pub(super) fn validate_type_shape(
     module: &TerminalModule,
     declaration: &StructuralTypeDeclaration,
+    attachment_storage: &BTreeSet<StructuralTypeId>,
 ) -> Result<(), CodecError> {
     match &declaration.shape {
         StructuralTypeShape::Reference { referent, access } => {
@@ -47,10 +50,7 @@ pub(super) fn validate_type_shape(
                     }
                     StructuralFieldType::Erased { .. }
                         if !field.relevance.is_erased()
-                            && !module
-                                .machines
-                                .iter()
-                                .any(|machine| machine.attachment == Some(declaration.id)) =>
+                            && !attachment_storage.contains(&declaration.id) =>
                     {
                         return malformed(
                             "provider-backed attachment specialization is incomplete",
@@ -177,4 +177,52 @@ pub(super) fn validate_type_shape(
         }
     }
     Ok(())
+}
+
+/// Receiver storage retains nested provider declarations even when no method
+/// on the nested record is demanded. This closure admits declarations only:
+/// provider roots and calls must still join the calling machine's exact,
+/// direct attachment. References and views do not contain receiver storage.
+pub(super) fn attachment_storage_types(
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    attachments: impl Iterator<Item = StructuralTypeId>,
+) -> BTreeSet<StructuralTypeId> {
+    use terminal_psi::{StructuralFieldType, StructuralTypeShape};
+    let mut pending: Vec<_> = attachments.collect();
+    let mut storage = BTreeSet::new();
+    while let Some(identity) = pending.pop() {
+        if !storage.insert(identity) {
+            continue;
+        }
+        let Some(declaration) = types.get(&identity) else {
+            // Ordinary graph and attachment validation reject unknown types.
+            continue;
+        };
+        let mut retain_fields = |fields: &[terminal_psi::StructuralFieldDeclaration]| {
+            pending.extend(fields.iter().filter_map(|field| match field.field_type {
+                StructuralFieldType::Structural(child) => Some(child),
+                _ => None,
+            }));
+        };
+        match &declaration.shape {
+            StructuralTypeShape::Record { fields } => retain_fields(fields),
+            StructuralTypeShape::Mixed { fields, cases } => {
+                retain_fields(fields);
+                for case in cases {
+                    retain_fields(&case.fields);
+                }
+            }
+            StructuralTypeShape::Sum { cases } => {
+                for case in cases {
+                    retain_fields(&case.fields);
+                }
+            }
+            StructuralTypeShape::FixedArray { element, .. } => pending.push(*element),
+            StructuralTypeShape::PrimitiveScalar(_)
+            | StructuralTypeShape::ByteSequence(_)
+            | StructuralTypeShape::Reference { .. }
+            | StructuralTypeShape::ElementView { .. } => {}
+        }
+    }
+    storage
 }

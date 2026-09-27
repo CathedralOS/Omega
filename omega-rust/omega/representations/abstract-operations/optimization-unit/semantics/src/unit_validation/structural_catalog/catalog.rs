@@ -1,7 +1,8 @@
 use crate::OptimizationUnitValidationError;
 use crate::unit_validation::structural_catalog::content_projection::validate_structural_content_projection;
 use crate::unit_validation::structural_catalog::type_declarations::{
-    validate_structural_cases, validate_structural_fields, validate_structural_type_graph,
+    attachment_storage_types, validate_structural_cases, validate_structural_fields,
+    validate_structural_type_graph,
 };
 use optimization_unit::PsiOptimizationUnit;
 use semantic_vocabulary::{StructuralDomainId, StructuralTypeId};
@@ -34,6 +35,12 @@ pub(super) fn index_structural_types(
     {
         return Err(OptimizationUnitValidationError::NonCanonicalStructuralTypeOrder);
     }
+    let attachment_storage = attachment_storage_types(
+        &types,
+        unit.functions
+            .iter()
+            .filter_map(|function| function.attachment),
+    );
     for declaration in &unit.structural_types {
         match &declaration.shape {
             // A reference carrier holds loan permission, not referent
@@ -53,14 +60,19 @@ pub(super) fn index_structural_types(
             terminal_psi::StructuralTypeShape::FixedArray { .. } => {}
             terminal_psi::StructuralTypeShape::ElementView { .. } => {}
             terminal_psi::StructuralTypeShape::Record { fields } => {
-                validate_structural_fields(unit, declaration.id, None, fields, true)?;
+                validate_structural_fields(
+                    declaration.id,
+                    None,
+                    fields,
+                    attachment_storage.contains(&declaration.id),
+                )?;
             }
             terminal_psi::StructuralTypeShape::Sum { cases } => {
-                validate_structural_cases(unit, declaration.id, cases)?;
+                validate_structural_cases(declaration.id, cases)?;
             }
             terminal_psi::StructuralTypeShape::Mixed { fields, cases } => {
-                validate_structural_fields(unit, declaration.id, None, fields, false)?;
-                validate_structural_cases(unit, declaration.id, cases)?;
+                validate_structural_fields(declaration.id, None, fields, false)?;
+                validate_structural_cases(declaration.id, cases)?;
             }
         }
     }

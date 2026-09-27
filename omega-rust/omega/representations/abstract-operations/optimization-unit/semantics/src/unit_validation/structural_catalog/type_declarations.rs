@@ -1,14 +1,12 @@
 use crate::OptimizationUnitValidationError;
-use optimization_unit::PsiOptimizationUnit;
 use semantic_vocabulary::StructuralTypeId;
 use std::collections::{BTreeMap, BTreeSet};
 
 pub(crate) fn validate_structural_fields(
-    unit: &PsiOptimizationUnit,
     structural_type: StructuralTypeId,
     case: Option<semantic_vocabulary::StructuralCaseId>,
     fields: &[terminal_psi::StructuralFieldDeclaration],
-    permit_provider_attachment: bool,
+    has_provider_attachment: bool,
 ) -> Result<(), OptimizationUnitValidationError> {
     if fields.windows(2).any(|pair| pair[0].id >= pair[1].id) {
         return Err(
@@ -21,11 +19,6 @@ pub(crate) fn validate_structural_fields(
     // An unused provider field retains its declaration and attachment, but
     // contributes no provider root. Function validation separately rejoins
     // each used field's specialization roots to its exact boundary calls.
-    let has_provider_attachment = permit_provider_attachment
-        && unit
-            .functions
-            .iter()
-            .any(|function| function.attachment == Some(structural_type));
     let mut identities = BTreeSet::new();
     for field in fields {
         if field.identity.is_empty() || !identities.insert(field.identity.as_str()) {
@@ -83,7 +76,6 @@ pub(crate) fn validate_structural_fields(
 }
 
 pub(crate) fn validate_structural_cases(
-    unit: &PsiOptimizationUnit,
     structural_type: StructuralTypeId,
     cases: &[terminal_psi::StructuralCaseDeclaration],
 ) -> Result<(), OptimizationUnitValidationError> {
@@ -109,7 +101,7 @@ pub(crate) fn validate_structural_cases(
         }
     }
     for case in cases {
-        validate_structural_fields(unit, structural_type, Some(case.id), &case.fields, false)?;
+        validate_structural_fields(structural_type, Some(case.id), &case.fields, false)?;
     }
     Ok(())
 }
@@ -179,4 +171,52 @@ pub(crate) fn validate_structural_type_graph(
         visit(id, types, &mut active, &mut complete)?;
     }
     Ok(())
+}
+
+/// Receiver storage retains nested provider declarations even when no method
+/// on the nested record is demanded. This closure admits declarations only:
+/// provider roots and calls must still join the calling machine's exact,
+/// direct attachment. References and views do not contain receiver storage.
+pub(super) fn attachment_storage_types(
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    attachments: impl Iterator<Item = StructuralTypeId>,
+) -> BTreeSet<StructuralTypeId> {
+    use terminal_psi::{StructuralFieldType, StructuralTypeShape};
+    let mut pending: Vec<_> = attachments.collect();
+    let mut storage = BTreeSet::new();
+    while let Some(identity) = pending.pop() {
+        if !storage.insert(identity) {
+            continue;
+        }
+        let Some(declaration) = types.get(&identity) else {
+            // Ordinary graph and attachment validation reject unknown types.
+            continue;
+        };
+        let mut retain_fields = |fields: &[terminal_psi::StructuralFieldDeclaration]| {
+            pending.extend(fields.iter().filter_map(|field| match field.field_type {
+                StructuralFieldType::Structural(child) => Some(child),
+                _ => None,
+            }));
+        };
+        match &declaration.shape {
+            StructuralTypeShape::Record { fields } => retain_fields(fields),
+            StructuralTypeShape::Mixed { fields, cases } => {
+                retain_fields(fields);
+                for case in cases {
+                    retain_fields(&case.fields);
+                }
+            }
+            StructuralTypeShape::Sum { cases } => {
+                for case in cases {
+                    retain_fields(&case.fields);
+                }
+            }
+            StructuralTypeShape::FixedArray { element, .. } => pending.push(*element),
+            StructuralTypeShape::PrimitiveScalar(_)
+            | StructuralTypeShape::ByteSequence(_)
+            | StructuralTypeShape::Reference { .. }
+            | StructuralTypeShape::ElementView { .. } => {}
+        }
+    }
+    storage
 }
