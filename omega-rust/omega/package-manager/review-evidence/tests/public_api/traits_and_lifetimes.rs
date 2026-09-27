@@ -109,7 +109,7 @@ pub boundary trait Binding<Value>: Parent<Value> {
         panic!("one exact requirement row")
     };
     assert!(exchange.identity().path().starts_with("named-callable("));
-    assert!(exchange.identity().path().contains("Service::exchange"));
+    assert!(exchange.identity().path().contains("Binding::exchange"));
     assert!(exchange.spelling().is_none());
     assert!(exchange.type_parameters().is_empty());
     let [receiver, item] = exchange.parameters() else {
