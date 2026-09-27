@@ -461,11 +461,12 @@ impl Builder<'_, '_> {
         } else {
             (*landed_left, *landed_right)
         };
-        let primitive_type = scalar_expression_type(&left.value)?;
+        let left_type = scalar_expression_type(&left.value)?;
+        let right_type = scalar_expression_type(&right.value)?;
         let template = construct_integer_comparison(
             binary.operator,
-            parameter(0, primitive_type),
-            parameter(1, primitive_type),
+            parameter(0, left_type),
+            parameter(1, right_type),
         )?;
         let left = self.materialize_integer(left)?;
         let right = self.materialize_integer(right)?;

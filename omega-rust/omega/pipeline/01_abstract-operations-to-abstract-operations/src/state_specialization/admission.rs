@@ -253,6 +253,14 @@ fn comparison_operands(
         };
         Some((*value, *integer_type))
     })?;
+    // This optional specialization records one homogeneous bound carrier.
+    // Retain mixed comparisons for the general exact-value execution path.
+    if !block.parameters.iter().any(|declaration| {
+        declaration.value == parameter
+            && declaration.scalar_type == ScalarType::Integer(integer_type)
+    }) {
+        return None;
+    }
     Some((
         parameter,
         DispatchCondition::IntegerComparison {

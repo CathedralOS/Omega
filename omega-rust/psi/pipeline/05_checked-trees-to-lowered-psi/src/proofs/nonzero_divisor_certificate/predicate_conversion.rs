@@ -2,8 +2,10 @@
 //! Published goals and premise slots never change: normalized citations are
 //! backed by original citations under a checked PredicateDenotation step.
 
-use proof_admission::{ProofNode, ProofRule, check_predicate_denotations};
-use semantic_vocabulary::{Proposition, PropositionContext, ValueId};
+use proof_admission::{
+    ProofNode, ProofRule, check_predicate_denotations, check_value_equality_denotation,
+};
+use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, ValueId};
 use std::collections::BTreeSet;
 
 pub(super) fn prove(
@@ -15,20 +17,65 @@ pub(super) fn prove(
 ) -> Option<ProofNode> {
     let converted =
         check_predicate_denotations(context, goal, assumptions, semantic_axioms).ok()?;
-    if converted.goal() == goal
-        && converted.requirements() == assumptions
-        && converted.semantic_axioms() == semantic_axioms
-    {
+    let equations = semantic_axioms
+        .iter()
+        .enumerate()
+        .filter_map(|(index, proposition)| {
+            matches!(proposition, Proposition::Equal(ScalarTerm::Value { .. }, _)).then_some(
+                ProofNode {
+                    conclusion: proposition.clone(),
+                    rule: ProofRule::SemanticAxiom { index },
+                },
+            )
+        })
+        .collect::<Vec<_>>();
+    let contextualize = |proposition: &Proposition| {
+        if !equations.is_empty()
+            && matches!(
+                proposition,
+                Proposition::IntegerMathEqual(..)
+                    | Proposition::IntegerMathLessThan(..)
+                    | Proposition::IntegerMathLessOrEqual(..)
+            )
+        {
+            check_value_equality_denotation(
+                context,
+                proposition,
+                equations.iter().map(|proof| &proof.conclusion),
+            )
+            .ok()
+            .unwrap_or_else(|| proposition.clone())
+        } else {
+            proposition.clone()
+        }
+    };
+    let requirements = converted
+        .requirements()
+        .iter()
+        .map(contextualize)
+        .collect::<Vec<_>>();
+    let axioms = converted
+        .semantic_axioms()
+        .iter()
+        .map(contextualize)
+        .collect::<Vec<_>>();
+    if converted.goal() == goal && requirements == assumptions && axioms == semantic_axioms {
         return None;
     }
     let mut proof = super::integer_selection::build_with_machine_parameters(
         context,
         converted.goal(),
-        converted.requirements(),
-        converted.semantic_axioms(),
+        &requirements,
+        &axioms,
         machine_parameters,
     )?;
-    retain_original_citations(&mut proof, assumptions, semantic_axioms)?;
+    retain_original_citations(
+        &mut proof,
+        context,
+        assumptions,
+        semantic_axioms,
+        &equations,
+    )?;
     Some(if &proof.conclusion == goal {
         proof
     } else {
@@ -43,8 +90,10 @@ pub(super) fn prove(
 
 fn retain_original_citations(
     proof: &mut ProofNode,
+    context: &PropositionContext,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
+    equations: &[ProofNode],
 ) -> Option<()> {
     let mut pending = vec![proof];
     let mut remaining = 4096usize;
@@ -61,9 +110,26 @@ fn retain_original_citations(
                     conclusion: original.clone(),
                     rule: proof.rule.clone(),
                 };
-                proof.rule = ProofRule::PredicateDenotation {
-                    premise: Box::new(premise),
-                };
+                let denotation = check_predicate_denotations(context, original, &[], &[]).ok()?;
+                if denotation.goal() == &proof.conclusion {
+                    proof.rule = ProofRule::PredicateDenotation {
+                        premise: Box::new(premise),
+                    };
+                } else {
+                    let transported = check_value_equality_denotation(
+                        context,
+                        original,
+                        equations.iter().map(|proof| &proof.conclusion),
+                    )
+                    .ok()?;
+                    if transported != proof.conclusion {
+                        return None;
+                    }
+                    proof.rule = ProofRule::ValueEqualityTransport {
+                        premise: Box::new(premise),
+                        equalities: equations.to_vec(),
+                    };
+                }
             }
             continue;
         }

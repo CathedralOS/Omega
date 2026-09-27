@@ -120,10 +120,12 @@ fn integer_equality_is_typed_and_reduces_closed_terms() {
 
     let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
     let signed = ScalarTerm::integer(i8_type, IntegerValue::Signed(-1)).unwrap();
-    assert!(matches!(
-        ScalarTerm::integer_equal(u8_type, integer(255), signed),
-        Err(PropositionError::IntegerEqualTypeMismatch { .. })
-    ));
+    assert_eq!(
+        ScalarTerm::integer_equal(u8_type, integer(255), signed)
+            .unwrap()
+            .boolean_value(),
+        Some(false)
+    );
 }
 
 #[test]
@@ -147,10 +149,12 @@ fn integer_ordering_is_typed_and_respects_signedness() {
             .boolean_value(),
         Some(true)
     );
-    assert!(matches!(
-        ScalarTerm::integer_less_than(u8_type, unsigned(1), signed(-1)),
-        Err(PropositionError::IntegerOperandTypeMismatch { .. })
-    ));
+    assert_eq!(
+        ScalarTerm::integer_less_than(u8_type, unsigned(1), signed(-1))
+            .unwrap()
+            .boolean_value(),
+        Some(false)
+    );
 }
 
 #[test]
@@ -897,5 +901,93 @@ fn saturating_multiply_clamps_at_declared_signed_and_unsigned_bounds() {
     assert_eq!(
         i128_type.saturating_mul(IntegerValue::Signed(i128::MIN), IntegerValue::Signed(-1),),
         Some(IntegerValue::Signed(i128::MAX))
+    );
+}
+
+#[test]
+fn mixed_integer_comparisons_preserve_both_carriers_and_mathematical_values() {
+    use std::cmp::Ordering;
+    let signed = IntegerType::new(IntegerSign::Signed, 64).unwrap();
+    let unsigned = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    for (left, right, expected) in [
+        (-1, 10, Ordering::Less),
+        (-1, u64::MAX as u128, Ordering::Less),
+        (0, 0, Ordering::Equal),
+        (10, 10, Ordering::Equal),
+        (10, 9, Ordering::Greater),
+        (i64::MAX as i128, u64::MAX as u128, Ordering::Less),
+    ] {
+        let left = IntegerValue::Signed(left);
+        let right = IntegerValue::Unsigned(right);
+        assert_eq!(signed.compare_with(left, unsigned, right), Some(expected));
+        assert_eq!(
+            unsigned.compare_with(right, signed, left),
+            Some(expected.reverse())
+        );
+        let left = ScalarTerm::integer(signed, left).unwrap();
+        let right = ScalarTerm::integer(unsigned, right).unwrap();
+        for (term, value) in [
+            (
+                ScalarTerm::integer_equal(signed, left.clone(), right.clone()).unwrap(),
+                expected.is_eq(),
+            ),
+            (
+                ScalarTerm::integer_less_than(signed, left.clone(), right.clone()).unwrap(),
+                expected.is_lt(),
+            ),
+            (
+                ScalarTerm::integer_less_or_equal(signed, left, right).unwrap(),
+                !expected.is_gt(),
+            ),
+        ] {
+            assert!(term.validate().is_ok());
+            assert_eq!(term.boolean_value(), Some(value));
+        }
+    }
+    let narrow = IntegerType::new(IntegerSign::Signed, 8).unwrap();
+    assert_eq!(
+        narrow.compare_with(
+            IntegerValue::Signed(128),
+            unsigned,
+            IntegerValue::Unsigned(0)
+        ),
+        None
+    );
+    assert_eq!(
+        signed.compare_with(
+            IntegerValue::Unsigned(1),
+            unsigned,
+            IntegerValue::Unsigned(1)
+        ),
+        None
+    );
+    let left = ScalarTerm::value(ValueId::new(1).unwrap(), ScalarType::Integer(signed));
+    let right = ScalarTerm::value(ValueId::new(2).unwrap(), ScalarType::Integer(unsigned));
+    assert!(ScalarTerm::integer_less_than(unsigned, left.clone(), right.clone()).is_err());
+    assert!(ScalarTerm::integer_equal(signed, left.clone(), ScalarTerm::Boolean(false)).is_err());
+    let forged = ScalarTerm::IntegerLessThan {
+        scalar_type: unsigned,
+        left: Box::new(left.clone()),
+        right: Box::new(right.clone()),
+    };
+    assert!(forged.validate().is_err());
+    let comparison = ScalarTerm::integer_less_than(signed, left, right).unwrap();
+    let context = PropositionContext::from_value_types([
+        (ValueId::new(1).unwrap(), ScalarType::Integer(signed)),
+        (ValueId::new(2).unwrap(), ScalarType::Integer(unsigned)),
+    ])
+    .unwrap();
+    context
+        .validate(&comparison.mathematical_comparison(true).unwrap())
+        .unwrap();
+    let forged_context = PropositionContext::from_value_types([
+        (ValueId::new(1).unwrap(), ScalarType::Integer(signed)),
+        (ValueId::new(2).unwrap(), ScalarType::Integer(signed)),
+    ])
+    .unwrap();
+    assert!(
+        forged_context
+            .validate(&comparison.mathematical_comparison(true).unwrap())
+            .is_err()
     );
 }

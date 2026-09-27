@@ -6,19 +6,17 @@
 
 use super::structural_equality;
 use super::structural_paths::{path_primitive_type, path_type_reference};
+use crate::values::scalar::boolean_lowering::construct_integer_comparison;
 use crate::values::scalar::expression_facts::{
     checked_integer_binary_kind, combine_arithmetic_domains, is_integer, operator_is_builtin,
     parameter_position, scalar_expression_type,
 };
-use crate::values::scalar::scalar_lowering::landed_for_primitive;
 use crate::values::scalar::structural_fields::{structural_data, structural_parameter_field_path};
 use checked_trees::{
     CheckedBooleanExpression, CheckedIeeeFloatComparisonKind, CheckedIntegerBinaryKind,
-    CheckedIntegerComparisonKind, CheckedOperatorFacts, CheckedScalarExpression,
-    CheckedStructuralParameterField,
+    CheckedOperatorFacts, CheckedScalarExpression, CheckedStructuralParameterField,
 };
 use numerics::arithmetic::ArithmeticDomain;
-use numerics::literals::IntegerLanding;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::signature::StateParameter;
@@ -158,95 +156,27 @@ pub(super) fn lower(
                 };
                 return Some(comparison);
             }
-            let integer_operands = (|| {
-                let left = lower_structural_integer_expression(
+            let integer_comparison = (|| {
+                let (left, _) = lower_structural_integer_expression(
                     program,
                     operators,
                     parameters,
                     binary.left,
-                );
-                let right = lower_structural_integer_expression(
+                )?;
+                let (right, _) = lower_structural_integer_expression(
                     program,
                     operators,
                     parameters,
                     binary.right,
-                );
-                let contextual_literal =
-                    |expression: ExpressionHandle,
-                     primitive_type: PrimitiveType|
-                     -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
-                        let ExpressionNode::Integer(literal) =
-                            program.expression_table.expression(expression)
-                        else {
-                            return None;
-                        };
-                        literal.landing().is_none().then(|| {
-                            (
-                                CheckedScalarExpression::IntegerLiteral {
-                                    literal: literal.with_landing(IntegerLanding {
-                                        landed_type: landed_for_primitive(primitive_type)
-                                            .expect("fixed integer comparison context lands"),
-                                        domain: ArithmeticDomain::Exact,
-                                    }),
-                                },
-                                ArithmeticDomain::Exact,
-                            )
-                        })
-                    };
-                let mut left = left?;
-                let mut right = right?;
-                match (
-                    scalar_expression_type(&left.0),
-                    scalar_expression_type(&right.0),
-                ) {
-                    (None, Some(primitive_type)) => {
-                        left = contextual_literal(binary.left, primitive_type)?;
-                    }
-                    (Some(primitive_type), None) => {
-                        right = contextual_literal(binary.right, primitive_type)?;
-                    }
-                    (Some(_), Some(_)) => {}
-                    (None, None) => return None,
-                }
-                let left = left.0;
-                let right = right.0;
-                let left_type = scalar_expression_type(&left)?;
-                (is_integer(left_type) && scalar_expression_type(&right)? == left_type)
-                    .then_some((left, right))
+                )?;
+                construct_integer_comparison(binary.operator, left, right)
             })();
             if !matches!(
                 binary.operator,
                 BinaryOperator::Equal | BinaryOperator::NotEqual
-            ) || integer_operands.is_some()
+            ) || integer_comparison.is_some()
             {
-                let (mut left, mut right) = integer_operands?;
-                let (kind, negated) = match binary.operator {
-                    BinaryOperator::Equal => (CheckedIntegerComparisonKind::Equal, false),
-                    BinaryOperator::NotEqual => (CheckedIntegerComparisonKind::Equal, true),
-                    BinaryOperator::Less => (CheckedIntegerComparisonKind::LessThan, false),
-                    BinaryOperator::LessOrEqual => {
-                        (CheckedIntegerComparisonKind::LessOrEqual, false)
-                    }
-                    BinaryOperator::Greater => {
-                        std::mem::swap(&mut left, &mut right);
-                        (CheckedIntegerComparisonKind::LessThan, false)
-                    }
-                    BinaryOperator::GreaterOrEqual => {
-                        std::mem::swap(&mut left, &mut right);
-                        (CheckedIntegerComparisonKind::LessOrEqual, false)
-                    }
-                    _ => return None,
-                };
-                let comparison = CheckedBooleanExpression::IntegerComparison {
-                    kind,
-                    left: Box::new(left),
-                    right: Box::new(right),
-                };
-                return Some(if negated {
-                    CheckedBooleanExpression::Not(Box::new(comparison))
-                } else {
-                    comparison
-                });
+                return integer_comparison;
             }
             let equality = CheckedBooleanExpression::Equal {
                 left: Box::new(lower(program, machine, operators, parameters, binary.left)?),

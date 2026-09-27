@@ -10,6 +10,7 @@ name = "checked_interpreter"
 path = "src/lib.rs"
 
 [dependencies]
+semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
 arena = { path = "../../foundation/arena" }
 symbols = { path = "../../foundation/symbols" }
 language-core = { path = "../../foundation/language-core" }

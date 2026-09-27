@@ -48,6 +48,7 @@ fn operation_plan() -> LegalizedOperationPlan {
             LegalizedScalarInstructionKind::Compare {
                 predicate: LegalizedScalarComparison::Equal,
                 operand_type: ScalarType::Integer(wide),
+                right_operand_type: ScalarType::Integer(wide),
                 left: id(203),
                 right: id(203),
             },

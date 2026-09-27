@@ -192,6 +192,36 @@ pub(crate) fn substitute_runtime_requirement_scalar_values(
                 substitute_term(right, substitutions)?,
             )
             .map_err(LoweringError::InvalidCrashPredicate),
+            ScalarTerm::IntegerEqual {
+                scalar_type,
+                left,
+                right,
+            } => ScalarTerm::integer_equal(
+                *scalar_type,
+                substitute_term(left, substitutions)?,
+                substitute_term(right, substitutions)?,
+            )
+            .map_err(LoweringError::InvalidCrashPredicate),
+            ScalarTerm::IntegerLessThan {
+                scalar_type,
+                left,
+                right,
+            } => ScalarTerm::integer_less_than(
+                *scalar_type,
+                substitute_term(left, substitutions)?,
+                substitute_term(right, substitutions)?,
+            )
+            .map_err(LoweringError::InvalidCrashPredicate),
+            ScalarTerm::IntegerLessOrEqual {
+                scalar_type,
+                left,
+                right,
+            } => ScalarTerm::integer_less_or_equal(
+                *scalar_type,
+                substitute_term(left, substitutions)?,
+                substitute_term(right, substitutions)?,
+            )
+            .map_err(LoweringError::InvalidCrashPredicate),
             ScalarTerm::Value { id, scalar_type } => {
                 match scalar_type {
                     ScalarType::Boolean => {}

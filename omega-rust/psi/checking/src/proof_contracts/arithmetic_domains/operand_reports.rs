@@ -71,19 +71,10 @@ pub(crate) fn report_out_of_range_comparison_literal(
     false
 }
 
-/// Reject a COMPARISON (`==`/`!=`/`<`/`<=`/`>`/`>=`) or BITWISE (`&`/`|`/`^`)
-/// operation between two integer places of DIFFERENT primitive types
-/// (`self.i8 == self.i32`, `self.u32 | self.u8`): the backend performs it at the
-/// NARROWER operand's width, silently truncating the wider one -- `i8(44) == i32(300)`
-/// reads TRUE (`300 & 0xFF == 44`) and `u32(256) | u8(1)` reads `1` not `257` (both
-/// confirmed native). Two integer operands must be the SAME type; convert one with an
-/// `as` cast. Fires only when BOTH operands resolve to integer primitives
-/// (`primitive_range` is `Some`) that differ. NOT arithmetic (`+ - * / %`, whose
-/// mismatch is caught by the decision-17 overflow obligation) nor SHIFT (whose right
-/// operand is a bit COUNT, not a width-matched value). A literal operand (no declared
-/// place type -- handled by the out-of-range check), a float/bool/text operand, and
-/// same-type operands are all skipped. Sibling of
-/// `report_out_of_range_comparison_literal`.
+/// Bitwise operands retain one common carrier; unlike exact integer
+/// comparisons, differently typed integer places need an explicit conversion.
+/// Shifts instead take an independent bit count, and arithmetic obligations
+/// are checked separately. Anonymous literals follow their landing rules.
 pub(crate) fn report_mismatched_width_operands(
     program: &TypedTrees,
     machine: &Machine,
@@ -95,15 +86,7 @@ pub(crate) fn report_mismatched_width_operands(
 ) -> bool {
     if !matches!(
         operator,
-        BinaryOperator::Equal
-            | BinaryOperator::NotEqual
-            | BinaryOperator::Less
-            | BinaryOperator::LessOrEqual
-            | BinaryOperator::Greater
-            | BinaryOperator::GreaterOrEqual
-            | BinaryOperator::BitwiseAnd
-            | BinaryOperator::BitwiseOr
-            | BinaryOperator::BitwiseXor
+        BinaryOperator::BitwiseAnd | BinaryOperator::BitwiseOr | BinaryOperator::BitwiseXor
     ) {
         return false;
     }

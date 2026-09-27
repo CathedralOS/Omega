@@ -91,6 +91,7 @@ fn scalar_control_identity_binds_parameters_edges_and_comparisons() {
             kind: LegalizedScalarInstructionKind::Compare {
                 predicate: LegalizedScalarComparison::Equal,
                 operand_type: ScalarType::Integer(integer),
+                right_operand_type: ScalarType::Integer(integer),
                 left: id(112),
                 right: id(114),
             },
@@ -199,6 +200,7 @@ fn scalar_control_identity_binds_parameters_edges_and_comparisons() {
                     operand_type,
                     left,
                     right,
+                    ..
                 } = &mut function.blocks[0].instructions[5].kind
                 else {
                     panic!("comparison fixture")

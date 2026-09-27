@@ -140,10 +140,22 @@ impl<'program> Evaluator<'program> {
                 if let Some(value) = self.eval_selected_trait_operator(handle, &binary, frame)? {
                     return Ok(value);
                 }
-                let destination = self
+                let left_type = self
                     .expression_scalar_type(binary.left, frame)
-                    .or_else(|| self.expression_scalar_type(binary.right, frame))
                     .map(|(primitive, _)| primitive);
+                let right_type = self
+                    .expression_scalar_type(binary.right, frame)
+                    .map(|(primitive, _)| primitive);
+                let comparison = matches!(
+                    binary.operator,
+                    BinaryOperator::Less
+                        | BinaryOperator::LessOrEqual
+                        | BinaryOperator::Greater
+                        | BinaryOperator::GreaterOrEqual
+                        | BinaryOperator::Equal
+                        | BinaryOperator::NotEqual
+                );
+                let destination = left_type.or(right_type);
                 let left =
                     self.eval_expression_with_destination(binary.left, destination, frame)?;
                 // `&&`/`||` SHORT-CIRCUIT: synthesized structural equality
@@ -166,8 +178,15 @@ impl<'program> Evaluator<'program> {
                         .map(Value::Bool)
                         .ok_or_else(|| Halt::Trap("logical operand not boolean".to_owned()));
                 }
-                let right =
-                    self.eval_expression_with_destination(binary.right, destination, frame)?;
+                let right = self.eval_expression_with_destination(
+                    binary.right,
+                    if comparison {
+                        right_type.or(left_type)
+                    } else {
+                        destination
+                    },
+                    frame,
+                )?;
                 // Membership observes the already evaluated borrow's tag.
                 // Ordinary equality keeps reference operands for its selected
                 // operator; do not turn this into general implicit dereferencing.
@@ -194,6 +213,15 @@ impl<'program> Evaluator<'program> {
                 } else {
                     left
                 };
+                if comparison && let (Value::Int(left), Value::Int(right)) = (&left, &right) {
+                    return self.eval_integer_comparison(
+                        binary.operator,
+                        *left,
+                        left_type.or(right_type).unwrap_or(PrimitiveType::I64),
+                        *right,
+                        right_type.or(left_type).unwrap_or(PrimitiveType::I64),
+                    );
+                }
                 // A shift count has its own carrier. Its signedness cannot
                 // choose logical versus arithmetic shifting of the value.
                 let unsigned_operands = if binary.operator == BinaryOperator::ShiftRight {

@@ -167,7 +167,11 @@ pub(crate) fn operation_scalar_types_match(
         O::IntegerEqual { left, right, .. }
         | O::IntegerLessThan { left, right, .. }
         | O::IntegerLessOrEqual { left, right, .. } => {
-            matches!(scalar(*left), Some(ScalarType::Integer(_))) && scalar(*left) == scalar(*right)
+            match (scalar(*left), scalar(*right)) {
+                (Some(ScalarType::Integer(left)), Some(ScalarType::Integer(right))) =>
+                    left == right || (!left.is_address() && !right.is_address()),
+                _ => false,
+            }
         }
         O::IntegerBitwiseNot {
             scalar_type,

@@ -307,6 +307,28 @@ impl<'program> Evaluator<'program> {
             }
             ExpressionNode::Borrow(inner) => self.expression_scalar_type(inner.target, frame),
             ExpressionNode::Unary(unary) => self.expression_scalar_type(unary.operand, frame),
+            ExpressionNode::Integer(literal) => literal.landing().map(|landing| {
+                use numerics::literals::LandedIntegerType;
+                let primitive = match landing.landed_type {
+                    LandedIntegerType::I8 => PrimitiveType::I8,
+                    LandedIntegerType::I16 => PrimitiveType::I16,
+                    LandedIntegerType::I32 => PrimitiveType::I32,
+                    LandedIntegerType::I64 => PrimitiveType::I64,
+                    LandedIntegerType::U8 => PrimitiveType::U8,
+                    LandedIntegerType::U16 => PrimitiveType::U16,
+                    LandedIntegerType::U32 => PrimitiveType::U32,
+                    LandedIntegerType::U64 => PrimitiveType::U64,
+                    LandedIntegerType::Addr => PrimitiveType::Addr,
+                };
+                (primitive, landing.domain)
+            }),
+            ExpressionNode::Indexed(_) => {
+                let reference = self.expression_type_reference(expression, frame)?;
+                Some((
+                    self.program.primitive_type_reference(reference)?,
+                    self.program.arithmetic_domain_for_type_reference(reference),
+                ))
+            }
             // A LANDED float literal witnesses its format (the F2a suffix /
             // F2b destination / F2c comparison stamps): an anonymous constant
             // guard tree (`16777216.0 + 1.0` against an f32 place) has no
@@ -379,7 +401,11 @@ impl<'program> Evaluator<'program> {
                 if members.len() == 1 && !members[0].is_self_receiver() {
                     return frame.local_scalar(path.head_symbol);
                 }
-                None
+                let reference = self.expression_type_reference(expression, frame)?;
+                Some((
+                    self.program.primitive_type_reference(reference)?,
+                    self.program.arithmetic_domain_for_type_reference(reference),
+                ))
             }
             // `self.field` spelled as a Member node.
             ExpressionNode::Member(member) => {
@@ -395,7 +421,11 @@ impl<'program> Evaluator<'program> {
                         _ => false,
                     };
                 if !receiver_is_self {
-                    return None;
+                    let reference = self.expression_type_reference(expression, frame)?;
+                    return Some((
+                        self.program.primitive_type_reference(reference)?,
+                        self.program.arithmetic_domain_for_type_reference(reference),
+                    ));
                 }
                 self.attached_field_scalar_type(frame, member.member.as_str())
             }

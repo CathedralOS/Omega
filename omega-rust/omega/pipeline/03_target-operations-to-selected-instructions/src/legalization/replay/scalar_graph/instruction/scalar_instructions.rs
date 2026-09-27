@@ -355,6 +355,7 @@ pub(super) fn validate_compare(
         LegalizedScalarInstructionKind::Compare {
             predicate,
             operand_type,
+            right_operand_type,
             left,
             right,
         },
@@ -395,6 +396,7 @@ pub(super) fn validate_compare(
         || left != source_left
         || right != source_right
         || scalar_graph_input::value_type(optimized, *source_left) != Some(*operand_type)
+        || scalar_graph_input::value_type(optimized, *source_right) != Some(*right_operand_type)
     {
         return Err(invalid);
     }

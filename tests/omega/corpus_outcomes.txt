@@ -423,6 +423,9 @@ pass/expressions/match_float_subjects rejected 260ms
 	`Float::equal` was selected for its fixed operator token `==` in a position whose body supply is not implemented; only binary and indexed expression uses bind the declaration's own body
 pass/expressions/match_fresh_owned checked 307ms
 pass/expressions/match_ordered_duplicate_patterns checked 302ms
+pass/expressions/mixed_integer_comparison_places checked 2955ms
+pass/expressions/mixed_integer_comparison_widths checked 2362ms
+pass/expressions/mixed_integer_guard_comparison checked 1563ms
 pass/expressions/numeric_operand_destinations checked 306ms
 pass/expressions/owned_match_authored_state checked 294ms
 pass/expressions/owned_match_call_values checked 307ms
@@ -1572,8 +1575,8 @@ fail/expressions/match_mixed_result_domains rejected 125ms expected
 	match arms produce incompatible values
 fail/expressions/match_result_double_move rejected 286ms expected
 	affine value `category` was already transferred or consumed; it cannot be moved here
-fail/expressions/mismatched_width_comparison_rejected rejected 132ms expected
-	machine `Main::main` state `main` applies `Equal` to a `i8` value and a `i32` value -- the operands have different integer types and the operation would silently truncate the wider one to the narrower width; convert one with an `as` cast so both are the same type
+fail/expressions/mismatched_width_bitwise_rejected rejected 115ms expected
+	machine `Main::combine` state `combine` applies `BitwiseOr` to a `u32` value and a `u8` value -- the operands have different integer types and the operation would silently truncate the wider one to the narrower width; convert one with an `as` cast so both are the same type
 fail/expressions/nested_i32_mul_overflow rejected 136ms expected
 	exact arithmetic in machine `Main::main` state `main` local `r` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 	machine `Main::main` state `not_three` uses `r`, which is not a declared local, parameter, field, or type in this state (check the spelling)

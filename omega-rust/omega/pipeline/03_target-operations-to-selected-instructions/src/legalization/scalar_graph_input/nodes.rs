@@ -5,7 +5,6 @@ use super::{
 };
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input::exact_cast_has_native_carriers;
-use crate::legalization::scalar_graph_input::integer_call_shape;
 use crate::legalization::scalar_graph_input::integer_type;
 use crate::legalization::scalar_graph_input::u8_type;
 use crate::legalization::scalar_graph_input::u64_type;
@@ -1024,12 +1023,13 @@ pub(super) fn validate(
             AbstractOperation::IntegerEqual { left, right, .. }
             | AbstractOperation::IntegerLessThan { left, right, .. }
             | AbstractOperation::IntegerLessOrEqual { left, right, .. } => {
-                let left_type = value_type(optimized, *left);
-                if (left_type.and_then(integer_type).is_none()
-                    && left_type.and_then(integer_call_shape).is_none())
-                    || value_type(optimized, *left) != value_type(optimized, *right)
-                {
-                    return Err(LegalizationError::custody());
+                for operand in [*left, *right] {
+                    let Some(ScalarType::Integer(carrier)) = value_type(optimized, operand) else {
+                        return Err(LegalizationError::custody());
+                    };
+                    if carrier.is_address() || !matches!(carrier.bits(), 8 | 16 | 32 | 64) {
+                        return Err(LegalizationError::custody());
+                    }
                 }
                 ScalarType::Boolean
             }

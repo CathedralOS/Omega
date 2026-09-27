@@ -42,7 +42,7 @@ machine Main::main(&mut self) reaches Console {
         }
     }
     state read(&mut self) {
-        self.b = self.text[self.i];
+        self.b = self.text[self.i] as u8 in Wrapping;
         transition self.b == self.prev {
             true -> extend()
             false -> reset()

@@ -325,3 +325,67 @@ fn numbered_owned_field_uses_identity_instead_of_spelling() {
     assert!(validate_return(&checked, &integer_field(1, "limit")).is_err());
     assert!(validate_return(&checked, &integer_field(1, "#8")).is_err());
 }
+
+#[test]
+fn entry_field_reads_rejoin_exact_borrowed_parameter_path_and_carrier() {
+    let checked = crate::front_end::checked_program(
+        "data Bounds { index: u64; other: u64; }
+         machine read(bounds: &Bounds, alternate: &Bounds) -> u64 { bounds.index }",
+    );
+    let (state, expression) = source(&checked);
+    let retained = integer_field(0, "index");
+    assert!(validate_entry_read_expression(&checked, state, expression, &retained).is_ok());
+    let mut wrong_type = retained.clone();
+    if let CheckedScalarExpression::StructuralParameterField { primitive_type, .. } =
+        &mut wrong_type
+    {
+        *primitive_type = PrimitiveType::I64;
+    }
+    for forged in [
+        integer_field(1, "index"),
+        integer_field(0, "other"),
+        integer_field(2, "index"),
+        wrong_type,
+    ] {
+        assert!(
+            validate_entry_read_expression(&checked, state, expression, &forged).is_err(),
+            "{forged:?}"
+        );
+    }
+}
+
+#[test]
+fn entry_field_reads_reject_erased_and_duplicate_authored_roots() {
+    for parameter_type in ["Bounds", "&Bounds"] {
+        let checked = crate::front_end::checked_program(&format!(
+            "data Bounds {{ index: u64; }}
+             machine read(bounds: {parameter_type}, alternate: {parameter_type}) -> u64 {{ bounds.index }}"
+        ));
+        let (state, expression) = source(&checked);
+        let retained = integer_field(0, "index");
+        assert!(validate_entry_read_expression(&checked, state, expression, &retained).is_ok());
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "read")
+            .expect("read machine");
+        let parameters = checked.machine_states(machine)[0].parameters;
+        for duplicate in [false, true] {
+            let mut changed = checked.clone();
+            let parameters = changed
+                .typed
+                .tables
+                .state_parameters
+                .span_mut_or_empty(parameters);
+            if duplicate {
+                parameters[1].symbol = parameters[0].symbol;
+            } else {
+                parameters[0].relevance = language_core::BindingRelevance::Erased;
+            }
+            assert!(
+                validate_entry_read_expression(&changed, state, expression, &retained).is_err(),
+                "parameter type {parameter_type}, duplicate root {duplicate}"
+            );
+        }
+    }
+}

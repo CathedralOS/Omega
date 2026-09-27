@@ -659,13 +659,6 @@ pub(super) fn integer_type(scalar: ScalarType) -> Option<IntegerType> {
     }
 }
 
-/// Call results need defined full-register contents before scalar evaluation.
-pub(super) fn integer_call_shape(scalar: ScalarType) -> Option<ValueShape> {
-    match scalar {
-        ScalarType::Integer(_) => scalar_shape(scalar),
-        _ => None,
-    }
-}
 pub(super) fn value_type(function: &PsiOptimizationFunction, value: ValueId) -> Option<ScalarType> {
     function
         .parameters

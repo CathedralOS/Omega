@@ -1,0 +1,44 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    signed: i32;
+    unsigned: u64;
+    signed_maximum: i64;
+    unsigned_maximum: u64;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.signed = 0 - 1;
+    self.unsigned = 10;
+    self.signed_maximum = 9223372036854775807;
+    self.unsigned_maximum = 18446744073709551615;
+    transition self.signed < self.unsigned {
+        true -> boundaries()
+        _ -> promoted()
+    }
+
+    state boundaries(&mut self) {
+        transition self.signed < self.unsigned_maximum
+            && self.signed <= self.unsigned_maximum
+            && !(self.signed > self.unsigned_maximum)
+            && !(self.signed >= self.unsigned_maximum)
+            && !(self.signed == self.unsigned_maximum)
+            && self.signed != self.unsigned_maximum
+            && self.unsigned_maximum > self.signed_maximum
+            && self.unsigned_maximum >= self.signed_maximum
+            && !(self.unsigned_maximum < self.signed_maximum)
+            && !(self.unsigned_maximum <= self.signed_maximum)
+            && !(self.unsigned_maximum == self.signed_maximum)
+            && self.unsigned_maximum != self.signed_maximum {
+            true -> correct()
+            _ -> promoted()
+        }
+    }
+
+    // 70 when the compiler keeps `-1` negative, 71 when it promotes the
+    // signed value into the unsigned carrier instead.
+    state correct(&mut self) { self.console.exit_process(70); }
+    state promoted(&mut self) { self.console.exit_process(71); }
+}

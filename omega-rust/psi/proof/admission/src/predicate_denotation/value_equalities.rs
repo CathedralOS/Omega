@@ -5,7 +5,7 @@
 //! slots proves the original goal under the original premises. The equations
 //! are dependencies of this checked view, never newly introduced assumptions.
 
-use semantic_vocabulary::{Proposition, ScalarTerm, ValueId};
+use semantic_vocabulary::{IntegerMathTerm, Proposition, ScalarTerm, ScalarType, ValueId};
 
 use super::{PredicateDenotationError, budget::Budget};
 
@@ -63,12 +63,47 @@ impl<'input> ValueEqualities<'input> {
                 **premise = self.proposition(premise, budget, depth + 1)?;
                 **conclusion = self.proposition(conclusion, budget, depth + 1)?;
             }
-            // These observations have no ScalarTerm children. In particular,
-            // mathematical values and structural places are distinct identities.
-            Proposition::IntegerMathEqual(..)
-            | Proposition::IntegerMathLessThan(..)
-            | Proposition::IntegerMathLessOrEqual(..)
-            | Proposition::IeeeFloatComparison { .. }
+            Proposition::IntegerMathEqual(left, right)
+            | Proposition::IntegerMathLessThan(left, right)
+            | Proposition::IntegerMathLessOrEqual(left, right) => {
+                // MathValue embeds this exact typed scalar value. Rejoin only
+                // leaf endpoints; compound mathematical arithmetic stays intact.
+                let carrier = [&*left, &*right].into_iter().find_map(|term| match term {
+                    IntegerMathTerm::MathValue { source_type, .. } => Some(*source_type),
+                    _ => None,
+                });
+                let scalar = |term: &IntegerMathTerm| match term {
+                    IntegerMathTerm::MathValue { source_type, value } => {
+                        Some(ScalarTerm::value(*value, ScalarType::Integer(*source_type)))
+                    }
+                    IntegerMathTerm::IntegerLiteral(literal) => {
+                        let carrier = carrier?;
+                        ScalarTerm::integer(carrier, literal.as_integer_value(carrier)?).ok()
+                    }
+                    _ => None,
+                };
+                let (Some(left), Some(right)) = (scalar(left), scalar(right)) else {
+                    return Ok(transported);
+                };
+                let left = self.scalar(&left, budget, depth + 1, &mut Vec::new())?;
+                let right = self.scalar(&right, budget, depth + 1, &mut Vec::new())?;
+                let ScalarType::Integer(carrier) = left.scalar_type() else {
+                    return Err(PredicateDenotationError::InvalidValueEquality);
+                };
+                let comparison = match original {
+                    Proposition::IntegerMathEqual(..) => {
+                        ScalarTerm::integer_equal(carrier, left, right)
+                    }
+                    Proposition::IntegerMathLessThan(..) => {
+                        ScalarTerm::integer_less_than(carrier, left, right)
+                    }
+                    _ => ScalarTerm::integer_less_or_equal(carrier, left, right),
+                }
+                .map_err(PredicateDenotationError::Malformed)?;
+                transported = Proposition::Equal(comparison, ScalarTerm::boolean(true));
+            }
+            // Structural places remain independently named observations.
+            Proposition::IeeeFloatComparison { .. }
             | Proposition::ByteSequenceEqual { .. }
             | Proposition::StructuralCaseMembership { .. }
             | Proposition::ContentConservation(_)

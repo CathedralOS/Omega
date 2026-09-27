@@ -264,3 +264,118 @@ fn shared_budget_bounds_input_depth_and_repeated_dag_expansion() {
         Err(PredicateDenotationError::ResourceLimitExceeded)
     ));
 }
+
+#[test]
+fn mixed_integer_predicate_denotation_keeps_exact_value_carriers() {
+    use semantic_vocabulary::IntegerMathTerm;
+    let signed = IntegerType::new(IntegerSign::Signed, 32).unwrap();
+    let unsigned = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let left_id = ValueId::new(1).unwrap();
+    let right_id = ValueId::new(2).unwrap();
+    let context = PropositionContext::from_value_types([
+        (left_id, ScalarType::Integer(signed)),
+        (right_id, ScalarType::Integer(unsigned)),
+    ])
+    .unwrap();
+    let left = ScalarTerm::value(left_id, ScalarType::Integer(signed));
+    let right = ScalarTerm::value(right_id, ScalarType::Integer(unsigned));
+    let comparison = ScalarTerm::integer_less_than(signed, left, right).unwrap();
+    let goal = Proposition::Equal(comparison, ScalarTerm::Boolean(true));
+    let denotation = super::check_predicate_denotations(&context, &goal, &[], &[]).unwrap();
+    assert_eq!(
+        denotation.goal(),
+        &Proposition::IntegerMathLessThan(
+            IntegerMathTerm::MathValue {
+                source_type: signed,
+                value: left_id
+            },
+            IntegerMathTerm::MathValue {
+                source_type: unsigned,
+                value: right_id
+            },
+        )
+    );
+    let proof = ProofNode {
+        conclusion: denotation.goal().clone(),
+        rule: ProofRule::Assumption { index: 0 },
+    };
+    let premises = [goal.clone()];
+    let denotation = super::check_predicate_denotations(&context, &goal, &premises, &[]).unwrap();
+    denotation.check_certificate(&context, &proof).unwrap();
+}
+
+#[test]
+fn mixed_math_guard_substitutes_only_cited_endpoints_and_representable_literals() {
+    use semantic_vocabulary::{
+        CanonicalStructuralPathSegment, IntegerMathTerm, PlaceId, StructuralFieldId,
+        StructuralPlaceKind,
+    };
+    let signed = integer_type();
+    let unsigned = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let context = PropositionContext::from_value_types_and_places(
+        [
+            (ValueId::new(1).unwrap(), ScalarType::Integer(signed)),
+            (ValueId::new(2).unwrap(), ScalarType::Integer(unsigned)),
+        ],
+        [(
+            PlaceId::new(1).unwrap(),
+            StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: true,
+            },
+        )],
+    )
+    .unwrap();
+    let field = ScalarTerm::integer_field_path(
+        PlaceId::new(1).unwrap(),
+        vec![CanonicalStructuralPathSegment::Field(
+            StructuralFieldId::new(1).unwrap(),
+        )],
+        signed,
+    );
+    let right = ScalarTerm::value(ValueId::new(2).unwrap(), ScalarType::Integer(unsigned));
+    let guard = Proposition::IntegerMathLessThan(
+        IntegerMathTerm::MathValue {
+            source_type: signed,
+            value: ValueId::new(1).unwrap(),
+        },
+        IntegerMathTerm::MathValue {
+            source_type: unsigned,
+            value: ValueId::new(2).unwrap(),
+        },
+    );
+    for bound in [12, u64::MAX as u128] {
+        let equations = [
+            Proposition::Equal(value(1), field.clone()),
+            Proposition::Equal(
+                right.clone(),
+                ScalarTerm::integer(unsigned, IntegerValue::Unsigned(bound)).unwrap(),
+            ),
+        ];
+        let denotation =
+            super::check_value_equality_denotation(&context, &guard, &equations).unwrap();
+        if bound == 12 {
+            assert_eq!(
+                denotation,
+                Proposition::LessThan(field.clone(), literal(12))
+            );
+        } else {
+            let Proposition::Equal(first, second) = denotation else {
+                panic!("unrepresentable literal must retain independent carriers")
+            };
+            let comparison = if first == ScalarTerm::Boolean(true) {
+                second
+            } else {
+                first
+            };
+            let ScalarTerm::IntegerLessThan { left, right, .. } = comparison else {
+                panic!("mixed comparison retained")
+            };
+            assert_eq!(left.scalar_type(), ScalarType::Integer(signed));
+            assert_eq!(right.scalar_type(), ScalarType::Integer(unsigned));
+        }
+        let missing =
+            super::check_value_equality_denotation(&context, &guard, &equations[..1]).unwrap();
+        assert_ne!(missing, Proposition::LessThan(field.clone(), literal(12)));
+    }
+}

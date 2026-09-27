@@ -78,6 +78,7 @@ pub(super) fn graph(
             kind: LegalizedScalarInstructionKind::Compare {
                 predicate,
                 operand_type: ScalarType::Integer(integer),
+                right_operand_type: ScalarType::Integer(integer),
                 left: value(if signed { 2 } else { 4 }),
                 right: value(1),
             },

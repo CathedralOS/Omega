@@ -499,7 +499,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/proof/admission/src/predicate_denotation.rs",
-        sha256: Some("0d999197d5cdcb619beb535de10f4625677cb19a6a5d337cfc9a10cfc7cccb8c"),
+        sha256: Some("1e009842243e6c8827ed786200c43ac8f08358deb4f67a913e80b6d125b8ddd7"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -509,7 +509,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/proof/admission/src/predicate_denotation/value_equalities.rs",
-        sha256: Some("b22f22a135454d19e9d037659532fb2458e20776e768b0b9652b9fe15e8c4399"),
+        sha256: Some("ec2d2f836331bb85fb4ad6cb2441b3bdd577caee478e4bbcef8ac888c4cff9d7"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -629,7 +629,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/representations/terminal-psi/semantics/src/scalar_leaf_semantics.rs",
-        sha256: Some("2e6d7af1dd5e234cc33e894734746b2114997615245d6e99d90cd3068e99a628"),
+        sha256: Some("659ac6a05f65ee637b0451cde7b0776f6c58d1d4964907016fe802f94f5e1183"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -1099,7 +1099,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/representations/terminal-psi/verification/src/validation/operations/scalar_operands.rs",
-        sha256: Some("34619ab8594e7a3501d16f6f8a198006a8b61cde689fbdb9d0becb8bdbb199c9"),
+        sha256: Some("9f785dfe81c155b22bf8cdde7481b0b0bf769f81416ad75c1b5e0f566da3dfa2"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -1434,7 +1434,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/representations/terminal-psi/verification/src/verification/reconstruction/path_facts/conditions.rs",
-        sha256: Some("6513d000c74a4402892d9be6da876728f739e04a8147ff28b1de9bb0b0da5ff8"),
+        sha256: Some("c727df88a4e7249fbb73f49a84c9fdbc9e50f0b20167360f06be19d0bfb2c11c"),
         inventory_machinery: false,
     },
     ImplementationSite {

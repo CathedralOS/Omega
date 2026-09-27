@@ -121,6 +121,7 @@ fn scalar_cfg_replay_rejects_comparison_type_operands_and_fuel_substitution() {
             operand_type,
             left,
             right,
+            ..
         } = &mut row.kind
         else {
             panic!("comparison");

@@ -113,6 +113,9 @@ fn branched_call(target: target::NativeTarget, sibling: bool) -> LegalizedScalar
                 operand_type: ScalarType::Integer(
                     IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
                 ),
+                right_operand_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                ),
                 left: ValueId::new(2).unwrap(),
                 right: ValueId::new(1).unwrap(),
             },

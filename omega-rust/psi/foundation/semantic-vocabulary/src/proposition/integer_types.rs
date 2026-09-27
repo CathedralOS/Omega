@@ -148,20 +148,42 @@ impl IntegerType {
     /// Values of the wrong sign or outside the declared width reject rather
     /// than being reinterpreted.
     pub fn compare(self, left: IntegerValue, right: IntegerValue) -> Option<Ordering> {
-        if !self.admits(left) || !self.admits(right) {
+        self.compare_with(left, self, right)
+    }
+
+    /// Compare mathematical values while preserving each operand's carrier.
+    /// Payloads must inhabit their own exact type; address carriers do not
+    /// acquire mixed fixed-integer comparison meaning.
+    pub fn compare_with(
+        self,
+        left: IntegerValue,
+        right_type: Self,
+        right: IntegerValue,
+    ) -> Option<Ordering> {
+        if !self.admits(left)
+            || !right_type.admits(right)
+            || (self != right_type && (self.is_address() || right_type.is_address()))
+        {
             return None;
         }
-        match (self.sign, left, right) {
-            (
-                IntegerSign::Unsigned,
-                IntegerValue::Unsigned(left),
-                IntegerValue::Unsigned(right),
-            ) => Some(left.cmp(&right)),
-            (IntegerSign::Signed, IntegerValue::Signed(left), IntegerValue::Signed(right)) => {
-                Some(left.cmp(&right))
+        Some(match (left, right) {
+            (IntegerValue::Unsigned(left), IntegerValue::Unsigned(right)) => left.cmp(&right),
+            (IntegerValue::Signed(left), IntegerValue::Signed(right)) => left.cmp(&right),
+            (IntegerValue::Signed(left), IntegerValue::Unsigned(right)) => {
+                if left < 0 {
+                    Ordering::Less
+                } else {
+                    (left as u128).cmp(&right)
+                }
             }
-            _ => None,
-        }
+            (IntegerValue::Unsigned(left), IntegerValue::Signed(right)) => {
+                if right < 0 {
+                    Ordering::Greater
+                } else {
+                    left.cmp(&(right as u128))
+                }
+            }
+        })
     }
 
     pub fn bitwise_and(self, left: IntegerValue, right: IntegerValue) -> Option<IntegerValue> {

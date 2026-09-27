@@ -673,6 +673,8 @@ pub enum LegalizedScalarInstructionKind {
         predicate: LegalizedScalarComparison,
         /// Boolean operands remain Boolean; only equality shares integer-register comparison.
         operand_type: ScalarType,
+        /// The right definition retains its own carrier; comparison does not cast it.
+        right_operand_type: ScalarType,
         left: ValueId,
         right: ValueId,
     },

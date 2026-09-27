@@ -106,8 +106,8 @@ rows! {
     NORM_PREDICATE_DENOTATION => (
         "conversion:predicate-denotation",
         NormalizationConversion,
-        "a proposition whose Boolean and same-carrier closed fixed-integer literal denotation is computed under a bounded recursion, substitution, and clone budget over the validated context",
-        "the denotation normal form used by PredicateDenotation, including exact signed full-width literal comparisons; open arithmetic and IEEE relations remain unchanged, and unbounded or malformed propositions reject before evaluation",
+        "a proposition whose Boolean and exact fixed-integer comparison denotation is computed under a bounded recursion, substitution, and clone budget over the validated context",
+        "the denotation normal form used by PredicateDenotation, including independently typed integer values and literals; mixed comparisons retain exact subjects and carriers in mathematical relations, unsupported compound endpoints and IEEE relations remain unchanged, and unbounded or malformed propositions reject before evaluation",
         &["formation:proposition-context", "formation:mathematical-core", "primitive:closed-integer-relation"],
         &[pa!( "predicate_denotation.rs"), pa!( "predicate_denotation/budget.rs"), pa!( "kernel.rs")]
     );
@@ -115,7 +115,7 @@ rows! {
         "conversion:value-equality-denotation",
         NormalizationConversion,
         "a proposition plus an ordered roster of proved value-to-term equations",
-        "the denotation normal form under exactly those equations, preserving constructor tags, types, and operand order",
+        "the denotation normal form under exactly those equations; mathematical value endpoints retain their exact typed scalar identities, only representable closed literals may change carrier without changing value, and operand order and unknown carriers remain unchanged",
         &["conversion:predicate-denotation"],
         &[pa!( "predicate_denotation.rs"), pa!( "predicate_denotation/value_equalities.rs")]
     );
