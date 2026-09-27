@@ -1,0 +1,63 @@
+// Binding a REFERENCE into a `let` local is routed for one narrow shape only:
+// a `&mut` of a self-rooted place named directly. Every other reference
+// binding measured has no route. Reduced from
+// `samples/cli/systems/descriptor_walk`.
+//
+// Measured in a two-state machine (entry + a `done` state reached by a
+// transition), each row differing from its neighbour by one token:
+//
+//   let d: &mut u32      = &mut self.size;          checks
+//   let d: &mut u32      = &mut self.inner.a;       checks   (nested field)
+//   let d: &mut [u8; 48] = &mut self.buf;           checks   (whole array)
+//   let d: &mut u8       = &mut self.buf[0];        checks   (literal index)
+//   let d: u32           = self.size;               checks   (a copy)
+//
+//   let d: &u32          = &self.size;              OMITTED
+//   let d: &u32          = &self.inner.a;           OMITTED
+//   let d: &[u8; 48]     = &self.buf;               OMITTED
+//   let d: &u8           = &self.buf[0];            OMITTED
+//   let d: &mut u8       = &mut self.buf[off];      OMITTED  (RUNTIME index)
+//   let d: &mut Desc     = &mut self.buf[0] as &mut Desc;    OMITTED (recast)
+//   let d: &mut u32      = &mut self.buf[0] as &mut u32;     OMITTED (recast
+//                                                            to a non-record)
+//   let v: u32 = 7; let d: &mut u32 = &mut v;       OMITTED  (borrow a LOCAL)
+//   let v: u32 = 7; let d: &u32     = &v;           OMITTED, at a DIFFERENT
+//                                                   phase, `state graph:
+//                                                   result custody accounting`
+//
+// So: the SHARED `&` side has no route at all, at any depth and through any
+// place. The `&mut` side routes only for a place that is self-rooted, indexed
+// by a literal if indexed, and not recast.
+//
+// THE SAMPLE IS OVER-DETERMINED. `descriptor_walk`'s one line,
+// `let d: &Desc = &self.buf[off] as &Desc;`, packs THREE independently
+// sufficient triggers -- the shared borrow, the runtime index, and the recast
+// -- each of which omits on its own against its own checking control. The
+// board previously attributed the sample to the recast. That is not wrong, but
+// it is incomplete in the way that matters: removing the recast alone leaves
+// the sample omitting at the same site, so a repair aimed at any one trigger
+// will not clear it. Confirm all three.
+//
+// This fixture pins the SHARED-BORROW trigger, the simplest of the three: no
+// array, no record, no recast, no `requires`, no runtime index.
+//
+// The `&` of a plain local is listed above for completeness but is a
+// DIFFERENT omission -- it reports `state graph: result custody accounting`,
+// and it is reported to check when no transition follows, which was not
+// re-measured here.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    size: u32;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let borrowed: &u32 = &self.size;
+    transition { _ -> done() }
+
+    state done(&mut self) {
+        self.console.exit_process(0);
+    }
+}

@@ -105,6 +105,30 @@ backend-visible; full corpus runs only at the end of an item.
   samples leave the omission cluster. Expect one Terminal answer to serve both;
   a repair that fixes only one has probably found the wrong layer.
 
+- **REFERENCE-LOCAL-BINDING-ROUTES.** (new-scope) Binding a REFERENCE into a
+  `let` local is routed for one narrow shape only: a `&mut` of a self-rooted
+  place named directly. `&mut self.size`, `&mut self.inner.a`, `&mut self.buf`
+  and `&mut self.buf[0]` check. Every shared `&` binding measured omits, at any
+  depth and through any place -- `&self.size`, `&self.inner.a`, `&self.buf`,
+  `&self.buf[0]` -- and on the `&mut` side a RUNTIME index
+  (`&mut self.buf[off]`), a reference RECAST (`as &mut Desc`, and `as &mut u32`
+  to a non-record) and borrowing a plain LOCAL all omit too. Pinned at
+  `tests/omega/pending/borrows/reference_local_binding_routes`, which carries
+  the full one-token-apart matrix.
+  `samples/cli/systems/descriptor_walk` is OVER-DETERMINED and this is the
+  correction that matters: its single line
+  `let d: &Desc = &self.buf[off] as &Desc;` packs THREE independently
+  sufficient triggers -- the shared borrow, the runtime index, the recast --
+  each of which omits alone against its own checking control. The earlier
+  attribution to the recast was not wrong, only incomplete: removing the recast
+  leaves the sample omitting at the same site, so a repair aimed at one trigger
+  will not clear the sample. Acceptance: the pending fixture checks, all three
+  triggers check independently, and `descriptor_walk` leaves the omission
+  cluster. Likely one defect rather than three -- all three initializer forms
+  plausibly lower to a call the local-data binder does not bind while the
+  admitted forms lower to direct places -- but that is a hypothesis about the
+  planner, not a measurement, and it is unread.
+
 - **RECORD-LITERAL-ARRAY-FIELD.** (new-scope) Constructing a record literal
   that supplies a value for an ARRAY-typed field has no route.
   `samples/cli/systems/wire_protocol` spells it
@@ -814,7 +838,9 @@ the complete product bar; focused successes below do not establish that baseline
       `tests/omega/pending/control_flow/runtime_indexed_case_dispatch`:
       `self.items[0]` dispatches and `self.items[self.w]` omits.
       `descriptor_walk`'s own statement is
-      `let d: &Desc = &self.buf[off] as &Desc;`, a recast of a borrow --
+      `let d: &Desc = &self.buf[off] as &Desc;`, and the recast is only ONE of
+      three independently sufficient triggers on that line -- see
+      REFERENCE-LOCAL-BINDING-ROUTES below --
       a local, and a third shape again
     - 3 `structural field store: byte sequence carrier` --
       `cli/{basics/text_greeting, systems/status_report,
