@@ -122,6 +122,27 @@ pub(crate) struct CallFrameCaches {
     >,
 }
 
+impl CallFrameCaches {
+    fn call_plans(
+        &self,
+        program: &TypedTrees,
+    ) -> std::sync::Arc<(
+        flow_effects::OperationalPlan,
+        flow_effects::ServiceReachInferencePlan,
+    )> {
+        if let Ok(cache) = self.call_plans.lock()
+            && let Some(plans) = cache.as_ref()
+        {
+            return plans.clone();
+        }
+        let plans = std::sync::Arc::new(compute_call_plans(program));
+        if let Ok(mut cache) = self.call_plans.lock() {
+            *cache = Some(plans.clone());
+        }
+        plans
+    }
+}
+
 /// Run `compute` once per key for the resolver's immutable program. The lock
 /// is not held across `compute`, so nested resolver queries through it cannot
 /// deadlock; concurrent misses may compute twice and publish the same value.
@@ -154,8 +175,9 @@ fn compute_call_plans(
 }
 
 /// Whole-program call plans for operand call-candidate checks. A live
-/// resolver shares its once-computed pair; resolver-free sites compute a
-/// one-shot pair under the same law.
+/// resolver shares its once-computed pair. Resolver-free inference shares the
+/// same pair inside a frozen-program scope, or computes a one-shot pair outside
+/// it. Recursive frame queries must not deep-clone both plans per callee.
 pub fn operand_call_plans(
     program: &TypedTrees,
     frames: Option<&CallFrameResolver<'_>>,
@@ -165,7 +187,10 @@ pub fn operand_call_plans(
 )> {
     match frames {
         Some(frames) => frames.call_plans(),
-        None => std::sync::Arc::new(compute_call_plans(program)),
+        None => crate::frozen_program::frozen_program_memos(program).map_or_else(
+            || std::sync::Arc::new(compute_call_plans(program)),
+            |memos| memos.call_frames.call_plans(program),
+        ),
     }
 }
 
@@ -408,16 +433,7 @@ impl<'program> CallFrameResolver<'program> {
         flow_effects::OperationalPlan,
         flow_effects::ServiceReachInferencePlan,
     )> {
-        if let Ok(cache) = self.caches.call_plans.lock()
-            && let Some(plans) = cache.as_ref()
-        {
-            return plans.clone();
-        }
-        let plans = std::sync::Arc::new(compute_call_plans(self.program));
-        if let Ok(mut cache) = self.caches.call_plans.lock() {
-            *cache = Some(plans.clone());
-        }
-        plans
+        self.caches.call_plans(self.program)
     }
 
     pub fn may_write_paths(

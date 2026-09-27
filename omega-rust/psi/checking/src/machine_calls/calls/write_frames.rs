@@ -46,6 +46,9 @@ mod type_instantiation;
 mod value_expressions;
 mod wire_codecs;
 
+#[cfg(test)]
+mod static_call_ceiling_tests;
+
 pub use alias_bindings::state_reference_parameter_binding_is_stable;
 pub(crate) use boundary_calls::boundary_trait_signature;
 pub(crate) use call_targets::free_machine_entry_state;
@@ -290,6 +293,47 @@ fn known_call_written_paths_for_parts_with_origins(
         argument_origins,
         complete_state_summaries,
     )
+    .or_else(|| {
+        // A static declaration qualifier is not caller storage. When recursive
+        // body inference is incomplete, use the exact signature's ownership
+        // ceiling instead of inventing a write through that namespace. This
+        // does not establish the body, its termination, or returned origins.
+        // Captured/receiver state and separately authorized service state need
+        // their own complete origins, so they cannot use this static ceiling.
+        if exact_callee.is_none()
+            || program
+                .state_parameters(callee_state)
+                .iter()
+                .any(|parameter| parameter.is_self)
+            || !program.machine_owned_data(callee_machine).is_empty()
+            || !program.machine_type_parameters(callee_machine).is_empty()
+            || !callee_machine.lifetime_parameters.is_empty()
+        {
+            return None;
+        }
+        let paths = boundary_calls::signature_state_call_written_paths(
+            program,
+            current_machine,
+            machine_symbols,
+            symbols,
+            callee_machine,
+            callee_state,
+            receiver_members,
+            receiver_origins,
+            arguments,
+            inference,
+        )?;
+        let plans = operand_call_plans(program, None);
+        let reach = plans.1.for_machine(callee_machine.symbol)?;
+        if !plans.1.services(reach.inferred_transitive).is_empty()
+            || !plans.1.services(reach.effective).is_empty()
+            || !reach.unresolved_installation_reaches.is_empty()
+            || !reach.dependency.parameters.is_empty()
+        {
+            return None;
+        }
+        Some(paths)
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
