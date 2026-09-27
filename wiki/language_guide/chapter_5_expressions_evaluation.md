@@ -294,6 +294,37 @@ keeps the Exact count obligation. Hardware masking is not an Exact proof.
 The full [numeric rules](../spec/language/numeric_values.md#arithmetic-and-comparisons)
 also distinguish value overflow from operand validity.
 
+### Comparing different integer types
+
+Integer comparisons compare mathematical values, even when the operands have
+different widths or signedness:
+
+```omega
+machine before_end(cursor: i32, length: u64) -> bool {
+    cursor < length
+}
+
+machine same_count(left: i32, right: u64) -> bool {
+    left == right
+}
+```
+
+`before_end(-1, 10)` is true. `same_count(10, 10)` is true. Neither comparison
+converts the signed operand to unsigned, changes its value, or needs the other
+operand to fit its type. The same rule covers `<`, `<=`, `>`, `>=`, `==` and `!=`.
+It holds in proofs, compile-time evaluation, interpretation and native code.
+A `u32` has the same range on every target; register width does not choose the
+answer. See [integer equality and order](../spec/language/numeric_values.md#integer-equality-and-order).
+
+This is not implicit arithmetic widening: `left + right` still needs an
+applicable arithmetic operation and its representability proof or chosen policy.
+Anonymous literals also keep their ordinary landing rules; a comparison does
+not make an out-of-range literal inhabit an unsigned type. Domain qualifications
+and selected operator meanings remain in force.
+
+For indexing, `cursor < length` is only half the obligation when the cursor is
+signed: negative cursors satisfy it too. Establish `0 <= cursor` before access.
+
 ### Float-to-integer conversion
 
 Exact `as` needs an integral, representable value and preserves its denotation.

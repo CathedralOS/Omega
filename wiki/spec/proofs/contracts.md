@@ -98,6 +98,14 @@ sum does not turn it into unbounded addition. A call interpreted denotationally
 needs a checked observation-free, reach-free, crash-free, terminating invocation,
 not merely a same-spelled mathematical operation.
 
+Builtin fixed-integer equality and order have the same meaning as the relation
+between the operands' exact `embed` projections, including operands with different
+widths or signedness. This characterizes the comparison; authors need no explicit
+embedding or cast to compare admitted runtime integer values. Each projection
+retains its source carrier and subject, and equal values do not identify their
+types. Proof and executable comparisons obey the same
+[integer relation](../language/numeric_values.md#integer-equality-and-order).
+
 `embed` cannot be used as an executable conversion. Boolean and noninteger
 carriers have no integer embedding merely because their operands are integers;
 float meaning uses its separate projection.

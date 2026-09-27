@@ -104,6 +104,51 @@ publishes Exact; a caller-selectable policy must occur in its contract. The
 generic spelling for that choice remains unsettled. Omission does not choose a
 weaker policy, and incompatible policies do not mix implicitly.
 
+### Integer equality and order
+
+Builtin fixed-integer comparisons use exact mathematical integer values
+(`mixed-integer-comparison`). The operands may differ in width, signedness, or
+both. `<`, `<=`, `>`, `>=`, `==`, and `!=` apply the corresponding integer
+relation to those values and return `bool`. They require no common operand
+carrier, implicit cast, or representability of either value in the other
+operand's carrier. Equality here is value equality, not type equality.
+
+Each carrier's range is target-independent: `u32` denotes integers from zero
+through `2^32 - 1`, and `i32` from `-2^31` through `2^31 - 1`, on every target.
+Register width, bit patterns, padding, sign/zero extension, and host-language
+promotion rules do not define comparison meaning. In particular, a negative
+signed value remains negative when compared with an unsigned value.
+
+| Left operand | Right operand | `<` | `==` | `>` |
+| --- | --- | --- | --- | --- |
+| `-1` of type `i32` | `10` of type `u64` | true | false | false |
+| `10` of type `i32` | `10` of type `u64` | false | true | false |
+| `0` of type `i8` | `0` of type `u64` | false | true | false |
+| `9223372036854775807` of type `i64` | `18446744073709551615` of type `u64` | true | false | false |
+
+`<=`, `>=`, and `!=` follow the same total integer order and equality. The
+comparison itself is total for admitted integer operands; forming either operand
+still owes its own operation and validity obligations. Already-typed operands
+retain their types; anonymous operands keep the existing literal-landing rules.
+This adds neither implicit arithmetic widening nor conversion at assignments,
+arguments, or returns. It does not erase qualifications, override a selected
+domain/user operation, or grant mixed float, address, or Boolean comparisons.
+Arithmetic policies govern computation of the operands, not a reinterpretation
+of their resulting values when builtin integer comparison is selected.
+
+Contracts, constant evaluation, checked and Terminal interpretation, optimization,
+and native execution must use this same relation. Terminal normalization and
+target realization implement it; neither may substitute an unsigned promotion
+or reject source operands merely because their integer carriers differ. Operand
+evaluation keeps the ordinary order and once-only behavior. Source-independent
+verification retains the exact operand subjects, carriers, relation and polarity.
+
+For a signed index, `index < length` establishes only an upper bound: negative
+integers also satisfy it when `length` is nonnegative. Indexing separately needs
+`0 <= index` under [collection bounds](#collection-bounds).
+
+### Overflow policies
+
 Exact, Wrapping, Saturating, and Trapping are distinct operation policies.
 Wrapping reduces representable-range overflow modulo the selected carrier;
 Saturating clamps it to carrier bounds; Trapping uses the primitive's exact
