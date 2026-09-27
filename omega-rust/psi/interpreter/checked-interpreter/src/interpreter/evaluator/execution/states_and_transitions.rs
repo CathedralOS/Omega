@@ -560,8 +560,8 @@ impl<'program> Evaluator<'program> {
             typed_trees::types::TypeReferenceHandle,
         )],
     ) -> EvalResult<()> {
-        let members = self.program.data_members(data).to_vec();
-        for member in &members {
+        let program = self.program;
+        for member in program.data_members(data) {
             let DataMember::Field(field) = member else {
                 continue;
             };
@@ -655,10 +655,24 @@ impl<'program> Evaluator<'program> {
                     }
                 };
                 if let Some(count) = count {
-                    let mut elements = Vec::with_capacity(count);
+                    let mut elements: Vec<Cell> = Vec::with_capacity(count);
+                    // Every element shares one element type, so each default
+                    // is the same value: derive the first and give every later
+                    // element a deep copy with its own metered cells. Defaults
+                    // holding metered text still derive per element.
+                    let mut copies_by_cells = false;
                     for _ in 0..count {
-                        let value =
-                            self.default_value_for_type_with_bindings(element_type, bindings)?;
+                        let value = match elements.first() {
+                            Some(first) if copies_by_cells => first
+                                .borrow()
+                                .deep_clone_with(&|value| self.allocate_cell(value))?,
+                            _ => {
+                                self.default_value_for_type_with_bindings(element_type, bindings)?
+                            }
+                        };
+                        if elements.is_empty() {
+                            copies_by_cells = default_copies_by_cells(&value);
+                        }
                         elements.push(self.allocate_cell(value)?);
                     }
                     return Ok(Value::Array(elements));
@@ -675,15 +689,11 @@ impl<'program> Evaluator<'program> {
                 .type_reference_table
                 .type_reference(type_reference)
             {
-                let definition = self
-                    .program
-                    .data_definitions()
-                    .iter()
-                    .find(|data| {
-                        (base_symbol.is_valid() && data.symbol == *base_symbol)
-                            || data.name.as_str() == base_name.as_str()
-                    })
-                    .cloned();
+                let program = self.program;
+                let definition = program.data_definitions().iter().find(|data| {
+                    (base_symbol.is_valid() && data.symbol == *base_symbol)
+                        || data.name.as_str() == base_name.as_str()
+                });
                 if let Some(definition) = definition
                     && matches!(
                         DataDefinition::shape_kind_from_members(
@@ -1128,5 +1138,25 @@ impl<'program> Evaluator<'program> {
             arg_index += 1;
         }
         Ok(frame)
+    }
+}
+
+/// Whether a default value is copied exactly by duplicating its cells: every
+/// leaf is a scalar, so a deep copy allocates the same metered cells a fresh
+/// derivation would. Text owns metered bytes and a reference shares its
+/// referent, so either keeps per-element derivation.
+fn default_copies_by_cells(value: &Value) -> bool {
+    match value {
+        Value::Unit | Value::Int(_) | Value::Bool(_) | Value::Float(_) => true,
+        Value::Str(_) | Value::Ref(_) => false,
+        Value::Struct { fields, .. } => fields
+            .values()
+            .all(|cell| default_copies_by_cells(&cell.borrow())),
+        Value::Enum { payload, .. } => payload
+            .iter()
+            .all(|(_, cell)| default_copies_by_cells(&cell.borrow())),
+        Value::Array(elements) => elements
+            .iter()
+            .all(|cell| default_copies_by_cells(&cell.borrow())),
     }
 }
