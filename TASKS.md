@@ -2369,31 +2369,40 @@ syntax and other terminal services are not prerequisites.
   rejection and shared/disjoint admission. Run matching supported hosts or
   explicitly retain unavailable runtime legs.
 
-- **DEVICE-EXTENT-ACCESS.** Complete the admitted device-loan/ordering route
-  through actual release and CPU-view restoration under
-  [device custody and ordering](wiki/spec/resources/device_access.md).
-  `extents::{external_loans,ordering_events}` already carries confinement,
-  role-specific event identity, exact coordinates, device, request and runtime
-  scope, with coverage/substitution controls. Those records alone do not
-  establish a Stable view, completion or emitted ordering.
+- **DEVICE-EXTENT-ACCESS.** Make `samples/cli/device/device_extent_access`
+  execute provider-backed lending, completion and restored CPU access under
+  [device custody and ordering](wiki/spec/resources/device_access.md). Its
+  entrypoint is empty and it has no `build.omg`; `tools/sample_gate.py` therefore
+  excludes it. `source/library/core/device.omg` declares the loan boundary but
+  omits ordering roles. Select a concrete provider, invoke both loan directions,
+  and check the resulting CPU access and data.
 
-  Connect the provider's admitted roles to the live external loan: an intersecting
-  write invalidates the publication; notification consumes valid publication;
-  completion/acquisition restores CPU access only after exact borrower release
-  and coherence obligations. Preserve scoped ordering through Terminal and
-  target realization, including instruction-free coherent implementations.
-  Reject missing/extra/duplicate roles, stale publication, wrong request/device/
-  scope/mapping and premature restoration without consuming retry custody.
-  Pin failed-start return, failed-completion retention and permitted suspension.
+  Reuse `extents::{external_loans,ordering_events,mapping}`: exact confinement,
+  release/fact checks, coverage rejection and retry custody already exist in
+  Rust. `admit_acquisition_after_completion` only borrows and compares two event
+  records; it consumes no completion or live loan. Coverage checks compare roles
+  and authority but do not bind coordinates to a required provider schema.
+  Connect admitted, opaque runtime occurrences to the loan and exact role-specific
+  ranges/mappings, device, request and scope. Publication must track writes:
+  an intersecting write invalidates it, notification consumes valid publication,
+  and acquisition consumes completion only after borrower release and all
+  coherence obligations. Preserve scoped events through Terminal and target
+  realization, including instruction-free coherent implementations.
 
-  Exercise the shared-memory customer using an explicit atomic/coherence lease
-  or copy-and-validate/revoke-and-validate route as the peer contract requires.
-  Hostile writable peers cannot supply Stable access merely by asserting release.
-  Preserve exact-mapping revocation/invalidation checks and retry custody.
-  Remapping must reject retained foreign pins, changed geometry or widened
-  rights, and establish a fresh mapping era before replacement backing is used.
-  Protocols, queues, isolation and translation policy remain provider/OS code;
-  do not add compiler-owned drivers or treat a CPU barrier as device completion.
+  Exercise missing/extra/duplicate roles, substituted coordinates, stale
+  publication, wrong request/device/scope/mapping and premature restoration.
+  Failed start returns the borrow; failed completion/acquisition retains the
+  pending token and candidate for retry. Pin permitted suspension and CPU
+  exclusion for each direction; device success alone cannot establish release.
+
+  For shared memory, exercise an atomic/coherence lease with trusted peers or
+  copy-and-validate/revoke-and-validate with hostile writable peers. Preserve
+  `MappedExtent::stable_loan`'s exact revocation/invalidation requirement and
+  `external-roots`' `ProgramLocalExtentRegistry::remap` checks: retained foreign
+  pins, changed geometry and widened rights reject; replacement requires a fresh
+  era. Their Rust receipt tests do not execute the source/provider protocol.
+  Protocols, queues, isolation and translation policy stay provider/OS-owned;
+  a CPU barrier is not device completion.
 
 - **PLACED-ACCESS-NATIVE-OPS.** Extend contract-fact index derivation to remaining
   placed-access operations. Reuse
