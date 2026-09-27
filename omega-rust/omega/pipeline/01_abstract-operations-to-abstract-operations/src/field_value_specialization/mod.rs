@@ -8,7 +8,7 @@
 //! operation-result place is assigned exactly once by its producer and no
 //! operation can rewrite it, so the record field initializer fixes the field's
 //! stored value permanently. Variant establishment: at a lone `Case` path the
-//! producer is an `EstablishScalarCase` whose `result_case` matches the
+//! producer is an `EstablishCase` whose `result_case` matches the
 //! observed case, so its scalar case-field initializer fixes the payload
 //! field's value the same way. Nested establishment: a `Field` path segment
 //! descends the same two proofs into the child place the record stores whole

@@ -141,6 +141,22 @@ pub(crate) fn record_establishment_matches(
     else {
         return false;
     };
+    field_initializers_match(function, result, declarations, fields)
+}
+
+pub(crate) fn plain_owned_shape(
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    root: StructuralTypeId,
+) -> bool {
+    record_type(types, root, false)
+}
+
+pub(crate) fn field_initializers_match(
+    function: &PsiOptimizationFunction,
+    result: &terminal_psi::StructuralOperationResult,
+    declarations: &[terminal_psi::StructuralFieldDeclaration],
+    fields: &[terminal_psi::RecordFieldInitializer],
+) -> bool {
     if declarations.len() != fields.len() {
         return false;
     }
@@ -148,7 +164,7 @@ pub(crate) fn record_establishment_matches(
         .iter()
         .zip(fields)
         .all(|(declaration, initializer)| {
-            if declaration.id != initializer.field {
+            if declaration.id != initializer.field || declaration.relevance.is_erased() {
                 return false;
             }
             match (&declaration.field_type, &initializer.value) {
@@ -218,7 +234,7 @@ fn source_has_claims(function: &PsiOptimizationFunction, place: PlaceId) -> bool
             .any(|node| {
                 let result = match &node.operation {
                     O::EstablishScalarArray { result, .. }
-                    | O::EstablishScalarCase { result, .. }
+                    | O::EstablishCase { result, .. }
                     | O::EstablishRecord { result, .. }
                     | O::EstablishZeroedStructural { result, .. }
                     | O::EstablishReference { result, .. }

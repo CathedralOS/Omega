@@ -475,6 +475,17 @@ pub(super) fn apply_operation(
         O::ReleaseReference { source, .. } => {
             return release(function, block, Some(node), live, *source);
         }
+        O::EstablishCase { result, fields, .. } => {
+            // Plain case payloads carry owned data, not relocated references.
+            // Static shape checks reject reference leaves; replay still owes
+            // the live-loan check for every consumed child and fresh result.
+            check_root_access(function, block, node, live, result.place)?;
+            for field in fields {
+                if let terminal_psi::RecordFieldValue::Structural(argument) = &field.value {
+                    check_root_access(function, block, node, live, argument.place)?;
+                }
+            }
+        }
         O::EstablishRecord { result, fields, .. } => {
             return establish_record(
                 function,

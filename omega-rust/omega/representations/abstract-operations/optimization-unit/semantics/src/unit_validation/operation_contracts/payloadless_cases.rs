@@ -70,12 +70,12 @@ pub(crate) fn plain_scalar_sum_call(
             })
 }
 
-pub(crate) fn scalar_case_establishment_matches(
+pub(crate) fn case_establishment_matches(
     function: &PsiOptimizationFunction,
     operation: &O,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
 ) -> bool {
-    let O::EstablishScalarCase {
+    let O::EstablishCase {
         psi_operation,
         result,
         result_case,
@@ -97,21 +97,15 @@ pub(crate) fn scalar_case_establishment_matches(
         && result.qualifications.is_empty()
         && result.projected_qualifications.is_empty()
         && result.claims.is_empty()
+        && result.qualification_establishments.is_empty()
+        && super::records::plain_owned_shape(types, result.structural_type)
         && types.get(&result.structural_type).is_some_and(|declaration| {
             matches!(
                 &declaration.shape,
                 terminal_psi::StructuralTypeShape::Sum { cases }
                     if cases.iter().any(|case| case.id == *result_case
-                        && case.fields.len() == fields.len()
-                        && case.fields.iter().zip(fields).all(|(declaration, field)| {
-                            declaration.id == field.field
-                                && !declaration.relevance.is_erased()
-                                && declaration.field_type.scalar_type().is_some_and(|scalar_type| {
-                                    function.parameters.iter().chain(function.blocks.iter().flat_map(|block| block.parameters.iter().chain(block.nodes.iter().flat_map(|node| &node.definitions))))
-                                        .any(|definition| definition.value == field.value && definition.scalar_type == scalar_type)
-                                })
-                                && matches!(declaration.field_type, terminal_psi::StructuralFieldType::BoundedInteger(_)) == field.range_obligation.is_some()
-                        }))
+                        && super::records::field_initializers_match(function, result, &case.fields, fields))
+
             )
         })
 }
@@ -186,20 +180,20 @@ pub(crate) fn exact_payloadless_case_return_exits(
             .find(|operation| {
                 matches!(
                     operation,
-                    O::EstablishScalarCase { psi_operation, .. }
+                    O::EstablishCase { psi_operation, .. }
                         if *psi_operation == producer
                 )
             })
         else {
             return false;
         };
-        let O::EstablishScalarCase { result, fields, .. } = producer else {
+        let O::EstablishCase { result, fields, .. } = producer else {
             return false;
         };
         if result.place != *source
             || !fields.is_empty()
             || result.structural_type != signature.structural_type
-            || !scalar_case_establishment_matches(callee, producer, types)
+            || !case_establishment_matches(callee, producer, types)
         {
             return false;
         }

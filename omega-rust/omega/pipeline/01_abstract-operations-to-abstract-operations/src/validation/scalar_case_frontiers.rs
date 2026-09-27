@@ -1,7 +1,7 @@
 //! Reconstructed ownership-frontier membership for relocated affine
 //! scalar-case, empty-record, and structural-call results.
 //!
-//! An affine `EstablishScalarCase`, `EstablishRecord`, or `CallStructural`
+//! An affine `EstablishCase`, `EstablishRecord`, or `CallStructural`
 //! relocated out of a
 //! cyclic member re-times
 //! where its result is owned: the seed established a fresh place inside the
@@ -29,7 +29,7 @@ use optimization_unit::{
 use semantic_vocabulary::{BlockId, EdgeId, MachineId, OperationId, PlaceId};
 use std::collections::{BTreeMap, BTreeSet};
 
-/// The affine `EstablishScalarCase`, `EstablishRecord`, and `CallStructural`
+/// The affine `EstablishCase`, `EstablishRecord`, and `CallStructural`
 /// results whose
 /// position in `unit` moved
 /// away from the block the seed established them in — the only places whose
@@ -55,7 +55,7 @@ pub(crate) fn relocated_scalar_case_result_places(
         for block in &function.blocks {
             for node in &block.nodes {
                 let (psi_operation, place) = match &node.operation {
-                    O::EstablishScalarCase {
+                    O::EstablishCase {
                         psi_operation,
                         result,
                         ..

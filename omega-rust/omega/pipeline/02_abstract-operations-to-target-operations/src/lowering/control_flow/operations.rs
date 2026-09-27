@@ -304,14 +304,16 @@ pub(super) fn lower_operation(
             operations,
             provenance,
         ),
-        AbstractOperation::EstablishRecord { .. } => super::records::establish(
-            operation,
-            function,
-            structural_types,
-            live,
-            operations,
-            provenance,
-        ),
+        AbstractOperation::EstablishRecord { .. } | AbstractOperation::EstablishCase { .. } => {
+            super::records::establish(
+                operation,
+                function,
+                structural_types,
+                live,
+                operations,
+                provenance,
+            )
+        }
         AbstractOperation::EstablishReference { .. } => super::references::establish(
             operation,
             function,
@@ -322,16 +324,6 @@ pub(super) fn lower_operation(
         ),
         AbstractOperation::ReleaseReference { .. } => {
             super::references::release(operation, function, live, operations, provenance)
-        }
-        AbstractOperation::EstablishScalarCase { .. } => {
-            super::aggregate_results::establish_scalar_case(
-                operation,
-                function,
-                structural_types,
-                live,
-                operations,
-                provenance,
-            )
         }
         AbstractOperation::CallStructural { .. } => super::aggregate_results::call(
             operation,

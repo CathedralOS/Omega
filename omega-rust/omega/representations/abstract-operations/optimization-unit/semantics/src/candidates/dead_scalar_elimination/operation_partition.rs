@@ -51,7 +51,7 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | O::StructuralScalarFieldStore { .. }
         | O::AtomicEvent { .. }
         | O::EstablishScalarArray { .. }
-        | O::EstablishScalarCase { .. }
+        | O::EstablishCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::EstablishZeroedStructural { .. }

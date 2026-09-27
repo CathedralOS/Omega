@@ -4,8 +4,9 @@ use crate::unit_validation::operation_contracts::boundaries::{
 };
 use crate::unit_validation::operation_contracts::claim_transfers::validate_internal_claim_transfers;
 use crate::unit_validation::operation_contracts::payloadless_cases::{
-    exact_payloadless_structural_call, payloadless_selected_evidence_surface_matches,
-    plain_scalar_sum_call, scalar_case_establishment_matches, validate_structural_call_result,
+    case_establishment_matches, exact_payloadless_structural_call,
+    payloadless_selected_evidence_surface_matches, plain_scalar_sum_call,
+    validate_structural_call_result,
 };
 use crate::unit_validation::operation_contracts::records::{
     plain_record_call, record_establishment_matches, zeroed_establishment_matches,
@@ -112,9 +113,7 @@ pub(crate) fn operation_structural_call_contract_matches(
         O::EstablishScalarArray { .. } => {
             scalar_array_establishment_matches(caller, operation, types)
         }
-        O::EstablishScalarCase { .. } => {
-            scalar_case_establishment_matches(caller, operation, types)
-        }
+        O::EstablishCase { .. } => case_establishment_matches(caller, operation, types),
         O::EstablishRecord { .. } => record_establishment_matches(caller, operation, types),
         O::EstablishZeroedStructural { .. } => {
             zeroed_establishment_matches(caller, operation, types)

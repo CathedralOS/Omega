@@ -609,7 +609,7 @@ pub(crate) fn invariant_scalar_array_admission(
     member_scalar_operand_substitution(function, component, node, relocating)
 }
 
-/// An `EstablishScalarCase` is the fifth structural establishment admitted
+/// An `EstablishCase` is the fifth structural establishment admitted
 /// for loop-invariant motion — and the family's first member whose affine
 /// result carries a per-iteration disposal obligation the relocation must
 /// re-express rather than preserve. The node declares a fresh claim-free sum
@@ -633,7 +633,7 @@ pub(crate) fn invariant_scalar_array_admission(
 pub(crate) fn admissible_invariant_scalar_case(
     node: &OptimizationNode,
 ) -> Option<terminal_psi::StructuralOperationResult> {
-    let O::EstablishScalarCase {
+    let O::EstablishCase {
         psi_operation,
         result,
         fields,
@@ -649,7 +649,7 @@ pub(crate) fn admissible_invariant_scalar_case(
             .uses
             .iter()
             .zip(fields.iter())
-            .all(|(value_use, field)| value_use.value == field.value)
+            .all(|(value_use, field)| matches!(field.value, terminal_psi::RecordFieldValue::Scalar { value, .. } if value_use.value == value))
         && node.successors.is_empty()
         && node.ownership.is_empty()
         && matches!(

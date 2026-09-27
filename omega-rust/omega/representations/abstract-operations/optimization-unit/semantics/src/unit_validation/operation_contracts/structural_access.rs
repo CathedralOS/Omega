@@ -292,7 +292,7 @@ pub(crate) fn structural_arguments_match(
                         matches!(&node.operation,
                     O::CallStructural { result, .. } | O::EstablishRecord { result, .. }
                         | O::EstablishZeroedStructural { result, .. }
-                        | O::EstablishScalarCase { result, .. }
+                        | O::EstablishCase { result, .. }
                         if result.place == argument.place)
                     }));
         let actual_multiplicity =
@@ -512,7 +512,7 @@ fn structural_operation_result_contract(
                     (result, terminal_psi::StructuralAccess::SharedBorrow)
                 }
                 O::EstablishScalarArray { result, .. }
-                | O::EstablishScalarCase { result, .. }
+                | O::EstablishCase { result, .. }
                 | O::EstablishRecord { result, .. }
                 | O::EstablishZeroedStructural { result, .. }
                 | O::EstablishReference { result, .. }

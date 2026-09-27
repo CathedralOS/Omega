@@ -310,7 +310,7 @@ pub(crate) fn validate_structural_root_operations(
                                         O::EstablishRecord { psi_operation, result, .. }
                                         | O::EstablishZeroedStructural { psi_operation, result }
                                         | O::EstablishScalarArray { psi_operation, result, .. }
-                                        | O::EstablishScalarCase { psi_operation, result, .. }
+                                        | O::EstablishCase { psi_operation, result, .. }
                                         | O::StructuralLeafCopy { psi_operation, result, .. }
                                         | O::MoveStructuralField { psi_operation, result, .. }
                                         | O::CallStructural { psi_operation, result, .. }
@@ -660,7 +660,7 @@ pub(crate) fn validate_structural_root_operations(
                                 .flat_map(|block| &block.nodes)
                                 .find_map(|node| match &node.operation {
                                     O::EstablishScalarArray { psi_operation, result, .. }
-                                    | O::EstablishScalarCase {
+                                    | O::EstablishCase {
                                         psi_operation,
                                         result,
                                         ..
@@ -807,7 +807,7 @@ fn readable_field_type(
                     O::EstablishRecord { result, .. }
                     | O::EstablishZeroedStructural { result, .. }
                     | O::EstablishScalarArray { result, .. }
-                    | O::EstablishScalarCase { result, .. }
+                    | O::EstablishCase { result, .. }
                     | O::EstablishReference { result, .. }
                     | O::MoveStructuralField { result, .. }
                     | O::CallStructural { result, .. }

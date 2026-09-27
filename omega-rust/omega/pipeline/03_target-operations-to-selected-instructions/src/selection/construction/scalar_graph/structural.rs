@@ -232,7 +232,7 @@ pub(super) fn operation(
     }
     if matches!(
         row.kind,
-        LegalizedScalarInstructionKind::EstablishScalarCase { .. }
+        LegalizedScalarInstructionKind::EstablishCase { .. }
     ) {
         scalar_case::establish(source, row, builder)?;
         return Ok(true);

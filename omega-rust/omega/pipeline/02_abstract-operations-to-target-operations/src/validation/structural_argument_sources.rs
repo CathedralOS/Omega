@@ -191,7 +191,7 @@ fn expected_sources(source: &AbstractFunction) -> BTreeMap<PlaceId, ExpectedSour
                 result,
                 ..
             }
-            | AbstractOperation::EstablishScalarCase {
+            | AbstractOperation::EstablishCase {
                 psi_operation,
                 result,
                 ..

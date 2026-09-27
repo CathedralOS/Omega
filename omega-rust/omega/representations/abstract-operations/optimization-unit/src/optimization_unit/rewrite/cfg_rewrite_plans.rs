@@ -153,7 +153,7 @@ pub struct StateArgumentSpecializationRewrite {
 /// (`source`), the case it asked about (`observed_case`), the case the unit
 /// proves at the observed position (`proven_case`), and the folded verdict
 /// (`outcome`, always `proven_case == observed_case`). `producer` names the
-/// `EstablishScalarCase` operation proving the observed position's case —
+/// `EstablishCase` operation proving the observed position's case —
 /// the empty-path observation's own result place, the establishment a
 /// uniform whole `Owned`/`SharedBorrow` block-parameter binding forwards
 /// to, or a stored-whole child's producer at a nested `Field` path; a
@@ -176,7 +176,7 @@ pub struct FoldedCaseMembershipRow {
 /// keeps its operation custody identity, result value, successors,
 /// definitions, uses, ownership events, and fuel settlement; only the
 /// operation and the recomputed unit identity differ. `producer` is the
-/// `EstablishScalarCase` root-case witness the place resolves to when one
+/// `EstablishCase` root-case witness the place resolves to when one
 /// exists — its own operation result or the establishment a uniform
 /// block-parameter binding forwards to — while rows still carry their own
 /// basis, so a roster-only candidate holds `None`.
@@ -229,7 +229,7 @@ pub enum FieldValueResolution {
 /// with the exact site, custody identity, observed place, canonical path,
 /// field, proof witness, and resolution. `producer` is the establishing
 /// operation the row's proof draws on — `Some` for an `EstablishRecord`
-/// basis at an empty path, an `EstablishScalarCase` basis at a lone `Case`
+/// basis at an empty path, an `EstablishCase` basis at a lone `Case`
 /// path, or the same two reached through `Field` descents across owned,
 /// complete structural children or across a uniform whole
 /// `Owned`/`SharedBorrow` block-parameter binding — where `Some` names the
@@ -256,7 +256,7 @@ pub struct FieldValueRow {
 /// proven initializer at every use of the read's result and retires the
 /// observation node, fusing the read's custody into the following node.
 /// `producer` is the place's own establishing operation-result witness —
-/// an `EstablishRecord` or `EstablishScalarCase` — when the observed place
+/// an `EstablishRecord` or `EstablishCase` — when the observed place
 /// is itself such a result; a block parameter holds no producer of its own
 /// even when its uniform binding forwards to one, so a binding-forwarded
 /// or bound-only candidate carries `None` while its rows still name the

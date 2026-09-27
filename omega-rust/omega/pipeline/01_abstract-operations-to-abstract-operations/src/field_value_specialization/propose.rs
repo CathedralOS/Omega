@@ -3,7 +3,7 @@
 //! A `BooleanStructuralField`/`IntegerStructuralField` observation is
 //! foldable when the stored value it reads is proven by the unit itself. At
 //! an empty path an `EstablishRecord` producer proves the field's
-//! initializer; at a lone `Case` path an `EstablishScalarCase` producer
+//! initializer; at a lone `Case` path an `EstablishCase` producer
 //! whose `result_case` matches proves the payload field's initializer; and
 //! a `Field` segment descends the same two proofs into a nested position
 //! when the record stores the field as an owned, complete structural child

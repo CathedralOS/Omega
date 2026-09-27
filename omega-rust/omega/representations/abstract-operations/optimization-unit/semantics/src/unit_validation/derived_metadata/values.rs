@@ -210,8 +210,7 @@ pub(crate) fn expected_uses(
     use abstract_operations::AbstractOperation as O;
     let values = match operation {
         O::EstablishScalarArray { elements, .. } => elements.clone(),
-        O::EstablishScalarCase { fields, .. } => fields.iter().map(|field| field.value).collect(),
-        O::EstablishRecord { fields, .. } => fields
+        O::EstablishCase { fields, .. } | O::EstablishRecord { fields, .. } => fields
             .iter()
             .filter_map(|initializer| match &initializer.value {
                 terminal_psi::RecordFieldValue::Scalar { value, .. } => Some(*value),

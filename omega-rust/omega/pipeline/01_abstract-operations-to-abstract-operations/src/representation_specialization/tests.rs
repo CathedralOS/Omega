@@ -599,7 +599,7 @@ fn bound_observation(unit: &PsiOptimizationUnit, machine: MachineId) -> (PlaceId
 }
 
 /// The only `OperationResult` place in these fixtures, its
-/// `EstablishScalarCase` producer, and the fixed case.
+/// `EstablishCase` producer, and the fixed case.
 fn established_place(
     unit: &PsiOptimizationUnit,
     machine: MachineId,
@@ -628,7 +628,7 @@ fn established_place(
         .iter()
         .flat_map(|block| &block.nodes)
         .find_map(|node| match &node.operation {
-            AbstractOperation::EstablishScalarCase {
+            AbstractOperation::EstablishCase {
                 psi_operation,
                 result_case,
                 ..

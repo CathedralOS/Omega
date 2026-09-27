@@ -212,7 +212,7 @@ fn source_contract(
                 _ => None,
             },
             O::CallStructural { result, .. }
-            | O::EstablishScalarCase { result, .. }
+            | O::EstablishCase { result, .. }
             | O::EstablishRecord { result, .. }
             | O::EstablishZeroedStructural { result, .. }
                 if result.place == place

@@ -513,7 +513,7 @@ pub(super) fn member_scalar_array_establishments<'function>(
     arrays
 }
 
-/// Every `EstablishScalarCase` node inside `component`'s member blocks —
+/// Every `EstablishCase` node inside `component`'s member blocks —
 /// the sum counterpart of [`member_scalar_array_establishments`].
 pub(super) fn member_scalar_case_establishments<'function>(
     function: &'function optimization_unit::PsiOptimizationFunction,
@@ -530,7 +530,7 @@ pub(super) fn member_scalar_case_establishments<'function>(
             .find(|block| block.id == *member)
             .expect("member block exists");
         for node in &block.nodes {
-            if let AbstractOperation::EstablishScalarCase { .. } = &node.operation {
+            if let AbstractOperation::EstablishCase { .. } = &node.operation {
                 cases.push((block, node));
             }
         }

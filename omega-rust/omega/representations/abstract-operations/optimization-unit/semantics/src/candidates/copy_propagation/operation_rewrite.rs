@@ -26,12 +26,8 @@ pub(crate) fn rewrite_block_parameter_operation(
                 replace(element);
             }
         }
-        O::EstablishScalarCase { fields, .. } => {
-            for field in fields {
-                replace(&mut field.value);
-            }
-        }
-        O::EstablishRecord { fields, .. } => {
+        O::EstablishCase { fields, .. }
+        | O::EstablishRecord { fields, .. } => {
             for initializer in fields {
                 if let terminal_psi::RecordFieldValue::Scalar { value, .. } = &mut initializer.value
                 {

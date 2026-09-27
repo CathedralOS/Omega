@@ -237,7 +237,7 @@ fn node_preserves_place_observations(operation: &O) -> bool {
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishPrimitiveLocal { .. }
         | O::EstablishScalarArray { .. }
-        | O::EstablishScalarCase { .. }
+        | O::EstablishCase { .. }
         | O::EstablishRecord { .. }
         | O::Call { .. } => true,
         O::CallUnit {
@@ -532,12 +532,10 @@ pub(super) fn member_place_references(operation: &O, references: &mut BTreeSet<P
         // Constants,
         // scalar computations, plain scalar calls, port writes, descriptor
         // parameters, and non-structural terminators name no place at all.
-        O::EstablishScalarArray { result, .. }
-        | O::EstablishPrimitiveLocal { result, .. }
-        | O::EstablishScalarCase { result, .. } => {
+        O::EstablishScalarArray { result, .. } | O::EstablishPrimitiveLocal { result, .. } => {
             references.insert(result.place);
         }
-        O::EstablishRecord { result, fields, .. } => {
+        O::EstablishCase { result, fields, .. } | O::EstablishRecord { result, fields, .. } => {
             references.insert(result.place);
             for field in fields {
                 if let terminal_psi::RecordFieldValue::Structural(argument) = &field.value {
@@ -668,7 +666,7 @@ pub(crate) fn produced_place_root(operation: &O) -> Option<PlaceId> {
         O::EstablishPrimitiveLocal { result, .. }
         | O::ByteSequenceSubslice { result, .. }
         | O::EstablishScalarArray { result, .. }
-        | O::EstablishScalarCase { result, .. }
+        | O::EstablishCase { result, .. }
         | O::EstablishRecord { result, .. }
         | O::CallStructural { result, .. } => Some(result.place),
         O::BoundaryCall {

@@ -1,7 +1,7 @@
 //! Independent case-membership specialization replay mechanics.
 //!
 //! Validation never trusts the candidate's membership rows: it re-derives the
-//! claimed place's proof evidence — an `EstablishScalarCase` producer on an
+//! claimed place's proof evidence — an `EstablishCase` producer on an
 //! operation-result place, or a declared closed `Sum`/`Mixed` roster of
 //! exactly one case at the position each observation resolves to — replays
 //! the admissible observation set for that place, requires the claimed rows
@@ -61,7 +61,7 @@ fn membership_evidence<'a>(
 }
 
 /// The case `place`'s root is proven to hold, plus its establishment
-/// producer when the proof is one `EstablishScalarCase` operation result —
+/// producer when the proof is one `EstablishCase` operation result —
 /// whether the place is itself that result or a block parameter every
 /// incoming edge binds to it whole.
 fn proof_basis(
@@ -77,7 +77,7 @@ fn proof_basis(
 
 /// The establishing operation a place's producer or uniform binding
 /// resolves to, when it is one this family's proofs can draw on: `Record`
-/// for an `EstablishRecord`, `Variant` for an `EstablishScalarCase`
+/// for an `EstablishRecord`, `Variant` for an `EstablishCase`
 /// carrying its `result_case`, `None` for every other producer or place
 /// kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -89,7 +89,7 @@ enum Establishment {
 
 /// The establishing producer `declaration`'s operation-result kind names,
 /// or `Establishment::None` when the place is not an operation result or
-/// its producer is not an `EstablishRecord`/`EstablishScalarCase` in
+/// its producer is not an `EstablishRecord`/`EstablishCase` in
 /// `function`.
 fn establishment_producer(
     function: &PsiOptimizationFunction,
@@ -107,7 +107,7 @@ fn establishment_producer(
             } if *psi_operation == producer && result.place == declaration.id => {
                 return Establishment::Record(producer);
             }
-            O::EstablishScalarCase {
+            O::EstablishCase {
                 psi_operation,
                 result,
                 result_case,
@@ -122,7 +122,7 @@ fn establishment_producer(
 }
 
 /// The case an establishing producer proves at `path`'s resolved position
-/// under `declaration`'s place, witnessed by the `EstablishScalarCase`
+/// under `declaration`'s place, witnessed by the `EstablishCase`
 /// operation at that position. `None` when any step is not established: a
 /// `Field` segment crosses only into an `EstablishRecord` field stored as
 /// an owned, complete structural child whose declared type is exactly the
@@ -145,7 +145,7 @@ fn established_case_at(
     loop {
         match (producer, segments) {
             (Establishment::Variant(producer, case), []) => {
-                // An `EstablishScalarCase` proves the case of the position
+                // An `EstablishCase` proves the case of the position
                 // its result occupies permanently.
                 return Some((producer, case));
             }
@@ -484,7 +484,7 @@ fn plan_memberships(
 
 /// The folded node a row admits at its site: a `BooleanConstant` with the
 /// membership's own custody identity and result value, checked against the
-/// claimed basis — an establishment producer must be the `EstablishScalarCase`
+/// claimed basis — an establishment producer must be the `EstablishCase`
 /// the row's path resolves to through stored-whole children and uniform
 /// block-parameter bindings, while a roster row must resolve to exactly the
 /// claimed case.
@@ -522,7 +522,7 @@ fn folded_node(
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
     match row.producer {
-        // The claimed producer must be the `EstablishScalarCase` the
+        // The claimed producer must be the `EstablishCase` the
         // establishment chain under `row.source` resolves `path` to — the
         // observed place's own producer at an empty path, the operation a
         // uniform block-parameter binding forwards to, or a stored-whole

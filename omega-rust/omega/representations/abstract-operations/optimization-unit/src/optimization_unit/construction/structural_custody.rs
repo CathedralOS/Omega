@@ -6,7 +6,7 @@ use super::super::{
 pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSet<PlaceId>) {
     use AbstractOperation as O;
     match operation {
-        O::EstablishRecord { result, fields, .. } => {
+        O::EstablishCase { result, fields, .. } | O::EstablishRecord { result, fields, .. } => {
             places.insert(result.place);
             places.extend(
                 fields
@@ -70,7 +70,6 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         O::EstablishPrimitiveLocal { result, .. }
         | O::EstablishZeroedStructural { result, .. }
         | O::EstablishScalarArray { result, .. }
-        | O::EstablishScalarCase { result, .. }
         | O::CallStructural { result, .. }
         | O::BoundaryCall {
             result: abstract_operations::AbstractBoundaryResult::Structural(result),
@@ -227,7 +226,7 @@ pub(super) fn collect_operation_structural_places(
             result,
             ..
         }
-        | AbstractOperation::EstablishScalarCase {
+        | AbstractOperation::EstablishCase {
             psi_operation,
             result,
             ..

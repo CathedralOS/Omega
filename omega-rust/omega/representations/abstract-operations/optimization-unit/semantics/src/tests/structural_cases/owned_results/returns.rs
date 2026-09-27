@@ -65,9 +65,7 @@ fn selected_case_return_rejects_join_custody_substitution() {
                     .iter()
                     .flat_map(|block| &block.nodes)
                     .find_map(|node| {
-                        if let AbstractOperation::EstablishScalarCase { result, .. } =
-                            &node.operation
-                        {
+                        if let AbstractOperation::EstablishCase { result, .. } = &node.operation {
                             Some(result.place)
                         } else {
                             None

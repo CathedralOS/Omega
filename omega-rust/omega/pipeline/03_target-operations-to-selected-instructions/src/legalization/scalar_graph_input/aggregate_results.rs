@@ -50,7 +50,7 @@ pub(super) fn uses(function: &PsiOptimizationFunction, plan: &AbstractOperationP
                         | AbstractOperation::EstablishRecord { .. }
                         | AbstractOperation::EstablishReference { .. }
                         | AbstractOperation::ReleaseReference { .. }
-                        | AbstractOperation::EstablishScalarCase { .. }
+                        | AbstractOperation::EstablishCase { .. }
                         | AbstractOperation::StructuralLeafCopy { .. }
                         | AbstractOperation::MoveStructuralField { .. }
                         | AbstractOperation::StoreStructuralField { .. }

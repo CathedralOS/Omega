@@ -299,7 +299,7 @@ fn dropped_exit_scalar_case_disposal_is_rejected_by_the_freeze_fence() {
         panic!("one member scalar-case establishment")
     };
     let picked = match &establishment.operation {
-        AbstractOperation::EstablishScalarCase { result, .. } => result.place,
+        AbstractOperation::EstablishCase { result, .. } => result.place,
         operation => panic!("the member node is a scalar-case establishment: {operation:?}"),
     };
     // The exit edge is a member terminator edge departing the roster —

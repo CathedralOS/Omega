@@ -205,8 +205,7 @@ pub(super) fn operation_uses(operation: &AbstractOperation) -> Vec<ValueId> {
 fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
     use AbstractOperation as O;
     match operation {
-        O::EstablishScalarCase { fields, .. } => fields.iter().map(|field| field.value).collect(),
-        O::EstablishRecord { fields, .. } => fields
+        O::EstablishCase { fields, .. } | O::EstablishRecord { fields, .. } => fields
             .iter()
             .filter_map(|initializer| match &initializer.value {
                 terminal_psi::RecordFieldValue::Scalar { value, .. } => Some(*value),

@@ -68,7 +68,40 @@ pub(super) fn establish(
         )?;
         offset += u32::from(width);
     }
-    for (initializer, (offset, field_shape, expected_scalar)) in initializers.iter().zip(fields) {
+    write_fields(
+        source,
+        row,
+        replay,
+        result.place,
+        pointer,
+        initializers,
+        &fields,
+    )?;
+    replay.transport.pointers.push((result.place, pointer));
+    Ok(())
+}
+/// Initialize each owned field from its exact scalar or completed child storage.
+/// Case construction uses the same writes after establishing its tag.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn write_fields(
+    source: &LegalizedScalarFunction,
+    row: &LegalizedScalarInstruction,
+    replay: &mut Replay<'_>,
+    destination: PlaceId,
+    pointer: VirtualRegisterId,
+    initializers: &[terminal_psi::RecordFieldInitializer],
+    fields: &[(
+        u32,
+        calling_conventions::ValueShape,
+        Option<semantic_vocabulary::ScalarType>,
+    )],
+) -> Result<(), SelectedInstructionError> {
+    if initializers.len() != fields.len() {
+        return Err(invalid());
+    }
+    for (initializer, (offset, field_shape, expected_scalar)) in
+        initializers.iter().zip(fields.iter().copied())
+    {
         match &initializer.value {
             terminal_psi::RecordFieldValue::Scalar {
                 value,
@@ -84,7 +117,7 @@ pub(super) fn establish(
                 store(
                     replay,
                     row,
-                    result.place,
+                    destination,
                     pointer,
                     offset,
                     width,
@@ -147,7 +180,7 @@ pub(super) fn establish(
                         memory(
                             replay,
                             row,
-                            result.place,
+                            destination,
                             offset + fragment_offset,
                             u32::from(width),
                             SelectedMemoryAccessRole::WritePlace,
@@ -216,7 +249,7 @@ pub(super) fn establish(
                     store(
                         replay,
                         row,
-                        result.place,
+                        destination,
                         pointer,
                         offset + cursor,
                         width,
@@ -229,9 +262,9 @@ pub(super) fn establish(
             }
         }
     }
-    replay.transport.pointers.push((result.place, pointer));
     Ok(())
 }
+
 fn chunk(remaining: u32) -> u8 {
     [8u8, 4, 2, 1]
         .into_iter()

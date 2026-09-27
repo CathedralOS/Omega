@@ -356,11 +356,9 @@ pub(super) fn lower(
                 )?,
             })
         }
-        OperationKind::EstablishStructuralCase { .. } => {
-            Err(LoweringError::UnsupportedStructuralCase(operation.id))
-        }
         OperationKind::EstablishScalarArray { .. }
         | OperationKind::EstablishScalarCase { .. }
+        | OperationKind::EstablishStructuralCase { .. }
         | OperationKind::EstablishByteSequenceLiteral { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. }
         | OperationKind::EstablishZeroedStructural { .. }

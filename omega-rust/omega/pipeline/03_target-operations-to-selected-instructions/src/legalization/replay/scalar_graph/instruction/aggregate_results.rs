@@ -175,13 +175,13 @@ pub(super) fn validate(
             && *shape
                 == scalar_graph_input::aggregate_results::home_layout(result, plan)?.shape() => {}
         (
-            LegalizedScalarInstructionKind::EstablishScalarCase {
+            LegalizedScalarInstructionKind::EstablishCase {
                 result,
                 result_case,
                 fields,
                 layout,
             },
-            AbstractOperation::EstablishScalarCase {
+            AbstractOperation::EstablishCase {
                 result: expected,
                 result_case: expected_case,
                 fields: expected_fields,

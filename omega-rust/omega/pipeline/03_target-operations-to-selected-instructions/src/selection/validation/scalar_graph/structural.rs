@@ -234,7 +234,7 @@ pub(super) fn operation(
     }
     if matches!(
         node.kind,
-        LegalizedScalarInstructionKind::EstablishScalarCase { .. }
+        LegalizedScalarInstructionKind::EstablishCase { .. }
     ) {
         scalar_case::establish(source, node, replay)?;
         return Ok(true);
