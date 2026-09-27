@@ -13,16 +13,17 @@
 //     operands' arithmetic policy, so its store is not a policy conversion
 use omega_language_std::console;
 use omega::language::core::binding;
-data Main {
+data Main where 0 <= k, k <= 3 {
     console: Binding<Console>;
     arr: [i32 in Wrapping; 5];
-    k: u64 [0..=3];
+    k: u64;
     acc: i32 in Wrapping;
     r: i32 in Wrapping;
     wh: u64 in Wrapping;
     wn: u64 in Wrapping;
 }
-machine Main::main(&mut self) reaches Console {
+machine Main::main(&mut self) reaches Console
+{
     self.arr[1] = 5;
     self.arr[2] = 7;
     self.arr[3] = 42;
@@ -32,7 +33,8 @@ machine Main::main(&mut self) reaches Console {
         true -> a2()
         false -> no()
     }
-    state a2(&mut self) {
+    state a2(&mut self)
+    {
         self.acc = 100;
         self.r = self.acc + self.arr[self.k + 1];
         transition self.r == 142 {
@@ -40,7 +42,8 @@ machine Main::main(&mut self) reaches Console {
             false -> no()
         }
     }
-    state a3(&mut self) {
+    state a3(&mut self)
+    {
         self.arr[self.k + 1] = 99;
         self.r = self.arr[3];
         transition self.r == 99 {
@@ -48,27 +51,31 @@ machine Main::main(&mut self) reaches Console {
             false -> no()
         }
     }
-    state a4(&mut self) {
+    state a4(&mut self)
+    {
         self.r = self.arr[1 + self.k];
         transition self.r == 99 {
             true -> a5()
             false -> no()
         }
     }
-    state a5(&mut self) {
+    state a5(&mut self)
+    {
         transition self.k == 2 {
             true -> a5b()
             false -> no()
         }
     }
-    state a5b(&mut self) {
+    state a5b(&mut self)
+    {
         self.r = self.arr[self.k - 1];
         transition self.r == 5 {
             true -> a6()
             false -> no()
         }
     }
-    state a6(&mut self) {
+    state a6(&mut self)
+    {
         self.wh = 1;
         self.wn = 3;
         transition self.wh + self.wn < 5 {
@@ -76,7 +83,8 @@ machine Main::main(&mut self) reaches Console {
             false -> no()
         }
     }
-    state a6b(&mut self) {
+    state a6b(&mut self)
+    {
         self.arr[self.wh + self.wn] = 11;
         self.r = self.arr[4];
         transition self.r == 11 {
@@ -84,6 +92,8 @@ machine Main::main(&mut self) reaches Console {
             false -> no()
         }
     }
-    state yes(&mut self) { self.console.exit_process(1); }
-    state no(&mut self) { self.console.exit_process(2); }
+    state yes(&mut self)
+    { self.console.exit_process(1); }
+    state no(&mut self)
+    { self.console.exit_process(2); }
 }

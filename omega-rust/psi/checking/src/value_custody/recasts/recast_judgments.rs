@@ -14,7 +14,7 @@ use crate::value_custody::recasts::representation_types::exact_scalar_representa
 use crate::value_custody::recasts::scalar_representation::{
     MutableScalarRepresentationFacts, ScalarRepresentationSet, full_scalar_bit_patterns,
     mutable_scalar_representation_facts, mutable_scalar_representation_facts_equivalent,
-    scalar_representation_facts_imply,
+    narrow_to_integer_interval, scalar_representation_facts_imply,
 };
 use diagnostics::Diagnostic;
 use std::collections::HashSet;
@@ -399,7 +399,26 @@ pub(crate) fn judge_scalar_recast(
     }
 
     let source_facts = source_type
-        .and_then(|type_reference| mutable_scalar_representation_facts(program, type_reference));
+        .and_then(|type_reference| mutable_scalar_representation_facts(program, type_reference))
+        .map(|mut facts| {
+            // A field's `where` clauses narrow what the place stores just as a
+            // type-attached range would; fold them in so equivalence does not
+            // depend on which spelling declared the fact.
+            if let Some(interval) = crate::proof_contracts::default_domains::where_fact_interval(
+                program,
+                machine,
+                Some(state),
+                source,
+            ) {
+                narrow_to_integer_interval(
+                    &mut facts,
+                    source_primitive,
+                    interval.low,
+                    interval.high,
+                );
+            }
+            facts
+        });
     let target_facts = mutable_scalar_representation_facts(program, let_referee);
     let target_is_fact_free = target_facts.as_ref().is_some_and(|target_facts| {
         target_facts.domains.is_empty()
