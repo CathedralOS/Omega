@@ -1,4 +1,4 @@
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use isa_aarch64::{aarch64_machine_effect_catalog, validate_aarch64_machine_effect_catalog};
 use isa_x86_64::{validate_x86_64_machine_effect_catalog, x86_64_machine_effect_catalog};
@@ -25,13 +25,14 @@ type CatalogKey = (
 /// exact register-constraint catalog. Every function's effect analysis and
 /// revalidation asked for it, and each request rebuilt the whole table,
 /// rebuilding the physical register model per declaration, then revalidated
-/// it. Each distinct table is now built and validated once per process; a
-/// failed build is not remembered, so it fails again on every request.
+/// it. Each distinct table is now built and validated once per process and
+/// shared, not copied, with each request; a failed build is not remembered,
+/// so it fails again on every request.
 pub(super) fn validated_catalog(
     target: NativeTarget,
     constraints: &ValidatedRegisterConstraintCatalog,
-) -> Result<ValidatedMachineEffectCatalog, MachineEffectStageError> {
-    static CATALOGS: OnceLock<Mutex<Vec<(CatalogKey, ValidatedMachineEffectCatalog)>>> =
+) -> Result<Arc<ValidatedMachineEffectCatalog>, MachineEffectStageError> {
+    static CATALOGS: OnceLock<Mutex<Vec<(CatalogKey, Arc<ValidatedMachineEffectCatalog>)>>> =
         OnceLock::new();
     let catalogs = CATALOGS.get_or_init(Mutex::default);
     let key = (
@@ -44,7 +45,7 @@ pub(super) fn validated_catalog(
     {
         return Ok(catalog.clone());
     }
-    let catalog = build_validated_catalog(target, constraints)?;
+    let catalog = Arc::new(build_validated_catalog(target, constraints)?);
     if let Ok(mut catalogs) = catalogs.lock()
         && !catalogs.iter().any(|(candidate, _)| *candidate == key)
     {

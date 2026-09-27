@@ -31,7 +31,10 @@ use register_environment::ValidatedTargetRegisterEnvironment;
 pub(crate) fn validated_machine_effect_catalog(
     target: target::NativeTarget,
     constraints: &register_model::ValidatedRegisterConstraintCatalog,
-) -> Result<selected_instructions::ValidatedMachineEffectCatalog, MachineEffectStageError> {
+) -> Result<
+    std::sync::Arc<selected_instructions::ValidatedMachineEffectCatalog>,
+    MachineEffectStageError,
+> {
     catalog::validated_catalog(target, constraints)
 }
 
