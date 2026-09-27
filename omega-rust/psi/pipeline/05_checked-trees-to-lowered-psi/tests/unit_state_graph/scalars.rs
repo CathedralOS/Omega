@@ -134,6 +134,81 @@ fn only_the_selected_successor_evaluates_its_scalar_operands() {
 }
 
 #[test]
+fn short_circuit_local_values_compose_with_prefix_and_later_bindings() {
+    let source = r#"
+        boundary trait Output { machine write(bytes: &[u8], marker: i32) reaches Output; }
+        machine relay(bytes: &[u8], first: bool, second: bool) reaches Output {
+            let seed: bool = first;
+            let selected: bool = (seed || second) && !(seed && second);
+            let saved: bool = selected;
+            transition saved {
+                true -> finish(bytes, 7i32)
+                false -> finish(bytes, 9i32)
+            }
+            state finish(bytes: &[u8], marker: i32) { Output::write(bytes, marker); }
+        }
+        data Root {}
+        machine Root::enter() reaches Output {
+            relay("neither", false, false);
+            relay("first", true, false);
+            relay("second", false, true);
+            relay("both", true, true);
+        }
+    "#;
+    let checked = crate::front_end::checked_program(source);
+    assert_eq!(
+        effects(&checked),
+        vec![
+            (b"neither".to_vec(), 9),
+            (b"first".to_vec(), 7),
+            (b"second".to_vec(), 7),
+            (b"both".to_vec(), 9),
+        ]
+    );
+    let mut changed = checked;
+    let relay = changed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "relay")
+        .unwrap()
+        .symbol;
+    let entry = &mut changed
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_machines
+        .iter_mut()
+        .find(|plan| plan.machine == relay)
+        .unwrap()
+        .states[0];
+    assert_eq!(entry.bindings.len(), 1, "only seed is branch-free prefix");
+    let value = entry
+        .operations
+        .iter_mut()
+        .find_map(|operation| match operation {
+            checked_trees::CheckedUnitEffectOperationPlan::EstablishScalarLocal {
+                result,
+                value,
+            } if result.statement_index == 1 => Some(value),
+            _ => None,
+        })
+        .expect("the selected local belongs to ordinary statement sequencing");
+    *value = checked_trees::CheckedCallScalarArgument::Pure(
+        checked_trees::CheckedScalarExpression::Boolean(Box::new(
+            checked_trees::CheckedBooleanExpression::Constant(false),
+        )),
+    );
+    assert!(
+        checked_trees_to_lowered_psi::lower_machine(
+            &changed,
+            TerminalMachineSelection::Name("Root::enter"),
+        )
+        .is_err(),
+        "ordinary sequencing must still reject a substituted initializer"
+    );
+}
+
+#[test]
 fn scalar_prefix_cannot_drop_reorder_or_retarget_authored_writes() {
     let baseline = crate::front_end::checked_program(PREFIX);
     for mutation in 0..3 {

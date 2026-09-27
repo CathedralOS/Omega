@@ -263,7 +263,7 @@ pub(super) fn build_traced(
         let statements = program.statement_table.statements(state.statement_nodes);
         // A body containing structural bindings is not a scalar-only prefix.
         // The shared sequence must account for every statement in that case.
-        let bindings = crate::execution::terminal_scalar::checked_binding_prefix(
+        let mut bindings = crate::execution::terminal_scalar::checked_binding_prefix(
             program,
             state,
             &facts.values.scalar_computations,
@@ -284,6 +284,7 @@ pub(super) fn build_traced(
         })
         .collect::<Vec<_>>();
         let binding_initializers = prefix_initializers(program, facts, state, &bindings, trace)?;
+        bindings.truncate(binding_initializers.len());
         let binding_count = bindings.len();
         let terminator_index = statements
             .iter()
@@ -658,10 +659,11 @@ fn guard_is_boolean(facts: &CheckFacts, guard: &checked_trees::CheckedCallScalar
     }
 }
 
-/// The pure scalar initializers ahead of the first computation, tracing the
-/// binding and the guard (binding value, destination, statement, bound
-/// expression, custody agreement, initializer type, short-circuit boolean)
-/// that declined it.
+/// The branch-free scalar initializers ahead of ordinary statement sequencing.
+/// A short-circuit value ends this prefix, even when it has no calls: the
+/// sequence's scalar-local operation already owns its conditional evaluation.
+/// Keep the remaining bindings in that sequence too, preserving source order
+/// and their references to the completed Boolean value.
 fn prefix_initializers(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -673,67 +675,66 @@ fn prefix_initializers(
 
     let statements = program.statement_table.statements(state.statement_nodes);
     let mut immutable_ordinal = 0u32;
-    bindings
-        .iter()
-        .map(|binding| {
-            let mark = |phase| {
-                trace.phase(phase);
-                trace.statement(Some(binding.statement_ordinal));
-            };
-            mark("state graph: prefix initializers: binding value");
-            if binding.value != CheckedScalarBindingValue::Expression {
-                return None;
+    let mut initializers = Vec::with_capacity(bindings.len());
+    for binding in bindings {
+        let mark = |phase| {
+            trace.phase(phase);
+            trace.statement(Some(binding.statement_ordinal));
+        };
+        mark("state graph: prefix initializers: binding value");
+        if binding.value != CheckedScalarBindingValue::Expression {
+            return None;
+        }
+        mark("state graph: prefix initializers: binding destination");
+        let (role, destination) = match binding.destination {
+            CheckedScalarBindingDestination::Immutable => {
+                let StatementNode::LocalData(local) =
+                    statements.get(binding.statement_ordinal as usize)?
+                else {
+                    return None;
+                };
+                let role = CheckedScalarExpressionRole::LocalInitializer {
+                    binding_ordinal: immutable_ordinal,
+                };
+                immutable_ordinal = immutable_ordinal.checked_add(1)?;
+                (role, local.symbol)
             }
-            mark("state graph: prefix initializers: binding destination");
-            let (role, destination) = match binding.destination {
-                CheckedScalarBindingDestination::Immutable => {
-                    let StatementNode::LocalData(local) =
-                        statements.get(binding.statement_ordinal as usize)?
-                    else {
-                        return None;
-                    };
-                    let role = CheckedScalarExpressionRole::LocalInitializer {
-                        binding_ordinal: immutable_ordinal,
-                    };
-                    immutable_ordinal = immutable_ordinal.checked_add(1)?;
-                    (role, local.symbol)
-                }
-                CheckedScalarBindingDestination::StorageInitialize { symbol } => {
-                    (CheckedScalarExpressionRole::StorageInitializer, symbol)
-                }
-                CheckedScalarBindingDestination::StorageAssign { symbol } => {
-                    (CheckedScalarExpressionRole::AssignmentValue, symbol)
-                }
-            };
-            mark("state graph: prefix initializers: binding statement");
-            let expression = match statements.get(binding.statement_ordinal as usize)? {
-                StatementNode::LocalData(local) => local.initial_value,
-                StatementNode::Assignment(assignment) => assignment.value,
-                _ => return None,
-            };
-            mark("state graph: prefix initializers: bound expression");
-            let (custody, initializer) = facts.values.scalar_expressions.bound_expression_at(
-                state.symbol,
-                binding.statement_ordinal,
-                role,
-            )?;
-            mark("state graph: prefix initializers: custody agreement");
-            if custody.expression != expression || custody.destination != destination {
-                return None;
+            CheckedScalarBindingDestination::StorageInitialize { symbol } => {
+                (CheckedScalarExpressionRole::StorageInitializer, symbol)
             }
-            mark("state graph: prefix initializers: initializer type");
-            if crate::values::scalar_expression_type(initializer) != Some(binding.primitive_type) {
-                return None;
+            CheckedScalarBindingDestination::StorageAssign { symbol } => {
+                (CheckedScalarExpressionRole::AssignmentValue, symbol)
             }
-            mark("state graph: prefix initializers: short-circuit boolean");
-            if matches!(initializer, CheckedScalarExpression::Boolean(boolean)
+        };
+        mark("state graph: prefix initializers: binding statement");
+        let expression = match statements.get(binding.statement_ordinal as usize)? {
+            StatementNode::LocalData(local) => local.initial_value,
+            StatementNode::Assignment(assignment) => assignment.value,
+            _ => return None,
+        };
+        mark("state graph: prefix initializers: bound expression");
+        let (custody, initializer) = facts.values.scalar_expressions.bound_expression_at(
+            state.symbol,
+            binding.statement_ordinal,
+            role,
+        )?;
+        mark("state graph: prefix initializers: custody agreement");
+        if custody.expression != expression || custody.destination != destination {
+            return None;
+        }
+        mark("state graph: prefix initializers: initializer type");
+        if crate::values::scalar_expression_type(initializer) != Some(binding.primitive_type) {
+            return None;
+        }
+        mark("state graph: prefix initializers: short-circuit boolean");
+        if matches!(initializer, CheckedScalarExpression::Boolean(boolean)
                 if checked_boolean_contains_short_circuit(boolean))
-            {
-                return None;
-            }
-            Some(initializer.clone())
-        })
-        .collect()
+        {
+            break;
+        }
+        initializers.push(initializer.clone());
+    }
+    Some(initializers)
 }
 
 /// Whether an owned whole call argument moves its structural result's single
