@@ -1111,10 +1111,18 @@ the complete product bar; focused successes below do not establish that baseline
       the VALUE has no plan. Isolated over one program by changing only the
       assigned expression -- `self.greeting = "Hello";` checks, and
       `"Hello, " + self.name`, `self.name + "!"` and
-      `"Hello, " + self.name + "!"` all omit. So it is CONCATENATION into a
-      bounded owned carrier, in either operand order, and all three samples
-      are building text from a name or a label. Pinned at
-      `tests/omega/pending/text/byte_carrier_concatenation_store`
+      `"Hello, " + self.name + "!"` all omit.
+      CORRECTED: that reads as CONCATENATION and it is not. A plain
+      carrier-to-carrier copy with no `+` at all, `self.greeting =
+      self.name`, omits identically, and so does `"Hello, " + "Ada!"` --
+      two adjacent LITERALS, no runtime operand, because `"a" + "b"` is not
+      folded into a String node. The store admits an `ExpressionNode::String`
+      and nothing else; concatenation is merely the commonest way to not be
+      one. Pinned with the full matrix and the decline site at
+      `tests/omega/pending/text/byte_carrier_store_literal_only`
+      (BYTE-CARRIER-STORE-LITERAL-ONLY). The narrower
+      `byte_carrier_concatenation_store` fixture is deleted as a duplicate
+      that encoded the disproved framing.
     - 3 `call operation: boundary arguments` -- all three of
       `gui/{image_viewer,window_app,window_demo}`, and the cause is one
       token. Their `Gui::window_create(class_name: [u8; 7], title:
