@@ -294,9 +294,12 @@ fn spell_domain_range(
 }
 
 thread_local! {
+    // Addresses can be reused after a prior compilation is dropped, including
+    // all three sampled names. The program's instance identity prevents that
+    // later compilation from inheriting the previous spelling buckets.
     static DOMAIN_CANDIDATE_INDEX: RefCell<
         Option<(
-            *const SymbolResolvedTrees,
+            u64,
             *const DomainDefinition,
             usize,
             [usize; 3],
@@ -316,7 +319,7 @@ fn with_domain_candidate_index<R>(
         let fresh = slot
             .as_ref()
             .is_some_and(|(owner, base, watermark, samples, index)| {
-                std::ptr::eq(*owner, source)
+                *owner == program.identity.get()
                     && *base == definitions.as_ptr()
                     && *watermark <= definitions.len()
                     && [0usize, *watermark / 2, watermark.saturating_sub(1)]
@@ -337,7 +340,7 @@ fn with_domain_candidate_index<R>(
             };
             spell_domain_range(source, definitions, &mut index, 0..definitions.len());
             *slot = Some((
-                source,
+                program.identity.get(),
                 definitions.as_ptr(),
                 definitions.len(),
                 [0; 3],
