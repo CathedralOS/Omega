@@ -986,12 +986,18 @@ fn identifier_path_text(path: &[Identifier]) -> String {
 }
 
 pub fn bundled_omega_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../../source/library")
-        .canonicalize()
-        .unwrap_or_else(|_| {
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../../source/library")
-        })
+    // Import discovery asks for the root once per import; resolve the
+    // canonical path once per process. A failed resolution is not kept, so a
+    // later call retries it exactly as before.
+    static CANONICAL: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    if let Some(root) = CANONICAL.get() {
+        return root.clone();
+    }
+    let relative = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../../source/library");
+    match relative.canonicalize() {
+        Ok(root) => CANONICAL.get_or_init(|| root).clone(),
+        Err(_) => relative,
+    }
 }
 
 pub fn bundled_core_root() -> PathBuf {
