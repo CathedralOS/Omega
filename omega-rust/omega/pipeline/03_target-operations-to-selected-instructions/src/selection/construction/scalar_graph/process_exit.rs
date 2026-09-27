@@ -28,8 +28,13 @@ pub(super) fn build(
     let (_, input, _, scalar_type) = builder
         .resolve(source)
         .ok_or_else(|| SelectedInstructionError::custody())?;
+    // Legalization has replayed the exact cleanup frontier; these discards
+    // carry custody only and emit no instruction after the process exit.
     if returned.value != LegalizedScalarReturnValue::Unit
-        || !matches!(returned.ownership.as_slice(), [optimization_unit::OwnershipEvent::Cleanup(actions)] if actions.is_empty())
+        || !matches!(returned.ownership.as_slice(), [optimization_unit::OwnershipEvent::Cleanup(actions)]
+            if actions.iter().all(|action| matches!(action,
+                terminal_psi::TerminalAffineCleanupAction::DiscardRoot(_)
+                    | terminal_psi::TerminalAffineCleanupAction::DiscardResidual(_))))
         || row.result.is_some()
         || !matches!(row.ownership.as_slice(), [optimization_unit::OwnershipEvent::ClaimCompletion(claims)] if claims.is_empty())
         || !matches!(scalar_type, ScalarType::Integer(integer) if integer.bits() == 32 && integer.sign() == IntegerSign::Signed)

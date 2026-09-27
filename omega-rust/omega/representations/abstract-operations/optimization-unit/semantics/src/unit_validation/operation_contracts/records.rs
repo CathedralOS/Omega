@@ -262,6 +262,14 @@ fn record_type(
                     if references
                         && crate::unit_validation::references::referent(types, child).is_some() => {
                 }
+                // Primitive arrays retain owned scalar storage as record fields.
+                // Replay the complete element chain, including below zero extents.
+                StructuralFieldType::Structural(child)
+                    if terminal_semantics::scalar_array_leaf_shape(
+                        types.values().copied(),
+                        child,
+                    )
+                    .is_some() => {}
                 StructuralFieldType::Structural(child) => pending.push((child, false)),
                 _ => return false,
             }

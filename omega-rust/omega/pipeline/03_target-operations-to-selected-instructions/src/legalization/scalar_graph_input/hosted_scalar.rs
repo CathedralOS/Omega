@@ -30,12 +30,15 @@ pub(super) fn validate_tails(
             if super::normalized_foreign::row(native, optimized.machine, psi_operation)?.is_some() {
                 continue;
             }
+            // Ending owned aggregate custody emits no instruction after exit.
+            // Replay the ordinary cleanup contract, including exact owner shape.
             if matches!(
                 hosted_realization(native, optimized.machine, psi_operation)?,
                 BoundaryRealization::HostedExitProcessI32(_)
             ) && (position + 2 != block.nodes.len()
                 || !matches!(&block.nodes[position + 1].operation,
-                        AbstractOperation::ReturnUnit { cleanup_actions, .. } if cleanup_actions.is_empty()))
+                        AbstractOperation::ReturnUnit { cleanup_actions, .. }
+                            if super::aggregate_results::cleanup(optimized, cleanup_actions)))
             {
                 return Err(LegalizationError::custody());
             }

@@ -668,7 +668,7 @@ pub(crate) fn validate(
                             crate::expression_preparation::source_custody::authored_state(
                                 checked, state,
                             )?;
-                        owned_selection::validate_copied_projection(
+                        let root = owned_selection::validate_copied_projection(
                             checked,
                             authored_machine,
                             authored,
@@ -677,7 +677,17 @@ pub(crate) fn validate(
                             &path,
                             &type_identity,
                         )?;
-                        visited.push(source_handle);
+                        // The projection's type/path agreement does not prove
+                        // which same-typed root it observes. Replay the copied
+                        // node normally to rejoin its exact authored occurrence,
+                        // source place and unrestricted copy permission.
+                        pending.push((
+                            source_handle,
+                            root.expression,
+                            root.reference,
+                            source_arm,
+                            None,
+                        ));
                         continue;
                     }
                     return unsupported("projected selection has no ownership receipt");

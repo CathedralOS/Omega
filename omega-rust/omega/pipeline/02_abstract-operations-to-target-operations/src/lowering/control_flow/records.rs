@@ -69,6 +69,8 @@ pub(super) fn establish(
                     types.get(&nested).map(|declaration| &declaration.shape),
                     Some(StructuralTypeShape::Record { .. })
                 ) && !reference_bearing
+                    && terminal_semantics::scalar_array_leaf_shape(types.values().copied(), nested)
+                        .is_none()
                 {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }

@@ -571,6 +571,7 @@ fn establish_record(
             lookup(declarations, nested).map(|declaration| &declaration.shape),
             Some(StructuralTypeShape::Record { .. })
         ) && !reference_bearing
+            && terminal_semantics::scalar_array_leaf_shape(declarations.iter(), nested).is_none()
         {
             return None;
         }

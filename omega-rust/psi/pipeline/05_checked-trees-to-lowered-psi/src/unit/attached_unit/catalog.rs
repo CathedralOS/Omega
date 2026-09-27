@@ -46,7 +46,22 @@ fn collect_value_roots(
             ..
         } => {
             roots.push(type_identity.clone());
-            collect_value_roots(checked, *source, roots);
+            // A copied projection emits a leaf copy through the existing
+            // referent. Its source node is provenance, not a materialized
+            // reference carrier; the signature or local already owns the
+            // backing type. Owned projections still materialize their root.
+            if !matches!(
+                checked
+                    .facts
+                    .values
+                    .structural_values
+                    .nodes
+                    .get(*source)
+                    .kind,
+                checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { .. }
+            ) {
+                collect_value_roots(checked, *source, roots);
+            }
         }
         checked_trees::CheckedStructuralValueKind::Record { fields, .. }
         | checked_trees::CheckedStructuralValueKind::StructuralCase { fields, .. } => {
@@ -588,12 +603,13 @@ pub(crate) fn lower_unit_structural_type_roots(
                         })
                     }
                 };
-                Ok(StructuralFieldDeclaration {
+                let declaration = StructuralFieldDeclaration {
                     id: structural_field_id(allocate_dense(&mut next_field)?),
                     identity: field.identity.clone(),
                     relevance,
                     field_type,
-                })
+                };
+                Ok(declaration)
                 }).collect::<Result<Vec<_>, LoweringError>>()?;
                 StructuralTypeShape::Record { fields }
             }
