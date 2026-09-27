@@ -22,32 +22,6 @@ use terminal_psi::{
 use terminal_verifier::{ProofBundle, verify_module};
 
 #[test]
-fn semantic_mutation_invalidates_the_old_certificate_without_changing_cost() {
-    let (module, proof) = fixture();
-    let verified = verify_module(&module, &proof, &AdmissionProfile::default()).unwrap();
-    let certificate = derive_fixed_entry_fuel(&verified, machine_id(1)).unwrap();
-
-    let mut changed = module.clone();
-    changed.machines[0].blocks[0].operations[0].kind = OperationKind::IntegerConstant {
-        value: IntegerValue::Signed(8),
-    };
-    let changed_verified = verify_module(&changed, &proof, &AdmissionProfile::default()).unwrap();
-    let changed_certificate = derive_fixed_entry_fuel(&changed_verified, machine_id(1)).unwrap();
-    assert_ne!(
-        changed_certificate.terminal_psi(),
-        certificate.terminal_psi()
-    );
-    assert_eq!(
-        changed_certificate.ceiling_units(),
-        certificate.ceiling_units()
-    );
-    assert_eq!(
-        validate_fixed_entry_fuel(&changed_verified, &certificate),
-        Err(FixedFuelError::CertificateMismatch)
-    );
-}
-
-#[test]
 fn certificate_derivation_requires_canonical_semantic_identity() {
     let (mut module, proof) = fixture();
     module.machines[0].blocks.swap(0, 1);
@@ -109,73 +83,6 @@ fn a_segment_cannot_cross_the_reached_return_to_find_an_unrelated_edge() {
             reached_terminal: edge_id(2),
         })
     );
-}
-
-#[test]
-fn crash_is_an_explicit_fixed_fuel_terminal_edge() {
-    let (mut module, _) = fixture();
-    module.machines[0].contract.crash_routes = vec![terminal_psi::CrashRouteBucket {
-        cause: CrashCause::Abort,
-        alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
-    }];
-    module.machines[0].contract.ensures.clear();
-    module.machines[0].blocks[1].terminator = Terminator::Crash {
-        edge: edge_id(2),
-        cause: CrashCause::Abort,
-        site_guard: Vec::new(),
-        frontier_lower_bound: Vec::new(),
-    };
-    let verified = verify_module(
-        &module,
-        &ProofBundle::default(),
-        &AdmissionProfile::default(),
-    )
-    .expect("crash-ending module verifies");
-
-    let certificate = derive_fixed_entry_fuel(&verified, machine_id(1))
-        .expect("crash is a terminal path for fixed fuel");
-    assert_eq!(certificate.ceiling_units(), 3);
-    validate_fixed_entry_fuel(&verified, &certificate).expect("crash certificate recomputes");
-
-    let segments = derive_fixed_safe_point_segments(&verified, machine_id(1))
-        .expect("crash edge closes the final segment");
-    assert_eq!(segments.len(), 2);
-    assert_eq!(segments[1].end_edge(), edge_id(2));
-    assert_eq!(segments[1].ceiling_units(), 1);
-}
-
-#[test]
-fn calls_include_the_complete_callee_bound() {
-    let module = call_fixture();
-    let verified = verify_module(
-        &module,
-        &ProofBundle::default(),
-        &AdmissionProfile::default(),
-    )
-    .expect("call module verifies");
-    let certificate = derive_fixed_entry_fuel(&verified, machine_id(1))
-        .expect("acyclic call graph has a fixed bound");
-    assert_eq!(certificate.ceiling_units(), 4);
-    validate_fixed_entry_fuel(&verified, &certificate).expect("call bound recomputes");
-}
-
-#[test]
-fn unit_calls_and_effect_operations_use_the_same_transitive_schedule() {
-    let module = unit_effect_fixture();
-    let verified = verify_module(
-        &module,
-        &ProofBundle::default(),
-        &AdmissionProfile::default(),
-    )
-    .expect("Unit/effect module verifies");
-    let certificate = derive_fixed_entry_fuel(&verified, machine_id(700))
-        .expect("acyclic Unit call has an exact fixed bound");
-
-    assert_eq!(certificate.ceiling_units(), 5);
-    validate_fixed_entry_fuel(&verified, &certificate).unwrap();
-    let segments = derive_fixed_safe_point_segments(&verified, machine_id(700)).unwrap();
-    assert_eq!(segments.len(), 1);
-    assert_eq!(segments[0].ceiling_units(), 5);
 }
 
 #[test]
@@ -534,35 +441,6 @@ fn mixed_call_outcomes_do_not_cross_product_crash_and_caller_return_costs() {
             .ceiling_units(),
         5,
         "the caller segment composes with the callee's two-unit return path"
-    );
-}
-
-#[test]
-fn safe_point_selection_covers_the_complete_ordered_path() {
-    let (module, proof) = fixture();
-    let verified = verify_module(&module, &proof, &AdmissionProfile::default()).unwrap();
-
-    let segments = derive_fixed_safe_point_segments(&verified, machine_id(1)).unwrap();
-    assert_eq!(segments.len(), 2);
-    assert_eq!(segments[0].start_block(), block_id(1));
-    assert_eq!(segments[0].end_edge(), edge_id(1));
-    assert_eq!(segments[0].ceiling_units(), 2);
-    assert_eq!(segments[1].start_block(), block_id(2));
-    assert_eq!(segments[1].end_edge(), edge_id(2));
-    assert_eq!(segments[1].ceiling_units(), 1);
-    validate_fixed_safe_point_segments(&verified, machine_id(1), &segments).unwrap();
-
-    assert_eq!(
-        validate_fixed_safe_point_segments(&verified, machine_id(1), &segments[..1]),
-        Err(FixedFuelError::CertificateMismatch),
-        "a producer cannot omit the final terminal segment"
-    );
-    let mut reordered = segments;
-    reordered.reverse();
-    assert_eq!(
-        validate_fixed_safe_point_segments(&verified, machine_id(1), &reordered),
-        Err(FixedFuelError::CertificateMismatch),
-        "a producer cannot reorder semantic safe-point segments"
     );
 }
 

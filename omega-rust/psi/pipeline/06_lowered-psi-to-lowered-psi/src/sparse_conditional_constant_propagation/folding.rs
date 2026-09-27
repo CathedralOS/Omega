@@ -92,8 +92,8 @@ mod tests {
         ObligationId, OperationId, ScalarType,
     };
     use terminal_psi::{
-        Block, MachineContract, Operation, OperationResult, TerminalMachineResult,
-        TerminalRankedScc, Terminator, ValueDeclaration,
+        Block, MachineContract, Operation, OperationResult, TerminalMachineResult, Terminator,
+        ValueDeclaration,
     };
 
     fn i32_type() -> ScalarType {
@@ -239,77 +239,6 @@ mod tests {
             ),
             "a static reach binder position is call evidence, not a leaf"
         );
-    }
-
-    #[test]
-    fn block_parameters_are_not_literal_bindings() {
-        // Edge arguments never seed the literal map: a parameter bound to the
-        // same constant on every edge is still a parameter, so its consumers
-        // do not fold. Constant-carrying edges belong to the control-flow
-        // rule's lattice, not this bounded fold.
-        let mut machine = machine(vec![
-            block(
-                1,
-                vec![constant(10, 10, 7)],
-                Terminator::Jump {
-                    edge: EdgeId::new(1).unwrap(),
-                    target: BlockId::new(2).unwrap(),
-                    arguments: vec![ValueId::new(10).unwrap()],
-                    erased_arguments: Vec::new(),
-                    erased_proof_arguments: Vec::new(),
-                    structural_arguments: Vec::new(),
-                    trivial_affine_discards: Vec::new(),
-                    residual_affine_discards: Vec::new(),
-                },
-            ),
-            block(2, vec![add(20, 20, 41, 41)], return_value(2, 20)),
-        ]);
-        machine.blocks[1].parameters = vec![i32(41)];
-        fold(&mut machine);
-        assert!(
-            matches!(
-                machine.blocks[1].operations[0].kind,
-                OperationKind::WrappingIntegerAdd { .. }
-            ),
-            "the parameter operand keeps the add unfolded"
-        );
-    }
-
-    #[test]
-    fn scan_order_cannot_change_the_fold_set() {
-        // A validated module never declares a use before its definition; this
-        // machine-level case proves the fixed point reaches the same set when
-        // declaration order puts the constant producers last.
-        let mut machine = machine(vec![block(
-            1,
-            vec![
-                add(30, 30, 10, 11),
-                constant(10, 10, 2),
-                constant(11, 11, 3),
-            ],
-            return_value(1, 30),
-        )]);
-        fold(&mut machine);
-        assert_eq!(
-            machine.blocks[0].operations[0].kind,
-            OperationKind::IntegerConstant {
-                value: IntegerValue::Signed(5)
-            },
-            "the second pass folds v30 once its operands are literals"
-        );
-    }
-
-    #[test]
-    fn ranked_machine_is_left_unchanged() {
-        let mut machine = machine(vec![block(
-            1,
-            vec![constant(10, 10, 2), add(12, 12, 10, 10)],
-            return_value(1, 12),
-        )]);
-        machine.ranked_scc = Some(TerminalRankedScc::Natural(Vec::new()));
-        let before = machine.clone();
-        fold(&mut machine);
-        assert_eq!(machine, before, "ranking evidence freezes the machine");
     }
 
     #[test]

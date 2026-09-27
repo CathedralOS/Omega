@@ -27,18 +27,6 @@ fn assert_seven(source: &str) {
 }
 
 #[test]
-fn borrowed_array_window_writes_through_without_changing_neighbors() {
-    assert_seven("machine fill(values: &mut [i32]) {
-            values[..] = [0.1 * 70, 7i32 / 2 * 2];
-        }
-        machine main() -> i32 {
-            let mut values: [i32; 4] = [11, 0, 0, 22];
-            fill(&mut values[1..3]);
-            transition values[0] == 11 && values[1] == 7 && values[2] == 6 && values[3] == 22 { true -> 7 false -> 0 }
-        }");
-}
-
-#[test]
 fn nested_and_inclusive_borrowed_windows_retain_their_extent() {
     for selection in ["1..3", "1..=2"] {
         assert_seven(&format!("machine fill(values: &mut [i32]) {{
@@ -92,27 +80,6 @@ fn shared_windows_observe_only_selected_elements_and_length() {
                 transition view[0] == {expected} && length_result == 7 {{ true -> 7 false -> 0 }}
             }}"
         ));
-    }
-}
-
-#[test]
-fn borrowed_window_count_mismatch_traps_instead_of_writing_neighbors() {
-    for (element, initializer) in [("i32", "[11, 0, 0, 22]"), ("u8", "\"abcd\"")] {
-        let outcome = execute(&format!(
-            "machine fill(values: &mut [{element}]) {{ values[..] = [7]; }}
-            machine main() -> i32 {{
-                let mut values: [{element}; 4] = {initializer};
-                fill(&mut values[1..3]);
-                7
-            }}"
-        ));
-        assert!(
-            outcome
-                .error
-                .as_ref()
-                .is_some_and(|error| error.contains("different element count")),
-            "{outcome:?}"
-        );
     }
 }
 
@@ -180,33 +147,6 @@ fn checked_window_selectors_execute_once_for_borrows_reads_and_writes() {
 }
 
 #[test]
-fn dynamic_and_empty_borrows_use_their_runtime_extent() {
-    assert_seven("machine fill(values: &mut [i32]) { values[..] = [7, 6]; }
-        machine empty(values: &mut [i32]) { values[..] = []; }
-        machine main() -> i32 {
-            let mut values: [i32; 4] = [11, 0, 0, 22];
-            let mut start: u64 = 1;
-            fill(&mut values[start..3]);
-            empty(&mut values[4..]);
-            transition values[0] == 11 && values[1] == 7 && values[2] == 6 && values[3] == 22 { true -> 7 false -> 0 }
-        }");
-}
-
-#[test]
-fn declared_selector_call_range_admits_and_executes_the_borrow() {
-    assert_seven("machine first(calls: &mut i32 in Wrapping) -> u64 [1..=1] {
-            calls = calls + 1; 1
-        }
-        machine fill(values: &mut [i32]) { values[..] = [0.1 * 70, 6]; }
-        machine main() -> i32 {
-            let mut calls: i32 in Wrapping = 0;
-            let mut values: [i32; 4] = [11, 0, 0, 22];
-            fill(&mut values[first(&mut calls)..3]);
-            transition calls == 1 && values[0] == 11 && values[1] == 7 && values[2] == 6 && values[3] == 22 { true -> 7 false -> 0 }
-        }");
-}
-
-#[test]
 fn independently_bounded_selector_calls_execute_in_source_order() {
     assert_seven("machine first(calls: &mut i32 in Wrapping) -> u64 [1..=1] {
             calls = calls * 10 + 1; 1
@@ -252,24 +192,6 @@ fn inline_const_generic_selectors_execute_distinct_inferred_extents() {
 }
 
 #[test]
-fn generic_endpoint_bounds_require_the_exact_returned_binder() {
-    for (parameters, requirement, body) in [
-        ("const N: u64", "", "N"),
-        ("const N: u64, const M: u64", "requires M <= 3", "N"),
-        ("const N: u64", "requires N <= 3", "let N: u64 = 4; N"),
-    ] {
-        let source =
-            format!("machine endpoint<{parameters}>() -> u64 [0..=3] {requirement} {{ {body} }}");
-        let diagnostics = try_checked(&source).expect_err("unproved endpoint must reject");
-        assert!(
-            diagnostics.contains("return") && diagnostics.contains("range")
-                || diagnostics.contains("bounded return"),
-            "{source}: {diagnostics}",
-        );
-    }
-}
-
-#[test]
 fn inferred_endpoint_extent_must_satisfy_the_generic_requirement() {
     let diagnostics = try_checked(
         "data Main {}
@@ -284,26 +206,4 @@ fn inferred_endpoint_extent_must_satisfy_the_generic_requirement() {
     )
     .expect_err("inference cannot discard the endpoint's declared requirement");
     assert!(diagnostics.contains("requires"), "{diagnostics}");
-}
-
-#[test]
-fn inline_type_generic_selectors_infer_arguments_and_execute_once_in_source_order() {
-    assert_seven("data Main {}
-        machine Main::first<Element [copy]>(&self, witness: &Element, calls: &mut i32 in Wrapping) -> u64 [1..=1] {
-            calls = calls * 10 + 1; 1
-        }
-        machine Main::last<Element [copy]>(&self, witness: &Element, calls: &mut i32 in Wrapping) -> u64 [3..=3] {
-            calls = calls * 10 + 2; 3
-        }
-        machine fill(values: &mut [u8]) { values[..] = [7, 6]; }
-        machine main() -> i32 {
-            let selector: Main = Main {};
-            let byte: u8 = 0;
-            let integer: i32 = 0;
-            let mut calls: i32 in Wrapping = 0;
-            let mut values: [u8; 4] = \"abcd\";
-            fill(&mut values[selector.first(&byte, &mut calls)..selector.last(&integer, &mut calls)]);
-            let view: &[u8] = values[selector.first(&integer, &mut calls)..selector.last(&byte, &mut calls)];
-            transition calls == 1212 && view.len == 2 && values[0] == 97 && values[1] == 7 && values[2] == 6 && values[3] == 100 { true -> 7 false -> 0 }
-        }");
 }

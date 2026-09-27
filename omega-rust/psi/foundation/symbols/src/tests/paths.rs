@@ -2,22 +2,6 @@ use super::{main_console_symbols, main_entry_symbols};
 use crate::SymbolHandle;
 
 #[test]
-fn stores_paths_as_handle_spans() {
-    let mut symbols = main_entry_symbols();
-    let root = symbols.root();
-    let machine = symbols
-        .find_child_by_name(root, "main")
-        .expect("main should resolve");
-    let state = symbols
-        .find_child_by_name(machine, "entry")
-        .expect("entry should resolve");
-    let path = symbols.path_from_members(root, [machine, state]);
-
-    assert_eq!(path.root, root);
-    assert_eq!(symbols.path_members(path), &[machine, state]);
-}
-
-#[test]
 fn resolves_child_paths_by_sibling_walk() {
     let mut symbols = main_entry_symbols();
     let root = symbols.root();

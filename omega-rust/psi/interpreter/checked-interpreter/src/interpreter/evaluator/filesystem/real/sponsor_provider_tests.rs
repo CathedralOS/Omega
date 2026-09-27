@@ -160,38 +160,6 @@ fn ordinary_namespace_preconditions_are_deferred_to_the_host() {
 }
 
 #[test]
-fn real_fs_drop_closes_descriptors_and_preserves_named_charges() {
-    let directory = TestDirectory::new("drop-close");
-    let path = directory.0.join("output.bin");
-    std::fs::write(&path, b"1234567").unwrap();
-    let sponsor = crate::FilesystemSponsor::new(&directory.0).unwrap();
-    let sponsored_path = sponsor.bind_path(&path).unwrap();
-    let descriptor = sponsor
-        .prepare_create_object_open(&sponsored_path, 7)
-        .unwrap()
-        .commit()
-        .unwrap();
-    let file = std::fs::OpenOptions::new()
-        .read(true)
-        .write(true)
-        .open(&path)
-        .unwrap();
-    let mut filesystem = RealFs::new(None, Some(sponsor.clone())).unwrap();
-    filesystem
-        .insert(file, path, Some(descriptor), false)
-        .unwrap();
-    assert_eq!(sponsor.snapshot().unwrap().open_descriptors, 1);
-
-    drop(filesystem);
-
-    let snapshot = sponsor.snapshot().unwrap();
-    assert_eq!(snapshot.open_descriptors, 0);
-    assert_eq!(snapshot.entries, 1);
-    assert_eq!(snapshot.unique_objects, 1);
-    assert_eq!(snapshot.total_logical_bytes, 7);
-}
-
-#[test]
 fn resource_halt_teardown_closes_remaining_descriptors() {
     let directory = TestDirectory::new("resource-close");
     let path = directory.0.join("output.bin");

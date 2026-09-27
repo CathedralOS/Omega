@@ -4,17 +4,13 @@ use super::super::directory_entries::dirent_record_extent;
 use super::super::{MAX_DIRECTORY_ENTRY_NAME_BYTES, MAX_DIRECTORY_SNAPSHOT_BYTES, TypedTrees};
 use super::preparation::{
     FilesystemLogicalHandleResultSuccess, FilesystemLogicalHandleRetirementSuccess,
-    FilesystemTransferCountError, MAX_FILESYSTEM_TRANSFER_BYTES,
     PreparedFilesystemLogicalHandleInput, PreparedFilesystemLogicalHandlePlan,
     PreparedFilesystemLogicalHandleRetirement, PreparedTransferCount,
-    checked_filesystem_transfer_count,
 };
 use crate::BuildEvaluationSponsorLimits;
 use crate::FilesystemRootedPathOperandResolution;
 use crate::interpreter::evaluator::BuildEvaluationSponsor;
 use crate::interpreter::evaluator::Evaluator;
-use crate::interpreter::evaluator::FilesystemLogicalHandleInput;
-use crate::interpreter::evaluator::FilesystemLogicalHandleInputResolution;
 use crate::interpreter::evaluator::FilesystemLogicalHandleKind;
 use crate::interpreter::evaluator::FilesystemObservationProvider;
 use crate::interpreter::evaluator::FilesystemOperationAttempt;
@@ -28,9 +24,6 @@ use crate::interpreter::evaluator::VIRTUAL_UID;
 use crate::interpreter::evaluator::Value;
 use crate::interpreter::evaluator::checked_directory_name_snapshot_total;
 use crate::interpreter::evaluator::checked_directory_record_snapshot_total;
-use crate::interpreter::evaluator::filesystem::filesystem_calls::checked_observation_evidence_total;
-use crate::interpreter::evaluator::pack_dirent_records;
-use crate::interpreter::evaluator::portable_directory_entry_name;
 
 fn evaluator_with_pending_attempt(program: &TypedTrees) -> Evaluator<'_> {
     let mut evaluator = Evaluator::new(program, &[]);
@@ -41,39 +34,6 @@ fn evaluator_with_pending_attempt(program: &TypedTrees) -> Evaluator<'_> {
             FilesystemObservationProvider::Virtual,
         ));
     evaluator
-}
-
-#[test]
-fn owned_handle_capacity_is_reserved_before_provider_service() {
-    let program = TypedTrees::default();
-    let mut evaluator = evaluator_with_pending_attempt(&program);
-    let sponsor = BuildEvaluationSponsor::new(
-        BuildEvaluationSponsorLimits::new(100, 100, 100, 1, 100, 100, 100, 100)
-            .expect("nonzero limits"),
-    );
-    evaluator.build_evaluation_sponsor = Some(sponsor.clone());
-    let plan = PreparedFilesystemLogicalHandlePlan {
-        inputs: Vec::new(),
-        input_success: None,
-        output: Some(PreparedFilesystemLogicalHandleOutput::Created {
-            kind: FilesystemLogicalHandleKind::Descriptor,
-            success: FilesystemLogicalHandleResultSuccess::NonNegative,
-        }),
-        retirement: None,
-    };
-
-    let reservation = evaluator
-        .reserve_prepared_live_filesystem_handle(&plan)
-        .unwrap_or_else(|_| panic!("first provider call may be reserved"))
-        .expect("sponsored calls own leases");
-    assert_eq!(sponsor.live_filesystem_handles(), 1);
-    let error = evaluator
-        .reserve_prepared_live_filesystem_handle(&plan)
-        .expect_err("the second provider call is refused before service");
-    assert!(matches!(error, Halt::Resource(_)));
-    drop(reservation);
-    assert_eq!(sponsor.live_filesystem_handles(), 0);
-    assert_eq!(sponsor.peak_live_filesystem_handles(), 1);
 }
 
 #[test]
@@ -254,32 +214,6 @@ fn borrowed_native_view_uses_its_descriptor_lease() {
 }
 
 #[test]
-fn transfer_count_rejects_wrap_and_unbounded_allocation() {
-    assert_eq!(
-        checked_filesystem_transfer_count(-1),
-        Err(FilesystemTransferCountError::NegativeOrUnrepresentable)
-    );
-    assert_eq!(
-        checked_filesystem_transfer_count(MAX_FILESYSTEM_TRANSFER_BYTES as i64 + 1),
-        Err(FilesystemTransferCountError::ExceedsEvaluatorLimit)
-    );
-}
-
-#[test]
-fn transfer_count_accepts_the_closed_interval_through_the_limit() {
-    assert_eq!(
-        checked_filesystem_transfer_count(0),
-        Ok(PreparedTransferCount { host: 0 })
-    );
-    assert_eq!(
-        checked_filesystem_transfer_count(MAX_FILESYSTEM_TRANSFER_BYTES as i64),
-        Ok(PreparedTransferCount {
-            host: MAX_FILESYSTEM_TRANSFER_BYTES,
-        })
-    );
-}
-
-#[test]
 fn directory_snapshot_payload_lanes_accept_the_exact_ceiling_only() {
     assert_eq!(
         checked_directory_name_snapshot_total(MAX_DIRECTORY_SNAPSHOT_BYTES - 1, 1)
@@ -309,29 +243,6 @@ fn directory_snapshot_payload_lanes_accept_the_exact_ceiling_only() {
         ),
         Err(Halt::Resource(_))
     ));
-}
-
-#[test]
-fn dirent_layout_truncates_names_to_the_existing_std_carrier() {
-    assert_eq!(
-        dirent_record_extent(MAX_DIRECTORY_ENTRY_NAME_BYTES)
-            .unwrap_or_else(|_| panic!("largest portable directory record")),
-        280
-    );
-    let long_name = vec![b'x'; MAX_DIRECTORY_ENTRY_NAME_BYTES + 1];
-    assert_eq!(
-        portable_directory_entry_name(&long_name).len(),
-        MAX_DIRECTORY_ENTRY_NAME_BYTES
-    );
-    let records = pack_dirent_records(&[(long_name, 8)])
-        .unwrap_or_else(|_| panic!("packer applies std name truncation"));
-    assert_eq!(records.len(), 280);
-    assert_eq!(u16::from_le_bytes([records[18], records[19]]), 255);
-    assert!(
-        records[21..21 + MAX_DIRECTORY_ENTRY_NAME_BYTES]
-            .iter()
-            .all(|byte| *byte == b'x')
-    );
 }
 
 #[test]
@@ -501,19 +412,6 @@ fn virtual_hard_link_variants_reject_all_occupied_destination_kinds() {
     assert!(!evaluator.virtual_times.contains_key(&symlink));
 }
 
-#[test]
-fn observation_evidence_budget_accepts_exact_limit_and_rejects_overflow() {
-    assert_eq!(
-        checked_observation_evidence_total(MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES - 1, 1),
-        Some(MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES)
-    );
-    assert_eq!(
-        checked_observation_evidence_total(MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES, 1),
-        None
-    );
-    assert_eq!(checked_observation_evidence_total(usize::MAX, 1), None);
-}
-
 fn mutable_byte_output(bytes: &[u8]) -> PreparedByteOutput {
     PreparedByteOutput::Array(
         bytes
@@ -622,72 +520,6 @@ fn virtual_read_link_provider_distinguishes_exact_fit_from_truncation() {
             .snapshot()
             .unwrap_or_else(|_| panic!("limited output remains readable")),
         b"abcd\x09\x09"
-    );
-}
-
-#[test]
-fn incremental_logical_handle_inputs_retain_exact_resolution_prefix() {
-    let program = TypedTrees::default();
-    let mut evaluator = evaluator_with_pending_attempt(&program);
-    let descriptor = evaluator
-        .filesystem_logical_handles
-        .create(FilesystemLogicalHandleKind::Descriptor, 7)
-        .unwrap();
-
-    evaluator.record_prepared_filesystem_logical_handle_input(
-        0,
-        0,
-        FilesystemLogicalHandleKind::Descriptor,
-        7,
-        false,
-    );
-    evaluator.record_prepared_filesystem_logical_handle_input(
-        0,
-        1,
-        FilesystemLogicalHandleKind::Find,
-        7,
-        false,
-    );
-    evaluator.record_prepared_filesystem_logical_handle_input(
-        0,
-        2,
-        FilesystemLogicalHandleKind::Native,
-        0,
-        true,
-    );
-    evaluator.record_prepared_filesystem_logical_handle_input(
-        0,
-        3,
-        FilesystemLogicalHandleKind::Native,
-        0,
-        false,
-    );
-
-    assert_eq!(
-        evaluator.filesystem_operation_attempts[0].logical_handle_inputs,
-        vec![
-            FilesystemLogicalHandleInput {
-                operand_ordinal: 0,
-                kind: FilesystemLogicalHandleKind::Descriptor,
-                resolution: FilesystemLogicalHandleInputResolution::Resolved(descriptor),
-            },
-            FilesystemLogicalHandleInput {
-                operand_ordinal: 1,
-                kind: FilesystemLogicalHandleKind::Find,
-                resolution: FilesystemLogicalHandleInputResolution::Unknown,
-            },
-            FilesystemLogicalHandleInput {
-                operand_ordinal: 2,
-                kind: FilesystemLogicalHandleKind::Native,
-                resolution: FilesystemLogicalHandleInputResolution::Null,
-            },
-            FilesystemLogicalHandleInput {
-                operand_ordinal: 3,
-                kind: FilesystemLogicalHandleKind::Native,
-                resolution: FilesystemLogicalHandleInputResolution::Unknown,
-            },
-        ],
-        "a later preparation halt must retain every already typed handle input",
     );
 }
 

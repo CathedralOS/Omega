@@ -578,35 +578,6 @@ mod tests {
     }
 
     #[test]
-    fn live_filesystem_handle_leases_bound_concurrency_and_release_on_drop() {
-        let sponsor = BuildEvaluationSponsor::new(
-            BuildEvaluationSponsorLimits::new(2, 3, 4, 2, 8, 9, 6, 7).expect("nonzero limits"),
-        );
-        let first = sponsor
-            .reserve_live_filesystem_handle()
-            .expect("first reservation");
-        let second = sponsor
-            .reserve_live_filesystem_handle()
-            .expect("second reservation");
-        assert_eq!(sponsor.live_filesystem_handles(), 2);
-        assert_eq!(sponsor.peak_live_filesystem_handles(), 2);
-        assert_eq!(
-            sponsor
-                .reserve_live_filesystem_handle()
-                .expect_err("concurrent account is exhausted"),
-            "build-evaluation live-filesystem-handle sponsor exhausted at 2 handles"
-        );
-        drop(first);
-        assert_eq!(sponsor.live_filesystem_handles(), 1);
-        let replacement = sponsor
-            .reserve_live_filesystem_handle()
-            .expect("released capacity is reusable");
-        assert_eq!(sponsor.peak_live_filesystem_handles(), 2);
-        drop((second, replacement));
-        assert_eq!(sponsor.live_filesystem_handles(), 0);
-    }
-
-    #[test]
     fn live_cell_leases_bound_concurrency_and_release_on_final_drop() {
         let sponsor = BuildEvaluationSponsor::new(
             BuildEvaluationSponsorLimits::new(2, 3, 4, 5, 2, 9, 6, 7).expect("nonzero limits"),

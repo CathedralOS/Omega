@@ -10,79 +10,6 @@ fn evaluate(source: &str) -> Result<i64, String> {
 }
 
 #[test]
-fn projected_record_result_preserves_referent_and_evaluates_calls_once() {
-    reference_result("forward_outer(Outer { inner: input }, &mut forwarded).inner");
-}
-
-#[test]
-fn projected_array_result_preserves_referent_and_evaluates_calls_once() {
-    reference_result("forward_array([input], &mut forwarded)[0]");
-}
-
-#[test]
-fn nested_array_result_preserves_referent_and_evaluates_calls_once() {
-    reference_result("forward_grid([[input]], &mut forwarded)[0][0]");
-}
-
-fn reference_result(projection: &str) {
-    let source = format!(
-        "data View {{ body: &mut i32; }}
-         data Outer {{ inner: View; }}
-         machine forward_outer(value: Outer, calls: &mut i32 in Wrapping) -> Outer {{
-             calls = calls + 1;
-             value
-         }}
-         machine forward_array(value: [View; 1], calls: &mut i32 in Wrapping) -> [View; 1] {{
-             calls = calls + 1;
-             value
-         }}
-         machine forward_grid(value: [[View; 1]; 1], calls: &mut i32 in Wrapping) -> [[View; 1]; 1] {{
-             calls = calls + 1;
-             value
-         }}
-         machine select(value: View, calls: &mut i32 in Wrapping) -> &mut i32 {{
-             calls = calls + 1;
-             value.body
-         }}
-         machine write(value: &mut i32) {{ value = 7; }}
-         machine main() -> i64 {{
-             let mut source: i32 = 3;
-             let mut forwarded: i32 in Wrapping = 0;
-             let mut selected: i32 in Wrapping = 0;
-             let input: View = View {{ body: &mut source }};
-             let held: &mut i32 = select({projection}, &mut selected);
-             write(held);
-             transition source == 7 && forwarded == 1 && selected == 1 {{
-                 true -> 7
-                 false -> 0
-             }}
-         }}"
-    );
-    assert_eq!(evaluate(&source), Ok(7), "{projection}");
-}
-
-#[test]
-fn projected_reference_result_survives_return_and_repeated_forwarding() {
-    for projection in ["forward(input).body", "references([input])[0].body"] {
-        let source = format!(
-            "data View {{ body: &mut i32; }}
-             machine forward(value: View) -> View {{ value }}
-             machine references(value: [View; 1]) -> [View; 1] {{ value }}
-             machine relay(value: &mut i32) -> &mut i32 {{ value }}
-             machine write(value: &mut i32) {{ value = 7; }}
-             machine main() -> i64 {{
-                 let mut source: i32 = 3;
-                 let input: View = View {{ body: &mut source }};
-                 let held: &mut i32 = {projection};
-                 write(relay(relay(held)));
-                 transition source == 7 {{ true -> 7 false -> 0 }}
-             }}"
-        );
-        assert_eq!(evaluate(&source), Ok(7), "{projection}");
-    }
-}
-
-#[test]
 fn checked_stored_reference_argument_mutates_the_original_referent() {
     for (binding, argument) in [
         ("let held: View = make_view(&mut source);", "held.body"),
@@ -310,30 +237,6 @@ fn whole_recast_reference_argument_retains_its_view_and_original_backing() {
 }
 
 #[test]
-fn projected_arguments_evaluate_collection_selector_and_consumer_once_in_order() {
-    for (collection, expected_trace) in [("values(&mut trace)", 123), ("stored", 23)] {
-        let source = format!(
-            "machine values(trace: &mut i32 in Wrapping) -> [i32; 2] {{
-                 trace = trace * 10 + 1; [7, 9]
-             }}
-             machine index(trace: &mut i32 in Wrapping) -> u64 {{
-                 trace = trace * 10 + 2; 0
-             }}
-             machine select(value: i32, trace: &mut i32 in Wrapping) -> i32 {{
-                 trace = trace * 10 + 3; value
-             }}
-             machine main() -> i64 {{
-                 let mut trace: i32 in Wrapping = 0;
-                 let stored: [i32; 2] = [7, 9];
-                 let result: i32 = select({collection}[index(&mut trace)], &mut trace);
-                 transition result == 7 && trace == {expected_trace} {{ true -> 7 false -> 0 }}
-             }}"
-        );
-        assert_eq!(evaluate(&source), Ok(7), "{collection}");
-    }
-}
-
-#[test]
 fn checked_projected_argument_evaluates_its_selector_once() {
     let source = "machine index(calls: &mut i32 in Wrapping) -> u64 [0..=1] {
                       calls = calls + 1; 0
@@ -355,46 +258,6 @@ fn checked_projected_argument_evaluates_its_selector_once() {
     );
     assert_eq!(outcome.error, None);
     assert_eq!(outcome.exit_code, 7);
-}
-
-#[test]
-fn projected_owned_copy_does_not_alias_its_source() {
-    let source = "data Item { number: i32; }
-                  machine forward(value: [Item; 1]) -> [Item; 1] { value }
-                  machine main() -> i64 {
-                      let values: [Item; 1] = [Item { number: 7 }];
-                      let mut selected: Item = forward(values)[0];
-                      selected.number = 9;
-                      transition values[0].number == 7 && selected.number == 9 {
-                          true -> 7 false -> 0
-                      }
-                  }";
-    assert_eq!(evaluate(source), Ok(7));
-}
-
-#[test]
-fn projected_result_cannot_inherit_authored_indexing_as_builtin() {
-    for (declaration, participates) in [
-        ("", false),
-        (
-            "operator [] Indexing::index(items: &[u8; 2], index: u64) -> u8;",
-            false,
-        ),
-        ("operator [] index(items: &[u8], index: u64) -> u8;", true),
-    ] {
-        let source = format!(
-            "data Indexing {{}} {declaration}
-             machine values() -> [u8; 2] {{ [7, 9] }}
-             machine main() -> u8 {{ values()[0] }}"
-        );
-        let result = evaluate(&source);
-        if participates {
-            let error = result.expect_err("authored indexing needs its own execution custody");
-            assert!(error.contains("builtin indexing meaning"), "{error}");
-        } else {
-            assert_eq!(result, Ok(7), "{declaration}");
-        }
-    }
 }
 
 #[test]

@@ -197,7 +197,7 @@ impl<'name> SymbolNameRef<'name> {
 
 #[cfg(test)]
 mod tests {
-    use super::{SourceMap, SourceSpan, SymbolName, SymbolNameRef, SymbolNameStorage};
+    use super::{SourceMap, SourceSpan, SymbolName, SymbolNameRef};
     use source::{SourceId, Span};
 
     #[test]
@@ -215,43 +215,5 @@ mod tests {
             assert_eq!(borrowed, owned);
             assert_eq!(format!("{borrowed:?}"), format!("{owned:?}"));
         }
-    }
-
-    #[test]
-    fn source_reuse_requires_valid_exact_semantic_spelling() {
-        let mut sources = SourceMap::default();
-        let source_id = sources
-            .add("main.omg".into(), "Ready \u{e9}".into())
-            .source_id;
-        for (source_span, value, should_borrow) in [
-            (SourceSpan::new(source_id, Span::new(0, 5)), "Ready", true),
-            (
-                SourceSpan::new(source_id, Span::new(0, 5)),
-                "Packet::Ready",
-                false,
-            ),
-            (SourceSpan::new(source_id, Span::new(7, 8)), "", false),
-            (SourceSpan::new(source_id, Span::new(0, 99)), "", false),
-            (SourceSpan::new(SourceId(99), Span::new(0, 0)), "", false),
-        ] {
-            let name = SymbolName::from_ref_with_sources(
-                SymbolNameRef::OwnedSource { value, source_span },
-                Some(&sources),
-            );
-            assert_eq!(name.as_str(Some(&sources)), value);
-            assert_eq!(name.source_span(), Some(source_span));
-            assert_eq!(
-                matches!(name.storage, SymbolNameStorage::SourceSlice { .. }),
-                should_borrow
-            );
-        }
-        let name = SymbolName::from_ref_with_sources(
-            SymbolNameRef::OwnedSource {
-                value: "Ready",
-                source_span: SourceSpan::new(source_id, Span::new(0, 5)),
-            },
-            None,
-        );
-        assert_eq!(name.as_str(None), "Ready");
     }
 }

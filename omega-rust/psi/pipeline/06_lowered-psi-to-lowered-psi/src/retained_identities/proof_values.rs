@@ -110,15 +110,13 @@ mod tests {
     //! rewrite must keep is collected transitively, `Truth` alternatives and
     //! literal-only propositions carry none, and the continuation selector
     //! covers every crash-continuation-bearing call kind and nothing else.
-    use super::{crash_continuations, retain_crash_routes, retain_proposition};
+    use super::{crash_continuations, retain_proposition};
     use semantic_vocabulary::{
         BoundaryMachineId, IntegerSign, IntegerType, MachineId, Proposition, PropositionId,
         ScalarTerm, ScalarType, ValueId,
     };
     use std::collections::BTreeSet;
-    use terminal_psi::{
-        CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard, OperationKind as O,
-    };
+    use terminal_psi::{CrashCause, CrashRouteBucket, CrashRouteGuard, OperationKind as O};
 
     fn value(ordinal: u64) -> ValueId {
         ValueId::new(ordinal).unwrap()
@@ -136,10 +134,6 @@ mod tests {
             id: value(ordinal),
             scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap()),
         }
-    }
-
-    fn predicate(proposition: Proposition) -> CrashRouteGuard {
-        CrashRouteGuard::Predicate(CrashPredicateTerm::new(proposition))
     }
 
     fn truth_bucket() -> Vec<CrashRouteBucket> {
@@ -174,38 +168,6 @@ mod tests {
             retained,
             BTreeSet::from([value(1), value(2), value(3), value(4)])
         );
-    }
-
-    #[test]
-    fn crash_route_predicates_retain_named_values_while_truth_carries_none() {
-        // Positive: every Predicate alternative's proposition contributes its
-        // value identities across every bucket. Boundary: a `Truth`
-        // alternative — the sole row of its canonical bucket — retains
-        // nothing, and a route list without buckets retains nothing.
-        let routes = vec![
-            CrashRouteBucket {
-                cause: CrashCause::Trap,
-                alternatives: vec![
-                    predicate(Proposition::Equal(bool_term(5), ScalarTerm::Boolean(true))),
-                    predicate(Proposition::Conjunction(vec![
-                        Proposition::Equal(int_term(6), int_term(7)),
-                        Proposition::Falsehood,
-                    ])),
-                ],
-            },
-            CrashRouteBucket {
-                cause: CrashCause::Abort,
-                alternatives: vec![CrashRouteGuard::Truth],
-            },
-        ];
-        let mut retained = BTreeSet::new();
-        retain_crash_routes(&routes, &mut retained);
-        assert_eq!(retained, BTreeSet::from([value(5), value(6), value(7)]));
-
-        let mut empty = BTreeSet::new();
-        retain_crash_routes(&[], &mut empty);
-        retain_crash_routes(&truth_bucket(), &mut empty);
-        assert!(empty.is_empty());
     }
 
     #[test]

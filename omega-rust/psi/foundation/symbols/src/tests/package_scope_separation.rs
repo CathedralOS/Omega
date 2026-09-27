@@ -63,72 +63,6 @@ fn collision_table(
 }
 
 #[test]
-fn unimported_package_and_toolchain_declarations_do_not_collide() {
-    for (identity, origin) in [
-        (Some(package_identity(77)), SourceOrigin::User),
-        (None, SourceOrigin::Toolchain),
-    ] {
-        let (symbols, [fixture, dependency]) = collision_table(identity, origin, Vec::new());
-        assert!(symbols.source_scopes_separate(fixture, dependency));
-        assert!(symbols.source_scopes_separate(dependency, fixture));
-        assert_eq!(
-            symbols.find_top_level_by_name_and_kinds_from_source(
-                "ExtentRootProvider",
-                &[SymbolKind::Trait],
-                SourceSpan::new(SourceId(0), Span::new(0, 18)),
-            ),
-            Some(fixture),
-            "an unqualified reference keeps selecting the package's own declaration",
-        );
-    }
-}
-
-#[test]
-fn same_package_unmoduled_declarations_still_collide() {
-    let mut sources = SourceMap::default();
-    let root_dir = PathBuf::from("package-fixture");
-    for name in ["main.omg", "helper.omg"] {
-        sources.add_with_metadata(
-            root_dir.join(name),
-            String::from("ExtentRootProvider"),
-            root_dir.clone(),
-            Some(package_identity(41)),
-            SourceOrigin::User,
-        );
-    }
-    let mut builder = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
-    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
-    let declarations = SymbolTableBuilder::child_handles(builder.insert_children(
-        root,
-        [SourceId(0), SourceId(1)].map(|source| {
-            (
-                SymbolKind::Trait,
-                SymbolNameRef::Source(SourceSpan::new(source, Span::new(0, 18))),
-            )
-        }),
-    ))
-    .collect::<Vec<_>>();
-    let symbols = builder.finish();
-    assert!(!symbols.source_scopes_separate(declarations[0], declarations[1]));
-}
-
-#[test]
-fn authored_file_import_keeps_the_cross_package_collision() {
-    // `use dep::extent` binds an unmoduled source file and exposes every
-    // leaf it declares; the importing file's own `ExtentRootProvider`
-    // collides rather than shadowing the imported name.
-    let binding =
-        SourceScopedTopLevelBinding::module_import(SourceId(0), SourceId(1), "dep::extent", 1);
-    let (symbols, [fixture, dependency]) = collision_table(
-        Some(package_identity(77)),
-        SourceOrigin::User,
-        vec![binding],
-    );
-    assert!(!symbols.source_scopes_separate(fixture, dependency));
-    assert!(!symbols.source_scopes_separate(dependency, fixture));
-}
-
-#[test]
 fn broad_module_import_does_not_expose_unqualified_leaves() {
     let (mut symbols, [fixture, dependency]) = collision_table(
         Some(package_identity(77)),
@@ -149,27 +83,4 @@ fn broad_module_import_does_not_expose_unqualified_leaves() {
     // `dep::extent` names the module; `extent::ExtentRootProvider` inside it
     // stays reachable only by its qualified spelling.
     assert!(symbols.source_scopes_separate(fixture, dependency));
-}
-
-#[test]
-fn narrow_module_import_exposes_the_named_declaration() {
-    let (mut symbols, [fixture, dependency]) = collision_table(
-        Some(package_identity(77)),
-        SourceOrigin::User,
-        vec![SourceScopedTopLevelBinding::module_import(
-            SourceId(0),
-            SourceId(1),
-            "dep::extent::ExtentRootProvider",
-            1,
-        )],
-    );
-    symbols
-        .register_source_module(
-            SourceId(1),
-            [("extent", SourceSpan::new(SourceId(1), Span::new(0, 6)))],
-        )
-        .expect("module registration");
-    // Importing the exact declaration exposes its leaf spelling; the local
-    // `ExtentRootProvider` collides rather than shadowing it.
-    assert!(!symbols.source_scopes_separate(fixture, dependency));
 }

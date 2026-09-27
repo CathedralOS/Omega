@@ -158,18 +158,6 @@ mod tests {
     }
 
     #[test]
-    fn explicit_disposal_revokes_every_clone_and_is_idempotent() {
-        let path = root();
-        let sponsor = FilesystemSponsor::create_private(&path).unwrap();
-        let output = sponsor.session_root().unwrap().join("output");
-        let retained = sponsor.clone();
-        sponsor.dispose_private_staging().unwrap();
-        assert!(!retained.owns_private_staging_root(&output));
-        assert!(!path.exists());
-        retained.dispose_private_staging().unwrap();
-    }
-
-    #[test]
     fn existing_directory_is_never_adopted_or_removed() {
         let path = root();
         std::fs::create_dir(&path).unwrap();

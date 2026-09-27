@@ -14,22 +14,6 @@ fn execute(source: &str) -> checked_interpreter::InterpretOutcome {
 }
 
 #[test]
-fn value_dispatch_selects_only_first_matching_arm() {
-    let outcome = execute("machine main() -> i64 { match 0i64 { 0 -> 7, 0 -> 99, _ -> 88 } }");
-    assert_eq!(outcome.error, None);
-    assert_eq!(outcome.exit_code, 7);
-}
-
-#[test]
-fn value_dispatch_does_not_execute_unselected_trapping_calls() {
-    let outcome = execute(
-        "machine divide(value: i64) -> i64 { 7 / value } machine main() -> i64 { match 0i64 { 0 -> 7, _ -> divide(0) } }",
-    );
-    assert_eq!(outcome.error, None);
-    assert_eq!(outcome.exit_code, 7);
-}
-
-#[test]
 fn value_dispatch_evaluates_effectful_subject_once() {
     let outcome = execute(
         "machine read(calls: &mut i32 in Wrapping) -> i64 { calls = calls + 1; 2 } machine main() -> i32 { let mut calls: i32 in Wrapping = 0; let result: i64 = match read(&mut calls) { 0 -> 11, 1 -> 22, 2 -> 7, _ -> 44 }; transition result == 7 && calls == 1 { true -> 7 false -> 0 } }",

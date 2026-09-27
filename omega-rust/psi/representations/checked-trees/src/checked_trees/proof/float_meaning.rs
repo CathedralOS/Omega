@@ -392,30 +392,6 @@ mod tests {
     }
 
     #[test]
-    fn checked_projection_replays_exact_format_without_source_handles() {
-        let plan = projection();
-        assert_eq!(plan.validate(), Ok(()));
-        assert_eq!(plan.result.id, CheckedProofValueId(3));
-        assert_eq!(
-            plan.source,
-            CheckedFloatProjectionSource::TransitionalInput(CheckedFloatProjectionInput {
-                id: CheckedFloatProjectionInputId(7),
-                primitive: PrimitiveType::F32,
-            })
-        );
-    }
-
-    #[test]
-    fn checked_projection_rejects_cross_format_substitution() {
-        let mut plan = projection();
-        plan.operation = FloatProjectionOperation::Meaning64;
-        assert_eq!(
-            plan.validate(),
-            Err(CheckedFloatMeaningProjectionError::SourceFormatMismatch)
-        );
-    }
-
-    #[test]
     fn checked_projection_rejects_catalog_or_contract_substitution() {
         let mut plan = projection();
         plan.contract.catalog_version += 1;

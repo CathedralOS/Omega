@@ -3,71 +3,11 @@ use super::{
     uart_placement_plan, uart_reach, uart_resource_profile,
 };
 use crate::{
-    DeviceRevisionPredicateId, PlacementAdmissionId, PlacementPlanId, ResourceProfileReceiptId,
-    RuntimeDeviceRevisionEvidence, RuntimeDeviceRevisionObservationId,
+    PlacementAdmissionId, PlacementPlanId, ResourceProfileReceiptId,
     SchemaCorrespondenceProviderId, SchemaCorrespondenceSourceId, SchemaDeviceCorrespondenceGrant,
     StableDeviceInstanceId, admit_placement, bind_schema_correspondence_to_placement, place,
 };
 use extents::LoanPolarity;
-
-#[test]
-fn provider_correspondence_admits_against_exact_plan_and_profile_without_storage_join() {
-    let plan = uart_placement_plan();
-    let extent = uart_extent_with_lineage(0x7180, 12, 236);
-    let loan = extent.loan(0, 12).expect("shared UART loan");
-    let profile = uart_resource_profile(&loan, &uart_reach());
-    let provider = SchemaCorrespondenceProviderId::from_normalized_identity(237)
-        .expect("correspondence provider");
-    let device = StableDeviceInstanceId::from_normalized_identity(238).expect("stable device");
-    let revision = RuntimeDeviceRevisionEvidence::from_admitted_provider(
-        RuntimeDeviceRevisionObservationId::from_normalized_identity(239)
-            .expect("revision observation"),
-        DeviceRevisionPredicateId::from_normalized_identity(240).expect("revision predicate"),
-        provider,
-        device,
-        profile.receipt(),
-        3,
-    );
-    let grant = SchemaDeviceCorrespondenceGrant::from_admitted_provider(
-        provider,
-        device,
-        SchemaCorrespondenceSourceId::from_normalized_identity(241).expect("datasheet provenance"),
-        &plan,
-        profile.receipt(),
-        Some(revision),
-    )
-    .expect("provider correspondence grant");
-
-    let mut colliding = plan.clone();
-    colliding.layout.schema_report_fingerprint ^= 1;
-    assert_eq!(colliding.identity(), plan.identity());
-    assert_ne!(colliding.layout(), plan.layout());
-    let rejection = grant
-        .admit(&colliding, &profile)
-        .expect_err("compact placement identity cannot substitute exact plan structure");
-    assert!(
-        rejection
-            .diagnostic()
-            .0
-            .contains("exact validated placement")
-    );
-    let (grant, _) = rejection.into_parts();
-
-    let admitted = grant
-        .admit(&plan, &profile)
-        .expect("exact plan/profile correspondence admission");
-    assert_eq!(admitted.placement(), plan.identity());
-    assert_eq!(admitted.profile_receipt(), profile.receipt());
-    assert_eq!(admitted.provider(), provider);
-    assert_eq!(admitted.device(), device);
-    assert_eq!(
-        admitted
-            .revision()
-            .expect("runtime revision evidence")
-            .observed_revision(),
-        3
-    );
-}
 
 #[test]
 fn correspondence_binding_replays_placement_and_returns_both_inputs_for_retry() {

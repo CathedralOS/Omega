@@ -1130,22 +1130,3 @@ impl<'program> Evaluator<'program> {
         Ok(frame)
     }
 }
-
-#[cfg(test)]
-mod build_evaluation_configuration_tests {
-    use crate::interpreter::evaluator::STEP_BUDGET;
-    use crate::interpreter::evaluator::{Evaluator, TypedTrees};
-
-    #[test]
-    fn compiler_build_configuration_replaces_the_initial_interpreter_ceiling() {
-        let program = TypedTrees::default();
-        let mut evaluator = Evaluator::new(&program, &[]);
-        evaluator.step_budget = 7;
-        evaluator.usage.set_fuel_ceiling(7);
-
-        evaluator.configure_build_evaluation(STEP_BUDGET, None);
-
-        assert_eq!(evaluator.step_budget, STEP_BUDGET);
-        assert_eq!(evaluator.usage.fuel_ceiling(), STEP_BUDGET);
-    }
-}

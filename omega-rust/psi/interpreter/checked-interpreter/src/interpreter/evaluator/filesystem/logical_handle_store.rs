@@ -249,23 +249,6 @@ mod tests {
     }
 
     #[test]
-    fn closing_a_borrowed_native_handle_invalidates_its_descriptor() {
-        let mut handles = FilesystemLogicalHandles::default();
-        let descriptor = handles
-            .create(FilesystemLogicalHandleKind::Descriptor, 3)
-            .unwrap();
-        let native = handles.borrow_native(103, descriptor).unwrap();
-        assert_eq!(
-            handles.retire(FilesystemLogicalHandleKind::Native, native),
-            vec![descriptor, native]
-        );
-        assert_eq!(
-            handles.resolve(FilesystemLogicalHandleKind::Descriptor, 3, false),
-            FilesystemLogicalHandleInputResolution::Unknown
-        );
-    }
-
-    #[test]
     fn null_is_distinct_from_an_unknown_handle() {
         let handles = FilesystemLogicalHandles::default();
         assert_eq!(

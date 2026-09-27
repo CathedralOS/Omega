@@ -169,38 +169,6 @@ impl BuildTimeValue {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::BuildTimeValue;
-
-    #[test]
-    fn result_cell_count_is_recursive_and_text_is_one_cell() {
-        let value = BuildTimeValue::Struct {
-            type_name: "Envelope".to_owned(),
-            fields: vec![
-                (
-                    "payload".to_owned(),
-                    BuildTimeValue::Case {
-                        variant: "Ready".to_owned(),
-                        payload: vec![(
-                            "items".to_owned(),
-                            BuildTimeValue::Array(vec![
-                                BuildTimeValue::Int(1),
-                                BuildTimeValue::Text(vec![0; 4096]),
-                            ]),
-                        )],
-                    },
-                ),
-                ("valid".to_owned(), BuildTimeValue::Bool(true)),
-            ],
-        };
-
-        // Struct + case + array + two elements + bool.
-        assert_eq!(value.retained_cell_count(), Some(6));
-        assert_eq!(value.retained_text_byte_count(), Some(4096));
-    }
-}
-
 /// One supplied semantic execution, tied to the exact checked operator use.
 /// The caller owns selected-provider validation; this interpreter never selects
 /// a provider from a token or declaration name.

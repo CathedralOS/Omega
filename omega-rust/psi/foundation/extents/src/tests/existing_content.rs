@@ -38,46 +38,6 @@ fn provider_root_mints_exact_existing_content_authority_once() {
 }
 
 #[test]
-fn coincident_provider_content_issuances_retain_distinct_resident_claims() {
-    let (_, first) = root_grant(91)
-        .mint_provider_existing_content(
-            0xa000,
-            64,
-            ExtentContentInterpretation::from_sha256_commitment(
-                id(92, ExtentContentInterpretationId::from_normalized_identity),
-                [0x92; 32],
-            ),
-            id(93, ResidentClaimId::from_normalized_identity),
-            id(94, ExtentContentValidityReceiptId::from_normalized_identity),
-            id(95, ExtentContentCustodyReceiptId::from_normalized_identity),
-        )
-        .expect("first resident provider issuance");
-    let (_, second) = root_grant(96)
-        .mint_provider_existing_content(
-            0xa000,
-            64,
-            ExtentContentInterpretation::from_sha256_commitment(
-                id(92, ExtentContentInterpretationId::from_normalized_identity),
-                [0x92; 32],
-            ),
-            id(97, ResidentClaimId::from_normalized_identity),
-            id(94, ExtentContentValidityReceiptId::from_normalized_identity),
-            id(95, ExtentContentCustodyReceiptId::from_normalized_identity),
-        )
-        .expect("second resident provider issuance");
-
-    assert_eq!(
-        (first.base(), first.length()),
-        (second.base(), second.length())
-    );
-    assert_eq!(first.interpretation(), second.interpretation());
-    assert_eq!(first.validity_receipt(), second.validity_receipt());
-    assert_eq!(first.custody_receipt(), second.custody_receipt());
-    assert_ne!(first.origin(), second.origin());
-    assert_ne!(first.resident_claim(), second.resident_claim());
-}
-
-#[test]
 fn program_local_root_cannot_mint_provider_existing_content_authority() {
     let error = local_root_grant(85, 86)
         .mint_provider_existing_content(

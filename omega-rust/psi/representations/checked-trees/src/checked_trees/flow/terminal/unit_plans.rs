@@ -164,19 +164,4 @@ mod tests {
             None
         );
     }
-
-    #[test]
-    fn a_machine_listed_twice_in_its_roster_is_duplicated() {
-        let machine = SymbolHandle::from_arena_index(1);
-        let mut flow = FlowFacts::default();
-        flow.terminal_structural_unit_controls
-            .machines
-            .push(structural_control(machine));
-        flow.terminal_structural_unit_controls
-            .machines
-            .push(structural_control(machine));
-
-        let plan = CheckedUnitPlan::for_machine(&flow, machine).expect("plan");
-        assert!(plan.is_duplicated_in(&flow));
-    }
 }

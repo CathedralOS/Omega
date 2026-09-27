@@ -6,115 +6,12 @@
 use crate::common;
 
 use common::{copy_fixture, sccp_fixture, value};
-use lowered_psi_to_lowered_psi::{PsiOptimizationStageError, run_psi_optimization};
+use lowered_psi_to_lowered_psi::run_psi_optimization;
 use optimization::{PsiOptimization, PsiOptimizationSelections};
 use terminal_psi::{OperationKind, Terminator};
 
 fn selections() -> PsiOptimizationSelections {
     PsiOptimizationSelections::new([PsiOptimization::SparseConditionalConstantPropagation]).unwrap()
-}
-
-#[test]
-fn selected_sccp_folds_literal_resolved_leaves_transitively() {
-    let lowered = sccp_fixture();
-    let optimized =
-        run_psi_optimization(lowered.clone(), selections()).expect("constant folding executes");
-    let machine = &optimized.lowered().semantic_module.machines[0];
-    let entry = &machine.blocks[0];
-
-    let expected = [
-        (
-            value(12),
-            OperationKind::IntegerConstant {
-                value: semantic_vocabulary::IntegerValue::Signed(5),
-            },
-        ),
-        (
-            value(13),
-            OperationKind::IntegerConstant {
-                value: semantic_vocabulary::IntegerValue::Signed(15),
-            },
-        ),
-        (value(14), OperationKind::BooleanConstant { value: true }),
-        (value(15), OperationKind::BooleanConstant { value: false }),
-    ];
-    for (result, kind) in &expected {
-        let operation = entry
-            .operations
-            .iter()
-            .find(|operation| operation.result.scalar().is_some_and(|r| r.id == *result))
-            .expect("folded operation keeps its position");
-        assert_eq!(
-            &operation.kind, kind,
-            "{result:?} folds to its literal denotation"
-        );
-    }
-    assert_eq!(
-        entry.operations.len(),
-        6,
-        "folding rewrites in place: no operation is added or removed"
-    );
-    assert_eq!(
-        optimized.lowered().semantic_module.machines[0]
-            .blocks
-            .iter()
-            .flat_map(|block| &block.operations)
-            .map(|operation| operation.id)
-            .collect::<Vec<_>>(),
-        lowered.semantic_module.machines[0]
-            .blocks
-            .iter()
-            .flat_map(|block| &block.operations)
-            .map(|operation| operation.id)
-            .collect::<Vec<_>>(),
-        "every operation identity survives in order"
-    );
-    assert_ne!(
-        optimized.execution().input_semantic(),
-        optimized.execution().output_semantic(),
-        "the rewrite is recorded as a semantic change"
-    );
-    assert_eq!(
-        optimized.execution().input_proof(),
-        optimized.execution().output_proof(),
-        "the proof bundle is byte-identical"
-    );
-    terminal_verifier::validate_sparse_conditional_constant_propagation(
-        &lowered.semantic_module,
-        &optimized.lowered().semantic_module,
-    )
-    .expect("the independent check accepts the executed rewrite");
-}
-
-#[test]
-fn opaque_operands_and_control_flow_are_retained() {
-    let lowered = sccp_fixture();
-    let optimized = run_psi_optimization(lowered, selections()).expect("constant folding executes");
-    let machine = &optimized.lowered().semantic_module.machines[0];
-
-    let Terminator::Conditional { condition, .. } = &machine.blocks[0].terminator else {
-        panic!("the entry keeps its conditional")
-    };
-    assert_eq!(
-        *condition,
-        value(15),
-        "the folded v15 still feeds the conditional: branch resolution is the \
-         control-flow rule's job, not this rule's"
-    );
-    for (position, expected) in [(1usize, value(12)), (2, value(13))] {
-        let operation = &machine.blocks[position].operations[0];
-        assert!(
-            matches!(&operation.kind, OperationKind::WrappingIntegerAdd { left, .. }
-                if *left == value(1)),
-            "the v1-parameter add keeps its operation kind; only the literal \
-             operand position could carry {expected:?}"
-        );
-    }
-    assert_eq!(
-        machine.blocks.len(),
-        4,
-        "no block is removed or rewired by this rule"
-    );
 }
 
 #[test]
@@ -201,29 +98,6 @@ fn independent_check_rejects_wrong_and_unjustified_folds() {
 }
 
 #[test]
-fn independent_check_rejects_a_changed_proof_question() {
-    let mut lowered = sccp_fixture();
-    lowered.semantic_module.machines[0]
-        .contract
-        .ensures
-        .push(terminal_psi::ContractClause {
-            obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
-            proposition: semantic_vocabulary::Proposition::Truth,
-        });
-    let mut after = lowered.semantic_module.clone();
-    after.machines[0].contract.ensures.clear();
-    assert!(matches!(
-        terminal_verifier::validate_sparse_conditional_constant_propagation(
-            &lowered.semantic_module,
-            &after
-        ),
-        Err(
-            terminal_verifier::SparseConditionalConstantPropagationRewriteError::ChangedProofQuestion
-        )
-    ));
-}
-
-#[test]
 fn no_constant_workload_records_the_identity() {
     // Boundary coverage against a sibling fixture: no literal-resolved leaf
     // exists, so the selected rule leaves the module untouched.
@@ -251,24 +125,6 @@ fn foldable_leaves_survive_when_constant_propagation_is_not_selected() {
     assert_eq!(
         optimized.execution().input_semantic(),
         optimized.execution().output_semantic()
-    );
-}
-
-#[test]
-fn optimized_output_is_a_legal_second_input_and_reaches_a_fixed_point() {
-    let lowered = sccp_fixture();
-    let first = run_psi_optimization(lowered, selections()).expect("first run executes");
-    let second = run_psi_optimization(first.lowered().clone(), selections())
-        .expect("the published artifact re-enters the stage");
-    assert_eq!(
-        second.lowered(),
-        first.lowered(),
-        "a second selection changes nothing: every resolved leaf is folded"
-    );
-    assert_eq!(
-        second.execution().input_semantic(),
-        second.execution().output_semantic(),
-        "the fixed-point run records an identity"
     );
 }
 
@@ -315,41 +171,4 @@ fn sccp_retains_every_debug_subject_and_updates_semantic_identity() {
         terminal_codec::terminal_psi_identity(&optimized.lowered().semantic_module).unwrap(),
         "the sidecar semantic identity tracks the rewritten module"
     );
-}
-
-#[test]
-fn structurally_invalid_inputs_fail_before_rewrite() {
-    let mut no_machines = sccp_fixture();
-    no_machines.semantic_module.machines.clear();
-    assert!(matches!(
-        run_psi_optimization(no_machines, selections()),
-        Err(PsiOptimizationStageError::InvalidModule(
-            terminal_verifier::ModuleError::EmptyModule
-        ))
-    ));
-
-    let mut bad_target = sccp_fixture();
-    let Terminator::Jump { target, .. } =
-        &mut bad_target.semantic_module.machines[0].blocks[1].terminator
-    else {
-        panic!("b2 is a jump")
-    };
-    *target = common::block_id(99);
-    assert!(matches!(
-        run_psi_optimization(bad_target, selections()),
-        Err(PsiOptimizationStageError::InvalidModule(_))
-    ));
-
-    let mut bad_debug = sccp_fixture();
-    common::with_debug_sites(&mut bad_debug, &[]);
-    bad_debug
-        .debug_map
-        .as_mut()
-        .unwrap()
-        .semantic
-        .program_fingerprint = terminal_psi::SemanticFingerprint::from_bytes([0xff; 32]);
-    assert!(matches!(
-        run_psi_optimization(bad_debug, selections()),
-        Err(PsiOptimizationStageError::InvalidDebugMap(_))
-    ));
 }

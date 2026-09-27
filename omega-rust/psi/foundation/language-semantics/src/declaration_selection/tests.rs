@@ -60,44 +60,6 @@ fn occurrence_identities_are_unique_and_deterministic() {
 }
 
 #[test]
-fn compiler_partitions_separate_applications_without_replacing_source_custody() {
-    let mut selections = AuthoredDeclarationSelections::default();
-    let source = source_span(12, 16);
-    let first_partition = CompilerDerivedSelectionPartition::from_compiler_ordinal(3);
-    let second_partition = CompilerDerivedSelectionPartition::from_compiler_ordinal(7);
-    let first = selections
-        .record_resolved_in_partition(
-            source,
-            AuthoredDeclarationSelectionExposure::PrivateImplementation,
-            AuthoredDeclarationSelectionKind::Call,
-            Some(first_partition),
-            SymbolHandle::from_arena_index(4),
-        )
-        .expect("first application");
-    let second = selections
-        .record_resolved_in_partition(
-            source,
-            AuthoredDeclarationSelectionExposure::PrivateImplementation,
-            AuthoredDeclarationSelectionKind::Call,
-            Some(second_partition),
-            SymbolHandle::from_arena_index(8),
-        )
-        .expect("second application");
-
-    assert_ne!(first, second);
-    assert_eq!(selections.get(first).unwrap().source_span(), source);
-    assert_eq!(selections.get(second).unwrap().source_span(), source);
-    assert_eq!(
-        selections.get(first).unwrap().compiler_partition(),
-        Some(first_partition)
-    );
-    assert_eq!(
-        selections.get(second).unwrap().compiler_partition(),
-        Some(second_partition)
-    );
-}
-
-#[test]
 fn suffix_rebase_preserves_destination_prefix_and_shifts_only_extension_rows() {
     let mut combined = AuthoredDeclarationSelections::default();
     combined

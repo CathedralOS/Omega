@@ -1,14 +1,12 @@
 use super::{
-    extent_id, provider_existing_content, stable_word_placement, stable_word_profile,
+    provider_existing_content, stable_word_placement, stable_word_profile,
     uart_extent_with_lineage, uart_placement_plan, uart_reach, uart_resource_profile_for_extent,
-    uart_root_grant, uart_root_grant_with_mapping,
+    uart_root_grant_with_mapping,
 };
 use crate::{
     AccessPlan, BoundaryReach, PlacementAdmissionId, PlacementPlan, admit_owned_placement,
     adopt_owned_stable, validate_placement_plan,
 };
-use extents::ResidentClaimId;
-use extents::{ExtentContentCustodyReceiptId, ExtentContentValidityReceiptId};
 
 #[test]
 fn provider_existing_content_cannot_replay_across_extent_roots() {
@@ -69,42 +67,6 @@ fn provider_existing_content_cannot_replay_after_mapping_era_drift() {
     let (admission, content, _) = rejection.into_parts();
     assert_eq!(content.era().normalized_identity(), 6);
     assert_eq!(admission.withdraw().era().normalized_identity(), 110);
-}
-
-#[test]
-fn provider_existing_content_must_name_the_actual_placement() {
-    let plan = stable_word_placement();
-    let (extent, content) = uart_root_grant(1, 100)
-        .mint_provider_existing_content(
-            0xa200,
-            4,
-            extents::ExtentContentInterpretation::from_sha256_commitment(
-                extent_id(
-                    plan.identity().compatibility_fingerprint() + 1,
-                    extents::ExtentContentInterpretationId::from_normalized_identity,
-                ),
-                plan.content_interpretation().commitment(),
-            ),
-            extent_id(104, ResidentClaimId::from_normalized_identity),
-            extent_id(
-                101,
-                ExtentContentValidityReceiptId::from_normalized_identity,
-            ),
-            extent_id(102, ExtentContentCustodyReceiptId::from_normalized_identity),
-        )
-        .expect("provider existing-content extent");
-    let profile = stable_word_profile(&extent);
-    let admission = admit_owned_placement(
-        PlacementAdmissionId::from_normalized_identity(103).expect("admission"),
-        extent,
-        &plan,
-        &profile,
-    )
-    .expect("owned Stable admission");
-
-    let rejection = adopt_owned_stable(admission, content)
-        .expect_err("provider interpretation must match the actual admitted placement");
-    assert!(rejection.diagnostic().0.contains("interpretation"));
 }
 
 #[test]

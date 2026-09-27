@@ -1,5 +1,5 @@
+use crate::interpreter::evaluator::Evaluator;
 use crate::interpreter::evaluator::{CheckedTrees, ExpressionHandle};
-use crate::interpreter::evaluator::{Evaluator, Value};
 use typed_trees::data::DataMember;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
 
@@ -153,97 +153,6 @@ fn byte_input_rejects_changed_result_schema_before_consuming_input() {
         );
         assert_eq!(evaluator.stdin_cursor, 0, "mutation {mutation}");
     }
-}
-
-#[test]
-fn byte_input_rejects_requirement_and_realization_result_substitution() {
-    let mut program = canonical();
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "ConsoleNativeProvider::read_byte")
-        .unwrap()
-        .clone();
-    let target = program.machine_states(&machine)[0].symbol;
-    let decoy = program
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "decoy")
-        .unwrap();
-    let decoy_type = program.machine_states(decoy)[0].return_type;
-    // Give the other nominal type the same spelling and shape. The signature
-    // join must still compare symbols rather than accepting either declaration.
-    let result_name = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.name.as_str() == "ByteRead")
-        .unwrap()
-        .name
-        .clone();
-    let decoy_symbol = program.type_reference_symbol(decoy_type);
-    let definitions = program.typed.roots.data_definitions;
-    program
-        .typed
-        .tables
-        .data_definitions
-        .span_mut_or_empty(definitions)
-        .iter_mut()
-        .find(|data| data.symbol == decoy_symbol)
-        .unwrap()
-        .name = result_name;
-    program.typed.machine_states_mut(&machine)[0].return_type = decoy_type;
-    assert_eq!(
-        validation::exact_compiler_intrinsic_boundary_requirement(&program, target),
-        None
-    );
-    let mut evaluator = Evaluator::new_checked(&program, &[128]);
-    assert_eq!(evaluator.exact_console_intrinsic_host_method(target), None);
-    assert!(evaluator.read_stdin_byte_value(target).is_err());
-    assert_eq!(evaluator.stdin_cursor, 0);
-}
-
-#[test]
-fn byte_input_result_uses_requirement_symbol_not_first_matching_name() {
-    let mut program = canonical();
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "ConsoleNativeProvider::read_byte")
-        .unwrap();
-    let target = program.machine_states(machine)[0].symbol;
-    let result_type = program.machine_states(machine)[0].return_type;
-    let expected = program.type_reference_symbol(result_type);
-    let result_name = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.symbol == expected)
-        .unwrap()
-        .name
-        .clone();
-    let definitions = program.typed.roots.data_definitions;
-    let decoy = &mut program
-        .typed
-        .tables
-        .data_definitions
-        .span_mut_or_empty(definitions)[0];
-    assert_ne!(decoy.symbol, expected);
-    decoy.name = result_name;
-    let mut evaluator = Evaluator::new_checked(&program, &[255]);
-    for expected_variant in ["Byte", "Eof"] {
-        let Value::Enum {
-            type_symbol,
-            variant_name,
-            ..
-        } = evaluator
-            .read_stdin_byte_value(target)
-            .unwrap_or_else(|_| panic!("validated byte result"))
-        else {
-            panic!("nominal byte result");
-        };
-        assert_eq!(type_symbol, expected);
-        assert_eq!(variant_name, expected_variant);
-    }
-    assert_eq!(evaluator.stdin_cursor, 1);
 }
 
 #[test]

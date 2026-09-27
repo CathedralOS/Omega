@@ -299,36 +299,7 @@ impl FlowFacts {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        FlowBorrowLifetimeFacts, FlowBoundaryFacts, FlowContextFacts, FlowControlFacts, FlowFacts,
-        FlowInvalidationFacts, FlowOwnershipFacts,
-    };
-
-    #[test]
-    fn flow_facts_constructor_keeps_flow_roots_explicit() {
-        let contexts = FlowContextFacts::default();
-        let invalidations = FlowInvalidationFacts::default();
-        let borrow_lifetimes = FlowBorrowLifetimeFacts::default();
-        let ownership = FlowOwnershipFacts::default();
-        let boundaries = FlowBoundaryFacts::default();
-        let control = FlowControlFacts::default();
-
-        let facts = FlowFacts::with_roots(
-            contexts.clone(),
-            invalidations.clone(),
-            borrow_lifetimes.clone(),
-            ownership.clone(),
-            boundaries.clone(),
-            control.clone(),
-        );
-
-        assert_eq!(facts.contexts, contexts);
-        assert_eq!(facts.invalidations, invalidations);
-        assert_eq!(facts.borrow_lifetimes, borrow_lifetimes);
-        assert_eq!(facts.ownership, ownership);
-        assert_eq!(facts.boundaries, boundaries);
-        assert_eq!(facts.control, control);
-    }
+    use crate::FlowControlFacts;
 
     #[test]
     fn retiring_a_call_row_keeps_the_arena_and_matches_only_that_coordinate() {

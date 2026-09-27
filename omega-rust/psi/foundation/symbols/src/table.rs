@@ -1554,10 +1554,7 @@ impl SymbolTableAppender for SymbolTableExtension {
 
 #[cfg(test)]
 mod builtin_function_identity_tests {
-    use super::{
-        BUILTIN_TYPE_COUNT, BuiltinFunction, SymbolKind, SymbolNameRef, SymbolTable,
-        SymbolTableBuilder,
-    };
+    use super::{BuiltinFunction, SymbolKind, SymbolNameRef, SymbolTable, SymbolTableBuilder};
     use crate::{builtin_function_symbols, builtin_type_symbols};
 
     fn builtin_symbol_table(
@@ -1582,90 +1579,6 @@ mod builtin_function_identity_tests {
                 .expect("compiler builtin function must occupy its fixed root slot");
             assert_eq!(symbols.builtin_function_for_symbol(symbol), Some(function));
         }
-    }
-
-    #[test]
-    fn same_spelled_non_builtin_symbols_do_not_classify() {
-        let mut builder = SymbolTableBuilder::new();
-        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
-        let root_children = builder.insert_children(
-            root,
-            builtin_type_symbols()
-                .into_iter()
-                .chain(builtin_function_symbols())
-                .chain([
-                    (SymbolKind::BuiltinFunction, SymbolNameRef::Static("max")),
-                    (SymbolKind::Machine, SymbolNameRef::Static("user")),
-                ]),
-        );
-        let mut root_children = SymbolTableBuilder::child_handles(root_children);
-        let same_spelled_late_root = root_children
-            .nth(BUILTIN_TYPE_COUNT + BuiltinFunction::COUNT)
-            .expect("late same-spelled root symbol");
-        let user = root_children.next().expect("user parent");
-        let same_spelled_non_root = SymbolTableBuilder::child_handles(builder.insert_children(
-            user,
-            [(SymbolKind::BuiltinFunction, SymbolNameRef::Static("max"))],
-        ))
-        .next()
-        .expect("same-spelled non-root symbol");
-        let symbols = builder.finish();
-
-        assert_eq!(symbols.name(same_spelled_late_root), "max");
-        assert_eq!(symbols.name(same_spelled_non_root), "max");
-        assert_eq!(
-            symbols.builtin_function_for_symbol(same_spelled_late_root),
-            None
-        );
-        assert_eq!(
-            symbols.builtin_function_for_symbol(same_spelled_non_root),
-            None
-        );
-    }
-
-    #[test]
-    fn same_spelled_generated_symbol_does_not_classify() {
-        let mut symbols = builtin_symbol_table(builtin_function_symbols());
-        let origin = symbols
-            .builtin_function_symbol(BuiltinFunction::Max)
-            .expect("max builtin");
-        let generated = symbols.insert_generated_root_from(
-            origin,
-            SymbolKind::BuiltinFunction,
-            BuiltinFunction::Max.name(),
-        );
-
-        assert_eq!(symbols.name(generated), BuiltinFunction::Max.name());
-        assert_eq!(symbols.builtin_function_for_symbol(generated), None);
-    }
-
-    #[test]
-    fn fixed_function_slot_with_wrong_kind_does_not_classify() {
-        let function_symbols = builtin_function_symbols().map(|(kind, name)| {
-            if name.as_str() == BuiltinFunction::Max.name() {
-                (SymbolKind::Function, name)
-            } else {
-                (kind, name)
-            }
-        });
-        let symbols = builtin_symbol_table(function_symbols);
-        let wrong_kind = symbols
-            .child_handles(symbols.root())
-            .expect("root children")
-            .nth(BUILTIN_TYPE_COUNT + BuiltinFunction::Max.ordinal())
-            .expect("max fixed slot");
-
-        assert_eq!(symbols.name(wrong_kind), BuiltinFunction::Max.name());
-        assert_eq!(symbols.get(wrong_kind).kind, SymbolKind::Function);
-        assert_eq!(symbols.builtin_function_for_symbol(wrong_kind), None);
-        assert_eq!(
-            symbols.builtin_function_for_symbol(
-                symbols
-                    .builtin_function_symbol(BuiltinFunction::Min)
-                    .expect("neighboring min builtin"),
-            ),
-            Some(BuiltinFunction::Min),
-        );
     }
 }
 

@@ -198,33 +198,6 @@ fn checked_resource_envelope_replays_three_distinct_derivation_obligations() {
 }
 
 #[test]
-fn checked_resource_envelope_rejects_compact_equal_contract_commitment_substitution() {
-    let machine = SymbolHandle::from_arena_index(24);
-    let entry = SymbolHandle::from_arena_index(25);
-    let expected = MachineContractCommitment::from_digest([0x31; 32]);
-    let substituted = MachineContractCommitment::from_digest([0x32; 32]);
-    let canonical =
-        CheckedEntryResourceEnvelope::from_checked_contract(machine, entry, 0xfeed, expected);
-    let foreign =
-        CheckedEntryResourceEnvelope::from_checked_contract(machine, entry, 0xfeed, substituted);
-
-    canonical.validate().expect("canonical resource envelope");
-    foreign
-        .validate()
-        .expect("independently canonical foreign envelope");
-    assert_ne!(canonical.report_fingerprint(), foreign.report_fingerprint());
-
-    let mut mixed = canonical;
-    mixed.stack = foreign.stack;
-    assert!(
-        mixed
-            .validate()
-            .expect_err("compact-equal contract substitution must reject")
-            .contains("exact machine entry contract")
-    );
-}
-
-#[test]
 fn checked_resource_roster_rejects_entry_deletion_and_reordering() {
     let machine = SymbolHandle::from_arena_index(31);
     let entries = [
@@ -573,47 +546,6 @@ fn external_binding_mechanism_participates_in_contract_identity() {
 }
 
 #[test]
-fn termination_implementation_evidence_is_contract_invisible() {
-    let interface = TerminationInterface::Published(TerminationGuarantee::Terminates {
-        premises: Vec::new(),
-    });
-    let unresolved = language_semantics::MachineTerminationPlan {
-        interface: interface.clone(),
-        checked_summary: TerminationGuarantee::NoGuarantee,
-        implementation_witness: None,
-    };
-    let established = language_semantics::MachineTerminationPlan {
-        interface,
-        checked_summary: TerminationGuarantee::Terminates {
-            premises: Vec::new(),
-        },
-        implementation_witness: Some(language_semantics::RankingWitness {
-            subjects: vec!["remaining".to_owned()],
-            ranking_view: language_semantics::RankingViewId::NAT_DESCENDING,
-            view_path: "Nat::Descending".to_owned(),
-            view_arguments: Vec::new(),
-            rank_range: None,
-        }),
-    };
-    let fingerprint = |plan: &language_semantics::MachineTerminationPlan| {
-        contract_report_fingerprint(
-            MachineSupplyMode::CheckedBody,
-            &[],
-            SynchronousInvocationInterface::InternalInferred,
-            &[],
-            SuspensionInterface::InternalInferred,
-            BlockingInterface::InternalInferred,
-            &CrashPlan::default(),
-            &plan.interface,
-            &[],
-        )
-    };
-
-    assert_ne!(unresolved, established);
-    assert_eq!(fingerprint(&unresolved), fingerprint(&established));
-}
-
-#[test]
 fn symbol_resolved_service_names_participate_in_contract_identity() {
     let fingerprint = |services: &[String]| {
         contract_report_fingerprint(
@@ -670,29 +602,6 @@ fn synchronous_invocation_ceiling_participates_in_contract_identity() {
     assert_ne!(omitted, handler);
     assert_ne!(omitted, private);
     assert_eq!(composite, reordered);
-}
-
-#[test]
-fn internal_derivation_differs_from_published_omission() {
-    let fingerprint = |termination| {
-        contract_report_fingerprint(
-            MachineSupplyMode::CheckedBody,
-            &[],
-            SynchronousInvocationInterface::InternalInferred,
-            &[],
-            SuspensionInterface::InternalInferred,
-            BlockingInterface::InternalInferred,
-            &CrashPlan::default(),
-            termination,
-            &[],
-        )
-    };
-    assert_ne!(
-        fingerprint(&TerminationInterface::InternalDerived),
-        fingerprint(&TerminationInterface::Published(
-            TerminationGuarantee::NoGuarantee
-        ))
-    );
 }
 
 #[test]

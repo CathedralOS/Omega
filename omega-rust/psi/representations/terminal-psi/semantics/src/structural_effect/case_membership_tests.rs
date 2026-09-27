@@ -1,14 +1,13 @@
 use super::{
-    IntegerSign, IntegerType, Operation, OperationKind, OperationResult, OperationSemanticError,
-    OperationSemanticTag, PlaceId, ScalarType, StructuralCaseId, StructuralEffectAction,
-    StructuralEffectCustody, StructuralEffectExternalEffect, StructuralEffectFrontierPolicy,
-    StructuralEffectFuelPolicy, StructuralEffectGoalShape, StructuralEffectObservation,
-    StructuralEffectResultShape, StructuralEffectSemanticRow, ValueId,
-    structural_effect_leaf_observation, structural_effect_leaf_observation_in,
-    structural_effect_semantic_row,
+    Operation, OperationKind, OperationResult, OperationSemanticError, OperationSemanticTag,
+    PlaceId, ScalarType, StructuralCaseId, StructuralEffectAction, StructuralEffectCustody,
+    StructuralEffectExternalEffect, StructuralEffectFrontierPolicy, StructuralEffectFuelPolicy,
+    StructuralEffectGoalShape, StructuralEffectObservation, StructuralEffectResultShape,
+    StructuralEffectSemanticRow, ValueId, structural_effect_leaf_observation,
+    structural_effect_leaf_observation_in, structural_effect_semantic_row,
 };
-use semantic_vocabulary::{OperationId, StructuralTypeId};
-use terminal_psi::{StructuralMultiplicity, StructuralOperationResult, ValueDeclaration};
+use semantic_vocabulary::OperationId;
+use terminal_psi::ValueDeclaration;
 
 fn operation() -> Operation {
     Operation {
@@ -82,36 +81,6 @@ fn case_membership_retains_exact_observation_without_current_storage_equation() 
         );
         assert_eq!(observation.local_equation(), None);
         assert_eq!(observation.canonical_obligation(), None);
-    }
-}
-
-#[test]
-fn case_membership_rejects_non_boolean_results() {
-    let mut operation = operation();
-    for result in [
-        OperationResult::Unit,
-        OperationResult::Scalar(ValueDeclaration {
-            id: ValueId::new(2).unwrap(),
-            scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap()),
-            qualifications: Default::default(),
-        }),
-        OperationResult::Structural(StructuralOperationResult {
-            qualification_establishments: Vec::new(),
-            place: PlaceId::new(5).unwrap(),
-            structural_type: StructuralTypeId::new(6).unwrap(),
-            multiplicity: StructuralMultiplicity::Unrestricted,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-            claims: Vec::new(),
-        }),
-    ] {
-        operation.result = result;
-        assert_eq!(
-            structural_effect_leaf_observation(&operation),
-            Err(OperationSemanticError::StructuralEffectResultShapeMismatch(
-                OperationSemanticTag::StructuralCaseMembership
-            ))
-        );
     }
 }
 

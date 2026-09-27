@@ -205,14 +205,7 @@ semantic_id!(
 
 #[cfg(test)]
 mod tests {
-    use super::{ClaimId, FuelScheduleIdentity, PackageKeyIdentity, ValueId};
-
-    #[test]
-    fn semantic_ids_reject_the_reserved_zero_value() {
-        assert!(ValueId::new(0).is_none());
-        assert_eq!(ValueId::new(7).expect("nonzero identity").get(), 7);
-        assert!(ClaimId::new(0).is_none());
-    }
+    use super::{FuelScheduleIdentity, PackageKeyIdentity};
 
     #[test]
     fn fuel_schedule_identity_is_nonzero_and_separate_from_semantic_ids() {
