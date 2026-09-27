@@ -915,8 +915,9 @@ _rejected` and `expressions/bool_numeric_operand_mixing_rejected` each gained
   `fail/dependent/case_where_payload_write_exit_open` before that exemption
   went in.
 
-  **`generics/declared_range_endpoint_inference` reduces to nine lines, and
-  the message names the wrong file.** It reports "quoted byte literal cannot
+  **`generics/declared_range_endpoint_inference` is fixed; the diagnosis is
+  kept because the shape recurs.** It reduced to nine lines whose message
+  named the wrong file. It reports "quoted byte literal cannot
   initialize owned fixed byte array `[u8; ObjectLength]`", which is std's
   `process_exit_binding` storing `"kernel32.dll"` into
   `DllImport<12, 11, 0>`. The fixture contains no byte literal. The
@@ -945,12 +946,26 @@ _rejected` and `expressions/bool_numeric_operand_mixing_rejected` each gained
   | `u64[0..=256]` | `definition=DllImport candidates=["DllImport"]` |
   | `u64` | `definition=DllImport<12, 11, 0> candidates=["DllImport", "DllImport<12, 11, 0>"]` |
 
-  So the instance is never MINTED, not mis-selected, and the byte-literal
-  message is a symptom two stages downstream that should not be touched. The
-  work is to find why one range-constrained argument stops
-  `DllImport<12, 11, 0>` from existing;
-  `omega-rust/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/synthesis.rs`
-  is where instances are synthesized and is the place to start.
+  The instance was never MINTED, and the reason is an ORDERING that is
+  deliberate. `range_arguments::evaluate` -- which does work only when a
+  generic argument carries a range -- clones the syntax, resolves it and
+  TYPES it to canonicalize endpoints, and that clone is taken BEFORE
+  generic-data synthesis on purpose: the synthesis is itself a customer of
+  the canonical ranges this pass produces, so it cannot run first. Every
+  generic data application is therefore unsubstituted inside the probe, and
+  `land_exact_fixed_byte_array_literals` refused std's `"kernel32.dll"`
+  against `DllImport`'s const-parameter width. The probe's error propagated
+  as the program's, which is how a fixture with no byte literal came to
+  report one -- in every program pairing a range-constrained generic
+  argument with a library, `omega --check` included, not just the corpus.
+
+  A still-generic TEMPLATE is now skipped at that landing site. Its member
+  width is a const parameter, never a literal, and its constructions are
+  rewritten onto the synthesized instance whose width IS one -- that copy
+  lands normally. Making the probe itself bail on a typing failure was tried
+  first and is worse: it clears the message but drops the canonical ranges
+  the pass exists to retain, and the fixture then fails on its own subject
+  instead.
 
   One hazard, because it cost a false mechanism here: the compiler caches
   resolved package snapshots under
