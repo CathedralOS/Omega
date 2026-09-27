@@ -31,8 +31,12 @@
 //!   establish an independent claim merely because the implementation returns
 //!   success. The proved set is recorded in [`PROVED_ENTRIES`] and checked
 //!   mechanically: proving a new row or regressing an existing one must edit
-//!   that list, and no claim-bearing row may name an `Unfinished` row as a
-//!   dependency.
+//!   that list, no claim-bearing row may name an `Unfinished` row as a
+//!   dependency, a `Proved` row's dependencies must name a checker-surface
+//!   entry or a proved delegate, and at least one of its registered
+//!   implementation sites must invoke the certificate checker —
+//!   [`check_proved_evidence_machinery`] makes the re-decision point a
+//!   witnessed file rather than prose.
 //!
 //! ## Mechanical coverage
 //!
@@ -334,6 +338,12 @@ pub enum LedgerFailure {
     ProvedEntryUnrecorded {
         entry: &'static str,
     },
+    ProvedEntryUngroundedEvidence {
+        entry: &'static str,
+    },
+    ProvedEntryWithoutCheckedMachinery {
+        entry: &'static str,
+    },
     ProceduralEntryWithoutSites {
         entry: &'static str,
     },
@@ -443,6 +453,14 @@ impl std::fmt::Display for LedgerFailure {
             Self::ProvedEntryUnrecorded { entry } => write!(
                 formatter,
                 "ledger entry `{entry}` is Proved but absent from PROVED_ENTRIES; register the proved set explicitly"
+            ),
+            Self::ProvedEntryUngroundedEvidence { entry } => write!(
+                formatter,
+                "ledger entry `{entry}` is Proved but names no checker-surface dependency (a `rule:`, `route:`, or `primitive:` entry) and no proved delegate; checked evidence must keep the certificate-checker rules it stands on explicit"
+            ),
+            Self::ProvedEntryWithoutCheckedMachinery { entry } => write!(
+                formatter,
+                "ledger entry `{entry}` is Proved but no registered implementation site invokes the certificate checker; a proved row's evidence is a re-decision point, and a file that never calls `check_certificate`, `check_predicate_denotations`, or `check_denotation_certificate` cannot supply one"
             ),
             Self::ProceduralEntryWithoutSites { entry } => write!(
                 formatter,
@@ -558,6 +576,7 @@ pub fn check_ledger_internals() -> Vec<LedgerFailure> {
     let index = entry_index();
     check_dependency_edges(all_entries(), &index, &root_index, &mut failures);
     check_proved_set(all_entries(), &mut failures);
+    check_proved_dependency_grounding(all_entries(), &index, &mut failures);
     // The trust graph is closed: dependencies resolve to entries or roots and
     // entry-to-entry edges must be acyclic. A cycle exists exactly when an
     // entry can reach itself through entry dependencies.
@@ -743,6 +762,45 @@ fn collect_unclaimed_sources(
     }
 }
 
+/// The certificate-checker entry points a `Proved` row's certifying procedure
+/// must invoke: `check_certificate` replays a certificate under the
+/// obligation's own context, `check_predicate_denotations` is the conversion
+/// feeding it, and `check_denotation_certificate` folds conversion and
+/// checking into the verifier-side roster replay. A proved row's evidence is
+/// that re-decision point; nothing else in the trusted surface supplies one.
+const CERTIFICATE_CHECKER_TOKENS: &[&str] = &[
+    "check_certificate(",
+    "check_predicate_denotations(",
+    "check_denotation_certificate(",
+];
+
+/// Filesystem-backed evidence binding, run alongside [`check_source_coverage`]:
+/// a `Proved` entry must register at least one implementation site whose
+/// contents invoke the certificate checker. Sites unreadable under `root`
+/// contribute no evidence here — `check_source_coverage` already reports them
+/// — and a row whose implementations never re-decide a certificate binds no
+/// checked evidence, so a paper discharge cannot join `PROVED_ENTRIES`
+/// unobserved.
+pub fn check_proved_evidence_machinery(root: &Path) -> Vec<LedgerFailure> {
+    let mut failures = Vec::new();
+    for entry in all_entries() {
+        if !matches!(entry.soundness, SoundnessStatus::Proved { .. }) {
+            continue;
+        }
+        let invokes_checker = entry.implementation.iter().any(|&path| {
+            std::fs::read_to_string(root.join(path)).is_ok_and(|contents| {
+                CERTIFICATE_CHECKER_TOKENS
+                    .iter()
+                    .any(|token| contents.contains(token))
+            })
+        });
+        if !invokes_checker {
+            failures.push(LedgerFailure::ProvedEntryWithoutCheckedMachinery { entry: entry.id });
+        }
+    }
+    failures
+}
+
 /// Soundness-status well-formedness for one entry: each status carries its
 /// required parts, and an `ExplicitlyTrusted` row's named root must be both
 /// registered and in scope — the spec asks for an identified *accepting*
@@ -879,11 +937,46 @@ fn check_proved_set<'a>(
     }
 }
 
+/// A `Proved` row's certificate evidence always reduces to certificate-checker
+/// machinery — the checker-surface families (`CheckerRule`, `EvidenceRoute`,
+/// `PrimitiveJudgment`) — or delegates to another proved row that does. This
+/// leg refuses a `Proved` row whose dependencies name no checker-surface entry
+/// and no proved delegate: such a row would mark evidence checked while
+/// keeping the rules it stands on out of the dependency set, exactly the
+/// hidden composition the ledger exists to expose. Root and trusted
+/// dependencies may still ground premises; they simply cannot be the *only*
+/// thing a proved row names.
+fn check_proved_dependency_grounding<'a>(
+    entries: impl Iterator<Item = &'a TrustedSurfaceEntry>,
+    index: &BTreeMap<&'a str, &'a TrustedSurfaceEntry>,
+    failures: &mut Vec<LedgerFailure>,
+) {
+    for entry in entries {
+        if !matches!(entry.soundness, SoundnessStatus::Proved { .. }) {
+            continue;
+        }
+        let grounded = entry.dependencies.iter().any(|dependency| {
+            index.get(dependency).is_some_and(|target| {
+                matches!(
+                    target.family,
+                    LedgerFamily::CheckerRule
+                        | LedgerFamily::EvidenceRoute
+                        | LedgerFamily::PrimitiveJudgment
+                ) || matches!(target.soundness, SoundnessStatus::Proved { .. })
+            })
+        });
+        if !grounded {
+            failures.push(LedgerFailure::ProvedEntryUngroundedEvidence { entry: entry.id });
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         BTreeMap, EntryBinding, LedgerFailure, LedgerFamily, SoundnessStatus, TrustRoot,
-        TrustedSurfaceEntry, check_dependency_edges, check_proved_set, check_soundness_status,
+        TrustedSurfaceEntry, check_dependency_edges, check_proved_dependency_grounding,
+        check_proved_set, check_soundness_status,
     };
 
     static UNFINISHED: TrustedSurfaceEntry = TrustedSurfaceEntry {
@@ -1155,5 +1248,104 @@ mod tests {
         assert!(failures.contains(&LedgerFailure::ProvedEntryRegressed {
             entry: "fact:boolean-polarity-implications",
         }));
+    }
+
+    static CHECKER_RULE_TARGET: TrustedSurfaceEntry = TrustedSurfaceEntry {
+        id: "test:checker-rule",
+        family: LedgerFamily::CheckerRule,
+        binding: EntryBinding::Procedural,
+        premises: "a certificate shape",
+        conclusion: "the certificate's derivation replays",
+        dependencies: &[],
+        implementation: &[],
+        soundness: SoundnessStatus::ExplicitlyTrusted {
+            root: "root:test-root",
+            rationale: "the checker's rules are the trusted basis",
+        },
+    };
+    static TRUSTED_ANCHOR: TrustedSurfaceEntry = TrustedSurfaceEntry {
+        id: "test:trusted-anchor",
+        family: LedgerFamily::ReconstructedFactKind,
+        binding: EntryBinding::Procedural,
+        premises: "a premises shape",
+        conclusion: "a conclusion",
+        dependencies: &[],
+        implementation: &[],
+        soundness: SoundnessStatus::ExplicitlyTrusted {
+            root: "root:test-root",
+            rationale: "justification",
+        },
+    };
+    static PROVED_ANCHOR: TrustedSurfaceEntry = TrustedSurfaceEntry {
+        id: "test:proved-anchor",
+        family: LedgerFamily::ReconstructedFactKind,
+        binding: EntryBinding::Procedural,
+        premises: "a premises shape",
+        conclusion: "a conclusion",
+        dependencies: &["test:checker-rule"],
+        implementation: &[],
+        soundness: SoundnessStatus::Proved {
+            evidence: "witness",
+        },
+    };
+    static PROVED_WITH_RULE_DEP: TrustedSurfaceEntry = TrustedSurfaceEntry {
+        id: "test:proved-rule-dependent",
+        family: LedgerFamily::ReconstructedFactKind,
+        binding: EntryBinding::Procedural,
+        premises: "a premises shape",
+        conclusion: "a conclusion",
+        dependencies: &["test:checker-rule", "test:trusted-anchor"],
+        implementation: &[],
+        soundness: SoundnessStatus::Proved {
+            evidence: "witness",
+        },
+    };
+    static PROVED_WITH_DELEGATE_DEP: TrustedSurfaceEntry = TrustedSurfaceEntry {
+        id: "test:proved-delegating",
+        family: LedgerFamily::ReconstructedFactKind,
+        binding: EntryBinding::Procedural,
+        premises: "a premises shape",
+        conclusion: "a conclusion",
+        dependencies: &["test:proved-anchor"],
+        implementation: &[],
+        soundness: SoundnessStatus::Proved {
+            evidence: "witness",
+        },
+    };
+    static PROVED_UNGROUNDED: TrustedSurfaceEntry = TrustedSurfaceEntry {
+        id: "test:proved-ungrounded",
+        family: LedgerFamily::ReconstructedFactKind,
+        binding: EntryBinding::Procedural,
+        premises: "a premises shape",
+        conclusion: "a conclusion",
+        dependencies: &["test:trusted-anchor", "root:test-root"],
+        implementation: &[],
+        soundness: SoundnessStatus::Proved {
+            evidence: "witness",
+        },
+    };
+
+    #[test]
+    fn a_proved_row_must_name_the_checker_machinery_it_stands_on() {
+        let entries: Vec<&'static TrustedSurfaceEntry> = vec![
+            &CHECKER_RULE_TARGET,
+            &TRUSTED_ANCHOR,
+            &PROVED_ANCHOR,
+            &PROVED_WITH_RULE_DEP,
+            &PROVED_WITH_DELEGATE_DEP,
+            &PROVED_UNGROUNDED,
+        ];
+        let index: BTreeMap<&str, &TrustedSurfaceEntry> =
+            entries.iter().map(|entry| (entry.id, *entry)).collect();
+        let mut failures = Vec::new();
+        check_proved_dependency_grounding(entries.into_iter(), &index, &mut failures);
+        assert_eq!(
+            failures,
+            vec![LedgerFailure::ProvedEntryUngroundedEvidence {
+                entry: "test:proved-ungrounded",
+            }],
+            "only the proved row naming neither a checker-surface entry nor a \
+             proved delegate may fail — a `rule:` dep or a proved dep grounds it"
+        );
     }
 }
