@@ -4263,49 +4263,45 @@ syntax and other terminal services are not prerequisites.
   **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW** owns permission/review rows and broad
   filesystem-summary replacement.
 
-- **R5.** Complete compositional caller-visible may-write inference in
-  `omega-rust/psi/checking/src/machine_calls/calls/write_frames.rs` and its subordinate
-  origin/fixpoint owners. A complete frame must name every possible write;
-  unknown origins remain opaque and invalidate affected facts. This supplies
-  the exact preservation checks required by
-  [state contracts](wiki/spec/language/state_contracts.md) and
-  [progress lineage](wiki/spec/language/termination.md#subject-preservation).
+- **R5.** Carry complete caller-visible may-write summaries through source
+  checking under [state contracts](wiki/spec/language/state_contracts.md) and
+  [subject preservation](wiki/spec/language/termination.md#subject-preservation).
+  A helper choosing either mutable input and writing through its result in a
+  value expression must preserve a disjoint index-bound fact and invalidate
+  the overlapping one, including writes made while evaluating operands.
 
-  Candidate-origin unions, computed call/match receivers, named-state transfer,
-  aggregate helper-result projections, stored leaf rebinds and bound-reference
-  wire arguments already have implementations and tests. Reuse those paths,
-  rather than treating each source arrangement as another unsupported feature.
-  Remaining concrete joins:
+  Owner: `omega-rust/psi/checking/src/machine_calls/calls/write_frames/`, consumed
+  by stage 04's flow mutation and range/progress checks. `CallFrameResolver`
+  already shares call/expression summaries and transition fixed points.
+  Stage 04's `src/tests/termination/write_frame_aggregate_results.rs` reaches
+  checked trees for nested helpers, named-state results and producer writes;
+  `write_frame_boundary_arguments.rs` checks disjoint/overlapping fact use.
+  Reuse those paths.
 
-  - Extend typed-tree `CallFrameResolver` coverage to full source checking for
-    contextual-case, named-state, aggregate-result, and nested-helper composition.
-    Reuse `exclusive_reference_origins`, `transparent_call_result_origins`,
-    `write_frame_candidate_origins.rs`, and `validation/tests/wire_codec_write_frames.rs`.
-    Proven candidate unions must survive receivers, codec arguments and rebinds.
-    `carried_reference_origin` admits declared reference leaves of owned storage,
-    not arbitrary loads through borrowed carriers. Keep unknown callees, private
-    escapes, unproved rebinds, unsupported recursive results, and loads without
-    independent origin evidence opaque.
+  Complete the source-admission and fact-use joins still represented by
+  resolver-only probes in `write_frame_candidate_origins.rs`,
+  `write_frame_contextual_cases.rs`, `write_frame_carrier_results.rs` and
+  `omega-rust/psi/checking/tests/wire_codec_write_frames.rs`. Proven candidate
+  unions must survive computed receivers, codec arguments, nested results,
+  state arrivals and stored-reference rebinds. Author explicit output lifetimes
+  for multi-input helpers: `borrow/view_link.rs` already retains matching-input
+  unions, but lifetime correspondence alone supplies no storage-origin evidence.
 
-  Architectural repair: share candidate-origin propagation and fixed-point
-  composition across expressions, bindings, arguments and results. Do not add
-  another recognizer per reference spelling or replace a complete-or-opaque
-  summary with a guessed write set.
+  Keep unknown origins, private escapes, unproved rebinds, unsupported recursive
+  results and loads behind another reference without independent evidence opaque.
+  A supported static callee's exact signature may bound writes when its body
+  summary is incomplete; that proves neither returned origins nor termination.
+  Frames never grant borrow access. Extend the shared origin/fixpoint owners,
+  rather than adding a recognizer per reference spelling.
 
-  Acceptance: extend `04_typed-trees-to-checked-trees/src/tests/termination/`
-  `write_frame_*` coverage through full source checking, not only typed-tree
-  resolver probes. A helper choosing either mutable input, writing through its
-  result in a value expression, must preserve a disjoint index-bound fact and
-  invalidate the overlapping one. **MATCH-SELECTIVE-LOWERING** owns remaining
-  reference-branch custody joins. The old multi-input lifetime-signature
-  blocker is no longer general: `borrow/view_link.rs` now maps explicit
-  output lifetimes to the union of matching inputs, including bodyless
-  signatures. Reuse that relation; frame-only success does not establish
-  full source admission or executable result transport.
-  Preserve transition-cycle convergence on
-  `omega --check source/psi/gates/parser/main.omg` and the `cli_mvp`/
-  `nqueens` frame controls; finite permutations must not become opaque merely
-  because a state parameter changes position.
+  Acceptance: the helper-choice program passes full checking with the disjoint
+  bound; changing either candidate to overlap rejects the stale bound. Exercise
+  the admitted program's authored result through **MATCH-SELECTIVE-LOWERING**'s
+  reference-result transport. Preserve the finite-cycle controls in
+  `write_frame_cycles.rs` and convergence on
+  `omega --check source/psi/gates/parser/main.omg`; parameter permutations must
+  retain finite write sets. Frame-only success does not establish source
+  admission or execution.
 
 - **TPR6.** Complete exact progress-subject transport through calls, state
   arrivals, private recursive components, exported contracts and provider/artifact
