@@ -697,12 +697,12 @@ impl<'program> Evaluator<'program> {
                 if let Some(definition) = definition
                     && matches!(
                         DataDefinition::shape_kind_from_members(
-                            self.program.data_members(&definition)
+                            self.program.data_members(definition)
                         ),
                         typed_trees::data::DataShapeKind::Record
                     )
                 {
-                    let parameters = self.program.data_type_parameters(&definition).to_vec();
+                    let parameters = self.program.data_type_parameters(definition).to_vec();
                     let arguments = self
                         .program
                         .type_reference_table
@@ -720,7 +720,7 @@ impl<'program> Evaluator<'program> {
                     ));
                     let mut nested_fields = BTreeMap::new();
                     self.populate_data_fields_with_bindings(
-                        &definition,
+                        definition,
                         &mut nested_fields,
                         &nested_bindings,
                     )?;
