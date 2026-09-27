@@ -2160,6 +2160,7 @@ version = "0.1.0"
 dependencies = [
  "abstract-operations",
  "abstract-operations-to-target-operations",
+ "backend-plan",
  "calling-conventions",
  "checked-trees",
  "checked-trees-to-lowered-psi",

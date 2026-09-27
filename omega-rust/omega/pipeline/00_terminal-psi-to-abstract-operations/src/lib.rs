@@ -10,8 +10,13 @@
 //! optimization unit the optimizer rewrites, and `admit_provider_installation`
 //! (`provider_installation`) joins provider installation custody to the
 //! admitted artifact.
+//!
+//! `entry_settlement` and `callback_settlement` admit native entry sidecars
+//! against already-produced Terminal artifacts. These checks do not create
+//! another program stage or grant artifact-publication authority.
 
 mod artifact_admission;
+mod callback_settlement;
 mod entry_settlement;
 mod lowering;
 mod optimization;
@@ -21,6 +26,7 @@ pub use artifact_admission::{
     AdmittedNativeArtifact, AdmittedOptimizationArtifact, ArtifactLoweringError, ArtifactSections,
     TerminalPlacedViewEstablishment, VerifiedNativeArtifactInput, lower_artifact,
 };
+pub use callback_settlement::validate_callback_thunk_settlement;
 pub use entry_settlement::{
     NativeProgramEntrySettlement, NativeProgramEntrySettlementError,
     ValidatedNativeProgramEntrySettlement, validate_fused_program_entry_establishments,
