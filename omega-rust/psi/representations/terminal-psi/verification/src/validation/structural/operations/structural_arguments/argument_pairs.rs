@@ -45,7 +45,11 @@ pub(in crate::validation) fn validate_argument_pairs(
                 )
                 && left.path.is_empty()
                 && right.path.is_empty()
-                && crate::validation::scalar::case::plain_return_source(module, caller, left.place)
+                && (crate::validation::scalar::case::plain_return_source(
+                    module, caller, left.place,
+                ) || crate::validation::structural::case::plain_return_source(
+                    module, caller, left.place,
+                ))
                 && crate::validation::structural::result_contracts::source_signature(
                     caller, left.place,
                 )

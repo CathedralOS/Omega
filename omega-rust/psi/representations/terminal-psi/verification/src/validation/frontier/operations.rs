@@ -192,7 +192,12 @@ pub(super) fn apply_operation(
         && super::super::primitive_storage::local_result(machine, result.place).is_none()
         && !super::super::scalar::array::plain_return_source(module, machine, result.place)
         && !(result.multiplicity == StructuralMultiplicity::Unrestricted
-            && (super::super::scalar::case::plain_return_source(module, machine, result.place)
+            && ((super::super::scalar::case::plain_return_source(module, machine, result.place)
+                || super::super::structural::case::plain_return_source(
+                    module,
+                    machine,
+                    result.place,
+                ))
                 || super::super::record::plain_return_source(module, machine, result.place)))
     {
         if frontier

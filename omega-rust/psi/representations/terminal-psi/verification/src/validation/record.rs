@@ -363,7 +363,7 @@ pub(super) fn validate_uses(
     // `frontier::validate_owned_reads` exempts copy payloads from the owned
     // frontier because consuming one leaves it intact. Their producer's
     // dominance is checked here instead: a record or case never consumes a
-    // plain scalar case or array whose establishment has not run on every
+    // plain scalar or nested case or array whose establishment has not run on every
     // path to it. Machine parameters are live at entry and are not
     // operation results.
     let copy_payload = |place| {
@@ -372,7 +372,8 @@ pub(super) fn validate_uses(
             .iter()
             .any(|parameter| parameter.place == place);
         if produced
-            && (super::scalar::case::plain_return_source(module, machine, place)
+            && ((super::scalar::case::plain_return_source(module, machine, place)
+                || super::structural::case::plain_return_source(module, machine, place))
                 || super::scalar::array::plain_return_source(module, machine, place))
             && !available.contains(&place)
         {

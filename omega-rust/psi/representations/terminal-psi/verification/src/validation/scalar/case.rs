@@ -52,7 +52,7 @@ pub(in crate::validation) fn plain_return_source(
         })
 }
 
-/// Copyable cases need establishment dominance even though the ownership
+/// Scalar and structural-payload cases need establishment dominance even though the ownership
 /// frontier only tracks affine and linear values. Admission of a complete
 /// result is not evidence that its producer has executed on this path.
 pub(in crate::validation) fn validate_uses(
@@ -81,7 +81,12 @@ pub(in crate::validation) fn validate_uses(
         _ => return Ok(()),
     };
     for argument in arguments {
-        if plain_return_source(module, machine, argument.place)
+        if (plain_return_source(module, machine, argument.place)
+            || crate::validation::structural::case::plain_return_source(
+                module,
+                machine,
+                argument.place,
+            ))
             && !available.contains(&argument.place)
         {
             return Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {

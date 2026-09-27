@@ -217,7 +217,10 @@ fn carries_owned_frontier(
                     .is_some_and(|source| {
                         source.multiplicity == StructuralMultiplicity::Unrestricted
                     })
-                    && (super::super::scalar::case::plain_return_source(module, machine, place)
+                    && ((super::super::scalar::case::plain_return_source(module, machine, place)
+                        || super::super::structural::case::plain_return_source(
+                            module, machine, place,
+                        ))
                         || super::super::record::plain_return_source(module, machine, place)))
         }
         _ => false,
