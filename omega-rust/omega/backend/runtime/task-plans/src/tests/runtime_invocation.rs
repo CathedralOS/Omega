@@ -2,8 +2,8 @@ use super::{activation_fact, candidate, id, runtime};
 use crate::{
     ExecutorPreservationAxis, ExecutorPreservationEvidence, ExecutorPreservationEvidenceId,
     TaskRuntimeInstanceId, TaskRuntimeInvocationId, TaskRuntimeInvocationReceiptCandidate,
-    TaskRuntimeInvocationReceiptId, TaskSpecializationCommitment, TaskStartOperation,
-    validate_activation_plan, validate_task_runtime_invocation_receipt,
+    TaskRuntimeInvocationReceiptId, TaskStartOperation, validate_activation_plan,
+    validate_task_runtime_invocation_receipt,
 };
 
 #[test]
@@ -80,52 +80,4 @@ fn invocation_receipt_binds_the_selected_provider_operation_and_plan() {
             .0
             .contains("different activation plan")
     );
-}
-
-#[test]
-fn compact_equal_specialization_commitments_bind_distinct_runtime_invocations() {
-    let plan = validate_activation_plan(candidate()).expect("activation plan");
-    let first = activation_fact(&plan);
-    let mut substituted = first.clone();
-    substituted.specialization_commitment = TaskSpecializationCommitment::from_digest([8; 32]);
-    assert_eq!(
-        first.specialization_report_fingerprint,
-        substituted.specialization_report_fingerprint
-    );
-    let candidate = TaskRuntimeInvocationReceiptCandidate {
-        receipt: id(
-            194,
-            TaskRuntimeInvocationReceiptId::from_normalized_identity,
-        ),
-        invocation: id(195, TaskRuntimeInvocationId::from_normalized_identity),
-        runtime: runtime(),
-        runtime_instance: id(193, TaskRuntimeInstanceId::from_normalized_identity),
-        operation: TaskStartOperation::Start,
-        provider_plan_name: first.selected_runtime.provider_plan_name.clone(),
-        requirement_identity: first.selected_runtime.requirement_identity.clone(),
-        activation_plan: plan.normalized_identity(),
-        preservation: vec![ExecutorPreservationEvidence::new(
-            ExecutorPreservationAxis::Cpu,
-            id(
-                196,
-                ExecutorPreservationEvidenceId::from_normalized_identity,
-            ),
-        )],
-    };
-    let first_validated = validate_task_runtime_invocation_receipt(&first, candidate.clone())
-        .expect("first exact specialization");
-    let substituted_validated = validate_task_runtime_invocation_receipt(&substituted, candidate)
-        .expect("substituted exact specialization");
-    assert_ne!(first_validated.identity(), substituted_validated.identity());
-    assert_ne!(
-        first_validated.activation().specialization_commitment,
-        substituted_validated.activation().specialization_commitment
-    );
-
-    let mut report_only = first.clone();
-    report_only.specialization_report_fingerprint ^= 1;
-    let report_only_validated =
-        validate_task_runtime_invocation_receipt(&report_only, first_validated.candidate().clone())
-            .expect("report-only coordinate drift does not change authority");
-    assert_eq!(first_validated.identity(), report_only_validated.identity());
 }

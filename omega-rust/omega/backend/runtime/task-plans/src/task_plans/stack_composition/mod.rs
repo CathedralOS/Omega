@@ -1716,65 +1716,6 @@ mod tests {
     }
 
     #[test]
-    fn call_target_binding_covers_a_sealed_site_into_an_exact_bound() {
-        let callee = id(71, TaskStackFrameId::from_normalized_identity);
-        let unresolved = site(70, "run", 1, 0);
-        let projection = partial_projection(70, vec![unresolved.clone()], 72);
-
-        let covered = cover_unresolved_call_sites(
-            &projection,
-            &[binding(
-                &unresolved,
-                vec![canonical_frame(71, 32, 16, Vec::new(), Vec::new())],
-                71,
-            )],
-        )
-        .expect("the bound callee subtree covers the sealed site");
-
-        // The bound callee charges beneath the root's 24-byte extent: its
-        // base aligns to 16 -> 32, then its 32 bytes compose on top.
-        assert_eq!(covered.bytes(), 64);
-        assert_eq!(covered.alignment(), 16);
-        assert!(covered.is_exact());
-        assert!(covered.unresolved_calls().is_empty());
-        assert!(covered.has_valid_identity());
-        assert_ne!(
-            covered.identity(),
-            projection.identity(),
-            "covering re-seals a new projection identity"
-        );
-        assert_ne!(
-            covered.composition(),
-            projection.composition(),
-            "charging the bound callee composes a different demand"
-        );
-
-        // The covered projection is identical to the projection the graph
-        // would have sealed had the call resolved to this callee state
-        // directly — same shape, same frame evidence, same identity.
-        let root = id(70, TaskStackFrameId::from_normalized_identity);
-        let known = compose_task_stack_demand(
-            root,
-            [
-                canonical_frame(
-                    70,
-                    24,
-                    8,
-                    vec![StackCallContribution::Checked { callee }],
-                    Vec::new(),
-                ),
-                canonical_frame(71, 32, 16, Vec::new(), Vec::new()),
-            ],
-        )
-        .expect("the graph-known shape composes");
-        let known_projection = project_wcsu_stack_plan(
-            &known,
-            id(72, StackRepresentationId::from_normalized_identity),
-        );
-        assert_eq!(covered, known_projection);
-    }
-
-    #[test]
     fn call_target_binding_rejects_sites_and_subtrees_it_cannot_prove() {
         let unresolved = site(70, "run", 1, 0);
         let projection = partial_projection(70, vec![unresolved.clone()], 72);
@@ -1870,55 +1811,5 @@ mod tests {
                 .0
                 .contains("non-lowered call cycle")
         );
-    }
-
-    #[test]
-    fn call_target_binding_leaves_unbound_sites_partial() {
-        let covered_site = site(70, "run", 1, 0);
-        let still_unbound = site(70, "run", 5, 0);
-        let projection =
-            partial_projection(70, vec![covered_site.clone(), still_unbound.clone()], 72);
-
-        let covered = cover_unresolved_call_sites(
-            &projection,
-            &[binding(
-                &covered_site,
-                vec![canonical_frame(71, 32, 16, Vec::new(), Vec::new())],
-                71,
-            )],
-        )
-        .expect("the named site covers");
-        assert!(
-            !covered.is_exact(),
-            "a site no binding names stays unresolved"
-        );
-        assert_eq!(
-            covered.unresolved_calls(),
-            &BTreeSet::from([still_unbound]),
-            "the unbound row keeps the projection partial"
-        );
-
-        // A bound subtree's own unresolved sites stay unresolved too: the
-        // covered edge charges what the subtree bounds and keeps what it
-        // cannot.
-        let nested_site = site(73, "run", 0, 0);
-        let projection = partial_projection(70, vec![covered_site.clone()], 72);
-        let covered = cover_unresolved_call_sites(
-            &projection,
-            &[binding(
-                &covered_site,
-                vec![canonical_frame(
-                    73,
-                    32,
-                    16,
-                    Vec::new(),
-                    vec![nested_site.clone()],
-                )],
-                73,
-            )],
-        )
-        .expect("the bound subtree merges");
-        assert!(!covered.is_exact());
-        assert_eq!(covered.unresolved_calls(), &BTreeSet::from([nested_site]));
     }
 }

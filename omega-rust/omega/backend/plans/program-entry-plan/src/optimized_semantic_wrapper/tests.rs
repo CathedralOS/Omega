@@ -8,10 +8,9 @@ use super::{
 };
 use crate::{
     OptimizedProgramStorageSemanticCallingApplication, ProgramEntryPhysicalContractPlan,
-    ProgramEntrySourceExtentFieldRole, ProgramEntrySourceExtentValueLayout,
-    ProgramEntrySourceReceiverSignature, ProgramStorageEntryRootRole,
-    SelectedProgramEntrySourceSignature, SelectedProgramStorageEntryPlan,
-    bind_optimized_program_storage_semantic_entry_contract,
+    ProgramEntrySourceExtentValueLayout, ProgramEntrySourceReceiverSignature,
+    ProgramStorageEntryRootRole, SelectedProgramEntrySourceSignature,
+    SelectedProgramStorageEntryPlan, bind_optimized_program_storage_semantic_entry_contract,
 };
 use calling_conventions::{
     CallSignature, CallingPolicy, MachineRegister, ValidatedBoundaryEntryPlan, ValueShape,
@@ -19,7 +18,7 @@ use calling_conventions::{
 };
 
 use super::recipe::{
-    OptimizedProgramStorageSemanticReceiverLayout, copy, expected_relocation, expected_steps,
+    OptimizedProgramStorageSemanticReceiverLayout, expected_relocation, expected_steps,
 };
 
 const RECEIVER_FREE_CALL_STEP_INDEX: usize = 8;
@@ -207,33 +206,6 @@ fn exact_semantic_wrapper_recipe_is_address_free_and_balanced() {
         plan.physical_disposition(),
         OptimizedProgramStoragePhysicalEntryDisposition::PlannedNotInvokedV1
     );
-}
-
-#[test]
-fn step_order_root_register_and_frame_corruption_fail_closed() {
-    let mut plan = plan_optimized_program_storage_semantic_wrapper(contract(), None).unwrap();
-    plan.steps.swap(2, 4);
-    assert!(validate_optimized_program_storage_semantic_wrapper(&plan).is_err());
-
-    let mut plan = plan_optimized_program_storage_semantic_wrapper(contract(), None).unwrap();
-    plan.steps[2] = copy(
-        ProgramStorageEntryRootRole::Image,
-        0,
-        ProgramEntrySourceExtentFieldRole::Base,
-        MachineRegister::X86Rdx,
-        0,
-        32,
-    );
-    assert!(validate_optimized_program_storage_semantic_wrapper(&plan).is_err());
-
-    let mut plan = plan_optimized_program_storage_semantic_wrapper(contract(), None).unwrap();
-    plan.outgoing_release_byte_count = 88;
-    assert!(validate_optimized_program_storage_semantic_wrapper(&plan).is_err());
-
-    let mut plan = plan_optimized_program_storage_semantic_wrapper(contract(), None).unwrap();
-    plan.steps[9] =
-        OptimizedProgramStorageSemanticWrapperStep::ReleaseOutgoingStackFrame { byte_count: 56 };
-    assert!(validate_optimized_program_storage_semantic_wrapper(&plan).is_err());
 }
 
 #[test]

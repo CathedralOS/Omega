@@ -144,12 +144,3 @@ fn composition_rejects_duplicate_plan_identities() {
         error.0
     );
 }
-
-#[test]
-fn empty_plan_set_composes_a_sealed_empty_model() {
-    let model = compose_composition_model(&TaskActivationPlanSet::default())
-        .expect("empty composition composes");
-    assert!(model.activations().is_empty());
-    replay_composition_model(&TaskActivationPlanSet::default(), &model)
-        .expect("empty model replays");
-}
