@@ -408,3 +408,94 @@ fn complementary_guards_across_mutation_do_not_establish_exit_coverage() {
         "the changed predicate can miss both value arms"
     );
 }
+
+fn cyclic_state_parameter_result_source() -> &'static str {
+    r#"
+        data Producer { value: u64; }
+        machine Producer::copy_modules(&mut self, output: &mut [u8; 8]) -> u64
+        ensures 0 <= result && result < 9;
+        {
+            transition { _ -> copy(output, 0) }
+            state copy(&mut self, output: &mut [u8; 8], position: u64) -> u64
+            requires 0 <= position && position < 9;
+            {
+                transition position < self.value && position < 8 {
+                    true -> store(output, position)
+                    false -> (position)
+                    _ -> (position)
+                }
+            }
+            state store(&mut self, output: &mut [u8; 8], position: u64) -> u64
+            requires 0 <= position && position < 8;
+            {
+                output[position] = 1;
+                transition { _ -> copy(output, position + 1) }
+            }
+        }
+    "#
+}
+
+#[test]
+fn immutable_state_arrival_bounds_prove_cyclic_normal_returns() {
+    assert_eq!(
+        outcome(
+            cyclic_state_parameter_result_source(),
+            "Producer::copy_modules"
+        ),
+        (1, 0)
+    );
+}
+
+#[test]
+fn state_arrival_bounds_do_not_survive_mutable_reassignment() {
+    let source = cyclic_state_parameter_result_source()
+        .replace(
+            "state copy(&mut self, output: &mut [u8; 8], position: u64)",
+            "state copy(&mut self, output: &mut [u8; 8], mut position: u64)",
+        )
+        .replace(
+            "transition position < self.value && position < 8",
+            "position = 9; transition position < self.value && position < 8",
+        );
+    assert_eq!(outcome(&source, "Producer::copy_modules").0, 0);
+}
+
+#[test]
+fn state_arrival_bounds_do_not_license_other_normal_exits() {
+    for sibling in ["9", "position"] {
+        let source = cyclic_state_parameter_result_source()
+            .replace(
+                "transition { _ -> copy(output, 0) }",
+                "transition self.value == 0 { true -> copy(output, 0) false -> bad(self.value) }",
+            )
+            .replace(
+                "state store(&mut self",
+                &format!("state bad(&mut self, position: u64) -> u64 {{ {sibling} }} state store(&mut self"),
+            );
+        assert_eq!(outcome(&source, "Producer::copy_modules").0, 0, "{sibling}");
+    }
+}
+
+#[test]
+fn state_arrival_bounds_keep_open_full_width_carrier_endpoints() {
+    let source = r#"
+        machine forward(value: u64) -> u64 requires value >= 1
+        ensures 1 <= result && result <= 18446744073709551615
+        {
+            transition { _ -> finish(value) }
+            state finish(position: u64) -> u64 requires position >= 1 { position }
+        }
+    "#;
+    assert_eq!(outcome(source, "forward"), (1, 0));
+    assert_eq!(
+        outcome(
+            &source.replace(
+                "result <= 18446744073709551615",
+                "result < 18446744073709551615"
+            ),
+            "forward"
+        )
+        .0,
+        0
+    );
+}

@@ -674,17 +674,14 @@ the complete product bar; focused successes below do not establish that baseline
   The review preserves existing authority under local source/host replacement;
   these checkout-local locks are not application publication.
 
-  The full macOS package run after explicit owned receiver origin recovery
-  reaches one remaining engine `supplied_module_count` subslice failure, down
-  from two. The remaining validation path constructs a cyclic borrowed result
-  view. Captured integer locals now retain their exact storage identity, so
-  the checked signature write ceiling preserves their bounds through later
-  disjoint calls even when body-origin analysis is opaque. The unchanged
-  15-package session/API probe now passes that subslice check and reaches the
-  unresolved session proof below. Reassignment and exclusive scalar argument
-  writes still retire bounds. The full unchanged `omega update --project
-  <application>/squalr-tests --target macos_arm64` rerun is pending; follow it
-  with ordinary review and the matching-host application harness.
+  The full macOS package run with captured scalar write ceilings still
+  reports one engine `supplied_module_count` subslice failure. The unchanged
+  15-package session/API probe passes the assembled-view prefix, its bounds,
+  and package proofs, so it does not cover the remaining loss in the complete
+  caller. Isolate the full start/validation executor before repeating the
+  long `omega update --project <application>/squalr-tests --target macos_arm64`
+  run. Retain exact scalar storage identity and checked signature ceilings;
+  reassignment and exclusive scalar argument writes still retire bounds.
 
   A native probe importing the actual `squalr_engine_api::NormalizedRegion`
   now completes three-package review and exits 70 on macOS ARM64. It checks
@@ -694,12 +691,14 @@ the complete product bar; focused successes below do not establish that baseline
   an ordinary structural result argument; owned and exclusive custody checks
   remain enforced. This probe uses the same application revision and pinned
   standard library, but does not establish the full geometry marker or scans.
-  The probe still reports `EnginePrivilegedState::copy_supplied_modules` as an
-  unresolved `UnrecognizedInductiveBody` guarantee; project decisions cannot
-  discharge it. Coordinate that proof repair with the active scalar-contract
-  implementation owner. Keep the 17-package/37-edge graph intact. The native
-  `structs/affine_record_state_clone` witness exits 70; neither that witness
-  nor package acceptance establishes full application native acceptance.
+  `EnginePrivilegedState::copy_supplied_modules` now proves its returned count
+  interval from the exact immutable returning-state parameter's arrival
+  requirement. The compiler still checks every incoming edge and every normal
+  exit; invalid arrivals, mutable reassignment, and bad sibling returns reject.
+  The unchanged 15-package probe completes ordinary review and publishes its
+  local lock, as does the two-package reproducer. Continue the full application
+  run with this proof repair and preserve the 17-package/37-edge graph;
+  package acceptance does not establish full application native acceptance.
 
 - **VEC-NATIVE-GROWTH.** (split-of:BUMP-ALLOCATOR-CANARY) Implement ordinary
   library `Vec<T>` for Squalr's growable scan results. Owners:

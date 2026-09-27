@@ -2,7 +2,9 @@
 //!
 //! Each explicit normal return supplies a carrier interval, optionally narrowed
 //! by its own current guard. Internal state transfers supply no hypotheses:
-//! every state's returns must qualify independently. Immutable captures retain
+//! every state's returns must qualify independently. Immutable state formals
+//! retain their own arrival requirements, which ordinary checking must prove
+//! on every incoming edge before publishing this judgment. Immutable captures retain
 //! resolved declaration identity and an uninterrupted storage interval; array
 //! initializers never supply the value of an indexed read. Unrelated effects
 //! invalidate guard premises without discarding independent return bounds;
@@ -330,7 +332,39 @@ impl ReturnReader<'_, '_> {
             self.program,
             self.place_type(expression, before, depth + 1)?,
         )?;
-        Some((primitive, carrier_bounds(primitive)?))
+        let mut bounds = carrier_bounds(primitive)?;
+        if let ExpressionNode::Name(path) = self.program.expression_table.expression(expression)
+            && self
+                .program
+                .state_parameters(self.state)
+                .iter()
+                .any(|parameter| {
+                    parameter.symbol == path.symbol
+                        && !parameter.is_self
+                        && !parameter.is_const
+                        && !parameter.is_mutable
+                })
+            && let Some((minimum, maximum)) = crate::state_parameter_integer_interval(
+                self.program,
+                self.machine,
+                self.state,
+                path.symbol,
+            )
+        {
+            // place_type already joined this read to one exact declaration.
+            // A state's requires is an arrival premise, never the machine's
+            // ensures or another state's hypothesis. Ordinary call and
+            // self-arrival checks still owe it on every incoming edge before
+            // publication. An immutable scalar cannot change while unrelated
+            // effects run in this activation.
+            if let Some(minimum) = minimum {
+                bounds.minimum = bounds.minimum.max(BigInt::from_i128(i128::from(minimum)));
+            }
+            if let Some(maximum) = maximum {
+                bounds.maximum = bounds.maximum.min(BigInt::from_i128(i128::from(maximum)));
+            }
+        }
+        Some((primitive, bounds))
     }
 
     /// Follow only exact immutable primitive captures. A decreasing definition
