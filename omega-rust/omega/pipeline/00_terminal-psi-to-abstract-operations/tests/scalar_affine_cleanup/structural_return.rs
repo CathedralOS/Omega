@@ -349,12 +349,29 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
             },
         });
     if let Terminator::ReturnStructural {
+        returned_claims,
         trivial_affine_discards,
         ..
     } = &mut with_local.machines[0].blocks[0].terminator
     {
         trivial_affine_discards.push(local.id);
+        returned_claims.clear();
     }
+    // Target lowering admits only claim-free custody shapes: a Linear owned
+    // parameter with entry claims and a qualified result is refused by the
+    // function gate before the trivial-local return is ever reached. The
+    // no-code return provenance this leg exercises needs the same machine
+    // shape without claims: an unrestricted owned record returned whole.
+    with_local.machines[0].entry_claims.clear();
+    for parameter in &mut with_local.machines[0].structural_parameters {
+        parameter.multiplicity = StructuralMultiplicity::Unrestricted;
+        parameter.qualifications.clear();
+    }
+    let TerminalMachineResult::Structural(result) = &mut with_local.machines[0].result else {
+        unreachable!()
+    };
+    result.multiplicity = StructuralMultiplicity::Unrestricted;
+    result.qualifications.clear();
     let proof = encode_proof_section(&with_local, &ProofBundle::default())
         .expect("empty proof should encode for the with-local module");
     let lowered = lower_artifact(
