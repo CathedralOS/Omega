@@ -2234,96 +2234,48 @@ syntax and other terminal services are not prerequisites.
   explicitly.
 
 - **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Execute nonempty content
-  claims through source, Terminal, provider selection and native realization
-  under [content conservation](wiki/spec/resources/content_custody.md).
-  Reuse `05_checked-trees-to-lowered-psi/src/proofs/content_conservation.rs`,
-  Terminal frontier verification and
-  `00_terminal-psi-to-abstract-operations/src/provider_installation/replay.rs`;
-  normalized equations and partition lowering already exist.
+  claims through source, Terminal, selected providers and native execution
+  under [content conservation](wiki/spec/resources/content_custody.md): partition
+  an established input under an authored theorem, pass the exact residual to a
+  boundary, retain/return the rest and consume it in the caller. Cover direct
+  calls and checked wrappers with canonical `source/library/core/content.omg`
+  identities.
 
-  Replace the empty entries in `core/content_conservation_contract` and
-  `core/content_retained_custody_round_trip` with an invoked route: an
-  established owned input is forwarded/partitioned under an authored theorem;
-  a selected boundary accepts the exact residual while the caller retains or
-  returns the rest. Use canonical core content identities, not lookalike
-  test algebra. Attachment production has changed since the old service-root
-  refusal.
+  `tests/omega/pass/core/content_conservation_contract` already invokes
+  `partition_and_retain`, but its build selects no `RegionSplit`/`RegionSink`
+  providers; the checked-in macOS native outcome rejects those missing `Fused`
+  selections. Supply executable providers and an observable native oracle.
+  The fixture currently has neither a run-tier/`_exit` name nor
+  `expected_native_exit.txt`, so merely reaching `built` would not execute it.
+  `core/content_retained_custody_round_trip` still has an empty entry: its
+  `Owned`/`Retained` issuer cycle needs an initial claim from
+  **BOUNDARY-ISSUANCE**. Existing-input conservation can proceed independently.
+  The two `pass/terminal_psi/{content_custody_exit,structural_content_passthrough}`
+  fixtures use local `Content`/`CountedQuantity` lookalikes and lack build
+  entries; they do not establish canonical content execution.
 
-  That rerun is done. Both fixtures realize: under `--native` they record
-  `built`, not a service-root refusal, so no compiler blocker stands between
-  here and an invoked route. What stops them is their own text -- each ends
-  in `machine Main::main(&mut self) {}`, so the declared contract is never
-  called. `pass/terminal_psi/content_custody_exit` has the same empty entry
-  despite its name, and so does
-  `pass/terminal_psi/structural_content_passthrough`. Those four are every
-  fixture in the corpus that mentions `in Owned` bar one compile-only case,
-  so owned-content custody has never executed anywhere: this is a domain
-  without runtime coverage, not one fixture that forgot its entry.
+  In Psi stage 04, `checks/content.rs::compose_partition_wrappers` already
+  derives transitive and staged-result compositions. Stage 05
+  `src/proofs/content_conservation.rs::lower_content_partition_compositions`
+  rejects nonzero `source_derivation_depth` and nonempty `result_rewrites`.
+  Carry exact claim mappings through those forms into Terminal replay and
+  custody checking. Reuse the existing normalized equations, identity
+  reshuffles and direct authored-theorem replay. Stage-04
+  `content_reshuffles_and_partitions.rs` tests checked facts; stage-05
+  `tests/content_conservation.rs` and Terminal verification's
+  `tests/straight_line/guards_and_partitions.rs` use constructed evidence.
+  None closes the source-to-native route.
 
-  `core/content_conservation_contract` now has that invoked route, on a stock
-  compiler: `Main::main` establishes an owned `Region`, partitions it through
-  the authored theorem, and both residuals leave through a custody-exit
-  boundary. Three things were needed and none was a compiler change. The
-  boundary traits and everything their signatures select must be `pub`, since
-  `Binding<T>` requires a public boundary trait as its slot contract. The
-  entry reaches them through `Binding` fields like any other service. And the
-  partition primitive must be called DIRECTLY.
-
-  That last one was the actual blocker, not the provider. Routing the call
-  through the checked wrapper the old shape used -- `forward(partition,
-  whole)` calling `partition.split(whole)` -- does not check: instrumenting
-  `compose_partition_wrappers` shows the composition is recorded against the
-  wrapper that calls the boundary, so the wrapper's own caller sees a linear
-  result with no conserved claim mapping. That is exactly the transitive
-  derivation chain `ContentPartitionCompositionFact::source_derivation_depth`
-  documents Terminal cannot yet replay. Two pipeline reorders were measured
-  and both fail: hoisting the content passes above the linear check drops
-  reshuffle inference from 1 to 0, and deferring the whole linear check below
-  them breaks the same three content tests, because recording the permission
-  ledger and validating it sit on opposite sides of content.
-
-  The caller-retains half is covered too: `partition_and_retain` takes the
-  owned input, lets the boundary accept the exact residual, and returns the
-  rest to its own caller, which `main` then disposes of. Returning that
-  residual DIRECTLY is what makes it legal -- a path-aligned source place,
-  which is the other route the conserved-claim check already admits. An entry
-  cannot host this half, since a program entry returns nothing.
-
-  `terminal_psi/content_custody_exit` is invoked too, and its
-  `domain Region::Owned` is likewise ungated.
-  `terminal_psi/structural_content_passthrough` stays compile-only by
-  construction: every forwarder returns the region and it declares no
-  consumer, so running it would mean adding a custody-exit boundary rather
-  than invoking what it declares.
-
-  `core/content_retained_custody_round_trip` is the one that genuinely waits.
-  Its `domain Buffer::Owned established by Writer::complete` gates the
-  domain, so an entry cannot enter it at all -- constructing and annotating a
-  `Buffer` gives "an annotation cannot establish routed qualification" -- and
-  the cycle is closed: `complete` needs a `PendingWrite in Retained`, which
-  only `submit` produces, from a `Buffer in Owned` that does not yet exist.
-  That fixture needs a first claim from **BOUNDARY-ISSUANCE**; it is not the
-  shape the other three are, and copying their entry will not work.
-
-  Still owed: the wrapper-composed exit.
-
-  Writing the invocation with a bodied provider is refused on four separate
-  grounds, and all four look correct. A provider returning fresh
-  `Region { remaining: 4 }` halves cannot prove
-  `content(old(&whole)) == separate(content(&left), content(&right))`,
-  because it fabricated content instead of moving it; the fresh literals are
-  refused at "cannot prove default-domain field requirement ...
-  requires `Region::Owned`"; and `whole` and the unread residual each reach
-  scope exit unconsumed. `core/content` supplies only proof vocabulary --
-  `IntervalSet`, `CountedQuantity`, `Content<A>::project` and the installed
-  `old`/`separate`/`embed` terms -- and no partition operation, which is
-  consistent with [content custody](wiki/spec/resources/content_custody.md):
-  "the primitive changing a partition authors its theorem", and at a partial
-  bodyless boundary "the provider may admit acceptance of custody for that
-  residual, not the partition arithmetic". So the provider must be admitted
-  against the bodyless boundary's authored theorem rather than compute the
-  split, and the owned input has to reach the entry as an existing claim,
-  not a constructed one.
+  Omega stage 00's `src/provider_installation/replay.rs` currently requires
+  whole-root content arguments and accepts structural results only when
+  affine, without claims or projected qualifications. Complete the exact
+  provider/caller content join needed by partition results and projected
+  residuals. Its `tests/provider_installation/projected_claims.rs` exercises
+  ordinary projected ownership claims, without content projections. Core
+  supplies proof vocabulary, not an executable splitter: implement the
+  partition primitive with its theorem; admit provider custody acceptance,
+  never residual arithmetic. Fresh equal-sized literals do not establish
+  conserved ownership or discharge the original input.
 
   Acceptance: source/native execution preserves exact subject/revision,
   projection/algebra, geometry, lineage, route and installed occurrence through
@@ -2333,8 +2285,9 @@ syntax and other terminal services are not prerequisites.
   exit/residual. Overlap, gaps, wrong projection/unit/lineage, stale invocation,
   substituted theorem/arguments and authority inferred from scalar totals or
   fingerprints reject. Keep unrepresented runtime-indexed owned extraction
-  rejected. Existing-input conservation need not wait for every fresh-issuance
-  route under **BOUNDARY-ISSUANCE**.
+  rejected. Verify the invoked canonical route with
+  `python3 tools/corpus_gate.py --native --filter core/content_conservation_contract,core/content_retained_custody_round_trip`
+  and require the authored runtime result, alongside independent replay.
 
 - **BOUNDARY-ISSUANCE.** Join source fresh-supply evidence to provider planning,
   native settlement and the exact installed occurrence under
