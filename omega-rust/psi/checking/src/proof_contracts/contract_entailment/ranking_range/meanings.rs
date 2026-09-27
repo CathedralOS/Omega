@@ -115,6 +115,24 @@ pub(super) fn builtin(
             builtin(program, machine, state, borrow.target, depth + 1)?;
             Some(None)
         }
+        ExpressionNode::Call(call) => {
+            // A call result's carrier is the callee's declared return type
+            // and its value the term the callee's contract spells; both are
+            // fixed by declaration the way a constructor's are. Only an
+            // all-immutable callee is admitted: a `&mut` formal could rewrite
+            // a caller place the installed facts still name, so its result is
+            // not stable snapshot evidence.
+            let (_, entry) =
+                crate::machine_calls::calls::machine_state_by_symbol(program, call.target_symbol)?;
+            if program
+                .state_parameters(entry)
+                .iter()
+                .any(|parameter| parameter.is_mutable)
+            {
+                return None;
+            }
+            Some(Some(entry.return_type))
+        }
         ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
             builtin(program, machine, state, unary.operand, depth + 1)?;
             Some(None)
@@ -240,6 +258,21 @@ pub(super) fn install_nonpolynomial_terms(
     match program.expression_table.expression(expression) {
         ExpressionNode::Atomic(atomic) => {
             install_nonpolynomial_terms(program, machine, state, engine, atomic.value, depth + 1)?;
+        }
+        ExpressionNode::Call(call) => {
+            if call.receiver.is_valid() {
+                install_nonpolynomial_terms(
+                    program,
+                    machine,
+                    state,
+                    engine,
+                    call.receiver,
+                    depth + 1,
+                )?;
+            }
+            for argument in program.expression_table.expression_handles(call.arguments) {
+                install_nonpolynomial_terms(program, machine, state, engine, *argument, depth + 1)?;
+            }
         }
         ExpressionNode::Binary(binary) => {
             for operand in [binary.left, binary.right] {

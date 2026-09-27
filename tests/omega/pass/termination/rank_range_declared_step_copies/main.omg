@@ -3,11 +3,14 @@
 // stale `saved` snapshot rather than forcing an equality the step broke, and
 // the loop still descends through `live`. Before this leg only a positive
 // literal could name the moved copy of a diverged pair.
-machine walk(remaining: u32 [0..=9], stride: u32 [1..=5])
+machine walk(remaining: u32, stride: u32)
+    requires 0 <= remaining && remaining <= 9 && 1 <= stride && stride <= 5
 terminates by remaining in 0..=9;
 -> u32 {
     transition { _ -> pair(remaining, remaining, stride) }
-    state pair(live: u32 [0..=9], saved: u32 [0..=9], step: u32 [1..=5]) {
+    state pair(live: u32, saved: u32, step: u32)
+        requires 0 <= live && live <= 9 && 0 <= saved && saved <= 9 && 1 <= step && step <= 5
+    {
         transition live >= step {
             true -> pair(live - step, saved, step)
             false -> live

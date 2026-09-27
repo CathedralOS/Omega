@@ -3,10 +3,11 @@
 // record `bounds`. The self edge rebuilds `inner` down to the ranked field and
 // forwards `bounds` unchanged, so the endpoint stays pinned through that
 // exact chain.
-data Inner { remaining: u64 [0..=5]; }
-data Bounds { limit: u64 [0..=5]; }
+data Inner where 0 <= remaining, remaining <= 5 { remaining: u64; }
+data Bounds where 0 <= limit, limit <= 5 { limit: u64; }
 data Countdown { inner: Inner; bounds: Bounds; }
-measure Countdown::Remaining(countdown: Countdown) -> u64 { countdown.inner.remaining }
+measure Countdown::Remaining(countdown: Countdown) -> u64
+{ countdown.inner.remaining }
 
 machine walk(countdown: Countdown)
 requires countdown.inner.remaining <= countdown.bounds.limit;

@@ -20,10 +20,13 @@ data Main {
     total: i32;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(&mut self) reaches Console
+{
     self.limits = Limits::DEFAULTS;
     self.total = Limits::CEILING + self.limits.ceiling;
     transition self.total == 70 { true -> good() false -> bad() }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(1); }
+    state good(&mut self)
+    { self.console.exit_process(70); }
+    state bad(&mut self)
+    { self.console.exit_process(1); }
 }

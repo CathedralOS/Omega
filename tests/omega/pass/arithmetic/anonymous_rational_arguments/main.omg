@@ -29,5 +29,7 @@ machine bounded_argument()
 machine named_argument() -> i32
 {
     transition { _ -> finish(7 / 2 * 2) }
-    state finish(value: i32 [7..=7]) -> i32 { value }
+    state finish(value: i32) -> i32
+        requires 7 <= value && value <= 7
+    { value }
 }

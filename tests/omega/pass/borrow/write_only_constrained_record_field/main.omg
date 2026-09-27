@@ -33,12 +33,14 @@ data Outer {
     tagged: Tagged;
 }
 
-machine replace(limited: &write Limited, depth: u8) requires depth <= 10 {
+machine replace(limited: &write Limited, depth: u8) requires depth <= 10
+{
     limited.value = depth;
     limited.next = 4;
 }
 
-machine rename(tagged: &write Tagged, label: [u8; 8] in Utf8) {
+machine rename(tagged: &write Tagged, label: [u8; 8] in Utf8)
+{
     tagged.label = label;
 }
 
@@ -47,19 +49,22 @@ machine fill(
     depth: u8,
     damage: i32 in Wrapping,
     label: [u8; 8] in Utf8
-) requires depth <= 10 {
+) requires depth <= 10
+{
     outer.inner.value = depth;
     outer.policy.damage = damage;
     outer.policy.count = 4;
     outer.tagged.label = label;
 }
 
-machine forward(limited: &write Limited, depth: u8) requires depth <= 10 {
+machine forward(limited: &write Limited, depth: u8) requires depth <= 10
+{
     replace(&write limited, depth);
 }
 
 data Main {
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self)
+{
 }

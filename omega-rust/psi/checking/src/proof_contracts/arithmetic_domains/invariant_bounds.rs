@@ -10,8 +10,8 @@
 //! A field read carries its data's `where` facts, which every write preserves.
 use super::{
     ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
-    PrimitiveType, ProofFact, SignatureContractKind, State, TypeReferenceHandle, TypeReferenceNode,
-    TypedTrees, enforced_declared_range, literal_i64,
+    PrimitiveType, ProofFact, SignatureContractKind, State, TableCallExpression,
+    TypeReferenceHandle, TypeReferenceNode, TypedTrees, enforced_declared_range, literal_i64,
 };
 use crate::proof_contracts::arithmetic_domains::integer_ranges::primitive_range;
 use language_core::OperatorSpelling;
@@ -439,6 +439,11 @@ fn bounds(
                 ..declared
             })
         }
+        // A call term's value carries the callee's contract: the declared
+        // return range and the `ensures` conjuncts bounding `result` are
+        // proven at every exit, so the interval holds of the produced value
+        // wherever the call appears as an operand.
+        ExpressionNode::Call(call) => Some(call_result_bounds(program, call)?),
         ExpressionNode::Binary(binary)
             if matches!(
                 binary.operator,
@@ -671,6 +676,92 @@ fn unsigned_bitwise_bounds(
         primitive: Some(primitive),
         type_reference: Some(result_type),
     })
+}
+
+/// What a call's integer result is contracted to: the declared return
+/// carrier and range, intersected with the `ensures` conjuncts bounding
+/// `result`. The callee proved its ensures at every exit, so the interval
+/// holds wherever the call value is read. `None` for a call whose callee or
+/// return type is not an exact fixed integer.
+pub(crate) fn call_result_interval(
+    program: &TypedTrees,
+    call: &TableCallExpression,
+) -> Option<Interval> {
+    Some(call_result_bounds(program, call)?.interval)
+}
+
+fn call_result_bounds(program: &TypedTrees, call: &TableCallExpression) -> Option<Bounds> {
+    let (callee, entry) =
+        crate::machine_calls::calls::machine_state_by_symbol(program, call.target_symbol)?;
+    let declared = type_bounds(program, entry.return_type)?;
+    Some(Bounds {
+        interval: declared
+            .interval
+            .intersect(ensures_result_interval(program, callee, entry)),
+        ..declared
+    })
+}
+
+/// The `result`-bounding conjuncts of a callable's `ensures` contracts, as an
+/// interval over the returned value. The callee proved every ensures at its
+/// exits, so the interval holds wherever the call result is read. Only
+/// literal operands bound `result` here: a conjunct naming callee state
+/// compares against a post-return snapshot the caller cannot see.
+fn ensures_result_interval(program: &TypedTrees, machine: &Machine, entry: &State) -> Interval {
+    let mut interval = Interval::UNBOUNDED;
+    let ensures = program
+        .machine_contracts(machine)
+        .iter()
+        .chain(program.state_contracts(entry))
+        .filter(|contract| contract.kind == SignatureContractKind::Ensures)
+        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts));
+    for fact in ensures {
+        let ProofFact::Expression(expression) = fact else {
+            continue;
+        };
+        let mut conjuncts = vec![*expression];
+        while let Some(conjunct) = conjuncts.pop() {
+            let ExpressionNode::Binary(binary) = program.expression_table.expression(conjunct)
+            else {
+                continue;
+            };
+            if binary.operator == BinaryOperator::And {
+                conjuncts.extend([binary.left, binary.right]);
+                continue;
+            }
+            for (subject, operand, subject_on_left) in [
+                (binary.left, binary.right, true),
+                (binary.right, binary.left, false),
+            ] {
+                let names_result = matches!(
+                    program.expression_table.expression(subject),
+                    ExpressionNode::Name(path)
+                        if !path.symbol.is_valid()
+                            && !path.head_symbol.is_valid()
+                            && !program
+                                .expression_table
+                                .name_path_member_symbols(path.member_symbols)
+                                .iter()
+                                .any(|symbol| symbol.is_valid())
+                            && matches!(
+                                program.expression_table.name_path_members(path.members),
+                                [name] if name.as_str() == "result"
+                            )
+                );
+                if !names_result {
+                    continue;
+                }
+                if let Some(bound) = literal_i64(program, operand).map(Interval::constant) {
+                    interval = interval.intersect(super::guard_narrowing::comparison_interval(
+                        binary.operator,
+                        bound,
+                        subject_on_left,
+                    ));
+                }
+            }
+        }
+    }
+    interval
 }
 
 /// The comparisons on `parameter` in the clause every arrival proves: the

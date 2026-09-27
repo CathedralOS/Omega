@@ -2,17 +2,19 @@
 // struct-field view: `Countdown::Remaining` reads the exact `remaining`
 // coordinate of each member's record subject. The forward edge preserves the
 // record; the rebuilt literal strictly decreases the coordinate.
-data Countdown {
-    remaining: u64 [0..=5];
+data Countdown where 0 <= remaining, remaining <= 5 {
+    remaining: u64;
 }
 
-measure Countdown::Remaining(countdown: Countdown) -> u64 {
+measure Countdown::Remaining(countdown: Countdown) -> u64
+{
     countdown.remaining
 }
 
 data Main {}
 
-machine Main::main(&mut self) -> u64 {
+machine Main::main(&mut self) -> u64
+{
     transition { _ -> self.scan_a(Countdown { remaining: 2 }) }
 }
 

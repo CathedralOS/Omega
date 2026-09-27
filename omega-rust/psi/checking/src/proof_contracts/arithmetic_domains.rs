@@ -69,13 +69,13 @@ pub(crate) use integer_ranges::{
     validate_anonymous_integer_range, validate_value_range,
 };
 pub(crate) use interval::Interval;
+pub(crate) use invariant_bounds::{
+    call_result_interval, immutable_integer_expression_interval, standing_integer_interval,
+};
 pub use invariant_bounds::{
     declared_integer_expression_lands, enforced_integer_type_bounds,
     immutable_integer_expression_bounds, standing_integer_bounds, state_parameter_integer_interval,
     stored_integer_bounds,
-};
-pub(crate) use invariant_bounds::{
-    immutable_integer_expression_interval, standing_integer_interval,
 };
 pub use monotonic_update::builtin_monotonic_integer_update_bounds;
 pub(crate) use operand_reports::{
