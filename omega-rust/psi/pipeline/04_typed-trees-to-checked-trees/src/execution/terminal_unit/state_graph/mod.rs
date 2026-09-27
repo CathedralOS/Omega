@@ -1163,7 +1163,16 @@ fn successor_bindings(
             if target.is_self {
                 mark(SuccessorGuard::ReceiverTransfer);
                 let source_index = source_structural.iter().position(|parameter| parameter.is_self)?;
-                if source_structural[source_index] != *target {
+                // The receiver keeps its invocation place, but an edge may
+                // restrict mutable access to a shared state view. Every other
+                // part of its custody remains exact; the reverse gains authority.
+                let mut transferred = source_structural[source_index].clone();
+                if transferred.access == CheckedStructuralAccess::MutableBorrow
+                    && target.access == CheckedStructuralAccess::SharedBorrow
+                {
+                    transferred.access = CheckedStructuralAccess::SharedBorrow;
+                }
+                if transferred != *target {
                     return None;
                 }
                 return Some(CheckedStructuralControlTransferPlan {
