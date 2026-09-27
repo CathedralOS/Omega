@@ -30,45 +30,14 @@ pub(super) type TypeIdentityMemo = HashMap<TypeReferenceHandle, NormalizedTypeId
 /// Write-frame inference asks these same questions once per frame
 /// expression: verdicts at empty outer bindings are pure functions of the
 /// queried handle. The verdict memo is owned by the program
-/// (`TypedTrees::with_isolation_verdicts`); `program_fingerprint` is the
-/// revision key it rebuilds against.
-fn roster_marker<T>(span: arena::HandleSpan<T>) -> u64 {
-    ((span.start().arena_index() as u64) << 32) | span.count() as u64
-}
-
-fn program_fingerprint(program: &TypedTrees) -> u64 {
-    // Each arena's revision only moves forward, so their sum moves precisely
-    // when a read table does: an append, a free, or a same-length in-place
-    // rewrite all count identically. The three `Vec` planning tables have no
-    // arena revision of their own, so their lengths still join the key; they
-    // are populated before checking opens the memo and no caller rewrites
-    // one in place mid-pass.
-    let revision = program
-        .tables
-        .data_definitions
-        .revision()
-        .wrapping_add(program.tables.data_members.revision())
-        .wrapping_add(program.tables.data_type_parameters.revision())
-        .wrapping_add(program.tables.machines.revision())
-        .wrapping_add(program.tables.machine_states.revision())
-        // Root spans can be re-pointed in place (retained-prefix builds,
-        // product pruning) without touching an arena's revision — their
-        // start/count carry the visible roster, so they join the key.
-        .wrapping_add(roster_marker(program.roots.data_definitions))
-        .wrapping_add(roster_marker(program.roots.machines));
-    let vector_lengths = program
-        .plan_laid_layouts
-        .len()
-        .wrapping_add(program.placed_view_plans.len())
-        .wrapping_add(program.authored_service_reach_rows.len());
-    revision ^ (vector_lengths as u64).rotate_left(41)
-}
-
+/// (`TypedTrees::with_isolation_verdicts`); the program's structural
+/// fingerprint is the revision key it rebuilds against — every table, root
+/// roster, and planning Vec joins the key, so any mutation reopens it.
 pub(super) fn with_isolation_cache<R>(
     program: &TypedTrees,
     run: impl FnOnce(&mut IsolationVerdicts) -> R,
 ) -> R {
-    program.with_isolation_verdicts(program_fingerprint(program), run)
+    program.with_isolation_verdicts(program.structural_fingerprint(), run)
 }
 
 pub(super) fn definitions_for_symbol(

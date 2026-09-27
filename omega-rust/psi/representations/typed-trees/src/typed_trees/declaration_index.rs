@@ -35,6 +35,64 @@ fn roster_marker<T>(span: HandleSpan<T>) -> u64 {
     ((span.start().arena_index() as u64) << 32) | span.count() as u64
 }
 
+/// Every `TypedTreeTables` field revision summed, plus every root span's
+/// identity. `Arena` revisions only move forward, so the sum moves on any
+/// mutation — appends, frees, and same-length rewrites alike — while the
+/// span markers catch roots that were re-pointed in place without touching
+/// an arena.
+fn tables_fingerprint(tables: &crate::typed_trees::TypedTreeTables) -> u64 {
+    tables
+        .const_declarations
+        .revision()
+        .wrapping_add(tables.data_definitions.revision())
+        .wrapping_add(tables.data_type_parameters.revision())
+        .wrapping_add(tables.data_members.revision())
+        .wrapping_add(tables.data_payload_fields.revision())
+        .wrapping_add(tables.domain_definitions.revision())
+        .wrapping_add(tables.proof_facts.revision())
+        .wrapping_add(tables.propositions.revision())
+        .wrapping_add(tables.proposition_binders.revision())
+        .wrapping_add(tables.mathematical_definitions.revision())
+        .wrapping_add(tables.mathematical_parameters.revision())
+        .wrapping_add(tables.mathematical_types.revision())
+        .wrapping_add(tables.domain_path_members.revision())
+        .wrapping_add(tables.operator_path_members.revision())
+        .wrapping_add(tables.machines.revision())
+        .wrapping_add(tables.measures.revision())
+        .wrapping_add(tables.measure_path_members.revision())
+        .wrapping_add(tables.operators.revision())
+        .wrapping_add(tables.machine_owned_data.revision())
+        .wrapping_add(tables.machine_trait_conformances.revision())
+        .wrapping_add(tables.machine_states.revision())
+        .wrapping_add(tables.state_parameters.revision())
+        .wrapping_add(tables.traits.revision())
+        .wrapping_add(tables.conformances.revision())
+        .wrapping_add(tables.trait_requirements.revision())
+        .wrapping_add(tables.trait_machine_signatures.revision())
+        .wrapping_add(tables.signature_invokes.revision())
+        .wrapping_add(tables.signature_contracts.revision())
+        .wrapping_add(tables.expression_table.revision())
+        .wrapping_add(tables.statement_table.revision())
+        .wrapping_add(tables.type_reference_table.revision())
+        .wrapping_add(tables.wire_schemas.revision())
+        .wrapping_add(tables.wire_members.revision())
+}
+
+fn roots_fingerprint(roots: &crate::typed_trees::TypedTreeRoots) -> u64 {
+    roster_marker(roots.const_declarations)
+        .wrapping_add(roster_marker(roots.data_definitions))
+        .wrapping_add(roster_marker(roots.domain_definitions))
+        .wrapping_add(roster_marker(roots.machines))
+        .wrapping_add(roster_marker(roots.measures))
+        .wrapping_add(roster_marker(roots.operators))
+        .wrapping_add(roster_marker(roots.machine_token_bindings))
+        .wrapping_add(roster_marker(roots.propositions))
+        .wrapping_add(roster_marker(roots.mathematical_definitions))
+        .wrapping_add(roster_marker(roots.traits))
+        .wrapping_add(roster_marker(roots.conformances))
+        .wrapping_add(roster_marker(roots.wire_schemas))
+}
+
 /// Machine-symbol lookup: the machine table is queried once per call
 /// expression through `machine_by_symbol`; a roster scan per query walks
 /// every machine. The map keeps the first position per symbol, matching the
@@ -64,6 +122,17 @@ pub struct DataDefinitionIndex {
     by_symbol: HashMap<SymbolHandle, Vec<u32>>,
     by_name: HashMap<Box<str>, Vec<u32>>,
     first_position: HashMap<SymbolHandle, u32>,
+}
+
+impl DataDefinitionIndex {
+    /// Every position declaring `symbol`, in declaration order — absent,
+    /// unique, and duplicate answers all read the same slice.
+    pub fn positions_for_symbol(&self, symbol: SymbolHandle) -> &[u32] {
+        self.by_symbol
+            .get(&symbol)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
 }
 
 /// Domain-definition roster: the first position per symbol, matching the
@@ -182,6 +251,36 @@ impl std::fmt::Debug for DeclarationIndexes {
 }
 
 impl super::TypedTrees {
+    /// One freshness counter over the whole program: every table arena's
+    /// revision, every root span's marker, and the lengths of the side Vecs
+    /// and intern tables that have no revision of their own. Checking-phase
+    /// memos that are not whole-table indexes (derived plans, per-query
+    /// verdicts) key on `(identity, structural_fingerprint())` so a
+    /// replacement program or an in-place mutation can never serve a stale
+    /// answer.
+    pub fn structural_fingerprint(&self) -> u64 {
+        tables_fingerprint(&self.tables)
+            .wrapping_add(roots_fingerprint(&self.roots))
+            .wrapping_add(self.service_reaches.definitions().len() as u64)
+            .wrapping_add(self.service_reach_rows.len() as u64)
+            .wrapping_add(self.authored_service_reach_rows.len() as u64)
+            .wrapping_add(self.semantic_domains.len() as u64)
+            .wrapping_add(self.external_bindings.identities().len() as u64)
+            .wrapping_add(self.plan_laid_layouts.len() as u64)
+            .wrapping_add(self.placed_view_plans.len() as u64)
+            .wrapping_add(self.wire_placements.revision())
+            .wrapping_add(self.wire_encode_obligations.revision())
+            .wrapping_add(self.wire_schema_plans.len() as u64)
+            .wrapping_add(self.machine_specializations.len() as u64)
+            .wrapping_add(self.boundary_calling_plans.len() as u64)
+            .wrapping_add(self.fused_service_erasures.len() as u64)
+            .wrapping_add(self.open_index_normalizations.len() as u64)
+            .wrapping_add(self.evidence_forwardings.len() as u64)
+            .wrapping_add(self.proof_output_calls.len() as u64)
+            .wrapping_add(self.ranking_expression_custody.len() as u64)
+            .wrapping_add(self.pending_const_range_endpoints.len() as u64)
+    }
+
     /// Machine-table position of `symbol`, or `None` when no machine carries
     /// it. The index keeps the first position per symbol — the roster `find`
     /// it replaces had the same earliest-match rule.
@@ -639,5 +738,30 @@ mod tests {
         trees.with_isolation_verdicts(2, |verdicts| {
             assert!(verdicts.definitions.is_empty());
         });
+    }
+
+    /// The structural fingerprint moves on every mutation shape a
+    /// checking-phase memo could be keyed against: appends, same-length
+    /// rewrites, and in-place root re-points.
+    #[test]
+    fn structural_fingerprint_moves_on_append_rewrite_and_repoint() {
+        let mut trees = TypedTrees::default();
+        let initial = trees.structural_fingerprint();
+        trees.push_data_definition(data_definition(41, "Late"));
+        let after_append = trees.structural_fingerprint();
+        assert_ne!(initial, after_append);
+
+        let handle = trees.roots.data_definitions.start();
+        trees.tables.data_definitions.get_mut(handle).name = Identifier::generated("Renamed");
+        let after_rewrite = trees.structural_fingerprint();
+        assert_ne!(after_append, after_rewrite);
+
+        // Re-pointing the root span at a fresh roster without touching the
+        // arena's mutation methods still moves the fingerprint.
+        let fresh = trees
+            .data_definitions
+            .insert_many([data_definition(42, "Other")]);
+        trees.roots.data_definitions = fresh;
+        assert_ne!(after_rewrite, trees.structural_fingerprint());
     }
 }

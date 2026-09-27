@@ -5,17 +5,21 @@
 //! live beneath this owner: effect plans, declaration indexes, value properties
 //! and call targets. Consumers reach their domain directly.
 //!
-//! Slots use program-pointer keys and compute uncached outside a matching scope. The
-//! separate `frozen_program` scope additionally checks a retained program identity;
-//! declaration queries use its index first when that exact frozen scope exists.
+//! Slots compute uncached outside a matching scope. Inside one they key on
+//! `(program identity, structural fingerprint)` — `ProgramIdentity` is
+//! issued once per `TypedTrees` and never reissued, so a dropped program's
+//! slot can never serve a replacement that lands on its freed address, and
+//! the fingerprint moves on any table or roster mutation so in-place edits
+//! inside a build reopen the memo. Declaration rosters themselves are
+//! answered by the `TypedTrees`-owned indexes; the separate `frozen_program`
+//! scope additionally checks a retained program identity for its
+//! `Arc`-shared memos.
 
 pub(crate) mod call_targets;
 pub(crate) mod data_definitions;
 pub(crate) mod effects;
-pub(crate) mod machines;
 pub(crate) mod value_properties;
 
-use data_definitions::DataDefinitionLookup;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
@@ -24,36 +28,22 @@ use typed_trees::types::TypeReferenceHandle;
 
 use crate::value_custody::claim_frontier::ClaimFrontierClaim;
 
-type OperationalSlot = Option<Option<(*const typed_trees::TypedTrees, OperationalPlan)>>;
-type ServiceReachSlot = Option<Option<(*const typed_trees::TypedTrees, ServiceReachInferencePlan)>>;
+/// `(program identity, structural fingerprint)` — the owner pair a slot is
+/// written for. Identity separates every program instance ever allocated
+/// (addresses can be reused; identities cannot), and the fingerprint moves
+/// on any mutation of the tables, roots, or planning Vecs a memo could read.
+type ProgramKey = (u64, u64);
+
+fn program_key(program: &typed_trees::TypedTrees) -> ProgramKey {
+    (program.identity.get(), program.structural_fingerprint())
+}
+
+type OperationalSlot = Option<Option<(ProgramKey, OperationalPlan)>>;
+type ServiceReachSlot = Option<Option<(ProgramKey, ServiceReachInferencePlan)>>;
 type ClaimFrontierSlot = Option<
     Option<(
-        *const typed_trees::TypedTrees,
+        ProgramKey,
         HashMap<TypeReferenceHandle, Vec<ClaimFrontierClaim>>,
-    )>,
->;
-type DataDefinitionLookupSlot = Option<
-    Option<(
-        *const typed_trees::TypedTrees,
-        HashMap<symbols::SymbolHandle, DataDefinitionLookup>,
-    )>,
->;
-type DropHookSlot = Option<
-    Option<(
-        *const typed_trees::TypedTrees,
-        HashMap<symbols::SymbolHandle, bool>,
-    )>,
->;
-/// Whether a data definition requires establishment, keyed by the
-/// definition's address: the scope borrows the program, so each definition
-/// keeps one address and no two share it.
-type EstablishmentSlot = Option<Option<(*const typed_trees::TypedTrees, HashMap<usize, bool>)>>;
-/// (trait symbol, bound requirement name) -> conforming (carrier, entry
-/// symbol) pairs, built once per scoped program.
-type ConformanceSlotCarriersSlot = Option<
-    Option<(
-        *const typed_trees::TypedTrees,
-        HashMap<(symbols::SymbolHandle, String), Vec<(TypeReferenceHandle, symbols::SymbolHandle)>>,
     )>,
 >;
 /// Whole-program symbol -> data-definition position map, shared by `Rc` —
@@ -61,13 +51,13 @@ type ConformanceSlotCarriersSlot = Option<
 /// declaration slice once per missed type reference.
 type DataDefinitionPositionsSlot = Option<
     Option<(
-        *const typed_trees::TypedTrees,
+        ProgramKey,
         std::rc::Rc<HashMap<symbols::SymbolHandle, usize>>,
     )>,
 >;
 type TypeParameterMultiplicitySlot = Option<
     Option<(
-        *const typed_trees::TypedTrees,
+        ProgramKey,
         std::rc::Rc<
             HashMap<
                 symbols::SymbolHandle,
@@ -79,12 +69,24 @@ type TypeParameterMultiplicitySlot = Option<
         >,
     )>,
 >;
+/// Whether a data definition requires establishment, keyed by the
+/// definition's own symbol — the same identity the inner establishment
+/// index already memoizes on.
+type EstablishmentSlot = Option<Option<(ProgramKey, HashMap<symbols::SymbolHandle, bool>)>>;
+/// (trait symbol, bound requirement name) -> conforming (carrier, entry
+/// symbol) pairs, built once per scoped program.
+type ConformanceSlotCarriersSlot = Option<
+    Option<(
+        ProgramKey,
+        HashMap<(symbols::SymbolHandle, String), Vec<(TypeReferenceHandle, symbols::SymbolHandle)>>,
+    )>,
+>;
 /// (target state symbol, argument count) -> resolved call-argument
 /// destination types; each query rescans every machine and state to verify
 /// symbol uniqueness, so the whole verdict is memoized per scoped program.
 type CallArgumentDestinationsSlot = Option<
     Option<(
-        *const typed_trees::TypedTrees,
+        ProgramKey,
         HashMap<(symbols::SymbolHandle, usize), Option<Vec<TypeReferenceHandle>>>,
     )>,
 >;
@@ -98,25 +100,18 @@ thread_local! {
     /// The claim frontier memoizes per queried type reference rather than a
     /// single plan; the map itself is the stored plan for the scoped program.
     static CLAIM_FRONTIER_SLOT: RefCell<ClaimFrontierSlot> = const { RefCell::new(None) };
-    /// Data-definition lookups memoize a symbol's declaration answer
-    /// (including negative and duplicate answers) rather than one plan.
-    static DATA_DEF_LOOKUP_SLOT: RefCell<DataDefinitionLookupSlot> =
-        const { RefCell::new(None) };
-    /// Whether a machine attached to a data symbol realizes `::drop`,
-    /// memoized per (program, symbol).
-    static DROP_HOOK_SLOT: RefCell<DropHookSlot> = const { RefCell::new(None) };
-    /// Whether a data definition requires establishment, memoized per
-    /// (program, definition).
-    static ESTABLISHMENT_SLOT: RefCell<EstablishmentSlot> = const { RefCell::new(None) };
-    /// Conformance slot carriers memoize the whole index at once — the ring
-    /// and semiring license builders both read it per judged machine.
-    static CONFORMANCE_SLOT_CARRIERS_SLOT: RefCell<ConformanceSlotCarriersSlot> =
-        const { RefCell::new(None) };
     /// The data-definition position table, shared once per scoped program.
     static DATA_DEF_POSITIONS_SLOT: RefCell<DataDefinitionPositionsSlot> =
         const { RefCell::new(None) };
     /// The type-parameter multiplicity table, shared once per scoped program.
     static TYPE_PARAMETER_MULTIPLICITY_SLOT: RefCell<TypeParameterMultiplicitySlot> =
+        const { RefCell::new(None) };
+    /// Whether a data definition requires establishment, memoized per
+    /// (program, definition symbol).
+    static ESTABLISHMENT_SLOT: RefCell<EstablishmentSlot> = const { RefCell::new(None) };
+    /// Conformance slot carriers memoize the whole index at once — the ring
+    /// and semiring license builders both read it per judged machine.
+    static CONFORMANCE_SLOT_CARRIERS_SLOT: RefCell<ConformanceSlotCarriersSlot> =
         const { RefCell::new(None) };
     /// Call-argument destination verdicts memoize per (target, argument
     /// count) inside the scope.
@@ -130,12 +125,10 @@ pub struct ProgramPlanScopeGuard {
     operational: OperationalSlot,
     service_reach: ServiceReachSlot,
     claim_frontiers: ClaimFrontierSlot,
-    data_def_lookups: DataDefinitionLookupSlot,
-    drop_hooks: DropHookSlot,
-    establishment: EstablishmentSlot,
-    conformance_slot_carriers: ConformanceSlotCarriersSlot,
     data_def_positions: DataDefinitionPositionsSlot,
     type_parameter_multiplicities: TypeParameterMultiplicitySlot,
+    establishment: EstablishmentSlot,
+    conformance_slot_carriers: ConformanceSlotCarriersSlot,
     call_argument_destinations: CallArgumentDestinationsSlot,
 }
 
@@ -150,23 +143,17 @@ impl Drop for ProgramPlanScopeGuard {
         CLAIM_FRONTIER_SLOT.with(|cell| {
             *cell.borrow_mut() = self.claim_frontiers.take();
         });
-        DATA_DEF_LOOKUP_SLOT.with(|cell| {
-            *cell.borrow_mut() = self.data_def_lookups.take();
+        DATA_DEF_POSITIONS_SLOT.with(|cell| {
+            *cell.borrow_mut() = self.data_def_positions.take();
         });
-        DROP_HOOK_SLOT.with(|cell| {
-            *cell.borrow_mut() = self.drop_hooks.take();
+        TYPE_PARAMETER_MULTIPLICITY_SLOT.with(|cell| {
+            *cell.borrow_mut() = self.type_parameter_multiplicities.take();
         });
         ESTABLISHMENT_SLOT.with(|cell| {
             *cell.borrow_mut() = self.establishment.take();
         });
         CONFORMANCE_SLOT_CARRIERS_SLOT.with(|cell| {
             *cell.borrow_mut() = self.conformance_slot_carriers.take();
-        });
-        DATA_DEF_POSITIONS_SLOT.with(|cell| {
-            *cell.borrow_mut() = self.data_def_positions.take();
-        });
-        TYPE_PARAMETER_MULTIPLICITY_SLOT.with(|cell| {
-            *cell.borrow_mut() = self.type_parameter_multiplicities.take();
         });
         CALL_ARGUMENT_DESTINATIONS_SLOT.with(|cell| {
             *cell.borrow_mut() = self.call_argument_destinations.take();
@@ -181,13 +168,11 @@ pub fn enter_program_plan_scope() -> ProgramPlanScopeGuard {
         operational: OPERATIONAL_PLAN_SLOT.with(|cell| cell.borrow_mut().replace(None)),
         service_reach: SERVICE_REACH_PLAN_SLOT.with(|cell| cell.borrow_mut().replace(None)),
         claim_frontiers: CLAIM_FRONTIER_SLOT.with(|cell| cell.borrow_mut().replace(None)),
-        data_def_lookups: DATA_DEF_LOOKUP_SLOT.with(|cell| cell.borrow_mut().replace(None)),
-        drop_hooks: DROP_HOOK_SLOT.with(|cell| cell.borrow_mut().replace(None)),
-        establishment: ESTABLISHMENT_SLOT.with(|cell| cell.borrow_mut().replace(None)),
-        conformance_slot_carriers: CONFORMANCE_SLOT_CARRIERS_SLOT
-            .with(|cell| cell.borrow_mut().replace(None)),
         data_def_positions: DATA_DEF_POSITIONS_SLOT.with(|cell| cell.borrow_mut().replace(None)),
         type_parameter_multiplicities: TYPE_PARAMETER_MULTIPLICITY_SLOT
+            .with(|cell| cell.borrow_mut().replace(None)),
+        establishment: ESTABLISHMENT_SLOT.with(|cell| cell.borrow_mut().replace(None)),
+        conformance_slot_carriers: CONFORMANCE_SLOT_CARRIERS_SLOT
             .with(|cell| cell.borrow_mut().replace(None)),
         call_argument_destinations: CALL_ARGUMENT_DESTINATIONS_SLOT
             .with(|cell| cell.borrow_mut().replace(None)),

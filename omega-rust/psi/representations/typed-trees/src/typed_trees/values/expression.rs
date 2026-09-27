@@ -154,6 +154,24 @@ impl ExpressionTable {
         Self::with_expression_capacity(0)
     }
 
+    /// The owned freshness counter over every arena and side Vec the table
+    /// owns — the freshness key for indexes and memos derived from
+    /// expression rows. Each arena's revision only moves forward, so their
+    /// sum moves on any mutation, including same-length rewrites; the two
+    /// `Vec` columns have no revision of their own and join by length.
+    pub fn revision(&self) -> u64 {
+        self.expressions
+            .revision()
+            .wrapping_add(self.authored_selection_occurrence_ids.revision())
+            .wrapping_add(self.expression_handles.revision())
+            .wrapping_add(self.name_path_members.revision())
+            .wrapping_add(self.name_path_member_symbols.revision())
+            .wrapping_add(self.struct_fields.revision())
+            .wrapping_add(self.match_arms.revision())
+            .wrapping_add(self.source_spans.len() as u64)
+            .wrapping_add(self.authored_selection_occurrences.len() as u64)
+    }
+
     pub fn with_expression_capacity(expression_capacity: usize) -> Self {
         Self::with_expression_and_handle_capacity(expression_capacity, 0)
     }

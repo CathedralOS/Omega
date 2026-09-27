@@ -8,7 +8,7 @@
 
 use crate::declarations::symbols::CallerSiteCaches;
 use crate::machine_calls::calls::CallFrameCaches;
-use crate::program_scope::data_definitions::{DataDefinitionIndex, DataFieldIndex};
+use crate::program_scope::data_definitions::DataFieldIndex;
 use crate::proof_contracts::contract_entailment::structural_judgment::{
     EntryMachines, LicenseCandidates,
 };
@@ -36,13 +36,11 @@ pub(crate) struct FrozenProgramMemos {
     pub(crate) entry_machines: OnceLock<Arc<EntryMachines>>,
     pub(crate) caller_sites: OnceLock<Arc<CallerSiteCaches>>,
     pub(crate) content_conservation: OnceLock<Arc<Vec<ContentConservationSourcePlan>>>,
-    pub(crate) data_definitions: OnceLock<Arc<DataDefinitionIndex>>,
     /// Builtin meaning of one binary node, by the position of its machine in
     /// the program, its state within that machine, and the node.
     pub(crate) binary_meanings:
         Mutex<symbols::SymbolKeyMap<(u32, u32, typed_trees::expression::ExpressionHandle), bool>>,
     pub(crate) data_fields: OnceLock<Arc<DataFieldIndex>>,
-    pub(crate) machines: OnceLock<Arc<crate::program_scope::machines::MachineIndex>>,
     pub(crate) contract_occurrences:
         OnceLock<Arc<crate::proof_contracts::contract_results::ContractOccurrenceIndex>>,
 }
