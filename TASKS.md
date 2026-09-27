@@ -3959,100 +3959,72 @@ syntax and other terminal services are not prerequisites.
   and call/loan identities survive substitution and replay. Trait-selected
   supply, **FLOAT-PROVIDERS** and canonical compiler primitives keep their
   separate routes.
-- **MODULE-NAMESPACE-RESOLUTION.** Carry the exact selections required by the
-  [module/name contract](wiki/spec/language/modules.md) through checking,
-  constant evaluation and source-independent artifacts. Owners:
-  `02_syntax-trees-to-symbol-resolved-trees/src/preparation/`
-  (`module_normalization.rs`, `generic_data/`), validation's
-  `proof_contracts/domains.rs`, and build-time evaluation's
-  `const_evaluation/const_initializers/`. Module normalization and
-  predicate-domain local-initializer checking already exist; resolution-only
-  tests do not establish downstream execution.
+- **MODULE-NAMESPACE-RESOLUTION.** Complete exact declaration selection through
+  checking, constant evaluation and source-independent publication under the
+  [module/name contract](wiki/spec/language/modules.md).
 
-  Remaining work:
+  - Implement [default builds and anonymous owners](wiki/spec/build/declarations.md#default-builds-and-anonymous-owner-identity)
+    in `build-evaluation/src/sources/` and compiler handoff. Its
+    `source/source_storage.rs` still leaves loose roots without package identity;
+    preserve supplied package/core owners and derive the versioned anonymous
+    content record before build execution. Deduplicate dependency nodes while
+    retaining separate host/target build instances. Missing builds use ordinary
+    default configuration, with no catalog, host-path identity, ambient authority
+    or special `main` discovery. Carry owner/declaration provenance through
+    specialization and artifact encode/reload; dependency acceptance and visible
+    collisions remain separate checks. Acceptance: one std owner in a diamond;
+    distinct root/core/library owners; stable identity after relocation, rebuild
+    and cache deletion; changed anonymous semantic inputs change identity;
+    independent named lineages remain distinct despite equal content. Reject
+    missing/mismatched provenance and genuine visible-name conflicts. Recheck
+    `control_flow/guarded_leaf_branch_expansion` and `text/runtime_alias_string_write`
+    on the loose native-host route: corpus inputs supply package identities and
+    no longer record the old `Utf8` collision, so they do not establish this
+    acceptance. Local identity repair need not await the versioned
+    [standalone-request extension](wiki/spec/build/compiler_request.md) shared
+    with OMEGA-D/OMEGA-C; named-only OCREQ v1 cannot silently encode anonymous owners.
+  - Finish typed/checked/Terminal use of generic type-scoped constant attachments,
+    indexed constraints and operator homes. Extend existing normalization and
+    exact declaration selection in
+    `02_syntax-trees-to-symbol-resolved-trees/src/preparation/`, preserving
+    specialization, competing declarations, visibility and nontransitive file-local
+    imports. Reuse `CaseMembership` and symbol-based multiplicity matching.
+    `tests/module_namespace_residuals.rs` checks normalization/resolution, not
+    downstream execution.
+  - Extend declaration evaluation in
+    `build-time-evaluation/src/const_evaluation/const_initializers/` and
+    resolver `generic_data/const_evaluation/{facts,values}.rs`: specialized
+    provider/target applications, exact authored NaN bits, nested record/array/case
+    and whole-aggregate subjects, open applications and abstract-carrier `self`
+    constraints. Preserve alias-owned bounds/index tuples, including compiler-owned
+    atoms, through
+    `checking/src/proof_contracts/domains.rs`. Computed payloads and empty fact
+    replay cannot establish qualifications; routed constraints still need
+    establishment, including for unused initializers.
+  - For constant invocations, share **CRASH-CONTRACT** /
+    **OPERATOR-MACHINE-SUPPLY** premise transport through stage 04's
+    `facts/crash_entry_values.rs`. Extend beyond lossless widening and proven
+    indices only with exact live evidence; value-changing casts, call-produced
+    projections and unknown origins retain conservative crash ceilings.
+    Interpretation or provider-body inspection cannot discharge admission.
 
-  - Finish typed/checked/Terminal transport for generic type-scoped constant
-    attachments, indexed constraints, and operator homes. Reuse declared-domain
-    `CaseMembership` tag tests and exact symbol-based multiplicity matching.
-    Preserve exact lexical/package selection
-    through specialization, same-leaf competitors, file-local imports and
-    private/transitive exposure.
-    `module_namespace_residuals` contains resolver-only operator/case tests;
-    extend those customers through their remaining consumers rather than adding
-    another namespace recognizer.
-  - Implement [default-build and anonymous owner identity](wiki/spec/build/declarations.md#default-builds-and-anonymous-owner-identity)
-    in source-graph preparation and compiler handoff. Preserve supplied package
-    and core owners; derive the versioned anonymous content record before build
-    execution, coalescing equal dependency nodes without merging different
-    host/target build instances. Missing build files use ordinary default
-    configuration, not an ownerless or parallel compiler entrance. Carry exact
-    owner/declaration identity through checking and artifact encode/reload;
-    dependency acceptance and visible-name collision checks remain independent.
-    Reproduce `control_flow/guarded_leaf_branch_expansion` and
-    `text/runtime_alias_string_write` through the rooted native-host route:
-    their reported `[u8; N]::Utf8` collision loses distinct owners through
-    `package_identity: None`; targetless checking misses injected std. Do not
-    block this local repair on portable format work.
-    Acceptance: a diamond dependency has one std owner; anonymous-root, core and
-    ordinary-library declarations stay distinct; relocating inputs/products,
-    rebuilding identical inputs and deleting caches preserve identity; changed
-    anonymous semantic inputs change it. Independent named lineages stay distinct
-    with equal content. Reimport/reload preserves identity, while missing/mismatched
-    provenance and genuinely competing visible names reject. No build catalog,
-    host-path key, extra authority or special `main` discovery is introduced.
-    Coordinate the [standalone request](wiki/spec/build/compiler_request.md)
-    versioned anonymous-owner/default-build extension with OMEGA-D/OMEGA-C in
-    `TASKS_BOOTSTRAP.md`; v1's named-only rows cannot silently carry it.
-  - Complete declaration evaluation, including unused initializers:
-    specialized provider/target applications, authored NaN identity bits, and
-    constrained constants beyond scalar-decodable record/array/case leaves.
-    Whole-aggregate subjects, open applications, carrier-property constraints
-    on abstract `self`, alias-owned bounds/index tuples and compiler-owned
-    alias atoms need exact typed application evidence. Routed constraints still
-    require establishment. Reuse typed evaluation and retain selected operator
-    meaning and widths; empty predicate replay or a computed payload is not
-    qualification evidence (`generic_data/const_evaluation/facts.rs`).
-  - Extend checked invocation admission beyond canonical scalar snapshots and
-    its established lossless-widening/proven-index routes. Value-changing casts,
-    call-produced projection subjects and other undecidable origins must keep
-    conservative crash ceilings until checked evidence discharges them.
-    Coordinate `facts/crash_entry_values.rs` and ordinary call-premise transport
-    with **CRASH-CONTRACT** and **OPERATOR-MACHINE-SUPPLY**; successful
-    interpretation or provider-body inspection is not admission evidence.
-    Further argument conversions need exact live-premise transport; lossless
-    widening and signed nonzero forwarding are working controls, including
-    `signed_nonzero_call_preconditions_execute_after_source_removal`.
-
-  Runtime qualified-record reads and general array-value execution belong to
-  **STATE-LOCAL-VALUE-FRONTIER** / **TR3-TR8** and target
-  `lowering/control_flow/aggregate_results.rs`. The
-  `generic_carrier_qualified_fields_keep_their_owner_after_specialization`
-  test distinguishes its checked runtime `Holder<T>` customer from the
-  source-free constant projection that already works. Do not substitute an
-  aggregate's selected home for its unevaluated contents.
-
-  Acceptance: source-free publication, independent verification and matching-host
-  execution in `compiler --test module_machine_indices` (especially
-  `nominal`, `constant_attachments`, `value_dispatch`, `machine_initializers`),
-  `compiler --test constant_float_tables`,
-  `terminal-psi-to-abstract-operations --test suite scalar_array_construction`
-  (that package has one `suite` target; the module is a filter, not a target).
-  Measured 2026-09-24: 82 of 82 across `nominal`, `constant_attachments`,
-  `value_dispatch` and `machine_initializers` and 3 of 3 in
-  `scalar_array_construction` are green, so the remaining work above, not the
-  acceptance run, is what keeps this row open. `module_machine_indices` fails only
-  `indexed_domains::separate_packages_cannot_exchange_mutable_domain_qualifications`,
-  on an open default-domain invariant window that belongs to the
-  foreign-domain mutable recast row.
-  Preserve exact floating bits including signed zero, mixed field/index
-  projections, selected arithmetic policies, and all-arm obligations without
-  evaluating skipped subjects. Keep zero/wrapping-to-zero, stale operand,
-  wrong-owner, false-precondition, invalid-unused-initializer and unproved-index
-  rejection, including `predicate_domain_initializer_*`. The
-  `qualified_declarations`, `qualified_constants`, `match_constant_indices`,
-  `nominal_constant_bodies` and `module_array_constant_indices` customers
-  remain; runtime-index fail fixtures change only when their materialization
-  obligations are met.
+  Acceptance: retain `tests/omega/pass/modules/{qualified_declarations,qualified_constants,match_constant_indices,nominal_constant_bodies,module_array_constant_indices}`
+  and the `modules/` corpus gate, then verify source-free publication/reload,
+  independent checking and matching-host execution for the new supported forms.
+  Use maintained initializer tests beside `const_initializers.rs`, stage 04's
+  `tests/contracts/main.rs::predicate_domain_initializer_*`, and
+  `terminal-psi-to-abstract-operations --test suite scalar_array_construction`;
+  the latter verifies serialized array retention, not native execution.
+  Preserve exact floating bits/signed zero, field/index projections, selected
+  operator meanings/widths/policies and all-arm obligations without evaluating
+  skipped subjects; retain lossless-widening/signed-nonzero forwarding and
+  zero/wrapping-to-zero, stale
+  operand, wrong-owner, false-premise, invalid-unused and unproved-index controls.
+  Runtime qualified `Holder<T>` reads and general array execution remain
+  **STATE-LOCAL-VALUE-FRONTIER** / **TR3-TR8** integration dependencies:
+  successful constant projection does not establish runtime materialization.
+  Runtime-index fail fixtures change only after their materialization obligations
+  are met.
 
 - **RUNTIME-VALUE-GENERICS.** Complete
   [runtime-capable value binders](wiki/spec/language/generics.md#value-binders-and-const-requirements)
