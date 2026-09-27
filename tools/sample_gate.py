@@ -144,11 +144,22 @@ def first_error(output: str) -> str:
     return "(no output)"
 
 
+# The unit-plan omission names the phase that actually declined inside its
+# own message, and that phase — not the shared rejoins line — is what routes
+# the sample to a capability.
+OMISSION_PHASE = re.compile(r"omitted at local construction at `([^`]+)`")
+
+
 def cluster_of(message: str) -> str:
     for pattern, name in CLUSTERS:
         if re.search(pattern, message):
             return name
     return "other"
+
+
+def detail_of(message: str) -> str | None:
+    found = OMISSION_PHASE.search(message)
+    return found.group(1) if found else None
 
 
 def check_one(cli: Path, scratch: Path, directory: Path) -> dict:
@@ -165,6 +176,9 @@ def check_one(cli: Path, scratch: Path, directory: Path) -> dict:
         message = first_error(output)
         record["diagnostic"] = message
         record["cluster"] = cluster_of(message)
+        detail = detail_of(message)
+        if detail:
+            record["detail"] = detail
     return record
 
 
@@ -225,6 +239,20 @@ def main() -> int:
         note = CLUSTER_NOTES.get(name)
         if note:
             print(f"   ({note})")
+        if all(record.get("detail") for record in members):
+            # Every member named its own phase, so the cluster is a list of
+            # capabilities rather than one. Rank them.
+            details: dict[str, list[str]] = {}
+            for record in members:
+                details.setdefault(record["detail"], []).append(
+                    record["sample"])
+            for detail, samples in sorted(details.items(),
+                                          key=lambda item: (-len(item[1]),
+                                                            item[0])):
+                print(f"   [{len(samples)}] {detail}")
+                for sample in sorted(samples):
+                    print(f"       {sample}")
+            continue
         for record in members:
             print(f"   {record['sample']}\n       {record['diagnostic'][:160]}")
     checked = len(records) - len(failures)
