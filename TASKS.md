@@ -134,6 +134,28 @@ backend-visible; full corpus runs only at the end of an item.
   admitted forms lower to direct places -- but that is a hypothesis about the
   planner, not a measurement, and it is unread.
 
+  WIDER than first filed, from attributing the native roster: a CALL RESULT
+  that is a reference is a FOURTH producer that does not route.
+  `let v: &[u8] = self.buf.as_slice();` omits at `statement sequence: call:
+  flow call` (four corpus fixtures, led by
+  `pass/dependent/runtime_sibling_len_index_exit`), and an own machine
+  returning `&u32` omits at `state graph: operation custody: reference
+  custody` -- while the same machine returning `u32` checks, and a STATEMENT
+  call with a `&mut` argument checks. So it is a reference in RESULT position,
+  not calls and not references as arguments. Pinned at
+  `tests/omega/pending/borrows/reference_result_call_binding`. That also
+  strengthens the hypothesis above rather than the alternative: the admitted
+  form is the one that lowers to a direct place.
+
+  SEVEN phase labels now name this one capability, which is why it reads as
+  several unrelated clusters -- `structural call binding`, `result custody
+  accounting`, `call: flow call`, `operation custody: reference custody`, and
+  `unsupported statement kind`. The last also shows the label follows the
+  SURROUNDING program, not just the statement: the identical borrow reports
+  differently once a transition follows it. Do not split this by label, and
+  pin no repair on any of the strings. Extended acceptance: both pending
+  fixtures check and the four `flow call` corpus rows move.
+
 - **RECORD-LITERAL-ARRAY-FIELD.** (new-scope) Constructing a record literal
   that supplies a value for an ARRAY-typed field has no route.
   `samples/cli/systems/wire_protocol` spells it
