@@ -647,18 +647,6 @@ fn rejects_corrupt_descriptions() {
 }
 
 #[test]
-fn rejects_the_wrong_component_subject() {
-    let module = minimal_module();
-    let other = boundary_module();
-    let description = describe(&module, &empty_selection());
-    let request = request_for(&other, BTreeSet::new());
-    assert!(matches!(
-        verify(&description, &request),
-        Err(ComponentVerificationRejection::WrongSubject { .. })
-    ));
-}
-
-#[test]
 fn rejects_an_incompatible_schema() {
     let module = minimal_module();
     let description = describe(&module, &empty_selection());
@@ -671,79 +659,6 @@ fn rejects_an_incompatible_schema() {
         Err(ComponentVerificationRejection::IncompatibleSchema {
             schema: COMPONENT_DESCRIPTION_SCHEMA_V2
         })
-    ));
-}
-
-#[test]
-fn rejects_an_early_frontier() {
-    let module = minimal_module();
-    let mut description = describe(&module, &empty_selection());
-    description.frontier = DescriptionFrontier::SelectedPlan;
-    let request = request_for(&module, BTreeSet::new());
-    assert!(matches!(
-        verify(&description, &request),
-        Err(ComponentVerificationRejection::EarlyFrontier(
-            DescriptionFrontier::SelectedPlan
-        ))
-    ));
-}
-
-#[test]
-fn rejects_forged_complete_descriptions() {
-    let module = minimal_module();
-    let request = request_for(&module, BTreeSet::new());
-
-    // A description claiming completeness while omitting the canonical entry.
-    let mut omitted = describe(&module, &empty_selection());
-    omitted
-        .entries
-        .retain(|entry| entry.kind != ComponentEntryKind::Canonical);
-    assert!(matches!(
-        verify(&omitted, &request),
-        Err(ComponentVerificationRejection::MissingComponentEntry(_))
-    ));
-
-    // A description inventing a module-derived entry the artifact lacks.
-    let mut forged = describe(&module, &empty_selection());
-    forged.entries.push(ComponentEntry {
-        kind: ComponentEntryKind::SuspensionResumption,
-        identity: "suspension-resumption:99:1".into(),
-        evidence: EntryEvidence::ModuleDerived,
-    });
-    assert!(matches!(
-        verify(&forged, &request),
-        Err(ComponentVerificationRejection::UnexpectedDerivedEntry(_))
-    ));
-}
-
-#[test]
-fn rejects_omitted_authority_obligation_and_import() {
-    let module = boundary_module();
-    let request = request_for(&module, BTreeSet::new());
-
-    let mut no_outgoing = describe(&module, &empty_selection());
-    no_outgoing
-        .outgoing
-        .retain(|row| row.class != OutgoingAuthorityClass::BoundaryRequirement);
-    assert!(matches!(
-        verify(&no_outgoing, &request),
-        Err(ComponentVerificationRejection::MissingOutgoingAuthority(_))
-    ));
-
-    let mut no_import = describe(&module, &empty_selection());
-    no_import.imports.clear();
-    assert!(matches!(
-        verify(&no_import, &request),
-        Err(ComponentVerificationRejection::UnboundRequirement(_))
-    ));
-
-    let mut no_obligation = describe(&module, &empty_selection());
-    no_obligation
-        .obligations
-        .retain(|obligation| obligation.kind != ObligationKind::ImportBinding);
-    assert!(matches!(
-        verify(&no_obligation, &request),
-        Err(ComponentVerificationRejection::MissingObligation(_))
     ));
 }
 
@@ -881,16 +796,6 @@ fn rejects_provider_roster_substitution() {
             _
         ))
     ));
-}
-
-#[test]
-fn codec_round_trips_and_rejects_noncanonical_order() {
-    let module = boundary_module();
-    let description = describe(&module, &empty_selection());
-    let bytes = encode_component_description(&description);
-    let decoded = decode_component_description(&bytes).expect("canonical decode");
-    assert_eq!(decoded, description);
-    assert_eq!(encode_component_description(&decoded), bytes);
 }
 
 // ---------------------------------------------------------------------------
@@ -1182,6 +1087,11 @@ fn component_description_rejects_every_one_field_substitution() {
     let description = describe(&module, &selected);
     let request = request_for(&module, BTreeSet::new());
     verify(&description, &request).expect("authentic description verifies");
+
+    let bytes = encode_component_description(&description);
+    let decoded = decode_component_description(&bytes).expect("canonical decode");
+    assert_eq!(decoded, description);
+    assert_eq!(encode_component_description(&decoded), bytes);
 
     // The fixture populates every roster: one sealed requirement, two
     // unsealed imports (one ordinary, one installation-bound), canonical

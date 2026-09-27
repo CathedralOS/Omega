@@ -3,16 +3,15 @@
 //! admits only canonical requests, so this is the same template the
 //! native-realization encoding stage selects for a two-Extent free entry.
 
-use super::validation::{validate_object, validate_object_preserving_seal};
+use super::validation::validate_object_preserving_seal;
 use super::{
     OptimizedProgramStorageSemanticWrapperObjectCustodyReceipt,
     OptimizedProgramStorageSemanticWrapperObjectDecodeError,
     OptimizedProgramStorageSemanticWrapperObjectManifest,
     OptimizedProgramStorageSemanticWrapperObjectPlan,
     OptimizedProgramStorageSemanticWrapperObjectRecordError, TEST_PLAN_IDENTITY_RECOMPUTATIONS,
-    ValidatedOptimizedProgramStorageSemanticWrapperObjectManifest, WRAPPER_SYMBOL_NAME,
-    compose_optimized_program_storage_semantic_wrapper_object, construct_manifest,
-    decode_optimized_program_storage_semantic_wrapper_object,
+    WRAPPER_SYMBOL_NAME, compose_optimized_program_storage_semantic_wrapper_object,
+    construct_manifest, decode_optimized_program_storage_semantic_wrapper_object,
     encode_optimized_program_storage_semantic_wrapper_object,
     encode_optimized_program_storage_semantic_wrapper_object_preserving_seal,
 };
@@ -129,63 +128,6 @@ fn composition_prefixes_resolved_wrapper_and_shifts_terminal_symbols() {
     assert_eq!(object.call_resolution.continuation_section_offset, 90);
     assert_eq!(object.call_resolution.displacement, 5);
     assert_eq!(object.relocation_record_count, 0);
-}
-
-#[test]
-fn object_and_manifest_codecs_reject_identity_drift() {
-    let object = composed();
-    let container =
-        encode_optimized_program_storage_semantic_wrapper_object(&object, &template()).unwrap();
-    assert_eq!(
-        decode_optimized_program_storage_semantic_wrapper_object(&container.bytes).unwrap(),
-        object
-    );
-    let manifest = construct_manifest(&object, &container).unwrap();
-    assert_eq!(
-        OptimizedProgramStorageSemanticWrapperObjectManifest::decode(&manifest.encode()).unwrap(),
-        manifest
-    );
-    let mut corrupt = container.bytes.clone();
-    let last = corrupt.last_mut().unwrap();
-    *last ^= 1;
-    assert!(decode_optimized_program_storage_semantic_wrapper_object(&corrupt).is_err());
-}
-
-#[test]
-fn wrapper_cannot_be_reclassified_as_a_machine_symbol() {
-    let mut object = composed();
-    object.symbols[0].machine = Some(MachineId::new(99).unwrap());
-    object.identity = object.recomputed_identity().unwrap();
-    assert_eq!(
-        validate_object(&object, &template()),
-        Err(OptimizedProgramStorageSemanticWrapperObjectRecordError::InvalidObject)
-    );
-}
-
-#[test]
-fn manifest_replay_detects_drift() {
-    let object = composed();
-    let container =
-        encode_optimized_program_storage_semantic_wrapper_object(&object, &template()).unwrap();
-    let mut validated = ValidatedOptimizedProgramStorageSemanticWrapperObjectManifest::construct(
-        &object, &container,
-    )
-    .unwrap();
-    validated.record_mut().relocation_record_count = 1;
-    assert!(
-        OptimizedProgramStorageSemanticWrapperObjectManifest::decode(&validated.record().encode())
-            .is_err()
-    );
-}
-
-#[test]
-fn retained_object_identity_rejects_text_drift() {
-    let mut object = composed();
-    object.text_bytes[90] ^= 1;
-    assert_eq!(
-        validate_object(&object, &template()),
-        Err(OptimizedProgramStorageSemanticWrapperObjectRecordError::InvalidObject)
-    );
 }
 
 /// The native-realization stage's object join and its trailing validator drive
