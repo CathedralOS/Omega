@@ -4177,76 +4177,54 @@ syntax and other terminal services are not prerequisites.
   Keep `package-evidence --test suite`'s public-domain and module-namespace controls;
   their catalog/review roundtrips do not establish Terminal or executable acceptance.
 
-- **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW.** Complete ordinary package review,
-  retained permissions, selected-mechanism classification and explicit receiver
-  admission under the
-  [production/admission split](wiki/spec/build/permissions.md#artifact-production-versus-receiver-admission)
-  and [filesystem policy](wiki/spec/build/permissions.md#portable-filesystem-control-and-lifecycle-authority).
-  No receiving permission policy means no admission claim, not denial or
-  approval. Project/package acceptance must not manufacture receiver approval.
+- **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW.** Deliver ordinary reviewed native
+  production for console-exit-app, Cathedral native smoke, `cli_mvp` and Squalr
+  under the [production/admission split](wiki/spec/build/permissions.md#artifact-production-versus-receiver-admission).
+  Preserve existing host successes and coordinate **SAMPLE-CORPUS** /
+  **SQUALR-HEADLESS**. No receiving policy means no admission claim; package
+  acceptance must not manufacture receiver approval. The registered CLI
+  `package_commands/console_exit_permission.rs` still allows publication or
+  `Selection(Legalization(SourceCustodyMismatch))`. Reproduce its current result,
+  repair the failing owner, and require the authored console line and exit 70.
 
-  The optional receiver-policy path and its acceptance/rejection controls exist.
-  Filesystem cohort emitters also have production callers:
-  `providers/settlements/source_imports.rs` emits mechanism classifications;
-  `omega-rust/omega/package-manager/src/review/candidate/semantic_bindings.rs` attaches
-  consumer permission rows. The merge in `02_abstract-operations-to-target-operations/src/provider_admission/mod.rs`
-  is a **mechanism-classification** policy, separate from the optional receiver
-  permission policy; preserve both exact identities.
+  - Connect the Linux x86-64 filesystem plan to native settlement and syscall
+    execution. `compiler/build-evaluation/src/provider_settlement/canonical_filesystem_host.rs`
+    already mints supported positional syscall rows; its integration test
+    inspects plans/provenance only. Linux x86-64/AArch64 calling plans exist,
+    but `DirectSyscallRealization` and an admitted `ToolchainSettled` execution
+    variant do not. Drive an actual `set_len` call through settlement, physical
+    selection, encoding and replay; the former compiler witness is gone.
+    Settle demanded `BoundaryCall`s exactly once. Retain argument/clobber and
+    provider-plan identities; reject unsupported targets or demanded leaves needing
+    unimplemented path/slice or host-error adaptations rather than guessing realizations.
+  - Preserve optional receiver admission and separate it from package-row
+    replay. `package-manager/src/operations/compile_project/tests/receiving_admission.rs`
+    covers retained native production with absent, denying, sufficient and
+    surplus policies using a minimal local Console provider. Its sufficient
+    policy comes from emitted leaves. The direct/retained paths still call
+    `provider_admission/terminal_authority_permissions.rs` to require receiver
+    rows equal package permissions. Reconcile that coupling with independent,
+    demand-based receiver containment, including sufficient differing permissions
+    and undemanded package rows; keep exact accepted-package replay separately.
+  - Finish exact [filesystem classifications](wiki/spec/build/permissions.md#portable-filesystem-control-and-lifecycle-authority)
+    through discovery, acceptance and admission. Cohort classifications already
+    emit from `provider_admission/settlements/source_imports.rs`; candidate
+    `semantic_bindings.rs` supplies permission proposals. Preserve their separate
+    identities. Remove the broad filesystem arm in
+    `package-manager/review-evidence/src/capture/authority.rs`, dependent
+    `src/review/audit/triage/` rendering and transitional
+    `standard_library_package_resolution.rs` assertions after exact replacement.
+    **FILESYSTEM-RELEASE-CONTRACT** owns occurrence-bound close evidence;
+    generic close and build observations cannot justify empty runtime authority.
 
-  A direct-syscall-transport blueprint is designed and partially implemented:
-  reuse `CallingPolicy::LinuxSyscallX86_64`/`LinuxSyscallAarch64`, demand-driven
-  provider-plan settlement for boundaries with an actual `BoundaryCall`,
-  per-arity syscall constraint rows, `DirectSyscallRealization`, and
-  `AdmittedBoundaryExecution::ToolchainSettled` through lowering and
-  provider-plan evidence binding. Resume branch:
-  `swarm/macw9-terminal-authority` at `5728d45a2f (revision absent from the repository)` (supersedes
-  `7f856f6d43 (revision absent from the repository)`): the macw9 leg carried the blueprint into a full
-  `direct_syscall` instruction family — selected-instruction identity,
-  legalization replay, scalar-graph selection, row encoding, aarch64 and
-  x86-64 form encoding, ABI call machinery across 176 files (+2913/−213),
-  still unvalidated at interrupt.
-
-  Remaining delivery:
-
-  - Connect the bounded Linux filesystem plan to native settlement transport.
-    `omega-rust/omega/compiler/build-evaluation/src/provider_settlement/canonical_filesystem_host.rs`
-    already mints accepted-schema plans for supported positional syscalls.
-    `compiler/tests/terminal_authority/filesystem_cohort_witness.rs` calls
-    `set_len` and now pins `MissingBoundarySettlement`, not zero provider rows.
-    Complete that native realization path without guessing unsupported target,
-    path/slice adaptation or host-error mechanisms. General provider planning
-    is not the missing implementation for this witness.
-    Preserve settled-provenance replay in
-    `omega-rust/omega/package-manager/review-evidence/src/capture/providers/policy/replay.rs`, including
-    changed settlement identity, authored-candidate substitution, and unsupported
-    demanded-leaf rejection. Do not exempt ordinary `UniqueCoveringCandidate` plans.
-  - Drive console-exit-app, Cathedral native smoke, `cli_mvp` and Squalr through
-    ordinary package acceptance to native production without receiver-policy
-    input. Coordinate their application owners, preserving existing host
-    successes and reporting actual remaining blockers. The CLI
-    `console_exit_permission` test currently accepts either nonempty output
-    or `Selection(Legalization(SourceCustodyMismatch))`; that green test is not
-    evidence of delivered native output. Resume at the physical legalization
-    owner if that rejection persists.
-  - Replace the broad filesystem review summary with exact classes through
-    discovery, retained acceptance, classification and admission. Then remove
-    the `FilesystemHostService` arm of
-    `packages/review/evidence/src/capture/authority.rs::dangerous_authority_class`,
-    dependent triage in `packages/manager/src/review/audit/triage/`, and the
-    transitional-row assertion in `standard_library_package_resolution.rs`.
-    **FILESYSTEM-RELEASE-CONTRACT** owns occurrence-bound release evidence;
-    generic close must not inherit an empty classification. Build filesystem
-    observations are not shipped-program lifecycle evidence.
-
-  Acceptance: all four customers produce without receiving input and make no
-  admission claim. The same demanding program rejects explicit denying input
-  and admits independently supplied sufficient input, retaining its exact
-  identity, including surplus undemanded rows. Every demanded leaf has one
-  exact mechanism/contract classification fitting service permissions;
-  unknown, conflicting/duplicate, cyclic or substituted classifications,
-  stale evidence and violated physical exclusions reject. Preserve explicit
-  empty classifications, service reach and exact review identity. No mandatory
-  PCC request or synthesized receiver-policy file.
+  Acceptance: all four customers produce without receiver input. Denying policies
+  reject; independently sufficient policies admit, retaining the supplied identity,
+  including surplus rows. Every demanded leaf has one exact mechanism/contract classification
+  fitting permissions. Unknown, duplicate/conflicting, cyclic or substituted
+  classifications, stale evidence and violated physical exclusions reject.
+  Preserve explicit empty classes, service reach, review identity and settled-plan
+  replay; ordinary `UniqueCoveringCandidate` plans remain subject to authored
+  replay. No mandatory PCC request or synthesized receiver-policy file.
 
 - **FILESYSTEM-RELEASE-CONTRACT.** Connect the program's checked open/query/close
   derivation to native authority classification under the
