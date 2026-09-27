@@ -1,6 +1,26 @@
 use crate::record::PackageReviewNominalIdentity;
 use crate::record::PackageReviewTypeIdentity;
 
+/// A checked body's exact top-level requirement association. Unlike trait
+/// conformance, this edge has no authored arguments: static and lifetime
+/// telescopes are matched positionally by conformance checking. The complete
+/// requirement overload remains distinct from an operator coordinate.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackageReviewRequirementRealization {
+    pub(crate) requirement_identity: PackageReviewNominalIdentity,
+    pub(crate) alias: Option<String>,
+}
+
+impl PackageReviewRequirementRealization {
+    pub const fn requirement_identity(&self) -> &PackageReviewNominalIdentity {
+        &self.requirement_identity
+    }
+
+    pub fn alias(&self) -> Option<&str> {
+        self.alias.as_deref()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewTraitRequirementParameter {
     pub(crate) name: String,

@@ -10,7 +10,7 @@ mod traits;
 
 pub use callables::{
     PackageReviewCallableConformance, PackageReviewCallableParameter,
-    PackageReviewTraitRequirementParameter,
+    PackageReviewRequirementRealization, PackageReviewTraitRequirementParameter,
 };
 pub use external_policy::{
     PackagePolicyEvaluatedBindingProducer, PackagePolicyExternalBinding,

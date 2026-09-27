@@ -63,6 +63,12 @@ impl PackagePolicyCallable {
         &self.operator_realizations
     }
 
+    pub fn requirement_realizations(
+        &self,
+    ) -> &[crate::record::PackageReviewRequirementRealization] {
+        &self.requirement_realizations
+    }
+
     pub fn contracts(&self) -> &[PackageReviewCallableContract] {
         &self.contracts
     }

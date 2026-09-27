@@ -95,6 +95,12 @@ pub(super) fn callable(reader: &mut Reader<'_>) -> Result<PackagePolicyCallable,
                 alias: reader.option(|reader| reader.string())?,
             })
         })?,
+        requirement_realizations: reader.sequence(1, |reader| {
+            Ok(crate::record::PackageReviewRequirementRealization {
+                requirement_identity: nominal(reader)?,
+                alias: reader.option(|reader| reader.string())?,
+            })
+        })?,
         contracts: reader.sequence(4, callable_contract)?,
         declared_service_reach: reader.option(|reader| reader.sequence(41, nominal))?,
         service_reach_dependency: PackagePolicyServiceReachDependency {

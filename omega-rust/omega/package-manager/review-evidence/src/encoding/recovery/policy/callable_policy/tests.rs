@@ -63,7 +63,7 @@ pub(in crate::encoding::recovery::policy) fn fixture() -> PackagePolicyCallables
             trait_identity: nominal_fixture("Inspect"), requirement_identity: nominal_fixture("Inspect::inspect"),
             requirement_lifetime_partition: vec![0], trait_lifetime_arguments: vec![1], arguments: Vec::new(), alias: Some("selected".into()),
         }],
-        operator_realizations: Vec::new(), contracts: Vec::new(), declared_service_reach: Some(Vec::new()),
+        operator_realizations: Vec::new(), requirement_realizations: Vec::new(), contracts: Vec::new(), declared_service_reach: Some(Vec::new()),
         service_reach_dependency: Default::default(),
         checked_service_reach: PackageReviewCheckedServiceReach::CheckedBody { realized: Vec::new(), concrete: Vec::new() },
         unresolved_installation_reaches: Vec::new(), declared_synchronous_invocations: Some(Vec::new()), realized_synchronous_invocations: Vec::new(),
@@ -142,6 +142,44 @@ fn callable_meaning_recovers_without_old_source_or_derivation_coordinates() {
         component(Component::Callables(&empty));
         assert_eq!(recover(&empty.canonical_bytes().unwrap()).unwrap(), empty);
     }
+}
+
+#[test]
+fn checked_requirement_association_round_trips_and_rejects_malformed_rows() {
+    let mut policy = fixture();
+    policy.callables[0].requirement_realizations =
+        vec![crate::record::PackageReviewRequirementRealization {
+            requirement_identity: nominal_fixture("exact requirement overload"),
+            alias: Some("chosen".into()),
+        }];
+    let bytes = policy.canonical_bytes().unwrap();
+    assert_eq!(recover(&bytes).unwrap(), policy);
+    component(Component::Callables(&policy));
+
+    let mut absent = policy.clone();
+    absent.callables[0].requirement_realizations.clear();
+    assert_ne!(absent.canonical_bytes().unwrap(), bytes);
+
+    let mut duplicate = policy.clone();
+    duplicate.callables[0]
+        .requirement_realizations
+        .push(policy.callables[0].requirement_realizations[0].clone());
+    assert!(recover(&unchecked_bytes(&duplicate)).is_err());
+
+    let mut unresolved = policy.clone();
+    unresolved.callables[0].requirement_realizations[0]
+        .requirement_identity
+        .owner = PackageReviewNominalOwner::Unresolved;
+    assert!(unresolved.canonical_bytes().is_err());
+
+    let mut empty_alias = policy.clone();
+    empty_alias.callables[0].requirement_realizations[0].alias = Some(String::new());
+    assert!(recover(&unchecked_bytes(&empty_alias)).is_err());
+
+    let mut bodyless = policy;
+    bodyless.callables[0].supply = PackageReviewCallableSupply::ExternalRealization;
+    bodyless.callables[0].checked_service_reach = PackageReviewCheckedServiceReach::NoCheckedBody;
+    assert!(recover(&unchecked_bytes(&bodyless)).is_err());
 }
 
 #[test]

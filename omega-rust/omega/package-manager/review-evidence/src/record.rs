@@ -174,8 +174,8 @@ pub use signatures::{
     PackageReviewExternalStaticParameter, PackageReviewForeignLocator,
     PackageReviewMachineParameterContract, PackageReviewMachineParameterSignature,
     PackageReviewMachineParameterValue, PackageReviewPropositionParameterSignature,
-    PackageReviewPropositionParameterValue, PackageReviewTraitCompositionKind,
-    PackageReviewTraitParent, PackageReviewTraitRequirement,
+    PackageReviewPropositionParameterValue, PackageReviewRequirementRealization,
+    PackageReviewTraitCompositionKind, PackageReviewTraitParent, PackageReviewTraitRequirement,
     PackageReviewTraitRequirementParameter, PackageReviewTraitShape, PackageReviewTypeIdentity,
     PackageReviewTypeParameter, PackageReviewTypeParameterKind,
 };

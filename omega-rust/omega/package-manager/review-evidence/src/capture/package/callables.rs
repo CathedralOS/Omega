@@ -3,7 +3,7 @@ use super::super::contracts::stand_downs::{
     project_package_contract_entailment_assumption_discharges,
     project_package_contract_entailment_open_obligations,
 };
-use super::super::semantics::declarations::nominal_identity;
+use super::super::semantics::declarations::{nominal_identity, top_level_requirement_identity};
 use super::super::source::contracts::project_contract_source_locations;
 use super::super::source::invocations::project_machine_invocation_source_locations;
 use super::super::source::parameters::{
@@ -57,7 +57,14 @@ pub(super) fn project_package_callables(
         let Some(role) = role else {
             continue;
         };
-        let owner = nominal_identity(compilation, machine.symbol)?;
+        // Required machine overloads share a family name, but each is a
+        // different public contract and canonical row. Use the same exact
+        // requirement identity retained by its checked/external suppliers.
+        let owner = if machine.supply_mode == MachineSupplyMode::TopLevelRequirement {
+            top_level_requirement_identity(compilation, machine)?
+        } else {
+            nominal_identity(compilation, machine.symbol)?
+        };
         match owner.owner {
             PackageReviewNominalOwner::Package(owner) if owner == package => {}
             PackageReviewNominalOwner::Package(_)

@@ -62,6 +62,7 @@ pub struct PackagePolicyCallable {
     pub(crate) return_type: Option<PackageReviewTypeIdentity>,
     pub(crate) conformances: Vec<PackagePolicyCallableConformance>,
     pub(crate) operator_realizations: Vec<PackageReviewOperatorRealization>,
+    pub(crate) requirement_realizations: Vec<crate::record::PackageReviewRequirementRealization>,
     pub(crate) contracts: Vec<PackageReviewCallableContract>,
     /// `Some` preserves a published ceiling, including an explicitly empty
     /// one. `None` is retained for the current ordinary build-machine form;

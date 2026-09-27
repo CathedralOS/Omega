@@ -1,3 +1,8 @@
+//! Top-level requirement associations retain machine overload identity.
+//! Checked bodies are revalidated against their requirement; external leaves
+//! retain separate executable-supply findings. Neither association chooses a
+//! provider: selected-provider policy independently replays that decision.
+
 use super::super::semantics::declarations::top_level_requirement_identity;
 use super::super::semantics::signatures::parameters::project_type_parameters;
 use super::external_supply::{
@@ -12,6 +17,41 @@ use crate::record::{
     PackageReviewExternalRequirement, PackageReviewNominalIdentity,
 };
 use diagnostics::Diagnostic;
+
+pub(super) fn project_checked_requirement_realization(
+    compilation: &PackageReviewInput<'_>,
+    machine: &typed_trees::machine::Machine,
+    conformance: &typed_trees::machine::TraitConformance,
+    requirement: &typed_trees::machine::Machine,
+) -> Result<crate::record::PackageReviewRequirementRealization, Vec<Diagnostic>> {
+    if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+        || !machine.body_is_present
+    {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{}` realizes top-level requirement `{}` without one checked implementation body",
+            machine.name, requirement.name,
+        ))]);
+    }
+    if !requirement.is_public {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{}` realizes non-public top-level requirement `{}` whose complete contract is absent from package review",
+            machine.name, requirement.name,
+        ))]);
+    }
+    validation::revalidate_top_level_requirement_realization(
+        &compilation.typed,
+        machine,
+        requirement,
+        conformance,
+    )?;
+    Ok(crate::record::PackageReviewRequirementRealization {
+        requirement_identity: top_level_requirement_identity(compilation, requirement)?,
+        alias: conformance
+            .alias
+            .as_ref()
+            .map(|alias| alias.as_str().to_owned()),
+    })
+}
 
 pub(super) fn project_top_level_requirement_external_supply(
     compilation: &PackageReviewInput<'_>,

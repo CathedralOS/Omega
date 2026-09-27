@@ -207,6 +207,12 @@ pub(super) fn validate(callable: &PackagePolicyCallable) -> Result {
             text(alias)?;
         }
     }
+    for realization in &callable.requirement_realizations {
+        nominal(&realization.requirement_identity)?;
+        if let Some(alias) = &realization.alias {
+            text(alias)?;
+        }
+    }
     Ok(())
 }
 
