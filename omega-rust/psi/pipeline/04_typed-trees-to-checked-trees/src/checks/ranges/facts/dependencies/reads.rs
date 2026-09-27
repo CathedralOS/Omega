@@ -1144,30 +1144,28 @@ struct RootCurrencyIndex {
     local_first: symbols::SymbolKeyMap<SymbolHandle, usize>,
 }
 
-fn root_currency_fingerprint(state: &State) -> usize {
-    (state.symbol.arena_index() as usize)
-        ^ (state.statement_nodes.start().arena_index() as usize).rotate_left(3)
-        ^ (state.statement_nodes.count() as usize).rotate_left(7)
-        ^ (state.parameters.start().arena_index() as usize).rotate_left(11)
-        ^ (state.parameters.count() as usize).rotate_left(13)
-}
+/// One state's identity inside a program for the slot key: its declared
+/// symbol plus the starts of its parameter and statement spans. Two states
+/// in one program can share a symbol in malformed input, but they can never
+/// share either span start — the spans are disjoint — and the program's
+/// identity separates instances across passes.
+type StateKey = (u32, u32, u32);
 
-fn statement_sample(program: &TypedTrees, state: &State, position: usize) -> usize {
-    let statements = program.statement_table.statements(state.statement_nodes);
-    match statements.get(position) {
-        Some(typed_trees::statement::StatementNode::LocalData(local)) => {
-            1usize ^ (local.symbol.arena_index() as usize).rotate_left(position as u32 + 2)
-        }
-        Some(_) => 2usize.rotate_left(position as u32 + 2),
-        None => 0,
-    }
+fn state_key(state: &State) -> StateKey {
+    (
+        state.symbol.arena_index(),
+        state.parameters.start().arena_index(),
+        state.statement_nodes.start().arena_index(),
+    )
 }
 
 /// `None` outside a [`RootCurrencyScope`]; inside one, the index built for
-/// the state last consulted. The owner is an address, and a later check pass
-/// can place a different state with matching samples at the same address, so
-/// an index never outlives the pass that built it.
-type RootCurrencySlot = Option<Option<(*const State, usize, RootCurrencyIndex)>>;
+/// the state last consulted, keyed by that state's stable identity and the
+/// program's structural fingerprint — an in-place rewrite of the state's
+/// parameters or statements, a roster re-point, or a different program
+/// entirely all move the key, so no state can ever inherit another's index.
+/// The scope's lifetime additionally keeps the cache inside one check pass.
+type RootCurrencySlot = Option<Option<(u64, u64, StateKey, RootCurrencyIndex)>>;
 
 thread_local! {
     static ROOT_CURRENCY: std::cell::RefCell<RootCurrencySlot> =
@@ -1214,14 +1212,9 @@ fn with_root_currency<R>(
     state: &State,
     read: impl FnOnce(&RootCurrencyIndex) -> R,
 ) -> R {
-    let fingerprint = root_currency_fingerprint(state)
-        ^ statement_sample(program, state, 0)
-        ^ statement_sample(program, state, (state.statement_nodes.count() as usize) / 2)
-        ^ statement_sample(
-            program,
-            state,
-            (state.statement_nodes.count() as usize).saturating_sub(1),
-        );
+    let identity = program.identity.get();
+    let fingerprint = program.structural_fingerprint();
+    let key = state_key(state);
     ROOT_CURRENCY.with(|cell| {
         let mut slot = cell.borrow_mut();
         let Some(scope) = &mut *slot else {
@@ -1229,17 +1222,20 @@ fn with_root_currency<R>(
             return read(&build_root_currency_index(program, state));
         };
         let stale = match scope.as_ref() {
-            Some((owner, seen, _)) => !std::ptr::eq(*owner, state) || *seen != fingerprint,
+            Some((owner, seen, state_owner, _)) => {
+                *owner != identity || *seen != fingerprint || *state_owner != key
+            }
             None => true,
         };
         if stale {
             *scope = Some((
-                state,
+                identity,
                 fingerprint,
+                key,
                 build_root_currency_index(program, state),
             ));
         }
-        read(&scope.as_ref().unwrap().2)
+        read(&scope.as_ref().unwrap().3)
     })
 }
 
