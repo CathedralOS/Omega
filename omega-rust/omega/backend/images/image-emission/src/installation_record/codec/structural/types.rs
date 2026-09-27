@@ -44,6 +44,10 @@ pub(crate) fn encode_structural_types(
                         bytes.extend_from_slice(&[2, 0, 0, 0]);
                         push_u64(bytes, *capacity);
                     }
+                    terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. } => {
+                        bytes.extend_from_slice(&[3, 0, 0, 0]);
+                        push_u64(bytes, *capacity);
+                    }
                 }
             }
             // Tag 8 matches the other structural-shape encoders

@@ -483,7 +483,8 @@ pub(super) fn bounded_byte_field_geometry(
                 terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity } => {
                     Some((offset, capacity))
                 }
-                terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => None,
+                terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                | terminal_psi::ByteSequenceCarrier::BoundedView { .. } => None,
             })
         },
     )
@@ -504,7 +505,8 @@ pub(super) fn borrowed_view_field_offset(
     byte_sequence_field_geometry(structural_type, path, declarations, cache, active).map(
         |geometry| {
             geometry.and_then(|(offset, carrier)| match carrier {
-                terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => Some(offset),
+                terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                | terminal_psi::ByteSequenceCarrier::BoundedView { .. } => Some(offset),
                 terminal_psi::ByteSequenceCarrier::BoundedOwned { .. } => None,
             })
         },
@@ -659,6 +661,9 @@ pub(super) fn byte_sequence_shape(
         // Current native targets are 64-bit. The semantic carrier
         // deliberately does not retain the physical descriptor fields.
         terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => 16_u64,
+        // A bounded view's extent lives in the declaration, so the descriptor
+        // is the bare referent pointer.
+        terminal_psi::ByteSequenceCarrier::BoundedView { .. } => 8_u64,
         terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity } => capacity
             .checked_add(8)
             .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?,

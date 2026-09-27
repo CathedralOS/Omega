@@ -190,7 +190,25 @@ fn block_parameter_argument(
 ) -> Result<TargetStructuralArgument, LegalizationError> {
     use semantic_vocabulary::StructuralPlaceKind;
     use target_operations::TargetStructuralArgumentSource;
-    let shape = ValueShape::borrowed_reference(16, 8);
+    // The block parameter rides the same referent the entrance published:
+    // a fat descriptor for a slice view, one pointer cell for a bounded view.
+    let referent_size = plan.structural_types.iter().find_map(|entry| {
+        (entry.id == declaration.structural_type)
+            .then(|| match &entry.shape {
+                terminal_psi::StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
+                ) => Some(16),
+                terminal_psi::StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedView { .. },
+                ) => Some(8),
+                _ => None,
+            })
+            .flatten()
+    });
+    let Some(referent_size) = referent_size else {
+        return Err(LegalizationError::custody());
+    };
+    let shape = ValueShape::borrowed_reference(referent_size, 8);
     if declaration.access != StructuralAccess::MutableBorrow
         || !matches!(
             semantic.access,
@@ -216,7 +234,7 @@ fn block_parameter_argument(
                     }
         })
         || !plan.structural_types.iter().any(|entry| {
-            entry.id == declaration.structural_type && entry.shape.is_borrowed_byte_view()
+            entry.id == declaration.structural_type && entry.shape.is_borrowed_byte_carrier()
         })
         || call
             .parameters

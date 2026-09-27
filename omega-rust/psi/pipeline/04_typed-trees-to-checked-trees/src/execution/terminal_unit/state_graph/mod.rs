@@ -10,17 +10,17 @@
 //! `local_results`). Finally the parameter custody of live states and the
 //! provider attachment requirements are checked.
 use super::{
-    CheckFacts, CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan,
-    CheckedComposedUnitControlTerminatorPlan, CheckedGuardedJumpPlan, CheckedScalarBinding,
-    CheckedScalarBindingValue, CheckedScalarExpression, CheckedScalarExpressionRole,
-    CheckedStructuralAccess, CheckedStructuralControlSuccessorPlan,
-    CheckedStructuralControlTransferPlan, CheckedStructuralScalarArgumentPlan,
-    CheckedStructuralScalarParameterPlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment, ExpressionNode,
-    Multiplicity, PermissionEventKind, PermissionEventSource, PrimitiveType, StatementNode,
-    TransitionExit, TransitionGuardNode, TransitionTargetNode, TypeReferenceNode, TypedTrees,
-    calls,
+    CheckFacts, CheckedByteSequenceCarrier, CheckedComposedUnitControlMachinePlan,
+    CheckedComposedUnitControlStatePlan, CheckedComposedUnitControlTerminatorPlan,
+    CheckedGuardedJumpPlan, CheckedScalarBinding, CheckedScalarBindingValue,
+    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStructuralAccess,
+    CheckedStructuralControlSuccessorPlan, CheckedStructuralControlTransferPlan,
+    CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarParameterPlan,
+    CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentPlan,
+    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
+    CheckedUnitStructuralPathSegment, ExpressionNode, Multiplicity, PermissionEventKind,
+    PermissionEventSource, PrimitiveType, StatementNode, TransitionExit, TransitionGuardNode,
+    TransitionTargetNode, TypeReferenceNode, TypedTrees, calls,
 };
 use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::calls::{
@@ -567,11 +567,8 @@ pub(super) fn build_traced(
                             )
                     );
                     if !borrowed_named_referent
-                        && !checked_trees::is_borrowed_view(byte_sequence_carrier(
-                            program,
-                            reference,
-                            &[],
-                        ))
+                        && !byte_sequence_carrier(program, reference, &[])
+                            .is_some_and(CheckedByteSequenceCarrier::is_borrowed)
                         && borrowed_slice_view_element(program, reference, &[]).is_none()
                     {
                         trace.phase(

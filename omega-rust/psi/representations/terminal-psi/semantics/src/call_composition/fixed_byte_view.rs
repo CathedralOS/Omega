@@ -61,7 +61,10 @@ pub fn fixed_byte_array_window<'types, 'path>(
             declaration.id == expected.structural_type
                 && matches!(
                     declaration.shape,
-                    StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
+                    StructuralTypeShape::ByteSequence(
+                        ByteSequenceCarrier::BorrowedView { .. }
+                            | ByteSequenceCarrier::BoundedView { .. }
+                    )
                 )
         })
     {
@@ -73,6 +76,27 @@ pub fn fixed_byte_array_window<'types, 'path>(
         }
         _ => (argument.path.as_slice(), None),
     };
+    let bounded_capacity = types.clone().find_map(|declaration| {
+        match (
+            declaration.id == expected.structural_type,
+            &declaration.shape,
+        ) {
+            (
+                true,
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
+                    capacity,
+                    ..
+                }),
+            ) => Some(*capacity),
+            _ => None,
+        }
+    });
+    // A `&mut [u8; N]` borrows the whole fixed backing — a ranged
+    // presentation or a different declared extent can never satisfy its
+    // bound.
+    if bounded_capacity.is_some() && range.is_some() {
+        return None;
+    }
     if !backing_path
         .iter()
         .all(|segment| matches!(segment, StructuralPathSegment::Field(_)))
@@ -81,6 +105,29 @@ pub fn fixed_byte_array_window<'types, 'path>(
     }
     let declaration =
         runtime_structural_path_tip(types.clone(), actual.structural_type, backing_path)?;
+    // A bounded-view source is already the whole-backing byte window: its
+    // element is the implicit u8 and its capacity is the backing extent.
+    if let StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
+        capacity, ..
+    }) = declaration.shape
+    {
+        if capacity == 0 {
+            return None;
+        }
+        let (start, end) = range.unwrap_or((0, capacity));
+        if start > end || end > capacity {
+            return None;
+        }
+        if bounded_capacity.is_some_and(|expected_capacity| expected_capacity != end - start) {
+            return None;
+        }
+        return Some(FixedByteArrayWindow {
+            backing_path,
+            backing_length: capacity,
+            offset: start,
+            length: end - start,
+        });
+    }
     let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
         return None;
     };
@@ -97,6 +144,9 @@ pub fn fixed_byte_array_window<'types, 'path>(
         {
             let (start, end) = range.unwrap_or((0, length));
             if start > end || end > length {
+                return None;
+            }
+            if bounded_capacity.is_some_and(|capacity| capacity != end - start) {
                 return None;
             }
             Some(FixedByteArrayWindow {

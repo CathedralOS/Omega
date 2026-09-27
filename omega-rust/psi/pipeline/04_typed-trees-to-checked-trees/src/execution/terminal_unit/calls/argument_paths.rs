@@ -715,11 +715,10 @@ pub(crate) fn ordinary_projected_call_is_supported(
                             && ((source.multiplicity == Multiplicity::Unrestricted && borrow_path)
                                 || ((field_path
                                     || indexed_fields.is_some_and(|fields| !fields.is_empty()))
-                                    && checked_trees::is_borrowed_view(byte_sequence_carrier(
-                                        program,
-                                        target.type_reference,
-                                        &[],
-                                    ))))
+                                    && byte_sequence_carrier(program, target.type_reference, &[])
+                                        .is_some_and(
+                                            checked_trees::CheckedByteSequenceCarrier::is_borrowed,
+                                        )))
                     }
                     CheckedStructuralAccess::WriteOnlyBorrow => {
                         matches!(

@@ -227,7 +227,7 @@ impl TerminalExecution {
                     && self
                         .structural_types
                         .get(&parameter.structural_type)
-                        .is_some_and(|declaration| declaration.shape.is_borrowed_byte_view())
+                        .is_some_and(|declaration| declaration.shape.is_borrowed_byte_carrier())
             })
         {
             // Share only exact referent preparation. External buffer staging and

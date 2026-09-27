@@ -332,6 +332,9 @@ fn replay_structural_field_shape(
         terminal_psi::StructuralFieldType::ByteSequence(carrier) => {
             let byte_size = match carrier {
                 terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => 16,
+                // A bounded view's extent lives in the declaration; the stored
+                // descriptor is the bare referent pointer.
+                terminal_psi::ByteSequenceCarrier::BoundedView { .. } => 8,
                 terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity } => {
                     capacity.checked_add(8)?.try_into().ok()?
                 }

@@ -56,10 +56,12 @@ impl TerminalExecution {
                     root_type,
                     &path[..position],
                 )?;
-                let StructuralTypeShape::FixedArray { length, .. } =
-                    self.structural_types.get(&array).ok_or_else(invalid)?.shape
-                else {
-                    return Err(invalid());
+                let length = match self.structural_types.get(&array).ok_or_else(invalid)?.shape {
+                    StructuralTypeShape::FixedArray { length, .. } => length,
+                    StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. },
+                    ) => capacity,
+                    _ => return Err(invalid()),
                 };
                 let element =
                     terminal_semantics::runtime_index_selects(value, length).ok_or_else(invalid)?;

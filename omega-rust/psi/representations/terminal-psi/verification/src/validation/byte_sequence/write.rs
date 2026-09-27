@@ -45,6 +45,7 @@ pub(in crate::validation) fn validate_destination(
                     declaration.shape,
                     StructuralTypeShape::ByteSequence(
                         terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                            | terminal_psi::ByteSequenceCarrier::BoundedView { .. }
                     )
                 )
         })

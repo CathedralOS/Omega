@@ -317,12 +317,28 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                     TypeReferenceNode::FixedArray {
                         element_type,
                         length: checked_trees::types::FixedArrayLength::Literal(length),
-                    } => checked_trees::CheckedUnitStructuralTypeShape::FixedArray {
-                        element_type_identity: checked
-                            .normalized_type_identity(*element_type)
-                            .into_string(),
-                        length: *length as u64,
-                    },
+                    } => {
+                        if checked.primitive_type_reference(*element_type)
+                            == Some(PrimitiveType::U8)
+                        {
+                            // A borrowed fixed byte array registers the
+                            // bounded view carrier: its extent comes from the
+                            // declared length, not the referent's storage.
+                            checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
+                                checked_trees::CheckedByteSequenceCarrier::BoundedView {
+                                    access: None,
+                                    capacity: *length as u64,
+                                },
+                            )
+                        } else {
+                            checked_trees::CheckedUnitStructuralTypeShape::FixedArray {
+                                element_type_identity: checked
+                                    .normalized_type_identity(*element_type)
+                                    .into_string(),
+                                length: *length as u64,
+                            }
+                        }
+                    }
                     _ => {
                         let referent_identity =
                             checked.normalized_type_identity(referee).into_string();
@@ -360,7 +376,15 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                         _ => checked_trees::CheckedStructuralAccess::SharedBorrow,
                     }
                 || parameter.fused_service_erasure.is_some()
-                || checked.normalized_type_identity(referee).as_str() != parameter.type_identity
+                || (checked.normalized_type_identity(referee).as_str()
+                    != parameter.type_identity
+                    // A bounded byte carrier registers under its authored
+                    // reference identity; every other borrowed view peels the
+                    // reference shell, so both spellings are source-exact.
+                    && checked
+                        .normalized_type_identity(source.type_reference)
+                        .as_str()
+                        != parameter.type_identity)
             {
                 return unsupported("Unit graph view type or authority disagrees with source");
             }

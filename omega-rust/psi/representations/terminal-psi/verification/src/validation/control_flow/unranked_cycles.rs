@@ -86,15 +86,21 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
                         || ((parameter.access == StructuralAccess::SharedBorrow
                             || (parameter.access == StructuralAccess::MutableBorrow
                                 && (machine.result == TerminalMachineResult::Unit
-                                    || scalar_case_result)))
+                                    || scalar_case_result
+                                    // A scalar result moves no custody — the
+                                    // borrowed carrier's cycle reads and writes
+                                    // carry the identical proof as `Unit`.
+                                    || machine.result.scalar().is_some())))
                             && module.structural_types.iter().any(|declaration| {
                                 declaration.id == parameter.structural_type
-                                    && matches!(
+                                    && (matches!(
                                         declaration.shape,
-                                        StructuralTypeShape::ByteSequence(
-                                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                                        ) | StructuralTypeShape::ElementView { .. }
-                                    )
+                                        StructuralTypeShape::ByteSequence(carrier)
+                                        if carrier.is_borrowed()
+                                    ) || matches!(
+                                        declaration.shape,
+                                        StructuralTypeShape::ElementView { .. }
+                                    ))
                             }))))
         })
         || machine.structural_places.iter().any(|place| {

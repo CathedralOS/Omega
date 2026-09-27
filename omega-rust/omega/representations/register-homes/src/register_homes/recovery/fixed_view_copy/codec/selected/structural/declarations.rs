@@ -233,6 +233,14 @@ fn encode_byte_sequence_carrier(bytes: &mut Vec<u8>, carrier: ByteSequenceCarrie
                 None => bytes.push(0),
             }
         }
+        ByteSequenceCarrier::BoundedView { access, capacity } => {
+            bytes.push(3);
+            match access {
+                Some(access) => encode_access(bytes, access),
+                None => bytes.push(0),
+            }
+            bytes.extend_from_slice(&capacity.to_le_bytes());
+        }
         ByteSequenceCarrier::BoundedOwned { capacity } => {
             bytes.push(2);
             bytes.extend_from_slice(&capacity.to_le_bytes());
@@ -251,6 +259,13 @@ fn decode_byte_sequence_carrier(
             },
         }),
         2 => Ok(ByteSequenceCarrier::BoundedOwned {
+            capacity: cursor.u64()?,
+        }),
+        3 => Ok(ByteSequenceCarrier::BoundedView {
+            access: match cursor.byte()? {
+                0 => None,
+                tag => Some(access_from_tag(tag)?),
+            },
             capacity: cursor.u64()?,
         }),
         tag => Err(FixedViewCopyDecodeError::UnknownByteSequenceCarrier(tag)),

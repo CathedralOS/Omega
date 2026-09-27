@@ -82,14 +82,53 @@ pub(in crate::lowering) fn is_byte_parameter(
         && parameter.projected_qualifications.is_empty()
         && structural_types
             .get(&parameter.structural_type)
-            .is_some_and(|declaration| {
-                matches!(
-                    declaration.shape,
-                    StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                    )
-                )
-            })
+            .is_some_and(|declaration| declaration.shape.is_borrowed_byte_carrier())
+}
+
+/// The borrowed-referent byte size a byte-view parameter's placement must
+/// carry: the fat descriptor for a slice view, the single pointer cell for a
+/// bounded view.
+pub(in crate::lowering) fn byte_view_referent_size(
+    parameter: &terminal_psi::StructuralParameterDeclaration,
+    structural_types: &StructuralTypeLookup<'_>,
+) -> Option<u16> {
+    match structural_types.get(&parameter.structural_type)?.shape {
+        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+            ..
+        }) => Some(16),
+        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedView {
+            ..
+        }) => Some(8),
+        _ => None,
+    }
+}
+
+/// The declared capacity of a place whose parameter carries a bounded view —
+/// its extent is static, so a length observation lowers to a constant rather
+/// than a descriptor load.
+fn bounded_view_capacity(
+    function: &AbstractFunction,
+    structural_types: &StructuralTypeLookup<'_>,
+    place: PlaceId,
+) -> Option<u64> {
+    let structural_type = function
+        .structural_parameters
+        .iter()
+        .chain(
+            function
+                .block_entries
+                .iter()
+                .flat_map(|entry| entry.structural_parameters.iter()),
+        )
+        .find(|parameter| parameter.place == place)?
+        .structural_type;
+    match &structural_types.get(&structural_type)?.shape {
+        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedView {
+            capacity,
+            ..
+        }) => Some(*capacity),
+        _ => None,
+    }
 }
 
 /// Mutable views are only whole machine or block parameters, never subslices.
@@ -137,7 +176,11 @@ pub(in crate::lowering) fn mutable_parameter_view(
         || parameter.access != semantic.access
         || parameter.multiplicity != semantic.multiplicity
         || parameter.projected_qualifications != semantic.projected_qualifications
-        || parameter.shape != ValueShape::borrowed_reference(16, 8)
+        || parameter.shape
+            != ValueShape::borrowed_reference(
+                byte_view_referent_size(semantic, structural_types).ok_or_else(invalid)?,
+                8,
+            )
     {
         return Err(invalid());
     }
@@ -214,6 +257,24 @@ pub(in crate::lowering) fn lower_byte_observation_with_lengths(
     let ScalarType::Integer(scalar_type) = result.scalar_type else {
         return Err(invalid());
     };
+    if let AbstractOperation::ByteSequenceLength { .. } = operation
+        && let Some(capacity) = bounded_view_capacity(function, structural_types, source)
+    {
+        // The bounded view's extent is declared on the type — there is no
+        // descriptor field to load it from.
+        insert_value(
+            values,
+            result.value,
+            KnownScalar::Integer {
+                scalar_type,
+                value: KnownInteger::Immediate(semantic_vocabulary::IntegerValue::Unsigned(
+                    u128::from(capacity),
+                )),
+            },
+        )?;
+        provenance.push(psi_operation);
+        return Ok(true);
+    }
     let expression = match operation {
         AbstractOperation::ByteSequenceLength { .. } => {
             if scalar_type.sign() != IntegerSign::Unsigned || scalar_type.bits() != 64 {
@@ -335,7 +396,11 @@ pub(in crate::lowering) fn view_for_place(
             || parameter.access != semantic.access
             || parameter.multiplicity != semantic.multiplicity
             || parameter.projected_qualifications != semantic.projected_qualifications
-            || parameter.shape != ValueShape::borrowed_reference(16, 8)
+            || parameter.shape
+                != ValueShape::borrowed_reference(
+                    byte_view_referent_size(semantic, structural_types).ok_or_else(invalid)?,
+                    8,
+                )
         {
             return Err(invalid());
         }

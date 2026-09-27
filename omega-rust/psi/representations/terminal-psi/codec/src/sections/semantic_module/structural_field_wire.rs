@@ -153,6 +153,16 @@ pub(crate) fn encode_byte_sequence_carrier(writer: &mut Writer, carrier: ByteSeq
                 None => writer.u8(0),
             }
         }
+        ByteSequenceCarrier::BoundedView { access, capacity } => {
+            writer.u8(3);
+            match access {
+                Some(access) => {
+                    super::structural_signature_wire::encode_structural_access(writer, access);
+                }
+                None => writer.u8(0),
+            }
+            writer.u64(capacity);
+        }
         ByteSequenceCarrier::BoundedOwned { capacity } => {
             writer.u8(2);
             writer.u64(capacity);
@@ -175,6 +185,17 @@ pub(crate) fn decode_byte_sequence_carrier(
             },
         }),
         2 => Ok(ByteSequenceCarrier::BoundedOwned {
+            capacity: reader.u64()?,
+        }),
+        3 => Ok(ByteSequenceCarrier::BoundedView {
+            access: match reader.u8()? {
+                0 => None,
+                1 => Some(terminal_psi::StructuralAccess::Owned),
+                2 => Some(terminal_psi::StructuralAccess::SharedBorrow),
+                3 => Some(terminal_psi::StructuralAccess::MutableBorrow),
+                4 => Some(terminal_psi::StructuralAccess::WriteOnlyBorrow),
+                tag => return Err(CodecError::InvalidTag("StructuralAccess", tag)),
+            },
             capacity: reader.u64()?,
         }),
         tag => Err(CodecError::InvalidTag("ByteSequenceCarrier", tag)),

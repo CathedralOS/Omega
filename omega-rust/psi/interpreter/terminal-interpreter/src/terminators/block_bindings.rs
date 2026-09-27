@@ -353,7 +353,7 @@ impl TerminalExecution {
                         return Err(TerminalInterpretError::VerifiedOperationMalformed);
                     }
                     if matches!(self.structural_types.get(&parameter.structural_type), Some(declaration)
-                                            if declaration.shape.is_borrowed_byte_view())
+                                            if declaration.shape.is_borrowed_byte_carrier())
                     {
                         // Borrowed byte views join whole: the argument names
                         // an untracked view root with no projection.
@@ -409,7 +409,7 @@ impl TerminalExecution {
                 StructuralAccess::MutableBorrow => {
                     if parameter.multiplicity != StructuralMultiplicity::Unrestricted
                         || !matches!(self.structural_types.get(&parameter.structural_type), Some(declaration)
-                                                    if declaration.shape.is_borrowed_byte_view())
+                                                    if declaration.shape.is_borrowed_byte_carrier())
                         || self.live_affine_frontier.iter().any(|entry| {
                             entry.place == argument.place || entry.place == parameter.place
                         })

@@ -333,7 +333,7 @@ pub(crate) fn exact_borrowed_projection(
         // An inline bounded byte field presents the callee's borrowed byte
         // view: the field has no catalog identity of its own, so the record
         // walk supplies the offset and the destination supplies the view type.
-        let Some((byte_offset, _capacity)) =
+        let Some((byte_offset, field_capacity)) =
             crate::object_artifact::replay::structural::condition_layout::replay_bounded_byte_field(
                 source.structural_type,
                 &argument.path,
@@ -342,16 +342,27 @@ pub(crate) fn exact_borrowed_projection(
         else {
             return false;
         };
-        let destination_is_byte_view = structural_types.iter().any(|declaration| {
-            declaration.id == destination.structural_type
-                && declaration.shape.is_borrowed_byte_view()
-        });
-        if !destination_is_byte_view {
+        // The presented view's referent cell and static bound come from the
+        // destination carrier: a slice view stages a fat descriptor, a
+        // bounded view a single pointer to the whole field.
+        let Some(referent_size) = structural_types.iter().find_map(|declaration| {
+            (declaration.id == destination.structural_type)
+                .then(|| match &declaration.shape {
+                    terminal_psi::StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
+                    ) => Some(16),
+                    terminal_psi::StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. },
+                    ) if *capacity == field_capacity => Some(8),
+                    _ => None,
+                })
+                .flatten()
+        }) else {
             return false;
-        }
+        };
         (
             destination.structural_type,
-            ValueShape::borrowed_reference(16, 8),
+            ValueShape::borrowed_reference(referent_size, 8),
             byte_offset,
         )
     };

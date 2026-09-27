@@ -636,11 +636,17 @@ pub(crate) fn lower_destination_path(
     path: &[CheckedUnitStructuralPathSegment],
     types: &[StructuralTypeDeclaration],
 ) -> Result<(Vec<ProjectionStep>, ScalarType), LoweringError> {
-    let (steps, structural_type) = walk_path(structural_type, path, types)?;
-    let StructuralTypeShape::PrimitiveScalar(scalar_type) =
-        unique_type(types, structural_type)?.shape
-    else {
-        return unsupported("primitive projection does not end at a primitive scalar");
+    let (steps, walked) = walk_path(structural_type, path, types)?;
+    let scalar_type = match walked {
+        Walked::Declared(structural_type) => {
+            let StructuralTypeShape::PrimitiveScalar(scalar_type) =
+                unique_type(types, structural_type)?.shape
+            else {
+                return unsupported("primitive projection does not end at a primitive scalar");
+            };
+            scalar_type
+        }
+        Walked::ByteElement => terminal_scalar_type(PrimitiveType::U8)?,
     };
     Ok((steps, scalar_type))
 }
@@ -668,7 +674,10 @@ pub(crate) fn lower_indexed_path(
     path: &[CheckedUnitStructuralPathSegment],
     types: &[StructuralTypeDeclaration],
 ) -> Result<(Vec<terminal_psi::StructuralPathSegment>, ScalarType), LoweringError> {
-    let (steps, structural_type) = walk_path(structural_type, path, types)?;
+    let (steps, walked) = walk_path(structural_type, path, types)?;
+    let Walked::Declared(structural_type) = walked else {
+        return unsupported("indexed primitive projection does not end at a fixed array");
+    };
     let StructuralTypeShape::FixedArray { element, .. } =
         unique_type(types, structural_type)?.shape
     else {
@@ -688,21 +697,32 @@ pub(crate) fn lower_indexed_path(
 /// against its declared record, and return the steps and the structural
 /// type they select. Each runtime element names a distinct selector of the
 /// assignment's target.
+/// The walk's current position: a declared structural type, or a byte
+/// carrier's element — the u8 scalar that rides no declared identity.
+enum Walked {
+    Declared(StructuralTypeId),
+    ByteElement,
+}
+
 fn walk_path(
-    mut structural_type: StructuralTypeId,
+    structural_type: StructuralTypeId,
     path: &[CheckedUnitStructuralPathSegment],
     types: &[StructuralTypeDeclaration],
-) -> Result<(Vec<ProjectionStep>, StructuralTypeId), LoweringError> {
+) -> Result<(Vec<ProjectionStep>, Walked), LoweringError> {
     use terminal_psi::StructuralPathSegment as Segment;
+    let mut walked = Walked::Declared(structural_type);
     let mut result = Vec::with_capacity(path.len());
     let mut visited = Vec::new();
     for segment in path {
+        let Walked::Declared(structural_type) = walked else {
+            return unsupported("primitive projection descends below a byte element");
+        };
         if visited.contains(&structural_type) {
             return unsupported("primitive projection has a cyclic carrier");
         }
         visited.push(structural_type);
         let declaration = unique_type(types, structural_type)?;
-        structural_type = match (segment, &declaration.shape) {
+        walked = match (segment, &declaration.shape) {
             (
                 CheckedUnitStructuralPathSegment::Field(identity),
                 StructuralTypeShape::Record { fields },
@@ -727,14 +747,14 @@ fn walk_path(
                 result.push(ProjectionStep::Static(Segment::Field(
                     field.identity.clone(),
                 )));
-                child
+                Walked::Declared(child)
             }
             (
                 CheckedUnitStructuralPathSegment::FixedIndex(index),
                 StructuralTypeShape::FixedArray { element, length },
             ) if index < length => {
                 result.push(ProjectionStep::Static(Segment::FixedIndex(*index)));
-                *element
+                Walked::Declared(*element)
             }
             (
                 CheckedUnitStructuralPathSegment::RuntimeIndex(
@@ -743,7 +763,38 @@ fn walk_path(
                 StructuralTypeShape::FixedArray { element, .. },
             ) if !result.contains(&ProjectionStep::AssignmentIndex { depth: *depth }) => {
                 result.push(ProjectionStep::AssignmentIndex { depth: *depth });
-                *element
+                Walked::Declared(*element)
+            }
+            (
+                segment @ (CheckedUnitStructuralPathSegment::FixedIndex(_)
+                | CheckedUnitStructuralPathSegment::RuntimeIndex(
+                    checked_trees::CheckedRuntimeIndex::AssignmentIndex { .. },
+                )),
+                StructuralTypeShape::ByteSequence(carrier),
+            ) => {
+                match segment {
+                    CheckedUnitStructuralPathSegment::FixedIndex(index) => {
+                        if let terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. } =
+                            carrier
+                            && *index >= *capacity
+                        {
+                            return unsupported(
+                                "primitive projection has an incompatible or out-of-bounds path",
+                            );
+                        }
+                        result.push(ProjectionStep::Static(Segment::FixedIndex(*index)));
+                    }
+                    CheckedUnitStructuralPathSegment::RuntimeIndex(
+                        checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth },
+                    ) => {
+                        let step = ProjectionStep::AssignmentIndex { depth: *depth };
+                        if !result.contains(&step) {
+                            result.push(step);
+                        }
+                    }
+                    _ => {}
+                }
+                Walked::ByteElement
             }
             _ => {
                 return unsupported(
@@ -752,7 +803,7 @@ fn walk_path(
             }
         };
     }
-    Ok((result, structural_type))
+    Ok((result, walked))
 }
 
 fn unique_type(

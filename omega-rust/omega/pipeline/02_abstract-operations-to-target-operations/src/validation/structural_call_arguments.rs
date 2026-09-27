@@ -3423,7 +3423,7 @@ fn matches_bounded_byte_field(
     root: &RootDeclaration,
     declarations: &[StructuralTypeDeclaration],
 ) -> bool {
-    let Ok((field_offset, _capacity)) = structural_shapes::bounded_byte_field_geometry(
+    let Ok((field_offset, field_capacity)) = structural_shapes::bounded_byte_field_geometry(
         root.structural_type,
         &actual.path,
         declarations,
@@ -3443,7 +3443,18 @@ fn matches_bounded_byte_field(
             StructuralAccess::SharedBorrow
         )
     ) && declarations.iter().any(|declaration| {
-        declaration.id == actual.structural_type && declaration.shape.is_borrowed_byte_view()
+        declaration.id == actual.structural_type
+            && match &declaration.shape {
+                StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
+                ) => true,
+                // A bounded view borrows the whole field: the declared
+                // capacity must equal the field's fixed extent.
+                StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. },
+                ) => *capacity == field_capacity,
+                _ => false,
+            }
     }) && actual.source_byte_offset == field_offset
         && actual.fixed_array_length.is_none()
         && actual.element_stride.is_none()

@@ -2817,13 +2817,22 @@ pub(crate) fn byte_sequence_carrier(
         TypeReferenceNode::FixedArray {
             element_type,
             length: typed_trees::types::FixedArrayLength::Literal(capacity),
-        } if borrowed.is_none()
-            && has_domain
-            && program.primitive_type_reference(*element_type) == Some(PrimitiveType::U8) =>
-        {
-            Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned {
-                capacity: u64::try_from(*capacity).ok()?,
-            })
+        } if program.primitive_type_reference(*element_type) == Some(PrimitiveType::U8) => {
+            match borrowed {
+                // A borrowed reference to a fixed array keeps the referent in
+                // the caller's frame; its extent is the declaration's literal
+                // length rather than a stored descriptor field.
+                Some(access) => Some(checked_trees::CheckedByteSequenceCarrier::BoundedView {
+                    access: Some(access.into()),
+                    capacity: u64::try_from(*capacity).ok()?,
+                }),
+                None if has_domain => {
+                    Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned {
+                        capacity: u64::try_from(*capacity).ok()?,
+                    })
+                }
+                None => None,
+            }
         }
         _ => None,
     }

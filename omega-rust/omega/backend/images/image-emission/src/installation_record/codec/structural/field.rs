@@ -64,9 +64,12 @@ pub(crate) fn encode_structural_field(
             bytes.push(match carrier {
                 ByteSequenceCarrier::BorrowedView { .. } => 1,
                 ByteSequenceCarrier::BoundedOwned { .. } => 2,
+                ByteSequenceCarrier::BoundedView { .. } => 3,
             });
             bytes.push(0);
-            if let ByteSequenceCarrier::BoundedOwned { capacity } = carrier {
+            if let ByteSequenceCarrier::BoundedOwned { capacity }
+            | ByteSequenceCarrier::BoundedView { capacity, .. } = carrier
+            {
                 push_u64(bytes, *capacity);
             }
         }
@@ -182,6 +185,12 @@ pub(crate) fn decode_structural_field(
                     access: Some(terminal_psi::StructuralAccess::SharedBorrow),
                 },
                 2 => ByteSequenceCarrier::BoundedOwned {
+                    capacity: reader.u64()?,
+                },
+                // This wire keeps the field's capacity but not its bound
+                // access — the same convention the borrowed view row uses.
+                3 => ByteSequenceCarrier::BoundedView {
+                    access: None,
                     capacity: reader.u64()?,
                 },
                 _ => return Err(InstallationError::InvalidStructuralTypeShape),
