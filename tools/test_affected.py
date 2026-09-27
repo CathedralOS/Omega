@@ -39,7 +39,7 @@ SOURCE_READERS = {
 # Audited Markdown locations, not a blanket extension exclusion: Markdown in
 # tests/omega/packages is executable test input.
 DOCUMENTATION_FILES = {
-    "AGENTS.md", "CONTRIBUTING.md", "CLAUDE.md", "README.md", "OWNER_QUESTIONS.md",
+    "AGENTS.md", "CLAUDE.md", "README.md", "OWNER_QUESTIONS.md",
     "TASKS.md", "TASKS_BOOTSTRAP.md", "TASKS_OPTIMIZER.md",
     "tools/claims.md", "tools/landing.md", "tools/release_matrix.md",
     "tools/rust_producer_omission.md", "tools/testing.md",

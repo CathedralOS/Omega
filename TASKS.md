@@ -34,7 +34,7 @@ moves. The checker understands relative and brace-alternative citations and
 exits nonzero while dead paths remain. A missing anchor needs its surrounding
 claim audited against current code, not merely a path substitution.
 
-[CONTRIBUTING.md](CONTRIBUTING.md#workflow) governs task provenance, scoped checks, claims,
+[AGENTS.md](AGENTS.md) governs task provenance, scoped checks, claims,
 strategy pauses and publication. Live assignments belong in the
 [claims registry](tools/claims.md), not the board. A paused strategy is not a
 blocked language feature. Genuine owner decisions belong in
