@@ -4451,91 +4451,63 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   `nqueens` frame controls; finite permutations must not become opaque merely
   because a state parameter changes position.
 
-- **TPR6.** Finish exact subject-bearing progress-premise normalization through
-  exported bodies, provider plans, recursive calls and artifact evidence under
-  [subject preservation](wiki/spec/language/termination.md#subject-preservation).
-  Private ranking witnesses remain outside public identity; a qualification
-  or similarly shaped row cannot mint a premise.
+- **TPR6.** Complete exact progress-subject transport through calls, state
+  arrivals, private recursive components, exported contracts and provider/artifact
+  evidence under [subject preservation](wiki/spec/language/termination.md#subject-preservation).
+  Private ranking witnesses stay outside public identity; lineage transports an
+  existing live qualification and cannot establish one.
 
-  Extend the shared backward provenance trace and finite lineage partitions in
-  `04_typed-trees-to-checked-trees/src/checks/termination/progress/`
-  (`origins.rs`, `lineage.rs`, `lineage/places.rs`) and `flow/value_origins.rs`.
-  Owned loads through references and exact written callee projections already
-  recover their actual replacement input. Remaining gaps are additional reference
-  boundaries lacking independent load evidence, unresolved control-flow result
-  routes, generic/dispatched callees and dynamic/unresolved projections.
-  Both finite-alternative gaps are read (237329e986, a2ea77c29c (revision not on main), 245a41fe2e).
-  A guarded callee body offers one route per arm, and a dynamic selector over a
-  closed array literal offers one place per element; in each, one alternative
-  the trace cannot name leaves the whole demand unproven. Where the
-  alternatives AGREE the demand now proves through the unchanged single-subject
-  callers. Where they DISAGREE the set is produced and tested
-  (`control_flow_route_helper_result_carries_every_disagreeing_arm`,
-  `dynamic_index_carrier_argument_carries_every_element`), and both
-  `..._stays_unproven` rows are preserved: the single-subject query declines a
-  disagreement rather than picking one.
+  Owner: `omega-rust/psi/pipeline/04_typed-trees-to-checked-trees`.
+  `src/checks/termination/progress/{origins,lineage,machine_summaries}.rs` already
+  recover owned loads, exact callee replacement inputs and some guarded-result
+  alternatives. `ParameterLineage::Exact` retains multiple subjects and
+  `lineage::resolve` expands their premises. Complete the remaining path through
+  `src/flow/value_origins.rs`, whose backward trace still returns one origin:
+  projected/stored helper results and extra reference boundaries need exact
+  provenance with the ordinary capture, alias and write-invalidation checks.
+  Extend generic/dispatched callee and unresolved projection handling without
+  confusing generic field traversal with evidence about a callee's body.
 
-  What remains is consuming a disagreeing set, and the obstacle is a decision,
-  not plumbing. `ParameterLineage::Exact` already holds a `Vec<ProgressSubject>`
-  and `lineage::resolve` already expands one premise per subject; `at_call`
-  carries the route set into `machine_summaries` today. The selector set stops
-  at `instantiate_call_premise`, whose loop gates on `admitted_receipt_covers`
-  before branching on build-bound requirements -- whether coverage must hold
-  for ONE instance or for ALL of them is the choice to settle first, and it is
-  a soundness choice, not an ordering one. `lineage/transfers.rs` stays
-  single-valued for the same reason a transfer names one source.
+  Closed-array selector enumeration already returns alternative subjects, but
+  `machine_summaries::instantiate_call_premise` still requires one, as does
+  `src/checks/termination/progress/lineage/transfers.rs`. Carry complete finite
+  alternatives into call coverage and state transfers. Every possible subject
+  must be covered; picking one is unsound. Preserve exact public-schema,
+  local admitted-receipt and build-bound provider coverage for each demand.
+  Provider receivers must not become caller
+  parameters, and route catalogs are not receipts. Reuse the existing provider
+  schema/manifest machinery; **COMPONENT-SUBSTRATE** owns installed composition.
 
-  The guarded prefix routes are read (237329e986): `call_result_place` reads a
-  callee body as a shared prefix plus one route per arm, and one unnameable
-  route still leaves the whole result unproven. Arms that AGREE now prove --
-  `control_flow_route_helper_result_proves_when_every_arm_agrees`. Arms that
-  DISAGREE are what remains.
+  Verify through full source checking, beyond the synthetic flow rows in
+  `src/checks/termination/progress/origins/tests.rs`: guarded results and dynamic
+  selectors with different known origins, both covered and one uncovered;
+  nested wrappers, finite field/parameter permutations and private recursive
+  premises; unknown arms, stale aliases, replaced reference prefixes and growing
+  projections. Preserve `src/tests/termination/{progress_lineage.rs,progress_mutation/}`
+  controls, including live qualification checks after later operand writes. The
+  `embedded_call_written_on_the_demanded_path_has_no_exact_origin` control must
+  still refuse: may-write information and aggregate root correspondence cannot
+  recover overwritten contents. Each reference boundary needs its own load evidence.
 
-  Carrying that set is NOT reachable from the three files this row lists.
-  `ParameterLineage::Exact` already holds a `Vec<ProgressSubject>` and
-  `lineage::resolve` already conjoins one premise per subject, so the
-  representation and its meaning are in place. The obstacle is the path
-  between: `at_call` obtains its place from
-  `flow::value_origin_at_call_resolving` and the shared backward trace, which
-  take a `resolve` closure returning ONE origin and name one by construction.
-  A set has to travel through that trace before `origins.rs::at_call`,
-  `machine_summaries.rs` and `lineage/transfers.rs` can carry it, and
-  `flow/value_origins.rs` is where that begins.
+  **STATE-LOCAL-VALUE-FRONTIER** owns nested structural-result execution needed
+  by these consumers. Retain the inline record/array cases in
+  `src/tests/borrow/carrier_results.rs` and `select(forward_array(values)[0])`;
+  the earlier-local `select(forward_outer(outer).inner)` already has serialized
+  Terminal execution/replay coverage in
+  `omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/tests/reference_result_source.rs`.
+  Complete structural-array ingress and residual cleanup through shared evaluation,
+  retiring superseded `omega-rust/psi/checking/src/machine_calls/calls/expression_scanning/result_realization.rs`
+  shape gates only when real producers preserve custody.
 
-  Preserve `embedded_call_written_on_the_demanded_path_has_no_exact_origin`
-  as a negative: `poke_then_read` writes the demanded carrier before reading
-  it, so its result cannot inherit the earlier subject.
-  Admit finite cases from exact provenance; unknown writes, aliases or routes
-  retain no guarantee. A may-write frame does not identify replacement contents,
-  and aggregate root correspondence cannot resurrect overwritten field evidence.
-  Generic field traversal is not the same gap as generic callee reasoning.
-
-  Complete compositional nested structural-result operands through the shared
-  checked/lowered evaluation path with **STATE-LOCAL-VALUE-FRONTIER**.
-  `05_checked-trees-to-lowered-psi/tests/reference_result_source.rs` already
-  executes selected reference leaves, projected record arguments and
-  `select(forward_outer(outer).inner)` from encoded Terminal evidence.
-  The superficially similar rejection fixtures in `tests/borrow/carrier_results.rs`
-  use inline constructors, not the supported earlier-local record route.
-  Close those unchanged inline-construction cases and
-  `select(forward_array(values)[0])`, including structural-element array
-  ingress, residual carrier cleanup and recursive loan/qualification/linear-claim
-  custody. Retire superseded shape gates in
-  `omega-rust/psi/checking/src/machine_calls/calls/expression_scanning/result_realization.rs`
-  as real evaluation/result producers become available, rather than duplicating
-  the producer's walk for each destination spelling.
-
-  Preserve carrier locations, loan occurrences/parents and result homes. Move
-  selected permissions; `EstablishReference` creates a child loan and cannot
-  replace transferring a leaf whose parent would die at return. Relocate runtime
-  descriptors without copying referents; preserve conservative lifetime unions
-  and reject unsupported nested-reference host interfaces.
-  Acceptance: projected calls evaluate once, retain result homes until consumption,
-  and preserve selected loans and linear claims through source-free execution
-  and independent replay. Every consumed progress premise must reconstruct its
-  exact subject; missing, stale or substituted provenance grants none.
-  Keep rejection fixtures until their complete custody is implemented.
-  Terminal execution is not native acceptance.
+  Acceptance: calls evaluate once; result homes, carrier locations, loan occurrences
+  and parents, qualifications and linear claims survive consumption, source-free
+  execution and independent replay. Transfer selected permissions rather than
+  create a child loan beneath a dying parent; relocate descriptors without
+  copying referents. Preserve conservative lifetime unions and nested-reference
+  host-interface rejection. Missing, stale or substituted provenance grants no
+  progress guarantee. Keep rejection controls
+  until complete custody is implemented; Terminal execution does not establish
+  native acceptance.
 
 - **CML4.** Complete edge-local residual cleanup under the
   [ownership contract](wiki/spec/terminal-psi/ownership.md): outgoing values
