@@ -26,6 +26,26 @@ pub(super) struct OperatorPhysicalSpan {
     pub relocation: PhysicalRelocationDisposition,
 }
 
+/// The occurrence's emitted bytes must rejoin exactly one machine/object/
+/// final-image span, and `Ok(None)` remains a witnessed gap — it becomes
+/// `UnsupportedOperatorSpan`, never an erasure.
+///
+/// Reachability is upstream of this table, and on the current surface it is
+/// narrower than the match arms suggest. A `boundary machine` requirement
+/// spelled like an operator emits a `BoundaryCall` operation — the
+/// boundary-settlement lane owns it, not the operator lane — while named
+/// `boundary operator` calls in local initializers stop at statement-sequence
+/// planning (`call: flow call`) and spelled `boundary operator` uses stop at
+/// scalar-local admission (`pure initializer`);
+/// `tests::boundary_operator_frontier` in stage 05 pins all three outcomes.
+/// Of the remaining `ExactCompilerIntrinsic` families, only the float and
+/// integer comparisons are producible (f64 operator demand resolves through
+/// record fields and pure initializers that admission currently rejects, and
+/// the float builtin/checked float families sit behind the same upstream
+/// statements). The `Call*` arms and the FMA tail still bind replayed
+/// artifacts naming them; extending the intrinsic arms before an occurrence
+/// exists would dead-code this lane, so the arm to extend is whichever family
+/// the next replay change first makes survivable.
 pub(super) fn derive_operator_physical_span(
     occurrence: &OptimizedOperatorOccurrence,
     realization: &BoundaryApplicationRealization,
