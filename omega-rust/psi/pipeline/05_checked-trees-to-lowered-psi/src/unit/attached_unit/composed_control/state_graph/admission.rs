@@ -429,6 +429,27 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                 )?;
             }
             (
+                CheckedComposedUnitControlTerminatorPlan::ReturnStructural { .. },
+                [StatementNode::Transition(transition)],
+            ) if transition.guard == TransitionGuardNode::Always
+                && transition.exit == TransitionExit::Ordinary
+                && !transition.continuation.is_valid()
+                && matches!(
+                    checked.statement_table.transition_target(transition.target),
+                    checked_trees::statement::TransitionTargetNode::Value(_)
+                ) =>
+            {
+                // An unconditional `(expression)` arm returns its value on the
+                // transition's own statement; the same structural checks.
+                super::returns::validate_structural(
+                    checked,
+                    plan,
+                    source,
+                    state,
+                    terminator_ordinal,
+                )?;
+            }
+            (
                 CheckedComposedUnitControlTerminatorPlan::Jump { successor },
                 [StatementNode::Transition(transition)],
             ) if transition.guard == TransitionGuardNode::Always => {

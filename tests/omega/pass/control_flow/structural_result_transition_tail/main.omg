@@ -1,0 +1,62 @@
+// PASS canary: a multi-state machine returning a SUM type, where each state
+// closes on a `transition { _ -> (expr) }` tail — a value-returning
+// transition arm at Unit level. Before this leg the composed state-graph
+// route declined: the terminator only routed `Always -> Named` arms to a
+// jump successor, and the lowering pairings refused an
+// EstablishStructuralValue operation attached to the transition statement.
+//
+// pong additionally witnesses a conditional value pair — `When -> (expr)`
+// beside the `Always -> (expr)` fallback on one transition.
+
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Msg {
+    case Ping(x: i32);
+    case Pong(y: i32);
+}
+
+data Counter {
+    n: i32;
+}
+
+machine Counter::pick(&mut self) -> Msg {
+    transition self.n > 0 {
+        true -> ping()
+        _ -> pong()
+    }
+
+    state ping(&mut self) -> Msg {
+        transition {
+            _ -> (Msg::Ping { x: self.n })
+        }
+    }
+
+    state pong(&mut self) -> Msg {
+        transition self.n > 5 {
+            true -> (Msg::Pong { y: 1 })
+            _ -> (Msg::Pong { y: 0 })
+        }
+    }
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let mut counter: Counter = Counter { n: 10 };
+
+    transition counter.pick() {
+        Msg::Ping { x } -> pinged(x)
+        Msg::Pong { y } -> ponged(y)
+    }
+
+    state pinged(&mut self, x: i32) {
+        self.console.exit_process(x);
+    }
+
+    state ponged(&mut self, y: i32) {
+        self.console.exit_process(y);
+    }
+}

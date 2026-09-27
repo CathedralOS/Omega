@@ -207,7 +207,12 @@ pub(super) fn validate(
                     discard_result_on_return: false,
                     ..
                 },
-                StatementNode::LocalData(_) | StatementNode::Expression(_) | StatementNode::Call(_),
+                StatementNode::LocalData(_)
+                | StatementNode::Expression(_)
+                | StatementNode::Call(_)
+                // A value-returning transition tail establishes its result on
+                // the transition's own statement — the value arm's source.
+                | StatementNode::Transition(_),
             ) if result.statement_index as usize == ordinal => {
                 crate::expression_preparation::source_custody::structural::validate(
                     checked,
