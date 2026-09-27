@@ -115,10 +115,7 @@ pub(crate) fn machine_state_by_symbol(
         return None;
     }
     let machine_symbol = program.symbols.get(symbol).parent;
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)?;
+    let machine = crate::program_scope::machines::machine_by_symbol(program, machine_symbol)?;
     program
         .machine_states(machine)
         .iter()

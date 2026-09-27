@@ -42,6 +42,7 @@ pub(crate) struct FrozenProgramMemos {
     pub(crate) binary_meanings:
         Mutex<symbols::SymbolKeyMap<(u32, u32, typed_trees::expression::ExpressionHandle), bool>>,
     pub(crate) data_fields: OnceLock<Arc<DataFieldIndex>>,
+    pub(crate) machines: OnceLock<Arc<crate::program_scope::machines::MachineIndex>>,
     pub(crate) contract_occurrences:
         OnceLock<Arc<crate::proof_contracts::contract_results::ContractOccurrenceIndex>>,
 }

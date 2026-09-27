@@ -789,6 +789,11 @@ fn data_definition(
     program: &TypedTrees,
     symbol: SymbolHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
+    // The shared symbol index answers valid symbols with the scan's first
+    // match; an invalid handle keeps the scan it would otherwise skip.
+    if symbol.is_valid() {
+        return crate::lookup::data_definition_by_symbol(program, symbol);
+    }
     program
         .data_definitions()
         .iter()

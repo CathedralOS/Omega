@@ -12,6 +12,7 @@
 pub(crate) mod call_targets;
 pub(crate) mod data_definitions;
 pub(crate) mod effects;
+pub(crate) mod machines;
 pub(crate) mod value_properties;
 
 use data_definitions::DataDefinitionLookup;
