@@ -124,6 +124,30 @@ The Homebrew tap is for experimental releases, not a submission to Homebrew/core
 Code-signing/notarization require publisher credentials and are not implied by
 manifest validation or archive checksums.
 
+`.github/workflows/install-upgrade.yml` tests two existing prereleases through
+Homebrew on macOS ARM64 and WinGet on Windows Server 2025:
+
+```sh
+gh workflow run install-upgrade.yml --ref main \
+  -f previous_tag=v0.1.0-alpha.2 -f tag=v0.1.0-alpha.3
+```
+
+It downloads draft assets in a credential-bearing step, then drops those
+credentials. The installers receive the same generated formula/manifest with
+only its download URL redirected to a loopback server holding the verified
+bytes. It installs the older release, acquires and reviews the fixed Git-backed
+fixture, builds it, upgrades Omega, and rebuilds the **same project and cache**
+offline. Both executables must return 42 and the accepted lock must not change.
+The installed command must match the exact version and complete bundle manifest.
+This proves the local package-manager path, not public catalog discoverability.
+
+The mutation entrypoint is restricted to disposable GitHub Actions hosts and
+refuses an existing `omega` command. WinGet local manifests are enabled only on
+that disposable host; hashes and archive malware scanning remain enabled.
+No local workstation security settings are changed. Successful runs upload a
+small result record; failure does not produce a passing record. The separate
+workflow lets installer checks be rerun without rebuilding the four compilers.
+
 ### Runtime library discovery
 
 An installed compiler resolves its real executable location, including symlinks,
