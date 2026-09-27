@@ -148,6 +148,30 @@ pub(crate) fn resolve(
     ),
     LoweringError,
 > {
+    let (source, carrier_path, field, declared) = resolve_typed(fields, position, path)?;
+    if declared != scalar_type {
+        return unsupported("runtime field observation changes its declared scalar type");
+    }
+    Ok((source, carrier_path, field))
+}
+
+/// The same field-path resolution returning the leaf's declared scalar type
+/// for a caller that must mint the read before it knows the leaf type — a
+/// runtime-index selector spelled `self.<fields>` reads whatever the path
+/// names and emits it as the operand.
+pub(crate) fn resolve_typed(
+    fields: &[StructuralScalarFieldBinding],
+    position: u32,
+    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+) -> Result<
+    (
+        PlaceId,
+        Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        StructuralFieldId,
+        ScalarType,
+    ),
+    LoweringError,
+> {
     let mut matching = fields
         .iter()
         .filter(|field| field.source_position == position);
@@ -226,10 +250,7 @@ pub(crate) fn resolve(
                 }
                 _ => return unsupported("runtime field observation requires a scalar leaf"),
             };
-            if declared != scalar_type {
-                return unsupported("runtime field observation changes its declared scalar type");
-            }
-            return Ok((binding.source, carrier_path, field.id));
+            return Ok((binding.source, carrier_path, field.id, declared));
         }
         let StructuralFieldType::Structural(child) = field.field_type else {
             return unsupported("runtime field observation requires a structural carrier field");

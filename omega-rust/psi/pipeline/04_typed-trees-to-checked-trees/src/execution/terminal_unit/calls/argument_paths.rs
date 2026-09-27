@@ -283,11 +283,26 @@ fn projected_argument_path_impl(
                 ));
             }
             facts::PlaceSegment::Index { expression } => {
-                runtime_index_bounds?;
-                let position =
-                    runtime_index_parameter_position(program, state_symbol, *expression)?;
+                let (_, machine) = runtime_index_bounds?;
+                let runtime_index = runtime_index_parameter_position(
+                    program,
+                    state_symbol,
+                    *expression,
+                )
+                .map(|position| checked_trees::CheckedRuntimeIndex::Parameter {
+                    position,
+                })
+                .or_else(|| {
+                    runtime_index_field_selector(
+                        program,
+                        machine,
+                        state_symbol,
+                        statement_index,
+                        *expression,
+                    )
+                })?;
                 path.push(CheckedUnitStructuralPathSegment::RuntimeIndex(
-                    checked_trees::CheckedRuntimeIndex::Parameter { position },
+                    runtime_index,
                 ));
             }
             facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::Case { .. } => {
@@ -346,6 +361,82 @@ fn runtime_index_parameter_position(
         .filter(|parameter| crate::values::occupies_scalar_position(program, parameter))
         .count();
     u32::try_from(selector).ok()
+}
+
+/// The checked coordinate for a runtime-index selector spelled as a field
+/// read below one structural entry parameter of the calling state —
+/// `self.count` in `self.scan_results[self.count]`. A field selector's value
+/// is storage, not an operand: the place must be a pure record-field chain
+/// rooted at an entry parameter (a `self` root counts by the machine
+/// identity), and its leaf must be an integer primitive — the same integer
+/// rule the parameter selector enforces. Terminal emits the read and
+/// re-proves `0 <= value < extent` from the facts holding before the call;
+/// admission here only resolves the selector's subject.
+fn runtime_index_field_selector(
+    program: &TypedTrees,
+    machine: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<checked_trees::CheckedRuntimeIndex> {
+    let place = crate::flow::canonical_place_from_expression(program, expression)?;
+    let facts::PlaceRoot::Symbol(root) =
+        crate::flow::normalized_event_place_root(program, place.root)
+    else {
+        return None;
+    };
+    let parameters = program
+        .state_parameters(crate::semantic::calls::find_state(program, state_symbol)?);
+    let parameter_position = parameters.iter().position(|parameter| {
+        crate::flow::normalized_event_place_root(
+            program,
+            facts::PlaceRoot::Symbol(parameter.symbol),
+        ) == facts::PlaceRoot::Symbol(root)
+            || (parameter.is_self && root == machine)
+    })?;
+    if place.segments.is_empty() {
+        // A bare parameter selector is the `Parameter` coordinate, never a
+        // field snapshot.
+        return None;
+    }
+    let mut path = Vec::with_capacity(place.segments.len());
+    for segment in &place.segments {
+        let facts::PlaceSegment::Field { symbol } = segment else {
+            return None;
+        };
+        path.push(
+            checked_trees::CheckedStructuralPredicatePathSegment::Field(
+                terminal_field_identity(program, *symbol)?,
+            ),
+        );
+    }
+    let leaf = crate::flow::canonical_place_type_reference(
+        program,
+        state_symbol,
+        statement_index,
+        &place,
+    )?;
+    if !matches!(
+        program.primitive_type_reference(leaf),
+        Some(
+            typed_trees::types::PrimitiveType::U8
+                | typed_trees::types::PrimitiveType::U16
+                | typed_trees::types::PrimitiveType::U32
+                | typed_trees::types::PrimitiveType::U64
+                | typed_trees::types::PrimitiveType::I8
+                | typed_trees::types::PrimitiveType::I16
+                | typed_trees::types::PrimitiveType::I32
+                | typed_trees::types::PrimitiveType::I64
+        )
+    ) {
+        return None;
+    }
+    Some(checked_trees::CheckedRuntimeIndex::StructuralField(
+        checked_trees::CheckedStructuralParameterField {
+            parameter_position: u32::try_from(parameter_position).ok()?,
+            path,
+        },
+    ))
 }
 
 /// The shared owner under the ordinary rule: the projected type must carry the
@@ -618,8 +709,23 @@ pub(crate) fn ordinary_projected_call_is_supported(
                         }
                     }
                     CheckedStructuralAccess::MutableBorrow => {
+                        // An exclusive subloan replays statically or through
+                        // a runtime index over the same element the
+                        // verification resolves; the selector's bound is
+                        // re-proven against its owning array.
+                        let borrow_path = static_path
+                            || (argument.path.iter().all(|segment| {
+                                matches!(
+                                    segment,
+                                    CheckedUnitStructuralPathSegment::Field(_)
+                                        | CheckedUnitStructuralPathSegment::FixedIndex(_)
+                                        | CheckedUnitStructuralPathSegment::RuntimeIndex(_)
+                                )
+                            }) && argument.path.iter().any(|segment| {
+                                matches!(segment, CheckedUnitStructuralPathSegment::RuntimeIndex(_))
+                            }));
                         source.access == CheckedStructuralAccess::MutableBorrow
-                            && ((source.multiplicity == Multiplicity::Unrestricted && static_path)
+                            && ((source.multiplicity == Multiplicity::Unrestricted && borrow_path)
                                 || ((field_path
                                     || indexed_fields.is_some_and(|fields| !fields.is_empty()))
                                     && checked_trees::is_borrowed_view(byte_sequence_carrier(

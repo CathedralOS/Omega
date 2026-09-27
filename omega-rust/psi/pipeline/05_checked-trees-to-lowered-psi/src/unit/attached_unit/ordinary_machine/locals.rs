@@ -93,6 +93,7 @@ impl MachineEmission<'_> {
             &[],
             &self.primitive_local_places,
             None,
+            &mut std::iter::empty(),
             None,
         )?;
         let declaration = reference_results::emit(

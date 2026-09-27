@@ -7,7 +7,7 @@ use super::super::{
     TerminalMachine, TerminalMachineResult, Terminator, ValueDeclaration, allocate_dense, claim_id,
     edge_id, lookup_claim_id, lower_checked_crash_route_buckets,
     lower_installation_machine_service_ceiling, lower_structural_arguments, lower_structural_path,
-    validate_transfer_shape, value_id,
+    mint_runtime_index_selectors, validate_transfer_shape, value_id,
 };
 use super::{
     CheckedBoundaryScalarReturnMachinePlan, CheckedTrees, CheckedUnitEffectOperationPlan,
@@ -230,6 +230,24 @@ pub(crate) fn emit_boundary_scalar_return(
         operation_id,
         *target_machine,
     )?;
+    let structural_field_bindings =
+        crate::expression_preparation::bindings::StructuralScalarFieldBinding::collect(
+            &plan
+                .structural_parameters
+                .iter()
+                .zip(&parameters)
+                .map(|(source, parameter)| (source.position, parameter.clone()))
+                .collect::<Vec<_>>(),
+            structural_types,
+        );
+    let mut selector_values = mint_runtime_index_selectors(
+        structural_arguments,
+        &structural_field_bindings,
+        &scalar_values,
+        &mut next_value_identity,
+        &mut operations,
+    )?
+    .into_iter();
     let operation = Operation {
         static_reach_binding: None,
         suspension_crossing: None,
@@ -247,6 +265,7 @@ pub(crate) fn emit_boundary_scalar_return(
                 &[],
                 &[],
                 Some(&scalar_values),
+                &mut selector_values,
                 Some(scalar_calls),
             )?,
             completion_receipts: completion_receipts

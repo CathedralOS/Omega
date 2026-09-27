@@ -289,7 +289,7 @@ pub enum CheckedUnitStructuralPathSegment {
 /// before the operation (the caller's published requires for an entry
 /// parameter, a dominating guard, a stored field's snapshot). Restating an
 /// interval here would be a second, trusted copy of that evidence.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CheckedRuntimeIndex {
     /// The dense direct scalar parameter position of the calling state -- the
     /// coordinate `CheckedScalarExpression::Parameter` uses.
@@ -298,4 +298,12 @@ pub enum CheckedRuntimeIndex {
     /// the selector of that indexed step of its target, evaluated before the
     /// stored value.
     AssignmentIndex { depth: u32 },
+    /// A current program-point read of one integer scalar field below a
+    /// structural entry parameter of the calling state -- a stored-field
+    /// snapshot, the same subject
+    /// `CheckedScalarExpression::StructuralParameterField` names in scalar
+    /// observations. Terminal lowering emits the field read and selects with
+    /// its value; the leaf's scalar type resolves from the field's declared
+    /// type, so it is not restated here.
+    StructuralField(crate::checked_trees::CheckedStructuralParameterField),
 }

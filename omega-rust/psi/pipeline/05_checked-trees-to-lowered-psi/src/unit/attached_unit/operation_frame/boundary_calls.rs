@@ -287,6 +287,15 @@ impl OperationFrame<'_, '_> {
         .iter()
         .map(|value| value.id)
         .collect();
+        let mut selector_values =
+            super::super::parameters::mint_runtime_index_selectors(
+                structural_arguments,
+                &self.evaluation.structural_fields,
+                self.values,
+                self.next_value,
+                self.operations,
+            )?
+            .into_iter();
         let structural_arguments = lower_structural_arguments(
             structural_arguments,
             self.parameters,
@@ -295,6 +304,7 @@ impl OperationFrame<'_, '_> {
             inputs.byte_places,
             self.primitive_locals,
             Some(self.values),
+            &mut selector_values,
             Some(&mut *self.calls),
         )?;
         let completion_receipts = completion_receipts
