@@ -16,6 +16,25 @@
 // runtime index is already planned for a scalar element, and the field
 // projection is already planned under a literal index.
 //
+// The route is mapped, and the obvious order is backwards. The checked
+// vocabulary already spells the answer —
+// `CheckedScalarExpression::StructuralParameterIndexedRead` carries an
+// `element_path`, documented as "record fields for a record element of a
+// view (`entries[index].value`)". 04 produces it in
+// `values/scalar/scalar_lowering.rs`'s `view_element_field_read`, which
+// refuses a fixed array through one line, `if !selection.through_view`.
+// Relaxing that line makes THIS program check, and the native build then
+// fails one stage later with `Lowering(Unsupported("a projected element
+// read carries no element field path"))` from
+// `05_checked-trees-to-lowered-psi/src/expression_preparation/prepare_expression.rs`,
+// which for a `Parameter` root admits a non-empty `path` OR a non-empty
+// `element_path` and never both. A view read has an empty path, because the
+// view IS the parameter; `self.cells[self.i].hp` needs both, because
+// `cells` is reached through a field path.
+//
+// So 05 goes first and the `through_view` line goes second. It fails
+// closed either way, so nothing is at risk while it waits.
+//
 // Two samples wait on it, and both write the loop form rather than the
 // literal one: `samples/cli/collections/entity_list`
 // (`self.scratch = self.monsters[self.i].hp;`) and

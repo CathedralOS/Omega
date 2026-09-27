@@ -649,8 +649,8 @@ the complete product bar; focused successes below do not establish that baseline
       anonymous bitwise), and the rest are four DIFFERENT value shapes, not
       one: a runtime-indexed record element's field
       (`entity_list`, `bouncing_particles` -- pinned at
-      `tests/omega/pending/collections/runtime_indexed_record_field_store`
-      and measured as compositional, since both halves plan on their own),
+      `tests/omega/pending/collections/runtime_indexed_record_field_store`,
+      and its route is mapped below),
       a local record's field inside arithmetic (`grid_walk`,
       `self.px = self.px + v.dx` with `v` bound from a call), and a length
       inside arithmetic (`text_padding`,
@@ -5156,6 +5156,32 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   `04_typed-trees-to-checked-trees/src/execution/terminal_unit/`, not a historical
   failure histogram. Preserve record-pattern and fresh record/case operand
   support rather than recreating it.
+
+  **`fixed_array[runtime index].field` is a 05 gap before it is a 04 one,
+  and the obvious order is backwards.** The checked vocabulary already
+  spells it: `CheckedScalarExpression::StructuralParameterIndexedRead`
+  carries an `element_path` whose own documentation says "record fields for
+  a record element of a view (`entries[index].value`)". 04 produces it in
+  `values/scalar/scalar_lowering.rs`'s `view_element_field_read`, which
+  refuses a FIXED array through one line, `if !selection.through_view`;
+  `through_view` is set true for a `Slice` and false for a `FixedArray`,
+  and the fixed case is the easier addressing -- static stride plus the
+  index's own declared range.
+
+  Relaxing that line was measured, not assumed. The reduction then CHECKS,
+  and a native build fails loudly one stage later:
+  `Lowering(Unsupported("a projected element read carries no element field
+  path"))`, from
+  `05_checked-trees-to-lowered-psi/src/expression_preparation/prepare_expression.rs`.
+  Reading the site explains the view-only shape: for a `Parameter` root, 05
+  admits a non-empty `path` OR a non-empty `element_path`, never both -- and
+  a view read has an EMPTY path, because the view is the parameter itself.
+  `self.cells[self.i].hp` needs both, since `cells` is reached through a
+  field path.
+
+  So 05 goes first and 04's `through_view` line goes second; doing only the
+  second produces a program that checks and cannot be built. It fails
+  closed, so nothing is at risk in the meantime.
 
   **A mixed-carrier integer guard retains no Guard fact, and the spec says
   it must.** `construct_integer_comparison`
