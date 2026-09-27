@@ -9,8 +9,9 @@
 //!
 //! The domains beside them, by responsibility: `structural_inputs` (the
 //! host-supplied entry inputs and their binding), `custody` (claims, the
-//! affine frontier and argument binding), `reference`, `primitive_storage`,
-//! `record`, `scalar_array` and `byte_sequences` (the storage the loop
+//! affine frontier and argument binding), `structural_identities` (execution-wide
+//! local identity allocation and host reservations), `reference`,
+//! `primitive_storage`, `record`, `scalar_array` and `byte_sequences` (the storage the loop
 //! mutates), `scalar_operations`, `structural_operations`,
 //! `atomic_operations`, `calls` and `terminators` (what the loop dispatches),
 //! `effects` (what it hands to the host and how host results bind), `values`,
@@ -34,6 +35,7 @@ mod runtime_indexes;
 mod scalar_array;
 mod scalar_operations;
 mod semantic_value_comparison;
+mod structural_identities;
 mod structural_inputs;
 mod structural_operations;
 mod terminal_interpreter;

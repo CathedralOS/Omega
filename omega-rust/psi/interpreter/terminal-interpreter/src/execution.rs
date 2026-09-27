@@ -13,10 +13,10 @@ use crate::custody::{
 };
 use crate::effects::{AdmittedProviderInstallation, TerminalEffect, TerminalEffectHandler};
 use crate::errors::TerminalInterpretError;
-use crate::primitive_storage;
 use crate::results::meter_status;
 use crate::results::{TerminalCrash, TerminalExecutionResult, TerminalExecutionStatus};
 use crate::scalar_array::TerminalScalarArrayValue;
+use crate::structural_identities::LocalStructuralIdentities;
 use crate::structural_inputs::case_membership::StructuralCaseContents;
 use crate::structural_inputs::placed_views::{
     PlacedViewOccurrence, TerminalPlacedViewEstablishment, establish_placed_view_inputs,
@@ -92,7 +92,7 @@ pub struct TerminalExecution {
     /// place maps are only views into this stable logical storage arena.
     pub(crate) structural_primitive_storage: BTreeMap<StructuralRuntimePlace, TerminalScalarValue>,
     pub(crate) structural_primitive_entry_places: BTreeMap<u32, StructuralRuntimePlace>,
-    pub(crate) local_structural_identities: primitive_storage::LocalStructuralIdentities,
+    pub(crate) local_structural_identities: LocalStructuralIdentities,
     /// Scalar leaves written below aggregate structural values. Keys use the
     /// invocation-independent opaque identity and resolved parent path, so a
     /// projected call observes the same field without native layout claims.
@@ -227,7 +227,7 @@ impl TerminalExecution {
             return Err(TerminalInterpretError::ProviderInstallationIdentityMismatch);
         }
         let local_structural_identities =
-            primitive_storage::LocalStructuralIdentities::new(&module, structural_arguments);
+            LocalStructuralIdentities::new(&module, structural_arguments);
         let machines = std::mem::take(&mut module.machines)
             .into_iter()
             .map(|machine| {

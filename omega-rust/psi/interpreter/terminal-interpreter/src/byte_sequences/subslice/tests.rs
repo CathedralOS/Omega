@@ -7,6 +7,7 @@ use terminal_psi::{ByteSequenceCarrier, StructuralTypeShape};
 
 use crate::execution::ExecutableMachine;
 use crate::execution::LiveClaim;
+use crate::structural_identities::LocalStructuralIdentities;
 use crate::values::TerminalScalarCaseValue;
 use semantic_vocabulary::{
     BlockId, ClaimId, EdgeId, MachineId, ObligationId, OperationId, PlaceId, StructuralDomainId,
@@ -162,10 +163,9 @@ fn execution() -> (TerminalExecution, Operation) {
         structural_primitive_storage: BTreeMap::new(),
         reference_referents: BTreeMap::new(),
         structural_primitive_entry_places: BTreeMap::new(),
-        local_structural_identities:
-            crate::primitive_storage::LocalStructuralIdentities::with_reserved_identities([
-                1, 2, 101,
-            ]),
+        local_structural_identities: LocalStructuralIdentities::with_reserved_identities([
+            1, 2, 101,
+        ]),
         structural_scalar_fields: BTreeMap::new(),
         structural_byte_sequence_fields: BTreeMap::new(),
         structural_byte_arrays: BTreeMap::new(),
