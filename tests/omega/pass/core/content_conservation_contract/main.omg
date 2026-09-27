@@ -14,9 +14,12 @@
 // `ContentPartitionCompositionFact::source_derivation_depth` documents
 // Terminal cannot yet replay. A wrapper-composed exit is still owed.
 //
-// `main` sinks both residuals because a program entry returns nothing, so
-// the "caller retains the rest" half is not expressible here; that half
-// wants a non-entry customer.
+// Both halves of the contract are exercised. `partition_and_retain` is the
+// caller-retains half: the boundary accepts the exact residual and the
+// machine keeps the rest, returning it to its own caller. Returning `right`
+// directly is what makes that legal -- a path-aligned source place. An entry
+// cannot host this half itself, because a program entry returns nothing, so
+// `main` drives it and disposes of what comes back.
 use omega::language::core::content;
 use omega::language::core::binding;
 
@@ -60,10 +63,17 @@ data Main {
     sink: Binding<RegionSink>;
 }
 
-machine Main::main(&mut self) reaches RegionSplit, RegionSink {
-    let whole: Region in Owned = Region { remaining: 8 };
+machine Main::partition_and_retain(&mut self, whole: Region in Owned) -> Region in Owned
+reaches RegionSplit, RegionSink
+{
     let split: SplitResult = self.partition.split(whole);
     let { left, right } = split;
     self.sink.accept(left);
-    self.sink.accept(right);
+    right
+}
+
+machine Main::main(&mut self) reaches RegionSplit, RegionSink {
+    let whole: Region in Owned = Region { remaining: 8 };
+    let retained: Region in Owned = self.partition_and_retain(whole);
+    self.sink.accept(retained);
 }

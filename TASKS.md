@@ -2002,10 +2002,30 @@ syntax and other terminal services are not prerequisites.
   them breaks the same three content tests, because recording the permission
   ledger and validating it sit on opposite sides of content.
 
-  Still owed: a wrapper-composed exit, the "caller retains the rest" half (a
-  program entry returns nothing, so it wants a non-entry customer), and the
-  same treatment for `core/content_retained_custody_round_trip` and the two
-  `terminal_psi` fixtures.
+  The caller-retains half is covered too: `partition_and_retain` takes the
+  owned input, lets the boundary accept the exact residual, and returns the
+  rest to its own caller, which `main` then disposes of. Returning that
+  residual DIRECTLY is what makes it legal -- a path-aligned source place,
+  which is the other route the conserved-claim check already admits. An entry
+  cannot host this half, since a program entry returns nothing.
+
+  `terminal_psi/content_custody_exit` is invoked too, and its
+  `domain Region::Owned` is likewise ungated.
+  `terminal_psi/structural_content_passthrough` stays compile-only by
+  construction: every forwarder returns the region and it declares no
+  consumer, so running it would mean adding a custody-exit boundary rather
+  than invoking what it declares.
+
+  `core/content_retained_custody_round_trip` is the one that genuinely waits.
+  Its `domain Buffer::Owned established by Writer::complete` gates the
+  domain, so an entry cannot enter it at all -- constructing and annotating a
+  `Buffer` gives "an annotation cannot establish routed qualification" -- and
+  the cycle is closed: `complete` needs a `PendingWrite in Retained`, which
+  only `submit` produces, from a `Buffer in Owned` that does not yet exist.
+  That fixture needs a first claim from **BOUNDARY-ISSUANCE**; it is not the
+  shape the other three are, and copying their entry will not work.
+
+  Still owed: the wrapper-composed exit.
 
   Writing the invocation with a bodied provider is refused on four separate
   grounds, and all four look correct. A provider returning fresh
