@@ -31,6 +31,12 @@ impl Default for SemanticDomainTable {
 }
 
 impl SemanticDomainTable {
+    /// Names interned so far; the count joins owner-side freshness keys since
+    /// the table is a Vec interner with no revision counter.
+    pub fn len(&self) -> usize {
+        self.names.len()
+    }
+
     /// The fixed identity of the `Wrapping` arithmetic policy.
     pub const WRAPPING: SemanticDomainId = SemanticDomainId(1);
     /// The fixed identity of the `Saturating` arithmetic policy.

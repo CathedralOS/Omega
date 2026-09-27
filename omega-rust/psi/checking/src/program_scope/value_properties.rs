@@ -1,7 +1,10 @@
-//! Program-scoped ownership frontiers, drop hooks and establishment answers.
-//! The value-custody owners compute each property; this owner retains its answer.
+//! Program-scoped ownership frontiers and establishment answers. The
+//! value-custody owners compute each property; this owner retains its
+//! answer under the program's identity and structural fingerprint.
+//! Declaration answers (drop hooks, definition positions) delegate to the
+//! `TypedTrees`-owned indexes instead of a slot.
 
-use super::{CLAIM_FRONTIER_SLOT, DROP_HOOK_SLOT, ESTABLISHMENT_SLOT};
+use super::{CLAIM_FRONTIER_SLOT, ESTABLISHMENT_SLOT, program_key};
 use crate::value_custody::claim_frontier::ClaimFrontierClaim;
 use std::collections::HashMap;
 use typed_trees::types::TypeReferenceHandle;
@@ -19,13 +22,14 @@ pub(crate) fn memoized_claim_frontier(
         Miss,
         ForeignProgram,
     }
+    let key = program_key(program);
     let state = CLAIM_FRONTIER_SLOT.with(|cell| {
         let cell = cell.borrow();
         match cell.as_ref() {
             None => SlotState::NoScope,
             Some(None) => SlotState::Miss,
             Some(Some((owner, map))) => {
-                if std::ptr::eq(*owner, program) {
+                if *owner == key {
                     map.get(&type_reference)
                         .cloned()
                         .map_or(SlotState::Miss, SlotState::Hit)
@@ -48,12 +52,11 @@ pub(crate) fn memoized_claim_frontier(
                 && let Some(scope) = &mut *slot
             {
                 match scope {
-                    Some((owner, map)) if std::ptr::eq(*owner, program) => {
+                    Some((owner, map)) if *owner == key => {
                         map.insert(type_reference, claims.clone());
                     }
                     slot_none @ None => {
-                        *slot_none =
-                            Some((program, HashMap::from([(type_reference, claims.clone())])));
+                        *slot_none = Some((key, HashMap::from([(type_reference, claims.clone())])));
                     }
                     Some(_) => {}
                 }
@@ -63,65 +66,22 @@ pub(crate) fn memoized_claim_frontier(
     claims
 }
 
-/// Whether a machine attached to `symbol` realizes `::drop`, memoized per
-/// (program, symbol): storage-content classification asks it at every data
-/// node and the scan is otherwise O(machines) per node.
+/// Whether a machine attached to `symbol` realizes `::drop` — storage
+/// content classification asks it at every data node. The answer lives in
+/// the program's owned attached-drop index, rebuilt on any machine-table
+/// mutation; no scope slot is needed.
 pub(crate) fn memoized_owns_drop_hook(
     program: &typed_trees::TypedTrees,
     symbol: symbols::SymbolHandle,
 ) -> bool {
-    enum SlotState {
-        NoScope,
-        Hit(bool),
-        Miss,
-        ForeignProgram,
-    }
-    let state = DROP_HOOK_SLOT.with(|cell| {
-        let cell = cell.borrow();
-        match cell.as_ref() {
-            None => SlotState::NoScope,
-            Some(None) => SlotState::Miss,
-            Some(Some((owner, map))) => {
-                if std::ptr::eq(*owner, program) {
-                    map.get(&symbol)
-                        .copied()
-                        .map_or(SlotState::Miss, SlotState::Hit)
-                } else {
-                    SlotState::ForeignProgram
-                }
-            }
-        }
-    });
-    if let SlotState::Hit(owns_hook) = state {
-        return owns_hook;
-    }
-    let owns_hook = program.machines().iter().any(|machine| {
-        machine.attached_data_symbol == symbol && machine.name.as_str().ends_with("::drop")
-    });
-    if matches!(state, SlotState::Miss) {
-        DROP_HOOK_SLOT.with(|cell| {
-            if let Ok(mut slot) = cell.try_borrow_mut()
-                && let Some(scope) = &mut *slot
-            {
-                match scope {
-                    Some((owner, map)) if std::ptr::eq(*owner, program) => {
-                        map.insert(symbol, owns_hook);
-                    }
-                    slot_none @ None => {
-                        *slot_none = Some((program, HashMap::from([(symbol, owns_hook)])));
-                    }
-                    Some(_) => {}
-                }
-            }
-        });
-    }
-    owns_hook
+    program.attached_drop_machine_exists(symbol)
 }
 
 /// Whether `definition` requires establishment, memoized per (program,
-/// definition): the default-domain read and write scans ask it at every data
-/// read, and each answer re-walks the definition's fields and evaluates their
-/// range endpoints.
+/// definition symbol): the default-domain read and write scans ask it at
+/// every data read, and each answer re-walks the definition's fields and
+/// evaluates their range endpoints. The definition's symbol is the same
+/// key the walk's inner establishment index already memoizes on.
 pub(crate) fn memoized_data_requires_establishment(
     program: &typed_trees::TypedTrees,
     definition: &typed_trees::data::DataDefinition,
@@ -133,15 +93,16 @@ pub(crate) fn memoized_data_requires_establishment(
         Miss,
         ForeignProgram,
     }
-    let key = std::ptr::from_ref(definition).addr();
+    let key = program_key(program);
+    let definition_symbol = definition.symbol;
     let state = ESTABLISHMENT_SLOT.with(|cell| {
         let cell = cell.borrow();
         match cell.as_ref() {
             None => SlotState::NoScope,
             Some(None) => SlotState::Miss,
             Some(Some((owner, map))) => {
-                if std::ptr::eq(*owner, program) {
-                    map.get(&key)
+                if *owner == key {
+                    map.get(&definition_symbol)
                         .copied()
                         .map_or(SlotState::Miss, SlotState::Hit)
                 } else {
@@ -160,11 +121,11 @@ pub(crate) fn memoized_data_requires_establishment(
                 && let Some(scope) = &mut *slot
             {
                 match scope {
-                    Some((owner, map)) if std::ptr::eq(*owner, program) => {
-                        map.insert(key, requires);
+                    Some((owner, map)) if *owner == key => {
+                        map.insert(definition_symbol, requires);
                     }
                     slot_none @ None => {
-                        *slot_none = Some((program, HashMap::from([(key, requires)])));
+                        *slot_none = Some((key, HashMap::from([(definition_symbol, requires)])));
                     }
                     Some(_) => {}
                 }

@@ -25,14 +25,14 @@ pub(crate) fn resolved_transition_target_state(
     // A machine symbol selects that machine's entry state outright; a state
     // symbol's declaration parent is its machine, so the table answers the
     // owner directly instead of scanning every machine's states.
-    if let Some(machine) = crate::program_scope::machines::machine_by_symbol(program, target) {
+    if let Some(machine) = program.machine_by_symbol(target) {
         return program
             .machine_states(machine)
             .first()
             .map(|state| (machine, state));
     }
     let machine_symbol = program.symbols.get(target).parent;
-    let machine = crate::program_scope::machines::machine_by_symbol(program, machine_symbol)?;
+    let machine = program.machine_by_symbol(machine_symbol)?;
     program
         .machine_states(machine)
         .iter()

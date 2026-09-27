@@ -1,6 +1,6 @@
 //! Program-scoped conformance carriers and call-argument destination answers.
 
-use super::{CALL_ARGUMENT_DESTINATIONS_SLOT, CONFORMANCE_SLOT_CARRIERS_SLOT};
+use super::{CALL_ARGUMENT_DESTINATIONS_SLOT, CONFORMANCE_SLOT_CARRIERS_SLOT, program_key};
 use std::collections::HashMap;
 use typed_trees::types::TypeReferenceHandle;
 
@@ -22,13 +22,14 @@ pub(crate) fn memoized_conformance_slot_carriers(
         Miss,
         ForeignProgram,
     }
+    let key = program_key(program);
     let state = CONFORMANCE_SLOT_CARRIERS_SLOT.with(|cell| {
         let cell = cell.borrow();
         match cell.as_ref() {
             None => SlotState::NoScope,
             Some(None) => SlotState::Miss,
             Some(Some((owner, map))) => {
-                if std::ptr::eq(*owner, program) {
+                if *owner == key {
                     SlotState::Hit(map.clone())
                 } else {
                     SlotState::ForeignProgram
@@ -47,7 +48,7 @@ pub(crate) fn memoized_conformance_slot_carriers(
             if let Ok(mut slot) = cell.try_borrow_mut()
                 && let Some(scope) = &mut *slot
             {
-                *scope = Some((program, index.clone()));
+                *scope = Some((key, index.clone()));
             }
         });
     }
@@ -70,13 +71,14 @@ pub(crate) fn memoized_call_argument_destinations(
         Miss,
         ForeignProgram,
     }
+    let key = program_key(program);
     let state = CALL_ARGUMENT_DESTINATIONS_SLOT.with(|cell| {
         let cell = cell.borrow();
         match cell.as_ref() {
             None => SlotState::NoScope,
             Some(None) => SlotState::Miss,
             Some(Some((owner, map))) => {
-                if std::ptr::eq(*owner, program) {
+                if *owner == key {
                     map.get(&(target, argument_count))
                         .cloned()
                         .map_or(SlotState::Miss, SlotState::Hit)
@@ -96,12 +98,12 @@ pub(crate) fn memoized_call_argument_destinations(
                 && let Some(scope) = &mut *slot
             {
                 match scope {
-                    Some((owner, map)) if std::ptr::eq(*owner, program) => {
+                    Some((owner, map)) if *owner == key => {
                         map.insert((target, argument_count), destinations.clone());
                     }
                     slot_none @ None => {
                         *slot_none = Some((
-                            program,
+                            key,
                             HashMap::from([((target, argument_count), destinations.clone())]),
                         ));
                     }

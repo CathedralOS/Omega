@@ -123,6 +123,12 @@ pub struct ServiceReachRowTable {
 impl ServiceReachRowTable {
     pub const EMPTY_ROW: ServiceReachRowId = ServiceReachRowId(1);
 
+    /// Rows interned so far; the count joins owner-side freshness keys since
+    /// the table is a Vec interner with no revision counter.
+    pub fn len(&self) -> usize {
+        self.rows.len()
+    }
+
     /// Every retained row ID must still name the same normalized service set.
     pub fn starts_with(&self, retained: &Self) -> bool {
         self.rows.starts_with(&retained.rows)
