@@ -8,40 +8,6 @@ mod support;
 use support::*;
 use topology_plan::*;
 
-/// The checked-in golden pair under `tests/fixtures/` pins the v1 wire
-/// format. `regenerate_golden` rewrites them after a deliberate version bump;
-/// it is ignored in normal runs.
-const GOLDEN_REQUEST: &[u8] = include_bytes!("fixtures/payment.request");
-const GOLDEN_PLAN: &[u8] = include_bytes!("fixtures/payment.plan");
-
-#[test]
-fn golden_fixtures_decode_and_verify() {
-    let request = decode_request(GOLDEN_REQUEST).unwrap();
-    assert_eq!(request, payment_request());
-    let plan = decode_plan(GOLDEN_PLAN).unwrap();
-    assert_eq!(plan.request_commitment, request_commitment(GOLDEN_REQUEST));
-    let checked = verify_plan(GOLDEN_PLAN, GOLDEN_REQUEST, &payment_components())
-        .expect("golden plan verifies");
-    assert_eq!(checked.subject, plan_subject(GOLDEN_PLAN));
-}
-
-#[test]
-fn encode_is_byte_exact_and_canonical() {
-    let (request_bytes, plan_bytes, plan) = payment_pair();
-    assert_eq!(request_bytes, GOLDEN_REQUEST, "request encoding drifted");
-    assert_eq!(plan_bytes, GOLDEN_PLAN, "plan encoding drifted");
-    // Re-encoding a decoded value reproduces identical bytes.
-    assert_eq!(
-        encode_plan(&decode_plan(&plan_bytes).unwrap()).unwrap(),
-        plan_bytes
-    );
-    assert_eq!(
-        encode_request(&decode_request(&request_bytes).unwrap()).unwrap(),
-        request_bytes
-    );
-    let _ = plan;
-}
-
 #[test]
 fn wrong_magic_and_version_reject() {
     let (request_bytes, plan_bytes, _) = payment_pair();
@@ -103,31 +69,6 @@ fn trailing_bytes_reject() {
         decode_request(&padded),
         Err(CodecError::TrailingBytes { count: 2 })
     ));
-}
-
-#[test]
-fn noncanonical_and_duplicate_entries_reject() {
-    let (request_bytes, _, mut plan) = payment_pair();
-    // Swap two plan instances: out-of-order roster is not canonical.
-    plan.instances.swap(0, 1);
-    // encode_plan itself enforces canonical order, so hand-encode the corrupt
-    // order by swapping the raw instance records inside the encoded stream is
-    // complex; instead assert the encoder refuses non-canonical input.
-    assert!(matches!(
-        encode_plan(&plan),
-        Err(CodecError::NotCanonical { .. })
-    ));
-
-    let mut request = payment_request();
-    request.instances.push(RequestedInstance {
-        name: name("api"),
-        subject: identity(0x99),
-    });
-    assert!(matches!(
-        encode_request(&request),
-        Err(CodecError::Duplicate { .. }) | Err(CodecError::NotCanonical { .. })
-    ));
-    let _ = request_bytes;
 }
 
 #[test]

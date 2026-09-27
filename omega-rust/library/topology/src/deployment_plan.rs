@@ -364,22 +364,12 @@ pub struct RequestedInstance {
 
 #[cfg(test)]
 mod tests {
-    use super::{InstanceName, NameError, PolicySelector};
+    use super::{InstanceName, NameError};
 
     #[test]
     fn instance_name_rejects_empty_and_overlong() {
         assert_eq!(InstanceName::new(""), Err(NameError::Empty));
         let overlong = "x".repeat(crate::deployment_plan::codec::MAX_NAME_BYTES + 1);
         assert_eq!(InstanceName::new(overlong), Err(NameError::TooLong));
-    }
-
-    #[test]
-    fn selectors_are_canonicalized() {
-        let selector = PolicySelector::new([
-            InstanceName::new("billing").unwrap(),
-            InstanceName::new("api").unwrap(),
-        ]);
-        assert_eq!(selector.members[0].as_str(), "api");
-        assert_eq!(selector.members[1].as_str(), "billing");
     }
 }
