@@ -11,9 +11,8 @@ use optimization_unit::{
 };
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, OperationId, ValueId};
 
-use crate::rules::support::{
-    accepted_obligation_fact, literal_integer_constant, node_elision_accounting,
-};
+use crate::rules::accepted_obligations::accepted_obligation_fact;
+use crate::rules::node_elision::node_elision_accounting;
 use crate::{AnalysisProduct, RuleAnalysisView, RuleProposalError};
 
 pub(super) fn propose_proof_certified_scalar_identities(
@@ -70,11 +69,8 @@ pub(super) fn propose_proof_certified_scalar_identities(
                 }
                 let Some((patch_shape, constant_fact)) =
                     shapes.into_iter().find_map(|(shape, expected)| {
-                        let (actual, fact) = literal_integer_constant(
-                            constants,
-                            function.machine,
-                            shape.identity_operand,
-                        )?;
+                        let (actual, fact) = constants
+                            .literal_integer_constant(function.machine, shape.identity_operand)?;
                         (actual == expected).then_some((shape, fact))
                     })
                 else {

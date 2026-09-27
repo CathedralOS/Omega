@@ -14,7 +14,6 @@ use optimization_unit::{
 use semantic_vocabulary::{BlockId, EdgeId};
 
 use crate::rules::CONTROL_FLOW_CLEANUP_PASS_NAME;
-use crate::rules::support::boolean_constant;
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -79,7 +78,7 @@ impl PsiOptimizationRule for ConstantConditionalFoldRule {
                         continue;
                     };
                     let Some((constant, condition_fact)) =
-                        boolean_constant(constants, function.machine, *condition)
+                        constants.boolean_constant(function.machine, *condition)
                     else {
                         continue;
                     };

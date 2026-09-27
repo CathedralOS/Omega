@@ -80,6 +80,42 @@ pub struct ScalarConstantAnalysis {
     pub facts: Vec<ScalarConstantFact>,
 }
 
+impl ScalarConstantAnalysis {
+    pub(crate) fn literal_integer_constant(
+        &self,
+        machine: MachineId,
+        value: ValueId,
+    ) -> Option<(IntegerValue, ScalarConstantFactIdentity)> {
+        self.facts.iter().find_map(|fact| {
+            (fact.valid_in.machine == machine
+                && fact.value == value
+                && fact.support.literal_operation().is_some())
+            .then_some(fact)
+            .and_then(|fact| match fact.constant {
+                ScalarConstant::Integer(value) => fact.identity.map(|identity| (value, identity)),
+                ScalarConstant::Boolean(_) => None,
+            })
+        })
+    }
+
+    pub(crate) fn boolean_constant(
+        &self,
+        machine: MachineId,
+        value: ValueId,
+    ) -> Option<(bool, ScalarConstantFactIdentity)> {
+        self.facts.iter().find_map(|fact| {
+            (fact.valid_in.machine == machine && fact.value == value)
+                .then_some(fact)
+                .and_then(|fact| match fact.constant {
+                    ScalarConstant::Boolean(value) => {
+                        fact.identity.map(|identity| (value, identity))
+                    }
+                    ScalarConstant::Integer(_) => None,
+                })
+        })
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ExecutableEdgeKnowledge {
     KnownExecutable,

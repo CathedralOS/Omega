@@ -17,7 +17,7 @@ use semantic_vocabulary::{IntegerType, IntegerValue, OperationId, ScalarType, Va
 
 use crate::rules::GLOBAL_VALUE_NUMBERING_PASS_NAME;
 use crate::rules::global_value_numbering::exact_pure_scalar_effect;
-use crate::rules::support::{literal_integer_constant, node_elision_accounting};
+use crate::rules::node_elision::node_elision_accounting;
 use crate::{AnalysisProduct, RuleAnalysisView, RuleProposalError};
 
 pub(super) fn propose_total_scalar_identities(
@@ -87,7 +87,7 @@ pub(super) fn propose_total_scalar_identities(
                         return None;
                     }
                     let (actual, fact) =
-                        literal_integer_constant(constants, function.machine, shape.law_operand)?;
+                        constants.literal_integer_constant(function.machine, shape.law_operand)?;
                     (actual == shape.expected_law_value).then_some((shape, fact))
                 }) else {
                     continue;

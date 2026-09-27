@@ -5,8 +5,10 @@
 //! registry per selected pass. Each pass is one file beside this one --
 //! `<pass>.rs` holds that pass's visible local rule order and the contracts
 //! its rules share -- and its rules are the files under `<pass>/`, one per
-//! rule (or one table per rule family over a single proposal). `support`
-//! holds the evidence and control-flow mechanics several passes share.
+//! rule (or one table per rule family over a single proposal). `node_elision`
+//! owns shared removal proposals and provenance/fuel accounting;
+//! `accepted_obligations` rejoins the proof facts those proposals consume.
+//! Constant, dominance, use-definition and cycle queries belong to `analyses`.
 //! Independent acceptance remains in `optimization-unit-semantics`.
 
 const SCCP_PASS_NAME: &[u8] = b"omega.psi-pass.sparse-conditional-constant-propagation.v5";
@@ -19,9 +21,10 @@ const STATE_SPECIALIZATION_PASS_NAME: &[u8] = b"omega.psi-pass.state-specializat
 const REPRESENTATION_SPECIALIZATION_PASS_NAME: &[u8] =
     b"omega.psi-pass.representation-specialization.v1";
 
+mod accepted_obligations;
 mod catalog;
+mod node_elision;
 pub(crate) mod registry;
-mod support;
 
 mod case_membership_specialization;
 mod control_flow_cleanup;
@@ -47,13 +50,13 @@ pub(crate) use case_membership_specialization::CaseMembershipSpecializationRule;
 #[cfg(test)]
 pub(crate) use field_value_specialization::FieldValueSpecializationRule;
 #[cfg(test)]
+use node_elision::node_elision_accounting;
+#[cfg(test)]
 pub(crate) use sparse_conditional_constant_propagation::{
     IntegerRangeComparisonKind, IntegerRangePairComparisonKind,
 };
 #[cfg(test)]
 pub(crate) use state_specialization::StateArgumentSpecializationRule;
-#[cfg(test)]
-use support::node_elision_accounting;
 
 #[cfg(test)]
 pub(crate) mod tests;

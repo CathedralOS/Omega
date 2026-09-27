@@ -7,8 +7,10 @@ use optimization_unit::{
 };
 
 use super::expression_keys::proof_certified_scalar_expression;
+use crate::analyses::block_dominates;
+use crate::rules::accepted_obligations::accepted_obligation_fact;
 use crate::rules::global_value_numbering::{dominating_contract, exact_pure_scalar_effect};
-use crate::rules::support::{accepted_obligation_fact, block_dominates, node_elision_accounting};
+use crate::rules::node_elision::node_elision_accounting;
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]

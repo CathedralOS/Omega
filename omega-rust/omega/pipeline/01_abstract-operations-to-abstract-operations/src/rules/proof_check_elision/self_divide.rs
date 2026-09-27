@@ -12,8 +12,8 @@ use optimization_unit::{
 use semantic_vocabulary::{IntegerCarrier, IntegerSign};
 
 use crate::rules::PROOF_CHECK_ELISION_PASS_NAME;
+use crate::rules::accepted_obligations::accepted_obligation_fact;
 use crate::rules::proof_check_elision::identity_rewrite::integer_one;
-use crate::rules::support::accepted_obligation_fact;
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]

@@ -9,7 +9,7 @@ use optimization_unit::{
 
 use super::expression_keys::total_scalar_expression;
 use crate::rules::global_value_numbering::{exact_pure_scalar_effect, same_block_contract};
-use crate::rules::support::node_elision_accounting;
+use crate::rules::node_elision::node_elision_accounting;
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]

@@ -3,8 +3,45 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use optimization_unit::PsiOptimizationUnit;
+use semantic_vocabulary::MachineId;
 
 use super::{StronglyConnectedComponentAnalysis, graph::control_flow};
+
+impl StronglyConnectedComponentAnalysis {
+    /// Machines whose block projection contains a multi-block cyclic component
+    /// or a singleton self-loop. Callers decide how cycles constrain a rewrite.
+    pub(crate) fn cyclic_machines(&self, unit: &PsiOptimizationUnit) -> BTreeSet<MachineId> {
+        unit.functions
+            .iter()
+            .filter(|function| {
+                let Some((_, components)) = self
+                    .functions
+                    .iter()
+                    .find(|(machine, _)| *machine == function.machine)
+                else {
+                    return false;
+                };
+                components.iter().any(|component| {
+                    component.len() > 1
+                        || component.iter().any(|block| {
+                            function
+                                .blocks
+                                .iter()
+                                .find(|candidate| candidate.id == *block)
+                                .is_some_and(|owner| {
+                                    owner
+                                        .nodes
+                                        .iter()
+                                        .flat_map(|node| &node.successors)
+                                        .any(|edge| edge.target == *block)
+                                })
+                        })
+                })
+            })
+            .map(|function| function.machine)
+            .collect()
+    }
+}
 
 pub(in crate::analyses) fn block_components(
     unit: &PsiOptimizationUnit,

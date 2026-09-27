@@ -8,8 +8,9 @@ use optimization_unit::{
 };
 
 use super::expression_keys::proof_certified_scalar_expression;
+use crate::rules::accepted_obligations::accepted_obligation_fact;
 use crate::rules::global_value_numbering::{exact_pure_scalar_effect, same_block_contract};
-use crate::rules::support::{accepted_obligation_fact, node_elision_accounting};
+use crate::rules::node_elision::node_elision_accounting;
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]

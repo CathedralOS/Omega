@@ -14,7 +14,6 @@ use optimization_unit::{
 };
 
 use crate::rules::COPY_PROPAGATION_PASS_NAME;
-use crate::rules::support::replacement_dominates_parameter_uses;
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -118,12 +117,11 @@ pub(super) fn propose(
                 };
                 if replacement == parameter.value
                     || incoming.iter().any(|row| row.argument != replacement)
-                    || !replacement_dominates_parameter_uses(
+                    || !use_definitions.replacement_dominates_parameter_uses(
                         function.machine,
                         replacement,
                         parameter.value,
                         machine_dominators,
-                        use_definitions,
                     )
                 {
                     continue;

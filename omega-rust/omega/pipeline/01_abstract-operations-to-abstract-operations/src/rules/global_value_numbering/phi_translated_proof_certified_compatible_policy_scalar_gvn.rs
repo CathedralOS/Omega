@@ -10,9 +10,10 @@ use optimization_unit::{
 
 use super::exact_pure_scalar_effect;
 use super::expression_keys::{compatible_policy_scalar_leader, compatible_policy_scalar_redundant};
+use crate::analyses::block_dominates;
+use crate::rules::accepted_obligations::accepted_obligation_fact;
 use crate::rules::global_value_numbering::phi_translated_accounting::phi_translated_cse_accounting;
 use crate::rules::global_value_numbering::phi_translated_contract;
-use crate::rules::support::{accepted_obligation_fact, block_dominates};
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]

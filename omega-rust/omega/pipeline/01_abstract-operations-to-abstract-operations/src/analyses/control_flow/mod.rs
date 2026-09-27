@@ -42,6 +42,7 @@ pub use countdown_invariant_constants::{
     CountdownInvariantConstantAnalysisError, CountdownInvariantConstantRole,
     CountdownInvariantIntegerConstant, ValidatedCountdownInvariantConstantAnalysis,
 };
+pub(crate) use dominance::block_dominates;
 pub(super) use dominance::dominators;
 pub(super) use graph::control_flow;
 pub(super) use loops::loops;
