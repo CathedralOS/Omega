@@ -208,9 +208,15 @@ is not made safe by calling it from Omega.
 ## Installation
 
 Published experimental bundles do not require Rust or a native linker.
-See [installation, a first native program, and upgrades](wiki/installation.md).
-That guide distinguishes published downloads from draft releases and installation
-channels still undergoing validation.
+On Apple Silicon macOS or Linux with Homebrew:
+
+```sh
+brew install cathedralos/omega/omega
+```
+
+Windows and other archive installs: [download a prerelease](https://github.com/CathedralOS/Omega/releases).
+See [installation, a first native program, and upgrades](wiki/installation.md)
+for supported hosts and instructions. Initial releases are unsigned and experimental.
 
 ## Building from source
 
