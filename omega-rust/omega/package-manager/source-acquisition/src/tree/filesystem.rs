@@ -200,13 +200,21 @@ pub(crate) fn require_unchanged_entry(
     observed: &cap_std::fs::Metadata,
     display_path: &Path,
 ) -> Result<(), SourceResolveError> {
-    // Both observations must come from File::metadata or Dir::symlink_metadata.
-    // cap-std 4.0.3 obtains the latter through a no-follow metadata handle on
-    // Windows, retaining the by-handle identity required by MetadataExt. A
-    // DirEntry::metadata observation does not provide that guarantee.
+    // Missing Windows by-handle identity is not evidence of equality. In
+    // particular, from_just_metadata discards it even for std handle metadata.
+    #[cfg(not(windows))]
     let same_identity = cap_fs_ext::MetadataExt::dev(initial)
         == cap_fs_ext::MetadataExt::dev(observed)
         && cap_fs_ext::MetadataExt::ino(initial) == cap_fs_ext::MetadataExt::ino(observed);
+    #[cfg(windows)]
+    let same_identity = {
+        use cap_primitives::fs::_WindowsByHandle;
+        matches!(
+            (initial.volume_serial_number(), initial.file_index(), observed.volume_serial_number(), observed.file_index()),
+            (Some(initial_volume), Some(initial_index), Some(observed_volume), Some(observed_index))
+                if initial_volume == observed_volume && initial_index == observed_index
+        )
+    };
     let same_modified = initial
         .modified()
         .map_err(|error| io_error(display_path, error))?

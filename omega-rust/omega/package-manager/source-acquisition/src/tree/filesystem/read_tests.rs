@@ -82,6 +82,18 @@ fn bounded_copy_rejects_growth_within_the_remaining_budget() {
     assert_change_rejects(b"short", b"longer but still within budget");
 }
 
+#[cfg(windows)]
+#[test]
+fn missing_file_identity_rejects_without_panicking() {
+    let fixture = SourceFixture::new(b"bytes");
+    let path = fixture.root.join("source.bin");
+    let incomplete = Metadata::from_just_metadata(std::fs::metadata(&path).expect("metadata"));
+    assert!(matches!(
+        super::require_unchanged_entry(&incomplete, &incomplete, &path),
+        Err(SourceResolveError::LocalSourceChanged { .. })
+    ));
+}
+
 #[test]
 fn bounded_copy_keeps_budget_exhaustion_distinct_from_source_drift() {
     let fixture = SourceFixture::new(b"small");
