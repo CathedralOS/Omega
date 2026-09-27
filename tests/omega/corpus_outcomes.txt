@@ -1217,6 +1217,7 @@ pass/control_flow/case_pattern_rename_waive_exit rejected 4919ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: source symbol`
 pass/control_flow/copy_enum_cycle_edge_write_frame checked 1940ms
 pass/control_flow/explicit_state_value_frontier checked 1902ms
+pass/control_flow/field_subject_named_arm_chain checked 946ms
 pass/control_flow/field_view_transfer_exit checked 5119ms
 pass/control_flow/guarded_jump_field_view_forward rejected 2182ms
 	native-artifact Terminal production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`Main::main` has no admitted body (local construction stopped at state graph: terminator: jump successor: parameter transfer, state 0, statement 2)") })
