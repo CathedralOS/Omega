@@ -156,6 +156,32 @@ backend-visible; full corpus runs only at the end of an item.
   pin no repair on any of the strings. Extended acceptance: both pending
   fixtures check and the four `flow call` corpus rows move.
 
+- **DEFERRED-LOCAL-INITIALIZATION.** (new-scope) A local declared without an
+  initializer and completed afterwards. Four combinations, two of them broken,
+  and neither axis explains it alone:
+
+  |            | scalar | record |
+  | --- | --- | --- |
+  | no `mut`   | DIAGNOSTIC (not mutable) | OMITTED `statement sequence: unsupported statement kind` |
+  | `mut`      | OMITTED `structural field store: destination parameter` | checks |
+
+  Both initialized controls check. Pinned at
+  `tests/omega/pending/control_flow/deferred_local_initialization`, reduced
+  from `pass/wire/runtime_wire_utf8_edge_verdicts_exit` (`let decoded:
+  LabelSample;` then field assignments).
+  (1) WITHOUT `mut` the same authoring mistake is reported two ways -- a
+  scalar gets the correct "cannot write `x` because it is not mutable in this
+  state", a record gets a unit-plan omission with no mention of mutability.
+  The record should take the scalar's diagnostic; this is a wrong-error bug,
+  not a missing capability.
+  (2) WITH `mut` the RECORD works and the SCALAR does not, which inverts every
+  other gap in this corpus, where composites are the unsupported side. That is
+  what the fixture pins. Its phase names a `structural field store:
+  destination parameter` for a local that is neither field nor parameter --
+  another route-name, not a cause.
+  Acceptance: both omitting cells clear, the non-`mut` record cell produces the
+  mutability diagnostic, and `runtime_wire_utf8_edge_verdicts_exit` moves.
+
 - **TRANSITION-TAIL-CALL-TO-MACHINE.** (new-scope) A transition whose target
   TAIL-CALLS ANOTHER MACHINE has no route. `transition { _ -> self.pick(1) }`
   omits; `transition { _ -> done() }` to a state here checks; and
@@ -176,8 +202,14 @@ backend-visible; full corpus runs only at the end of an item.
   `termination/runtime_shrinking_slice_recursion_exit`); the other three --
   `wire/runtime_wire_decode_byte_slice_exit`,
   `wire/runtime_wire_utf8_edge_verdicts_exit`,
-  `filesystem/dir_walk_wrappers_exit` -- are UNATTRIBUTED and are the next
-  diagnosis here. `runtime_frame_indexed_param_read_exit` also passes a fixed
+  `filesystem/dir_walk_wrappers_exit` -- are now attributed elsewhere and none
+  of them is this gap: `decode_byte_slice` builds a record literal with a
+  SLICE field and separately binds a subslice to a local (RECORD-LITERAL-ARRAY-FIELD
+  widened to slices, and REFERENCE-LOCAL-BINDING-ROUTES), `utf8_edge_verdicts`
+  is DEFERRED-LOCAL-INITIALIZATION, and `dir_walk_wrappers` is not a
+  write-frame row at all -- it omits at an unavailable
+  `Filesystem::create_dir_all`, the same bundled-library blocker
+  `systems/note_vault` moved onto. `runtime_frame_indexed_param_read_exit` also passes a fixed
   array by value and looks like BOUNDARY-PRIMITIVE-ARRAY-PARAMETER; it is
   not, since the same program with no array parameter omits identically.
   Acceptance: the pending fixture checks, both phase spellings clear, and the
