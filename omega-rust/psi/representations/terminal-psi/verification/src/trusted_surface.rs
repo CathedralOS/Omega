@@ -519,9 +519,9 @@ pub fn check_ledger_internals() -> Vec<LedgerFailure> {
             _ => {}
         }
         if site.inventory_machinery
-            && !site
-                .path
-                .starts_with("omega-rust/psi/representations/terminal-psi/verification/src/trusted_surface")
+            && !site.path.starts_with(
+                "omega-rust/psi/representations/terminal-psi/verification/src/trusted_surface",
+            )
         {
             failures.push(LedgerFailure::MachinerySiteOutsideInventory { path: site.path });
         }
