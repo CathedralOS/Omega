@@ -425,7 +425,13 @@ fn bounds(
         ExpressionNode::Member(_) => {
             let declared = type_bounds(
                 program,
-                fields::type_reference(program, state?, expression, declared_mutable_leaves)?,
+                fields::type_reference(
+                    program,
+                    machine,
+                    state?,
+                    expression,
+                    declared_mutable_leaves,
+                )?,
             )?;
             // The owning data's `where` facts bound every legal read of the
             // field: each write must preserve them.

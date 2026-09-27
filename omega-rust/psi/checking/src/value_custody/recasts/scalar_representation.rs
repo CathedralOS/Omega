@@ -176,6 +176,65 @@ fn integer_range_bit_patterns(
     Some(vec![(minimum as u64, maximum as u64)])
 }
 
+/// Narrow a representation set by a place's `where`-fact value interval, so a
+/// constraint spelled on the data declaration compares identically to one
+/// spelled on the type itself. Either endpoint may be open; the side that
+/// stays open imposes nothing and skips narrowing on it.
+pub(super) fn narrow_to_integer_interval(
+    facts: &mut MutableScalarRepresentationFacts,
+    primitive: PrimitiveType,
+    minimum: Option<i64>,
+    maximum: Option<i64>,
+) {
+    let (Some(minimum), Some(maximum)) = (minimum, maximum) else {
+        return;
+    };
+    // A float type with no attached range carries its full bit set; a
+    // `where` interval on it is the same fact a float range states.
+    if matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
+        && matches!(facts.values, ScalarRepresentationSet::ExactBitPatterns(_))
+    {
+        facts.values = ScalarRepresentationSet::FloatInterval {
+            primitive,
+            minimum,
+            maximum,
+        };
+        return;
+    }
+    match &mut facts.values {
+        ScalarRepresentationSet::ExactBitPatterns(values) => {
+            if let Some(interval) = integer_range_bit_patterns(primitive, (minimum, maximum)) {
+                *values = intersect_bit_pattern_intervals(std::mem::take(values), &interval);
+            }
+        }
+        ScalarRepresentationSet::FloatInterval {
+            minimum: facts_minimum,
+            maximum: facts_maximum,
+            ..
+        } => {
+            *facts_minimum = (*facts_minimum).max(minimum);
+            *facts_maximum = (*facts_maximum).min(maximum);
+        }
+    }
+}
+
+fn intersect_bit_pattern_intervals(
+    source: Vec<(u64, u64)>,
+    interval: &[(u64, u64)],
+) -> Vec<(u64, u64)> {
+    let mut intersected = Vec::new();
+    for (low, high) in source {
+        for &(interval_low, interval_high) in interval {
+            let low = low.max(interval_low);
+            let high = high.min(interval_high);
+            if low <= high {
+                intersected.push((low, high));
+            }
+        }
+    }
+    intersected
+}
+
 /// Canonicalize an exact representation set so equality depends on the bits it
 /// denotes, not on how a source interval happened to partition them. This is
 /// load-bearing for a full signed range: `i8 [-128..=127]` initially produces

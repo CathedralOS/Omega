@@ -1,13 +1,15 @@
 //! Direct owned projections contribute storage bounds under their exact owner.
 
-use symbols::SymbolKind;
+use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(super) fn type_reference(
     program: &TypedTrees,
+    machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
     // When true, a mutable receiver still contributes the field's declared
@@ -26,26 +28,52 @@ pub(super) fn type_reference(
         return None;
     };
     let parameter = program.state_parameters(state).iter().find(|parameter| {
-        receiver.symbol.is_valid()
+        let symbol_match = receiver.symbol.is_valid()
             && receiver.symbol == receiver.head_symbol
-            && parameter.symbol == receiver.symbol
+            && parameter.symbol == receiver.symbol;
+        let self_match = parameter.is_self && name.is_self_receiver();
+        (symbol_match || self_match)
             && parameter.name == *name
-            && !parameter.is_self
-            && (declared_mutable_leaves || !parameter.is_mutable)
+            // The machine's own field storage enforces its declared bounds on
+            // every write, so `self.k` keeps them even through a `&mut self`
+            // receiver — the read is of storage, not of a snapshot-only value.
+            && (declared_mutable_leaves || !parameter.is_mutable || parameter.is_self)
             && !parameter.is_const
     })?;
-    // Reference and generic receivers need load or instantiated-field evidence.
-    // A named record contributes only its stored field's own enforced bounds.
-    let TypeReferenceNode::Named { symbol: owner, .. } = program
-        .type_reference_table
-        .type_reference(parameter.type_reference)
+    // The machine's own field storage enforces its declared bounds on every
+    // write, so `self.k` keeps them even through a `&mut self` receiver. Peel
+    // the receiver's self reference (the `Self` alias carries the field
+    // parent), and resolve the record declaration through the machine's
+    // attached data. An ordinary reference or generic receiver still needs
+    // load or instantiated-field evidence; a named record contributes only
+    // its stored field's own enforced bounds.
+    let mut owner_type = parameter.type_reference;
+    if parameter.is_self {
+        while let TypeReferenceNode::Reference { referee, .. }
+        | TypeReferenceNode::Constrained {
+            base_type: referee, ..
+        } = program.type_reference_table.type_reference(owner_type)
+        {
+            owner_type = *referee;
+        }
+    }
+    let TypeReferenceNode::Named { symbol: owner, .. } =
+        program.type_reference_table.type_reference(owner_type)
     else {
         return None;
     };
-    let declaration = program
-        .data_definitions()
-        .iter()
-        .find(|declaration| owner.is_valid() && declaration.symbol == *owner)?;
+    let declaration = if parameter.is_self {
+        let attached = machine.attached_data.as_ref()?;
+        program
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name == *attached)?
+    } else {
+        program
+            .data_definitions()
+            .iter()
+            .find(|declaration| owner.is_valid() && declaration.symbol == *owner)?
+    };
     let selected = program.symbols.get(member.member_symbol);
     if !member.member_symbol.is_valid()
         || selected.kind != SymbolKind::Field
@@ -54,10 +82,18 @@ pub(super) fn type_reference(
     {
         return None;
     }
+    // A `self` member's resolved symbol is scoped to the `Self` receiver
+    // spelling, not to the declaration's own field symbols — the exact-name
+    // match inside the owning record is already unique.
+    let member_symbol = if parameter.is_self {
+        SymbolHandle::invalid()
+    } else {
+        member.member_symbol
+    };
     crate::value_custody::places::exact_data_member_field(
         program,
         declaration,
-        member.member_symbol,
+        member_symbol,
         member.member.as_str(),
         None,
     )

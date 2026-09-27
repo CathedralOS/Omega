@@ -4,6 +4,7 @@ use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression,
 };
 
+use super::expressions::{expression_integer_value, expression_name};
 use super::facts::RangeFacts;
 use bounds::{
     seed_at_most_fact, seed_at_most_len_range_bound_fact, seed_equal_len_offset_fact,
@@ -205,6 +206,11 @@ fn seed_binary_guard_facts(
         }
         BinaryOperator::Equal => {
             seed_length_equality_fact(program, facts, binary.left, binary.right);
+            // `place == K` makes `place` the folded value under the guard —
+            // a later `place - 1` index initializer closes through
+            // `expression_integer_value` exactly as an assignment fold does.
+            seed_equal_integer_fact(program, facts, binary.left, binary.right);
+            seed_equal_integer_fact(program, facts, binary.right, binary.left);
             // Equality is `<=` in both directions: `pos == max` gives
             // `pos <= max` for the ordering chain and `max <= pos`, and
             // `pos == K` unfolds to the `pos <= K` integer bound plus the
@@ -266,6 +272,38 @@ fn seed_binary_guard_facts(
         | BinaryOperator::ShiftRight
         | BinaryOperator::Subtract
         | BinaryOperator::CaseMembership => {}
+    }
+}
+
+/// `place == value` under a true guard leaves `place` known-equal to the
+/// folded integer: push a shadowing entry the newest-entry lookups see so an
+/// expression over the place (a hoisted `place - 1` index initializer)
+/// folds like an assignment value would. Only a place operand carries the
+/// fact; two folded constants need no entry at all.
+fn seed_equal_integer_fact(
+    program: &typed_trees::TypedTrees,
+    facts: &mut RangeFacts<'_>,
+    place: ExpressionHandle,
+    value: ExpressionHandle,
+) {
+    let Some(value) = expression_integer_value(program, facts, value) else {
+        return;
+    };
+    match program.expression_table.expression(place) {
+        ExpressionNode::Member(member) => {
+            facts.define_field_integer(member.member_symbol, member.member.as_str(), value);
+        }
+        ExpressionNode::Name(_) => {
+            if let Some((symbol, name)) = expression_name(program, place) {
+                facts.define_local(
+                    symbol,
+                    name.unwrap_or_default().to_owned(),
+                    None,
+                    Some(value),
+                );
+            }
+        }
+        _ => {}
     }
 }
 
