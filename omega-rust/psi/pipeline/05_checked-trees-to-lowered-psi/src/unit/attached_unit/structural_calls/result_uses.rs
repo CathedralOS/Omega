@@ -1549,7 +1549,7 @@ fn validate_operand_producers(
             ..
         } = candidate
         {
-            // A case or record construction operand has no local symbol;
+            // A construction or copied-place operand has no local symbol;
             // its call occurrence and authored formal position own the
             // constructor, exactly like a literal array operand.
             if !checked
@@ -1567,7 +1567,8 @@ fn validate_operand_producers(
                     (constructor.expression, constructor.type_reference)
                 }
                 checked_trees::CheckedStructuralValueKind::Record { .. }
-                | checked_trees::CheckedStructuralValueKind::StructuralCase { .. } => (
+                | checked_trees::CheckedStructuralValueKind::StructuralCase { .. }
+                | checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { .. } => (
                     node.expression,
                     checked
                         .facts
@@ -1579,7 +1580,11 @@ fn validate_operand_producers(
                         ))?
                         .type_reference,
                 ),
-                _ => return unsupported("case argument operand is not a case construction"),
+                _ => {
+                    return unsupported(
+                        "structural argument operand is not a construction or copy",
+                    );
+                }
             };
             let names_result = result.statement_index == coordinate.statement_index
                 && *call_ordinal == coordinate.call_ordinal

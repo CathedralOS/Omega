@@ -44,8 +44,8 @@ impl Builder<'_, '_> {
                 .program
                 .primitive_type_reference(parameter.type_reference)
             else {
-                // An inline case or record construction at a non-primitive
-                // position is still a structural value: retain it rooted at
+                // A construction or copied place at a non-primitive
+                // position is a structural value: retain it rooted at
                 // the authored argument expression so the Unit statement
                 // sequence can establish it as a state-local operand before
                 // the call, exactly as a `let` initializer is established.
@@ -65,7 +65,16 @@ impl Builder<'_, '_> {
                         self.program,
                         *argument,
                         parameter.type_reference,
-                    ))
+                    ) || (!crate::execution::terminal_unit::types::is_reference(
+                        self.program,
+                        parameter.type_reference,
+                    ) && super::structural_values::is_copied_place_value(
+                        self.program,
+                        self.state,
+                        self.statement_index,
+                        *argument,
+                        parameter.type_reference,
+                    )))
                     && values
                         .root_for_expression(self.state, statement, *argument)
                         .is_none()

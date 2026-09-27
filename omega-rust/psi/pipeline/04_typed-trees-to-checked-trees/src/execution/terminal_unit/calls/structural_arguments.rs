@@ -182,21 +182,24 @@ pub(crate) fn structural_call_arguments(
             {
                 return None;
             }
-            crate::flow::canonical_place_from_expression_in_state(
-                program,
-                caller_state.symbol,
-                statement_index,
-                expression,
-            )
-            .or_else(|| {
-                caller_structural_results
-                    .iter()
-                    .find(|(_, root)| *root == facts::PlaceRoot::Expression(expression))
-                    .map(|_| crate::flow::CanonicalPlace {
-                        root: facts::PlaceRoot::Expression(expression),
-                        segments: Vec::new(),
-                    })
-            })?
+            // An evaluated operand owns its result even when its expression
+            // also names storage. In particular, a copied field must pass the
+            // fresh copy, not reinterpret its borrowed backing as an owned move.
+            caller_structural_results
+                .iter()
+                .find(|(_, root)| *root == facts::PlaceRoot::Expression(expression))
+                .map(|_| crate::flow::CanonicalPlace {
+                    root: facts::PlaceRoot::Expression(expression),
+                    segments: Vec::new(),
+                })
+                .or_else(|| {
+                    crate::flow::canonical_place_from_expression_in_state(
+                        program,
+                        caller_state.symbol,
+                        statement_index,
+                        expression,
+                    )
+                })?
         };
         arm("call operation: structural arguments: alias and identity");
         let restored_alias = reborrow_restored_call_alias_target(

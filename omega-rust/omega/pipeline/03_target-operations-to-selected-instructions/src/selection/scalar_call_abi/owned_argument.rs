@@ -77,6 +77,9 @@ pub(super) fn validate_owned_arguments(
                         crate::selection::scalar_array_input::elements(source, producer)?;
                         result
                     }
+                    // The copy instruction validates its source extent. The
+                    // call consumes its fresh result home, not that source.
+                    LegalizedScalarInstructionKind::StructuralLeafCopy { result, .. } => result,
                     LegalizedScalarInstructionKind::Call(produced) => {
                         crate::selection::aggregate_result_input::call_result(source, produced)?.0
                     }

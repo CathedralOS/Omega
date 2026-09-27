@@ -116,6 +116,7 @@ pub(super) fn reconstruct(
                 | AbstractOperation::EstablishZeroedStructural { psi_operation, result: actual, .. }
                 | AbstractOperation::EstablishRecord { psi_operation, result: actual, .. }
                 | AbstractOperation::EstablishScalarCase { psi_operation, result: actual, .. }
+                | AbstractOperation::StructuralLeafCopy { psi_operation, result: actual, .. }
                 | AbstractOperation::CallStructural { psi_operation, result: actual, .. }
                 if *psi_operation == producer && actual == result)
         })

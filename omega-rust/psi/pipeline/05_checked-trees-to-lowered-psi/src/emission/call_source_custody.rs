@@ -123,9 +123,12 @@ pub(crate) fn validate_store_and_initializer_calls(
                     // a value (a view, aggregate, or alias) rather than a call
                     // op is established by this operation; it owns the authored
                     // call unless one of its nested calls already does.
+                    // Argument values precede a separate call operation and
+                    // must not also claim that call's occurrence.
                     CheckedUnitEffectOperationPlan::EstablishStructuralValue {
                         result,
                         calls,
+                        operand_source: None,
                         ..
                     } => {
                         result.statement_index == statement_index

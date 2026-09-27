@@ -52,6 +52,60 @@ fn borrowed_scalar_call_preserves_verified_requirement_obligations() {
 }
 
 #[test]
+fn copied_call_argument_rejoins_its_exact_establishing_operation() {
+    let source = source_plan(
+        r#"
+            data Item [copy] { value: u32; }
+            data Target { seen: u32; }
+            machine Target::accept(&mut self, item: Item) { self.seen = item.value; }
+            data Main { item: Item; target: Target; }
+            machine Main::run(&mut self) { self.target.accept(self.item); }
+        "#,
+    );
+    let copy = source
+        .functions
+        .iter()
+        .flat_map(|function| &function.operations)
+        .find_map(|operation| match operation {
+            AbstractOperation::StructuralLeafCopy { psi_operation, .. } => Some(*psi_operation),
+            _ => None,
+        })
+        .expect("the borrowed field is copied before the call");
+    for native in [
+        NativeTarget::macos_arm64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+    ] {
+        let target =
+            crate::lower_to_target_operations(&source, crate::TargetLoweringRequest::new(native))
+                .expect("a copied call argument has its own native storage");
+        crate::validate_abstract_to_target_translation(&source, native, &target).unwrap();
+        let mut substituted = target.clone();
+        let argument = substituted.functions.iter_mut()
+            .flat_map(|function| &mut function.graph.blocks)
+            .flat_map(|block| &mut block.operations)
+            .find_map(|operation| match operation {
+                TargetUnitOperation::Call { arguments, .. } => arguments.iter_mut().find(|argument| {
+                    matches!(argument.source,
+                        target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation }
+                        if psi_operation == copy)
+                }),
+                _ => None,
+            }).expect("the call names its copied argument home");
+        argument.source = target_operations::TargetStructuralArgumentSource::StructuralHome {
+            psi_operation: OperationId::new(999_999).unwrap(),
+        };
+        assert!(matches!(
+            crate::validate_abstract_to_target_translation(&source, native, &substituted),
+            Err(
+                crate::AbstractToTargetTranslationValidationError::StructuralCallArgumentMismatch { .. }
+            )
+        ));
+    }
+}
+
+#[test]
 fn ordinary_calls_reject_missing_substituted_and_forged_scalar_homes() {
     let source = source_plan(
         r#"

@@ -440,6 +440,91 @@ fn leaf_copy_rejects_projection_and_home_substitution() {
 }
 
 #[test]
+fn copied_leaf_feeds_an_owned_call_through_selection_and_replay() {
+    let mut source = leaf_copy_source(
+        outer_type(),
+        vec![StructuralPathSegment::Field("inner".into())],
+        inner_type().id,
+    );
+    let (callee_plan, _, _) = crate::tests::fixtures::plain_unit::plain_unit_fixture();
+    let mut callee = callee_plan.functions[0].clone();
+    callee.machine = semantic_vocabulary::MachineId::new(2).unwrap();
+    callee.entry = semantic_vocabulary::BlockId::new(2).unwrap();
+    callee.block_entries[0].block = callee.entry;
+    callee.operations = vec![AbstractOperation::ReturnUnit {
+        psi_edge: semantic_vocabulary::EdgeId::new(2).unwrap(),
+        cleanup_actions: Vec::new(),
+    }];
+    callee
+        .structural_parameters
+        .push(terminal_psi::StructuralParameterDeclaration {
+            place: PlaceId::new(3).unwrap(),
+            position: 0,
+            is_self: false,
+            structural_type: inner_type().id,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access: StructuralAccess::Owned,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        });
+    source.functions[0].operations.insert(
+        1,
+        AbstractOperation::CallUnit {
+            psi_operation: OperationId::new(2).unwrap(),
+            callee: callee.machine,
+            arguments: Vec::new(),
+            structural_arguments: vec![terminal_psi::StructuralArgument {
+                place: PlaceId::new(2).unwrap(),
+                path: Vec::new(),
+                access: StructuralAccess::Owned,
+            }],
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+    );
+    source.functions.push(callee);
+    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        &source,
+        FuelScheduleIdentity::new(1).unwrap(),
+    )
+    .unwrap();
+    optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
+    ] {
+        let target = abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            TargetLoweringRequest::new(native),
+        )
+        .unwrap();
+        let legal = legalize_target_operations(&target, &source, &unit)
+            .expect("the copied operand retains its establishing operation");
+        let environment =
+            register_environment::baseline_target_register_environment(native).unwrap();
+        let constraints = selection_constraints(&legal, &environment);
+        let selected = select_instructions(
+            &legal,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .expect("the copy result is an ordinary owned call operand");
+        validate_selected_instructions(
+            &legal,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+            selected.plan().clone(),
+        )
+        .expect("independent selection replay retains the copied operand");
+    }
+}
+
+#[test]
 fn leaf_copy_scalar_field_endpoint_lowers_and_legalizes() {
     // An inline scalar leaf resolves through its canonical PrimitiveScalar
     // declaration: the host's only field is the leaf at offset 0.
