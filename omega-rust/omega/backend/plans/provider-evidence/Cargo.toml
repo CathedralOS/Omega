@@ -9,6 +9,7 @@ name = "effects"
 path = "src/lib.rs"
 
 [dependencies]
+terminal-psi = { path = "../../../../psi/representations/terminal-psi" }
 target = { path = "../../target" }
 installation-evidence = { path = "../../runtime/installation-evidence" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }

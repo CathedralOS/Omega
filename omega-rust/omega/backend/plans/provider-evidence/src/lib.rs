@@ -8,10 +8,17 @@
 //! `provider_evidence/providers/` owns provider plans, approval registries and
 //! boundary-call audits. `authority/` owns terminal mechanism classifications
 //! and service permissions; `executable_scopes/` owns executable manifests and
-//! scope admission; `component_eras/` owns era ledgers and progress evidence.
+//! scope admission, including source-free selected-composition exclusion replay;
+//! `component_eras/` owns era ledgers and progress evidence.
 //! These are realization records, not the source language's effect analysis.
 
 mod provider_evidence;
+
+pub use provider_evidence::executable_scopes::behavior_exclusions::{
+    BehaviorExclusion, BehaviorExclusionReport, BehaviorExclusionVerdict, BehaviorExclusions,
+    BoundaryServiceOwners, EvidenceGap, EvidenceGapKind, ProhibitedBehavior, ProhibitedSite,
+    establish_behavior_exclusions, establish_behavior_exclusions_with_owners,
+};
 
 pub use provider_evidence::authority::service_terminal_authority_permission::ServiceTerminalAuthorityPermission;
 pub use provider_evidence::authority::terminal_authority::{

@@ -5,7 +5,6 @@
 //! optimizations do not choose a different publication route.
 
 mod artifact_assembly;
-mod behavior_exclusions;
 mod boundary_applications;
 mod callback_thunks;
 mod input_preparation;
@@ -147,10 +146,9 @@ fn realize_image(
     // mechanism closure, not a receiver permission: it is adjudicated against
     // the review's exercised dispositions whether or not the request carries
     // a permission policy, and a violation publishes no product.
-    behavior_exclusions::admit_behavior_exclusion_closure(
-        request.behavior_exclusions,
-        &terminal_authority_closure_review,
-    )?;
+    request
+        .behavior_exclusions
+        .validate_physical_authority_closure(&terminal_authority_closure_review)?;
     let emitted = emit_realization_object(
         input,
         installation,
