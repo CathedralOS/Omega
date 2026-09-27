@@ -213,68 +213,77 @@ backend-visible; full corpus runs only at the end of an item.
   `filesystem/dir_walk_wrappers_exit` and `systems/note_vault` retain their
   `Filesystem::create_dir_all` dependency. Shared phase labels do not merge them.
 
-- **CASE-FIELD-TYPE-STORE-SHAPES.** (new-scope) `structural field store: case
-  field type` is THREE distinct causes, not one. Six corpus fixtures sit
-  there, found by attributing the macOS arm64 native roster, and a bare
-  payload-bearing case literal CHECKS -- as do a payload-free case, two scalar
-  payload fields, a RECORD-typed payload field, and the same literal reached
-  through a local. Pinned at
-  `tests/omega/pending/structs/case_field_type_store_shapes` with the whole
-  matrix.
-  (1) A PREDICATE DOMAIN on a payload field: `case Dim(amount: i32 in Ten)`
-  omits, `i32` checks, and `i32 in Wrapping` CHECKS -- an arithmetic policy is
-  not it, so this is NOT the MEMBER-POLICY family despite the resemblance.
-  Wider than sums: the same domained member in a plain RECORD literal omits at
-  `structural field store: record literal source`, through a LOCAL at
-  `statement sequence: local data: structural call binding`, while a domained
-  SCALAR field stored directly checks -- one gap, three construction sites.
-  `pass/ranges/sum_payload_range_arith_narrowed_exit`.
-  (2) An `[erased]` payload field: omits where the same case with a plain
-  `proof: Evidence` checks, one token apart.
-  `pass/relevance/erased_case_payload_field_exit`.
-  (3) A COMMON field declared beside the case payloads: drop it and the
-  identical store checks. `pass/data/runtime_mixed_shape_exit`, whose own
-  comment names it.
-  Acceptance: the pending fixture checks and all three causes check
-  independently -- clearing one leaves the phase populated and the label will
-  not say which remains.
+- **CASE-FIELD-TYPE-STORE-SHAPES.** Complete three independent construction
+  cases: predicate-qualified members (case payloads and plain records, directly
+  or through locals), erased payloads, and common fields beside case payloads.
+  Follow [data construction](wiki/spec/language/data_and_literals.md#construction-and-case-identity)
+  and [erased bindings](wiki/spec/proofs/contracts.md#explicit-erased-bindings):
+  evaluate runtime fields once in authored order; retain erased semantic evidence
+  without runtime slots; establish domains before observation. Arithmetic-policy
+  payloads and direct scalar-domain stores remain controls, not this omission.
 
-- **RECORD-LITERAL-ARRAY-FIELD.** (new-scope) Constructing a record literal
-  that supplies a value for an ARRAY-typed field has no route.
-  `samples/cli/systems/wire_protocol` spells it
-  `FixedVec { items: [150, 0 - 2, 0, 0], length: 2 }` inside a nested literal,
-  and the nesting is a red herring: a flat record omits, and a record literal
-  whose one field is a nested RECORD checks. Pinned at
-  `tests/omega/pending/structs/record_literal_array_field`. Filling the array
-  field from a VARIABLE omits too, and a bare array literal bound to an array
-  local checks, so it is the record literal having to supply an array-typed
-  field rather than the array literal expression. Ruled out with paired
-  controls: `FixedVec`/generics/const generics, nesting, the `0 - n` negative
-  spelling, array length and element type, passing the local by reference and
-  using it after, and merely HAVING an array field (one never
-  literal-constructed checks, as does one written by element assignment). The
-  label follows the construction site rather than the cause -- a `let` local
-  says `statement sequence: local data: structural call binding`, the same
-  literal stored into a self field says `structural field store: record literal
-  source` -- so pin no repair on either string. Acceptance: the pending fixture
-  checks and `wire_protocol` leaves the omission cluster.
+  `checking/src/value_custody/scalar_case_constructor.rs` requires numeric-owned
+  contents, rejects common fields, requires the full authored payload roster,
+  and rejects erased operands in its structural constructor. Predicate domains
+  are outside that contents classifier. Stage 04
+  `values/scalar/computations/structural_values.rs` shares the classifier and
+  also gates record construction. Stage 05
+  `attached_unit/structural_values/structural_case.rs` requires a sum shape and
+  rejects erased initializers. Repair retained establishment through lowering;
+  merely removing an admission guard cannot supply the missing evidence.
 
-- **PASS-TIER-GUARDS-OWED.** (new-scope) Two repaired gaps have no permanent
-  guard because the promotion needs a golden row and
-  `tests/omega/corpus_outcomes.txt` is held by other lanes.
-  `tests/omega/pending/control_flow/field_subject_named_arm_chain` (the
-  field-subject dispatch chain) now CHECKS and its stale pending copy is
-  deleted here, since a pending fixture that checks is worse than none -- the
-  tier is ungated, so nothing would ever report it. Its content is recoverable
-  from this commit's parent. The sample `samples/cli/basics/brightness_control`
-  checks clean and is the only guard until the fixture is promoted.
-  The second is `tests/omega/pending/calls/copy_projection_from_borrowed_receiver`,
-  already tracked elsewhere on this board with the same blocker.
-  When the golden frees up, move both to `pass/` WITH their recorded rows,
-  and keep the authored ProgramEntry root: a targetless check does not
-  exercise either original omission. For the dispatch chain the guard must
-  keep all three conditions at once -- field subject, three or more named
-  arms, no authored `_` -- plus its terminal effect, or it guards nothing.
+  The pending `structs/case_field_type_store_shapes` actually contains only the
+  common-field case; materialize its comment-only domain/erased controls and
+  retain payload-free, scalar/multiple/record payloads and local-mediated stores.
+  Acceptance: promote it with its Build entry and exit-0 oracle. Execute the
+  `pass/` customers to exit 70: `ranges/sum_payload_range_arith_narrowed_exit`,
+  `relevance/erased_case_payload_field_exit`, `data/runtime_mixed_shape_exit`,
+  `calls/runtime_enum_self_method_exit`, `generics/runtime_mixed_generic_erased_sum_exit`
+  and `traits/equatable_mixed_shape_equality_exit`. Preserve domain rejection
+  and wrong-case negatives, erased ABI positions, common-field reads/writes,
+  valid zero omission on case replacement, all-tag dispatch and unequal-common-field
+  equality. Each cause needs its own checked and interpreter/native outcome.
+
+- **RECORD-LITERAL-ARRAY-FIELD.** Compose supplied fixed-array and borrowed-slice
+  fields into record literals at local, nested, return and field-store sites.
+  Stage 04 `values/scalar/computations/structural_values.rs` sends non-scalar
+  record members through structural values, but `fixed_array_value` declines
+  closed primitive arrays; their ordinary scalar-array producer is separate.
+  Omitted zero-valid array fields already compose (`tests/flow/terminal_unit/returns.rs`).
+  Stage 05 `attached_unit/structural_values/emission.rs` still refuses general
+  `FixedArray` establishment. Reuse existing array/record producers and carry
+  exact element types, evaluation order and ownership through the full route.
+
+  Borrowed views are another field producer, not owned array storage:
+  `borrowed_slice_view_place` currently requires the expression to be the
+  entire immutable local initializer. Compose constructor operands with exact
+  stored-loan origins and lifetimes; **REFERENCE-LOCAL-BINDING-ROUTES** owns
+  reference locals. Existing record emission already accepts borrowed-view fields.
+
+  The pending `structs/record_literal_array_field` contains only a flat
+  `[i32; 4]` literal. Materialize its controls: inline/variable arrays,
+  scalar/nested-record fields, bare array locals, element-filled fields,
+  lengths/types, negative operands, nested and generic/const-generic records,
+  and later by-reference use. Promote it with its Build entry and exit-0 oracle.
+  Acceptance includes unchanged `samples/cli/systems/wire_protocol` and
+  `pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit`: exit 70 with
+  13-byte encode/decode, room 300, samples [150, -2], depth -64. The borrowed
+  customer `pass/wire/runtime_wire_decode_byte_slice_exit` must exit 70 after
+  re-encoding the decoded view to five bytes with payload [72, 105]. Run checked
+  and interpreter/native legs; leaving an omission cluster is not execution.
+
+- **PASS-TIER-GUARDS-OWED.** Recheck and promote
+  `tests/omega/pending/calls/copy_projection_from_borrowed_receiver` into
+  `pass/calls/` with scoped checked and native golden updates. Preserve its
+  nested `[copy]` field read through `&mut self`, by-value argument, named state,
+  terminal effect and authored ProgramEntry bindings. Make the exit observe a
+  nonzero copied value at the callee and the unchanged source; add
+  `expected_native_exit.txt` so the corpus gate executes this fixture.
+  Copy establishment exists in `values/scalar/computations/call_arguments.rs`;
+  `calls/structural_arguments.rs` selects its fresh result instead of moving
+  borrowed backing. Repair any remaining omission before promotion. Recheck
+  product roots under **OMEGA-PRODUCT-COMPILER-SOURCE** separately; the fixture
+  does not establish their later operations.
 
 - **FLOAT-RANGE-ATTACHED-FIELD.** (new-scope) A FLOAT field carrying a
   bracketed RANGE in a machine's attached data makes the machine
