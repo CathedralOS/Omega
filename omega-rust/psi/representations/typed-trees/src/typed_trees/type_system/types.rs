@@ -10,12 +10,41 @@ mod tests;
 
 pub type TypeReferenceHandle = Handle<TypeReferenceNode>;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct TypeReferenceTable {
     type_references: Arena<TypeReferenceNode>,
     type_reference_handles: Arena<TypeReferenceHandle>,
     constraints: Arena<TypeConstraintNode>,
+    named_rows: NamedRowIndex,
 }
+
+// Written out so the derived row index stays out of the table's rendering.
+impl std::fmt::Debug for TypeReferenceTable {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("TypeReferenceTable")
+            .field("type_references", &self.type_references)
+            .field("type_reference_handles", &self.type_reference_handles)
+            .field("constraints", &self.constraints)
+            .finish()
+    }
+}
+
+/// The first `Named` row per symbol, built on the first lookup. Builtin
+/// carriers are looked up by symbol throughout checking, and each lookup
+/// scanned every row. `insert` extends a built index in place; the two
+/// in-place rewrites that can change a row's symbol keep it exact. Derived
+/// content, so it never takes part in equality.
+#[derive(Clone, Default)]
+struct NamedRowIndex(std::sync::OnceLock<symbols::SymbolKeyMap<SymbolHandle, TypeReferenceHandle>>);
+
+impl PartialEq for NamedRowIndex {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for NamedRowIndex {}
 
 impl TypeReferenceTable {
     pub(crate) fn retains_exact_prefix(&self, base: &Self) -> bool {
@@ -23,6 +52,7 @@ impl TypeReferenceTable {
             type_references,
             type_reference_handles,
             constraints,
+            named_rows: _,
         } = base;
         crate::typed_trees::retained_prefix::arena_is_exact_prefix(
             type_references,
@@ -41,6 +71,7 @@ impl TypeReferenceTable {
             type_references: Arena::new(),
             type_reference_handles: Arena::new(),
             constraints: Arena::new(),
+            named_rows: NamedRowIndex::default(),
         }
     }
 
@@ -54,7 +85,54 @@ impl TypeReferenceTable {
     }
 
     pub fn insert(&mut self, type_reference: TypeReferenceNode) -> TypeReferenceHandle {
-        self.type_references.insert(type_reference)
+        let named = match &type_reference {
+            TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
+            _ => None,
+        };
+        let handle = self.type_references.insert(type_reference);
+        if let Some(symbol) = named {
+            self.note_named_row(symbol, handle);
+        }
+        handle
+    }
+
+    /// Record `handle` as a `Named` row for `symbol` in a built index, where
+    /// the lowest row wins as it does in a table scan.
+    fn note_named_row(&mut self, symbol: SymbolHandle, handle: TypeReferenceHandle) {
+        if let Some(rows) = self.named_rows.0.get_mut() {
+            rows.entry(symbol)
+                .and_modify(|first| {
+                    if handle.arena_index() < first.arena_index() {
+                        *first = handle;
+                    }
+                })
+                .or_insert(handle);
+        }
+    }
+
+    /// Recompute a built index's entry for `symbol` after the row holding
+    /// its first occurrence changed.
+    fn rescan_named_row(&mut self, symbol: SymbolHandle) {
+        let Some(rows) = self.named_rows.0.get_mut() else {
+            return;
+        };
+        let first = self
+            .type_references
+            .iter()
+            .find_map(|(handle, node)| match node {
+                TypeReferenceNode::Named {
+                    symbol: candidate, ..
+                } if *candidate == symbol => Some(handle),
+                _ => None,
+            });
+        match first {
+            Some(handle) => {
+                rows.insert(symbol, handle);
+            }
+            None => {
+                rows.remove(&symbol);
+            }
+        }
     }
 
     pub fn insert_type_reference_handles(
@@ -183,7 +261,30 @@ impl TypeReferenceTable {
     /// inferred argument's node. Compound argument nodes share their child
     /// handles, which is sound (children are never mutated by the pass).
     pub fn substitute_node(&mut self, handle: TypeReferenceHandle, node: TypeReferenceNode) {
-        *self.type_references.get_mut(handle) = node;
+        let replaced = std::mem::replace(self.type_references.get_mut(handle), node);
+        let replaced_named = match replaced {
+            TypeReferenceNode::Named { symbol, .. } => Some(symbol),
+            _ => None,
+        };
+        self.renamed_row(handle, replaced_named);
+    }
+
+    /// Keep a built named-row index exact after the row at `handle`, which
+    /// was a `Named` row for `replaced_named` if any, was rewritten in place.
+    fn renamed_row(&mut self, handle: TypeReferenceHandle, replaced_named: Option<SymbolHandle>) {
+        if let Some(symbol) = replaced_named
+            && self
+                .named_rows
+                .0
+                .get()
+                .is_some_and(|rows| rows.get(&symbol) == Some(&handle))
+        {
+            self.rescan_named_row(symbol);
+        }
+        if let TypeReferenceNode::Named { symbol, .. } = self.type_references.get(handle) {
+            let symbol = *symbol;
+            self.note_named_row(symbol, handle);
+        }
     }
 
     /// Replace a fixed-array type reference's length with a concrete literal
@@ -320,14 +421,19 @@ impl TypeReferenceTable {
     }
 
     pub fn find_named_type_reference(&self, symbol: SymbolHandle) -> Option<TypeReferenceHandle> {
-        self.type_references
-            .iter()
-            .find_map(|(handle, type_reference)| match type_reference {
-                TypeReferenceNode::Named {
-                    symbol: candidate, ..
-                } if *candidate == symbol => Some(handle),
-                _ => None,
+        self.named_rows
+            .0
+            .get_or_init(|| {
+                let mut rows = symbols::SymbolKeyMap::default();
+                for (handle, node) in self.type_references.iter() {
+                    if let TypeReferenceNode::Named { symbol, .. } = node {
+                        rows.entry(*symbol).or_insert(handle);
+                    }
+                }
+                rows
             })
+            .get(&symbol)
+            .copied()
     }
 
     /// Find an exact carrier/policy result without borrowing input predicates.
@@ -658,12 +764,18 @@ impl TypeReferenceTable {
             }
             TypeReferenceNode::DynamicTrait { symbol, .. }
             | TypeReferenceNode::Named { symbol, .. } => {
+                let replaced_named = matches!(
+                    self.type_references.get(type_reference),
+                    TypeReferenceNode::Named { .. }
+                )
+                .then_some(symbol);
                 let current = match self.type_references.get_mut(type_reference) {
                     TypeReferenceNode::DynamicTrait { symbol, .. }
                     | TypeReferenceNode::Named { symbol, .. } => symbol,
                     _ => unreachable!(),
                 };
                 *current = remapped(symbol, symbols);
+                self.renamed_row(type_reference, replaced_named);
             }
             TypeReferenceNode::Unit => {}
         }
@@ -1059,7 +1171,16 @@ pub enum PrimitiveType {
 }
 
 impl PrimitiveType {
+    #[inline]
     pub fn from_name(name: &str) -> Option<Self> {
+        // Every primitive and atomic spelling starts with one of these bytes;
+        // data, machine and trait names fail here without string compares.
+        if !matches!(
+            name.as_bytes().first(),
+            Some(b'b' | b'f' | b'i' | b'u' | b'a' | b'A')
+        ) {
+            return None;
+        }
         match name {
             "bool" => Some(Self::Bool),
             "f32" => Some(Self::F32),
