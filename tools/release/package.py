@@ -5,10 +5,11 @@ import argparse
 import hashlib
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
 import shutil
 import subprocess
+import stat
 import sys
 import tarfile
 import tempfile
@@ -97,6 +98,47 @@ def verify_manifest(bundle):
     if library_digest(bundle / "lib/omega/library") != manifest["library_sha256"]:
         raise ValueError("bundle library digest differs from manifest")
     return manifest
+
+
+def extract_bundle(archive, destination):
+    """Extract the fixed bundle layout, rejecting links and path escapes."""
+    if archive.name.endswith(".zip"):
+        name = archive.name[:-4]
+        reader = zipfile.ZipFile(archive)
+        members = [(entry.orig_filename, stat.S_IFMT(entry.external_attr >> 16)
+                    in (0, stat.S_IFREG, stat.S_IFDIR)) for entry in reader.infolist()]
+    elif archive.name.endswith(".tar.gz"):
+        name = archive.name[:-7]
+        reader = tarfile.open(archive)
+        members = [(entry.name, entry.isfile() or entry.isdir()) for entry in reader.getmembers()]
+    else:
+        raise ValueError("expected a .zip or .tar.gz bundle")
+    with reader:
+        seen = set()
+        for member, ordinary in members:
+            parts = PurePosixPath(member).parts
+            if (not ordinary or not parts or parts[0] != name or "\\" in member or "\0" in member
+                    or any(part in (".", "..", "") or ":" in part or part.endswith((" ", "."))
+                           for part in member.rstrip("/").split("/"))
+                    or parts in seen):
+                raise ValueError(f"unsafe or duplicate archive member: {member}")
+            seen.add(parts)
+        reader.extractall(destination)
+    return destination / name
+
+
+def verify_archive(archive, destination, *, version, commit, host):
+    expected = f"{hashlib.sha256(archive.read_bytes()).hexdigest()}  {archive.name}"
+    checksum = archive.with_name(archive.name + ".sha256").read_text(encoding="ascii").strip()
+    if checksum != expected:
+        raise ValueError(f"archive checksum mismatch: {archive}")
+    bundle = extract_bundle(archive, destination)
+    manifest = verify_manifest(bundle)
+    if (manifest.get("schema") != "omega-release-bundle/1" or manifest.get("dirty") is not False
+            or manifest.get("version") != version or manifest.get("commit") != commit
+            or manifest.get("host") != host):
+        raise ValueError("bundle identity differs from the requested release")
+    return bundle
 
 
 def publish_archive(archive, destination):
@@ -248,12 +290,7 @@ def main():
         archive_bundle(bundle, archive)
         extracted = scratch / "relocated installation"
         extracted.mkdir()
-        if suffix == ".zip":
-            with zipfile.ZipFile(archive) as packaged:
-                packaged.extractall(extracted)
-        else:
-            with tarfile.open(archive) as packaged:
-                packaged.extractall(extracted)
+        extract_bundle(archive, extracted)
         smoke_test(extracted / name, scratch)
         verify_manifest(extracted / name)
         publish_archive(archive, destination)
