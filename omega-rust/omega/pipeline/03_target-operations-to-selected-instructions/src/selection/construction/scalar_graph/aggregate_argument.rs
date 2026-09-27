@@ -17,6 +17,9 @@ pub(super) fn argument(
     builder: &mut Builder<'_>,
 ) -> Result<Vec<VirtualRegisterId>, SelectedInstructionError> {
     let place = semantic.place;
+    let root_shape =
+        crate::selection::scalar_call_abi::owned_value_shape(source, target.root_structural_type)
+            .ok_or_else(|| SelectedInstructionError::custody())?;
     let slot = match target.source {
         target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
             Some(LocalStorageSlotId::Structural {
@@ -57,8 +60,8 @@ pub(super) fn argument(
             .iter()
             .filter(|home| {
                 home.id == slot
-                    && home.byte_size == u32::from(target.shape.byte_size)
-                    && home.alignment == target.shape.alignment
+                    && home.byte_size == u32::from(root_shape.byte_size)
+                    && home.alignment == root_shape.alignment
             })
             .count()
             != 1
@@ -71,7 +74,7 @@ pub(super) fn argument(
             block,
             place,
             0,
-            u32::from(target.shape.byte_size),
+            u32::from(root_shape.byte_size),
             SelectedMemoryAccessRole::AddressLocal { slot },
         )?;
         builder.emit(
@@ -208,23 +211,29 @@ pub(super) fn argument(
     };
     for (value_byte_offset, byte_size) in fragments {
         let offset = u32::from(value_byte_offset);
+        // Read the selected subtree at its root-relative offset, while the
+        // callee's ABI fragments and outgoing copy remain zero-based.
+        let source_offset = target
+            .source_byte_offset
+            .checked_add(offset)
+            .ok_or_else(|| SelectedInstructionError::custody())?;
         let output = super::structural_case::register(builder, place, offset, 64, false)?;
         if let Some(pointer) = pointer {
             super::structural_case::memory(
                 builder,
                 block,
                 place,
-                offset,
+                source_offset,
                 u32::from(byte_size),
                 SelectedMemoryAccessRole::ReadPlace,
             )?;
-            super::aggregate_memory::load(builder, pointer, output, offset, byte_size)?;
+            super::aggregate_memory::load(builder, pointer, output, source_offset, byte_size)?;
         } else {
             let input = builder
                 .transport
                 .fragments
                 .iter()
-                .find(|(owner, position, _)| *owner == place && *position == offset)
+                .find(|(owner, position, _)| *owner == place && *position == source_offset)
                 .map(|(_, _, register)| *register)
                 .ok_or_else(|| SelectedInstructionError::custody())?;
             builder.emit(

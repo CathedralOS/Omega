@@ -27,8 +27,7 @@ pub(super) fn reconstruct(
     // discharge was verified at the call edge upstream; admission binds the
     // roster and re-checks it exactly wherever an argument binds to a
     // parameter. Projected (path-beneath-root) qualifications still decline.
-    if !argument.path.is_empty()
-        || destination.access != terminal_psi::StructuralAccess::Owned
+    if destination.access != terminal_psi::StructuralAccess::Owned
         || destination.multiplicity == StructuralMultiplicity::Linear
         || destination.is_self
         || !destination.projected_qualifications.is_empty()
@@ -48,12 +47,13 @@ pub(super) fn reconstruct(
     if shape != value_shape {
         return Err(LegalizationError::custody());
     }
-    let source = if let Some(parameter) = caller
+    let (source, root_structural_type, source_byte_offset) = if let Some(parameter) = caller
         .structural_parameters
         .iter()
         .find(|parameter| parameter.place == argument.place)
     {
-        if parameter.structural_type != destination.structural_type
+        if !argument.path.is_empty()
+            || parameter.structural_type != destination.structural_type
             || parameter.access != destination.access
             || parameter.multiplicity != destination.multiplicity
             || parameter.is_self
@@ -82,14 +82,19 @@ pub(super) fn reconstruct(
         {
             return Err(LegalizationError::custody());
         }
-        retained.placement.clone().into()
+        (
+            retained.placement.clone().into(),
+            parameter.structural_type,
+            0,
+        )
     } else if let Some((producer, structural_type, producer_site)) =
         trivial_affine_local(caller, argument.place)
     {
         // An empty-record local has no bytes: the call replays its exact
         // establishment as the producer, and the zero-byte placement carries
         // nothing. The establishment must precede the call like any producer.
-        if structural_type != destination.structural_type
+        if !argument.path.is_empty()
+            || structural_type != destination.structural_type
             || destination.multiplicity != StructuralMultiplicity::Affine
             || !destination.qualifications.is_empty()
             || shape.byte_size != 0
@@ -97,19 +102,46 @@ pub(super) fn reconstruct(
         {
             return Err(LegalizationError::custody());
         }
-        target_operations::TargetStructuralArgumentSource::StructuralHome {
-            psi_operation: producer,
-        }
+        (
+            target_operations::TargetStructuralArgumentSource::StructuralHome {
+                psi_operation: producer,
+            },
+            structural_type,
+            0,
+        )
     } else {
         let (producer, result) = structural_case::source_result(caller, argument.place)?;
-        if result.structural_type != destination.structural_type
-            || result.multiplicity != destination.multiplicity
+        if result.multiplicity != destination.multiplicity
             || !result.claims.is_empty()
             || result.qualifications != destination.qualifications
             || !result.projected_qualifications.is_empty()
         {
             return Err(LegalizationError::custody());
         }
+        // Reconstruct the selected extent from source declarations, never
+        // from the producer's retained byte offset. Root qualifications do
+        // not establish qualifications on a moved child.
+        let offset = if argument.path.is_empty() {
+            if result.structural_type != destination.structural_type {
+                return Err(LegalizationError::custody());
+            }
+            0
+        } else {
+            let (selected, offset, indices) =
+                crate::structural_inputs::structural_reference_input::runtime_projection(
+                    result.structural_type,
+                    &argument.path,
+                    &plan.structural_types,
+                )
+                .ok_or(LegalizationError::custody())?;
+            if !result.qualifications.is_empty()
+                || selected != destination.structural_type
+                || !indices.is_empty()
+            {
+                return Err(LegalizationError::custody());
+            }
+            offset
+        };
         let producer_site = node_site(caller, |operation| {
             matches!(operation,
                 AbstractOperation::EstablishScalarArray { psi_operation, result: actual, .. }
@@ -133,9 +165,13 @@ pub(super) fn reconstruct(
         {
             return Err(LegalizationError::custody());
         }
-        target_operations::TargetStructuralArgumentSource::StructuralHome {
-            psi_operation: producer,
-        }
+        (
+            target_operations::TargetStructuralArgumentSource::StructuralHome {
+                psi_operation: producer,
+            },
+            result.structural_type,
+            offset,
+        )
     };
     let placement = call
         .parameters
@@ -147,11 +183,11 @@ pub(super) fn reconstruct(
     Ok(target_operations::TargetStructuralArgument {
         place: argument.place,
         access: argument.access,
-        path: Vec::new(),
-        root_structural_type: destination.structural_type,
+        path: argument.path.clone(),
+        root_structural_type,
         structural_type: destination.structural_type,
         shape,
-        source_byte_offset: 0,
+        source_byte_offset,
         fixed_array_length: None,
         element_stride: None,
         indices: Vec::new(),

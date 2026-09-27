@@ -168,18 +168,14 @@ fn source_continuations_retain_distinct_result_owners_and_ordered_residuals() {
                     for target in [
                         target::NativeTarget::linux_x64(),
                         target::NativeTarget::linux_arm64(),
+                        target::NativeTarget::macos_arm64(),
+                        target::NativeTarget::windows_x64(),
                     ] {
                         let native =
                             abstract_operations_to_target_operations::lower_to_target_operations(verified.input().plan(), abstract_operations_to_target_operations::TargetLoweringRequest::new(target));
-                        if fields == "left: Token; right: Token;" {
-                            native
-                                .expect("direct-register results retain both native continuations");
-                        } else {
-                            assert!(
-                                native.is_err(),
-                                "wider structural results retain their ABI fence"
-                            );
-                        }
+                        native.expect(
+                            "record and array projections retain both native continuations",
+                        );
                     }
                 }
             }

@@ -24,15 +24,23 @@ pub(super) fn validate_owned_arguments(
             continue;
         }
         let shape = super::owned_value_shape(source, target.structural_type)?;
+        let types = &source.structural.as_ref()?.structural_types;
+        let (selected, offset, indices) =
+            crate::structural_inputs::structural_reference_input::runtime_projection(
+                target.root_structural_type,
+                &semantic.path,
+                types,
+            )?;
         if semantic.access != StructuralAccess::Owned
-            || !semantic.path.is_empty()
             || target.place != semantic.place
             || target.access != semantic.access
             || target.path != semantic.path
-            || target.root_structural_type != target.structural_type
+            || selected != target.structural_type
             || target.shape != shape
             || target.destination.shape != shape
-            || target.source_byte_offset != 0
+            || target.source_byte_offset != offset
+            || !indices.is_empty()
+            || !target.indices.is_empty()
             || target.fixed_array_length.is_some()
             || target.element_stride.is_some()
             || !crate::selection::aggregate_result_input::owned_argument_placement(
@@ -60,7 +68,8 @@ pub(super) fn validate_owned_arguments(
                 } = &producer.kind
                 {
                     if place.id != semantic.place
-                        || structural_type.id != target.structural_type
+                        || structural_type.id != target.root_structural_type
+                        || !semantic.path.is_empty()
                         || shape.byte_size != 0
                     {
                         return None;
@@ -92,10 +101,11 @@ pub(super) fn validate_owned_arguments(
                 // against the destination roster at call-edge replay; the
                 // transport here re-checks only what selection owns.
                 if result.place != semantic.place
-                    || result.structural_type != target.structural_type
+                    || result.structural_type != target.root_structural_type
                     || result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
                     || !result.claims.is_empty()
                     || !result.projected_qualifications.is_empty()
+                    || (!semantic.path.is_empty() && !result.qualifications.is_empty())
                 {
                     return None;
                 }
@@ -107,7 +117,8 @@ pub(super) fn validate_owned_arguments(
                     .parameters
                     .iter()
                     .find(|parameter| parameter.semantic.place == semantic.place)?;
-                if parameter.semantic.access != StructuralAccess::Owned
+                if !semantic.path.is_empty()
+                    || parameter.semantic.access != StructuralAccess::Owned
                     || parameter.semantic.multiplicity
                         == terminal_psi::StructuralMultiplicity::Linear
                     || parameter.semantic.structural_type != target.structural_type
