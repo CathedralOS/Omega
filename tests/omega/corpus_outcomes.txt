@@ -1096,6 +1096,7 @@ pass/calls/runtime_guard_call_vs_call_exit checked 8266ms
 pass/calls/runtime_guarded_effectful_transition_argument_exit rejected 5674ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: scalar arguments` (state 0, statement 1)
 pass/calls/runtime_let_mut_reassign_exit checked 7357ms
+pass/calls/runtime_lifetime_only_constructor_result_exit checked 854ms
 pass/calls/runtime_loop_rotation_exit checked 9422ms
 pass/calls/runtime_measured_tail_recursion_exit checked 5592ms
 pass/calls/runtime_mut_ref_forward_exit rejected 7365ms

@@ -915,11 +915,6 @@ the complete product bar; focused successes below do not establish that baseline
   argument place in stage 04's `execution/terminal_unit/calls/structural_arguments.rs`;
   The active `STRUCTURAL-ARGUMENTS-PARAMETER-PATH` claim owns that repair. Keep the
   restored source unchanged through the next outer check and native acceptance.
-  The extracted periodicity ProgramEntry probe separately reaches
-  `call operation: result shape` at `ScanConstraint::new`: lifetime-only
-  applications and their bare nominal spelling currently retain different
-  runtime identity wrappers. Reconcile erased-region runtime identity while
-  preserving separate lifetime/loan validation; do not bypass result custody.
 
   Whole-graph checking remains expensive: the successful discovery above took
   roughly 42 minutes. **CHECK-CLOSURE-ONCE** owns repeated package/checked-stage

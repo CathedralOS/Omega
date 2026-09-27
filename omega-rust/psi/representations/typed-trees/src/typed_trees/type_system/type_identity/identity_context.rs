@@ -211,6 +211,25 @@ pub(crate) fn normalize_type_reference(
             "slice",
             [normalize_type_reference(program, *element_type, context)],
         ),
+        // Region applications retain their lifetime arguments for loan checks,
+        // but a lifetime-only application has the same runtime nominal carrier
+        // as the bare declaration. An empty runtime argument list must not add
+        // a generic wrapper after those regions have been erased.
+        TypeReferenceNode::Generic {
+            base_symbol,
+            base_name,
+            arguments,
+            ..
+        } if arguments.is_empty() => compound(
+            "named",
+            [normalize_const_or_nominal_name(
+                program,
+                *base_symbol,
+                base_name.as_str(),
+                "name",
+                context,
+            )],
+        ),
         TypeReferenceNode::Generic {
             base_symbol,
             base_name,
