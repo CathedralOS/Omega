@@ -25,7 +25,7 @@ data Main {
 
 machine Main::main(&mut self) reaches Console {
     self.console.write_line("file_permissions: unix-style permission bits built with bitwise and/or/xor");
-    self.mode = 4 | 2;          // READ | WRITE          -> 6
+    self.mode = 4i32 | 2;       // READ | WRITE          -> 6
     self.mode = self.mode | 1;  // + EXEC                -> 7
     self.mode = self.mode & 6;  // revoke EXEC (mask ~1) -> 6
     self.mode = self.mode | 8;  // + STICKY              -> 14
