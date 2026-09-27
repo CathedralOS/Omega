@@ -121,7 +121,28 @@ backend-visible; full corpus runs only at the end of an item.
   `specialized_{boundary,fixed}_operator_physical_custody`, three
   `specialized_*_operator_hosted_native`), the `pass/float` named-provider
   fixtures reach the same native state they had before, and the corpus has no
-  `applies boundary operator` diagnostic. `samples/cli/arithmetic/sensor_min_max`
+  `applies boundary operator` diagnostic.
+
+  The pre-resolution const evaluator is one of the readers still tied to the
+  old introducer: it recognizes authored operator spellings only on
+  `Item::Operator`, so a token-bearing `boundary machine <token>` declaration
+  folds as the builtin instead of executing the selected provider.
+  `8d12f06e095` knew this -- it kept
+  `fail/generics/authored_const_operator_requires_selection` on `operator`
+  for exactly that reason -- but migrated
+  `pass/comptime/provider_boundary_range_endpoint_exit` alongside it, which
+  depends on the same recognition. Two controls isolate it, with no `std` and
+  no provider: a bare `left % right` const endpoint checks, and adding only
+  `boundary machine % Math::remainder(..)` above it fails at "build-time
+  binary operator requires exact authored selection before evaluation". The
+  selection rows that authorize such an expression come from
+  `compiler/src/checked/checking/const_evaluation.rs`, which emits them only
+  for `primitive_float_binary_semantics`, so a non-float provider has no
+  build-time route at all. That fixture is reverted to `operator` until this
+  reader moves; migrating it again before then silently stops it testing
+  provider execution.
+
+  `samples/cli/arithmetic/sensor_min_max`
   is a waiting customer: it reaches `applies boundary operator `F64::minimum``
   once the float store source policy in
   `structural_scalar_store/value.rs::admits` also admits
