@@ -33,7 +33,7 @@ pub(super) fn publish(
         .unresolved_normalized_foreign_calls;
     let callback_record_count = calls
         .iter()
-        .filter_map(|call| call.callback_address.as_ref())
+        .flat_map(|call| call.callback_addresses.iter())
         .map(|callback| match callback.encoding {
             CallbackAddressEncoding::X86_64Relative32 { .. } => 1,
             CallbackAddressEncoding::Aarch64PageAddress { .. } => 2,
@@ -52,7 +52,7 @@ pub(super) fn publish(
         };
         // A callback argument's address is a compiler-private relocation: it
         // binds the private thunk's symbol, not the import tail.
-        if let Some(callback) = &call.callback_address {
+        for callback in &call.callback_addresses {
             let Some((callback_symbol, _)) =
                 object_function_symbol(object, callback.target.callback_function)
             else {
@@ -154,7 +154,7 @@ pub(super) fn validate(
     let expected_records = fields.len()
         + calls
             .iter()
-            .filter_map(|call| call.callback_address.as_ref())
+            .flat_map(|call| call.callback_addresses.iter())
             .map(|callback| match callback.encoding {
                 CallbackAddressEncoding::X86_64Relative32 { .. } => 1,
                 CallbackAddressEncoding::Aarch64PageAddress { .. } => 2,
@@ -214,7 +214,7 @@ pub(super) fn validate(
             function_symbol_handle: function.symbol,
             operation_identity: field.operation.get(),
         };
-        if let Some(callback) = &call.callback_address {
+        for callback in &call.callback_addresses {
             let Some((callback_symbol, callback_plan)) =
                 object_function_symbol(&artifact.object, callback.target.callback_function)
             else {

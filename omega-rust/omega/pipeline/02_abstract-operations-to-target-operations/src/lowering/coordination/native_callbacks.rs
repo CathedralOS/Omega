@@ -4,7 +4,7 @@
 
 use crate::LoweringError;
 use abstract_operations::{AbstractOperation, AbstractOperationPlan};
-use calling_conventions::{CallSignature, ValueShape};
+use calling_conventions::{CallSignature, NativePlace, ValueShape};
 use semantic_vocabulary::OperationId;
 use std::collections::BTreeMap;
 use target::NativeTarget;
@@ -14,23 +14,26 @@ pub(crate) fn bind_native_callback_arguments(
     plan: &AbstractOperationPlan,
     target: NativeTarget,
     admitted_rows: &[crate::AdmittedNativeCallbackArgument],
-) -> Result<BTreeMap<OperationId, target_operations::TargetNativeCallbackArgument>, LoweringError> {
-    if admitted_rows.len() > 1 {
-        for (index, admitted) in admitted_rows.iter().enumerate() {
-            if admitted_rows[..index]
-                .iter()
-                .any(|prior| prior.terminal_operation == admitted.terminal_operation)
-            {
-                return Err(LoweringError::DuplicateNativeCallbackArgument(
-                    admitted.terminal_operation,
-                ));
-            }
-        }
-        return Err(LoweringError::MultipleNativeCallbackArguments);
-    }
-    let mut native_callbacks_by_operation = BTreeMap::new();
+) -> Result<
+    BTreeMap<OperationId, Vec<target_operations::TargetNativeCallbackArgument>>,
+    LoweringError,
+> {
+    let mut native_callbacks_by_operation: BTreeMap<
+        OperationId,
+        Vec<target_operations::TargetNativeCallbackArgument>,
+    > = BTreeMap::new();
     for admitted in admitted_rows {
-        if native_callbacks_by_operation.contains_key(&admitted.terminal_operation) {
+        // One operation may register several private callbacks; the placement
+        // index — the exact retained roster row — is the custody key.
+        if admitted_rows
+            .iter()
+            .filter(|row| {
+                row.terminal_operation == admitted.terminal_operation
+                    && row.placement_index == admitted.placement_index
+            })
+            .count()
+            != 1
+        {
             return Err(LoweringError::DuplicateNativeCallbackArgument(
                 admitted.terminal_operation,
             ));
@@ -60,18 +63,23 @@ pub(crate) fn bind_native_callback_arguments(
                 admitted.terminal_operation,
             ));
         }
-        native_callbacks_by_operation.insert(
-            admitted.terminal_operation,
-            target_operations::TargetNativeCallbackArgument {
+        native_callbacks_by_operation
+            .entry(admitted.terminal_operation)
+            .or_default()
+            .push(target_operations::TargetNativeCallbackArgument {
                 terminal_operation: admitted.terminal_operation,
                 placement_index: admitted.placement_index,
                 callback_function: admitted.callback_function,
+                destination: admitted.destination.clone(),
+                field_byte_offset: admitted.field_byte_offset,
                 application: admitted.application.clone(),
                 registrar_boundary_entry_plan: admitted.registrar_boundary_entry_plan.clone(),
                 registrar_context: admitted.registrar_context.clone(),
                 registrar_application_commitment: admitted.registrar_application_commitment,
-            },
-        );
+            });
+    }
+    for callbacks in native_callbacks_by_operation.values_mut() {
+        callbacks.sort_by_key(|callback| callback.placement_index);
     }
     Ok(native_callbacks_by_operation)
 }
@@ -112,37 +120,69 @@ fn native_callback_application_is_exact(
     else {
         return false;
     };
-    let ([binder], [demand], [materialization]) = (
-        admitted.registrar_context.binders.as_slice(),
-        admitted.registrar_context.demands.as_slice(),
-        admitted
-            .registrar_boundary_entry_plan
-            .call
-            .callback_materializations
-            .as_slice(),
-    ) else {
-        return false;
-    };
-    validated.plan() == &admitted.registrar_boundary_entry_plan
-        && application.shape == application.placement.shape
-        && Some(application.shape) == expected_shape
-        && admitted
+    if validated.plan() != &admitted.registrar_boundary_entry_plan
+        || application.shape != application.placement.shape
+        || Some(application.shape) != expected_shape
+        || admitted
             .registrar_boundary_entry_plan
             .call
             .parameters
             .get(ordinal)
-            == Some(&application.placement)
-        && demand.destination == calling_conventions::NativePlace::Parameter(application.parameter)
-        && materialization.destination == demand.destination
-        && materialization.binder == binder.binder
-        && binder.requirement == demand.requirement
+            != Some(&application.placement)
+    {
+        return false;
+    }
+    // The admitted destination joins exactly one plan materialization, one
+    // binder, and one demand; any other pairing is substituted custody.
+    let materializations = admitted
+        .registrar_boundary_entry_plan
+        .call
+        .callback_materializations
+        .iter()
+        .filter(|row| row.destination == admitted.destination)
+        .collect::<Vec<_>>();
+    let [materialization] = materializations.as_slice() else {
+        return false;
+    };
+    let binders = admitted
+        .registrar_context
+        .binders
+        .iter()
+        .filter(|binder| binder.binder == materialization.binder)
+        .collect::<Vec<_>>();
+    let [binder] = binders.as_slice() else {
+        return false;
+    };
+    let demands = admitted
+        .registrar_context
+        .demands
+        .iter()
+        .filter(|demand| {
+            demand.destination == materialization.destination
+                && demand.requirement == binder.requirement
+        })
+        .collect::<Vec<_>>();
+    if demands.len() != 1 {
+        return false;
+    }
+    match &admitted.destination {
+        NativePlace::Parameter(parameter) => {
+            admitted.field_byte_offset.is_none() && *parameter == application.parameter
+        }
+        NativePlace::Field { parameter, .. } => {
+            // A field destination's application is its root record
+            // parameter's — the write flows through that parameter's
+            // placement to the slot `field_byte_offset` names.
+            admitted.field_byte_offset.is_some() && *parameter == application.parameter
+        }
+    }
 }
 
 pub(crate) fn validate_native_callback_target_rows(
     plan: &TargetOperationPlan,
-    expected: &BTreeMap<OperationId, target_operations::TargetNativeCallbackArgument>,
+    expected: &BTreeMap<OperationId, Vec<target_operations::TargetNativeCallbackArgument>>,
 ) -> Result<(), LoweringError> {
-    for (operation, callback) in expected {
+    for (operation, callbacks) in expected {
         let matches = plan
             .functions
             .iter()
@@ -150,10 +190,12 @@ pub(crate) fn validate_native_callback_target_rows(
             .flat_map(|block| &block.operations)
             .filter(|candidate| {
                 matches!(candidate,
-                    TargetUnitOperation::NormalizedForeignCall { psi_operation, binding, .. }
-                        if psi_operation == operation
-                            && binding.boundary_entry_plan
-                                == callback.registrar_boundary_entry_plan)
+                TargetUnitOperation::NormalizedForeignCall { psi_operation, binding, .. }
+                    if psi_operation == operation
+                        && callbacks.iter().all(|callback| {
+                            binding.boundary_entry_plan
+                                == callback.registrar_boundary_entry_plan
+                        }))
             })
             .count();
         if matches == 0 {

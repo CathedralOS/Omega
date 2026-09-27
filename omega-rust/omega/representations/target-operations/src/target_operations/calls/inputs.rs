@@ -1,7 +1,7 @@
 //! Native callback and placed-view inputs, retained with their exact application.
 
 use crate::TargetOperationPlan;
-use calling_conventions::{BoundaryEntryPlan, CallPlan, ValuePlacement};
+use calling_conventions::{BoundaryEntryPlan, CallPlan, NativePlace, ValuePlacement};
 use semantic_vocabulary::OperationId;
 use terminal_psi::TerminalPlacedViewInput;
 
@@ -17,6 +17,14 @@ pub struct TargetNativeCallbackArgument {
     pub terminal_operation: OperationId,
     pub placement_index: usize,
     pub callback_function: function_identity::MachineFunctionIdentity,
+    /// The private materialization destination this callback binds. For a
+    /// field destination, `application` is the root record parameter's
+    /// application and `field_byte_offset` names the private slot's byte
+    /// offset inside that record. `application` itself occupies no parameter
+    /// slot for a field destination — the write flows through the bound root
+    /// parameter's location.
+    pub destination: NativePlace,
+    pub field_byte_offset: Option<usize>,
     pub application: calling_conventions::NativeParameterApplication,
     pub registrar_boundary_entry_plan: BoundaryEntryPlan,
     pub registrar_context: calling_conventions::CallbackMaterializationContext,

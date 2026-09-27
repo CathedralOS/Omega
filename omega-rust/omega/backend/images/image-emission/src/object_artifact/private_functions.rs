@@ -36,8 +36,13 @@ pub(crate) fn validate_private_functions<'plan>(
         if private.function.scalar_abi.is_none() {
             return Err(ObjectError::InvalidPrivateFunctionAbi);
         }
-        if !private.function.internal_calls.is_empty()
-            || !private.function.foreign_calls.is_empty()
+        // Call custody, not silhouette: the private channel publishes no
+        // import, unit-call, provider, dynamic-call, or boundary-settlement
+        // custody, so a private function carrying any of those call families
+        // has no path to bound custody and rejects. Internal calls stay
+        // admissible — their custody resolves inside the published roster and
+        // the standalone replay below must reproduce it exactly.
+        if !private.function.foreign_calls.is_empty()
             || !private.function.internal_unit_calls.is_empty()
             || !private.function.internal_unit_scalar_calls.is_empty()
             || !private
@@ -52,11 +57,14 @@ pub(crate) fn validate_private_functions<'plan>(
                 .function
                 .forwarded_dynamic_descriptor_calls
                 .is_empty()
-            || !private.function.x86_scalar_fma.is_empty()
+            || !private.function.boundary_settlements.is_empty()
+        {
+            return Err(ObjectError::UnsupportedPrivateFunctionBody);
+        }
+        if !private.function.x86_scalar_fma.is_empty()
             || !private.function.x86_scalar_fma_occurrences.is_empty()
             || private.function.x86_floating_control.is_some()
             || !private.function.port_effects.is_empty()
-            || !private.function.boundary_settlements.is_empty()
             || private.function.structural_return.is_some()
         {
             return Err(ObjectError::UnsupportedPrivateFunctionBody);

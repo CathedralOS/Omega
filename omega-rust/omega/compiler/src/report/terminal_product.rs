@@ -73,7 +73,7 @@ impl TerminalCallbackThunkArtifact {
 pub struct TerminalCallbackOccurrenceProposal {
     placement_index: usize,
     terminal_operation: semantic_vocabulary::OperationId,
-    direct_parameter_application: Option<calling_conventions::NativeParameterApplication>,
+    destination_parameter_application: Option<calling_conventions::NativeParameterApplication>,
     callback_thunk_identity: function_identity::MachineFunctionIdentity,
     callback_thunk_artifact: TerminalCallbackThunkArtifact,
 }
@@ -82,14 +82,14 @@ impl TerminalCallbackOccurrenceProposal {
     pub fn new(
         placement_index: usize,
         terminal_operation: semantic_vocabulary::OperationId,
-        direct_parameter_application: Option<calling_conventions::NativeParameterApplication>,
+        destination_parameter_application: Option<calling_conventions::NativeParameterApplication>,
         callback_thunk_identity: function_identity::MachineFunctionIdentity,
         callback_thunk_artifact: TerminalCallbackThunkArtifact,
     ) -> Self {
         Self {
             placement_index,
             terminal_operation,
-            direct_parameter_application,
+            destination_parameter_application,
             callback_thunk_identity,
             callback_thunk_artifact,
         }
@@ -103,10 +103,13 @@ impl TerminalCallbackOccurrenceProposal {
         self.terminal_operation
     }
 
-    pub const fn direct_parameter_application(
+    /// The parameter application the callback's destination binds: the
+    /// callback's own telescope row for a direct parameter destination, or
+    /// the root record parameter for a field destination.
+    pub const fn destination_parameter_application(
         &self,
     ) -> Option<&calling_conventions::NativeParameterApplication> {
-        self.direct_parameter_application.as_ref()
+        self.destination_parameter_application.as_ref()
     }
 
     pub const fn callback_thunk_identity(&self) -> function_identity::MachineFunctionIdentity {
@@ -1198,8 +1201,9 @@ impl RetainedTerminalArtifact {
                             materialization
                                 .direct_registrar_parameter_application
                                 .as_ref()
+                                .or(materialization.root_parameter_application.as_ref())
                         });
-                if occurrence.direct_parameter_application() != expected_application {
+                if occurrence.destination_parameter_application() != expected_application {
                     return Err(
                         "Terminal callback occurrence native parameter application drifted from its retained placement",
                     );

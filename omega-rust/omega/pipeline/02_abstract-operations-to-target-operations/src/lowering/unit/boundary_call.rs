@@ -42,7 +42,7 @@ pub(in crate::lowering) fn lower_boundary_call(
     structural_types: &StructuralTypeLookup<'_>,
     boundary_machines: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
     settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
-    native_callbacks: &BTreeMap<OperationId, target_operations::TargetNativeCallbackArgument>,
+    native_callbacks: &BTreeMap<OperationId, Vec<target_operations::TargetNativeCallbackArgument>>,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
@@ -69,7 +69,9 @@ pub(in crate::lowering) fn lower_boundary_call(
             completion_claim_sources,
             completion_receipts,
         } => {
-            let native_callback = native_callbacks.get(psi_operation);
+            let native_callbacks_slice = native_callbacks
+                .get(psi_operation)
+                .map_or(&[][..], Vec::as_slice);
             let binding = settlements
                 .get(boundary)
                 .cloned()
@@ -101,7 +103,7 @@ pub(in crate::lowering) fn lower_boundary_call(
                         parameters_by_place,
                         shape_cache,
                         active,
-                        native_callback,
+                        native_callbacks_slice,
                         operations.as_slice(),
                     )?;
                 let structural_parameter_shapes = structural_arguments
@@ -122,7 +124,7 @@ pub(in crate::lowering) fn lower_boundary_call(
                         scalar_block_parameters,
                     },
                     result_home.map(|home| home.shape),
-                    native_callback,
+                    native_callbacks_slice,
                     &structural_parameter_shapes,
                 )?;
                 if arguments.len() != declaration.scalar_parameters.len()
@@ -134,7 +136,7 @@ pub(in crate::lowering) fn lower_boundary_call(
                     || foreign.boundary_entry_plan.call.entry_control
                         != calling_conventions::EntryControl::CallReturn
                     || foreign.locator.target().native_target() != target
-                    || native_callback.is_some_and(|callback| {
+                    || native_callbacks_slice.iter().any(|callback| {
                         callback.terminal_operation != *psi_operation
                             || callback.registrar_boundary_entry_plan != foreign.boundary_entry_plan
                     })

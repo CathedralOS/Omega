@@ -55,7 +55,7 @@ pub(super) fn resolve(
                 instruction,
                 instruction_offset,
                 bytes,
-                *fixup,
+                fixup.clone(),
             )?),
             None,
         )),
@@ -71,7 +71,7 @@ pub(super) fn resolve(
                 instruction,
                 instruction_offset,
                 bytes,
-                *fixup,
+                fixup.clone(),
             )?),
         )),
         (
@@ -217,7 +217,191 @@ fn validate_foreign_fixup(
     {
         return unexpected(instruction.id);
     }
+    validate_callback_materializations(
+        architecture,
+        instruction,
+        bytes,
+        fixup.opcode_row_offset,
+        &fixup.callbacks,
+    )?;
     Ok(fixup)
+}
+
+/// The materialization groups travel inside the call row's encoding: they
+/// own the row from offset 0 up to the call opcode, in fixup roster order,
+/// and every relocation placeholder inside them stays zeroed against the
+/// canonical template.
+fn validate_callback_materializations(
+    architecture: Architecture,
+    instruction: &SelectedInstruction,
+    bytes: &[u8],
+    opcode_row_offset: u16,
+    callbacks: &[machine_code::SelectedFormCallbackMaterialization],
+) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {
+    let row_len = u64::try_from(bytes.len())
+        .map_err(|_| OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
+    let mut cursor = 0_u64;
+    for callback in callbacks {
+        let materialization_end = u64::from(callback.code_row_offset)
+            .checked_add(u64::from(callback.code_byte_count))
+            .ok_or(OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
+        if u64::from(callback.code_row_offset) != cursor
+            || materialization_end > row_len
+            || materialization_end > u64::from(opcode_row_offset)
+        {
+            return unexpected(instruction.id);
+        }
+        let group = bytes
+            .get(cursor as usize..materialization_end as usize)
+            .ok_or(OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
+        let zero_patch = |offset: u16| -> Result<bool, OptimizedResolvedSelectedFormLayoutError> {
+            let start = usize::from(offset)
+                .checked_sub(cursor as usize)
+                .ok_or(OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
+            let end = start
+                .checked_add(4)
+                .ok_or(OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
+            Ok(u64::from(offset) >= cursor
+                && u64::from(offset).checked_add(4) <= Some(materialization_end)
+                && group.get(start..end) == Some(&[0, 0, 0, 0]))
+        };
+        match (architecture, callback.encoding) {
+            (
+                Architecture::X86_64,
+                machine_code::SelectedFormCallbackMaterializationEncoding::X86_64Relative32 {
+                    patch_row_offset,
+                },
+            ) => {
+                let canonical = match callback.destination {
+                    machine_code::CallbackAddressDestination::Register(_) => {
+                        // REX 8D modrm disp32 — seven bytes, disp32 patch at +3.
+                        callback.code_byte_count == 7
+                            && patch_row_offset as u64 == cursor + 3
+                            && group.len() == 7
+                            && group[0] & 0xfe == 0x48
+                            && group[1] == 0x8d
+                            && group[2] & 0xc7 == 0x05
+                            && zero_patch(patch_row_offset)?
+                    }
+                    machine_code::CallbackAddressDestination::RecordField {
+                        root_register,
+                        byte_offset,
+                    } => {
+                        // lea r11, [rip+disp32] then mov [root+off], r11 —
+                        // fourteen bytes, disp32 patch at +3.
+                        if !matches!(
+                            root_register,
+                            calling_conventions::MachineRegister::X86Rax
+                                | calling_conventions::MachineRegister::X86Rcx
+                                | calling_conventions::MachineRegister::X86Rdx
+                                | calling_conventions::MachineRegister::X86Rbx
+                                | calling_conventions::MachineRegister::X86Rsi
+                                | calling_conventions::MachineRegister::X86Rdi
+                                | calling_conventions::MachineRegister::X86R8
+                                | calling_conventions::MachineRegister::X86R9
+                                | calling_conventions::MachineRegister::X86R10
+                                | calling_conventions::MachineRegister::X86R11
+                                | calling_conventions::MachineRegister::X86R12
+                                | calling_conventions::MachineRegister::X86R13
+                                | calling_conventions::MachineRegister::X86R14
+                                | calling_conventions::MachineRegister::X86R15
+                        ) {
+                            return unexpected(instruction.id);
+                        }
+                        let root = root_register.codec_index();
+                        callback.code_byte_count == 14
+                            && patch_row_offset as u64 == cursor + 3
+                            && group.len() == 14
+                            && group[0] == 0x4c
+                            && group[1] == 0x8d
+                            && group[2] == 0x1d
+                            && group[7] == 0x4c | u8::from(root >= 8)
+                            && group[8] == 0x89
+                            && group[9] == 0x98 | (root & 7)
+                            && u32::from_le_bytes([group[10], group[11], group[12], group[13]])
+                                == byte_offset
+                            && zero_patch(patch_row_offset)?
+                    }
+                    machine_code::CallbackAddressDestination::OutgoingStack { .. } => {
+                        return unexpected(instruction.id);
+                    }
+                };
+                if !canonical {
+                    return unexpected(instruction.id);
+                }
+            }
+            (
+                Architecture::Aarch64,
+                machine_code::SelectedFormCallbackMaterializationEncoding::Aarch64PageAddress {
+                    page_patch_row_offset,
+                    page_offset_patch_row_offset,
+                },
+            ) => {
+                let canonical = match callback.destination {
+                    machine_code::CallbackAddressDestination::Register(_) => {
+                        callback.code_byte_count == 8
+                            && page_patch_row_offset as u64 == cursor
+                            && page_offset_patch_row_offset as u64 == cursor + 4
+                            && group.len() == 8
+                            && group[1] == 0
+                            && group[2] == 0
+                            && group[3] == 0x90
+                            && group[0] & 0xe0 == 0
+                            && group[5] & 0xfc == 0
+                            && group[6] == 0
+                            && group[7] == 0x91
+                            && group[4] & 0x1f == group[0] & 0x1f
+                            && group[4] >> 5 == group[0] & 7
+                            && group[5] & 3 == group[0] >> 3 & 3
+                    }
+                    machine_code::CallbackAddressDestination::RecordField {
+                        root_register,
+                        byte_offset,
+                    } => {
+                        let calling_conventions::MachineRegister::Aarch64X(root) = root_register
+                        else {
+                            return unexpected(instruction.id);
+                        };
+                        let store = group
+                            .get(8..12)
+                            .map(|word| u32::from_le_bytes([word[0], word[1], word[2], word[3]]));
+                        callback.code_byte_count == 12
+                            && byte_offset % 8 == 0
+                            && page_patch_row_offset as u64 == cursor
+                            && page_offset_patch_row_offset as u64 == cursor + 4
+                            && group.len() == 12
+                            && group[0] == 16
+                            && group[1] == 0
+                            && group[2] == 0
+                            && group[3] == 0x90
+                            && group[4] == 0x10
+                            && group[5] == 0x02
+                            && group[6] == 0
+                            && group[7] == 0x91
+                            && store
+                                == Some(
+                                    0xF900_0000_u32
+                                        | ((byte_offset / 8) << 10)
+                                        | (u32::from(root) << 5)
+                                        | 16,
+                                )
+                    }
+                    machine_code::CallbackAddressDestination::OutgoingStack { .. } => {
+                        return unexpected(instruction.id);
+                    }
+                };
+                if !canonical {
+                    return unexpected(instruction.id);
+                }
+            }
+            _ => return unexpected(instruction.id),
+        }
+        cursor = materialization_end;
+    }
+    if u64::from(opcode_row_offset) != cursor {
+        return unexpected(instruction.id);
+    }
+    Ok(())
 }
 
 fn unexpected<T>(

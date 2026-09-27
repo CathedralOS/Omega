@@ -258,14 +258,14 @@ fn encode_encoding_row(hasher: &mut Sha256, row: &SelectedFormEncodingRow) {
                 hasher,
                 &footprint.encoded,
             );
-            encode_normalized_foreign_fixup(hasher, *fixup);
+            encode_normalized_foreign_fixup(hasher, fixup);
         }
     }
 }
 
 pub(super) fn encode_normalized_foreign_fixup(
     hasher: &mut Sha256,
-    fixup: crate::SelectedFormNormalizedForeignCallFixup,
+    fixup: &crate::SelectedFormNormalizedForeignCallFixup,
 ) {
     hasher.update([match fixup.kind {
         crate::SelectedFormNormalizedForeignCallFixupKind::X86Relative32FromNextInstructionToNormalizedForeignImportV1 => 0,
@@ -281,6 +281,35 @@ pub(super) fn encode_normalized_foreign_fixup(
     hasher.update(fixup.reference_row_offset.to_le_bytes());
     hasher.update([fixup.patch_byte_width]);
     hasher.update(fixup.addend.to_le_bytes());
+    hasher.update(
+        u64::try_from(fixup.callbacks.len())
+            .unwrap_or(0)
+            .to_le_bytes(),
+    );
+    for callback in &fixup.callbacks {
+        crate::machine_code::calls::callbacks::encode_callback_destination_identity(
+            hasher,
+            callback.destination,
+        );
+        hasher.update(callback.code_row_offset.to_le_bytes());
+        hasher.update(callback.code_byte_count.to_le_bytes());
+        match callback.encoding {
+            crate::SelectedFormCallbackMaterializationEncoding::X86_64Relative32 {
+                patch_row_offset,
+            } => {
+                hasher.update([0]);
+                hasher.update(patch_row_offset.to_le_bytes());
+            }
+            crate::SelectedFormCallbackMaterializationEncoding::Aarch64PageAddress {
+                page_patch_row_offset,
+                page_offset_patch_row_offset,
+            } => {
+                hasher.update([1]);
+                hasher.update(page_patch_row_offset.to_le_bytes());
+                hasher.update(page_offset_patch_row_offset.to_le_bytes());
+            }
+        }
+    }
 }
 
 pub(super) fn encode_internal_fixup(hasher: &mut Sha256, fixup: SelectedFormInternalMachineFixup) {

@@ -23,7 +23,7 @@ pub(super) fn lower_function(
         (MachineId, OperationId, BoundaryMachineId),
         InstalledProviderCallEvidence,
     >,
-    native_callbacks: &BTreeMap<OperationId, target_operations::TargetNativeCallbackArgument>,
+    native_callbacks: &BTreeMap<OperationId, Vec<target_operations::TargetNativeCallbackArgument>>,
 ) -> Result<TargetFunction, LoweringError> {
     if let Some((operation, boundary)) =
         native_boundaries::unsupported_scalar_call(function, settlements, installed_calls)

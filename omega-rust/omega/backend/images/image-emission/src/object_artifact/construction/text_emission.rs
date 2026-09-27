@@ -147,9 +147,10 @@ pub(super) fn emit_functions(
                     Ok(control)
                 })
                 .transpose()?;
-            let callback_address = call
-                .callback_address
-                .clone()
+            let callback_addresses = call
+                .callback_addresses
+                .iter()
+                .cloned()
                 .map(|mut callback| {
                     callback.code_offset = text_offset
                         .checked_add(callback.code_offset)
@@ -176,7 +177,7 @@ pub(super) fn emit_functions(
                     }
                     Ok(callback)
                 })
-                .transpose()?;
+                .collect::<Result<Vec<_>, ObjectError>>()?;
             foreign_calls.push(ObjectForeignCall {
                 machine: function.machine,
                 owner: call.owner,
@@ -187,7 +188,7 @@ pub(super) fn emit_functions(
                 caller_live_bytes,
                 same_stack_contribution: call.same_stack_contribution.clone(),
                 scalar_arguments,
-                callback_address,
+                callback_addresses,
                 scalar_result,
                 x86_floating_control,
                 aarch64_floating_control,

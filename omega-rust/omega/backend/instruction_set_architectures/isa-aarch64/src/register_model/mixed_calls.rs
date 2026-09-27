@@ -120,15 +120,24 @@ pub(super) fn append_constraints(
 }
 
 /// Reuse the canonical input banks without retaining source-signature permutations.
-/// After the plain rows, one family per (input bank, integer-bank position)
-/// carries a private callback slot: that parameter's register is pinned by the
-/// materialization bytes inside the call encoding, so it is an implicit unit
-/// use rather than an operand.
+/// After the plain rows: one family per (input bank, integer-bank position)
+/// carries a private parameter slot — that parameter's register is pinned by
+/// the materialization bytes inside the call encoding, so it is an implicit
+/// unit use rather than an operand; then a field-destination family adds the
+/// architecture-fixed scratch (`x16`) units to every input row; then a mixed
+/// family carries both a removed parameter operand and the scratch units.
 pub(super) fn append_normalized_foreign_constraints(
     constraints: &mut Vec<RegisterInstructionConstraint>,
     model: &ValidatedPhysicalRegisterModel,
 ) {
     let Some(integer_class) = model.model().view_named("x0").map(|view| view.class) else {
+        return;
+    };
+    let Some(scratch_units) = model
+        .model()
+        .view_named("x16")
+        .map(|view| view.units.clone())
+    else {
         return;
     };
     for (inputs, keys) in [
@@ -158,7 +167,7 @@ pub(super) fn append_normalized_foreign_constraints(
                 constraints.push(row);
             }
         }
-        for input in inputs {
+        for input in inputs.clone() {
             let Some(base) = constraints.iter().find(|row| row.key == input).cloned() else {
                 return;
             };
@@ -185,6 +194,60 @@ pub(super) fn append_normalized_foreign_constraints(
                     }
                     row.implicit_uses
                         .extend(callback_view.units.iter().copied());
+                    row.implicit_uses.sort_unstable();
+                    row.implicit_uses.dedup();
+                    append_result_operand(&mut row, model, result_name);
+                    constraints.push(row);
+                }
+            }
+        }
+        for input in inputs.clone() {
+            let Some(base) = constraints.iter().find(|row| row.key == input).cloned() else {
+                return;
+            };
+            for result_name in [None, Some("x0"), Some("d0")] {
+                let Some(key) = keys.next() else { return };
+                let mut row = base.clone();
+                row.key = key;
+                row.implicit_uses.extend(scratch_units.iter().copied());
+                row.implicit_uses.sort_unstable();
+                row.implicit_uses.dedup();
+                append_result_operand(&mut row, model, result_name);
+                constraints.push(row);
+            }
+        }
+        for input in inputs {
+            let Some(base) = constraints.iter().find(|row| row.key == input).cloned() else {
+                return;
+            };
+            for position in 0..base.operands.len() {
+                if base.operands[position].access != RegisterOperandAccess::Use {
+                    continue;
+                }
+                let Some(callback_view) = base.operands[position]
+                    .fixed_view
+                    .and_then(|view_id| model.model().views.iter().find(|view| view.id == view_id))
+                else {
+                    return;
+                };
+                if callback_view.class != integer_class {
+                    continue;
+                }
+                for result_name in [None, Some("x0"), Some("d0")] {
+                    let Some(key) = keys.next() else { return };
+                    let mut row = base.clone();
+                    row.key = key;
+                    row.operands.remove(position);
+                    for (operand, slot) in row.operands.iter_mut().enumerate() {
+                        slot.operand = operand as u16;
+                    }
+                    row.implicit_uses.extend(
+                        callback_view
+                            .units
+                            .iter()
+                            .copied()
+                            .chain(scratch_units.iter().copied()),
+                    );
                     row.implicit_uses.sort_unstable();
                     row.implicit_uses.dedup();
                     append_result_operand(&mut row, model, result_name);
@@ -332,5 +395,76 @@ mod tests {
                 assert!(validate_aarch64_register_constraint_catalog(changed, &model).is_err());
             }
         }
+    }
+}
+
+/// The callback shape one normalized-foreign constraint row declares: at
+/// most one private parameter slot (the removed operand's register, carried
+/// as implicit unit uses) plus the architecture-fixed scratch `x16` whenever
+/// the call materializes into a record field.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Aarch64NormalizedForeignCallbackShape {
+    pub parameter_slot: Option<calling_conventions::MachineRegister>,
+    pub field_scratch: bool,
+}
+
+impl Aarch64NormalizedForeignCallbackShape {
+    /// The template family this shape selects: 0 plain, 1 private parameter
+    /// slot only, 2 field destination only, 3 both.
+    pub const fn alternative_variant(self) -> u32 {
+        ((self.field_scratch as u32) << 1) | self.parameter_slot.is_some() as u32
+    }
+}
+
+/// Derive a normalized-foreign row's callback shape. Beyond the base call's
+/// sp/pc footprint, `x16` units name the field-store scratch and the unique
+/// remaining implicit-used GPR names the private parameter slot's register.
+/// More than one such register is malformed and reads as a plain row.
+pub(crate) fn aarch64_normalized_foreign_callback_shape(
+    row: &RegisterInstructionConstraint,
+    model: &register_model::PhysicalRegisterModel,
+) -> Aarch64NormalizedForeignCallbackShape {
+    let plain = Aarch64NormalizedForeignCallbackShape {
+        parameter_slot: None,
+        field_scratch: false,
+    };
+    let mut base_units = std::collections::BTreeSet::new();
+    for name in ["sp", "pc"] {
+        let Some(view) = model.view_named(name) else {
+            return plain;
+        };
+        base_units.extend(view.units.iter().copied());
+    }
+    let Some(scratch) = model.view_named("x16") else {
+        return plain;
+    };
+    let field_scratch = scratch
+        .units
+        .iter()
+        .all(|unit| row.implicit_uses.contains(unit));
+    let mut parameter_slot = None;
+    for index in 0..=30_u8 {
+        if index == 16 {
+            continue;
+        }
+        let register = calling_conventions::MachineRegister::Aarch64X(index);
+        let Some(view) = model.view_named(&format!("x{index}")) else {
+            continue;
+        };
+        if view.units.iter().all(|unit| base_units.contains(unit))
+            || !view
+                .units
+                .iter()
+                .all(|unit| row.implicit_uses.contains(unit))
+        {
+            continue;
+        }
+        if parameter_slot.replace(register).is_some() {
+            return plain;
+        }
+    }
+    Aarch64NormalizedForeignCallbackShape {
+        parameter_slot,
+        field_scratch,
     }
 }

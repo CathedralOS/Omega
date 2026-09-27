@@ -90,5 +90,37 @@ pub(super) fn normalized_foreign_declaration(
     declaration.call = MachineCallEffect::DirectExternalNormalReturnV1 {
         pre_call_stack_alignment: 16,
     };
+    // Callback rows materialize private function addresses inside the call
+    // encoding: each private parameter slot is a `lea <destination>,
+    // [rip+disp32]` prefix and each field destination a `lea r11` + slot
+    // store pair, all before the call field. The row's implicit uses name
+    // which families apply; the byte count grows with each destination, so
+    // field-bearing rows resolve their size at encoding time.
+    let row = constraints
+        .catalog()
+        .constraints
+        .iter()
+        .find(|row| row.key == constraint)
+        .expect("canonical x86-64 catalog contains its normalized-foreign-call constraint");
+    let shape = crate::register_model::x86_64_normalized_foreign_callback_shape(
+        row,
+        crate::x86_64_physical_register_model_ref(),
+    );
+    let variant = shape.alternative_variant();
+    if variant != 0 {
+        for alternative in &mut declaration.alternatives {
+            alternative.key.variant = variant;
+            alternative.size = if shape.field_scratch {
+                // One scratch prefix + slot store per field destination; the
+                // roster, not the row, counts them.
+                MachineSizeKnowledge::EncoderResolved {
+                    minimum_bytes: 5 + u16::from(shape.parameter_slot.is_some()) * 7 + 14,
+                    maximum_bytes: None,
+                }
+            } else {
+                MachineSizeKnowledge::ExactBytes(12)
+            };
+        }
+    }
     declaration
 }

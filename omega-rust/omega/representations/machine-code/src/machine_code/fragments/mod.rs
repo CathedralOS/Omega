@@ -12,6 +12,7 @@ pub use control_flow::{
     FunctionFragmentJumpEvidence, FunctionFragmentSuccessorProvenance,
 };
 pub use fixups::{
+    FunctionFragmentCallbackMaterialization, FunctionFragmentCallbackMaterializationEncoding,
     FunctionFragmentInternalMachineFixup, FunctionFragmentInternalMachineFixupKind,
     FunctionFragmentInternalMachineFixupState, FunctionFragmentNormalizedForeignCallFixup,
     FunctionFragmentNormalizedForeignCallFixupKind,

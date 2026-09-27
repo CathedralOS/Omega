@@ -722,7 +722,7 @@ fn normalized_foreign_scalar_rows_cover_banks_results_and_caller_saves() {
                 .chain(super::x86_64_system_v_mixed_unit_call_keys())
                 .collect::<Vec<_>>(),
             super::x86_64_system_v_normalized_foreign_call_keys(),
-            756,
+            1512,
         ),
         (
             super::x86_64_microsoft_register_unit_call_keys()
@@ -730,7 +730,7 @@ fn normalized_foreign_scalar_rows_cover_banks_results_and_caller_saves() {
                 .chain(super::x86_64_microsoft_mixed_unit_call_keys())
                 .collect::<Vec<_>>(),
             super::x86_64_microsoft_normalized_foreign_call_keys(),
-            240,
+            480,
         ),
     ] {
         assert_eq!(keys.len(), expected_count);
@@ -801,6 +801,108 @@ fn normalized_foreign_scalar_rows_cover_banks_results_and_caller_saves() {
                 }
                 let mut expected_uses = unit.implicit_uses.clone();
                 expected_uses.extend(callback_view.units.iter().copied());
+                expected_uses.sort_unstable();
+                expected_uses.dedup();
+                for result_name in [None, Some("rax"), Some("xmm0")] {
+                    let key = keys.next().unwrap();
+                    let row = catalog
+                        .constraints
+                        .iter()
+                        .find(|row| row.key == key)
+                        .unwrap();
+                    let mut expected_operands = unit.operands.clone();
+                    expected_operands.remove(position);
+                    for (index, operand) in expected_operands.iter_mut().enumerate() {
+                        operand.operand = index as u16;
+                    }
+                    assert_eq!(row.implicit_uses, expected_uses, "{key:?}");
+                    assert_eq!(row.implicit_defs, unit.implicit_defs);
+                    let mut clobbers = unit.clobbers.clone();
+                    if let Some(result_name) = result_name {
+                        let result = model.model().view_named(result_name).unwrap();
+                        let operand = RegisterOperandConstraint {
+                            operand: expected_operands.len() as u16,
+                            access: RegisterOperandAccess::Def,
+                            class: result.class,
+                            fixed_view: Some(result.id),
+                            tied_to: None,
+                            early_clobber: false,
+                        };
+                        expected_operands.push(operand);
+                        clobbers.retain(|unit| !result.write_units.contains(unit));
+                    }
+                    assert_eq!(row.operands, expected_operands, "{key:?}");
+                    assert_eq!(row.clobbers, clobbers, "{key:?}");
+                }
+            }
+        }
+        // The field-destination tail: operands keep the input bank's shape —
+        // the record root flows through its own parameter slot — while the
+        // architecture-fixed scratch register joins the implicit uses.
+        let scratch = model.model().view_named("r11").unwrap();
+        for input in inputs.iter().copied() {
+            let unit = catalog
+                .constraints
+                .iter()
+                .find(|row| row.key == input)
+                .unwrap();
+            let mut expected_uses = unit.implicit_uses.clone();
+            expected_uses.extend(scratch.units.iter().copied());
+            expected_uses.sort_unstable();
+            expected_uses.dedup();
+            for result_name in [None, Some("rax"), Some("xmm0")] {
+                let key = keys.next().unwrap();
+                let row = catalog
+                    .constraints
+                    .iter()
+                    .find(|row| row.key == key)
+                    .unwrap();
+                assert_eq!(row.implicit_uses, expected_uses, "{key:?}");
+                assert_eq!(row.implicit_defs, unit.implicit_defs);
+                let mut expected_operands = unit.operands.clone();
+                let mut clobbers = unit.clobbers.clone();
+                if let Some(result_name) = result_name {
+                    let result = model.model().view_named(result_name).unwrap();
+                    expected_operands.push(RegisterOperandConstraint {
+                        operand: expected_operands.len() as u16,
+                        access: RegisterOperandAccess::Def,
+                        class: result.class,
+                        fixed_view: Some(result.id),
+                        tied_to: None,
+                        early_clobber: false,
+                    });
+                    clobbers.retain(|unit| !result.write_units.contains(unit));
+                }
+                assert_eq!(row.operands, expected_operands, "{key:?}");
+                assert_eq!(row.clobbers, clobbers, "{key:?}");
+            }
+        }
+        // The mixed tail: one integer-bank position drops to an implicit use
+        // (private parameter slot) and the scratch units join it (the paired
+        // field destination's root-carrying register).
+        for input in inputs.iter().copied() {
+            let unit = catalog
+                .constraints
+                .iter()
+                .find(|row| row.key == input)
+                .unwrap();
+            for position in 0..unit.operands.len() {
+                let operand = &unit.operands[position];
+                if operand.access != RegisterOperandAccess::Use {
+                    continue;
+                }
+                let callback_view = model
+                    .model()
+                    .views
+                    .iter()
+                    .find(|view| view.id == operand.fixed_view.unwrap())
+                    .unwrap();
+                if callback_view.class != integer_class {
+                    continue;
+                }
+                let mut expected_uses = unit.implicit_uses.clone();
+                expected_uses.extend(callback_view.units.iter().copied());
+                expected_uses.extend(scratch.units.iter().copied());
                 expected_uses.sort_unstable();
                 expected_uses.dedup();
                 for result_name in [None, Some("rax"), Some("xmm0")] {

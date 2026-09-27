@@ -141,6 +141,7 @@ pub use selected_form_encoding::{
     X86_64_NORMALIZED_FOREIGN_CALL_TEMPLATE_BYTE_COUNT, X86_64_SCALAR_CALL_OPCODE_OFFSET,
     X86_64_SCALAR_CALL_PATCH_OFFSET, X86_64_SCALAR_CALL_PATCH_WIDTH,
     X86_64_SCALAR_CALL_REFERENCE_OFFSET, X86_64_SCALAR_CALL_TEMPLATE_BYTE_COUNT,
+    X86_64CallbackAddressMaterialization, X86_64CallbackMaterializationDestination,
     X86_64NormalizedForeignCallFixup, X86_64NormalizedForeignCallFixupKind,
     X86_64NormalizedForeignCallFixupState, X86_64NormalizedForeignCallTemplateError,
     X86_64ScalarCallFixup, X86_64ScalarCallFixupKind, X86_64ScalarCallFixupState,

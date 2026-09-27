@@ -577,6 +577,56 @@ fn bound_private_callback_materialization(
         }
         NativePlace::Field { .. } => None,
     };
+    let (root_parameter_application, field_byte_offset) = match &row.destination {
+        NativePlace::Parameter(_) => (None, None),
+        NativePlace::Field { parameter, .. } => {
+            let matching_parameters = registrar
+                .native_parameters
+                .iter()
+                .filter(|candidate| candidate.identity == *parameter)
+                .collect::<Vec<_>>();
+            let [native_parameter] = matching_parameters.as_slice() else {
+                return Err(format!(
+                    "field callback root resolves to {} target-closed native parameter rows; exactly one is required",
+                    matching_parameters.len(),
+                ));
+            };
+            let matching_layout_entries = registrar
+                .materialized_signature
+                .callback_layout_catalog()
+                .iter()
+                .filter(|entry| entry.destination() == &row.destination)
+                .collect::<Vec<_>>();
+            let [layout_entry] = matching_layout_entries.as_slice() else {
+                return Err(format!(
+                    "field callback destination resolves to {} named layout catalog entries; exactly one is required",
+                    matching_layout_entries.len(),
+                ));
+            };
+            if layout_entry.native_ordinal() != native_parameter.native_ordinal {
+                return Err(
+                    "field callback root parameter ordinal drifted from its named layout entry"
+                        .to_owned(),
+                );
+            }
+            let placement = usize::try_from(native_parameter.native_ordinal)
+                .ok()
+                .and_then(|ordinal| validated.plan().call.parameters.get(ordinal))
+                .ok_or_else(|| {
+                    "field callback root parameter ordinal is absent from the exact registrar plan"
+                        .to_owned()
+                })?;
+            (
+                Some(calling_conventions::NativeParameterApplication {
+                    parameter: *parameter,
+                    native_ordinal: native_parameter.native_ordinal,
+                    shape: placement.shape,
+                    placement: placement.clone(),
+                }),
+                Some(layout_entry.composed_offset()),
+            )
+        }
+    };
     let application_commitment = commitment.as_bytes();
     Ok(Some(backend_plan::BoundCallbackPrivateMaterialization {
         binder: binder.binder,
@@ -587,6 +637,8 @@ fn bound_private_callback_materialization(
         registrar_application_report_fingerprint: application_report_fingerprint,
         registrar_application_commitment: application_commitment,
         direct_registrar_parameter_application,
+        root_parameter_application,
+        field_byte_offset,
         context,
     }))
 }

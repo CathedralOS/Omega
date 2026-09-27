@@ -136,7 +136,10 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
         psi: plan.psi,
         target,
         entry: plan.entry,
-        native_callback_arguments: native_callbacks_by_operation.values().cloned().collect(),
+        native_callback_arguments: native_callbacks_by_operation
+            .values()
+            .flat_map(|callbacks| callbacks.iter().cloned())
+            .collect(),
         functions: plan
             .functions
             .iter()

@@ -763,105 +763,104 @@ fn validate_callback_relocation_targets(
     output: &EmittedImageOutput,
 ) -> Result<(), Diagnostic> {
     for call in &artifact.foreign_calls {
-        let Some(callback) = &call.callback_address else {
-            continue;
-        };
-        let function = artifact
-            .functions
-            .iter()
-            .find(|function| function.machine == call.machine)
-            .ok_or_else(|| {
-                Diagnostic::error(
-                    "callback registrar call has no exact semantic function in the final image",
-                )
-            })?;
-        let operation = match call.owner {
-            target_operations::CallSiteOwner::Operation(operation) => operation,
-            target_operations::CallSiteOwner::CleanupAction { .. } => {
-                return Err(Diagnostic::error(
-                    "callback address relocation is not owned by a semantic registrar operation",
-                ));
-            }
-        };
-        let (callback_symbol, callback_symbol_plan) =
-            object_file::object_function_symbol(object, callback.target.callback_function)
+        for callback in &call.callback_addresses {
+            let function = artifact
+                .functions
+                .iter()
+                .find(|function| function.machine == call.machine)
                 .ok_or_else(|| {
                     Diagnostic::error(
-                        "callback address relocation lost its compiler-private function symbol",
+                        "callback registrar call has no exact semantic function in the final image",
                     )
                 })?;
-        let expected_origin = object_file::RelocationOrigin::SemanticOperation {
-            function_symbol_handle: function.symbol,
-            operation_identity: operation.get(),
-        };
-        let expected = match callback.encoding {
-            machine_code::CallbackAddressEncoding::X86_64Relative32 { relocation_offset } => {
-                vec![(
-                    relocation_offset,
-                    object_file::RelocationKind::X86_64Relative32,
-                )]
-            }
-            machine_code::CallbackAddressEncoding::Aarch64PageAddress {
-                page_relocation_offset,
-                page_offset_relocation_offset,
-            } => vec![
-                (
+            let operation = match call.owner {
+                target_operations::CallSiteOwner::Operation(operation) => operation,
+                target_operations::CallSiteOwner::CleanupAction { .. } => {
+                    return Err(Diagnostic::error(
+                        "callback address relocation is not owned by a semantic registrar operation",
+                    ));
+                }
+            };
+            let (callback_symbol, callback_symbol_plan) =
+                object_file::object_function_symbol(object, callback.target.callback_function)
+                    .ok_or_else(|| {
+                        Diagnostic::error(
+                            "callback address relocation lost its compiler-private function symbol",
+                        )
+                    })?;
+            let expected_origin = object_file::RelocationOrigin::SemanticOperation {
+                function_symbol_handle: function.symbol,
+                operation_identity: operation.get(),
+            };
+            let expected = match callback.encoding {
+                machine_code::CallbackAddressEncoding::X86_64Relative32 { relocation_offset } => {
+                    vec![(
+                        relocation_offset,
+                        object_file::RelocationKind::X86_64Relative32,
+                    )]
+                }
+                machine_code::CallbackAddressEncoding::Aarch64PageAddress {
                     page_relocation_offset,
-                    object_file::RelocationKind::Aarch64Page21,
-                ),
-                (
                     page_offset_relocation_offset,
-                    object_file::RelocationKind::Aarch64PageOffset12,
-                ),
-            ],
-        };
-        let private_target_relocations = relocations
-            .records()
-            .filter(|(_, relocation)| relocation.symbol_handle == callback_symbol)
-            .map(|(_, relocation)| relocation)
-            .collect::<Vec<_>>();
-        if private_target_relocations.len() != expected.len()
-            || expected.iter().any(|(offset, kind)| {
-                private_target_relocations
-                    .iter()
-                    .filter(|relocation| {
-                        relocation.origin == expected_origin
-                            && relocation.section == object_file::SectionKind::Text
-                            && relocation.offset == *offset
-                            && relocation.byte_width == 4
-                            && relocation.addend == 0
-                            && relocation.kind == *kind
-                    })
-                    .count()
-                    != 1
-            })
-        {
-            return Err(Diagnostic::error(
-                "callback address relocation set does not exactly target its private function",
-            ));
-        }
-        let expected_target = output
-            .executable_regions
-            .text_address
-            .checked_add(callback_symbol_plan.offset as u64)
-            .ok_or_else(|| Diagnostic::error("callback private function address overflows"))?;
-        let actual_target = match callback.encoding {
-            machine_code::CallbackAddressEncoding::X86_64Relative32 { relocation_offset } => {
-                decode_x86_relative_target(output, relocation_offset)?
+                } => vec![
+                    (
+                        page_relocation_offset,
+                        object_file::RelocationKind::Aarch64Page21,
+                    ),
+                    (
+                        page_offset_relocation_offset,
+                        object_file::RelocationKind::Aarch64PageOffset12,
+                    ),
+                ],
+            };
+            let private_target_relocations = relocations
+                .records()
+                .filter(|(_, relocation)| relocation.symbol_handle == callback_symbol)
+                .map(|(_, relocation)| relocation)
+                .collect::<Vec<_>>();
+            if private_target_relocations.len() != expected.len()
+                || expected.iter().any(|(offset, kind)| {
+                    private_target_relocations
+                        .iter()
+                        .filter(|relocation| {
+                            relocation.origin == expected_origin
+                                && relocation.section == object_file::SectionKind::Text
+                                && relocation.offset == *offset
+                                && relocation.byte_width == 4
+                                && relocation.addend == 0
+                                && relocation.kind == *kind
+                        })
+                        .count()
+                        != 1
+                })
+            {
+                return Err(Diagnostic::error(
+                    "callback address relocation set does not exactly target its private function",
+                ));
             }
-            machine_code::CallbackAddressEncoding::Aarch64PageAddress {
-                page_relocation_offset,
-                page_offset_relocation_offset,
-            } => decode_aarch64_page_target(
-                output,
-                page_relocation_offset,
-                page_offset_relocation_offset,
-            )?,
-        };
-        if actual_target != expected_target {
-            return Err(Diagnostic::error(
-                "final callback address does not resolve to its exact private function",
-            ));
+            let expected_target = output
+                .executable_regions
+                .text_address
+                .checked_add(callback_symbol_plan.offset as u64)
+                .ok_or_else(|| Diagnostic::error("callback private function address overflows"))?;
+            let actual_target = match callback.encoding {
+                machine_code::CallbackAddressEncoding::X86_64Relative32 { relocation_offset } => {
+                    decode_x86_relative_target(output, relocation_offset)?
+                }
+                machine_code::CallbackAddressEncoding::Aarch64PageAddress {
+                    page_relocation_offset,
+                    page_offset_relocation_offset,
+                } => decode_aarch64_page_target(
+                    output,
+                    page_relocation_offset,
+                    page_offset_relocation_offset,
+                )?,
+            };
+            if actual_target != expected_target {
+                return Err(Diagnostic::error(
+                    "final callback address does not resolve to its exact private function",
+                ));
+            }
         }
     }
     Ok(())

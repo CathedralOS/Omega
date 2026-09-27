@@ -18,8 +18,7 @@ struct ImportCoverageRows<'input> {
     selected_external: Option<(&'input ProviderPlan, &'input ProviderPlanRow)>,
     external: Option<&'input calling_conventions::ExternalBindingRow>,
     external_count: usize,
-    callback: Option<&'input AdmittedNativeCallbackArgument>,
-    callback_count: usize,
+    callbacks: Vec<&'input AdmittedNativeCallbackArgument>,
 }
 
 pub(super) fn validate_source_evaluated_import_coverage(
@@ -168,23 +167,28 @@ pub(super) fn validate_source_evaluated_import_coverage(
                         "demanded normalized import `{requirement}` substituted its retained external locator"
                     ))]);
                 }
-                let mechanism = match (rows.callback_count, rows.callback) {
-                    (0, _) => crate::provider_admission::normalized_foreign_terminal_mechanism(
+                let mechanism = match rows.callbacks.as_slice() {
+                    [] => crate::provider_admission::normalized_foreign_terminal_mechanism(
                         evaluated.locator(),
                         boundary_entry_plan,
                     ),
-                    (1, Some(callback))
-                        if callback.registrar_boundary_entry_plan == *boundary_entry_plan =>
+                    [first, rest @ ..]
+                        if first.registrar_boundary_entry_plan == *boundary_entry_plan
+                            && rest.iter().all(|callback| {
+                                callback.registrar_boundary_entry_plan
+                                    == *boundary_entry_plan
+                                    && callback.registrar_context == first.registrar_context
+                            }) =>
                     {
                         crate::provider_admission::normalized_foreign_terminal_mechanism_with_callback_materializations(
                             evaluated.locator(),
                             boundary_entry_plan,
-                            &callback.registrar_context,
+                            &first.registrar_context,
                         )
                     }
-                    (count, _) => Err(format!(
+                    callbacks => Err(format!(
                         "retained implementation contract rejoins {} exact native callbacks with no unique matching registrar plan",
-                        count,
+                        callbacks.len(),
                     )),
                 }
                 .map_err(|error| {
@@ -356,8 +360,7 @@ fn join_import_coverage_rows<'input>(
                 selected_external: None,
                 external: None,
                 external_count: 0,
-                callback: None,
-                callback_count: 0,
+                callbacks: Vec::new(),
             });
         if let Some(matching) = callback_boundaries.get_mut(psi_operation) {
             let (count, _) = matching.get_or_insert((0usize, *boundary));
@@ -434,8 +437,7 @@ fn join_import_coverage_rows<'input>(
             ))]
         })?;
         if let Some(rows) = demanded.get_mut(requirement) {
-            rows.callback = Some(callback);
-            rows.callback_count += 1;
+            rows.callbacks.push(callback);
         }
     }
 

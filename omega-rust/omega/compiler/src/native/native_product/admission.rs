@@ -6,24 +6,6 @@ pub(super) struct NativeCompilationAdmission {
     pub(super) target: target::NativeTarget,
 }
 
-pub(super) fn reject_unconsumed_callbacks(
-    checked: &CheckedCompilation,
-) -> Result<(), Vec<Diagnostic>> {
-    let placements = checked.callback_placements();
-    if placements.is_empty() {
-        return Ok(());
-    }
-    let requirements = placements
-        .iter()
-        .map(|placement| format!("`{}`", placement.canonical_requirement_overload))
-        .collect::<Vec<_>>()
-        .join(", ");
-    Err(vec![Diagnostic::error(format!(
-        "native-artifact production cannot discard {} validated callback placement(s) for {requirements}; canonical Terminal callback-use custody is not implemented",
-        placements.len()
-    ))])
-}
-
 pub(super) fn admit(
     checked: &CheckedCompilation,
 ) -> Result<NativeCompilationAdmission, Vec<Diagnostic>> {

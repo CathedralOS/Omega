@@ -422,7 +422,7 @@ fn foreign_call_relocations(
                 edge_identity: edge.get(),
             },
         };
-        if let Some(callback) = &call.callback_address {
+        for callback in &call.callback_addresses {
             let Some((callback_symbol, callback_symbol_plan)) =
                 object_file::object_function_symbol(object, callback.target.callback_function)
             else {
@@ -533,7 +533,7 @@ fn relocation_record_capacity(
         .functions
         .iter()
         .flat_map(|function| &function.foreign_calls)
-        .filter_map(|call| call.callback_address.as_ref())
+        .flat_map(|call| call.callback_addresses.iter())
         .map(|callback| match callback.encoding {
             machine_code::CallbackAddressEncoding::X86_64Relative32 { .. } => 1,
             machine_code::CallbackAddressEncoding::Aarch64PageAddress { .. } => 2,

@@ -105,7 +105,7 @@ fn assemble_object(
         .iter()
         .map(|resolution| RelocationFreeObjectUnresolvedForeignCall {
             symbol: import_symbols[&(resolution.boundary, resolution.ordinal)],
-            resolution: *resolution,
+            resolution: resolution.clone(),
         })
         .collect::<Vec<_>>();
     let relocation_requirements = match text.relocation_requirements {
@@ -258,6 +258,7 @@ mod tests {
                 next_instruction_section_offset: 5,
                 field_byte_width: 4,
                 addend: 0,
+                callback_materializations: Vec::new(),
             },
             machine_code::PlacedNormalizedForeignCallResolution {
                 kind: machine_code::NormalizedForeignCallResolutionKind::X86Relative32FromNextInstructionToNormalizedForeignImportV1,
@@ -279,6 +280,7 @@ mod tests {
                 next_instruction_section_offset: 10,
                 field_byte_width: 4,
                 addend: 0,
+                callback_materializations: Vec::new(),
             },
         ];
         text.relocation_requirements =

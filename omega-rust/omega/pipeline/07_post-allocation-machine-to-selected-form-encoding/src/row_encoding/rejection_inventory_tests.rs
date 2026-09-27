@@ -13,7 +13,7 @@ use selected_instructions::{MachineSizeKnowledge, SelectedInstructionId};
 use super::{SelectedFormEncodingState, encode_row};
 use crate::{OptimizedSelectedFormEncodingError, validation};
 
-use super::tests::fixture;
+use super::tests::{fixture, selected_function};
 
 /// The declared implicit effects are part of the machine's contract: an
 /// alternative whose recorded effects disagree with what its ISA encoder
@@ -27,7 +27,7 @@ fn implicit_effect_drift_rejects_in_producer_and_replay() {
         .implicit_unit_defs
         .push(RegisterUnitId(0xdead));
     assert!(matches!(
-        encode_row(target::NativeTarget::linux_x64(), &selected, &machine, &physical, None),
+        encode_row(target::NativeTarget::linux_x64(), &selected, &machine, &physical, &selected_function(), None),
         Err(OptimizedSelectedFormEncodingError::ImplicitFootprintMismatch(
             instruction
         )) if instruction == SelectedInstructionId(1)
@@ -44,6 +44,7 @@ fn implicit_effect_drift_rejects_in_producer_and_replay() {
         &selected,
         &machine,
         &physical,
+        &selected_function(),
         None,
     )
     .unwrap();
@@ -69,7 +70,7 @@ fn unresolvable_external_operand_rejects_in_producer_and_replay() {
     let (physical, selected, mut machine) = fixture();
     machine.operands[0].operand = 9;
     assert!(matches!(
-        encode_row(target::NativeTarget::linux_x64(), &selected, &machine, &physical, None),
+        encode_row(target::NativeTarget::linux_x64(), &selected, &machine, &physical, &selected_function(), None),
         Err(OptimizedSelectedFormEncodingError::OperandFootprintMismatch(
             instruction
         )) if instruction == SelectedInstructionId(1)
@@ -82,6 +83,7 @@ fn unresolvable_external_operand_rejects_in_producer_and_replay() {
         &selected,
         &machine,
         &physical,
+        &selected_function(),
         None,
     )
     .unwrap();
@@ -119,7 +121,7 @@ fn declared_size_drift_rejects_in_producer_and_replay() {
         let (physical, selected, mut machine) = fixture();
         machine.alternative.size = knowledge;
         assert!(matches!(
-            encode_row(target, &selected, &machine, &physical, None),
+            encode_row(target, &selected, &machine, &physical, &selected_function(), None),
             Err(OptimizedSelectedFormEncodingError::SizeDeclarationMismatch(
                 instruction
             )) if instruction == SelectedInstructionId(1)
@@ -127,7 +129,15 @@ fn declared_size_drift_rejects_in_producer_and_replay() {
         let (physical, selected, machine) = fixture();
         let mut mutated = machine.clone();
         mutated.alternative.size = knowledge;
-        let row = encode_row(target, &selected, &machine, &physical, None).unwrap();
+        let row = encode_row(
+            target,
+            &selected,
+            &machine,
+            &physical,
+            &selected_function(),
+            None,
+        )
+        .unwrap();
         assert!(matches!(
             validation::row::validate(target, &selected, &mutated, &physical, &row),
             Err(OptimizedSelectedFormEncodingError::SizeDeclarationMismatch(
@@ -140,7 +150,15 @@ fn declared_size_drift_rejects_in_producer_and_replay() {
         minimum_bytes: 1,
         maximum_bytes: Some(15),
     };
-    let row = encode_row(target, &selected, &machine, &physical, None).unwrap();
+    let row = encode_row(
+        target,
+        &selected,
+        &machine,
+        &physical,
+        &selected_function(),
+        None,
+    )
+    .unwrap();
     validation::row::validate(target, &selected, &machine, &physical, &row).unwrap();
 }
 
@@ -150,7 +168,15 @@ fn declared_size_drift_rejects_in_producer_and_replay() {
 fn stored_footprint_drift_rejects_in_replay() {
     let (physical, selected, machine) = fixture();
     let target = target::NativeTarget::linux_x64();
-    let mut row = encode_row(target, &selected, &machine, &physical, None).unwrap();
+    let mut row = encode_row(
+        target,
+        &selected,
+        &machine,
+        &physical,
+        &selected_function(),
+        None,
+    )
+    .unwrap();
     let SelectedFormEncodingState::Encoded { footprint, .. } = &mut row.state else {
         unreachable!()
     };
@@ -167,7 +193,15 @@ fn stored_footprint_drift_rejects_in_replay() {
 fn row_header_substitutions_reject_in_replay() {
     let (physical, selected, machine) = fixture();
     let target = target::NativeTarget::linux_x64();
-    let row = encode_row(target, &selected, &machine, &physical, None).unwrap();
+    let row = encode_row(
+        target,
+        &selected,
+        &machine,
+        &physical,
+        &selected_function(),
+        None,
+    )
+    .unwrap();
     let mut changed = row.clone();
     changed.instruction = SelectedInstructionId(77);
     assert!(matches!(
@@ -188,9 +222,25 @@ fn row_header_substitutions_reject_in_replay() {
 fn encoded_state_on_deferred_control_kind_rejects_in_replay() {
     let (physical, mut selected, machine) = fixture();
     let target = target::NativeTarget::linux_x64();
-    let ordinary_row = encode_row(target, &selected, &machine, &physical, None).unwrap();
+    let ordinary_row = encode_row(
+        target,
+        &selected,
+        &machine,
+        &physical,
+        &selected_function(),
+        None,
+    )
+    .unwrap();
     selected.kind = selected_instructions::SelectedInstructionKind::Jump;
-    let mut row = encode_row(target, &selected, &machine, &physical, None).unwrap();
+    let mut row = encode_row(
+        target,
+        &selected,
+        &machine,
+        &physical,
+        &selected_function(),
+        None,
+    )
+    .unwrap();
     assert!(matches!(
         row.state,
         SelectedFormEncodingState::DeferredControl { .. }

@@ -20,4 +20,5 @@ arena = { path = "../../../../psi/foundation/arena" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 terminal-psi = { path = "../../../../psi/representations/terminal-psi" }
 target = { path = "../../target" }
+target-operations = { path = "../../../representations/target-operations" }
 sha2 = "0.10.9"

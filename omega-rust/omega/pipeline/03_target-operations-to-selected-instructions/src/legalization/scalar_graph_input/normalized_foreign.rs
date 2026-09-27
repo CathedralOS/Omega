@@ -51,15 +51,18 @@ pub(in crate::legalization) fn row(
 /// Every admitted argument must join to one unique `NormalizedForeignCall` row
 /// by its Terminal operation, and that row's evaluated binding must carry the
 /// argument's exact registrar entry plan. A roster entry no call consumed, a
-/// duplicated operation, and a substituted registrar plan all fail closed; an
-/// empty roster is inert.
+/// duplicated (operation, placement) pair, and a substituted registrar plan
+/// all fail closed; an empty roster is inert.
 pub(in crate::legalization) fn validate_native_callback_roster(
     native: &TargetOperationPlan,
 ) -> Result<(), LegalizationError> {
     for (index, callback) in native.native_callback_arguments.iter().enumerate() {
         if native.native_callback_arguments[..index]
             .iter()
-            .any(|prior| prior.terminal_operation == callback.terminal_operation)
+            .any(|prior| {
+                prior.terminal_operation == callback.terminal_operation
+                    && prior.placement_index == callback.placement_index
+            })
         {
             return Err(LegalizationError::custody());
         }
@@ -90,56 +93,94 @@ pub(in crate::legalization) fn validate_native_callback_roster(
     Ok(())
 }
 
-/// The retained native callback argument one normalized foreign row consumes,
-/// or `None` when the row's evaluated plan carries no callback
-/// materializations.
+/// The retained native callback arguments one normalized foreign row
+/// consumes, in roster order, or an empty roster when the row's evaluated
+/// plan carries no callback materializations.
 ///
 /// The roster is the only carrier of binder and demand custody for the
-/// callback's private parameter slot, so the join is exact in both
-/// directions: a materialized call without a retained argument, a retained
-/// argument whose registrar plan differs from the row's, a claimed
-/// application placement the plan does not carry at its native ordinal, and a
-/// retained argument naming a row whose materializations were dropped all
-/// fail closed.
-pub(in crate::legalization) fn native_callback_at<'a>(
+/// callbacks' private slots, so the join is exact in both directions: every
+/// plan materialization must name one retained argument's destination, every
+/// retained argument must name one materialization, and no two may share a
+/// destination, placement slot, or thunk identity. A materialized call
+/// without the full retained roster, a retained argument whose registrar
+/// plan differs from the row's, a claimed application placement the plan
+/// does not carry, and a substituted materialization roster all fail closed.
+pub(in crate::legalization) fn native_callbacks_at<'a>(
     native: &'a TargetOperationPlan,
     operation: OperationId,
     boundary_entry_plan: &BoundaryEntryPlan,
-) -> Result<Option<&'a TargetNativeCallbackArgument>, LegalizationError> {
-    let materialized = !boundary_entry_plan
-        .call
-        .callback_materializations
-        .is_empty();
-    let mut matching = native
+) -> Result<Vec<&'a TargetNativeCallbackArgument>, LegalizationError> {
+    let materializations = &boundary_entry_plan.call.callback_materializations;
+    let matching: Vec<&'a TargetNativeCallbackArgument> = native
         .native_callback_arguments
         .iter()
-        .filter(|callback| callback.terminal_operation == operation);
-    let Some(callback) = matching.next() else {
-        return if materialized {
-            Err(LegalizationError::custody())
+        .filter(|callback| callback.terminal_operation == operation)
+        .collect();
+    if materializations.is_empty() {
+        return if matching.is_empty() {
+            Ok(Vec::new())
         } else {
-            Ok(None)
+            Err(LegalizationError::custody())
         };
-    };
+    }
+    if matching.len() != materializations.len() {
+        return Err(LegalizationError::custody());
+    }
     let pointer_size =
         u16::try_from(native.target.pointer_size).map_err(|_| LegalizationError::custody())?;
     let pointer_alignment =
         u16::try_from(native.target.pointer_alignment).map_err(|_| LegalizationError::custody())?;
-    let ordinal = usize::try_from(callback.application.native_ordinal)
-        .map_err(|_| LegalizationError::custody())?;
-    if !materialized
-        || matching.next().is_some()
-        || callback.registrar_boundary_entry_plan != *boundary_entry_plan
-        || !callback.callback_function.is_valid()
-        || callback.callback_function.callback_thunk_placement_index()
-            != Some(callback.placement_index)
-        || callback.application.shape != callback.application.placement.shape
-        || callback.application.shape != ValueShape::integer(pointer_size, pointer_alignment)
-        || boundary_entry_plan.call.parameters.get(ordinal) != Some(&callback.application.placement)
+    for (index, callback) in matching.iter().enumerate() {
+        let ordinal = usize::try_from(callback.application.native_ordinal)
+            .map_err(|_| LegalizationError::custody())?;
+        let placed_root = boundary_entry_plan.call.parameters.get(ordinal)
+            == Some(&callback.application.placement);
+        let destination_admitted = match &callback.destination {
+            calling_conventions::NativePlace::Parameter(parameter) => {
+                *parameter == callback.application.parameter
+                    && callback.field_byte_offset.is_none()
+                    && placed_root
+            }
+            calling_conventions::NativePlace::Field { parameter, .. } => {
+                *parameter == callback.application.parameter
+                    && callback.field_byte_offset.is_some()
+                    && placed_root
+            }
+        };
+        if callback.registrar_boundary_entry_plan != *boundary_entry_plan
+            || !callback.callback_function.is_valid()
+            || callback.callback_function.callback_thunk_placement_index()
+                != Some(callback.placement_index)
+            || callback.application.shape != callback.application.placement.shape
+            || callback.application.shape != ValueShape::integer(pointer_size, pointer_alignment)
+            || !destination_admitted
+            || !materializations
+                .iter()
+                .any(|materialization| materialization.destination == callback.destination)
+            || matching[..index].iter().any(|prior| {
+                prior.placement_index == callback.placement_index
+                    || prior.destination == callback.destination
+            })
+        {
+            return Err(LegalizationError::custody());
+        }
+    }
+    if matching
+        .iter()
+        .filter(|callback| {
+            matches!(
+                callback.destination,
+                calling_conventions::NativePlace::Parameter(_)
+            )
+        })
+        .count()
+        > 1
     {
+        // One private parameter slot per call is the admitted bound; the
+        // constraint catalog carries only single-removal callback rows.
         return Err(LegalizationError::custody());
     }
-    Ok(Some(callback))
+    Ok(matching)
 }
 
 /// Re-derive one source-rooted borrowed flat-record argument for the boundary

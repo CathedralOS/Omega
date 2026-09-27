@@ -350,6 +350,32 @@ fn shift_foreign_fixup(
         .reference_function_offset
         .checked_add(shift)
         .ok_or(FrameApplicationError::OffsetOverflow)?;
+    for callback in &mut fixup.callbacks {
+        callback.code_function_offset = callback
+            .code_function_offset
+            .checked_add(shift)
+            .ok_or(FrameApplicationError::OffsetOverflow)?;
+        match &mut callback.encoding {
+            machine_code::FunctionFragmentCallbackMaterializationEncoding::X86_64Relative32 {
+                patch_function_offset,
+            } => {
+                *patch_function_offset = patch_function_offset
+                    .checked_add(shift)
+                    .ok_or(FrameApplicationError::OffsetOverflow)?;
+            }
+            machine_code::FunctionFragmentCallbackMaterializationEncoding::Aarch64PageAddress {
+                page_patch_function_offset,
+                page_offset_patch_function_offset,
+            } => {
+                *page_patch_function_offset = page_patch_function_offset
+                    .checked_add(shift)
+                    .ok_or(FrameApplicationError::OffsetOverflow)?;
+                *page_offset_patch_function_offset = page_offset_patch_function_offset
+                    .checked_add(shift)
+                    .ok_or(FrameApplicationError::OffsetOverflow)?;
+            }
+        }
+    }
     Ok(())
 }
 

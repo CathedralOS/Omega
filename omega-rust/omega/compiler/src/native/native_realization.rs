@@ -314,12 +314,11 @@ fn validate_executable_entry_receiver(
         // Fused establishment is still checked independently before this call.
         return entry_boundary_without_receiver(placed_view_establishments);
     }
-    if !request.native_callbacks.is_empty() || !request.callback_thunks.is_empty() {
-        return Err(realization_error(
-            "ProgramEntry receiver provisioning",
-            "hosted private-stack entry does not yet admit callback occupancy",
-        ));
-    }
+    // Callback occupancy is orthogonal to receiver provisioning: each
+    // materialization binds at its own registrar call site inside function
+    // fragments, and the emitted object plus final image replay join them to
+    // their private functions regardless of which entry boundary the program
+    // selected.
     // This only permits physical construction to begin. The validated
     // settlement is the demand the object binder must satisfy exactly — the
     // bound placed-view establishments ride on it so the emitted entry

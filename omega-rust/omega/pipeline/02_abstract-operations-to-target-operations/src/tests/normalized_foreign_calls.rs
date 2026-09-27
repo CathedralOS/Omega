@@ -787,6 +787,8 @@ fn registrar_callback_slot_replays_from_the_retained_roster() {
                 0,
             )
             .unwrap(),
+            destination: calling_conventions::NativePlace::Parameter(parameter),
+            field_byte_offset: None,
             application: calling_conventions::NativeParameterApplication {
                 parameter,
                 native_ordinal: 1,
@@ -931,7 +933,7 @@ fn mixed_registrar_callback_preserves_authored_formals_around_its_private_slot()
                     requirement,
                 }],
                 demands: vec![calling_conventions::NativeCallbackDemand {
-                    destination,
+                    destination: destination.clone(),
                     requirement,
                 }],
             };
@@ -948,6 +950,8 @@ fn mixed_registrar_callback_preserves_authored_formals_around_its_private_slot()
                     0,
                 )
                 .unwrap(),
+                destination: destination.clone(),
+                field_byte_offset: None,
                 application: calling_conventions::NativeParameterApplication {
                     parameter,
                     native_ordinal: u32::try_from(callback_ordinal).unwrap(),

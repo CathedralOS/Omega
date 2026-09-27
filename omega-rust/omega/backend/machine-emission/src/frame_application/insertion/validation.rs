@@ -204,8 +204,8 @@ fn validate_function(
                 shift,
             )?;
             validate_foreign_fixup(
-                source_row.normalized_foreign_call_fixup,
-                candidate_row.normalized_foreign_call_fixup,
+                source_row.normalized_foreign_call_fixup.clone(),
+                candidate_row.normalized_foreign_call_fixup.clone(),
                 shift,
             )?;
             cursor = advance(cursor, candidate_row.bytes.len())?;
@@ -277,6 +277,32 @@ fn validate_foreign_fixup(
         .reference_function_offset
         .checked_add(shift)
         .ok_or(FrameApplicationError::OffsetOverflow)?;
+    for callback in &mut expected.callbacks {
+        callback.code_function_offset = callback
+            .code_function_offset
+            .checked_add(shift)
+            .ok_or(FrameApplicationError::OffsetOverflow)?;
+        match &mut callback.encoding {
+            machine_code::FunctionFragmentCallbackMaterializationEncoding::X86_64Relative32 {
+                patch_function_offset,
+            } => {
+                *patch_function_offset = patch_function_offset
+                    .checked_add(shift)
+                    .ok_or(FrameApplicationError::OffsetOverflow)?;
+            }
+            machine_code::FunctionFragmentCallbackMaterializationEncoding::Aarch64PageAddress {
+                page_patch_function_offset,
+                page_offset_patch_function_offset,
+            } => {
+                *page_patch_function_offset = page_patch_function_offset
+                    .checked_add(shift)
+                    .ok_or(FrameApplicationError::OffsetOverflow)?;
+                *page_offset_patch_function_offset = page_offset_patch_function_offset
+                    .checked_add(shift)
+                    .ok_or(FrameApplicationError::OffsetOverflow)?;
+            }
+        }
+    }
     if candidate != Some(expected) {
         return Err(FrameApplicationError::ArtifactMismatch);
     }

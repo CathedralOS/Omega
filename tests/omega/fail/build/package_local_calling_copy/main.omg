@@ -1,0 +1,8 @@
+use calling;
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+    let marker: u8 = 0;
+}

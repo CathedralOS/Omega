@@ -1,4 +1,4 @@
-use calling_conventions::PlanDiagnostic;
+use calling_conventions::{NativePlace, PlanDiagnostic};
 use semantic_vocabulary::{
     BoundaryMachineId, MachineId, OperationId, PlaceId, StructuralTypeId, ValueId,
 };
@@ -27,6 +27,12 @@ pub struct AdmittedNativeCallbackArgument {
     pub terminal_operation: OperationId,
     pub placement_index: usize,
     pub callback_function: function_identity::MachineFunctionIdentity,
+    /// The private materialization destination this callback binds. For a
+    /// field destination, `application` is the root record parameter's
+    /// application — the parameter slot the private-slot write flows through
+    /// — and `field_byte_offset` names the slot inside that record.
+    pub destination: NativePlace,
+    pub field_byte_offset: Option<usize>,
     pub application: calling_conventions::NativeParameterApplication,
     pub registrar_boundary_entry_plan: calling_conventions::BoundaryEntryPlan,
     pub registrar_context: calling_conventions::CallbackMaterializationContext,

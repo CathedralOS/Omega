@@ -62,46 +62,12 @@ pub(crate) fn project_terminal_native_realization_proposal(
             .map_err(|message| vec![Diagnostic::error(message)])
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let callback_source_calls = callback_registrars::CallbackSourceCalls::new(
-        callback_placements
-            .iter()
-            .map(|placement| (placement.site, placement.registration_operation)),
+    let callback_occurrences = project_callback_occurrences(
+        checked,
+        profile,
+        callback_placements,
         source_call_occurrences,
-    );
-    let callback_occurrences = callback_placements
-        .iter()
-        .enumerate()
-        .map(|(placement_index, placement)| {
-            let occurrence = callback_source_calls
-                .find(placement.site, placement.registration_operation)
-                .map_err(|count| vec![Diagnostic::error(format!(
-                    "callback placement {placement_index} resolves to {count} Terminal registrar occurrences; exactly one is required",
-                ))])?;
-            let callback_thunk_identity =
-                backend_plan::canonical_callback_thunk_identity(placement_index, placement)
-                    .ok_or_else(|| {
-                        vec![Diagnostic::error(format!(
-                            "callback placement {placement_index} cannot derive one valid callback-thunk identity",
-                        ))]
-                    })?;
-            let callback_thunk_artifact =
-                produce_callback_thunk_artifact(checked, profile, placement)?;
-            Ok(crate::report::TerminalCallbackOccurrenceProposal::new(
-                placement_index,
-                occurrence.terminal_operation,
-                placement
-                    .private_materialization
-                    .as_ref()
-                    .and_then(|materialization| {
-                        materialization
-                            .direct_registrar_parameter_application
-                            .clone()
-                    }),
-                callback_thunk_identity,
-                callback_thunk_artifact,
-            ))
-        })
-        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+    )?;
     let ieee_float_comparison_occurrences = float_comparisons::associate(
         checked,
         &terminal_module,
@@ -178,11 +144,63 @@ pub(crate) fn project_terminal_native_realization_proposal(
     .map_err(|message| vec![Diagnostic::error(message)])
 }
 
+/// Rejoin retained callback placements to their exact Terminal registrar
+/// occurrences and produce each occurrence's thunk artifact. Both native
+/// routes — retained product and direct program-entry — admit the same rows.
+pub(crate) fn project_callback_occurrences(
+    checked: &CheckedCompilation,
+    profile: &proof_admission::AdmissionProfile,
+    callback_placements: &[backend_plan::BoundNominalCallbackPlacement],
+    source_call_occurrences: &[lowered_psi::LoweredSourceCallOccurrence],
+) -> Result<Vec<crate::report::TerminalCallbackOccurrenceProposal>, Vec<Diagnostic>> {
+    let callback_source_calls = callback_registrars::CallbackSourceCalls::new(
+        callback_placements
+            .iter()
+            .map(|placement| (placement.site, placement.registration_operation)),
+        source_call_occurrences,
+    );
+    callback_placements
+        .iter()
+        .enumerate()
+        .map(|(placement_index, placement)| {
+            let occurrence = callback_source_calls
+                .find(placement.site, placement.registration_operation)
+                .map_err(|count| vec![Diagnostic::error(format!(
+                    "callback placement {placement_index} resolves to {count} Terminal registrar occurrences; exactly one is required",
+                ))])?;
+            let callback_thunk_identity =
+                backend_plan::canonical_callback_thunk_identity(placement_index, placement)
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(format!(
+                            "callback placement {placement_index} cannot derive one valid callback-thunk identity",
+                        ))]
+                    })?;
+            let callback_thunk_artifact =
+                produce_callback_thunk_artifact(checked, profile, placement)?;
+            Ok(crate::report::TerminalCallbackOccurrenceProposal::new(
+                placement_index,
+                occurrence.terminal_operation,
+                placement
+                    .private_materialization
+                    .as_ref()
+                    .and_then(|materialization| {
+                        materialization
+                            .direct_registrar_parameter_application
+                            .clone()
+                            .or_else(|| materialization.root_parameter_application.clone())
+                    }),
+                callback_thunk_identity,
+                callback_thunk_artifact,
+            ))
+        })
+        .collect()
+}
+
 /// Rejoin target-closed callback registrar plans to their selected import
 /// rows while the checked calling-policy realization and canonical Terminal
 /// operation still coexist. The locator remains the target package's only
 /// contribution; the registrar requirement owns its complete physical plan.
-fn callback_closed_external_binding_rows(
+pub(crate) fn callback_closed_external_binding_rows(
     checked: &CheckedCompilation,
     terminal_module: &terminal_psi::TerminalModule,
     callback_placements: &[backend_plan::BoundNominalCallbackPlacement],
@@ -365,6 +383,33 @@ fn produce_callback_thunk_artifact(
     .map_err(|message| vec![Diagnostic::error(message)])
 }
 
+/// The ABI shape one scalar type occupies — fixed integers, Booleans, and
+/// IEEE floats only; anything wider has no scalar-ABI custody.
+fn scalar_value_shape(
+    scalar_type: semantic_vocabulary::ScalarType,
+) -> Option<calling_conventions::ValueShape> {
+    use calling_conventions::ValueShape;
+    match scalar_type {
+        semantic_vocabulary::ScalarType::Boolean => Some(ValueShape::integer(1, 1)),
+        semantic_vocabulary::ScalarType::IeeeFloat(
+            semantic_vocabulary::IeeeFloatFormat::Binary32,
+        ) => Some(ValueShape::float(4)),
+        semantic_vocabulary::ScalarType::IeeeFloat(
+            semantic_vocabulary::IeeeFloatFormat::Binary64,
+        ) => Some(ValueShape::float(8)),
+        semantic_vocabulary::ScalarType::Integer(integer) => {
+            let bits = integer.bits();
+            if integer.carrier() != semantic_vocabulary::IntegerCarrier::Fixed
+                || !matches!(bits, 8 | 16 | 32 | 64)
+            {
+                return None;
+            }
+            let bytes = bits / 8;
+            Some(ValueShape::integer(bytes, bytes))
+        }
+    }
+}
+
 fn validate_direct_callback_thunk_shape(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     placement: &backend_plan::BoundNominalCallbackPlacement,
@@ -379,59 +424,38 @@ fn validate_direct_callback_thunk_shape(
             "direct callback thunk currently requires exactly one Terminal machine",
         )]);
     };
-    let ([parameter], [block]) = (machine.parameters.as_slice(), machine.blocks.as_slice()) else {
+    let [parameter] = machine.parameters.as_slice() else {
         return Err(vec![Diagnostic::error(
-            "direct callback thunk currently requires one scalar parameter and one block",
+            "direct callback thunk currently requires exactly one scalar parameter",
         )]);
     };
-    let expected_type =
-        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
-            .expect("u64 is a valid fixed integer type");
-    // The two admitted leaf cohorts mirror the two checked callback bodies the
-    // bounded lowering accepts: a `u64 -> u64` identity return, and a
-    // `u64 -> Unit` body that completes without producing a value. The
-    // evaluated boundary entry plan retains which of them the requirement
-    // signature declared, so the Terminal shape and the replayed signature
-    // must agree exactly.
-    let (exact_body, signature_result) = match (&machine.result, &block.terminator) {
-        (
-            terminal_psi::TerminalMachineResult::Scalar(result),
-            terminal_psi::Terminator::Return {
-                value,
-                cleanup_actions,
-                ..
-            },
-        ) => (
-            result.scalar_type == parameter.scalar_type
-                && *value == parameter.id
-                && cleanup_actions.is_empty(),
-            Some(calling_conventions::ValueShape::integer(8, 8)),
-        ),
-        (
-            terminal_psi::TerminalMachineResult::Unit,
-            terminal_psi::Terminator::ReturnUnit {
-                trivial_affine_discards,
-                ..
-            },
-        ) => (trivial_affine_discards.is_empty(), None),
-        _ => (false, None),
+    // Custody check: the thunk machine's declared ABI must re-derive the exact
+    // signature the placement's boundary entry plan was evaluated for —
+    // parameter shapes, result shape, and the plan itself. Any body shape is
+    // admissible: downstream stages (thunk lowering, private-function replay)
+    // enforce call custody per call, not by recognizing leaf silhouettes.
+    let parameter_shape = scalar_value_shape(parameter.scalar_type).ok_or_else(|| {
+        vec![Diagnostic::error(
+            "direct callback thunk parameter type has no ABI scalar shape",
+        )]
+    })?;
+    let signature_result = match &machine.result {
+        terminal_psi::TerminalMachineResult::Scalar(result) => {
+            Some(scalar_value_shape(result.scalar_type).ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "direct callback thunk result type has no ABI scalar shape",
+                )]
+            })?)
+        }
+        terminal_psi::TerminalMachineResult::Unit => None,
+        _ => {
+            return Err(vec![Diagnostic::error(
+                "direct callback thunk result must be a scalar or Unit",
+            )]);
+        }
     };
-    let is_exact_leaf = module.entry == machine.id
-        && machine.entry == block.id
-        && machine.structural_parameters.is_empty()
-        && machine.structural_places.is_empty()
-        && machine.ranked_scc.is_none()
-        && block.parameters.is_empty()
-        && block.operations.is_empty()
-        && parameter.scalar_type == semantic_vocabulary::ScalarType::Integer(expected_type)
-        && exact_body;
-    if !is_exact_leaf {
-        return Err(vec![Diagnostic::error(
-            "direct callback thunk currently admits only the exact u64 identity or u64-to-Unit leaf",
-        )]);
-    }
     let signature = calling_conventions::CallSignature {
-        parameters: vec![calling_conventions::ValueShape::integer(8, 8)],
+        parameters: vec![parameter_shape],
         result: signature_result,
     };
     let validated = calling_conventions::validate_boundary_entry_plan(

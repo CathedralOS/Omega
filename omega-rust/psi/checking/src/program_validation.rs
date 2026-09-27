@@ -1,5 +1,6 @@
 //! Validate typed programs and retain the analyses consumed by checking.
 
+use crate::declarations::standard_declarations;
 use crate::declarations::state_signatures::validate_callable_state_signatures;
 use crate::declarations::state_signatures::validate_machine_contracts;
 use crate::declarations::symbols::MachineSymbols;
@@ -168,6 +169,7 @@ fn validate(
         &mut diagnostics,
     );
     let symbols = TopLevelSymbols::build(program, &mut diagnostics);
+    standard_declarations::validate_calling_vocabulary_uniqueness(program, &mut diagnostics);
     let fact_plan = build_definition_fact_plan(program);
 
     declaration_visibility::collect_declaration_visibility_diagnostics(program, &mut diagnostics);

@@ -157,14 +157,12 @@ pub fn compute_boundary_calling_plans(
     opaque_representation_selections: &[OpaqueRepresentationSelection],
     package_inputs: Option<&package_compilation::PackageCompilationInputs>,
 ) -> Result<Vec<BoundaryCallingPlanRealization>, Vec<Diagnostic>> {
-    let Some((calling_trait, calling_policy_trait)) = validation::standard_calling_traits(typed)
-    else {
+    let vocabularies = validation::standard_calling_vocabularies(typed);
+    if vocabularies.is_empty() {
         // Programs that do not import std::calling cannot accidentally opt in
         // merely by having an unrelated local trait named Calling.
         return Ok(Vec::new());
-    };
-    let calling_policy_symbol = calling_policy_trait.symbol;
-    let calling_symbol = calling_trait.symbol;
+    }
 
     let mut pending = Vec::new();
     for boundary in typed
@@ -175,7 +173,11 @@ pub fn compute_boundary_calling_plans(
         let relationships = typed
             .trait_requirements(boundary)
             .iter()
-            .filter(|requirement| requirement.symbol == calling_symbol)
+            .filter(|requirement| {
+                vocabularies
+                    .iter()
+                    .any(|(calling, _)| requirement.symbol == calling.symbol)
+            })
             .collect::<Vec<_>>();
         if relationships.is_empty() {
             continue;
@@ -190,6 +192,12 @@ pub fn compute_boundary_calling_plans(
         }
         let relationship = relationships[0];
         let relationship_span = relationship.source_span;
+        let (_, calling_policy_trait) = vocabularies
+            .iter()
+            .find(|(calling, _)| calling.symbol == relationship.symbol)
+            .copied()
+            .expect("filtered above to the vocabulary owning this Calling symbol");
+        let calling_policy_symbol = calling_policy_trait.symbol;
         let arguments = typed
             .type_reference_table
             .type_reference_handles(relationship.arguments);

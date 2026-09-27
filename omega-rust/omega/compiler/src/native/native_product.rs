@@ -45,7 +45,6 @@ pub fn prepare_native_product(
     request: NativeProductRequest,
     mut checked: CheckedCompilation,
 ) -> Result<PreparedNativeCompilation, Vec<Diagnostic>> {
-    admission::reject_unconsumed_callbacks(&checked)?;
     let production_subject = checked.production_subject()?;
     let source_file_count = checked.source_file_count();
     let admission = admission::admit(&checked)?;

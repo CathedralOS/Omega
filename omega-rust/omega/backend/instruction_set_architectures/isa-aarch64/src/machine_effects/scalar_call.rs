@@ -74,5 +74,34 @@ pub(super) fn normalized_foreign_declaration(
     declaration.call = MachineCallEffect::DirectExternalNormalReturnV1 {
         pre_call_stack_alignment: 16,
     };
+    // Callback rows materialize the private callback address inside the call
+    // encoding: an `adrp`/`add` pair per register destination, plus a scratch
+    // store for field destinations, precede the `bl` word. The applicable
+    // alternative is the row's declared shape.
+    let row = constraints
+        .catalog()
+        .constraints
+        .iter()
+        .find(|row| row.key == constraint)
+        .expect("canonical AArch64 catalog contains its normalized-foreign-call constraint");
+    let shape = crate::register_model::aarch64_normalized_foreign_callback_shape(
+        row,
+        crate::aarch64_physical_register_model_ref(),
+    );
+    for alternative in &mut declaration.alternatives {
+        alternative.key.variant = shape.alternative_variant();
+        // Field destinations may repeat: one adrp/add/str group (12 bytes)
+        // apiece, plus the 8-byte register group and the 4-byte `bl` word.
+        alternative.size = if shape.field_scratch {
+            MachineSizeKnowledge::EncoderResolved {
+                minimum_bytes: 4 + 12 + if shape.parameter_slot.is_some() { 8 } else { 0 },
+                maximum_bytes: None,
+            }
+        } else if shape.parameter_slot.is_some() {
+            MachineSizeKnowledge::ExactBytes(12)
+        } else {
+            alternative.size
+        };
+    }
     declaration
 }

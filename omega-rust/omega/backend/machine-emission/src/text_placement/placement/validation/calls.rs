@@ -142,12 +142,12 @@ pub(super) fn check_foreign(
     let field = bytes(candidate_bytes, fixup.patch_function_offset, 4)?;
     let kind = match (architecture, fixup.kind) {
         (Architecture::X86_64, FunctionFragmentNormalizedForeignCallFixupKind::X86Relative32FromNextInstructionToNormalizedForeignImportV1) => {
-            if fixup.patch_function_offset != add(fixup.opcode_function_offset, 1)? || fixup.reference_function_offset != add(fixup.opcode_function_offset, 5)? || bytes(call.bytes, opcode_relative, 1)? != [0xe8] || bytes(call.bytes, patch_relative, 4)? != [0, 0, 0, 0] { return Err(TextPlacementError::SourceShapeMismatch); }
+            if fixup.patch_function_offset != add(fixup.opcode_function_offset, 1)? || fixup.reference_function_offset != add(fixup.opcode_function_offset, 5)? || opcode_relative.checked_add(5) != Some(call.bytes.len() as u64) || bytes(call.bytes, opcode_relative, 1)? != [0xe8] || bytes(call.bytes, patch_relative, 4)? != [0, 0, 0, 0] { return Err(TextPlacementError::SourceShapeMismatch); }
             if bytes(candidate_bytes, fixup.opcode_function_offset, 1)? != [0xe8] || field != [0, 0, 0, 0] { return Err(TextPlacementError::ArtifactMismatch); }
             NormalizedForeignCallResolutionKind::X86Relative32FromNextInstructionToNormalizedForeignImportV1
         }
         (Architecture::Aarch64, FunctionFragmentNormalizedForeignCallFixupKind::Aarch64BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1) => {
-            if fixup.opcode_function_offset != call.offset || fixup.patch_function_offset != call.offset || fixup.reference_function_offset != call.offset || call.bytes != 0x9400_0000_u32.to_le_bytes() { return Err(TextPlacementError::SourceShapeMismatch); }
+            if fixup.patch_function_offset != fixup.opcode_function_offset || fixup.reference_function_offset != fixup.opcode_function_offset || opcode_relative.checked_add(4) != Some(call.bytes.len() as u64) || bytes(call.bytes, opcode_relative, 4)? != 0x9400_0000_u32.to_le_bytes() { return Err(TextPlacementError::SourceShapeMismatch); }
             if field != 0x9400_0000_u32.to_le_bytes() { return Err(TextPlacementError::ArtifactMismatch); }
             NormalizedForeignCallResolutionKind::Aarch64BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1
         }

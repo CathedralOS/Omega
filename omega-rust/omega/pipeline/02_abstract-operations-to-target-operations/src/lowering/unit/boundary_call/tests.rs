@@ -129,7 +129,7 @@ fn interleaved_callback(
             requirement,
         }],
         demands: vec![calling_conventions::NativeCallbackDemand {
-            destination,
+            destination: destination.clone(),
             requirement,
         }],
     };
@@ -145,6 +145,8 @@ fn interleaved_callback(
             terminal_operation: OperationId::new(boundary.get()).unwrap(),
             placement_index: 0,
             callback_function: function_identity::MachineFunctionIdentity::default(),
+            destination,
+            field_byte_offset: None,
             application,
             registrar_boundary_entry_plan: plan,
             registrar_context: context,
@@ -200,7 +202,7 @@ fn interleaved_native_callback_preserves_semantic_sources_at_physical_ordinals_z
         &plan,
         &sources.view(),
         None,
-        Some(&callback),
+        std::slice::from_ref(&callback),
         &[],
     )
     .expect("one interleaved native-only callback argument");
@@ -223,7 +225,7 @@ fn interleaved_native_callback_preserves_semantic_sources_at_physical_ordinals_z
             &plan,
             &sources.view(),
             None,
-            Some(&wrong_ordinal),
+            std::slice::from_ref(&wrong_ordinal),
             &[],
         )
         .is_err()
@@ -244,7 +246,7 @@ fn interleaved_native_callback_preserves_semantic_sources_at_physical_ordinals_z
             &plan,
             &sources.view(),
             None,
-            Some(&wrong_plan),
+            std::slice::from_ref(&wrong_plan),
             &[],
         )
         .is_err()
@@ -748,7 +750,7 @@ fn normalized_foreign_owned_aggregate_arguments_retain_whole_place_and_plan_tran
             &parameters_by_place,
             &mut BTreeMap::new(),
             &mut BTreeSet::new(),
-            None,
+            &[],
             &[],
         )
         .expect("owned aggregate argument lowers");
@@ -823,7 +825,7 @@ fn normalized_foreign_owned_aggregate_arguments_retain_whole_place_and_plan_tran
                 &parameters_by_place,
                 &mut BTreeMap::new(),
                 &mut BTreeSet::new(),
-                None,
+                &[],
                 &[],
             )
             .is_err()
@@ -963,7 +965,7 @@ fn normalized_foreign_borrowed_view_descriptors_admit_whole_place_and_stored_fie
                 &parameters_by_place,
                 &mut BTreeMap::new(),
                 &mut BTreeSet::new(),
-                None,
+                &[],
                 &[],
             )
             .expect("borrowed-view descriptor argument lowers");
@@ -1067,7 +1069,7 @@ fn normalized_foreign_borrowed_view_descriptors_admit_whole_place_and_stored_fie
                 &parameters_by_place,
                 &mut BTreeMap::new(),
                 &mut BTreeSet::new(),
-                None,
+                &[],
                 &[],
             )
             .is_err()
@@ -1102,27 +1104,26 @@ fn normalized_foreign_structural_mutations_fail_closed() {
     let receiver = caller_receiver(caller_place, main);
     let parameters_by_place = BTreeMap::from([(caller_place, &receiver)]);
 
-    let lower =
-        |declaration: &terminal_psi::BoundaryMachineDeclaration,
-         arguments: &[terminal_psi::StructuralArgument],
-         plan: &calling_conventions::BoundaryEntryPlan,
-         parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
-         callback: Option<&target_operations::TargetNativeCallbackArgument>| {
-            lower_normalized_foreign_structural_arguments(
-                boundary,
-                machine,
-                target,
-                declaration,
-                arguments,
-                plan,
-                &structural_types,
-                parameters_by_place,
-                &mut BTreeMap::new(),
-                &mut BTreeSet::new(),
-                callback,
-                &[],
-            )
-        };
+    let lower = |declaration: &terminal_psi::BoundaryMachineDeclaration,
+                 arguments: &[terminal_psi::StructuralArgument],
+                 plan: &calling_conventions::BoundaryEntryPlan,
+                 parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
+                 callback: &[target_operations::TargetNativeCallbackArgument]| {
+        lower_normalized_foreign_structural_arguments(
+            boundary,
+            machine,
+            target,
+            declaration,
+            arguments,
+            plan,
+            &structural_types,
+            parameters_by_place,
+            &mut BTreeMap::new(),
+            &mut BTreeSet::new(),
+            callback,
+            &[],
+        )
+    };
 
     // The admitted control case must succeed before any mutation is trusted.
     assert!(
@@ -1131,7 +1132,7 @@ fn normalized_foreign_structural_mutations_fail_closed() {
             &[base_argument()],
             &base_plan,
             &parameters_by_place,
-            None,
+            &[],
         )
         .is_ok()
     );
@@ -1151,7 +1152,7 @@ fn normalized_foreign_structural_mutations_fail_closed() {
                 &[argument],
                 &base_plan,
                 &parameters_by_place,
-                None,
+                &[],
             )
             .is_err(),
             "path {path:?} must fail closed"
@@ -1185,7 +1186,7 @@ fn normalized_foreign_structural_mutations_fail_closed() {
                 &[argument],
                 &base_plan,
                 &parameters_by_place,
-                None,
+                &[],
             )
             .is_err()
         );
@@ -1196,7 +1197,7 @@ fn normalized_foreign_structural_mutations_fail_closed() {
             &[base_argument()],
             &base_plan,
             &BTreeMap::new(),
-            None,
+            &[],
         ),
         Err(LoweringError::UnknownStructuralArgumentPlace {
             machine,
@@ -1212,7 +1213,7 @@ fn normalized_foreign_structural_mutations_fail_closed() {
             &[],
             &base_plan,
             &parameters_by_place,
-            None,
+            &[],
         )
         .is_err()
     );
@@ -1222,7 +1223,7 @@ fn normalized_foreign_structural_mutations_fail_closed() {
             &[base_argument()],
             &base_plan,
             &parameters_by_place,
-            None,
+            &[],
         )
         .is_err()
     );
@@ -1236,7 +1237,7 @@ fn normalized_foreign_structural_mutations_fail_closed() {
             &[base_argument()],
             &base_plan,
             &parameters_by_place,
-            None,
+            &[],
         )
         .is_err()
     );
@@ -1247,7 +1248,7 @@ fn normalized_foreign_structural_mutations_fail_closed() {
             &[base_argument()],
             &base_plan,
             &parameters_by_place,
-            Some(&callback),
+            std::slice::from_ref(&callback),
         )
         .is_err()
     );
@@ -1262,7 +1263,7 @@ fn normalized_foreign_structural_mutations_fail_closed() {
             &[base_argument()],
             &base_plan,
             &shallow_map,
-            None,
+            &[],
         )
         .is_err()
     );
@@ -1310,7 +1311,7 @@ fn normalized_foreign_structural_mutations_fail_closed() {
                 &[base_argument()],
                 &plan,
                 &parameters_by_place,
-                None,
+                &[],
             )
             .is_err()
         );
@@ -1330,7 +1331,7 @@ fn normalized_foreign_structural_mutations_fail_closed() {
             &[base_argument()],
             &stack_plan,
             &parameters_by_place,
-            None,
+            &[],
         )
         .is_ok()
     );
@@ -1392,7 +1393,7 @@ fn normalized_foreign_scalars_admit_boolean_and_ieee_float_shapes() {
             &plan,
             &sources.view(),
             Some(ValueShape::float(8)),
-            None,
+            &[],
             &[],
         )
         .expect("boolean and floating arguments retain evaluated destinations");
@@ -1451,7 +1452,7 @@ fn normalized_foreign_scalars_admit_boolean_and_ieee_float_shapes() {
                 &plan,
                 &substituted.view(),
                 Some(ValueShape::float(8)),
-                None,
+                &[],
                 &[],
             )
             .is_err()
@@ -1468,7 +1469,7 @@ fn normalized_foreign_scalars_admit_boolean_and_ieee_float_shapes() {
                 &plan,
                 &sources.view(),
                 Some(ValueShape::float(8)),
-                None,
+                &[],
                 &[],
             )
             .is_err()

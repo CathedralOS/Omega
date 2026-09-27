@@ -34,12 +34,9 @@ pub(super) fn encode(bytes: &mut Vec<u8>, call: &LegalizedNormalizedForeignCall)
         }
         None => bytes.push(0),
     }
-    match &call.callback {
-        Some(callback) => {
-            bytes.push(1);
-            encode_native_callback_argument(bytes, callback);
-        }
-        None => bytes.push(0),
+    encode_len(bytes, call.callbacks.len());
+    for callback in &call.callbacks {
+        encode_native_callback_argument(bytes, callback);
     }
 }
 
@@ -58,6 +55,14 @@ fn encode_native_callback_argument(
     bytes.extend_from_slice(&callback.application.native_ordinal.to_le_bytes());
     encode_shape(bytes, callback.application.shape);
     encode_placement(bytes, &callback.application.placement);
+    encode_native_place(bytes, &callback.destination);
+    match callback.field_byte_offset {
+        Some(offset) => {
+            bytes.push(1);
+            bytes.extend_from_slice(&(offset as u64).to_le_bytes());
+        }
+        None => bytes.push(0),
+    }
     encode_call_plan(bytes, &callback.registrar_boundary_entry_plan.call);
     encode_state_plan_identity(bytes, &callback.registrar_boundary_entry_plan.state);
     encode_len(bytes, callback.registrar_context.binders.len());

@@ -29,6 +29,33 @@ pub enum MachineRegister {
 }
 
 impl MachineRegister {
+    /// Stable ordinal for identity hashing and serialized relocation
+    /// records: x86-64 general registers occupy 0–15, XMM lanes 32–47,
+    /// AArch64 general registers 64–95, and vector lanes 128–159.
+    pub const fn codec_index(self) -> u8 {
+        match self {
+            Self::X86Rax => 0,
+            Self::X86Rcx => 1,
+            Self::X86Rdx => 2,
+            Self::X86Rbx => 3,
+            Self::X86Rsp => 4,
+            Self::X86Rbp => 5,
+            Self::X86Rsi => 6,
+            Self::X86Rdi => 7,
+            Self::X86R8 => 8,
+            Self::X86R9 => 9,
+            Self::X86R10 => 10,
+            Self::X86R11 => 11,
+            Self::X86R12 => 12,
+            Self::X86R13 => 13,
+            Self::X86R14 => 14,
+            Self::X86R15 => 15,
+            Self::X86Xmm(index) => 32 + (index & 15),
+            Self::Aarch64X(index) => 64 + (index & 31),
+            Self::Aarch64V(index) => 128 + (index & 31),
+        }
+    }
+
     pub fn architecture(self) -> Architecture {
         match self {
             Self::X86Rax
@@ -237,6 +264,19 @@ pub enum CallingPolicy {
 }
 
 impl CallingPolicy {
+    /// The architecture-fixed scratch a field-destination materialization
+    /// encodes through (`lea`/`adrp`+`add`, then the private-slot store). It
+    /// is never an integer-bank parameter register and is already inside the
+    /// call's clobber footprint under either supported ABI, so a callback row
+    /// declares its units as implicit uses exactly when at least one
+    /// destination is a record field.
+    pub const fn callback_field_scratch(self) -> MachineRegister {
+        match self.architecture() {
+            Architecture::X86_64 => MachineRegister::X86R11,
+            Architecture::Aarch64 => MachineRegister::Aarch64X(16),
+        }
+    }
+
     pub const fn architecture(self) -> Architecture {
         match self {
             Self::MicrosoftX64 | Self::SystemVAMD64 | Self::LinuxSyscallX86_64 => {

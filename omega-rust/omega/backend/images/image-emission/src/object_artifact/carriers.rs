@@ -388,9 +388,10 @@ pub struct ObjectForeignCall {
     /// Exact scalar argument materializations retained from machine emission.
     /// Every code offset is rebased to absolute object `.text`.
     pub scalar_arguments: Vec<machine_code::ForeignCallScalarArgumentRecord>,
-    /// Exact compiler-private callback address materialized before this call.
-    /// Every byte offset has been rebased to absolute object `.text`.
-    pub callback_address: Option<machine_code::CallbackAddressMaterialization>,
+    /// Exact compiler-private callback addresses materialized before this
+    /// call, in the selected roster's order. Every byte offset has been
+    /// rebased to absolute object `.text`.
+    pub callback_addresses: Vec<machine_code::CallbackAddressMaterialization>,
     /// Result custody retained from machine emission. Its code offset is
     /// rebased to absolute object `.text`, like `text_offset` below.
     pub scalar_result: Option<machine_code::ForeignCallScalarResultRecord>,

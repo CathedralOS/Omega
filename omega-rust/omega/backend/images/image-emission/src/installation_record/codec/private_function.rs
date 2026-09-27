@@ -64,7 +64,7 @@ pub(crate) fn decode_private_functions(
 ) -> Result<Vec<InstalledCompilerPrivateFunction>, InstallationError> {
     let count = usize::try_from(reader.u32()?)
         .map_err(|_| InstallationError::TooManyCompilerPrivateFunctions)?;
-    if count > 1 {
+    if count > reader.remaining() / 100 {
         return Err(InstallationError::TooManyCompilerPrivateFunctions);
     }
     let mut functions = Vec::with_capacity(count);
@@ -205,13 +205,36 @@ mod tests {
     }
 
     #[test]
+    fn private_callback_codec_round_trips_a_registrar_slot_family() {
+        let first = private_function();
+        let mut second = first.clone();
+        second.identity = MachineFunctionIdentity::callback_thunk(
+            StateKey {
+                machine: SymbolHandle::from_parts(11, 2),
+                state: SymbolHandle::from_parts(13, 3),
+                segment_index: 5,
+            },
+            8,
+        )
+        .expect("second callback identity");
+        second.machine = MachineId::new(18).expect("second private machine");
+        second.text_offset = 60;
+        let functions = vec![first.clone(), second.clone()];
+        let mut bytes = Vec::new();
+        encode_private_functions(&mut bytes, 2, &functions).expect("encode two private callbacks");
+        let mut reader = Reader::new(&bytes);
+        assert_eq!(decode_private_functions(&mut reader), Ok(functions));
+        assert_eq!(reader.remaining(), 0);
+    }
+
+    #[test]
     fn private_callback_codec_rejects_fabricated_roles_and_cardinality() {
         let function = private_function();
         let mut bytes = Vec::new();
         encode_private_functions(&mut bytes, 1, &[function]).expect("encode private callback");
 
         let mut duplicate_count = bytes.clone();
-        duplicate_count[..4].copy_from_slice(&2_u32.to_le_bytes());
+        duplicate_count[..4].copy_from_slice(&64_u32.to_le_bytes());
         assert_eq!(
             decode_private_functions(&mut Reader::new(&duplicate_count)),
             Err(InstallationError::TooManyCompilerPrivateFunctions)

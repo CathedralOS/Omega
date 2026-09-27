@@ -338,6 +338,8 @@ pub struct ProgramEntryTerminalArtifact {
     checked_boundary_operator_scope:
         lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
     boundary_application_coverage: boundary_applications::TerminalBoundaryApplicationCoverage,
+    callback_placements: Vec<backend_plan::BoundNominalCallbackPlacement>,
+    source_call_occurrences: Vec<lowered_psi::LoweredSourceCallOccurrence>,
     /// The stage measurements this artifact's production recorded; the caller
     /// owns merging them back into the checked accumulator it cloned from.
     stage_timings: CompileTimings,
@@ -355,6 +357,7 @@ impl ProgramEntryTerminalArtifact {
 
     /// The artifact, its checked program-entry receipt, the checked
     /// boundary-operator scope, and the boundary application coverage.
+    #[allow(clippy::type_complexity)]
     pub fn into_parts(
         self,
     ) -> (
@@ -362,12 +365,16 @@ impl ProgramEntryTerminalArtifact {
         terminal_psi::CheckedProgramEntryTerminalReceipt,
         lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
         boundary_applications::TerminalBoundaryApplicationCoverage,
+        Vec<backend_plan::BoundNominalCallbackPlacement>,
+        Vec<lowered_psi::LoweredSourceCallOccurrence>,
     ) {
         (
             self.artifact,
             self.checked_program_entry,
             self.checked_boundary_operator_scope,
             self.boundary_application_coverage,
+            self.callback_placements,
+            self.source_call_occurrences,
         )
     }
 }
@@ -393,7 +400,7 @@ pub fn produce_program_entry_terminal_artifact(
         program_entry.source_signature().machine_symbol(),
         program_entry.source_signature().identity().bytes(),
         optimization_selections,
-        (),
+        checked.callback_placements().to_vec(),
         "native-artifact Terminal",
     )?;
     let (
@@ -401,8 +408,8 @@ pub fn produce_program_entry_terminal_artifact(
         _,
         _,
         checked_boundary_operator_scope,
-        (),
-        _source_call_occurrences,
+        callback_placements,
+        source_call_occurrences,
         selected_ieee_float_comparison_occurrences,
         selected_integer_comparison_occurrences,
     ) = produced.into_parts();
@@ -440,6 +447,8 @@ pub fn produce_program_entry_terminal_artifact(
         checked_program_entry,
         checked_boundary_operator_scope,
         boundary_application_coverage,
+        callback_placements,
+        source_call_occurrences,
         stage_timings,
     })
 }

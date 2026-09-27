@@ -55,25 +55,37 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
-    native_callback: Option<&target_operations::TargetNativeCallbackArgument>,
+    native_callbacks: &[target_operations::TargetNativeCallbackArgument],
     operations: &[TargetUnitOperation],
 ) -> Result<Vec<TargetStructuralArgument>, LoweringError> {
+    // Only direct parameter destinations insert telescope slots; a field
+    // destination's write flows through an already-occupied record parameter.
+    let callback_ordinals = native_callbacks
+        .iter()
+        .filter(|callback| {
+            matches!(
+                callback.destination,
+                calling_conventions::NativePlace::Parameter(_)
+            )
+        })
+        .map(|callback| usize::try_from(callback.application.native_ordinal))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?;
+    let mut sorted_ordinals = callback_ordinals;
+    sorted_ordinals.sort_unstable();
     if structural_arguments.len() != declaration.structural_parameters.len()
         || !declaration.has_valid_parameter_order()
         || boundary_entry_plan.call.parameters.len()
-            != declaration.parameter_order.len() + usize::from(native_callback.is_some())
-        || native_callback
-            .is_some_and(|callback| callback.registrar_boundary_entry_plan != *boundary_entry_plan)
+            != declaration.parameter_order.len() + sorted_ordinals.len()
+        || native_callbacks
+            .iter()
+            .any(|callback| callback.registrar_boundary_entry_plan != *boundary_entry_plan)
     {
         return Err(LoweringError::BoundaryRealizationMismatch(boundary));
     }
     let pointer_size = u16::try_from(target.pointer_size)
         .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?;
     let pointer_alignment = u16::try_from(target.pointer_alignment)
-        .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?;
-    let callback_ordinal = native_callback
-        .map(|callback| usize::try_from(callback.application.native_ordinal))
-        .transpose()
         .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?;
     structural_arguments
         .iter()
@@ -82,7 +94,10 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
         .zip(declaration.parameter_positions(terminal_psi::BoundaryParameterKind::Structural))
         .map(|((index, (argument, parameter)), semantic_position)| {
             let native_position = semantic_position
-                + usize::from(callback_ordinal.is_some_and(|ordinal| semantic_position >= ordinal));
+                + sorted_ordinals
+                    .iter()
+                    .filter(|ordinal| semantic_position >= **ordinal)
+                    .count();
             let (source_structural_type, source_shape, argument_source) =
                 if let Some(source) = parameters_by_place.get(&argument.place).copied() {
                     (
@@ -343,7 +358,7 @@ pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
     boundary_entry_plan: &calling_conventions::BoundaryEntryPlan,
     sources: &ScalarSources<'_>,
     result_shape: Option<ValueShape>,
-    native_callback: Option<&target_operations::TargetNativeCallbackArgument>,
+    native_callbacks: &[target_operations::TargetNativeCallbackArgument],
     structural_parameter_shapes: &[ValueShape],
 ) -> Result<Vec<target_operations::NormalizedForeignScalarArgument>, LoweringError> {
     if !declaration.has_valid_parameter_order()
@@ -359,10 +374,22 @@ pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
                 .ok_or(LoweringError::BoundaryRealizationMismatch(boundary))
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let callback_ordinal = native_callback
-        .map(|callback| usize::try_from(callback.application.native_ordinal))
-        .transpose()
+    // Only direct parameter destinations insert telescope slots. The
+    // insertion ordinals are each recorded against the pre-insertion roster.
+    let mut callback_inserts = native_callbacks
+        .iter()
+        .filter(|callback| {
+            matches!(
+                callback.destination,
+                calling_conventions::NativePlace::Parameter(_)
+            )
+        })
+        .map(|callback| {
+            usize::try_from(callback.application.native_ordinal).map(|ordinal| (ordinal, callback))
+        })
+        .collect::<Result<Vec<_>, _>>()
         .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?;
+    callback_inserts.sort_by_key(|(ordinal, _)| *ordinal);
     let mut scalar_shapes = scalar_parameter_shapes.iter();
     let mut structural_shapes = structural_parameter_shapes.iter();
     let mut parameter_shapes = declaration
@@ -377,29 +404,31 @@ pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
             .ok_or(LoweringError::BoundaryRealizationMismatch(boundary))
         })
         .collect::<Result<Vec<_>, _>>()?;
-    if let Some(callback) = native_callback {
-        let ordinal =
-            callback_ordinal.ok_or(LoweringError::BoundaryRealizationMismatch(boundary))?;
-        if ordinal > parameter_shapes.len() {
+    for (index, (ordinal, callback)) in callback_inserts.iter().enumerate() {
+        let insertion = ordinal + index;
+        if insertion > parameter_shapes.len() {
             return Err(LoweringError::BoundaryRealizationMismatch(boundary));
         }
-        parameter_shapes.insert(ordinal, callback.application.shape);
+        parameter_shapes.insert(insertion, callback.application.shape);
     }
     let signature = CallSignature {
         parameters: parameter_shapes,
         result: result_shape,
     };
-    let validated = match native_callback {
+    let validated = match native_callbacks.first() {
         Some(callback) => {
-            let callback_placement = callback_ordinal
-                .and_then(|ordinal| boundary_entry_plan.call.parameters.get(ordinal));
-            if callback.registrar_boundary_entry_plan != *boundary_entry_plan
-                || callback.application.shape != callback.application.placement.shape
-                || callback_placement != Some(&callback.application.placement)
-            {
-                return Err(LoweringError::InvalidNativeCallbackArgument(
-                    callback.terminal_operation,
-                ));
+            for callback in native_callbacks {
+                let callback_placement = usize::try_from(callback.application.native_ordinal)
+                    .ok()
+                    .and_then(|ordinal| boundary_entry_plan.call.parameters.get(ordinal));
+                if callback.registrar_boundary_entry_plan != *boundary_entry_plan
+                    || callback.application.shape != callback.application.placement.shape
+                    || callback_placement != Some(&callback.application.placement)
+                {
+                    return Err(LoweringError::InvalidNativeCallbackArgument(
+                        callback.terminal_operation,
+                    ));
+                }
             }
             calling_conventions::validate_boundary_entry_plan_with_callback_materializations(
                 boundary_entry_plan.clone(),
@@ -418,10 +447,14 @@ pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
         || boundary_entry_plan.call.parameters.len()
             != scalar_parameter_shapes.len()
                 + structural_parameter_shapes.len()
-                + usize::from(native_callback.is_some())
+                + callback_inserts.len()
     {
         return Err(LoweringError::BoundaryRealizationMismatch(boundary));
     }
+    let inserted_ordinals = callback_inserts
+        .iter()
+        .map(|(ordinal, _)| *ordinal)
+        .collect::<Vec<_>>();
     arguments
         .iter()
         .zip(&declaration.scalar_parameters)
@@ -430,9 +463,10 @@ pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
         .map(
             |(((source_value, parameter), shape), semantic_parameter_index)| {
                 let parameter_index = semantic_parameter_index
-                    + usize::from(
-                        callback_ordinal.is_some_and(|ordinal| semantic_parameter_index >= ordinal),
-                    );
+                    + inserted_ordinals
+                        .iter()
+                        .filter(|ordinal| semantic_parameter_index >= **ordinal)
+                        .count();
                 let placement = boundary_entry_plan
                     .call
                     .parameters
@@ -528,7 +562,7 @@ pub(super) fn lower_normalized_foreign_scalar_arguments(
             scalar_block_parameters: &scalar_block_parameters,
         },
         None,
-        None,
+        &[],
         &[],
     )
 }

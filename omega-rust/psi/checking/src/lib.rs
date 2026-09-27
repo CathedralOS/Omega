@@ -9,7 +9,9 @@
 //! `proof_contracts.rs`, `value_custody.rs` and `declarations.rs` each open
 //! one folder of validators and the queries they share.
 
-pub use declarations::standard_declarations::standard_calling_traits;
+pub use declarations::standard_declarations::{
+    standard_calling_traits, standard_calling_vocabularies,
+};
 use declarations::state_signatures::StateSignatureOwner;
 pub use machine_calls::calls::{
     named_conformance_target_requirement, result_initializer_call_is_supported,

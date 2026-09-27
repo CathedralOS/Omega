@@ -34,8 +34,8 @@ use isa_x86_64::encode_x86_64_selected_form;
 use physical_instructions::PostAllocationMachineInstruction;
 use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
-    MachineAlternativeKey, MachineEncodedEffects, MachineSizeKnowledge, SelectedInstruction,
-    SelectedInstructionId, SelectedInstructionKind,
+    MachineAlternativeKey, MachineEncodedEffects, MachineSizeKnowledge, SelectedFunction,
+    SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
 };
 use target::{Architecture, NativeTarget};
 
@@ -63,6 +63,7 @@ pub(super) fn encode_row(
     selected: &SelectedInstruction,
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
+    selected_function: &SelectedFunction,
     address: Option<machine_code::ResolvedPhysicalAddress>,
 ) -> Result<SelectedFormEncodingRow, OptimizedSelectedFormEncodingError> {
     let alternative = machine.alternative.key;
@@ -94,7 +95,14 @@ pub(super) fn encode_row(
         }
         RowRoute::NormalizedForeignCallTemplate => {
             reject_unrouted_address(address)?;
-            normalized_foreign::encode(target, selected.id, selected.kind, machine, physical)?
+            normalized_foreign::encode(
+                target,
+                selected.id,
+                selected.kind,
+                machine,
+                physical,
+                selected_function,
+            )?
         }
         RowRoute::DeferredControlFlow => {
             reject_unrouted_address(address)?;
