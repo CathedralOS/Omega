@@ -221,6 +221,14 @@ pub(super) fn child_symbol_by_kinds(
     kinds: &[SymbolKind],
     name: &str,
 ) -> SymbolHandle {
+    // The root is not a module, so its first same-named child of an accepted
+    // kind wins; its name index yields exactly those children in roster order.
+    if parent == symbols.root() && symbols.get(parent).kind != SymbolKind::Module {
+        return symbols
+            .root_children_named(name)
+            .find(|child| kinds.contains(&symbols.get(*child).kind))
+            .unwrap_or_else(SymbolHandle::invalid);
+    }
     child_symbol_by_kinds_matching(symbols, parent, kinds, |symbol_name| symbol_name == name)
 }
 

@@ -806,6 +806,20 @@ impl SymbolTable {
         })
     }
 
+    /// Root-level children whose full name is exactly `name`, in the order
+    /// `child_handles(root())` yields them, probed through the root name
+    /// index rather than a scan of the whole root roster.
+    pub fn root_children_named(&self, name: &str) -> impl Iterator<Item = SymbolHandle> + '_ {
+        self.root_names
+            .0
+            .get_or_init(|| self.root_name_index())
+            .by_name
+            .get(name)
+            .into_iter()
+            .flatten()
+            .map(|&(_, symbol)| symbol)
+    }
+
     pub fn find_child_by_name(&self, parent: SymbolHandle, name: &str) -> Option<SymbolHandle> {
         if !parent.is_valid() {
             return None;
