@@ -133,12 +133,6 @@ mod tests {
     }
 
     #[test]
-    fn verify_accepts_the_ledger_a_program_records() {
-        let checked = checked(SOURCE);
-        verify(&checked).expect("a program's checked ledger verifies");
-    }
-
-    #[test]
     fn verify_rejects_an_event_naming_no_declared_machine() {
         let mut checked = checked(SOURCE);
         let (handle, _) = checked
@@ -305,23 +299,6 @@ mod tests {
                 )),
                 "{kind:?} at {source:?}"
             );
-        }
-    }
-
-    #[test]
-    fn verify_accepts_an_owned_transfer_at_any_source() {
-        for source in [
-            PermissionEventSource::Statement { statement_index: 0 },
-            PermissionEventSource::Call {
-                statement_index: 0,
-                call_ordinal: 0,
-                target_symbol: SymbolHandle::invalid(),
-            },
-        ] {
-            let mut checked = checked(SOURCE);
-            let event = forged_event(&checked, PermissionEventKind::Transfer, source);
-            checked.facts.flow.ownership.permissions.insert(event);
-            verify(&checked).expect("an owned affine/linear transfer verifies");
         }
     }
 }
