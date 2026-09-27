@@ -109,11 +109,43 @@ unrecorded duplication of a transferred claim. These are the ordinary
 [authority and custody obligations](../resources/authority.md), not a second
 range-accounting scheme.
 
-The [refutable-claim veto](../proofs/contracts.md#axioms-and-receiving-policy)
-continues to apply. Whether this explicit runtime operation should override it
-is the `assumed-binding-refutable-claim` owner decision. An unproved statement
-about external backing can be false without being refutable by the checker;
-that ordinary trust risk does not depend on settling the exception.
+## Known contradictions at the trust crossing
+
+An explicitly authorized and accepted `assume_binding_contract` relationship may
+assume its semantic connection even when the checker can refute that connection
+(`assumed-binding-refutable-claim`). The caller checks against the required
+contract; the implementation checks against the supplied contract. The root
+assumes the connection between them, not correctness of an unchecked body.
+
+For example, the required operation may return `u32` with `result == 1` while
+the supplied operation returns `u32` with `result == 0`. Their runtime shapes
+agree, but their guarantees contradict each other. The explicit runtime link
+may still be installed under the required root and receiving-policy acceptance.
+Exposing the supplied guarantee makes the contradiction auditable; it does not
+make the relationship ineligible merely because the lie is now demonstrable.
+
+This is a scoped exception to the
+[refutable-claim veto](../proofs/contracts.md#axioms-and-receiving-policy), not its
+removal for ordinary grants, mathematical axioms, or checked `satisfies` edges.
+It applies to the exact assumed entry/exit relationship and subjects only.
+Neither the assumption nor conclusions derived from it can waive runtime-shape,
+passing-mode, ABI, ownership/lifetime mapping, operational compatibility, either
+body's own checking, or the build-time prohibition. Those checks remain
+independent of the assumed semantic connection.
+
+Record a detected contradiction with the precise conflicting statements,
+subjects and facts establishing the refutation. Report it through the existing
+extremely-high-risk review; the operation needs no separate contradiction flag
+or new escape form. Failure to prove a relationship is not a refutation, and
+failure to find a contradiction establishes neither correctness nor consistency.
+
+Checked callers and optimizers may rely on the caller-facing contract. In the
+example, a comparison of the returned value with `1` may be folded to true;
+admission does not promise that a caller observes `0`, traps, or detects the lie.
+Artifact guarantees remain conditional on the recorded assumption. Its falsity
+invalidates those guarantees; no unconditional theorem that `0 == 1` or checked
+conformance is created. Evidence checking verifies derivations and assumption
+scope, not the truth of the root's assertion.
 
 ## Selection and retained evidence
 
@@ -128,8 +160,10 @@ Retain both contracts and their exact applications, positional subject mapping,
 proved versus assumed obligations, domain establishment authority, selected
 provider/body and its semantic dependencies, calling/layout identity, root grant,
 and runtime-only classification. Binding identity cannot hide the actual code
-being invoked. Inlining, wrappers, normalization, and erasure cannot turn the
-relationship into a checked conformance or remove its transitive trust record.
+being invoked. Detected semantic contradictions and their supporting facts remain
+attached to the assumed relationship. Inlining, wrappers, normalization, and
+erasure cannot turn the relationship into a checked conformance or remove its
+transitive trust record.
 
 Psi retains the abstract requirement, contract evidence and runtime demands.
 Omega's existing provider planning/installation validates and applies the
@@ -173,13 +207,18 @@ guest address IDs into host pointers.
 Package install, update and audit label every such relationship **Extremely high
 risk - assumed binding contract**. Show the required and supplied contracts,
 actual implementation, exact assumption difference, authority introduced, root
-scope and transitive dependency path. Changed relationship/implementation
-identity needs fresh explicit acceptance. A dependency's own lock or an ordinary
-provider selection is not that decision. Keep the compact readable risk row in
-the existing lock model, not a second admission database or full compiler dump.
+scope and transitive dependency path, including any demonstrated contradiction.
+Do not describe a refuted connection as merely unproved. Changed relationship or
+implementation identity needs fresh explicit acceptance. A dependency's own lock
+or an ordinary provider selection is not that decision. Keep the compact readable
+risk row in the existing lock model, not a second admission database or full
+compiler dump.
 
 Implementation must demonstrate both entry and result qualification differences,
 an honestly checked supplier and caller, absence of facts on a direct supplier
-call, rejected shape/mode/custody mismatches, root-only acceptance, transitive
-audit and update invalidation, and build-time refusal through helpers, provider
-dispatch and erased evidence. Assembly keeps its existing checked contract.
+call, and explicitly accepted refutable entry/exit relationships. Preserve
+ordinary refutable-grant rejection, rejected shape/mode/custody mismatches,
+root-only acceptance, transitive audit and update invalidation, and build-time
+refusal through helpers, provider dispatch and erased evidence. Test the
+contradiction's retained evidence and conditional claim, not a promised runtime
+result after false trust. Assembly keeps its existing checked contract.

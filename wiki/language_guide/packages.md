@@ -96,6 +96,12 @@ update require explicit acceptance for that exact relationship and implementatio
 an unchanged public signature does not preserve approval of changed selected code.
 The lock retains a compact readable risk row, not a full provider-plan dump.
 
+The assumed connection can be demonstrably false. Audit shows detected
+contradictions and the facts refuting the exact relationship; acceptance records
+your decision to trust it anyway, not a proof or promise of safe execution.
+Neither body escapes its own checks, and structural/operational mismatches
+cannot be approved through this semantic assumption.
+
 This runtime permission cannot authorize build-time execution or use of those
 assumptions, even through a helper or automatic test. The build may register
 the relationship for its output only. See

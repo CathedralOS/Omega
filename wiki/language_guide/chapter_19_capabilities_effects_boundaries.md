@@ -258,13 +258,51 @@ Different shapes need an ordinary checked adapter, not a same-size bit cast.
 Neither `satisfies` nor assembly gains an unchecked mode. If the root's external
 claim is false, the consumer's conditional safety guarantee no longer applies.
 
+The root may also assume a connection the checker can demonstrably refute:
+
+```omega
+boundary trait Expected {
+    machine value() -> u32
+    ensures result == 1;
+}
+
+boundary trait Supplied {
+    machine value() -> u32
+    ensures result == 0;
+}
+
+data ZeroProvider { }
+
+machine ZeroProvider::value() -> u32
+satisfies Supplied::value {
+    0
+}
+
+machine build(builder: &mut Build) {
+    builder.select_provider<Supplied, ZeroProvider>();
+    builder.assume_binding_contract<Expected::value, Supplied::value>();
+}
+```
+
+A caller using `Binding<Expected>` checks against `result == 1`. The supplier
+checks against `result == 0`; the root assumes the connection despite the known
+contradiction. This is not a proof that zero equals one, nor permission for the
+supplier to fail its own contract. Shape, ownership mapping and operational
+compatibility still check independently. Ordinary grants and `satisfies` cannot
+use this exception.
+
+The caller may optimize using its promised result, so this deliberately false
+link does not promise that callers observe zero or get a controlled trap. Its
+guarantees depend on an assumption the root has chosen to violate.
+
 Package tools label this **Extremely high risk - assumed binding contract**,
 including through wrappers and dependencies. The exact relationship and selected
 implementation require explicit project acceptance; a changed implementation
 invalidates that approval. The root can register it for runtime, but build code,
 generators, constants and automatic tests cannot execute it or use its assumptions.
-See the [complete contract](../spec/build/assumed_binding_contracts.md); the
-existing veto on checker-refutable claims is not silently removed.
+Audit shows any detected contradiction with its exact statements and subjects.
+See the [complete contract](../spec/build/assumed_binding_contracts.md#known-contradictions-at-the-trust-crossing)
+for this scoped exception to the ordinary refutable-claim veto.
 
 ## Service Reach And Operational Clauses
 

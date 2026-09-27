@@ -309,16 +309,25 @@ grant covers only its exact selected plan; unselected or partial candidates
 cannot inherit that receipt merely by implementing the same requirement.
 
 A boundary claim that the checker can refute against established bounds, domains,
-or accepted statements rejects even when granted. This veto is not a proof that
-the complete assumption set is consistent.
+or accepted statements rejects even when ordinarily granted. The sole exception
+here is the exact semantic relationship of an explicitly accepted root-assumed
+runtime binding, described below. This veto is not a proof that the complete
+assumption set is consistent.
 
 Root [assumed binding contracts](../build/assumed_binding_contracts.md) record
 an unproved relationship between two runtime boundary contracts, not a checked
 `satisfies` edge or an exemption for either body. Their exact premises survive
 through the normal assumption closure, including statements and erased evidence.
-They are inadmissible for build-time computation. The possible exception to the
-refutable-claim veto is the `assumed-binding-refutable-claim` owner decision;
-registration does not silently repeal it or permit malformed derivations.
+They are inadmissible for build-time computation. An explicitly accepted
+relationship may override the refutable-claim veto at that exact crossing,
+including when the supplied guarantee contradicts the caller-facing guarantee.
+Both statements and the refutation remain in its trust record under
+[known contradictions](../build/assumed_binding_contracts.md#known-contradictions-at-the-trust-crossing).
+Neither body nor any ordinary conformance gains an exemption from its own checks.
+The assumption is not a checked proof of the relationship; derived guarantees
+remain conditional on it. Registration grants no ambient proposition, permits
+no malformed derivation, and cannot make its assumptions admissible for
+build-time evaluation. Ordinary mathematical axioms retain the veto above.
 
 ### Admission and runtime diagnostics
 

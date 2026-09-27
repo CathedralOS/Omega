@@ -6,12 +6,8 @@ and deliberately deferred research live in `TASKS.md`. Questions are numbered
 consecutively; pruning or adding one requires updating every repository
 reference in the same change.
 
-One owner-level decision remains. Only the affected behavior below awaits a
-ruling; other work on the same task may proceed under existing contracts.
-
-| Named decision | Affected work |
-| --- | --- |
-| `assumed-binding-refutable-claim` | Whether ASSUMED-BINDING-CONTRACTS may override a checker-refutable semantic claim |
+No owner-level decisions are currently open. Settled contracts govern the
+unfinished implementation work on the execution boards.
 
 Question numbers are mutable queue positions, not permanent decision identities.
 Code, canaries, and settled documentation must cite a stable named decision or
@@ -72,39 +68,4 @@ Proposed solutions below are recommendations, not owner rulings. Remove an
 entry when the contract answers it; retain any unfinished implementation on
 its owning task.
 
-### Q1 - May an assumed runtime binding override a checker-refutable claim?
-
-Named decision: `assumed-binding-refutable-claim`.
-
-**Context:** The root may now
-[assume a binding contract](wiki/spec/build/assumed_binding_contracts.md) across
-compatible signatures without proving semantic refinement. Both bodies remain
-checked, audit classifies the relationship as extremely high risk, and build-time
-execution/use rejects. This permits deliberately false external claims about
-backing and write authority. [Contracts](wiki/spec/proofs/contracts.md#axioms-and-receiving-policy)
-separately require rejection when the checker can refute an admitted claim.
-
-**Problem:** The discussion identified that veto but did not choose an exception.
-A concrete distinction is linking a supplied `value() -> u32` guaranteeing
-`result == 0` to a caller-facing requirement guaranteeing `result == 1`.
-The runtime representation matches, but the semantic contradiction is known.
-An unknown claim about physical backing need not be refutable in that way.
-The low-level memory-editor/patching customer motivates deliberate trust; this
-decision determines whether exposing more checked implementation facts can
-prevent a root's intended runtime-only assumption.
-
-**Proposed solution:** Permit the contradiction only at an explicitly accepted
-`assume_binding_contract` relationship. Preserve both statements and the
-contradiction in its exact risk/trust record. Structural representation, ABI,
-ownership mapping and the build-time ban remain checked; the exception supplies
-no checked theorem or guarantee after its false runtime premise is used.
-
-**Alternative:** Keep the veto even here. Roots may accept statements whose truth
-is unknown, including false external claims, but may not override a demonstrated
-contradiction. That is the current fail-closed rule until a ruling. Do not remove
-the veto globally or silently treat an ordinary failed proof as refutation.
-
-Settled mathematical binding and proof rules live in the
-[mathematical source contract](wiki/spec/proofs/mathematical_bindings.md) and
-[foundation](wiki/spec/proofs/foundation.md). Their implementation and required
-proofs remain on `TASKS.md`; genuinely new semantic or trust choices belong here.
+None.

@@ -2559,8 +2559,17 @@ syntax and other terminal services are not prerequisites.
   Build helpers, generators, const/layout evaluation and automatic tests reject
   execution or use of the link's assumptions, including erased evidence. A direct
   independently checked supplier call remains eligible on its own merits.
-  Only the checker-refutable exception awaits `assumed-binding-refutable-claim`;
-  keep the existing veto while delivering the non-refutable admitted cases.
+  Implement the settled [refutable-connection exception](wiki/spec/build/assumed_binding_contracts.md#known-contradictions-at-the-trust-crossing)
+  on this relationship only. An explicitly accepted link from a supplier
+  guaranteeing `result == 0` to a requirement guaranteeing `result == 1` must
+  retain both checked contracts, the contradiction and its supporting facts;
+  unknown and refuted relationships must be distinguished in audit. Cover an
+  input-side contradiction too. Neither the assumption nor its consequences may
+  discharge either body's own checking or the non-assumable compatibility checks.
+  Verify acceptance and source-independent conditional evidence without requiring
+  a particular runtime value or controlled trap after the false premise. Ordinary
+  refutable grants, invalid `satisfies` edges, stale approvals and build-time
+  reliance must still reject. No new override flag or parallel approval surface.
 
 - **RECAST-SOURCE-POSITIONS.** Finish native execution of inline recasts in
   guards, call arguments and nested expressions. Reuse their checked admission
