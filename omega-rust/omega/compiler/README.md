@@ -225,6 +225,12 @@ object, and assemble the image. One `NativeRealizationRequest` carries the image
 request, optional checked scope and optional prepared input alongside target and
 provider evidence. Those inputs do not select alternate API entrypoints.
 
+Program and callback realization pass verified abstract input directly to
+[Omega's abstract optimization stage](../pipeline/01_abstract-operations-to-abstract-operations/src/abstract_optimization.rs),
+then feed its validated plan into target lowering. The compiler retains only
+its product work-budget policy and callback/identity admission checks, with no
+parallel optimization request or stage-error model.
+
 The result distinguishes direct and dynamic ELF artifacts; extracting a direct
 artifact cannot grant dynamic output installation authority. Every rejection
 returns the exact image request. Program-entry and callback-custody adapters

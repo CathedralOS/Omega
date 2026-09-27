@@ -782,6 +782,7 @@ name = "image-emission"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
+ "abstract-operations-to-abstract-operations",
  "abstract-operations-to-target-operations",
  "boundary-applications",
  "calling-conventions",

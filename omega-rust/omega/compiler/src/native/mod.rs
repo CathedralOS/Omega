@@ -41,13 +41,11 @@ pub use native_artifact::{
     PhysicalRelocationDisposition,
 };
 pub use native_pipeline::{
-    EmptyOptimizationSelections, ExplicitOptimizationRequest, OptimizationPipelineError,
-    OptimizationPipelineReport, OptimizationPipelineRequest,
-    OptimizedVerifiedPhysicalPipelineError, StagedOptimizedVerifiedPhysicalPipeline,
-    compiler_baseline_request_v1, optimization_pipeline_report,
+    OptimizationPipelineReport, OptimizedVerifiedPhysicalPipelineError,
+    StagedOptimizedVerifiedPhysicalPipeline, optimization_pipeline_report,
     optimization_pipeline_report_from_object_artifact,
-    optimization_pipeline_report_from_ordinary_callable_entry, optimize_artifact_sections,
-    optimize_verified_abstract_input, stage_optimized_verified_physical_pipeline,
+    optimization_pipeline_report_from_ordinary_callable_entry,
+    stage_optimized_verified_physical_pipeline,
 };
 pub use native_product::{
     NativeInputReuse, NativeProductRequest, PreparedNativeCompilation, prepare_native_product,

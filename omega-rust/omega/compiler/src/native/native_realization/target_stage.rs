@@ -4,20 +4,19 @@ mod output;
 
 pub(crate) use output::NativeTargetStageResult;
 
-use crate::native::native_realization::optimization_stage::NativeOptimizationStageResult;
 use crate::native::native_realization::realization_diagnostics::realization_error;
 use crate::native::native_realization::realization_request::NativeRealizationRequest;
+use abstract_operations_to_abstract_operations::ValidatedOptimizedAbstractPlan;
 use abstract_operations_to_target_operations::AdmittedBoundarySettlement;
 use diagnostics::Diagnostic;
 use terminal_psi_to_abstract_operations::AdmittedProviderInstallation;
 
 pub(crate) fn lower_realization_target_stage(
-    optimization_stage: NativeOptimizationStageResult,
+    program: ValidatedOptimizedAbstractPlan,
     provider_installation: Option<AdmittedProviderInstallation>,
     settlements: &[AdmittedBoundarySettlement<'_>],
     request: &NativeRealizationRequest<'_>,
 ) -> Result<NativeTargetStageResult, Vec<Diagnostic>> {
-    let NativeOptimizationStageResult { program } = optimization_stage;
     let target = abstract_operations_to_target_operations::lower_optimized_to_target_operations(
         program,
         abstract_operations_to_target_operations::OptimizedTargetLoweringRequest {

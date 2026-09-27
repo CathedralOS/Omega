@@ -10,7 +10,7 @@
 //! free hosted Unit entry adapters, and graph-storage structural rows — were
 //! reachable only from downstream crates. This ladder keeps the same
 //! production sequence the native-realization entry route drives
-//! (`optimize_artifact_sections` → `lower_optimized_to_target_operations` →
+//! (`lower_artifact` → `optimize_abstract_operations` → `lower_optimized_to_target_operations` →
 //! `stage_optimized_verified_physical_pipeline` → fragment emission → frame
 //! application → text placement → the relocation-free object container) so the
 //! emitted artifact carries real retained replay evidence.
@@ -125,13 +125,28 @@ fn fragment_container(
         terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
             .expect("proof bytes");
     let selections = optimization_core::OptimizationSelections::new([]).expect("empty selections");
-    let optimized = compiler::native::optimize_artifact_sections(
-        &semantic,
-        &proof,
+    let admitted = terminal_psi_to_abstract_operations::lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
         &proof_admission::AdmissionProfile::default(),
-        compiler::native::compiler_baseline_request_v1(&selections),
     )
-    .expect("canonical artifact independently verifies and optimizes");
+    .expect("canonical artifact independently verifies");
+    let budget = optimization_core::OptimizationWorkBudget::new(
+        1_000_000, 100_000, 100_000, 100_000, 100_000,
+    )
+    .expect("fixture work budget");
+    let optimized = abstract_operations_to_abstract_operations::optimize_abstract_operations(
+        admitted
+            .into_optimization_artifact()
+            .into_optimization_input(),
+        &selections,
+        &selections.project_psi(),
+        budget,
+    )
+    .expect("verified artifact optimizes");
     let post_terminal = optimized.selections().project_post_terminal();
     let optimized_target =
         abstract_operations_to_target_operations::lower_optimized_to_target_operations(
