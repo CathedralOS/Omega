@@ -16,6 +16,8 @@ fail/float/negated_ordered_guard_cast rejected 321ms expected
 fail/structs/local_record_policy_erasure rejected 64ms expected
 	implicit domain weakening in machine `observe` state `entry` local `value` drops `Wrapping`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
 	store in machine `observe` state `entry` local `value` implicitly converts `u8 in Wrapping` to `u8`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u8`)
+fail/targets/single_target_internal_statement_caller_rejected rejected 141ms expected
+	machine `Main::main` state `main` calls `Helper::record_paradigm_event`, which is declared only for target `uefi_x86_64`. This build realizes `<selected target>`, so that body is an inert sibling and the call has no implementation; scope the caller to `uefi_x86_64` as well, or declare `Helper::record_paradigm_event` for the target being built.
 pass/arithmetic/anonymous_rational_arguments checked 333ms
 pass/arithmetic/anonymous_rational_integer_landing checked 337ms
 pass/arithmetic/bounded_assignment checked 322ms
@@ -905,6 +907,7 @@ pass/structural/sum_attachment_receiver_compile checked 319ms
 pass/targets/aarch64_hfa_entry_argument checked 1392ms
 pass/targets/efi_vtable_call checked 367ms
 pass/targets/single_target_internal_machine_skipped checked 1679ms
+pass/targets/single_target_internal_same_target_caller checked 577ms
 pass/targets/sysv_mixed_aggregate_entry checked 1434ms
 pass/targets/target_machine_gating_exit checked 1843ms
 pass/tasks/task_runtime_machine_selection_compile checked 363ms
