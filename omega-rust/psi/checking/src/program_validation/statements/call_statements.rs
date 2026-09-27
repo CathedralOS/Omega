@@ -54,6 +54,30 @@ pub(super) fn validate(
         value_environment,
         diagnostics,
     );
+    // A statement call's arguments are evaluated in the caller's environment
+    // at the call site, so they owe the same decision-17 representability
+    // proofs as expression-position arguments (whose analysis lives inside
+    // expression_analysis::call). `validate_call_node` handles custody and
+    // narrowing but reports no operand diagnostics of its own; without this
+    // walk an unbounded operand here surfaced only at terminal proof
+    // reconstruction. The destination resets to (None, Exact): an argument's
+    // type comes from the callee's parameter, never the statement context.
+    for argument in program.statement_table.expression_handles(call.arguments) {
+        arithmetic_domains::validate_arithmetic_domains(
+            program,
+            machine,
+            current_state,
+            *argument,
+            value_environment,
+            None,
+            numerics::arithmetic::ArithmeticDomain::Exact,
+            &format!(
+                "machine `{}` state `{state_name}` call argument",
+                machine.name
+            ),
+            diagnostics,
+        );
+    }
     // The operands were validated under this statement's flow environment;
     // retain every accepted exact fixed-integer cast among them before the
     // call's writes disturb that environment, exactly as an expression-
