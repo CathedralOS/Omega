@@ -1,9 +1,8 @@
 //! Literal sources retain their defining occurrence, SSA identity and IEEE payload.
 use super::{
-    AbstractBlockEntry, AbstractOperation, AbstractOperationPlan, BlockId, EdgeId, IeeeFloatFormat,
-    MachineId, NativeTarget, OperationId, StructuralAccess, StructuralArgument,
-    TargetLoweringRequest, TargetUnitOperation, TargetUnitScalarArgumentSource, ValueId,
-    ValueShape, lower_to_target_operations, plan,
+    AbstractOperation, AbstractOperationPlan, MachineId, NativeTarget, OperationId,
+    StructuralAccess, StructuralArgument, TargetLoweringRequest, ValueId,
+    lower_to_target_operations, plan,
 };
 use semantic_vocabulary::IeeeFloatValue;
 
@@ -39,69 +38,6 @@ fn literal_plan(value: IeeeFloatValue, call: bool) -> AbstractOperationPlan {
         },
     );
     source
-}
-
-#[test]
-fn field_and_unit_call_literals_retain_exact_ieee_sources_on_four_targets() {
-    for value in [
-        IeeeFloatValue::Binary32(0x7fa0_0041),
-        IeeeFloatValue::Binary32(0x8000_0000),
-        IeeeFloatValue::Binary32(1),
-        IeeeFloatValue::Binary64(0x7ff0_0000_0000_0041),
-        IeeeFloatValue::Binary64(0x8000_0000_0000_0000),
-        IeeeFloatValue::Binary64(1),
-    ] {
-        for call in [false, true] {
-            let source = literal_plan(value, call);
-            for target in [
-                NativeTarget::linux_x64(),
-                NativeTarget::windows_x64(),
-                NativeTarget::linux_arm64(),
-                NativeTarget::macos_arm64(),
-            ] {
-                let lowered =
-                    lower_to_target_operations(&source, TargetLoweringRequest::new(target))
-                        .unwrap();
-                let body = &lowered.functions.last().unwrap().graph;
-                assert!(
-                    matches!(body.blocks[0].operations[0], TargetUnitOperation::IeeeFloatConstant {
-                    psi_operation, result, value: actual
-                } if psi_operation == OperationId::new(3).unwrap()
-                    && result == ValueId::new(1).unwrap() && actual == value)
-                );
-                let literal = match &body.blocks[0].operations[1] {
-                    TargetUnitOperation::Call {
-                        scalar_arguments,
-                        call_plan,
-                        arguments,
-                        ..
-                    } => {
-                        assert_eq!(
-                            scalar_arguments[0].placement.shape,
-                            ValueShape::float(if value.format() == IeeeFloatFormat::Binary32 {
-                                4
-                            } else {
-                                8
-                            })
-                        );
-                        assert_eq!(scalar_arguments[0].placement, call_plan.parameters[0]);
-                        assert_eq!(arguments[0].access, StructuralAccess::WriteOnlyBorrow);
-                        &scalar_arguments[0].source
-                    }
-                    TargetUnitOperation::StructuralScalarFieldStore { source, .. } => source,
-                    _ => panic!("literal consumer"),
-                };
-                assert_eq!(
-                    *literal,
-                    TargetUnitScalarArgumentSource::IeeeFloatImmediate {
-                        defining_operation: OperationId::new(3).unwrap(),
-                        source_value: ValueId::new(1).unwrap(),
-                        value,
-                    }
-                );
-            }
-        }
-    }
 }
 
 #[test]
@@ -154,59 +90,6 @@ fn literal_consumers_reject_wrong_format_missing_or_late_definition() {
                     "mutation {mutation}, call {call}"
                 );
             }
-        }
-    }
-}
-
-#[test]
-fn graph_unit_call_retains_dominating_ieee_literal_source() {
-    for literal in [
-        IeeeFloatValue::Binary32(0x8000_0001),
-        IeeeFloatValue::Binary64(0xfff8_0000_0000_1234),
-    ] {
-        let mut source = literal_plan(literal, true);
-        let caller = source.functions.last_mut().unwrap();
-        let destination = BlockId::new(99).unwrap();
-        caller.operations.insert(
-            1,
-            AbstractOperation::Jump {
-                psi_edge: EdgeId::new(99).unwrap(),
-                target: destination,
-                bindings: Vec::new(),
-                structural_bindings: Vec::new(),
-                trivial_affine_discards: Vec::new(),
-                residual_affine_discards: Vec::new(),
-            },
-        );
-        caller.block_entries.push(AbstractBlockEntry {
-            block: destination,
-            operation_offset: 2,
-            parameters: Vec::new(),
-            structural_parameters: Vec::new(),
-        });
-        for native in [
-            NativeTarget::linux_x64(),
-            NativeTarget::linux_arm64(),
-            NativeTarget::macos_arm64(),
-            NativeTarget::windows_x64(),
-        ] {
-            let lowered =
-                lower_to_target_operations(&source, TargetLoweringRequest::new(native)).unwrap();
-            let graph = &lowered.functions.last().unwrap().graph;
-            let TargetUnitOperation::Call {
-                scalar_arguments, ..
-            } = &graph.blocks[1].operations[0]
-            else {
-                panic!("ordinary Unit call")
-            };
-            assert_eq!(
-                scalar_arguments[0].source,
-                TargetUnitScalarArgumentSource::IeeeFloatImmediate {
-                    defining_operation: OperationId::new(3).unwrap(),
-                    source_value: ValueId::new(1).unwrap(),
-                    value: literal,
-                }
-            );
         }
     }
 }

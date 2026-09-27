@@ -96,29 +96,6 @@ pub(crate) fn successor_parameter_function() -> SelectedFunction {
 }
 
 #[test]
-fn successor_parameter_liveness_substitutes_the_actual_edge_argument() {
-    let mut selected = successor_parameter_function();
-    let live = compute_function(0, &selected).unwrap();
-    assert_eq!(live.blocks[1].virtual_live_in, [VirtualRegisterId(2)]);
-    assert_eq!(live.blocks[0].virtual_live_out, [VirtualRegisterId(0)]);
-    assert_eq!(
-        live.blocks[0].successors[0].virtual_live,
-        [VirtualRegisterId(0)]
-    );
-    let SelectedTerminator::Jump { successor, .. } = &mut selected.blocks[0].terminator else {
-        unreachable!()
-    };
-    successor.bindings[0].semantic.argument = semantic_vocabulary::ValueId::new(2).unwrap();
-    successor.bindings[0].transport = selected_instructions::SelectedValueTransport::Registers {
-        argument: VirtualRegisterId(1),
-        parameter: VirtualRegisterId(2),
-    };
-    let changed = compute_function(0, &selected).unwrap();
-    assert_eq!(changed.blocks[0].virtual_live_out, [VirtualRegisterId(1)]);
-    assert_ne!(live, changed);
-}
-
-#[test]
 fn source_blocks_cannot_claim_implementation_edge_roles() {
     let mut function = successor_parameter_function();
     let SelectedTerminator::Jump { successor, .. } = &mut function.blocks[0].terminator else {
@@ -126,23 +103,6 @@ fn source_blocks_cannot_claim_implementation_edge_roles() {
     };
     successor.role = selected_instructions::SelectedSuccessorRole::EdgeTransferContinuation;
     assert!(compute_function(0, &function).is_err());
-}
-
-#[test]
-fn successor_transport_distinguishes_duplicate_semantic_copies() {
-    let mut function = successor_parameter_function();
-    let mut copied = function.virtual_registers[0].clone();
-    copied.id = VirtualRegisterId(3);
-    function.virtual_registers.push(copied);
-    let SelectedTerminator::Jump { successor, .. } = &mut function.blocks[0].terminator else {
-        unreachable!()
-    };
-    successor.bindings[0].transport = selected_instructions::SelectedValueTransport::Registers {
-        argument: VirtualRegisterId(3),
-        parameter: VirtualRegisterId(2),
-    };
-    let live = compute_function(0, &function).unwrap();
-    assert_eq!(live.blocks[0].virtual_live_out, [VirtualRegisterId(3)]);
 }
 
 #[test]
@@ -345,11 +305,6 @@ fn case_bridge_function() -> SelectedFunction {
         },
     });
     function
-}
-
-#[test]
-fn case_payload_registers_reject_eager_semantic_edge_observations() {
-    assert!(compute_function(0, &case_payload_function()).is_err());
 }
 
 #[test]

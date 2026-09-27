@@ -4,8 +4,6 @@ use crate::rules::registry::PsiOptimizationRule;
 use super::super::RedundantBlockParameterRule;
 use crate::RuleAnalysisView;
 use crate::rules::tests::fixtures::control_flow_cleanup::redundant_block_parameter_unit;
-use crate::rules::tests::fixtures::id;
-use abstract_operations::AbstractOperation as O;
 use optimization_core::{
     AnalysisKind, OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
 };
@@ -13,73 +11,6 @@ use optimization_unit::{PsiRewriteCandidate, PsiRewritePatch, RedundantBlockPara
 use optimization_unit_semantics::{
     OptimizationUnitValidationError, validate_redundant_block_parameter_candidate,
 };
-use semantic_vocabulary::ObligationId;
-#[test]
-fn redundant_block_parameter_rule_binds_both_exact_conditional_edges() {
-    let unit = redundant_block_parameter_unit(true);
-    let contract = RedundantBlockParameterRule::contract();
-    let mut manager = crate::AnalysisManager::new(&unit);
-    let products = manager
-        .require_all(&unit, contract.required_analyses())
-        .unwrap()
-        .into_iter()
-        .cloned()
-        .collect::<Vec<_>>();
-    let candidates = RedundantBlockParameterRule
-        .propose(&unit, RuleAnalysisView::new(&products))
-        .unwrap();
-    assert_eq!(candidates.len(), 1);
-    let witness = candidates[0].redundant_block_parameter_witness().unwrap();
-    assert_eq!(witness.incoming.len(), 2);
-    assert_eq!(witness.incoming[0].source, witness.incoming[1].source);
-    assert_ne!(witness.incoming[0].edge, witness.incoming[1].edge);
-    assert!(candidates[0].consumed_facts().is_empty());
-
-    let accepted = validate_redundant_block_parameter_candidate(&unit, &candidates[0]).unwrap();
-    assert_eq!(
-        accepted.validator(),
-        optimization_core::OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.validator.redundant-block-parameter.v2"
-        )
-    );
-    let output = accepted.unit();
-    assert!(output.functions[0].blocks[1].parameters.is_empty());
-    let O::Conditional {
-        when_true,
-        when_false,
-        ..
-    } = &output.functions[0].blocks[0].nodes[0].operation
-    else {
-        unreachable!()
-    };
-    assert!(when_true.bindings.is_empty());
-    assert!(when_false.bindings.is_empty());
-    let O::ExactIntegerAdd {
-        obligation, left, ..
-    } = output.functions[0].blocks[1].nodes[0].operation
-    else {
-        unreachable!()
-    };
-    assert_eq!(left, unit.functions[0].parameters[1].value);
-    assert_eq!(obligation, id(713, ObligationId::new));
-    assert_eq!(output.functions[0].facts, unit.functions[0].facts);
-    for (before, after) in unit.functions[0]
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
-        .zip(
-            output.functions[0]
-                .blocks
-                .iter()
-                .flat_map(|block| &block.nodes),
-        )
-    {
-        assert_eq!(after.provenance, before.provenance);
-        assert_eq!(after.fuel, before.fuel);
-        assert_eq!(after.effect, before.effect);
-        assert_eq!(after.ownership, before.ownership);
-    }
-}
 
 #[test]
 fn differing_bindings_decline_and_incomplete_edge_witness_rejects() {

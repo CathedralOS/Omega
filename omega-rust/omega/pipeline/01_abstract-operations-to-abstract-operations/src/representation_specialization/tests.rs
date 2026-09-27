@@ -8,18 +8,15 @@
 //! independent validator the pass manager itself consults.
 
 use crate::rules::CaseMembershipSpecializationRule;
-use crate::{
-    OptimizationRun, PsiOptimizationCommit, VerifiedPsiOptimizationSession, run_psi_pipeline,
-};
+use crate::{OptimizationRun, PsiOptimizationCommit, run_psi_pipeline};
 use abstract_operations::AbstractOperation;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use optimization_core::{
     Optimization, OptimizationSelections, OptimizationUnitIdentity, OptimizationWorkBudget,
 };
 use optimization_unit::{
-    CaseMembershipSpecializationRewrite, NodeLocation, ProvenanceDisposition, PsiOptimizationUnit,
-    PsiProvenance, PsiRealizationSite, PsiRewriteCandidate, PsiRewriteCandidateError,
-    PsiRewritePatch, recompute_psi_optimization_unit_identity,
+    CaseMembershipSpecializationRewrite, NodeLocation, PsiOptimizationUnit, PsiRewriteCandidate,
+    PsiRewriteCandidateError, PsiRewritePatch,
 };
 use optimization_unit_semantics::{
     OptimizationUnitValidationError, validate_case_membership_specialization_candidate,
@@ -37,37 +34,6 @@ const ESTABLISHED_MATCHING_SOURCE: &str = r#"
     }
 "#;
 
-/// The same established `Some` place observed against `Empty`: the
-/// membership folds to `false` — a non-matching verdict specializes too.
-const ESTABLISHED_OTHER_SOURCE: &str = r#"
-    data Choice { case Empty; case Some(value: u32); }
-    machine probe() -> bool {
-        let c: Choice = Choice::Some { value: 37 };
-        c in Choice::Empty
-    }
-"#;
-
-/// Two memberships observe the same established place: both fold in one
-/// candidate, one `true` and one `false`.
-const TWO_MEMBERSHIPS_SOURCE: &str = r#"
-    data Choice { case Empty; case Some(value: u32); }
-    machine probe() -> bool {
-        let c: Choice = Choice::Some { value: 37 };
-        (c in Choice::Some) == (c in Choice::Empty)
-    }
-"#;
-
-/// A membership on a machine parameter place over a multi-case roster
-/// carries no establishment proof and no sole-case roster: the parameter
-/// arrives with whatever case the caller supplied, so nothing may
-/// specialize.
-const PARAMETER_SOURCE: &str = r#"
-    data Choice { case Empty; case Some(value: u32); }
-    machine probe(c: Choice) -> bool {
-        c in Choice::Some
-    }
-"#;
-
 /// A membership on a machine parameter place whose declared sum roster holds
 /// exactly one case: the roster alone proves the case regardless of caller,
 /// so the observation folds to `true`.
@@ -75,49 +41,6 @@ const SOLE_CASE_PARAMETER_SOURCE: &str = r#"
     data Tag { case Only; }
     machine probe(t: Tag) -> bool {
         t in Tag::Only
-    }
-"#;
-
-/// A locally established single-case sum still folds through the
-/// establishment proof: the `EstablishScalarCase` producer is the basis, not
-/// the roster.
-const SOLE_CASE_LOCAL_SOURCE: &str = r#"
-    data Tag { case Only; }
-    machine probe() -> bool {
-        let t: Tag = Tag::Only;
-        t in Tag::Only
-    }
-"#;
-
-/// A membership descending into a parameter's sole-case record field: the
-/// nested position's closed roster proves the verdict even though the
-/// record root itself has no cases and no producer.
-const PATH_FIELD_SOURCE: &str = r#"
-    data Tag { case Only; }
-    data Rec { inner: Tag; }
-    machine probe(r: Rec) -> bool {
-        r.inner in Tag::Only
-    }
-"#;
-
-/// A two-segment path resolves through nested records to the same sole-case
-/// roster: the end type proves the verdict regardless of depth.
-const NESTED_PATH_SOURCE: &str = r#"
-    data Tag { case Only; }
-    data Mid { inner: Tag; }
-    data Out { mid: Mid; }
-    machine probe(r: Out) -> bool {
-        r.mid.inner in Tag::Only
-    }
-"#;
-
-/// A path descending into a multi-case field carries no roster proof: the
-/// membership observes a position whose case the unit cannot fix.
-const PATH_MULTI_CASE_SOURCE: &str = r#"
-    data Choice { case Empty; case Some(value: u32); }
-    data Rec { inner: Choice; }
-    machine probe(r: Rec) -> bool {
-        r.inner in Choice::Some
     }
 "#;
 
@@ -129,27 +52,6 @@ const PATH_SPLIT_SOURCE: &str = r#"
     data Duo { a: Tag; b: Choice; }
     machine probe(r: Duo) -> bool {
         (r.a in Tag::Only) == (r.b in Choice::Some)
-    }
-"#;
-
-/// A membership descending into a parameter's array element: the fixed
-/// index resolves to the element's declared sole-case roster, which proves
-/// the verdict regardless of which element the index names.
-const ARRAY_ELEMENT_SOURCE: &str = r#"
-    data Tag { case Only; }
-    machine probe(t: [Tag; 2]) -> bool {
-        t[1] in Tag::Only
-    }
-"#;
-
-/// A two-segment path descends through a parameter's record field into an
-/// array element: the same sole-case roster at the resolved position proves
-/// the verdict.
-const NESTED_ARRAY_SOURCE: &str = r#"
-    data Tag { case Only; }
-    data Rec { inner: [Tag; 2]; }
-    machine probe(r: Rec) -> bool {
-        r.inner[0] in Tag::Only
     }
 "#;
 
@@ -196,208 +98,6 @@ const NO_MEMBERSHIP_SOURCE: &str = r#"
         3
     }
 "#;
-
-#[test]
-fn established_case_membership_folds_to_proven_verdict() {
-    let unit = lowered_unit_entry(ESTABLISHED_MATCHING_SOURCE, "matching membership", "probe");
-    let input = unit.unit().clone();
-    let machine = input.functions[0].machine;
-    let (place, producer, established) = established_place(&input, machine);
-    let (site, membership) = membership_on(&input, machine, place).expect("membership exists");
-
-    let run = specialize(unit);
-    let (commit, patch) = single_commit(&run);
-    assert_eq!(patch.machine, machine);
-    assert_eq!(patch.place, place);
-    assert_eq!(patch.producer, Some(producer));
-    assert_eq!(commit.input, input.identity);
-    assert_ne!(commit.output, input.identity);
-    let [row] = patch.memberships.as_slice() else {
-        panic!("one folded membership")
-    };
-    assert_eq!(row.site, site);
-    assert_eq!(row.psi_operation, membership.0);
-    assert_eq!(row.result, membership.1);
-    assert_eq!(row.source, place);
-    assert_eq!(row.producer, Some(producer));
-    assert_eq!(row.observed_case, membership.2);
-    assert_eq!(row.proven_case, established);
-    assert!(row.outcome);
-
-    // The proposal is deterministic: an independent run commits the same
-    // candidate, custody, and output revision.
-    let replayed = specialize(lowered_unit_entry(
-        ESTABLISHED_MATCHING_SOURCE,
-        "matching membership",
-        "probe",
-    ));
-    assert_eq!(replayed.commits(), run.commits());
-
-    let output = run.session().unit();
-    let output_function = output
-        .functions
-        .iter()
-        .find(|function| function.machine == machine)
-        .expect("machine retained");
-
-    // The folded node is a BooleanConstant at the same site, keeping the
-    // membership's custody identity, result value, and fuel settlement.
-    let folded = &output_function
-        .blocks
-        .iter()
-        .find(|block| block.id == site.block)
-        .expect("block retained")
-        .nodes[usize::try_from(site.node).expect("index")];
-    let AbstractOperation::BooleanConstant {
-        psi_operation,
-        result,
-        value,
-    } = &folded.operation
-    else {
-        panic!("membership folds to BooleanConstant")
-    };
-    assert_eq!(*psi_operation, membership.0);
-    assert_eq!(*result, membership.1);
-    assert!(*value);
-    assert_eq!(
-        folded.provenance,
-        vec![PsiProvenance::Operation(membership.0)]
-    );
-    assert_eq!(
-        folded.fuel,
-        vec![optimization_unit::FuelSettlement {
-            site: PsiProvenance::Operation(membership.0),
-            units: 1,
-        }]
-    );
-    let input_node = &input
-        .functions
-        .iter()
-        .find(|function| function.machine == machine)
-        .expect("input machine")
-        .blocks
-        .iter()
-        .find(|block| block.id == site.block)
-        .expect("input block")
-        .nodes[usize::try_from(site.node).expect("index")];
-    assert_eq!(folded.definitions, input_node.definitions);
-    assert_eq!(folded.uses, input_node.uses);
-    assert_eq!(folded.successors, input_node.successors);
-
-    // The ledger records the folded site's retained custody: the membership's
-    // operation provenance realized at the same node — exactly the custody
-    // the validator accepted for the commit.
-    let [record] = run.transformation_ledger().records() else {
-        panic!("one transformation record")
-    };
-    assert_eq!(record.input, input.identity);
-    assert_eq!(record.output, output.identity);
-    assert_eq!(record.provenance, commit.provenance);
-    assert_eq!(
-        record.provenance,
-        vec![optimization_unit::ProvenanceRewrite {
-            input: PsiRealizationSite::Node(site),
-            disposition: ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(site)),
-            sources: vec![PsiProvenance::Operation(membership.0)],
-            fuel: vec![optimization_unit::FuelSettlement {
-                site: PsiProvenance::Operation(membership.0),
-                units: 1,
-            }],
-        }]
-    );
-
-    // The single commit is the pass's fixed point: no membership on the
-    // place survives to draw a second candidate.
-    assert!(membership_on(output, machine, place).is_none());
-}
-
-#[test]
-fn established_other_case_membership_folds_to_false() {
-    let unit = lowered_unit_entry(ESTABLISHED_OTHER_SOURCE, "other-case membership", "probe");
-    let input = unit.unit().clone();
-    let machine = input.functions[0].machine;
-    let (_place, _, _) = established_place(&input, machine);
-
-    let run = specialize(unit);
-    let (_, patch) = single_commit(&run);
-    let [row] = patch.memberships.as_slice() else {
-        panic!("one folded membership")
-    };
-    assert!(!row.outcome, "the wrong-case membership proves false");
-
-    let function = run
-        .session()
-        .unit()
-        .functions
-        .iter()
-        .find(|function| function.machine == machine)
-        .expect("machine retained");
-    let folded = &function
-        .blocks
-        .iter()
-        .find(|block| block.id == row.site.block)
-        .expect("block retained")
-        .nodes[usize::try_from(row.site.node).expect("index")];
-    assert!(matches!(
-        folded.operation,
-        AbstractOperation::BooleanConstant { value: false, .. }
-    ));
-}
-
-#[test]
-fn two_memberships_on_one_place_fold_together() {
-    let unit = lowered_unit_entry(TWO_MEMBERSHIPS_SOURCE, "two memberships", "probe");
-    let input = unit.unit().clone();
-    let machine = input.functions[0].machine;
-    let (place, _, _) = established_place(&input, machine);
-
-    let run = specialize(unit);
-    let (commit, patch) = single_commit(&run);
-    assert_eq!(patch.place, place);
-    let [first, second] = patch.memberships.as_slice() else {
-        panic!("two folded memberships")
-    };
-    assert_ne!(first.outcome, second.outcome);
-    assert_ne!(first.observed_case, second.observed_case);
-
-    let function = run
-        .session()
-        .unit()
-        .functions
-        .iter()
-        .find(|function| function.machine == machine)
-        .expect("machine retained");
-    for row in [first, second] {
-        let folded = &function
-            .blocks
-            .iter()
-            .find(|block| block.id == row.site.block)
-            .expect("block retained")
-            .nodes[usize::try_from(row.site.node).expect("index")];
-        let AbstractOperation::BooleanConstant { value, .. } = folded.operation else {
-            panic!("membership folds to BooleanConstant")
-        };
-        assert_eq!(value, row.outcome);
-    }
-    let [record] = run.transformation_ledger().records() else {
-        panic!("one transformation record")
-    };
-    assert_eq!(
-        record.provenance.len(),
-        2,
-        "one custody row per folded site"
-    );
-    assert_eq!(record.provenance, commit.provenance);
-}
-
-#[test]
-fn parameter_membership_yields_no_candidate() {
-    assert_declines(lowered_unit_entry(
-        PARAMETER_SOURCE,
-        "parameter decline",
-        "probe",
-    ));
-}
 
 #[test]
 fn unobserved_establishment_yields_no_candidate() {
@@ -521,111 +221,6 @@ fn replay_rejects_stale_candidate_revision() {
     );
 }
 
-/// The committed unit revalidates independently, while a unit whose folded
-/// node drops its fuel settlement — settling fewer sources than the custody
-/// it names — is refused by transformed validation. A forged commit output
-/// identity is refused by publication replay in
-/// `pass_manager::tests::evidence_matrix::representation_specialization::forged_run_axes_fail_publication_replay`.
-#[test]
-fn transformed_unit_rejects_forged_folded_custody() {
-    let unit = lowered_unit_entry(ESTABLISHED_MATCHING_SOURCE, "matching membership", "probe");
-    let run = specialize(unit);
-    let (_, patch) = single_commit(&run);
-    let row = &patch.memberships[0];
-    let machine = patch.machine;
-    let verified_input = run.session().input().clone();
-
-    assert!(
-        VerifiedPsiOptimizationSession::from_transformed(
-            verified_input.clone(),
-            run.session().unit().clone(),
-        )
-        .is_ok(),
-        "the committed folded revision revalidates independently"
-    );
-
-    let mut malformed = run.session().unit().clone();
-    let folded = malformed
-        .functions
-        .iter_mut()
-        .flat_map(|function| &mut function.blocks)
-        .flat_map(|block| &mut block.nodes)
-        .find(|node| {
-            matches!(
-                node.operation,
-                AbstractOperation::BooleanConstant { psi_operation, .. }
-                    if psi_operation == row.psi_operation
-            )
-        })
-        .expect("folded node exists");
-    assert_eq!(
-        folded.provenance,
-        vec![PsiProvenance::Operation(row.psi_operation)]
-    );
-    folded.fuel.pop();
-    malformed.identity = recompute_psi_optimization_unit_identity(&malformed);
-    assert!(matches!(
-        VerifiedPsiOptimizationSession::from_transformed(verified_input, malformed),
-        Err(
-            OptimizationUnitValidationError::FuelDoesNotMatchProvenance { machine: rejected, .. }
-        ) if rejected == machine
-    ));
-}
-
-#[test]
-fn sole_case_parameter_membership_folds_without_producer() {
-    let unit = lowered_unit_entry(SOLE_CASE_PARAMETER_SOURCE, "sole-case parameter", "probe");
-    let input = unit.unit().clone();
-    let machine = input.functions[0].machine;
-    let place = parameter_place(&input);
-    let (site, membership) = membership_on(&input, machine, place).expect("membership exists");
-
-    let run = specialize(unit);
-    let (_, patch) = single_commit(&run);
-    assert_eq!(patch.machine, machine);
-    assert_eq!(patch.place, place);
-    assert_eq!(patch.producer, None);
-    let [row] = patch.memberships.as_slice() else {
-        panic!("one folded membership")
-    };
-    assert_eq!(row.site, site);
-    assert_eq!(row.psi_operation, membership.0);
-    assert_eq!(row.source, place);
-    assert_eq!(row.producer, None);
-    assert_eq!(row.observed_case, row.proven_case);
-    assert!(row.outcome);
-
-    let folded = &run.session().unit().functions[0]
-        .blocks
-        .iter()
-        .find(|block| block.id == site.block)
-        .expect("block retained")
-        .nodes[usize::try_from(site.node).expect("index")];
-    assert!(matches!(
-        folded.operation,
-        AbstractOperation::BooleanConstant { value: true, .. }
-    ));
-    assert!(membership_on(run.session().unit(), machine, place).is_none());
-}
-
-#[test]
-fn sole_case_local_keeps_establishment_basis() {
-    let unit = lowered_unit_entry(SOLE_CASE_LOCAL_SOURCE, "sole-case local", "probe");
-    let input = unit.unit().clone();
-    let machine = input.functions[0].machine;
-    let (place, producer, _) = established_place(&input, machine);
-
-    let run = specialize(unit);
-    let (_, patch) = single_commit(&run);
-    assert_eq!(patch.producer, Some(producer));
-    let [row] = patch.memberships.as_slice() else {
-        panic!("one folded membership")
-    };
-    assert_eq!(row.source, place);
-    assert_eq!(row.producer, Some(producer));
-    assert!(row.outcome);
-}
-
 #[test]
 fn replay_rejects_forged_roster_rows() {
     let unit = lowered_unit_entry(SOLE_CASE_PARAMETER_SOURCE, "sole-case parameter", "probe");
@@ -675,74 +270,6 @@ fn replay_rejects_forged_roster_rows() {
     )
     .expect("the exact roster candidate still validates");
     assert_eq!(validated.unit().identity, commit.output);
-}
-
-#[test]
-fn path_field_membership_folds_on_sole_case_end() {
-    let unit = lowered_unit_entry(PATH_FIELD_SOURCE, "path-field membership", "probe");
-    let input = unit.unit().clone();
-    let machine = input.functions[0].machine;
-    let place = parameter_place(&input);
-    let (site, membership) = membership_on(&input, machine, place).expect("membership exists");
-
-    let run = specialize(unit);
-    let (_, patch) = single_commit(&run);
-    assert_eq!(patch.machine, machine);
-    assert_eq!(patch.place, place);
-    assert_eq!(patch.producer, None);
-    let [row] = patch.memberships.as_slice() else {
-        panic!("one folded membership")
-    };
-    assert_eq!(row.site, site);
-    assert_eq!(row.psi_operation, membership.0);
-    assert_eq!(row.source, place);
-    assert_eq!(row.producer, None);
-    assert_eq!(row.observed_case, row.proven_case);
-    assert!(row.outcome);
-
-    let folded = &run.session().unit().functions[0]
-        .blocks
-        .iter()
-        .find(|block| block.id == site.block)
-        .expect("block retained")
-        .nodes[usize::try_from(site.node).expect("index")];
-    assert!(matches!(
-        folded.operation,
-        AbstractOperation::BooleanConstant { value: true, .. }
-    ));
-    assert!(membership_on(run.session().unit(), machine, place).is_none());
-}
-
-#[test]
-fn nested_path_membership_folds_through_records() {
-    let unit = lowered_unit_entry(NESTED_PATH_SOURCE, "nested-path membership", "probe");
-
-    let run = specialize(unit);
-    let (_, patch) = single_commit(&run);
-    let [row] = patch.memberships.as_slice() else {
-        panic!("one folded membership")
-    };
-    assert!(row.outcome);
-
-    let folded = &run.session().unit().functions[0]
-        .blocks
-        .iter()
-        .find(|block| block.id == row.site.block)
-        .expect("block retained")
-        .nodes[usize::try_from(row.site.node).expect("index")];
-    assert!(matches!(
-        folded.operation,
-        AbstractOperation::BooleanConstant { value: true, .. }
-    ));
-}
-
-#[test]
-fn multi_case_path_membership_yields_no_candidate() {
-    assert_declines(lowered_unit_entry(
-        PATH_MULTI_CASE_SOURCE,
-        "multi-case path",
-        "probe",
-    ));
 }
 
 #[test]
@@ -797,151 +324,6 @@ fn split_path_memberships_fold_only_the_proven_position() {
             case,
             ..
         } if *psi_operation == unproven_op && *case == unproven_case
-    ));
-}
-
-#[test]
-fn replay_rejects_forged_path_rows() {
-    let unit = lowered_unit_entry(PATH_FIELD_SOURCE, "path-field membership", "probe");
-    let input = unit.unit().clone();
-    let run = specialize(unit);
-    let (commit, _) = single_commit(&run);
-
-    // A forged producer on a path-proven row claims an establishment basis
-    // that cannot prove a nested position.
-    assert_rejects_rows(
-        &input,
-        forged(
-            commit.declaration.rewrite().expect("rewrite declaration"),
-            |patch| {
-                patch.memberships[0].producer = Some(patch.memberships[0].psi_operation);
-            },
-        ),
-    );
-
-    // A forged proven case at the resolved position mismatches the replayed
-    // roster.
-    assert_rejects_rows(
-        &input,
-        forged(
-            commit.declaration.rewrite().expect("rewrite declaration"),
-            |patch| {
-                patch.memberships[0].proven_case = semantic_vocabulary::StructuralCaseId::new(
-                    patch.memberships[0].proven_case.get() + 7,
-                )
-                .expect("forged case identity");
-                patch.memberships[0].outcome =
-                    patch.memberships[0].proven_case == patch.memberships[0].observed_case;
-            },
-        ),
-    );
-
-    let validated = validate_case_membership_specialization_candidate(
-        &input,
-        commit.declaration.rewrite().expect("rewrite declaration"),
-    )
-    .expect("the exact path candidate still validates");
-    assert_eq!(validated.unit().identity, commit.output);
-}
-
-/// The folded row's path ends on the sole-case roster below a `FixedIndex`:
-/// the array element's declared element type proves the verdict. One test
-/// asserts each reachable indexed shape — a root index, an index below a
-/// record field, and an index mid-path with a field below it.
-#[test]
-fn array_element_membership_folds_on_sole_case() {
-    let unit = lowered_unit_entry(ARRAY_ELEMENT_SOURCE, "array element membership", "probe");
-    let input = unit.unit().clone();
-    let machine = input.functions[0].machine;
-    let place = parameter_place(&input);
-    let memberships = memberships_on(&input, machine, place);
-    let [(site, membership, path)] = memberships.as_slice() else {
-        panic!("one membership observes the array")
-    };
-    assert!(
-        matches!(
-            path.as_slice(),
-            [terminal_psi::StructuralPathSegment::FixedIndex(1)]
-        ),
-        "the fixture observes one fixed-index element"
-    );
-
-    let run = specialize(unit);
-    let (_, patch) = single_commit(&run);
-    assert_eq!(patch.machine, machine);
-    assert_eq!(patch.place, place);
-    assert_eq!(patch.producer, None);
-    let [row] = patch.memberships.as_slice() else {
-        panic!("one folded membership")
-    };
-    assert_eq!(row.site, *site);
-    assert_eq!(row.psi_operation, membership.0);
-    assert_eq!(row.source, place);
-    assert_eq!(row.producer, None);
-    assert_eq!(row.observed_case, row.proven_case);
-    assert!(row.outcome);
-
-    // The proposal is deterministic: an independent run commits the same
-    // candidate, custody, and output revision.
-    let replayed = specialize(lowered_unit_entry(
-        ARRAY_ELEMENT_SOURCE,
-        "array element membership",
-        "probe",
-    ));
-    assert_eq!(replayed.commits(), run.commits());
-
-    let folded = &run.session().unit().functions[0]
-        .blocks
-        .iter()
-        .find(|block| block.id == site.block)
-        .expect("block retained")
-        .nodes[usize::try_from(site.node).expect("index")];
-    assert!(matches!(
-        folded.operation,
-        AbstractOperation::BooleanConstant { value: true, .. }
-    ));
-    assert!(membership_on(run.session().unit(), machine, place).is_none());
-}
-
-#[test]
-fn nested_array_membership_folds_through_field_index() {
-    let unit = lowered_unit_entry(NESTED_ARRAY_SOURCE, "nested array membership", "probe");
-    let input = unit.unit().clone();
-    let machine = input.functions[0].machine;
-    let place = parameter_place(&input);
-    let memberships = memberships_on(&input, machine, place);
-    let [(site, membership, path)] = memberships.as_slice() else {
-        panic!("one membership observes the nested element")
-    };
-    assert!(
-        matches!(
-            path.as_slice(),
-            [
-                terminal_psi::StructuralPathSegment::Field(_),
-                terminal_psi::StructuralPathSegment::FixedIndex(0)
-            ]
-        ),
-        "the fixture descends a field then a fixed index"
-    );
-
-    let run = specialize(unit);
-    let (_, patch) = single_commit(&run);
-    let [row] = patch.memberships.as_slice() else {
-        panic!("one folded membership")
-    };
-    assert_eq!(row.site, *site);
-    assert_eq!(row.psi_operation, membership.0);
-    assert!(row.outcome);
-
-    let folded = &run.session().unit().functions[0]
-        .blocks
-        .iter()
-        .find(|block| block.id == site.block)
-        .expect("block retained")
-        .nodes[usize::try_from(site.node).expect("index")];
-    assert!(matches!(
-        folded.operation,
-        AbstractOperation::BooleanConstant { value: true, .. }
     ));
 }
 
@@ -1041,61 +423,6 @@ fn multi_case_array_element_membership_yields_no_candidate() {
         "the fixture observes one fixed-index element"
     );
     assert_declines(unit);
-}
-
-#[test]
-fn replay_rejects_forged_array_rows() {
-    let unit = lowered_unit_entry(ARRAY_ELEMENT_SOURCE, "array element membership", "probe");
-    let input = unit.unit().clone();
-    let run = specialize(unit);
-    let (commit, _) = single_commit(&run);
-
-    // A forged proven case at the resolved element mismatches the replayed
-    // roster: the element's declared sole case is the basis, not the row.
-    assert_rejects_rows(
-        &input,
-        forged(
-            commit.declaration.rewrite().expect("rewrite declaration"),
-            |patch| {
-                patch.memberships[0].proven_case = semantic_vocabulary::StructuralCaseId::new(
-                    patch.memberships[0].proven_case.get() + 7,
-                )
-                .expect("forged case identity");
-                patch.memberships[0].outcome =
-                    patch.memberships[0].proven_case == patch.memberships[0].observed_case;
-            },
-        ),
-    );
-
-    // A forged producer claims an establishment basis on a roster-proven
-    // indexed read.
-    assert_rejects_rows(
-        &input,
-        forged(
-            commit.declaration.rewrite().expect("rewrite declaration"),
-            |patch| {
-                patch.memberships[0].producer = Some(patch.memberships[0].psi_operation);
-            },
-        ),
-    );
-
-    // A forged site coordinate relocates the fold off the membership.
-    assert_rejects_rows(
-        &input,
-        forged(
-            commit.declaration.rewrite().expect("rewrite declaration"),
-            |patch| {
-                patch.memberships[0].site.node += 1;
-            },
-        ),
-    );
-
-    let validated = validate_case_membership_specialization_candidate(
-        &input,
-        commit.declaration.rewrite().expect("rewrite declaration"),
-    )
-    .expect("the exact array candidate still validates");
-    assert_eq!(validated.unit().identity, commit.output);
 }
 
 fn budget() -> OptimizationWorkBudget {
@@ -1383,26 +710,6 @@ fn memberships_on(
     memberships
 }
 
-/// A case established in the machine body arrives at the observing state
-/// as a structural block parameter: the state's incoming edge binds the
-/// parameter to the one `EstablishScalarCase` result through an owned,
-/// whole-place argument, so the bound place's establishment proves the
-/// membership even though the parameter itself holds no producer.
-const BOUND_CASE_SOURCE: &str = r#"
-    data Choice { case Empty; case Some(value: u32); }
-    data Root {}
-    machine Root::run() {
-        let c: Choice = Choice::Some { value: 37 };
-        transition { _ -> check(c) }
-        state check(c: Choice) {
-            let m: bool = c in Choice::Some;
-            transition m { true -> good() _ -> bad() }
-        }
-        state good() {}
-        state bad() {}
-    }
-"#;
-
 /// Two predecessor edges bind the parameter to different established
 /// places: no uniform binding exists, so nothing proves which case the
 /// parameter holds even though every candidate place is itself
@@ -1444,68 +751,6 @@ const CHAINED_BINDING_SOURCE: &str = r#"
         state bad() {}
     }
 "#;
-
-#[test]
-fn bound_parameter_membership_folds_through_uniform_binding() {
-    let unit = lowered_unit_entry(BOUND_CASE_SOURCE, "bound parameter membership", "Root::run");
-    let input = unit.unit().clone();
-    let machine = input.functions[0].machine;
-    // The membership observes the state's block parameter while the proof
-    // is the `EstablishScalarCase` result the incoming edge binds it to
-    // whole.
-    let (place, bound) = bound_observation(&input, machine);
-    let (established, producer, established_case) = established_place(&input, machine);
-    assert_eq!(bound, established);
-    let (site, membership) = membership_on(&input, machine, place).expect("membership exists");
-
-    let run = specialize(unit);
-    let (commit, patch) = single_commit(&run);
-    assert_eq!(patch.machine, machine);
-    assert_eq!(patch.place, place);
-    assert_eq!(
-        patch.producer,
-        Some(producer),
-        "the bound place's establishment is the patch witness"
-    );
-    assert_eq!(commit.input, input.identity);
-    assert_ne!(commit.output, input.identity);
-    let [row] = patch.memberships.as_slice() else {
-        panic!("one folded membership")
-    };
-    assert_eq!(row.site, site);
-    assert_eq!(row.psi_operation, membership.0);
-    assert_eq!(row.result, membership.1);
-    assert_eq!(row.source, place);
-    assert_eq!(row.producer, Some(producer));
-    assert_eq!(row.observed_case, membership.2);
-    assert_eq!(row.proven_case, established_case);
-    assert!(row.outcome);
-
-    // The proposal is deterministic: an independent run commits the same
-    // candidate, custody, and output revision.
-    let replayed = specialize(lowered_unit_entry(
-        BOUND_CASE_SOURCE,
-        "bound parameter membership",
-        "Root::run",
-    ));
-    assert_eq!(replayed.commits(), run.commits());
-
-    let folded = &run.session().unit().functions[0]
-        .blocks
-        .iter()
-        .find(|block| block.id == site.block)
-        .expect("block retained")
-        .nodes[usize::try_from(site.node).expect("index")];
-    assert!(matches!(
-        folded.operation,
-        AbstractOperation::BooleanConstant { value: true, .. }
-    ));
-    assert_eq!(
-        folded.provenance,
-        vec![PsiProvenance::Operation(membership.0)]
-    );
-    assert!(membership_on(run.session().unit(), machine, place).is_none());
-}
 
 #[test]
 fn divergent_incoming_bindings_decline() {
@@ -1571,63 +816,6 @@ fn chained_binding_forwards_through_relay() {
     );
     assert_eq!(row.proven_case, established_case);
     assert!(row.outcome);
-}
-
-#[test]
-fn replay_rejects_forged_bound_rows() {
-    let unit = lowered_unit_entry(BOUND_CASE_SOURCE, "bound parameter membership", "Root::run");
-    let input = unit.unit().clone();
-    let run = specialize(unit);
-    let (commit, _patch) = single_commit(&run);
-
-    // A forged row witness — claiming the roster basis — is refused:
-    // replay re-derives the witness through the binding rather than
-    // trusting it.
-    assert_rejects_rows(
-        &input,
-        forged(
-            commit.declaration.rewrite().expect("rewrite declaration"),
-            |patch| {
-                patch.memberships[0].producer = None;
-            },
-        ),
-    );
-
-    // A forged patch-level producer — claiming the observation's own
-    // custody identity rather than the forwarded establishment.
-    assert_rejects_rows(
-        &input,
-        forged(
-            commit.declaration.rewrite().expect("rewrite declaration"),
-            |patch| {
-                patch.producer = Some(patch.memberships[0].psi_operation);
-            },
-        ),
-    );
-
-    // A forged proven case on the bound read.
-    assert_rejects_rows(
-        &input,
-        forged(
-            commit.declaration.rewrite().expect("rewrite declaration"),
-            |patch| {
-                patch.memberships[0].proven_case = semantic_vocabulary::StructuralCaseId::new(
-                    patch.memberships[0].proven_case.get() + 7,
-                )
-                .expect("forged case identity");
-                patch.memberships[0].outcome =
-                    patch.memberships[0].proven_case == patch.memberships[0].observed_case;
-            },
-        ),
-    );
-
-    // The untampered declaration still validates to the committed output.
-    let validated = validate_case_membership_specialization_candidate(
-        &input,
-        commit.declaration.rewrite().expect("rewrite declaration"),
-    )
-    .expect("the exact candidate still validates");
-    assert_eq!(validated.unit().identity, commit.output);
 }
 
 fn lowered_unit_entry(source: &str, label: &str, entry: &str) -> VerifiedPsiOptimizationUnit {

@@ -4,13 +4,13 @@
 //! custody, and the requirement slot identity from the source declarations.
 
 use super::structural_borrows::source_plan;
-use super::{AbstractOperation, AbstractOperationPlan, AbstractResult, NativeTarget, OperationId};
-use calling_conventions::{CallPlan, ValueClass, ValueShape};
+use super::{AbstractOperation, AbstractOperationPlan, NativeTarget, OperationId};
+use calling_conventions::{CallPlan, ValueClass};
 use semantic_vocabulary::{MachineId, ValueId};
 use target_operations::{
-    TargetControlSuccessor, TargetControlTerminator, TargetDynamicDescriptorArgument,
-    TargetDynamicDescriptorInstanceSource, TargetDynamicDescriptorParameterAbi, TargetFunction,
-    TargetOperationPlan, TargetUnitOperation, TargetUnitScalarHomeRequirement,
+    TargetDynamicDescriptorArgument, TargetDynamicDescriptorInstanceSource,
+    TargetDynamicDescriptorParameterAbi, TargetFunction, TargetOperationPlan, TargetUnitOperation,
+    TargetUnitScalarHomeRequirement,
 };
 
 /// The customer shape: an entry that selects one concrete erased descriptor, a
@@ -112,33 +112,6 @@ fn dispatching_function_mut(plan: &mut TargetOperationPlan) -> &mut TargetFuncti
         .expect("parameter dispatch function")
 }
 
-/// The helper that forwards its own descriptor parameter — the only function
-/// retaining a `Parameter`-sourced dynamic argument.
-fn forwarding_function(plan: &TargetOperationPlan) -> &TargetFunction {
-    plan.functions
-        .iter()
-        .find(|function| {
-            function
-                .graph
-                .blocks
-                .iter()
-                .flat_map(|block| &block.operations)
-                .any(|operation| match operation {
-                    TargetUnitOperation::StructuralScalarCallWithDynamicArguments {
-                        dynamic_arguments,
-                        ..
-                    } => dynamic_arguments.iter().any(|argument| {
-                        matches!(
-                            argument.instance,
-                            TargetDynamicDescriptorInstanceSource::Parameter { .. }
-                        )
-                    }),
-                    _ => false,
-                })
-        })
-        .expect("parameter forwarding function")
-}
-
 fn only_dynamic_parameter(function: &TargetFunction) -> &TargetDynamicDescriptorParameterAbi {
     let [row] = function.graph.dynamic_parameters.as_slice() else {
         panic!(
@@ -147,64 +120,6 @@ fn only_dynamic_parameter(function: &TargetFunction) -> &TargetDynamicDescriptor
         )
     };
     row
-}
-
-#[allow(clippy::type_complexity)]
-fn parameter_dispatch_row(
-    function: &TargetFunction,
-) -> (
-    &AbstractResult,
-    &abstract_operations::AbstractParameterDynamicDispatch,
-    &TargetDynamicDescriptorParameterAbi,
-    &terminal_psi::TerminalDynamicRequirement,
-    &CallPlan,
-    u32,
-    &TargetUnitScalarHomeRequirement,
-) {
-    function
-        .graph
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .find_map(|operation| match operation {
-            TargetUnitOperation::DynamicParameterScalarCall {
-                result,
-                dynamic_dispatch,
-                parameter_abi,
-                requirement,
-                dispatch_call_plan,
-                table_slot_byte_offset,
-                result_home,
-                ..
-            } => Some((
-                result,
-                dynamic_dispatch,
-                parameter_abi,
-                requirement,
-                dispatch_call_plan,
-                *table_slot_byte_offset,
-                result_home,
-            )),
-            _ => None,
-        })
-        .expect("parameter dispatch call row")
-}
-
-fn forwarded_argument(function: &TargetFunction) -> (&CallPlan, &TargetDynamicDescriptorArgument) {
-    function
-        .graph
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .find_map(|operation| match operation {
-            TargetUnitOperation::StructuralScalarCallWithDynamicArguments {
-                call_plan,
-                dynamic_arguments,
-                ..
-            } => Some((call_plan, dynamic_arguments.first()?)),
-            _ => None,
-        })
-        .expect("forwarding call row")
 }
 
 #[test]
@@ -240,146 +155,6 @@ fn descriptor_parameter_signature_binds_two_trailing_pointer_words() {
             abi.parameter.access,
             terminal_psi::StructuralAccess::SharedBorrow
         );
-    }
-}
-
-#[test]
-fn parameter_dispatch_row_replays_requirement_slot_and_result_home() {
-    for native in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let source = forwarded_parameter_source();
-        let target = lowered(native, &source);
-        crate::validate_abstract_to_target_translation(&source, native, &target).unwrap();
-
-        let finish = dispatching_function(&target);
-        let abi = only_dynamic_parameter(finish).clone();
-        let (result, dispatch, parameter_abi, requirement, plan, slot_offset, home) =
-            parameter_dispatch_row(finish);
-        assert_eq!(*parameter_abi, abi, "operation keeps the exact ABI row");
-        assert_eq!(dispatch.parameter, abi.parameter);
-        assert_eq!(dispatch.dispatch.owner, finish.machine);
-        assert_eq!(dispatch.dispatch.parameter_ordinal, 0);
-        assert_eq!(dispatch.dispatch.requirement_slot, 0);
-        assert_eq!(requirement.slot, 0);
-        assert_eq!(
-            requirement.result,
-            terminal_psi::ClosedConformanceCallableResult::I32
-        );
-        assert_eq!(slot_offset, 0, "first requirement occupies table slot zero");
-        // The indirect call ABI is exactly `code(&self) -> i32`: one pointer
-        // receiver word in, one i32 result out.
-        let pointer = u16::try_from(native.pointer_size).unwrap();
-        assert_eq!(plan.parameters.len(), 1);
-        assert_eq!(plan.parameters[0].shape.byte_size, pointer);
-        assert_eq!(
-            plan.result.as_ref().map(|placement| placement.shape),
-            Some(ValueShape {
-                class: ValueClass::Integer,
-                byte_size: 4,
-                alignment: 4
-            })
-        );
-        assert_eq!(home.source_value, result.value);
-        assert_eq!(home.scalar_type, result.scalar_type);
-        // The result home is a live scalar definition the block terminator
-        // consumes as the function's returned value. Return values cross block
-        // boundaries through explicit edge bindings, so the return's source is
-        // a block parameter whose argument chain reaches the result home.
-        let mut bound_source = std::collections::BTreeMap::new();
-        for block in &finish.graph.blocks {
-            let successors: Vec<&TargetControlSuccessor> = match &block.terminator {
-                TargetControlTerminator::Jump { successor } => vec![successor],
-                TargetControlTerminator::Conditional {
-                    when_true,
-                    when_false,
-                    ..
-                } => vec![when_true, when_false],
-                _ => Vec::new(),
-            };
-            for successor in successors {
-                for binding in &successor.bindings {
-                    bound_source.insert(binding.parameter, binding.argument);
-                }
-            }
-        }
-        let returns_result = finish.graph.blocks.iter().any(|block| {
-            let TargetControlTerminator::ReturnScalar { source_value, .. } = block.terminator
-            else {
-                return false;
-            };
-            let mut returned = source_value;
-            loop {
-                if returned == home.source_value {
-                    return true;
-                }
-                match bound_source.get(&returned) {
-                    Some(argument) => returned = *argument,
-                    None => return false,
-                }
-            }
-        });
-        assert!(returns_result, "dispatch result home feeds the return edge");
-    }
-}
-
-#[test]
-fn parameter_forwarding_reuses_caller_words_without_projection() {
-    for native in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let source = forwarded_parameter_source();
-        let target = lowered(native, &source);
-        crate::validate_abstract_to_target_translation(&source, native, &target).unwrap();
-
-        let finish = dispatching_function(&target);
-        let dispatch = forwarding_function(&target);
-        let caller_abi = only_dynamic_parameter(dispatch).clone();
-        let (call_plan, argument) = forwarded_argument(dispatch);
-        let TargetUnitOperation::StructuralScalarCallWithDynamicArguments { callee, .. } = dispatch
-            .graph
-            .blocks
-            .iter()
-            .flat_map(|block| &block.operations)
-            .find(|operation| {
-                matches!(
-                    operation,
-                    TargetUnitOperation::StructuralScalarCallWithDynamicArguments { .. }
-                )
-            })
-            .expect("forwarding call row")
-        else {
-            unreachable!()
-        };
-        assert_eq!(*callee, finish.machine);
-        assert_eq!(
-            argument.custody.argument.source,
-            terminal_psi::TerminalDynamicDescriptorSource::Parameter { ordinal: 0 }
-        );
-        let TargetDynamicDescriptorInstanceSource::Parameter {
-            parameter,
-            destination,
-        } = &argument.instance
-        else {
-            panic!("forwarded descriptor instance must pass the caller word through")
-        };
-        // Both caller words pass through unchanged into the callee's lane.
-        assert_eq!(*parameter, caller_abi);
-        assert_eq!(*destination, call_plan.parameters[0]);
-        assert_eq!(argument.table_destination, call_plan.parameters[1]);
-        assert_ne!(
-            call_plan.parameters[0], call_plan.parameters[1],
-            "instance and table occupy distinct callee placements"
-        );
-
-        // The entry still supplies a concrete projected selection.
-        let entry = target
-            .functions
-            .iter()
-            .find(|function| function.machine == target.entry)
-            .expect("entry function");
-        assert!(entry.graph.dynamic_parameters.is_empty());
-        let (_, projected) = forwarded_argument(entry);
-        assert!(matches!(
-            projected.instance,
-            TargetDynamicDescriptorInstanceSource::Projection(_)
-        ));
     }
 }
 

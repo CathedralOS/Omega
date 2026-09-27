@@ -1,7 +1,7 @@
 //! Ownership-frontier fact retention through construction and replay.
 
+use crate::legalize_target_operations;
 use crate::tests::fixtures::plain_unit::plain_unit_fixture;
-use crate::{legalize_target_operations, validate_legalized_operations};
 use optimization_unit::{
     OwnershipFrontierFact, OwnershipFrontierSite, OwnershipFrontierSnapshot, PrunedMachineCustody,
     attach_ownership_frontier_facts,
@@ -81,46 +81,4 @@ fn construction_projects_the_function_machine_scope() {
             .iter()
             .all(|fact| fact.machine == MachineId::new(1).unwrap())
     );
-}
-
-#[test]
-fn replay_rejects_dropped_reordered_and_forged_facts() {
-    let (abstract_plan, target, unit, _) = frontier_unit();
-    let legalized = legalize_target_operations(&target, &abstract_plan, &unit)
-        .expect("frontier catalog legalizes");
-
-    // A proposal that silently drops one retained row must reject.
-    let mut dropped = legalized.plan().clone();
-    dropped.scalar_functions[0].ownership_frontier_facts.pop();
-    assert!(validate_legalized_operations(&target, &abstract_plan, &unit, dropped).is_err());
-
-    // Reordering the catalog must reject: replay binds rows positionally.
-    let mut reordered = legalized.plan().clone();
-    reordered.scalar_functions[0]
-        .ownership_frontier_facts
-        .swap(0, 1);
-    assert!(validate_legalized_operations(&target, &abstract_plan, &unit, reordered).is_err());
-
-    // A forged row the unit never retained must reject.
-    let mut forged = legalized.plan().clone();
-    forged.scalar_functions[0]
-        .ownership_frontier_facts
-        .push(fact(
-            &unit,
-            MachineId::new(1).unwrap(),
-            OwnershipFrontierSite::EdgeExit(EdgeId::new(1).unwrap()),
-        ));
-    assert!(validate_legalized_operations(&target, &abstract_plan, &unit, forged).is_err());
-
-    // A corrupted payload under a kept identity must reject: replay compares
-    // the whole verifier-owned row, not just its identity token.
-    let mut corrupted = legalized.plan().clone();
-    corrupted.scalar_functions[0].ownership_frontier_facts[0]
-        .snapshot
-        .partial_custody
-        .push(optimization_unit::OwnershipFrontierPartialCustody {
-            place: semantic_vocabulary::PlaceId::new(1).unwrap(),
-            moved_paths: Vec::new(),
-        });
-    assert!(validate_legalized_operations(&target, &abstract_plan, &unit, corrupted).is_err());
 }

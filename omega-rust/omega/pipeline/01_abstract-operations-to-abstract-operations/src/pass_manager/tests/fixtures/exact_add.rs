@@ -8,11 +8,6 @@ pub(in crate::pass_manager::tests) fn verified_exact_add_unit() -> VerifiedPsiOp
     verified_exact_add_unit_with_right(semantic_vocabulary::IntegerValue::Unsigned(8))
 }
 
-pub(in crate::pass_manager::tests) fn verified_exact_add_zero_unit() -> VerifiedPsiOptimizationUnit
-{
-    verified_exact_add_unit_with_right(semantic_vocabulary::IntegerValue::Unsigned(0))
-}
-
 pub(super) fn verified_exact_add_unit_with_right(
     right_constant: semantic_vocabulary::IntegerValue,
 ) -> VerifiedPsiOptimizationUnit {

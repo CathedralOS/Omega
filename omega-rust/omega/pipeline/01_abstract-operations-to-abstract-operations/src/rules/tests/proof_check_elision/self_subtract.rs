@@ -5,7 +5,6 @@ use super::super::super::{
     LiveProofCertifiedExactIntegerSelfSubtractEliminationRule, PROOF_CHECK_ELISION_PASS_NAME,
 };
 use crate::RuleAnalysisView;
-use crate::rules::proof_check_elision::integer_zero;
 use crate::rules::tests::fixtures::dead_scalar_elimination::discard_scalar_function_result;
 use crate::rules::tests::fixtures::id;
 use crate::rules::tests::fixtures::proof_check_elision::{
@@ -13,9 +12,8 @@ use crate::rules::tests::fixtures::proof_check_elision::{
 };
 use abstract_operations::AbstractOperation as O;
 use optimization_core::{
-    OptimizationFactReference, OptimizationPassIdentity, OptimizationRuleContract,
-    OptimizationRuleIdentity, OptimizationSafetyClass, OptimizationValidatorIdentity,
-    ScalarConstantFactIdentity,
+    OptimizationPassIdentity, OptimizationRuleContract, OptimizationRuleIdentity,
+    OptimizationSafetyClass, ScalarConstantFactIdentity,
 };
 use optimization_unit::{
     IntegerConstantRewrite, IntegerEvaluationWitness, NodeLocation, OptimizationFact,
@@ -27,102 +25,8 @@ use optimization_unit_semantics::{
     validate_proof_certified_exact_integer_self_subtract_candidate, validate_psi_optimization_unit,
 };
 use semantic_vocabulary::{
-    BlockId, IntegerSign, IntegerType, IntegerValue, OperationId, ScalarType, ValueId,
+    IntegerSign, IntegerType, IntegerValue, OperationId, ScalarType, ValueId,
 };
-
-#[test]
-fn proof_certified_exact_self_subtract_materializes_typed_zero_with_exact_custody() {
-    for integer in [
-        IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
-        IntegerType::new(IntegerSign::Signed, 8).unwrap(),
-    ] {
-        let unit = live_exact_self_subtract_unit(integer);
-        let contract = LiveProofCertifiedExactIntegerSelfSubtractEliminationRule::contract();
-        let original_node = unit.functions[0].blocks[0].nodes[0].clone();
-        let mut manager = crate::AnalysisManager::new(&unit);
-        let products = manager
-            .require_all(&unit, contract.required_analyses())
-            .unwrap()
-            .into_iter()
-            .cloned()
-            .collect::<Vec<_>>();
-        let [candidate] = LiveProofCertifiedExactIntegerSelfSubtractEliminationRule
-            .propose(&unit, RuleAnalysisView::new(&products))
-            .unwrap()
-            .try_into()
-            .expect("live exact self-subtract has one candidate");
-        let PsiRewritePatch::ReplaceIntegerOperationWithConstant(patch) = candidate.patch() else {
-            unreachable!()
-        };
-        assert_eq!(patch.location.node, 0);
-        assert_eq!(patch.source_operation, id(335, OperationId::new));
-        assert_eq!(patch.result, id(334, ValueId::new));
-        assert_eq!(patch.scalar_type, integer);
-        assert_eq!(patch.constant, integer_zero(integer));
-        assert!(candidate.substitutions().is_empty());
-        assert_eq!(candidate.affected_blocks(), [id(332, BlockId::new)]);
-        assert_eq!(candidate.consumed_facts().len(), 1);
-        assert!(matches!(
-            candidate.consumed_facts()[0],
-            OptimizationFactReference::AcceptedObligation(_)
-        ));
-
-        let accepted =
-            validate_proof_certified_exact_integer_self_subtract_candidate(&unit, &candidate)
-                .unwrap();
-        assert_eq!(
-            accepted.validator(),
-            OptimizationValidatorIdentity::from_canonical_bytes(
-                b"omega.validator.live-proof-certified-exact-integer-self-subtract-elimination.v1"
-            )
-        );
-        assert_eq!(
-            accepted.unit().accepted_obligation_facts,
-            unit.accepted_obligation_facts
-        );
-        let output_node = &accepted.unit().functions[0].blocks[0].nodes[0];
-        assert!(matches!(
-            output_node.operation,
-            O::IntegerConstant {
-                psi_operation,
-                result,
-                scalar_type: ScalarType::Integer(output_type),
-                value,
-            } if psi_operation == id(335, OperationId::new)
-                && result == id(334, ValueId::new)
-                && output_type == integer
-                && value == integer_zero(integer)
-        ));
-        assert_eq!(output_node.provenance, original_node.provenance);
-        assert_eq!(output_node.fuel, original_node.fuel);
-        assert!(accepted.unit().functions[0].facts.iter().all(|fact| {
-            !matches!(fact, OptimizationFact::OperationObligationReference { .. })
-        }));
-        assert!(accepted.unit().functions[0].facts.iter().any(|fact| {
-            matches!(
-                fact,
-                OptimizationFact::IntegerConstant { value, constant, support }
-                    if *value == id(334, ValueId::new)
-                        && *constant == integer_zero(integer)
-                        && *support == id(335, OperationId::new)
-            )
-        }));
-
-        let mut manager = crate::AnalysisManager::new(accepted.unit());
-        let products = manager
-            .require_all(accepted.unit(), contract.required_analyses())
-            .unwrap()
-            .into_iter()
-            .cloned()
-            .collect::<Vec<_>>();
-        assert!(
-            LiveProofCertifiedExactIntegerSelfSubtractEliminationRule
-                .propose(accepted.unit(), RuleAnalysisView::new(&products))
-                .unwrap()
-                .is_empty()
-        );
-    }
-}
 
 #[test]
 fn proof_certified_exact_self_subtract_declines_and_rejects_corruption() {

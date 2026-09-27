@@ -15,60 +15,6 @@ use semantic_vocabulary::{
     OperationId, ScalarType, ValueId,
 };
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
-pub(crate) fn dead_scalar_literals_unit() -> PsiOptimizationUnit {
-    let machine = id(1_201, MachineId::new);
-    let block = id(1_202, BlockId::new);
-    let boolean = id(1_203, ValueId::new);
-    let integer_value = id(1_204, ValueId::new);
-    let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
-    reconstruct_psi_optimization_unit_seed(
-        &AbstractOperationPlan {
-            psi: TerminalPsiIdentity {
-                vocabulary_marker: VocabularyMarker::CURRENT,
-                program_fingerprint: SemanticFingerprint::from_bytes([39; 32]),
-            },
-            entry: machine,
-            structural_types: Vec::new().into(),
-            boundary_machines: Vec::new(),
-            provider_candidates: Vec::new(),
-            functions: vec![AbstractFunction {
-                machine,
-                attachment: None,
-                entry: block,
-                parameters: Vec::new(),
-                structural_parameters: Vec::new(),
-                result: AbstractFunctionResult::Unit,
-                entry_claims: Vec::new(),
-                published_service_ceiling: Vec::new(),
-                block_entries: vec![AbstractBlockEntry {
-                    structural_parameters: Vec::new(),
-                    block,
-                    parameters: Vec::new(),
-                    operation_offset: 0,
-                }],
-                operations: vec![
-                    AbstractOperation::BooleanConstant {
-                        psi_operation: id(1_205, OperationId::new),
-                        result: boolean,
-                        value: true,
-                    },
-                    AbstractOperation::IntegerConstant {
-                        psi_operation: id(1_206, OperationId::new),
-                        result: integer_value,
-                        scalar_type: ScalarType::Integer(integer),
-                        value: semantic_vocabulary::IntegerValue::Unsigned(7),
-                    },
-                    AbstractOperation::ReturnUnit {
-                        psi_edge: id(1_207, EdgeId::new),
-                        cleanup_actions: Vec::new(),
-                    },
-                ],
-            }],
-        },
-        FuelScheduleIdentity::new(1).unwrap(),
-    )
-    .unwrap()
-}
 
 pub(crate) fn dead_wrapping_add_unit() -> PsiOptimizationUnit {
     let machine = id(1_211, MachineId::new);

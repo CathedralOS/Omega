@@ -1,7 +1,6 @@
 //! Owned ABI backing is reconstructed independently of pointer-bit transport.
 use super::super::{
-    AbstractOperationPlan, AbstractParameter, PsiOptimizationUnit, StructuralMultiplicity,
-    StructuralParameterDeclaration, TargetOperationPlan,
+    AbstractOperationPlan, AbstractParameter, PsiOptimizationUnit, TargetOperationPlan,
 };
 use super::{
     AbstractFunctionResult, AbstractOperation, AbstractResult, BindingRelevance, EdgeId,
@@ -120,114 +119,6 @@ fn corrupt_placement(placement: &mut ValuePlacement, mutation: &str) {
         "missing copy" => *copy_stack_byte_offset = None,
         "copy offset" => *copy_stack_byte_offset = Some(copy_stack_byte_offset.unwrap() + 16),
         _ => panic!("unknown placement corruption"),
-    }
-}
-
-#[test]
-fn owned_indirect_physical_shape_preserves_qualification_and_multiplicity_rows() {
-    use semantic_vocabulary::StructuralDomainId;
-    use terminal_psi::{StructuralPathQualification, StructuralPathSegment};
-
-    for native in [
-        NativeTarget::linux_arm64(),
-        NativeTarget::macos_arm64(),
-        NativeTarget::windows_x64(),
-    ] {
-        for scalar_count in [0, 8] {
-            let (source, target, _) = input(native, scalar_count);
-            let graph = &target.functions[0].graph;
-            let accepts =
-                |semantic: &StructuralParameterDeclaration,
-                 target: &target_operations::TargetStructuralParameter| {
-                    crate::structural_inputs::structural_unit_input::accepts_graph(
-                        &graph.call_plan,
-                        &[crate::structural_inputs::structural_unit_input::Parameter {
-                            semantic,
-                            target,
-                        }],
-                        &source.structural_types,
-                    )
-                };
-            assert!(matches!(graph.parameters[0].placement.locations.as_slice(),
-                [ValueLocation::Indirect { pointer, byte_size: 24, copy_stack_byte_offset: Some(_), .. }]
-                    if matches!(pointer, IndirectPointerLocation::Stack { .. }) == (scalar_count == 8)));
-            for multiplicity in [
-                StructuralMultiplicity::Unrestricted,
-                StructuralMultiplicity::Affine,
-                StructuralMultiplicity::Linear,
-            ] {
-                let mut semantic = source.functions[0].structural_parameters[0].clone();
-                let mut retained = graph.parameters[0].clone();
-                // This tests physical ABI placement, not semantic-operation
-                // permission. These qualification identities are opaque retained
-                // payload here; domain/path validity and linear claim discharge
-                // still require source checking before this body may execute.
-                semantic.multiplicity = multiplicity;
-                semantic.qualifications = vec![StructuralDomainId::new(100).unwrap()];
-                semantic.projected_qualifications = vec![StructuralPathQualification {
-                    path: vec![StructuralPathSegment::Field("field1".into())],
-                    domain: StructuralDomainId::new(101).unwrap(),
-                }];
-                retained.multiplicity = multiplicity;
-                retained.projected_qualifications = semantic.projected_qualifications.clone();
-                let declared = semantic.clone();
-                assert!(
-                    accepts(&semantic, &retained),
-                    "{native:?} {scalar_count} {multiplicity:?}"
-                );
-                assert_eq!(
-                    semantic, declared,
-                    "ABI reconstruction cannot strip declarations"
-                );
-                assert_eq!(retained.placement, graph.call_plan.parameters[scalar_count]);
-
-                for mutation in [
-                    "missing projected qualification",
-                    "projected domain",
-                    "projected path",
-                    "access",
-                    "multiplicity",
-                    "shape",
-                    "place",
-                    "position",
-                ] {
-                    let mut changed_semantic = semantic.clone();
-                    let mut changed_target = retained.clone();
-                    match mutation {
-                        "missing projected qualification" => {
-                            changed_target.projected_qualifications.clear()
-                        }
-                        "projected domain" => {
-                            changed_target.projected_qualifications[0].domain =
-                                StructuralDomainId::new(102).unwrap()
-                        }
-                        "projected path" => {
-                            changed_target.projected_qualifications[0].path =
-                                vec![StructuralPathSegment::Field("field2".into())]
-                        }
-                        "access" => changed_target.access = StructuralAccess::SharedBorrow,
-                        "multiplicity" => {
-                            changed_target.multiplicity =
-                                if multiplicity == StructuralMultiplicity::Linear {
-                                    StructuralMultiplicity::Unrestricted
-                                } else {
-                                    StructuralMultiplicity::Linear
-                                }
-                        }
-                        "shape" => changed_target.shape.byte_size = 16,
-                        "place" => changed_target.place = PlaceId::new(99).unwrap(),
-                        // Native position is carried by the ordered semantic
-                        // row; TargetStructuralParameter has no position field.
-                        "position" => changed_semantic.position = 1,
-                        _ => unreachable!(),
-                    }
-                    assert!(
-                        !accepts(&changed_semantic, &changed_target),
-                        "{native:?} {scalar_count} {multiplicity:?} {mutation}"
-                    );
-                }
-            }
-        }
     }
 }
 

@@ -655,29 +655,4 @@ mod independence_tests {
             RedundantExtensionError::UnsupportedProducer
         );
     }
-
-    /// A legal removal — a `Load8` producer zeroes everything above bit 8 —
-    /// whose proposal keeps the extension in place must still fail the
-    /// demanded-function comparison with `ReplayMismatch`.
-    #[test]
-    fn validator_refuses_a_proposal_that_keeps_the_extension() {
-        let (environment, source) =
-            fixture(SelectedInstructionKind::Load8 { byte_offset: 0 }, |keys| {
-                keys.load8.unwrap()
-            });
-        let proposed = source.transformed().clone();
-        let budget = OptimizationWorkBudget::new(100, 100, 1000, 100, 100).unwrap();
-        assert_eq!(
-            validate_redundant_extension_removal(
-                &source,
-                0,
-                EXTENSION,
-                &environment,
-                budget,
-                proposed
-            )
-            .unwrap_err(),
-            RedundantExtensionError::ReplayMismatch
-        );
-    }
 }

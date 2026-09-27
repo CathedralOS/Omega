@@ -90,15 +90,6 @@ pub(crate) fn boolean_constant_unit(
     .unwrap()
 }
 
-pub(crate) fn boolean_unit(equal: bool) -> PsiOptimizationUnit {
-    let kind = if equal {
-        BooleanFixtureKind::Equal
-    } else {
-        BooleanFixtureKind::Not
-    };
-    boolean_constant_unit(kind, true, false)
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ComparisonFixtureKind {
     Equal,

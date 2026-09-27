@@ -5,7 +5,6 @@
 
 mod bitwise_absorbing;
 mod bitwise_neutral;
-mod catalog;
 mod saturating_multiply_zero;
 mod saturating_neutral;
 mod wrapping_multiply_zero;

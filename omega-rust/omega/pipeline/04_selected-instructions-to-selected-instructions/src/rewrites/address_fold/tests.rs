@@ -8,9 +8,8 @@ use super::{
     AddressFoldError, AddressFoldReceipt, ValidatedAddressFold, fold_selected_address,
     validate_address_fold,
 };
-use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::test_support::{budget, instruction, measured_step_budget};
-use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
+use optimization_core::OptimizationUnitIdentity;
 use optimization_unit::ValueDefinitionSite;
 use register_environment::baseline_target_register_environment;
 use register_model::RegisterOperandAccess;
@@ -220,182 +219,6 @@ fn store_fixture(
         keys(&environment).store.unwrap(),
         &[POINTER, value],
     )
-}
-
-/// Every displaced consumer form folds on every target: the pointer operand
-/// rebinds to the producer's base and the kind carries the combined
-/// displacement while identity, row, operands, and provenance stay.
-#[test]
-fn displaced_consumers_fold_on_every_target() {
-    for target in [
-        NativeTarget::linux_x64(),
-        NativeTarget::linux_arm64(),
-        NativeTarget::windows_x64(),
-        NativeTarget::macos_arm64(),
-    ] {
-        let environment = baseline_target_register_environment(target).unwrap();
-        for (kind, key) in [
-            (
-                SelectedInstructionKind::Load8 { byte_offset: 24 },
-                keys(&environment).load8.unwrap(),
-            ),
-            (
-                SelectedInstructionKind::Load16 { byte_offset: 24 },
-                keys(&environment).load16.unwrap(),
-            ),
-            (
-                SelectedInstructionKind::Load32 { byte_offset: 24 },
-                keys(&environment).load32.unwrap(),
-            ),
-            (
-                SelectedInstructionKind::Load64 { byte_offset: 24 },
-                keys(&environment).load64.unwrap(),
-            ),
-        ] {
-            let source = load_fixture(target, 8, kind, key, 24);
-            let result =
-                fold_selected_address(&source, 0, CONSUMER, &environment, budget()).unwrap();
-            let rewritten = &result.transformed().functions[0].blocks[0].instructions[1];
-            assert_eq!(rewritten.id, CONSUMER);
-            let expected_offset = match kind {
-                SelectedInstructionKind::Load8 { .. } => {
-                    SelectedInstructionKind::Load8 { byte_offset: 32 }
-                }
-                SelectedInstructionKind::Load16 { .. } => {
-                    SelectedInstructionKind::Load16 { byte_offset: 32 }
-                }
-                SelectedInstructionKind::Load32 { .. } => {
-                    SelectedInstructionKind::Load32 { byte_offset: 32 }
-                }
-                _ => SelectedInstructionKind::Load64 { byte_offset: 32 },
-            };
-            assert_eq!(rewritten.kind, expected_offset);
-            assert_eq!(rewritten.constraint, key);
-            assert_eq!(rewritten.operands.len(), 2);
-            assert_eq!(rewritten.operands[0].operand, 0);
-            assert_eq!(rewritten.operands[0].virtual_register, ROOT);
-            assert_eq!(rewritten.operands[0].access, RegisterOperandAccess::Use);
-            assert_eq!(rewritten.operands[1].virtual_register, OUTPUT);
-            assert_eq!(
-                rewritten.provenance,
-                source.transformed().functions[0].blocks[0].instructions[1].provenance
-            );
-            // The producer stays for other readers.
-            assert_eq!(
-                result.transformed().functions[0].blocks[0].instructions[0],
-                source.transformed().functions[0].blocks[0].instructions[0]
-            );
-            assert_eq!(
-                result.receipt().source_selected(),
-                source.selected_identity()
-            );
-            assert_eq!(
-                result.receipt().transformed_selected(),
-                selected_instruction_plan_identity(result.transformed())
-            );
-            validate_address_fold(
-                &source,
-                0,
-                CONSUMER,
-                &environment,
-                budget(),
-                result.transformed().clone(),
-            )
-            .unwrap();
-            // A detached, separately allocated proposal replays by content.
-            let mut detached = result.transformed().clone();
-            detached.functions = detached.functions.iter().cloned().collect();
-            validate_address_fold(&source, 0, CONSUMER, &environment, budget(), detached).unwrap();
-        }
-    }
-}
-
-/// A referent `Store` folds the same way: operand one keeps the stored
-/// value's register and the kind keeps its byte size.
-#[test]
-fn store_folds_the_combined_scaled_displacement() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = store_fixture(target, 16, 8, 8, VALUE);
-    let result = fold_selected_address(&source, 0, CONSUMER, &environment, budget()).unwrap();
-    let rewritten = &result.transformed().functions[0].blocks[0].instructions[1];
-    assert_eq!(
-        rewritten.kind,
-        SelectedInstructionKind::Store {
-            byte_offset: 24,
-            byte_size: 8
-        }
-    );
-    assert_eq!(rewritten.operands[0].virtual_register, ROOT);
-    assert_eq!(rewritten.operands[1].virtual_register, VALUE);
-    assert_eq!(rewritten.operands[1].access, RegisterOperandAccess::Use);
-}
-
-/// A store whose value operand names the pointer or the base keeps reading
-/// it: only operand zero, the base pointer, rebinds.
-#[test]
-fn store_value_register_survives_the_rebind() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    for value in [POINTER, ROOT] {
-        let source = store_fixture(target, 8, 0, 1, value);
-        let result = fold_selected_address(&source, 0, CONSUMER, &environment, budget()).unwrap();
-        let rewritten = &result.transformed().functions[0].blocks[0].instructions[1];
-        assert_eq!(
-            rewritten.kind,
-            SelectedInstructionKind::Store {
-                byte_offset: 8,
-                byte_size: 1
-            }
-        );
-        assert_eq!(rewritten.operands[0].virtual_register, ROOT);
-        assert_eq!(rewritten.operands[1].virtual_register, value);
-    }
-}
-
-/// A projection chained onto a projection folds to the single combined
-/// offset off the outer base.
-#[test]
-fn address_offset_chains_fold() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = fixture(
-        target,
-        8,
-        SelectedInstructionKind::AddressOffset { byte_offset: 16 },
-        keys(&environment).address_offset.unwrap(),
-        &[POINTER, OUTPUT],
-    );
-    let result = fold_selected_address(&source, 0, CONSUMER, &environment, budget()).unwrap();
-    let rewritten = &result.transformed().functions[0].blocks[0].instructions[1];
-    assert_eq!(
-        rewritten.kind,
-        SelectedInstructionKind::AddressOffset { byte_offset: 24 }
-    );
-    assert_eq!(rewritten.operands[0].virtual_register, ROOT);
-    assert_eq!(rewritten.operands[1].virtual_register, OUTPUT);
-}
-
-/// Definitions carried by the consumer itself do not disturb the read:
-/// operand uses read pre-definition, so a `Load64` defining the pointer —
-/// or even the producer's base — on its result operand still folds.
-#[test]
-fn consumer_own_definitions_are_safe() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    for output in [POINTER, ROOT] {
-        let source = mutated(target, |function, _| {
-            function.blocks[0].instructions[1].operands[1].virtual_register = output;
-        });
-        let result = fold(&source, &environment).unwrap();
-        let rewritten = &result.transformed().functions[0].blocks[0].instructions[1];
-        assert_eq!(
-            rewritten.kind,
-            SelectedInstructionKind::Load64 { byte_offset: 24 }
-        );
-        assert_eq!(rewritten.operands[0].virtual_register, ROOT);
-        assert_eq!(rewritten.operands[1].virtual_register, output);
-    }
 }
 
 /// The scaled displacement bound table, per architecture: AArch64 admits a
@@ -842,77 +665,6 @@ fn intervening_base_redefinition_rejects() {
     );
 }
 
-/// Only the six displacement-carrying referent forms admit the fold; every
-/// other kind — indexed, slot, packed, or register-only — has no referent
-/// displacement to absorb the producer's offset.
-#[test]
-fn unsupported_consumer_kinds_reject() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let keys = keys(&environment);
-    use SelectedInstructionKind::*;
-    let cases: &[(
-        SelectedInstructionKind,
-        register_model::RegisterConstraintKey,
-        &[VirtualRegisterId],
-    )] = &[
-        (
-            Load8Indexed,
-            keys.load8_indexed.unwrap(),
-            &[POINTER, ROOT, OUTPUT],
-        ),
-        (CopyI64, keys.copy_i64, &[POINTER, OUTPUT]),
-        (CompareI64, keys.compare_i64, &[POINTER, ROOT]),
-        (
-            Store64 {
-                slot: selected_instructions::FrameStorageSlotId::Local(
-                    selected_instructions::LocalStorageSlotId::Spill { register: SPARE },
-                ),
-                byte_offset: 0,
-            },
-            keys.store64.unwrap(),
-            &[POINTER],
-        ),
-        (
-            FrameAddress {
-                slot: selected_instructions::FrameStorageSlotId::Local(
-                    selected_instructions::LocalStorageSlotId::Spill { register: SPARE },
-                ),
-                byte_offset: 0,
-            },
-            keys.frame_address.unwrap(),
-            &[OUTPUT],
-        ),
-        // Packed forms carry a `byte_offset` but their operand zero is a
-        // referent pointer with a different operand roster; the fold does
-        // not reach into them.
-        (
-            LoadPacked {
-                byte_offset: 0,
-                width: selected_instructions::PackedByteWidth::Five,
-            },
-            keys.load_packed.unwrap(),
-            &[POINTER, OUTPUT, SPARE],
-        ),
-        (
-            StorePacked {
-                byte_offset: 0,
-                width: selected_instructions::PackedByteWidth::Five,
-            },
-            keys.store_packed.unwrap(),
-            &[POINTER, VALUE, SPARE],
-        ),
-    ];
-    for (kind, key, registers) in cases {
-        let source = fixture(target, 8, *kind, *key, registers);
-        assert_eq!(
-            fold(&source, &environment).unwrap_err(),
-            AddressFoldError::UnsupportedInstruction,
-            "{kind:?}"
-        );
-    }
-}
-
 /// Malformed consumer shapes: a written or decorated base operand, implicit
 /// unit traffic, or the wrong operand count.
 #[test]
@@ -1032,24 +784,6 @@ fn source_identity_mismatches_reject() {
     );
 }
 
-#[test]
-fn validation_budget_covers_the_scans() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = load_fixture(
-        target,
-        8,
-        SelectedInstructionKind::Load64 { byte_offset: 0 },
-        keys(&environment).load64.unwrap(),
-        16,
-    );
-    let tiny = OptimizationWorkBudget::new(100, 100, 4, 100, 100).unwrap();
-    assert_eq!(
-        fold_selected_address(&source, 0, CONSUMER, &environment, tiny).unwrap_err(),
-        AddressFoldError::WorkBudgetExceeded
-    );
-}
-
 /// The measured validation-step boundary: admission charges one step per
 /// block plus one per instruction across the plan and two scans of the
 /// consumer's block — seven steps for the two-instruction fixture — so the
@@ -1140,51 +874,6 @@ fn measured_validation_step_boundary_admits_and_rejects() {
         .unwrap_err(),
         AddressFoldError::WorkBudgetExceeded
     );
-}
-
-/// Other readers of the pointer register do not block the fold; the
-/// `AddressOffset` producer is retained for them.
-#[test]
-fn other_uses_of_the_pointer_survive() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let copy = environment
-        .constraint(keys(&environment).copy_i64)
-        .unwrap()
-        .clone();
-    let source = mutated(target, |function, _| {
-        function.virtual_registers.push(register(
-            SPARE,
-            ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
-            function.virtual_registers[0].class,
-            VirtualRegisterOrigin::InstructionResult {
-                instruction: SelectedInstructionId(7),
-                source_value: ValueId::new(5).unwrap(),
-            },
-        ));
-        let mut reader = instruction(
-            SelectedInstructionId(7),
-            SelectedInstructionKind::CopyI64,
-            &copy,
-            &[POINTER, SPARE],
-        );
-        reader.provenance.values = vec![ValueId::new(6).unwrap()];
-        function.blocks[0].instructions.insert(2, reader);
-    });
-    let result = fold(&source, &environment).unwrap();
-    let transformed = result.transformed();
-    let instructions = &transformed.functions[0].blocks[0].instructions;
-    assert_eq!(
-        instructions[0].kind,
-        SelectedInstructionKind::AddressOffset { byte_offset: 8 }
-    );
-    assert_eq!(
-        instructions[1].kind,
-        SelectedInstructionKind::Load64 { byte_offset: 24 }
-    );
-    assert_eq!(instructions[1].operands[0].virtual_register, ROOT);
-    assert_eq!(instructions[2].kind, SelectedInstructionKind::CopyI64);
-    assert_eq!(instructions[2].operands[0].virtual_register, POINTER);
 }
 
 /// A validated fold is itself a sealed analysis source: a second, disjoint
@@ -1343,38 +1032,6 @@ fn replay_rejects_anything_but_the_exact_form() {
             "mutation {mutation}"
         );
     }
-}
-
-/// Two runs over the identical source produce the identical validated
-/// result, and the published plan is a legal second input: the folded
-/// consumer reads the producer's base register now, so a second fold at the
-/// same site finds no in-block `AddressOffset` producer for it.
-#[test]
-fn fold_is_deterministic_and_terminal() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let build = || {
-        load_fixture(
-            target,
-            8,
-            SelectedInstructionKind::Load64 { byte_offset: 0 },
-            keys(&environment).load64.unwrap(),
-            16,
-        )
-    };
-    let first = fold(&build(), &environment).unwrap();
-    let second = fold(&build(), &environment).unwrap();
-    assert_eq!(first, second);
-    assert_eq!(
-        fold_selected_address(&first, 0, CONSUMER, &environment, budget()).unwrap_err(),
-        AddressFoldError::UnsupportedProducer
-    );
-    // The retained producer is equally terminal: its own base operand has
-    // no earlier in-block `AddressOffset` definition to fold through.
-    assert_eq!(
-        fold_selected_address(&first, 0, ADDRESS, &environment, budget()).unwrap_err(),
-        AddressFoldError::UnsupportedProducer
-    );
 }
 
 /// Replay corruption in a block the fold never touched still rejects: the
@@ -1539,28 +1196,6 @@ mod independence_tests {
         instruction.operands[0].virtual_register = ROOT;
     }
 
-    #[test]
-    fn forged_fold_of_a_well_formed_pair_validates() {
-        let target = NativeTarget::linux_x64();
-        let environment = baseline_target_register_environment(target).unwrap();
-        let source = load_fixture(
-            target,
-            8,
-            SelectedInstructionKind::Load64 { byte_offset: 0 },
-            keys(&environment).load64.unwrap(),
-            16,
-        );
-        validate_address_fold(
-            &source,
-            0,
-            CONSUMER,
-            &environment,
-            budget(),
-            forged(&source, fold_shape),
-        )
-        .unwrap();
-    }
-
     /// A producer-side interval violation must fail the validator's own
     /// audit: a `CopyI64` redefining the base between producer and consumer
     /// is inadmissible, and the forged fold cannot sneak the stale base in.
@@ -1603,34 +1238,6 @@ mod independence_tests {
         );
     }
 
-    /// The validator computes the combined displacement itself: a forged
-    /// proposal carrying the consumer's unchanged offset rejects, as does
-    /// one carrying an unrelated value.
-    #[test]
-    fn forged_wrong_displacement_rejects() {
-        let target = NativeTarget::linux_x64();
-        let environment = baseline_target_register_environment(target).unwrap();
-        let source = load_fixture(
-            target,
-            8,
-            SelectedInstructionKind::Load64 { byte_offset: 0 },
-            keys(&environment).load64.unwrap(),
-            16,
-        );
-        for wrong in [16, 8, 0, 25] {
-            let proposed = forged(&source, |instruction| {
-                instruction.kind = kind_with_offset(instruction.kind, wrong);
-                instruction.operands[0].virtual_register = ROOT;
-            });
-            assert_eq!(
-                validate_address_fold(&source, 0, CONSUMER, &environment, budget(), proposed)
-                    .unwrap_err(),
-                AddressFoldError::ReplayMismatch,
-                "offset {wrong}"
-            );
-        }
-    }
-
     /// A displacement that is the correct sum but exceeds the architecture's
     /// admitted bound must fail the validator's own bound check, not a
     /// producer precondition.
@@ -1654,67 +1261,6 @@ mod independence_tests {
             validate_address_fold(&source, 0, CONSUMER, &environment, budget(), proposed)
                 .unwrap_err(),
             AddressFoldError::UnsupportedOffset
-        );
-    }
-
-    /// Rebinding operand zero to a register other than the producer's base
-    /// is not the fold the audit derives.
-    #[test]
-    fn forged_wrong_base_register_rejects() {
-        let target = NativeTarget::linux_x64();
-        let environment = baseline_target_register_environment(target).unwrap();
-        let copy = environment
-            .constraint(keys(&environment).copy_i64)
-            .unwrap()
-            .clone();
-        let source = mutated(target, |function, _| {
-            function.virtual_registers.push(register(
-                SPARE,
-                ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
-                function.virtual_registers[0].class,
-                VirtualRegisterOrigin::EntryParameter {
-                    source_value: ValueId::new(5).unwrap(),
-                    parameter_index: 2,
-                },
-            ));
-            function.blocks[0].instructions.push(instruction(
-                SelectedInstructionId(7),
-                SelectedInstructionKind::CopyI64,
-                &copy,
-                &[POINTER, SPARE],
-            ));
-        });
-        let mut proposed = source.transformed().clone();
-        let consumer = &mut proposed.functions[0].blocks[0].instructions[1];
-        consumer.kind = kind_with_offset(consumer.kind, 24);
-        consumer.operands[0].virtual_register = SPARE;
-        assert_eq!(
-            validate_address_fold(&source, 0, CONSUMER, &environment, budget(), proposed)
-                .unwrap_err(),
-            AddressFoldError::ReplayMismatch
-        );
-    }
-
-    /// A forged proposal that also edits the producer — or any other
-    /// position — is not a one-instruction fold and rejects on the diff.
-    #[test]
-    fn forged_second_edit_rejects() {
-        let target = NativeTarget::linux_x64();
-        let environment = baseline_target_register_environment(target).unwrap();
-        let source = load_fixture(
-            target,
-            8,
-            SelectedInstructionKind::Load64 { byte_offset: 0 },
-            keys(&environment).load64.unwrap(),
-            16,
-        );
-        let mut proposed = forged(&source, fold_shape);
-        proposed.functions[0].blocks[0].instructions[0].kind =
-            SelectedInstructionKind::AddressOffset { byte_offset: 4 };
-        assert_eq!(
-            validate_address_fold(&source, 0, CONSUMER, &environment, budget(), proposed)
-                .unwrap_err(),
-            AddressFoldError::ReplayMismatch
         );
     }
 

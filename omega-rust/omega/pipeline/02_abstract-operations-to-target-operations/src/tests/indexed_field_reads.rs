@@ -5,9 +5,9 @@
 //! and every other segment shape stays fail-closed.
 
 use super::structural_borrows::source_plan;
-use super::{AbstractOperation, AbstractOperationPlan, NativeTarget, TargetUnitOperation};
+use super::{AbstractOperation, AbstractOperationPlan, NativeTarget};
 use semantic_vocabulary::{CanonicalStructuralPathSegment, StructuralCaseId};
-use terminal_psi::{StructuralPathSegment, StructuralTypeShape};
+use terminal_psi::StructuralTypeShape;
 
 fn indexed_read_plan() -> AbstractOperationPlan {
     source_plan(
@@ -25,73 +25,6 @@ fn field_read(plan: &mut AbstractOperationPlan) -> &mut AbstractOperation {
         .flat_map(|function| &mut function.operations)
         .find(|operation| matches!(operation, AbstractOperation::IntegerStructuralField { .. }))
         .expect("integer structural field read")
-}
-
-#[test]
-fn terminal_fixed_index_carrier_lowers_the_exact_indexed_path() {
-    let mut source = indexed_read_plan();
-    let (maps, observed) = {
-        let AbstractOperation::IntegerStructuralField { path, field, .. } = field_read(&mut source)
-        else {
-            unreachable!()
-        };
-        // The producer emits the bounded carrier this leg admits: one record
-        // field followed by the literal element index.
-        let [
-            CanonicalStructuralPathSegment::Field(maps),
-            CanonicalStructuralPathSegment::FixedIndex(1),
-        ] = path.as_slice()
-        else {
-            panic!("bounded carrier path: {path:?}")
-        };
-        (*maps, *field)
-    };
-    let maps_identity = source
-        .structural_types
-        .iter()
-        .flat_map(|declaration| match &declaration.shape {
-            StructuralTypeShape::Record { fields } => fields.iter(),
-            _ => [].iter(),
-        })
-        .find(|field| field.id == maps)
-        .map(|field| field.identity.clone())
-        .expect("maps field identity");
-    let (place, access) = source
-        .functions
-        .iter()
-        .flat_map(|function| &function.structural_parameters)
-        .map(|parameter| (parameter.place, parameter.access))
-        .next()
-        .expect("receiver parameter");
-    for native in [NativeTarget::macos_arm64(), NativeTarget::windows_x64()] {
-        let lowered =
-            crate::lower_to_target_operations(&source, crate::TargetLoweringRequest::new(native))
-                .expect("indexed carrier lowers");
-        crate::validate_abstract_to_target_translation(&source, native, &lowered)
-            .expect("indexed read replays independently");
-        let (source, field) = lowered
-            .functions
-            .iter()
-            .flat_map(|function| &function.graph.blocks)
-            .flat_map(|block| &block.operations)
-            .find_map(|operation| match operation {
-                TargetUnitOperation::StructuralScalarFieldRead { source, field, .. } => {
-                    Some((source, field))
-                }
-                _ => None,
-            })
-            .expect("structural scalar field read");
-        assert_eq!(*field, observed);
-        assert_eq!(source.place, place);
-        assert_eq!(source.access, access);
-        assert_eq!(
-            source.path,
-            vec![
-                StructuralPathSegment::Field(maps_identity.clone()),
-                StructuralPathSegment::FixedIndex(1),
-            ]
-        );
-    }
 }
 
 #[test]

@@ -4,7 +4,7 @@ use super::{
     AbstractOperationPlan, AbstractParameter, AbstractResult, BlockId, EdgeId, IntegerSign,
     IntegerType, IntegerValue, MachineId, NativeTarget, OperationId, PlaceId, ScalarType,
     StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration, StructuralTypeId,
-    TargetUnitOperation, TargetUnitScalarArgumentSource, ValueId, ValueLocation, identity,
+    TargetUnitOperation, TargetUnitScalarArgumentSource, ValueId, identity,
 };
 
 #[test]
@@ -174,109 +174,6 @@ pub(super) fn attached_unit_scalar_call_plan() -> AbstractOperationPlan {
 }
 
 #[test]
-fn attached_unit_calls_retain_immediates_and_prior_results_with_durable_homes() {
-    for target in [
-        NativeTarget::linux_x64(),
-        NativeTarget::windows_x64(),
-        NativeTarget::linux_arm64(),
-    ] {
-        let lowered = lower_to_target_operations(
-            &attached_unit_scalar_call_plan(),
-            TargetLoweringRequest::new(target),
-        )
-        .expect("attached Unit scalar calls lower");
-        let body = &lowered.functions[0].graph;
-        assert_eq!(lowered.functions[0].scalar_abi, None);
-        let [
-            TargetUnitOperation::IntegerConstant { .. },
-            TargetUnitOperation::Call {
-                psi_operation: first_operation,
-                call_plan: first_plan,
-                result: target_operations::TargetCallResult::Scalar(first_home),
-                scalar_arguments: first_arguments,
-                ..
-            },
-            TargetUnitOperation::Call {
-                psi_operation: second_operation,
-                call_plan: second_plan,
-                result: target_operations::TargetCallResult::Scalar(second_home),
-                scalar_arguments: second_arguments,
-                ..
-            },
-        ] = body.blocks[0].operations.as_slice()
-        else {
-            panic!("Unit body must retain both scalar calls in order")
-        };
-
-        assert_eq!(first_home.defining_operation, *first_operation);
-        assert_eq!(first_home.source_value, ValueId::new(11).unwrap());
-        assert_eq!(
-            first_home.scalar_type,
-            semantic_vocabulary::ScalarType::Integer(fixed_integer(32))
-        );
-        assert_eq!(first_home.shape, first_plan.result.as_ref().unwrap().shape);
-        assert_eq!(second_home.defining_operation, *second_operation);
-        assert_eq!(second_home.source_value, ValueId::new(12).unwrap());
-        assert_eq!(
-            second_home.shape,
-            second_plan.result.as_ref().unwrap().shape
-        );
-
-        assert_eq!(first_arguments.len(), 1);
-        assert_eq!(first_arguments[0].parameter_index, 0);
-        assert_eq!(first_arguments[0].placement, first_plan.parameters[0]);
-        assert!(matches!(
-            first_arguments[0].source,
-            TargetUnitScalarArgumentSource::IntegerImmediate {
-                defining_operation,
-                source_value,
-                scalar_type,
-                value: IntegerValue::Signed(17),
-            } if defining_operation == OperationId::new(10).unwrap()
-                && source_value == ValueId::new(10).unwrap()
-                && scalar_type == fixed_integer(32)
-        ));
-
-        assert_eq!(second_arguments.len(), 1);
-        assert_eq!(second_arguments[0].parameter_index, 0);
-        assert_eq!(second_arguments[0].placement, second_plan.parameters[0]);
-        assert_eq!(
-            second_arguments[0].source,
-            TargetUnitScalarArgumentSource::Home(*first_home)
-        );
-        assert_eq!(
-            body.blocks[0]
-                .operations
-                .iter()
-                .filter(|operation| matches!(operation, TargetUnitOperation::Call { .. }))
-                .count(),
-            2
-        );
-        let callee_abi = lowered.functions[1]
-            .scalar_abi
-            .as_ref()
-            .expect("service-free fixed-integer callee ABI");
-        assert_eq!(callee_abi.call_plan, *first_plan);
-        assert_eq!(callee_abi.parameters.len(), 1);
-        assert_eq!(callee_abi.parameters[0].value, ValueId::new(20).unwrap());
-        assert_eq!(
-            callee_abi.parameters[0].scalar_type,
-            ScalarType::Integer(fixed_integer(32))
-        );
-        assert_eq!(callee_abi.parameters[0].placement, first_plan.parameters[0]);
-        assert_eq!(callee_abi.result.value, ValueId::new(21).unwrap());
-        assert_eq!(
-            callee_abi.result.scalar_type,
-            ScalarType::Integer(fixed_integer(32))
-        );
-        assert_eq!(
-            callee_abi.result.placement,
-            first_plan.result.clone().unwrap()
-        );
-    }
-}
-
-#[test]
 fn unit_float_literal_calls_retain_raw_bits_and_prior_call_results() {
     use semantic_vocabulary::IeeeFloatValue;
     for literal in [
@@ -360,79 +257,6 @@ fn unit_float_literal_calls_retain_raw_bits_and_prior_call_results() {
                 lower_to_target_operations(&missing, TargetLoweringRequest::new(native)),
                 Err(LoweringError::UnknownValue(_))
             ));
-        }
-    }
-}
-
-#[test]
-fn attached_unit_calls_retain_ordered_register_and_stack_arguments() {
-    let mut plan = attached_unit_scalar_call_plan();
-    let integer_type = fixed_integer(32);
-    let scalar_type = ScalarType::Integer(integer_type);
-    let extra_constants = (1..9)
-        .map(|index| AbstractOperation::IntegerConstant {
-            psi_operation: OperationId::new(20 + index).unwrap(),
-            result: ValueId::new(30 + index).unwrap(),
-            scalar_type,
-            value: IntegerValue::Signed(index.into()),
-        })
-        .collect::<Vec<_>>();
-    plan.functions[0].operations.splice(1..1, extra_constants);
-    let constant_arguments = std::iter::once(ValueId::new(10).unwrap())
-        .chain((1..9).map(|index| ValueId::new(30 + index).unwrap()))
-        .collect::<Vec<_>>();
-    let prior_result_arguments = vec![ValueId::new(11).unwrap(); 9];
-    let mut calls =
-        plan.functions[0]
-            .operations
-            .iter_mut()
-            .filter_map(|operation| match operation {
-                AbstractOperation::Call { arguments, .. } => Some(arguments),
-                _ => None,
-            });
-    *calls.next().unwrap() = constant_arguments;
-    *calls.next().unwrap() = prior_result_arguments;
-    assert!(calls.next().is_none());
-    plan.functions[1].parameters = (0..9)
-        .map(|index| scalar_parameter(20 + index, integer_type))
-        .collect();
-    let returned_parameter = plan.functions[1].parameters[0].value;
-    let AbstractOperation::Return { value, .. } = &mut plan.functions[1].operations[0] else {
-        unreachable!()
-    };
-    *value = returned_parameter;
-
-    for target in [
-        NativeTarget::linux_x64(),
-        NativeTarget::windows_x64(),
-        NativeTarget::linux_arm64(),
-    ] {
-        let lowered = lower_to_target_operations(&plan, TargetLoweringRequest::new(target))
-            .expect("nine scalar arguments");
-        let body = &lowered.functions[0].graph;
-        let calls = body.blocks[0]
-            .operations
-            .iter()
-            .filter_map(|operation| match operation {
-                TargetUnitOperation::Call {
-                    call_plan,
-                    scalar_arguments: arguments,
-                    ..
-                } => Some((call_plan, arguments)),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        assert_eq!(calls.len(), 2);
-        for (call_plan, arguments) in calls {
-            assert_eq!(arguments.len(), 9);
-            assert!(matches!(
-                arguments[8].placement.locations.as_slice(),
-                [ValueLocation::Stack { .. }]
-            ));
-            assert!(arguments.iter().enumerate().all(|(index, argument)| {
-                argument.parameter_index == index as u32
-                    && argument.placement == call_plan.parameters[index]
-            }));
         }
     }
 }

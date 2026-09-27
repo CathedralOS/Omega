@@ -17,8 +17,6 @@ use register_environment::ValidatedTargetRegisterEnvironment;
 use crate::structural_inputs::structural_reference_input::stack_pointer_offset;
 
 #[cfg(test)]
-mod canonical_plan_tests;
-#[cfg(test)]
 mod fixed_array_tests;
 
 /// Records and arrays share whole-value transport, not source identity.

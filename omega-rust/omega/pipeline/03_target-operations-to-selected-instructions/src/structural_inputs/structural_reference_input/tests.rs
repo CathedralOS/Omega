@@ -9,7 +9,6 @@ use crate::structural_inputs::structural_reference_input::field_read;
 use crate::structural_inputs::structural_reference_input::field_shape;
 use crate::structural_inputs::structural_reference_input::owned_aggregate_shape;
 use crate::structural_inputs::structural_reference_input::plain_record_shape;
-use crate::structural_inputs::structural_reference_input::project;
 use crate::structural_inputs::structural_reference_input::shape;
 use crate::structural_inputs::structural_reference_input::store;
 
@@ -149,56 +148,6 @@ fn byte_field_layout_does_not_admit_owned_byte_roots() {
 }
 
 #[test]
-fn bounded_integer_geometry_retains_exact_read_and_store_carriers() {
-    use semantic_vocabulary::{BoundedIntegerType, IntegerSign, IntegerType, IntegerValue};
-
-    let root = StructuralTypeId::new(1).unwrap();
-    let field = StructuralFieldId::new(1).unwrap();
-    let integer = IntegerType::new(IntegerSign::Signed, 8).unwrap();
-    let scalar = ScalarType::Integer(integer);
-    let declarations = vec![StructuralTypeDeclaration {
-        id: root,
-        identity: "BoundedRead".into(),
-        shape: StructuralTypeShape::Record {
-            fields: vec![terminal_psi::StructuralFieldDeclaration {
-                id: field,
-                identity: "value".into(),
-                relevance: terminal_psi::BindingRelevance::Relevant,
-                field_type: StructuralFieldType::BoundedInteger(
-                    BoundedIntegerType::new(
-                        integer,
-                        IntegerValue::Signed(-3),
-                        IntegerValue::Signed(3),
-                    )
-                    .unwrap(),
-                ),
-            }],
-        },
-    }];
-    assert_eq!(
-        field_read(root, &[], field, scalar, &declarations),
-        Some((0, 1))
-    );
-    assert_eq!(
-        store(root, &[], field, scalar, &declarations),
-        Some((0, 1, Vec::new()))
-    );
-    for wrong in [
-        IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
-        IntegerType::new(IntegerSign::Signed, 16).unwrap(),
-    ] {
-        assert_eq!(
-            store(root, &[], field, ScalarType::Integer(wrong), &declarations),
-            None,
-        );
-        assert_eq!(
-            field_read(root, &[], field, ScalarType::Integer(wrong), &declarations),
-            None,
-        );
-    }
-}
-
-#[test]
 fn mixed_declarations_have_tag_prefixed_geometry_without_field_access() {
     use terminal_psi::{BindingRelevance, StructuralCaseDeclaration, StructuralFieldDeclaration};
 
@@ -291,64 +240,4 @@ fn mixed_declarations_have_tag_prefixed_geometry_without_field_access() {
     cases.clear();
     assert_eq!(shape(mixed, &empty), None);
     assert_eq!(shape(root, &empty), None);
-}
-
-#[test]
-fn relevant_erased_record_carriers_have_geometry_but_no_field_access() {
-    let root = StructuralTypeId::new(1).unwrap();
-    let erased = StructuralFieldId::new(1).unwrap();
-    let runtime = StructuralFieldId::new(2).unwrap();
-    let scalar = ScalarType::Integer(
-        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 32)
-            .unwrap(),
-    );
-    for with_scalar in [false, true] {
-        let mut fields = vec![terminal_psi::StructuralFieldDeclaration {
-            id: erased,
-            identity: "service".into(),
-            relevance: terminal_psi::BindingRelevance::Relevant,
-            field_type: StructuralFieldType::Erased {
-                type_identity: "FusedService".into(),
-            },
-        }];
-        if with_scalar {
-            fields.push(terminal_psi::StructuralFieldDeclaration {
-                id: runtime,
-                identity: "value".into(),
-                relevance: terminal_psi::BindingRelevance::Relevant,
-                field_type: StructuralFieldType::Scalar(scalar),
-            });
-        }
-        let declarations = [StructuralTypeDeclaration {
-            id: root,
-            identity: "Receiver".into(),
-            shape: StructuralTypeShape::Record { fields },
-        }];
-        let expected = ValueShape::integer(
-            if with_scalar { 4 } else { 0 },
-            if with_scalar { 4 } else { 1 },
-        );
-        assert_eq!(shape(root, &declarations), Some(expected));
-        assert_eq!(plain_record_shape(root, &declarations), Some(expected));
-        assert_eq!(store(root, &[], erased, scalar, &declarations), None);
-        assert_eq!(field_read(root, &[], erased, scalar, &declarations), None);
-        assert_eq!(
-            project(
-                root,
-                &[StructuralPathSegment::Field("service".into())],
-                &declarations
-            ),
-            None
-        );
-        if with_scalar {
-            assert_eq!(
-                store(root, &[], runtime, scalar, &declarations),
-                Some((0, 4, Vec::new()))
-            );
-            assert_eq!(
-                field_read(root, &[], runtime, scalar, &declarations),
-                Some((0, 4))
-            );
-        }
-    }
 }

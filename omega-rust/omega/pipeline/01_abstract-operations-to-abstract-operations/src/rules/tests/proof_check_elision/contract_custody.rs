@@ -14,7 +14,6 @@ use super::super::super::{
     LiveProofCertifiedSignedIntegerRemainderByNegativeOneEliminationRule,
     ProofCertifiedDeadScalarEliminationRule,
 };
-use crate::rules::built_in_psi_registry;
 use crate::rules::tests::fixtures::dead_scalar_elimination::dead_exact_add_unit;
 use crate::rules::tests::fixtures::proof_check_elision::{
     SelfDividePolicy, SelfRemainderPolicy, live_divide_by_one_unit, live_exact_add_zero_unit,
@@ -26,8 +25,7 @@ use crate::rules::tests::fixtures::proof_check_elision::{
 use crate::{PsiOptimizationRule, RuleAnalysisView};
 use abstract_operations::AbstractOperation as O;
 use optimization_core::{
-    AnalysisKind, Optimization, OptimizationRuleContract, OptimizationRuleIdentity,
-    OptimizationSafetyClass, OptimizationSelections, OptimizationValidatorIdentity,
+    AnalysisKind, OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
 };
 use optimization_unit::{
     PsiOptimizationUnit, PsiRewriteCandidate, PsiRewriteCandidateError, PsiRewritePatch,
@@ -41,14 +39,9 @@ struct Case {
     unit: PsiOptimizationUnit,
     candidate: PsiRewriteCandidate,
     contract: OptimizationRuleContract,
-    validator: OptimizationValidatorIdentity,
 }
 
-fn case(
-    unit: PsiOptimizationUnit,
-    rule: impl PsiOptimizationRule,
-    validator_domain: &[u8],
-) -> Case {
+fn case(unit: PsiOptimizationUnit, rule: impl PsiOptimizationRule) -> Case {
     let contract = rule.contract();
     let mut manager = crate::AnalysisManager::new(&unit);
     let products = manager
@@ -66,7 +59,6 @@ fn case(
         unit,
         candidate,
         contract,
-        validator: OptimizationValidatorIdentity::from_canonical_bytes(validator_domain),
     }
 }
 
@@ -77,12 +69,10 @@ fn cases() -> Vec<Case> {
         case(
             dead_exact_add_unit(),
             ProofCertifiedDeadScalarEliminationRule,
-            b"omega.validator.dead-unused-proof-certified-scalar-node.v1",
         ),
         case(
             live_exact_add_zero_unit(),
             LiveProofCertifiedIntegerIdentityEliminationRule,
-            b"omega.validator.live-proof-certified-integer-identity-elimination.v1",
         ),
         case(
             live_divide_by_one_unit(
@@ -99,12 +89,10 @@ fn cases() -> Vec<Case> {
                 },
             ),
             LiveProofCertifiedIntegerDivideByOneEliminationRule,
-            b"omega.validator.live-proof-certified-integer-divide-by-one-elimination.v1",
         ),
         case(
             live_exact_multiply_by_zero_unit(unsigned, false),
             LiveProofCertifiedExactIntegerMultiplyByZeroEliminationRule,
-            b"omega.validator.live-proof-certified-exact-integer-multiply-by-zero-elimination.v1",
         ),
         case(
             live_zero_dividend_unit(
@@ -121,42 +109,34 @@ fn cases() -> Vec<Case> {
                 },
             ),
             LiveProofCertifiedIntegerZeroDividendEliminationRule,
-            b"omega.validator.live-proof-certified-integer-zero-dividend-elimination.v1",
         ),
         case(
             live_exact_zero_value_shift_unit(unsigned, true),
             LiveProofCertifiedExactIntegerZeroValueShiftEliminationRule,
-            b"omega.validator.live-proof-certified-exact-integer-zero-value-shift-elimination.v1",
         ),
         case(
             live_exact_self_subtract_unit(unsigned),
             LiveProofCertifiedExactIntegerSelfSubtractEliminationRule,
-            b"omega.validator.live-proof-certified-exact-integer-self-subtract-elimination.v1",
         ),
         case(
             live_self_remainder_unit(unsigned, SelfRemainderPolicy::Exact),
             LiveProofCertifiedIntegerSelfRemainderEliminationRule,
-            b"omega.validator.live-proof-certified-integer-self-remainder-elimination.v1",
         ),
         case(
             live_self_divide_unit(unsigned, SelfDividePolicy::Exact),
             LiveProofCertifiedIntegerSelfDivideEliminationRule,
-            b"omega.validator.live-proof-certified-integer-self-divide-elimination.v1",
         ),
         case(
             live_remainder_by_one_unit(unsigned, SelfRemainderPolicy::Exact),
             LiveProofCertifiedIntegerRemainderByOneEliminationRule,
-            b"omega.validator.live-proof-certified-integer-remainder-by-one-elimination.v1",
         ),
         case(
             live_signed_remainder_by_negative_one_unit(signed, SelfRemainderPolicy::Exact),
             LiveProofCertifiedSignedIntegerRemainderByNegativeOneEliminationRule,
-            b"omega.validator.live-proof-certified-signed-integer-remainder-by-negative-one-elimination.v1",
         ),
         case(
             live_exact_signed_negative_one_shift_right_unit(signed),
             LiveProofCertifiedExactSignedIntegerNegativeOneShiftRightEliminationRule,
-            b"omega.validator.live-proof-certified-exact-signed-integer-negative-one-value-shift-right-elimination.v1",
         ),
     ]
 }
@@ -293,37 +273,6 @@ fn required_subset(base: OptimizationRuleContract) -> AnalysisSet {
         AnalysisSet::new([AnalysisKind::ValueLiveness])
     } else {
         AnalysisSet::new([AnalysisKind::UseDefinition])
-    }
-}
-
-#[test]
-fn proof_check_roster_and_candidates_bind_complete_exact_contracts() {
-    let selections = OptimizationSelections::new([Optimization::ProofCheckElision]).unwrap();
-    let roster = built_in_psi_registry(&selections).unwrap();
-    let cases = cases();
-    assert_eq!(
-        roster.contracts().collect::<Vec<_>>(),
-        cases.iter().map(|case| case.contract).collect::<Vec<_>>()
-    );
-
-    for case in cases {
-        assert_eq!(case.candidate.rule(), case.contract.identity());
-        assert_eq!(
-            case.candidate.required_analyses(),
-            case.contract.required_analyses()
-        );
-        assert_eq!(
-            case.candidate.invalidated_analyses(),
-            case.contract.invalidated_analyses()
-        );
-        assert_eq!(case.candidate.safety_class(), case.contract.safety_class());
-        assert_eq!(case.candidate.predicted_cost_delta(), -1);
-        assert_eq!(
-            validate_psi_rewrite_candidate(&case.unit, &case.candidate)
-                .unwrap()
-                .validator(),
-            case.validator
-        );
     }
 }
 

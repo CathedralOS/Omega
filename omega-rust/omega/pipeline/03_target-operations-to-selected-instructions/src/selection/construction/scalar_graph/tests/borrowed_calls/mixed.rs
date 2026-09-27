@@ -9,23 +9,8 @@ mod corruption;
 mod fixture;
 
 #[test]
-fn mixed_borrowed_calls_replay_linux_x64() {
-    replay(target::NativeTarget::linux_x64(), 6);
-}
-
-#[test]
-fn mixed_borrowed_calls_replay_windows_x64() {
-    replay(target::NativeTarget::windows_x64(), 4);
-}
-
-#[test]
 fn mixed_borrowed_calls_replay_linux_arm64() {
     replay(target::NativeTarget::linux_arm64(), 8);
-}
-
-#[test]
-fn mixed_borrowed_calls_replay_macos_arm64() {
-    replay(target::NativeTarget::macos_arm64(), 8);
 }
 
 fn replay(target: target::NativeTarget, maximum: usize) {

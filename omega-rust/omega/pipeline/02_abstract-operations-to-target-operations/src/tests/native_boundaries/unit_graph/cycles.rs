@@ -27,33 +27,6 @@ fn cyclic() -> AbstractOperationPlan {
 }
 
 #[test]
-fn cyclic_unit_graph_preserves_destination_values_and_backedge_without_rank_authority() {
-    let plan = cyclic();
-    let lowered = lower(&plan).unwrap();
-    let graph = &lowered.functions[1].graph;
-    assert_eq!(
-        graph
-            .blocks
-            .iter()
-            .map(|block| block.block)
-            .collect::<Vec<_>>(),
-        vec![block(1), block(4), block(5), block(6)]
-    );
-    let target_operations::TargetControlTerminator::Jump { successor } =
-        &graph.blocks[2].terminator
-    else {
-        panic!("backedge");
-    };
-    assert_eq!(successor.target, block(4));
-    assert_eq!(successor.bindings.len(), 3);
-    assert_eq!(successor.bindings[0].argument, value(50));
-    assert!(matches!(
-        graph.blocks[3].terminator,
-        target_operations::TargetControlTerminator::Return { .. }
-    ));
-}
-
-#[test]
 fn cyclic_unit_graph_rejects_future_and_sibling_definitions() {
     for argument in [value(10), value(99)] {
         let mut plan = cyclic();

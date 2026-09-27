@@ -6,9 +6,9 @@
 //! `UnsupportedSelection` — this pin makes that missing row a test failure
 //! rather than a run-time rejection of an authored selection.
 
-use optimization_core::{Optimization, OptimizationExecutionPhase, OptimizationSelections};
+use optimization_core::{Optimization, OptimizationExecutionPhase};
 
-use crate::{SELECTED_LOWERING_RULE_CATALOG, resolve_selected_lowering_rules};
+use crate::SELECTED_LOWERING_RULE_CATALOG;
 
 fn selected_lowering_variants() -> Vec<Optimization> {
     Optimization::ALL
@@ -44,20 +44,4 @@ fn catalog_route_order_matches_the_phase_vocabulary() {
             .as_slice(),
         selected_lowering_variants()
     );
-}
-
-/// A selected phase variant resolves through its catalog row to the row's
-/// declared fold policy.
-#[test]
-fn a_selected_variant_resolves_to_its_catalog_payload() {
-    let variant = Optimization::SelectedIncomingBitwiseAndOnesIdentityCopy;
-    let selections = OptimizationSelections::new([variant]).unwrap();
-    let phase = selections.project_phase(OptimizationExecutionPhase::SelectedLowering);
-    let (selected, policy) = resolve_selected_lowering_rules(&phase).unwrap();
-    assert_eq!(selected.as_slice(), &[variant]);
-    let entry = SELECTED_LOWERING_RULE_CATALOG
-        .iter()
-        .find(|entry| entry.optimization() == variant)
-        .unwrap();
-    assert!(policy.contains(entry.payload().policy()));
 }

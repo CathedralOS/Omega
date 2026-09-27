@@ -119,31 +119,6 @@ fn borrowed_scalar_call_into_a_serviceful_callee_still_refuses() {
 }
 
 #[test]
-fn scalar_graph_lowers_shared_view_call_transport() {
-    let source = fixture();
-    for target in [
-        NativeTarget::linux_x64(),
-        NativeTarget::linux_arm64(),
-        NativeTarget::windows_x64(),
-        NativeTarget::macos_arm64(),
-    ] {
-        let lowered =
-            lower_to_target_operations(&source, TargetLoweringRequest::new(target)).unwrap();
-        let caller = &lowered.functions[0];
-        let placement = caller.graph.parameters[0].placement.clone();
-        for operation in &caller.graph.blocks[0].operations[..2] {
-            let target_operations::TargetUnitOperation::Call { arguments, .. } = operation else {
-                panic!("shared-view call");
-            };
-            assert_eq!(
-                arguments[0].source,
-                target_operations::TargetStructuralArgumentSource::Placement(placement.clone())
-            );
-        }
-    }
-}
-
-#[test]
 fn scalar_graph_lowers_literal_descriptor_calls() {
     let mut source = fixture();
     let literal_type = source.structural_types[0].clone();

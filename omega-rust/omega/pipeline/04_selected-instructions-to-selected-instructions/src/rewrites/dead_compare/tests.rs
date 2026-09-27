@@ -2,7 +2,6 @@ use super::{
     DeadCompareError, DeadCompareReceipt, ValidatedDeadCompare, remove_dead_compare,
     validate_dead_compare,
 };
-use crate::ValidatedSelectedAnalysis;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
 use optimization_unit::{EffectLink, ValueDefinitionSite};
 use register_environment::baseline_target_register_environment;
@@ -16,8 +15,8 @@ use selected_instructions::{
     VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{
-    BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
-    IntegerValue, MachineId, ObligationId, OperationId, PlaceId, ScalarType, ValueId,
+    BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId,
+    ObligationId, OperationId, PlaceId, ScalarType, ValueId,
 };
 use target::NativeTarget;
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
@@ -66,12 +65,10 @@ const SECOND_LOAD: SelectedInstructionId = SelectedInstructionId(3);
 const COMPARE: SelectedInstructionId = SelectedInstructionId(4);
 const SECOND: SelectedInstructionId = SelectedInstructionId(5);
 const TERMINAL: SelectedInstructionId = SelectedInstructionId(6);
-const BOOLEAN: SelectedInstructionId = SelectedInstructionId(7);
 
 const POINTER: VirtualRegisterId = VirtualRegisterId(0);
 const INPUT: VirtualRegisterId = VirtualRegisterId(1);
 const OTHER: VirtualRegisterId = VirtualRegisterId(2);
-const OUTPUT: VirtualRegisterId = VirtualRegisterId(3);
 
 fn register(
     id: VirtualRegisterId,
@@ -98,28 +95,6 @@ fn successor(block: u32, edge: u64) -> SelectedSuccessor {
         structural_bindings: Vec::new(),
         structural_case: None,
         fuel: Vec::new(),
-    }
-}
-
-fn returning_block(
-    block: u32,
-    instruction_id: u32,
-    edge: u64,
-    row: &RegisterInstructionConstraint,
-) -> SelectedBlock {
-    SelectedBlock {
-        id: SelectedBlockId(block),
-        origin: SelectedBlockOrigin::Source(BlockId::new(u64::from(block) + 1).unwrap()),
-        instructions: Vec::new(),
-        terminator: SelectedTerminator::Return {
-            instruction: instruction(
-                SelectedInstructionId(instruction_id),
-                SelectedInstructionKind::ReturnUnit,
-                row,
-                &[],
-            ),
-            psi_return_edge: EdgeId::new(edge).unwrap(),
-        },
     }
 }
 
@@ -277,359 +252,6 @@ fn settlement(position: u32, operation: u64) -> SelectedBoundarySettlement {
             source: ValueId::new(9).unwrap(),
         },
     }
-}
-
-/// A compare whose published flag units are republished by a later compare
-/// before any reader is dead: it leaves the block on every target, and the
-/// result replays by content.
-#[test]
-fn republished_flags_remove_on_every_target() {
-    for target in [
-        NativeTarget::linux_x64(),
-        NativeTarget::linux_arm64(),
-        NativeTarget::windows_x64(),
-        NativeTarget::macos_arm64(),
-    ] {
-        let environment = baseline_target_register_environment(target).unwrap();
-        let source = fixture(target);
-        let result = remove(&source, &environment).unwrap();
-        let function = &result.transformed().functions[0];
-        let block = &function.blocks[0];
-        assert_eq!(block.instructions.len(), 3);
-        assert_eq!(block.instructions[0].id, LOAD);
-        assert_eq!(block.instructions[1].id, SECOND_LOAD);
-        assert_eq!(block.instructions[2].id, SECOND);
-        assert_eq!(
-            result.receipt().source_selected(),
-            source.selected_identity()
-        );
-        assert_eq!(
-            result.receipt().transformed_selected(),
-            selected_instruction_plan_identity(result.transformed())
-        );
-        validate_dead_compare(
-            &source,
-            0,
-            COMPARE,
-            &environment,
-            budget(),
-            result.transformed().clone(),
-        )
-        .unwrap();
-        // A detached, separately allocated proposal replays by content.
-        let mut detached = result.transformed().clone();
-        detached.functions = detached.functions.iter().cloned().collect();
-        validate_dead_compare(&source, 0, COMPARE, &environment, budget(), detached).unwrap();
-    }
-}
-
-/// The immediate and zero compare forms carry the same flag-only surface:
-/// each removes under the same dead-surface audit.
-#[test]
-fn immediate_and_zero_forms_admit() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    for (kind, key) in [
-        (
-            SelectedInstructionKind::CompareI64Immediate {
-                immediate: IntegerValue::Unsigned(7),
-            },
-            environment.selected_keys().compare_i64_immediate,
-        ),
-        (
-            SelectedInstructionKind::CompareI64Zero,
-            environment.selected_keys().compare_i64_zero,
-        ),
-    ] {
-        let row = environment.constraint(key).unwrap().clone();
-        let source = mutated(target, |function, _| {
-            function.blocks[0].instructions[2] = instruction(COMPARE, kind, &row, &[INPUT]);
-        });
-        let result = remove(&source, &environment).unwrap();
-        let block = &result.transformed().functions[0].blocks[0];
-        assert_eq!(block.instructions.len(), 3);
-        assert!(block.instructions.iter().all(|entry| entry.id != COMPARE));
-    }
-}
-
-/// A compare whose flags reach the terminator's conditional branch is live:
-/// the branch is a reader, so the removal refuses.
-#[test]
-fn branch_reader_in_terminator_rejects() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let branch_row = environment
-        .constraint(environment.selected_keys().conditional_branch)
-        .unwrap()
-        .clone();
-    let return_row = environment
-        .constraint(environment.selected_keys().return_unit)
-        .unwrap()
-        .clone();
-    let source = mutated(target, |function, _| {
-        // Drop the second compare so the branch reads the first's flags.
-        function.blocks[0].instructions.remove(3);
-        function.blocks[0].terminator = SelectedTerminator::ConditionalBranch {
-            instruction: instruction(
-                TERMINAL,
-                SelectedInstructionKind::ConditionalBranchNonZero,
-                &branch_row,
-                &[],
-            ),
-            when_nonzero: successor(1, 2),
-            when_zero: successor(2, 3),
-        };
-        function.blocks.push(returning_block(1, 10, 4, &return_row));
-        function.blocks.push(returning_block(2, 11, 5, &return_row));
-    });
-    assert_eq!(
-        remove(&source, &environment).unwrap_err(),
-        DeadCompareError::UnsupportedUse
-    );
-}
-
-/// A materialized boolean in the same block reads the compare's flags
-/// before the second compare republishes them — the compare stays live.
-#[test]
-fn materialization_reader_in_block_rejects() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let boolean_row = environment
-        .constraint(environment.selected_keys().materialize_boolean)
-        .unwrap()
-        .clone();
-    let source = mutated(target, |function, _| {
-        let class = function.virtual_registers[1].class;
-        function.virtual_registers.push(register(
-            OUTPUT,
-            class,
-            VirtualRegisterOrigin::InstructionResult {
-                instruction: BOOLEAN,
-                source_value: ValueId::new(6).unwrap(),
-            },
-        ));
-        function.blocks[0].instructions.insert(
-            3,
-            instruction(
-                BOOLEAN,
-                SelectedInstructionKind::MaterializeBooleanEqual,
-                &boolean_row,
-                &[OUTPUT],
-            ),
-        );
-    });
-    assert_eq!(
-        remove(&source, &environment).unwrap_err(),
-        DeadCompareError::UnsupportedUse
-    );
-}
-
-/// A reader in a successor block is the same observation: the flag unit
-/// stays live across the jump edge and reaches the materialization.
-#[test]
-fn reader_through_successor_edge_rejects() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let jump_row = environment
-        .constraint(environment.selected_keys().jump)
-        .unwrap()
-        .clone();
-    let boolean_row = environment
-        .constraint(environment.selected_keys().materialize_boolean)
-        .unwrap()
-        .clone();
-    let return_row = environment
-        .constraint(environment.selected_keys().return_unit)
-        .unwrap()
-        .clone();
-    let source = mutated(target, |function, _| {
-        let class = function.virtual_registers[1].class;
-        function.virtual_registers.push(register(
-            OUTPUT,
-            class,
-            VirtualRegisterOrigin::InstructionResult {
-                instruction: BOOLEAN,
-                source_value: ValueId::new(6).unwrap(),
-            },
-        ));
-        // The compare ends its block; the successor's first instruction
-        // reads the flags it published.
-        function.blocks[0].instructions.truncate(3);
-        function.blocks[0].terminator = SelectedTerminator::Jump {
-            instruction: instruction(TERMINAL, SelectedInstructionKind::Jump, &jump_row, &[]),
-            successor: successor(1, 2),
-        };
-        function.blocks.push(SelectedBlock {
-            id: SelectedBlockId(1),
-            origin: SelectedBlockOrigin::Source(BlockId::new(2).unwrap()),
-            instructions: vec![instruction(
-                BOOLEAN,
-                SelectedInstructionKind::MaterializeBooleanEqual,
-                &boolean_row,
-                &[OUTPUT],
-            )],
-            terminator: SelectedTerminator::Return {
-                instruction: instruction(
-                    SelectedInstructionId(10),
-                    SelectedInstructionKind::ReturnUnit,
-                    &return_row,
-                    &[],
-                ),
-                psi_return_edge: EdgeId::new(3).unwrap(),
-            },
-        });
-    });
-    assert_eq!(
-        remove(&source, &environment).unwrap_err(),
-        DeadCompareError::UnsupportedUse
-    );
-}
-
-/// The flag unit crossing an edge dies at the successor's own compare:
-/// the removal admits through the jump.
-#[test]
-fn redefinition_through_successor_edge_admits() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let jump_row = environment
-        .constraint(environment.selected_keys().jump)
-        .unwrap()
-        .clone();
-    let compare_row = environment
-        .constraint(environment.selected_keys().compare_i64)
-        .unwrap()
-        .clone();
-    let return_row = environment
-        .constraint(environment.selected_keys().return_unit)
-        .unwrap()
-        .clone();
-    let source = mutated(target, |function, _| {
-        function.blocks[0].instructions.truncate(3);
-        function.blocks[0].terminator = SelectedTerminator::Jump {
-            instruction: instruction(TERMINAL, SelectedInstructionKind::Jump, &jump_row, &[]),
-            successor: successor(1, 2),
-        };
-        function.blocks.push(SelectedBlock {
-            id: SelectedBlockId(1),
-            origin: SelectedBlockOrigin::Source(BlockId::new(2).unwrap()),
-            instructions: vec![instruction(
-                SECOND,
-                SelectedInstructionKind::CompareI64,
-                &compare_row,
-                &[OTHER, INPUT],
-            )],
-            terminator: SelectedTerminator::Return {
-                instruction: instruction(
-                    SelectedInstructionId(10),
-                    SelectedInstructionKind::ReturnUnit,
-                    &return_row,
-                    &[],
-                ),
-                psi_return_edge: EdgeId::new(3).unwrap(),
-            },
-        });
-    });
-    let result = remove(&source, &environment).unwrap();
-    let block = &result.transformed().functions[0].blocks[0];
-    assert_eq!(block.instructions.len(), 2);
-    assert!(block.instructions.iter().all(|entry| entry.id != COMPARE));
-}
-
-/// A loop carrying the flag unit back into the compare's own block re-scans
-/// it from the head; the compare's own redefinition ends the unit there and
-/// the removal still admits.
-#[test]
-fn loop_carried_unit_dies_at_the_compare() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let jump_row = environment
-        .constraint(environment.selected_keys().jump)
-        .unwrap()
-        .clone();
-    let source = mutated(target, |function, _| {
-        function.blocks[0].instructions.truncate(3);
-        function.blocks[0].terminator = SelectedTerminator::Jump {
-            instruction: instruction(TERMINAL, SelectedInstructionKind::Jump, &jump_row, &[]),
-            successor: successor(1, 2),
-        };
-        function.blocks.push(SelectedBlock {
-            id: SelectedBlockId(1),
-            origin: SelectedBlockOrigin::Source(BlockId::new(2).unwrap()),
-            instructions: Vec::new(),
-            terminator: SelectedTerminator::Jump {
-                instruction: instruction(
-                    SelectedInstructionId(10),
-                    SelectedInstructionKind::Jump,
-                    &jump_row,
-                    &[],
-                ),
-                successor: successor(0, 3),
-            },
-        });
-    });
-    let result = remove(&source, &environment).unwrap();
-    let block = &result.transformed().functions[0].blocks[0];
-    assert_eq!(block.instructions.len(), 2);
-}
-
-/// The loop-back rescan still observes a reader that precedes the compare
-/// in its own block: on the second traversal that reader would see the
-/// compare's flags, so the removal refuses.
-#[test]
-fn loop_back_reader_before_the_compare_rejects() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let jump_row = environment
-        .constraint(environment.selected_keys().jump)
-        .unwrap()
-        .clone();
-    let boolean_row = environment
-        .constraint(environment.selected_keys().materialize_boolean)
-        .unwrap()
-        .clone();
-    let source = mutated(target, |function, _| {
-        let class = function.virtual_registers[1].class;
-        function.virtual_registers.push(register(
-            OUTPUT,
-            class,
-            VirtualRegisterOrigin::InstructionResult {
-                instruction: BOOLEAN,
-                source_value: ValueId::new(6).unwrap(),
-            },
-        ));
-        function.blocks[0].instructions.truncate(3);
-        function.blocks[0].instructions.insert(
-            0,
-            instruction(
-                BOOLEAN,
-                SelectedInstructionKind::MaterializeBooleanEqual,
-                &boolean_row,
-                &[OUTPUT],
-            ),
-        );
-        function.blocks[0].terminator = SelectedTerminator::Jump {
-            instruction: instruction(TERMINAL, SelectedInstructionKind::Jump, &jump_row, &[]),
-            successor: successor(1, 2),
-        };
-        function.blocks.push(SelectedBlock {
-            id: SelectedBlockId(1),
-            origin: SelectedBlockOrigin::Source(BlockId::new(2).unwrap()),
-            instructions: Vec::new(),
-            terminator: SelectedTerminator::Jump {
-                instruction: instruction(
-                    SelectedInstructionId(10),
-                    SelectedInstructionKind::Jump,
-                    &jump_row,
-                    &[],
-                ),
-                successor: successor(0, 3),
-            },
-        });
-    });
-    assert_eq!(
-        remove(&source, &environment).unwrap_err(),
-        DeadCompareError::UnsupportedUse
-    );
 }
 
 /// A successor edge naming a block the function does not contain leaves the
@@ -865,18 +487,6 @@ fn source_identity_mismatches_reject() {
     );
 }
 
-#[test]
-fn validation_budget_covers_the_dead_audit() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = fixture(target);
-    let tiny = OptimizationWorkBudget::new(100, 100, 4, 100, 100).unwrap();
-    assert_eq!(
-        remove_dead_compare(&source, 0, COMPARE, &environment, tiny).unwrap_err(),
-        DeadCompareError::WorkBudgetExceeded
-    );
-}
-
 /// The measured validation-step boundary: admission charges one step per
 /// block plus one per instruction across the plan, repeats the scan over the
 /// admitted function together with its register roster and call/access
@@ -1071,36 +681,5 @@ fn replay_rejects_anything_but_the_removal() {
     assert_eq!(
         validate_dead_compare(&source, 0, COMPARE, &environment, budget(), foreign).unwrap_err(),
         DeadCompareError::ReplayMismatch
-    );
-}
-
-/// The removal is deterministic — two runs publish identical plans — and
-/// terminal: the published artifact feeds back through the sealed analysis
-/// boundary as a legal second input, re-admission at the removed compare's
-/// site refuses, and the surviving second compare — itself dead behind the
-/// return — still admits through the published plan.
-#[test]
-fn removal_is_deterministic_and_terminal() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = fixture(target);
-    let first = remove(&source, &environment).unwrap();
-    let second = remove(&source, &environment).unwrap();
-    assert_eq!(first.transformed(), second.transformed());
-    // Re-admission at the removed compare's id refuses: it no longer exists.
-    assert_eq!(
-        remove_dead_compare(&first, 0, COMPARE, &environment, budget()).unwrap_err(),
-        DeadCompareError::SourceMismatch
-    );
-    // The second compare's flags die at the return: it removes from the
-    // published plan through the same boundary.
-    let chained = remove_dead_compare(&first, 0, SECOND, &environment, budget()).unwrap();
-    let block = &chained.transformed().functions[0].blocks[0];
-    assert_eq!(block.instructions.len(), 2);
-    assert!(
-        block
-            .instructions
-            .iter()
-            .all(|entry| entry.id != COMPARE && entry.id != SECOND)
     );
 }

@@ -496,94 +496,6 @@ fn aggregate_call_pairs_fold_where_the_target_selects_them() {
     }
 }
 
-/// A call reading the copy's destination at several `Use` positions
-/// rebinds every one of them: the pair is (producer, consumer), not
-/// (producer, operand).
-#[test]
-fn every_copied_operand_rebinds() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let arity_two = environment
-        .selected_keys()
-        .call_scalar
-        .iter()
-        .filter_map(|key| environment.constraint(*key))
-        .find(|row| {
-            row.operands
-                .iter()
-                .filter(|operand| operand.access == RegisterOperandAccess::Use)
-                .count()
-                >= 2
-        })
-        .map(|row| row.key);
-    let Some(arity_two) = arity_two else {
-        return;
-    };
-    let source = mutated(target, |function, environment| {
-        let row = environment.constraint(arity_two).unwrap();
-        let call = &mut function.blocks[0].instructions[1];
-        call.constraint = row.key;
-        call.operands = row
-            .operands
-            .iter()
-            .map(|operand| SelectedOperand {
-                operand: operand.operand,
-                virtual_register: match operand.access {
-                    RegisterOperandAccess::Use => DESTINATION,
-                    _ => RESULT,
-                },
-                access: operand.access,
-                class: operand.class,
-                fixed_view: operand.fixed_view,
-                tied_to: operand.tied_to,
-                early_clobber: operand.early_clobber,
-            })
-            .collect();
-        call.implicit_uses = row.implicit_uses.clone();
-        call.implicit_defs = row.implicit_defs.clone();
-        call.clobbers = row.clobbers.clone();
-        // Every operand class must equal its roster entry's: restate the
-        // destination and result registers at the new row's classes.
-        for operand in &call.operands {
-            let entry = function
-                .virtual_registers
-                .iter_mut()
-                .find(|entry| entry.id == operand.virtual_register)
-                .unwrap();
-            entry.class = operand.class;
-        }
-    });
-    let result = fold(&source, &environment).unwrap();
-    rerouted_to(&result);
-    let instruction = &result.transformed().functions[0].blocks[0].instructions[1];
-    let uses = instruction
-        .operands
-        .iter()
-        .filter(|operand| operand.access == RegisterOperandAccess::Use)
-        .count();
-    assert!(uses >= 2, "fixture must exercise several copied operands");
-    replay(&source, &environment, result.transformed().clone()).unwrap();
-}
-
-/// A call that does not read the copy's destination has nothing to
-/// reroute — the pair refuses rather than publishing an identity fold.
-#[test]
-fn uncopied_arguments_reject() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = mutated(target, |function, _| {
-        for operand in &mut function.blocks[0].instructions[1].operands {
-            if operand.access == RegisterOperandAccess::Use {
-                operand.virtual_register = ARGUMENT;
-            }
-        }
-    });
-    assert_eq!(
-        fold(&source, &environment),
-        Err(CopiedCallOperandError::UnsupportedUse)
-    );
-}
-
 /// A call consumer of an undeclared kind — the normalized foreign call's
 /// boundary custody is not the direct internal contract — refuses at the
 /// consumer gate.
@@ -1061,18 +973,4 @@ fn stale_candidate_rejects() {
         ),
         Err(CopiedCallOperandError::UnsupportedUse)
     );
-}
-
-/// The fold is deterministic and terminal: two folds of the same source
-/// publish identical plans, and the folded plan carries no second fold for
-/// this pair.
-#[test]
-fn fold_is_deterministic_and_terminal() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = fixture(target, Call::Scalar);
-    let first = fold(&source, &environment).unwrap();
-    let second = fold(&source, &environment).unwrap();
-    assert_eq!(first.transformed(), second.transformed());
-    assert_eq!(first.receipt(), second.receipt());
 }

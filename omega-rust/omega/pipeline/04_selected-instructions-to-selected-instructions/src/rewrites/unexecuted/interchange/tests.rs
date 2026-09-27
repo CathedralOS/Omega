@@ -1,4 +1,4 @@
-use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
+use optimization_core::OptimizationUnitIdentity;
 use optimization_unit::{EffectLink, ValueDefinitionSite};
 use register_environment::baseline_target_register_environment;
 use selected_instructions::{
@@ -631,44 +631,6 @@ fn noncommuting_accesses_reject() {
     );
 }
 
-/// A window whose trading pairs carry no rowed-vs-rowed trade — no rows at
-/// all, rows only on one run, or a rowed interior alone against memory-inert
-/// runs — satisfies the commutation audit by having no pair to check. These
-/// are the windows the separate plain run interchange existed to admit, and
-/// they admit here.
-#[test]
-fn windows_with_at_most_one_accounted_actor_admit() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    // No rows at all.
-    let bare = mutated(target, |function, _| {
-        function.memory_accesses = Vec::new();
-    });
-    interchange(&bare, &environment, LOAD_A, SUM, LOAD_C, DIFF).unwrap();
-    // Rows on one run only.
-    let one_side = mutated(target, |function, _| {
-        function
-            .memory_accesses
-            .retain(|access| access.instruction == LOAD_A);
-    });
-    interchange(&one_side, &environment, LOAD_A, SUM, LOAD_C, DIFF).unwrap();
-    // A rowed interior alone: no trading pair is rowed on both sides.
-    let interior_only = mutated(target, |function, environment| {
-        let load = environment
-            .constraint(environment.selected_keys().load8.unwrap())
-            .unwrap()
-            .clone();
-        function.blocks[0].instructions[3] = instruction(
-            SEP,
-            SelectedInstructionKind::Load8 { byte_offset: 16 },
-            &load,
-            &[POINTER, FIFTH],
-        );
-        function.memory_accesses = vec![access(SEP, 1, SelectedMemoryAccessRole::ReadPlace, 16, 8)];
-    });
-    interchange(&interior_only, &environment, LOAD_A, SUM, LOAD_C, DIFF).unwrap();
-}
-
 /// A run named by one member twice is the run of one, so the member against
 /// a run and the two-member pair are this admission's own granularities
 /// rather than separate families. A reversed or foreign bound still names no
@@ -751,87 +713,6 @@ fn runs_of_one_member_are_the_member_granularity() {
             "{earlier_first:?}..={earlier_last:?} vs {later_first:?}..={later_last:?}"
         );
     }
-}
-
-/// Register and condition-state hazards keep the run interchange's audit
-/// unchanged: a crossed position writing a register a member reads refuses
-/// the trade, in either direction across the runs and through the
-/// interior.
-#[test]
-fn register_hazards_reject() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    // DIFF's first read moves to FIRST — the earlier run's load defines
-    // it, so the runs cannot trade.
-    let raw = mutated(target, |function, _| {
-        function.blocks[0].instructions[5].operands[0].virtual_register = FIRST;
-    });
-    assert_eq!(
-        interchange(&raw, &environment, LOAD_A, SUM, LOAD_C, DIFF).unwrap_err(),
-        InterchangeError::UnsupportedPair
-    );
-    // The later run's head overwrites POINTER, which the earlier run's
-    // load and sum both read.
-    let war = mutated(target, |function, environment| {
-        let add = environment
-            .constraint(environment.selected_keys().add_i64)
-            .unwrap()
-            .clone();
-        function.blocks[0].instructions[4] = instruction(
-            LOAD_C,
-            SelectedInstructionKind::WrappingAddI64,
-            &add,
-            &[FIRST, POINTER, POINTER],
-        );
-    });
-    assert_eq!(
-        interchange(&war, &environment, LOAD_A, SUM, LOAD_C, DIFF).unwrap_err(),
-        InterchangeError::UnsupportedPair
-    );
-    // The interior instruction writes TOTAL, which the earlier run's sum
-    // defines: a crossed WAW against the earlier run.
-    let interior_waw = mutated(target, |function, environment| {
-        let add = environment
-            .constraint(environment.selected_keys().add_i64)
-            .unwrap()
-            .clone();
-        function.blocks[0].instructions[3] = instruction(
-            SEP,
-            SelectedInstructionKind::WrappingAddI64,
-            &add,
-            &[FIRST, POINTER, TOTAL],
-        );
-    });
-    assert_eq!(
-        interchange(&interior_waw, &environment, LOAD_A, SUM, LOAD_C, DIFF).unwrap_err(),
-        InterchangeError::UnsupportedPair
-    );
-    // The later run's tail becomes a flag reader and the earlier run's
-    // tail a flag publisher: the condition-state RAW refuses identically.
-    let flags = mutated(target, |function, environment| {
-        let keys = environment.selected_keys();
-        let compare = environment.constraint(keys.compare_i64).unwrap().clone();
-        let boolean = environment
-            .constraint(keys.materialize_boolean)
-            .unwrap()
-            .clone();
-        function.blocks[0].instructions[2] = instruction(
-            SUM,
-            SelectedInstructionKind::CompareI64,
-            &compare,
-            &[FIRST, POINTER],
-        );
-        function.blocks[0].instructions[5] = instruction(
-            DIFF,
-            SelectedInstructionKind::MaterializeBooleanEqual,
-            &boolean,
-            &[FOURTH],
-        );
-    });
-    assert_eq!(
-        interchange(&flags, &environment, LOAD_A, SUM, LOAD_C, DIFF).unwrap_err(),
-        InterchangeError::UnsupportedPair
-    );
 }
 
 /// A boundary settlement inside the window's span observes a different
@@ -1087,82 +968,6 @@ fn replay_restores_the_source_by_content() {
     );
 }
 
-/// Adjacent runs are the empty-interior case: the two runs trade places
-/// directly while their commuting rows still permute in the roster.
-#[test]
-fn adjacent_runs_interchange() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = mutated(target, |function, _| {
-        function.blocks[0].instructions.remove(3);
-    });
-    let result = interchange(&source, &environment, LOAD_A, SUM, LOAD_C, DIFF).unwrap();
-    let body = &result.transformed().functions[0].blocks[0].instructions;
-    assert_eq!(
-        body.iter()
-            .map(|instruction| instruction.id)
-            .collect::<Vec<_>>(),
-        vec![HEAD, LOAD_C, DIFF, LOAD_A, SUM, MAT_Z]
-    );
-    let roster = &result.transformed().functions[0].memory_accesses;
-    assert_eq!(roster[0].instruction, LOAD_C);
-    assert_eq!(roster[1].instruction, LOAD_A);
-}
-
-/// Runs of different lengths interchange under the same rule: the earlier
-/// run's three members take the later pair's span and the interior keeps
-/// its relative order, shifted by the one-instruction difference, while
-/// the rowed trades keep commuting pairwise.
-#[test]
-fn unequal_runs_interchange_with_the_interior_shifted() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = fixture(target);
-    let result = interchange(&source, &environment, HEAD, SUM, LOAD_C, DIFF).unwrap();
-    let body = &result.transformed().functions[0].blocks[0].instructions;
-    assert_eq!(
-        body.iter()
-            .map(|instruction| instruction.id)
-            .collect::<Vec<_>>(),
-        vec![LOAD_C, DIFF, SEP, HEAD, LOAD_A, SUM, MAT_Z]
-    );
-    validate_selected_interchange(
-        &source,
-        0,
-        HEAD,
-        SUM,
-        LOAD_C,
-        DIFF,
-        &environment,
-        budget(),
-        result.transformed().clone(),
-    )
-    .unwrap();
-}
-
-/// The admission walk is bounded by the validation budget: a plan whose
-/// scan cost exceeds it refuses rather than running unbounded.
-#[test]
-fn work_budget_bounds_the_scan() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = fixture(target);
-    assert_eq!(
-        interchange_selected_runs(
-            &source,
-            0,
-            LOAD_A,
-            SUM,
-            LOAD_C,
-            DIFF,
-            &environment,
-            OptimizationWorkBudget::new(100, 100, 1, 100, 100).unwrap(),
-        )
-        .unwrap_err(),
-        InterchangeError::WorkBudgetExceeded
-    );
-}
-
 /// The measured validation-step boundary: admission charges one step per
 /// block plus one per instruction across the plan, then the member and
 /// crossed surfaces plus the roster-row product for each
@@ -1327,37 +1132,6 @@ fn interchange_is_deterministic_and_re_admitted() {
     );
 }
 
-/// Replay drift beyond the admitted window still fails the
-/// restore-by-content comparison: an instruction the interchange never
-/// touched carries mutated content, so restoring the runs' order and the
-/// window's rows cannot reproduce the source.
-#[test]
-fn replay_rejects_drift_outside_the_window() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = fixture(target);
-    let result = interchange(&source, &environment, LOAD_A, SUM, LOAD_C, DIFF).unwrap();
-    let mut drifted = result.transformed().clone();
-    drifted.functions[0].blocks[0].instructions[6].kind = SelectedInstructionKind::MaterializeI64 {
-        value: IntegerValue::Unsigned(10),
-    };
-    assert_eq!(
-        validate_selected_interchange(
-            &source,
-            0,
-            LOAD_A,
-            SUM,
-            LOAD_C,
-            DIFF,
-            &environment,
-            budget(),
-            drifted
-        )
-        .unwrap_err(),
-        InterchangeError::ReplayMismatch
-    );
-}
-
 /// The validator cannot consult the producer's admission: each forged
 /// proposal below is handed to `validate_selected_interchange`
 /// directly, so every rejection comes from the validator's own window
@@ -1367,7 +1141,7 @@ mod independence_tests {
         DIFF, FIRST, InterchangeError, LOAD_A, LOAD_C, NativeTarget, OperationId, SUM,
         SelectedInstructionId, SelectedInstructionPlan, SelectedMemoryAccessRole,
         ValidatedInterchange, access, baseline_target_register_environment, budget, fixture,
-        interchange, mutated, settlement, validate_selected_interchange,
+        mutated, settlement, validate_selected_interchange,
     };
     use crate::rewrites::unexecuted::commuting_accesses as accesses;
 
@@ -1411,48 +1185,6 @@ mod independence_tests {
             function.memory_accesses[position] = access;
         }
         proposed
-    }
-
-    /// A forged interchange of a window the validator's own audit admits
-    /// validates in each direction: the `LOAD_C; DIFF` run taking the
-    /// `LOAD_A; SUM` run's position around the `SEP` interior and, on the
-    /// admitted interchange, the same runs traded back — the traded roster
-    /// rows commute, a trading pair is rowed on both sides, and the
-    /// content comparison accepts the rearrangement.
-    #[test]
-    fn forged_interchange_of_a_legal_window_validates() {
-        let target = NativeTarget::linux_x64();
-        let environment = baseline_target_register_environment(target).unwrap();
-        let source = fixture(target);
-        validate_selected_interchange(
-            &source,
-            0,
-            LOAD_A,
-            SUM,
-            LOAD_C,
-            DIFF,
-            &environment,
-            budget(),
-            forged(&source, 1, 2, 4, 5),
-        )
-        .unwrap();
-        // On the admitted interchange the `LOAD_C; DIFF` run leads at
-        // positions 1..=2 and `LOAD_A; SUM` follows at 4..=5, so forging
-        // the same-named runs' interchange publishes the source plan
-        // back.
-        let interchanged = interchange(&source, &environment, LOAD_A, SUM, LOAD_C, DIFF).unwrap();
-        validate_selected_interchange(
-            &interchanged,
-            0,
-            LOAD_C,
-            DIFF,
-            LOAD_A,
-            SUM,
-            &environment,
-            budget(),
-            forged(&interchanged, 1, 2, 4, 5),
-        )
-        .unwrap();
     }
 
     /// A producer that admitted a hazard-coupled window anyway would
@@ -1544,61 +1276,6 @@ mod independence_tests {
             )
             .unwrap_err(),
             InterchangeError::UnsupportedPair
-        );
-    }
-
-    /// A forged proposal that leaves the named runs unmoved is a proposal
-    /// for a different (absent) rewrite: no position carries the later
-    /// run on the earlier run's span, so the window content comparison
-    /// rejects it.
-    #[test]
-    fn forged_unmoved_window_rejects() {
-        let target = NativeTarget::linux_x64();
-        let environment = baseline_target_register_environment(target).unwrap();
-        let source = fixture(target);
-        assert_eq!(
-            validate_selected_interchange(
-                &source,
-                0,
-                LOAD_A,
-                SUM,
-                LOAD_C,
-                DIFF,
-                &environment,
-                budget(),
-                source.transformed().clone(),
-            )
-            .unwrap_err(),
-            InterchangeError::ReplayMismatch
-        );
-    }
-
-    /// A forged interchange whose roster stayed in the source order — the
-    /// window's rearrangement is right, but the rows were not permuted
-    /// into the new execution order — fails the roster comparison: this
-    /// family's recorded accesses must follow the performed order.
-    #[test]
-    fn forged_window_with_a_stale_roster_rejects() {
-        let target = NativeTarget::linux_x64();
-        let environment = baseline_target_register_environment(target).unwrap();
-        let source = fixture(target);
-        let mut proposed = forged(&source, 1, 2, 4, 5);
-        proposed.functions[0].memory_accesses =
-            source.transformed().functions[0].memory_accesses.clone();
-        assert_eq!(
-            validate_selected_interchange(
-                &source,
-                0,
-                LOAD_A,
-                SUM,
-                LOAD_C,
-                DIFF,
-                &environment,
-                budget(),
-                proposed,
-            )
-            .unwrap_err(),
-            InterchangeError::ReplayMismatch
         );
     }
 

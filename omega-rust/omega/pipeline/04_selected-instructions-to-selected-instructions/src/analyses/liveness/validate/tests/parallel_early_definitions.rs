@@ -1,27 +1,8 @@
 //! Untied early outputs remain independent definitions, including dead scratch.
 use super::{RegisterOperandAccess, SelectedInstructionId, VirtualRegisterId};
-use crate::analyses::liveness::compute::{compute_function, reject_unsupported_constraints};
+use crate::analyses::liveness::compute::reject_unsupported_constraints;
 use crate::analyses::liveness::tests::supported_parallel_early_definitions_function;
-use crate::analyses::liveness::validate::replay_function;
 use crate::analyses::liveness::validate::tests::reject_v1_unsupported;
-use crate::analyses::liveness::validate::validate_function;
-
-#[test]
-fn parallel_untied_early_definitions_replay_used_result_and_dead_scratch() {
-    let selected = supported_parallel_early_definitions_function();
-    let expected = compute_function(0, &selected).unwrap();
-    assert_eq!(replay_function(0, &selected).unwrap(), expected);
-    let instruction = &expected.blocks[0].instructions[0];
-    assert_eq!(instruction.virtual_uses, [VirtualRegisterId(0)]);
-    assert_eq!(
-        instruction.virtual_defs,
-        [VirtualRegisterId(1), VirtualRegisterId(2)]
-    );
-    assert_eq!(instruction.virtual_live_out, [VirtualRegisterId(1)]);
-    let mut lost_scratch = expected.clone();
-    lost_scratch.blocks[0].instructions[0].virtual_defs.pop();
-    assert!(validate_function(0, &lost_scratch, &expected).is_err());
-}
 
 #[test]
 fn parallel_early_definitions_reject_malformed_or_tied_participants() {

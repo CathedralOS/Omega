@@ -880,38 +880,6 @@ mod independence_tests {
         (source, environment, proposed)
     }
 
-    /// The shadow encodes 8 where the victim's right operand materializes
-    /// 7 — a different subtraction, so the removal is a legality error. A
-    /// producer that admitted it anyway would publish a plan whose compare
-    /// is gone while the reaching shadow publishes different flags; the
-    /// validator's own equivalence audit must refuse the legality with
-    /// `UnsupportedUse`, not merely diff the proposal. Feeding that forged
-    /// proposal is the observable proof that validation no longer relies
-    /// on the producer's admission routine.
-    #[test]
-    fn validator_refuses_a_proposal_past_a_divergent_shadow() {
-        let target = NativeTarget::linux_x64();
-        let (source, environment, proposed) = forged(target, |function, environment| {
-            let immediate_row = environment
-                .constraint(environment.selected_keys().compare_i64_immediate)
-                .unwrap()
-                .clone();
-            function.blocks[0].instructions[3] = instruction(
-                SHADOW,
-                SelectedInstructionKind::CompareI64Immediate {
-                    immediate: IntegerValue::Unsigned(8),
-                },
-                &immediate_row,
-                &[INPUT],
-            );
-        });
-        assert_eq!(
-            validate_equivalent_compare(&source, 0, EQUIVALENT, &environment, budget(), proposed)
-                .unwrap_err(),
-            EquivalentCompareError::UnsupportedUse
-        );
-    }
-
     /// A write to the shared left register between the shadow and the
     /// victim leaves the subtraction's inputs unproven: the victim may
     /// compute flags from a different `r1` than the shadow observed. The

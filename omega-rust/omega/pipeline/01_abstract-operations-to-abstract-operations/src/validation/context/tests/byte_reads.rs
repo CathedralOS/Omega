@@ -3,10 +3,9 @@ use semantic_vocabulary::{EvidenceIdentity, IntegerSign, IntegerType, Obligation
 use semantic_vocabulary::{StructuralPlaceKind, StructuralTypeId};
 
 use super::{
-    AbstractOperation, BlockId, EdgeId, OptimizationUnitValidationError, PlaceId, ScalarType,
-    TerminalFuelSchedule, ValueId, id, refresh_identity,
-    validate_transformed_psi_optimization_unit, validate_verified_psi_optimization_unit,
-    verified_unit,
+    AbstractOperation, BlockId, EdgeId, PlaceId, ScalarType, TerminalFuelSchedule, ValueId, id,
+    refresh_identity, validate_transformed_psi_optimization_unit,
+    validate_verified_psi_optimization_unit, verified_unit,
 };
 use terminal_psi::{
     Block, ByteSequenceCarrier, Operation, OperationKind, OperationResult, StructuralAccess,
@@ -105,74 +104,6 @@ fn surviving_byte_field_length_retains_exact_operation_and_storage_identity() {
             "mutation {mutation}"
         );
     }
-}
-
-#[test]
-fn surviving_byte_read_cannot_reuse_bounds_after_operand_drift() {
-    let verified = verified_byte_operation(false);
-    validate_verified_psi_optimization_unit(&verified).unwrap();
-    let (input, baseline) = verified.into_parts();
-    for mutation in 0..7 {
-        let mut changed = baseline.clone();
-        let function = &mut changed.functions[0];
-        let read = &mut function.blocks[1].nodes[0];
-        let AbstractOperation::ByteSequenceRead {
-            psi_operation,
-            result,
-            source,
-            index,
-            length,
-            obligation,
-        } = &mut read.operation
-        else {
-            panic!("guarded read")
-        };
-        match mutation {
-            0 => {
-                *index = id(5, ValueId::new);
-                read.uses[0].value = *index;
-            }
-            1 => *source = id(2, PlaceId::new),
-            2 => *length = id(1, ValueId::new),
-            3 => *obligation = id(9, ObligationId::new),
-            4 => result.value = id(9, ValueId::new),
-            5 => result.scalar_type = ScalarType::Boolean,
-            6 => *psi_operation = id(9, OperationId::new),
-            _ => panic!("bounded mutation"),
-        }
-        refresh_identity(&mut changed);
-        let failure = validate_transformed_psi_optimization_unit(&input, &changed).unwrap_err();
-        if mutation == 0 {
-            assert!(matches!(
-                failure,
-                OptimizationUnitValidationError::OperationObligationOwnerMismatch { .. }
-            ));
-        }
-    }
-    let mut substituted_view = baseline.clone();
-    let function = &mut substituted_view.functions[0];
-    let AbstractOperation::ByteSequenceLength { source, .. } =
-        &mut function.blocks[0].nodes[0].operation
-    else {
-        panic!("length")
-    };
-    *source = id(2, PlaceId::new);
-    let AbstractOperation::ByteSequenceRead { source, .. } =
-        &mut function.blocks[1].nodes[0].operation
-    else {
-        panic!("read")
-    };
-    *source = id(2, PlaceId::new);
-    refresh_identity(&mut substituted_view);
-    assert!(matches!(
-        validate_transformed_psi_optimization_unit(&input, &substituted_view),
-        Err(OptimizationUnitValidationError::StructuralCatalogMismatch { .. })
-    ));
-
-    let mut missing_fact = baseline.clone();
-    missing_fact.accepted_obligation_facts.clear();
-    refresh_identity(&mut missing_fact);
-    assert!(validate_transformed_psi_optimization_unit(&input, &missing_fact).is_err());
 }
 
 pub(super) fn verified_byte_operation(

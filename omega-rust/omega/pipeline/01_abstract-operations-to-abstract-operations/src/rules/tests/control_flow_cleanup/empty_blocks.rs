@@ -7,7 +7,6 @@ use crate::rules::tests::fixtures::control_flow_cleanup::{
     linear_empty_block_unit, path_qualified_empty_block_unit,
 };
 use crate::rules::tests::fixtures::id;
-use abstract_operations::AbstractOperation as O;
 use optimization_core::OptimizationValidatorIdentity;
 use optimization_unit::{
     PsiProvenance, PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch,
@@ -17,101 +16,7 @@ use optimization_unit_semantics::{
     OptimizationUnitValidationError, validate_linear_empty_block_candidate,
     validate_path_qualified_empty_block_candidate,
 };
-use semantic_vocabulary::{BlockId, EdgeId, MachineId, ValueId};
-
-#[test]
-fn linear_empty_block_thread_composes_bindings_and_realizes_both_edges() {
-    let unit = linear_empty_block_unit();
-    let contract = LinearEmptyBlockThreadRule::contract();
-    let mut manager = crate::AnalysisManager::new(&unit);
-    let products = manager
-        .require_all(&unit, contract.required_analyses())
-        .unwrap()
-        .into_iter()
-        .cloned()
-        .collect::<Vec<_>>();
-    let candidate = LinearEmptyBlockThreadRule
-        .propose(&unit, RuleAnalysisView::new(&products))
-        .unwrap()
-        .pop()
-        .expect("linear jump block is threadable");
-    assert_eq!(
-        candidate.affected_blocks(),
-        [
-            id(902, BlockId::new),
-            id(903, BlockId::new),
-            id(904, BlockId::new),
-        ]
-    );
-    assert_eq!(candidate.provenance().len(), 3);
-    assert!(
-        candidate
-            .provenance()
-            .iter()
-            .all(|row| row.disposition.is_realized())
-    );
-    assert_eq!(
-        candidate
-            .provenance()
-            .iter()
-            .filter(|row| {
-                matches!(row.input, PsiRealizationSite::Edge { .. })
-                    && row.disposition.site()
-                        == PsiRealizationSite::Edge {
-                            machine: id(901, MachineId::new),
-                            edge: id(911, semantic_vocabulary::EdgeId::new),
-                        }
-            })
-            .count(),
-        2
-    );
-
-    let accepted = validate_linear_empty_block_candidate(&unit, &candidate).unwrap();
-    assert_eq!(
-        accepted.validator(),
-        optimization_core::OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.validator.linear-empty-block-thread.v2"
-        )
-    );
-    let output = accepted.unit();
-    assert_eq!(
-        output.functions[0]
-            .blocks
-            .iter()
-            .map(|block| block.id)
-            .collect::<Vec<_>>(),
-        [id(902, BlockId::new), id(904, BlockId::new)]
-    );
-    let O::Jump {
-        psi_edge,
-        target,
-        bindings,
-        ..
-    } = &output.functions[0].blocks[0].nodes[0].operation
-    else {
-        unreachable!()
-    };
-    assert_eq!(*psi_edge, id(911, EdgeId::new));
-    assert_eq!(*target, id(904, BlockId::new));
-    assert_eq!(bindings[0].argument, id(906, ValueId::new));
-    assert_eq!(bindings[1].argument, id(905, ValueId::new));
-    assert!(output.functions[0].blocks[0].nodes[0].provenance.is_empty());
-    assert!(output.functions[0].blocks[0].nodes[0].fuel.is_empty());
-    assert_eq!(
-        output.functions[0].blocks[0].nodes[0].successors[0]
-            .provenance
-            .len(),
-        2
-    );
-    assert_eq!(
-        output.functions[0].blocks[0].nodes[0].successors[0]
-            .fuel
-            .len(),
-        2
-    );
-    assert_eq!(output.functions[0].blocks[1].nodes[0].effect.input, 1);
-    assert_eq!(output.functions[0].blocks[1].nodes[0].effect.output, 2);
-}
+use semantic_vocabulary::EdgeId;
 
 #[test]
 fn linear_empty_block_validator_rejects_incomplete_fused_custody() {

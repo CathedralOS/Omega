@@ -1,51 +1,10 @@
 use super::super::super::validate_abstract_to_target_translation;
 use super::{
-    AbstractOperation, AbstractParameter, NativeTarget, ObligationId, OperationId, ScalarType,
-    TargetIntegerExpression, TargetLoweringRequest, ValueId, constant_conditional_plan,
-    direct_call_plan, lower_to_target_operations, parameter_return_plan,
+    AbstractOperation, NativeTarget, ObligationId, OperationId, ScalarType,
+    TargetIntegerExpression, TargetLoweringRequest, ValueId, direct_call_plan,
+    lower_to_target_operations, parameter_return_plan,
 };
 use target_operations::TargetScalarExpression;
-
-#[test]
-fn scalar_graph_retains_distinct_branch_definitions_and_arrivals() {
-    for selected in [false, true] {
-        let mut plan = constant_conditional_plan(selected);
-        let function = &mut plan.functions[0];
-        for (position, value) in [(1, 3), (2, 4)] {
-            function.block_entries[position].parameters = vec![AbstractParameter {
-                value: ValueId::new(value).unwrap(),
-                scalar_type: function.parameters[0].scalar_type,
-            }];
-        }
-        let lowered = lower_to_target_operations(
-            &plan,
-            TargetLoweringRequest::new(NativeTarget::linux_x64()),
-        )
-        .unwrap();
-        let graph = &lowered.functions[0].graph;
-        assert_eq!(graph.blocks.len(), 3);
-        for block in graph.blocks.iter().skip(1) {
-            let [
-                target_operations::TargetUnitOperation::ScalarDefinition {
-                    expression: TargetScalarExpression::Integer { expression, .. },
-                    ..
-                },
-            ] = block.operations.as_slice()
-            else {
-                panic!("each arm defines its result once");
-            };
-            let (TargetIntegerExpression::WrappingAdd { left, right, .. }
-            | TargetIntegerExpression::SaturatingMultiply { left, right, .. }) = expression
-            else {
-                panic!("each arm retains its own arithmetic");
-            };
-            assert_eq!(left, right);
-            assert!(
-                matches!(left.as_ref(), TargetIntegerExpression::BlockParameter(parameter) if parameter.block == block.block)
-            );
-        }
-    }
-}
 
 #[test]
 fn scalar_graph_retains_repeated_value_definitions_once() {

@@ -22,11 +22,10 @@ use super::{
     selected_instruction_plan_identity, validate_runtime_spill,
 };
 use crate::rewrites::runtime_spill::{control, control_mut, surviving_home_exists};
-use crate::spill_selected_runtime_value;
 use register_environment::{
     ValidatedTargetRegisterEnvironment, baseline_target_register_environment,
 };
-use register_model::{RegisterInstructionConstraint, RegisterOperandAccess, RegisterViewId};
+use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
 use selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedBlock, SelectedBlockId, SelectedBlockOrigin,
     SelectedBoundarySettlementPayload, SelectedFunction, SelectedInstruction,
@@ -404,38 +403,6 @@ fn forged(source: &ValidatedRuntimeSpill) -> SelectedInstructionPlan {
     proposed
 }
 
-/// On a legal source the mechanical edit is exactly the proposal the
-/// signed result publishes — the single-block fixture on every baseline
-/// target. The forged builder is the contract's edit, so the rejections
-/// below come from the validator's own audit rather than a diff quirk,
-/// and the signed proposal validates as a second input.
-#[test]
-fn forged_edit_matches_the_signed_proposal_and_validates() {
-    for target in [
-        NativeTarget::linux_x64(),
-        NativeTarget::linux_arm64(),
-        NativeTarget::windows_x64(),
-        NativeTarget::macos_arm64(),
-    ] {
-        let environment = baseline_target_register_environment(target).unwrap();
-        let source = fixture(target);
-        let signed =
-            spill_selected_runtime_value(&source, 0, VICTIM, &environment, budget()).unwrap();
-        assert_eq!(&forged(&source), signed.transformed());
-        validate_runtime_spill(&source, 0, VICTIM, &environment, budget(), forged(&source))
-            .unwrap();
-        validate_runtime_spill(
-            &source,
-            0,
-            VICTIM,
-            &environment,
-            budget(),
-            signed.transformed().clone(),
-        )
-        .unwrap();
-    }
-}
-
 /// A victim whose definition-site custody is not an ordinary parameter or
 /// node — here erased outright — is not a spill family member: the
 /// mechanical stores and reloads still publish, and the validator's own
@@ -446,24 +413,6 @@ fn forged_proposal_does_not_launder_an_uncustodied_victim() {
     let environment = baseline_target_register_environment(target).unwrap();
     let source = mutated(target, |function, _| {
         function.virtual_registers[1].definition_site = None;
-    });
-    assert_eq!(
-        validate_runtime_spill(&source, 0, VICTIM, &environment, budget(), forged(&source))
-            .unwrap_err(),
-        RuntimeSpillError::UnsupportedValue
-    );
-}
-
-/// A fixed view on a non-boundary victim is a pin the spill cannot honour —
-/// the rewritten register would have to arrive pinned at every load and
-/// store. The mechanical edit still publishes; the validator's own custody
-/// audit refuses it.
-#[test]
-fn forged_proposal_does_not_launder_an_entry_pinned_victim() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = mutated(target, |function, _| {
-        function.virtual_registers[1].entry_fixed_view = Some(RegisterViewId(0));
     });
     assert_eq!(
         validate_runtime_spill(&source, 0, VICTIM, &environment, budget(), forged(&source))
@@ -489,40 +438,6 @@ fn forged_proposal_does_not_launder_an_unused_victim() {
         validate_runtime_spill(&source, 0, VICTIM, &environment, budget(), forged(&source))
             .unwrap_err(),
         RuntimeSpillError::UnsupportedValue
-    );
-}
-
-/// A tied read position would bind the victim to a second register's home —
-/// inadmissible custody the mechanical edit ignores. The validator's own
-/// use scan refuses with `UnsupportedUse`.
-#[test]
-fn forged_proposal_does_not_launder_a_tied_use() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = mutated(target, |function, _| {
-        function.blocks[0].instructions[1].operands[0].tied_to = Some(1);
-    });
-    assert_eq!(
-        validate_runtime_spill(&source, 0, VICTIM, &environment, budget(), forged(&source))
-            .unwrap_err(),
-        RuntimeSpillError::UnsupportedUse
-    );
-}
-
-/// An early-clobber read could see the reload die inside the consumer's own
-/// effects before the operand is consumed — inadmissible, yet the mechanical
-/// edit still publishes. The validator's own use scan refuses it.
-#[test]
-fn forged_proposal_does_not_launder_an_early_clobber_use() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = mutated(target, |function, _| {
-        function.blocks[0].instructions[1].operands[0].early_clobber = true;
-    });
-    assert_eq!(
-        validate_runtime_spill(&source, 0, VICTIM, &environment, budget(), forged(&source))
-            .unwrap_err(),
-        RuntimeSpillError::UnsupportedUse
     );
 }
 

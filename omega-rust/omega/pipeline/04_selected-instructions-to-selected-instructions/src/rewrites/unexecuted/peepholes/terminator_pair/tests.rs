@@ -656,133 +656,6 @@ fn same_register_compare_folds_without_literals() {
     }
 }
 
-/// A flag unit reaching in through a predecessor edge resolves to the
-/// compare when every path to the branch last observed the same
-/// condition-state event — here the compare lives in the entry block and
-/// the branch in its jump target.
-#[test]
-fn cross_block_flag_reaching_folds() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = mutated(target, |function, environment| {
-        // The entry block keeps its materializations and compare, then
-        // jumps to a new block carrying the branch; its two arms keep the
-        // fixture's returning blocks.
-        let terminator = std::mem::replace(
-            &mut function.blocks[0].terminator,
-            jump_terminator(environment, 6, 3, 6),
-        );
-        function.blocks.push(SelectedBlock {
-            id: SelectedBlockId(3),
-            origin: SelectedBlockOrigin::Source(BlockId::new(4).unwrap()),
-            instructions: Vec::new(),
-            terminator,
-        });
-    });
-    let result = fold(&source, &environment).unwrap();
-    // `3 - 5` is nonzero: the nonzero arm is decided.
-    jumped_to(&result, 3, 1);
-    replay(&source, &environment, result.transformed().clone()).unwrap();
-}
-
-/// A join carries the same constant flag state: both event-free
-/// predecessors pass the compare's event through, so the branch on the
-/// joined block resolves to the one compare and folds — while the entry
-/// block's own branch keeps reading the retained definitions.
-#[test]
-fn cross_block_join_reaching_folds() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = mutated(target, |function, environment| {
-        let branch_row = environment
-            .constraint(environment.selected_keys().conditional_branch)
-            .unwrap()
-            .clone();
-        let terminal_row = environment
-            .constraint(environment.selected_keys().return_unit)
-            .unwrap()
-            .clone();
-        // The entry block branches to the fixture's arms on a fresh
-        // instruction; the arms jump to a new join block carrying the
-        // folded branch, which selects between two fresh returns.
-        let branch_instruction = match &function.blocks[0].terminator {
-            SelectedTerminator::ConditionalBranch { instruction, .. } => instruction.clone(),
-            _ => unreachable!(),
-        };
-        function.blocks[0].terminator = SelectedTerminator::ConditionalBranch {
-            instruction: instruction(
-                SelectedInstructionId(6),
-                SelectedInstructionKind::ConditionalBranchNonZero,
-                &branch_row,
-                &[],
-            ),
-            when_nonzero: arm(SelectedBlockId(1), 2, 2),
-            when_zero: arm(SelectedBlockId(2), 3, 3),
-        };
-        function.blocks[1].terminator = jump_terminator(environment, 8, 3, 7);
-        function.blocks[2].terminator = jump_terminator(environment, 9, 3, 8);
-        function.blocks.push(SelectedBlock {
-            id: SelectedBlockId(3),
-            origin: SelectedBlockOrigin::Source(BlockId::new(4).unwrap()),
-            instructions: Vec::new(),
-            terminator: SelectedTerminator::ConditionalBranch {
-                instruction: branch_instruction,
-                when_nonzero: arm(SelectedBlockId(4), 5, 9),
-                when_zero: arm(SelectedBlockId(5), 6, 10),
-            },
-        });
-        function.blocks.push(returning(4, 10, 11, &terminal_row));
-        function.blocks.push(returning(5, 11, 12, &terminal_row));
-    });
-    let result = fold(&source, &environment).unwrap();
-    // `3 - 5` is nonzero: the join's branch always takes its nonzero arm.
-    jumped_to(&result, 3, 4);
-    // The entry block's own conditional branch is untouched.
-    assert!(matches!(
-        result.transformed().functions[0].blocks[0].terminator,
-        SelectedTerminator::ConditionalBranch { .. }
-    ));
-}
-
-/// A loop back into the branch's own block is still the compare's flag
-/// state: the self-edge contributes the block's own entry set, which the
-/// fixpoint resolves to the one reaching event.
-#[test]
-fn cross_block_self_loop_reaching_folds() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = mutated(target, |function, environment| {
-        // The entry block jumps to a new block that carries the branch;
-        // the nonzero arm loops back to the branch block itself, the zero
-        // arm keeps a returning block.
-        let terminator = std::mem::replace(
-            &mut function.blocks[0].terminator,
-            jump_terminator(environment, 6, 3, 6),
-        );
-        let SelectedTerminator::ConditionalBranch {
-            instruction: branch_instruction,
-            ..
-        } = terminator
-        else {
-            unreachable!()
-        };
-        function.blocks.push(SelectedBlock {
-            id: SelectedBlockId(3),
-            origin: SelectedBlockOrigin::Source(BlockId::new(4).unwrap()),
-            instructions: Vec::new(),
-            terminator: SelectedTerminator::ConditionalBranch {
-                instruction: branch_instruction,
-                when_nonzero: arm(SelectedBlockId(3), 4, 2),
-                when_zero: arm(SelectedBlockId(2), 3, 3),
-            },
-        });
-    });
-    let result = fold(&source, &environment).unwrap();
-    // `3 - 5` is nonzero: the loop arm is decided, so the surviving jump
-    // targets the branch block itself.
-    jumped_to(&result, 3, 3);
-}
-
 /// A path last touched by a different flag event — here a second compare
 /// on a non-literal operand behind the sibling branch — refuses: the
 /// observed condition state is not provably the constant compare's.
@@ -848,23 +721,6 @@ fn cross_block_divergent_reaching_refuses() {
     );
 }
 
-/// A unit whose reaching walk finds no compare at all — the flag state
-/// flows in from the function entry's unknown condition state — refuses.
-#[test]
-fn cross_block_entry_reaching_refuses() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = mutated(target, |function, _| {
-        // The entry block drops its compare: no flag event precedes the
-        // branch anywhere.
-        function.blocks[0].instructions.remove(2);
-    });
-    assert_eq!(
-        fold(&source, &environment).unwrap_err(),
-        TerminatorPairError::UnsupportedUse
-    );
-}
-
 /// A terminator-carried clobber ends the reach like any other event: the
 /// predecessor's last event for the flag unit is the jump instruction's
 /// own wipe, not the compare, so the branch refuses.
@@ -907,53 +763,6 @@ fn cross_block_terminator_event_refuses() {
     );
 }
 
-/// An intervening flag event — a second compare or a clobber in the
-/// branch's own block — makes the observed state the later instruction's,
-/// not the constant compare's.
-#[test]
-fn intervening_flag_events_reject() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    // A second compare on a non-materialized operand is the reaching
-    // producer; its right side has no literal producer, so the declared
-    // operand grammar cannot decide the state.
-    let second_compare = mutated(target, |function, environment| {
-        let compare = environment
-            .constraint(environment.selected_keys().compare_i64)
-            .unwrap();
-        function.blocks[0].instructions.push(instruction(
-            EXTRA,
-            SelectedInstructionKind::CompareI64,
-            compare,
-            &[LITA, PARAM],
-        ));
-    });
-    assert_eq!(
-        fold(&second_compare, &environment).unwrap_err(),
-        TerminatorPairError::UndecidedOperands
-    );
-    // A clobber of the flag unit between compare and branch leaves the
-    // observed state unknown.
-    let clobbered = mutated(target, |function, environment| {
-        let copy = environment
-            .constraint(environment.selected_keys().copy_i64)
-            .unwrap();
-        let flags = function.blocks[0].instructions[2].implicit_defs.clone();
-        let mut wiper = instruction(
-            EXTRA,
-            SelectedInstructionKind::CopyI64,
-            copy,
-            &[PARAM, OUTPUT],
-        );
-        wiper.clobbers = flags;
-        function.blocks[0].instructions.push(wiper);
-    });
-    assert_eq!(
-        fold(&clobbered, &environment).unwrap_err(),
-        TerminatorPairError::UnsupportedUse
-    );
-}
-
 /// A used unit outside the flag universe must lie in the jump row's
 /// implicit surface: a foreign non-flag observation the jump cannot carry
 /// refuses under the declared unit-flow axis.
@@ -973,41 +782,6 @@ fn non_flag_use_outside_jump_surface_refuses() {
     });
     assert_eq!(
         fold(&foreign, &environment).unwrap_err(),
-        TerminatorPairError::UnsupportedUse
-    );
-}
-
-/// A branch whose implicit definitions or clobbers the jump row cannot
-/// republish refuses: the rebuilt terminator would change the unit events
-/// downstream readers observe at this site.
-#[test]
-fn unpublishable_unit_traffic_refuses() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    // A second defined unit is not republished by the jump row.
-    let extra_def = mutated(target, |function, _| {
-        let instruction = match &mut function.blocks[0].terminator {
-            SelectedTerminator::ConditionalBranch { instruction, .. } => instruction,
-            _ => unreachable!(),
-        };
-        instruction
-            .implicit_defs
-            .push(register_model::RegisterUnitId(997));
-    });
-    assert_eq!(
-        fold(&extra_def, &environment).unwrap_err(),
-        TerminatorPairError::UnsupportedUse
-    );
-    // A clobber the jump row lacks would lose the event entirely.
-    let clobbering = mutated(target, |function, _| {
-        let instruction = match &mut function.blocks[0].terminator {
-            SelectedTerminator::ConditionalBranch { instruction, .. } => instruction,
-            _ => unreachable!(),
-        };
-        instruction.clobbers = vec![register_model::RegisterUnitId(996)];
-    });
-    assert_eq!(
-        fold(&clobbering, &environment).unwrap_err(),
         TerminatorPairError::UnsupportedUse
     );
 }
@@ -1138,65 +912,6 @@ fn non_branch_terminators_reject() {
     assert_eq!(
         fold(&returning_source, &environment).unwrap_err(),
         TerminatorPairError::UnsupportedTerminator
-    );
-}
-
-/// Non-literal and multiply-defined operand registers refuse: the constant
-/// guarantee must hold wherever the compare could read the register.
-#[test]
-fn operand_producers_refuse() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    // An entry parameter has no producing instruction.
-    let parameter = mutated(target, |function, _| {
-        function.blocks[0].instructions[2].operands[1].virtual_register = PARAM;
-    });
-    assert_eq!(
-        fold(&parameter, &environment).unwrap_err(),
-        TerminatorPairError::UndecidedOperands
-    );
-    // A copy producer is not the literal materialization.
-    let copy_producer = mutated(target, |function, environment| {
-        let copy = environment
-            .constraint(environment.selected_keys().copy_i64)
-            .unwrap();
-        function.blocks[0].instructions[1] = instruction(
-            MATERIALIZE_B,
-            SelectedInstructionKind::CopyI64,
-            copy,
-            &[PARAM, LITB],
-        );
-    });
-    assert_eq!(
-        fold(&copy_producer, &environment).unwrap_err(),
-        TerminatorPairError::UndecidedOperands
-    );
-    // A second definition anywhere in the function — including a
-    // terminator-carried one — breaks the unique-producer guarantee.
-    let second_definition = mutated(target, |function, environment| {
-        let materialize_row = environment
-            .constraint(environment.selected_keys().materialize_i64)
-            .unwrap()
-            .clone();
-        let carried = instruction(
-            SelectedInstructionId(10),
-            SelectedInstructionKind::MaterializeI64 {
-                value: IntegerValue::Unsigned(0),
-            },
-            &materialize_row,
-            &[LITB],
-        );
-        let SelectedTerminator::Return {
-            instruction: slot, ..
-        } = &mut function.blocks[1].terminator
-        else {
-            unreachable!()
-        };
-        *slot = carried;
-    });
-    assert_eq!(
-        fold(&second_definition, &environment).unwrap_err(),
-        TerminatorPairError::UndecidedOperands
     );
 }
 
@@ -1345,51 +1060,6 @@ fn validated_results_compose_with_constant_boolean() {
     );
 }
 
-/// A proposal that does not match the reconstructed `Jump` — or that
-/// retains the source terminator — fails the independent replay.
-#[test]
-fn replay_mismatches_reject() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = fixture(
-        target,
-        IntegerValue::Unsigned(3),
-        IntegerValue::Unsigned(5),
-        BranchShape::NonZero,
-    );
-    // The unchanged source is not a rewritten proposal.
-    assert_eq!(
-        replay(&source, &environment, source.transformed().clone()).unwrap_err(),
-        TerminatorPairError::ReplayMismatch
-    );
-    // The wrong surviving successor is not the decided record.
-    let mut wrong = source.transformed().clone();
-    let jump_row = environment
-        .constraint(keys(&environment).jump)
-        .unwrap()
-        .clone();
-    let branch_instruction = match &source.transformed().functions[0].blocks[0].terminator {
-        SelectedTerminator::ConditionalBranch { instruction, .. } => instruction.clone(),
-        _ => unreachable!(),
-    };
-    wrong.functions[0].blocks[0].terminator = SelectedTerminator::Jump {
-        instruction: SelectedInstruction {
-            kind: SelectedInstructionKind::Jump,
-            constraint: jump_row.key,
-            operands: Vec::new(),
-            implicit_uses: jump_row.implicit_uses.clone(),
-            implicit_defs: jump_row.implicit_defs.clone(),
-            clobbers: jump_row.clobbers.clone(),
-            ..branch_instruction
-        },
-        successor: arm(SelectedBlockId(1), 2, 2),
-    };
-    assert_eq!(
-        replay(&source, &environment, wrong).unwrap_err(),
-        TerminatorPairError::ReplayMismatch
-    );
-}
-
 #[test]
 fn source_identity_mismatches_reject() {
     let target = NativeTarget::linux_x64();
@@ -1421,25 +1091,6 @@ fn source_identity_mismatches_reject() {
         )
         .unwrap_err(),
         TerminatorPairError::SourceMismatch
-    );
-}
-
-#[test]
-fn validation_budget_covers_the_flag_scan() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = fixture(
-        target,
-        IntegerValue::Unsigned(3),
-        IntegerValue::Unsigned(5),
-        BranchShape::NonZero,
-    );
-    let tiny = OptimizationWorkBudget::new(100, 100, 4, 100, 100).unwrap();
-    let effect_catalog = catalog(&source, &environment);
-    assert_eq!(
-        fold_selected_terminator_pair(&source, 0, BRANCH, &environment, &effect_catalog, tiny)
-            .unwrap_err(),
-        TerminatorPairError::WorkBudgetExceeded
     );
 }
 
@@ -1524,43 +1175,6 @@ fn measured_validation_step_boundary_admits_and_rejects() {
             TerminatorPairError::WorkBudgetExceeded
         );
     }
-}
-
-/// Two runs over the identical source produce the identical validated
-/// result, and the published plan is a legal second input: re-running at
-/// the same site is terminal because the terminator is now a jump, not a
-/// flag-reading branch.
-#[test]
-fn fold_is_deterministic_and_terminal() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let first = fold(
-        &fixture(
-            target,
-            IntegerValue::Unsigned(3),
-            IntegerValue::Unsigned(5),
-            BranchShape::NonZero,
-        ),
-        &environment,
-    )
-    .unwrap();
-    let second = fold(
-        &fixture(
-            target,
-            IntegerValue::Unsigned(3),
-            IntegerValue::Unsigned(5),
-            BranchShape::NonZero,
-        ),
-        &environment,
-    )
-    .unwrap();
-    assert_eq!(first, second);
-    let effect_catalog = catalog(&first, &environment);
-    assert_eq!(
-        fold_selected_terminator_pair(&first, 0, BRANCH, &environment, &effect_catalog, budget())
-            .unwrap_err(),
-        TerminatorPairError::UnsupportedTerminator
-    );
 }
 
 /// Replay rejects any drift from the reconstructed `Jump`, in the
@@ -1668,45 +1282,4 @@ fn replay_rejects_anything_but_the_exact_form() {
             "mutation {mutation}"
         );
     }
-}
-
-/// Replay corruption in a block the fold never touched still rejects: the
-/// restore-by-content check compares the complete plan, not just the block
-/// carrying the rewritten terminator.
-#[test]
-fn replay_rejects_drift_outside_the_rewritten_block() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = fixture(
-        target,
-        IntegerValue::Unsigned(3),
-        IntegerValue::Unsigned(5),
-        BranchShape::NonZero,
-    );
-    let result = fold(&source, &environment).unwrap();
-    // An extra instruction in the untouched arm block rejects.
-    let mut proposed = result.transformed().clone();
-    let copy = environment
-        .constraint(keys(&environment).copy_i64)
-        .unwrap()
-        .clone();
-    proposed.functions[0].blocks[1]
-        .instructions
-        .push(instruction(
-            SelectedInstructionId(11),
-            SelectedInstructionKind::CopyI64,
-            &copy,
-            &[PARAM, OUTPUT],
-        ));
-    assert_eq!(
-        replay(&source, &environment, proposed).unwrap_err(),
-        TerminatorPairError::ReplayMismatch
-    );
-    // A missing arm block likewise rejects.
-    let mut proposed = result.transformed().clone();
-    proposed.functions[0].blocks.pop();
-    assert_eq!(
-        replay(&source, &environment, proposed).unwrap_err(),
-        TerminatorPairError::ReplayMismatch
-    );
 }

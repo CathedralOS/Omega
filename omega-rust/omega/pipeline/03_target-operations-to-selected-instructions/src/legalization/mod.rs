@@ -12,11 +12,9 @@ mod source_input;
 pub use source_input::LegalizationSource;
 
 pub(crate) use model::legalization_validator_identity;
-pub use model::{LegalizationError, LegalizationValidationReceipt, ValidatedLegalizedOperations};
 #[cfg(test)]
-pub(crate) use model::{
-    legalization_validator_identity_v21_legacy, legalization_validator_identity_v22_legacy,
-};
+pub(crate) use model::legalization_validator_identity_v21_legacy;
+pub use model::{LegalizationError, LegalizationValidationReceipt, ValidatedLegalizedOperations};
 
 use abstract_operations::AbstractOperationPlan;
 use legalized_operations::{LegalizedOperationPlan, legalized_operation_plan_identity};

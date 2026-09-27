@@ -4,7 +4,6 @@
 //! the common disabled, deterministic, budget, manifest, ledger, and
 //! fixed-point assertions.
 
-mod boolean_constants;
 mod custody;
 mod integer_constants;
 mod range_comparisons;

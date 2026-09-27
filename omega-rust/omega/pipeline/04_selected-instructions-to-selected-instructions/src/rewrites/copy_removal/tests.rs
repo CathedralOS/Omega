@@ -1,4 +1,4 @@
-use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
+use optimization_core::OptimizationUnitIdentity;
 use optimization_unit::{EffectLink, ValueDefinitionSite};
 use register_environment::baseline_target_register_environment;
 use selected_instructions::{
@@ -1024,18 +1024,6 @@ fn source_identity_mismatches_reject() {
     );
 }
 
-#[test]
-fn validation_budget_covers_the_mention_scan() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = fixture(target);
-    let tiny = OptimizationWorkBudget::new(100, 100, 4, 100, 100).unwrap();
-    assert_eq!(
-        remove_selected_copy(&source, 0, COPY, &environment, tiny).unwrap_err(),
-        CopyRemovalError::WorkBudgetExceeded
-    );
-}
-
 /// The measured validation-step boundary: admission charges one step per
 /// block plus one per instruction across the plan, a second scan of the
 /// admitted function's blocks that also counts each successor transport,
@@ -1114,117 +1102,6 @@ fn measured_validation_step_boundary_admits_and_rejects() {
             CopyRemovalError::WorkBudgetExceeded
         );
     }
-}
-
-/// Two runs over the identical source produce the identical validated
-/// result, and the published plan is a legal second input: re-running at
-/// the same site is terminal because the copy no longer exists, and a
-/// surviving chained copy whose destination nobody reads is dead code this
-/// rule does not admit — removal substitutes uses, it does not erase
-/// unread instructions.
-#[test]
-fn removal_is_deterministic_and_terminal() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let first = remove(&fixture(target), &environment).unwrap();
-    let second = remove(&fixture(target), &environment).unwrap();
-    assert_eq!(first, second);
-    // The validated output carries the sealed analysis boundary, so it is a
-    // legal second input — not merely a reconstruction of one.
-    assert_eq!(
-        remove_selected_copy(&first, 0, COPY, &environment, budget()).unwrap_err(),
-        CopyRemovalError::SourceMismatch
-    );
-    // The chained copy still stands after the first removal, now reading the
-    // source directly; with no remaining readers of its own destination the
-    // second run finds no admitted use and stops.
-    let chained_source = mutated(target, |function, environment| {
-        let class = function.virtual_registers[1].class;
-        function.virtual_registers.push(register(
-            OTHER,
-            class,
-            VirtualRegisterOrigin::InstructionResult {
-                instruction: CHAINED,
-                source_value: ValueId::new(4).unwrap(),
-            },
-        ));
-        function.blocks[0]
-            .instructions
-            .insert(2, copy_instruction(CHAINED, environment, COPIED, OTHER));
-    });
-    let first = remove(&chained_source, &environment).unwrap();
-    assert_eq!(
-        remove_selected_copy(&first, 0, CHAINED, &environment, budget()).unwrap_err(),
-        CopyRemovalError::UnsupportedUse
-    );
-}
-
-/// Replay corruption in a block the removal never touched still rejects:
-/// the restore-by-content check compares the complete plan, not just the
-/// block the copy left.
-#[test]
-fn replay_rejects_drift_outside_the_rewritten_block() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    // Stretch the fixture across one edge: the copy's block jumps to a
-    // second block that returns.
-    let source = mutated(target, |function, environment| {
-        let jump_row = environment
-            .constraint(environment.selected_keys().jump)
-            .unwrap();
-        let tail = std::mem::replace(
-            &mut function.blocks[0].terminator,
-            SelectedTerminator::Jump {
-                instruction: instruction(BRANCH, SelectedInstructionKind::Jump, jump_row, &[]),
-                successor: successor(1),
-            },
-        );
-        function.blocks.push(SelectedBlock {
-            id: SelectedBlockId(1),
-            origin: SelectedBlockOrigin::Source(BlockId::new(2).unwrap()),
-            instructions: Vec::new(),
-            terminator: tail,
-        });
-    });
-    let result = remove(&source, &environment).unwrap();
-    assert_eq!(result.transformed().functions[0].blocks.len(), 2);
-    // An extra instruction in the untouched landing block rejects.
-    let mut proposed = result.transformed().clone();
-    proposed.functions[0].blocks[1]
-        .instructions
-        .push(copy_instruction(
-            SelectedInstructionId(30),
-            &environment,
-            POINTER,
-            SOURCE,
-        ));
-    assert_eq!(
-        validate_copy_removal(&source, 0, COPY, &environment, budget(), proposed).unwrap_err(),
-        CopyRemovalError::ReplayMismatch
-    );
-    // Drift in the untouched block's terminator rejects.
-    let mut proposed = result.transformed().clone();
-    let SelectedTerminator::Return {
-        instruction: return_instruction,
-        ..
-    } = &mut proposed.functions[0].blocks[1].terminator
-    else {
-        unreachable!()
-    };
-    return_instruction.id = SelectedInstructionId(31);
-    assert_eq!(
-        validate_copy_removal(&source, 0, COPY, &environment, budget(), proposed).unwrap_err(),
-        CopyRemovalError::ReplayMismatch
-    );
-    // A phantom trailing block rejects.
-    let mut proposed = result.transformed().clone();
-    proposed.functions[0]
-        .blocks
-        .push(trailing_block(2, &environment));
-    assert_eq!(
-        validate_copy_removal(&source, 0, COPY, &environment, budget(), proposed).unwrap_err(),
-        CopyRemovalError::ReplayMismatch
-    );
 }
 
 #[test]

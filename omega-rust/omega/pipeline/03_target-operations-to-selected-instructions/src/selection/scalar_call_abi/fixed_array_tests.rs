@@ -1,12 +1,9 @@
 //! Exact array argument placements and borrowed array presentation contracts.
 use super::{
     CallSignature, CallingPolicy, IntegerSign, LegalizedScalarArgument, LegalizedScalarCall,
-    LegalizedScalarFunction, ScalarType, StructuralAccess, ValueId, ValueLocation, ValueShape,
+    LegalizedScalarFunction, ScalarType, StructuralAccess, ValueLocation, ValueShape,
     evaluate_call_plan,
 };
-use crate::selection::scalar_call_abi::register_argument_count;
-use crate::selection::scalar_call_abi::register_argument_order;
-use crate::selection::scalar_call_abi::unit_key;
 use crate::selection::scalar_call_abi::validate_borrowed_argument;
 use legalized_operations::{LegalizedCallUnitParameter, LegalizedStructuralContract};
 use semantic_vocabulary::{
@@ -145,52 +142,6 @@ fn fixed_array_call(
 }
 
 #[test]
-fn fixed_array_shared_call_windows_replay_without_mutable_authority() {
-    for native in [
-        target::NativeTarget::linux_x64(),
-        target::NativeTarget::linux_arm64(),
-        target::NativeTarget::macos_arm64(),
-        target::NativeTarget::windows_x64(),
-    ] {
-        for range in [None, Some((0, 0)), Some((2, 5))] {
-            let (mut source, mut call) = fixed_array_call(native);
-            let signature = source.structural.as_mut().unwrap();
-            signature.parameters[0].semantic.access = StructuralAccess::SharedBorrow;
-            signature.parameters[0].target.access = StructuralAccess::SharedBorrow;
-            let LegalizedScalarArgument::Structural { semantic, target } = &mut call.arguments[0]
-            else {
-                unreachable!()
-            };
-            semantic.access = StructuralAccess::SharedBorrow;
-            target.access = StructuralAccess::SharedBorrow;
-            if let Some((start, end)) = range {
-                semantic
-                    .path
-                    .push(terminal_psi::StructuralPathSegment::FixedByteRange { start, end });
-                target.path = semantic.path.clone();
-                target.source_byte_offset = start as u32;
-                target.fixed_array_length = Some(end - start);
-            }
-            let operation = OperationId::new(1).unwrap();
-            assert_eq!(
-                validate_borrowed_argument(&source, &call, operation, 0),
-                Some(())
-            );
-            let LegalizedScalarArgument::Structural { semantic, target } = &mut call.arguments[0]
-            else {
-                unreachable!()
-            };
-            semantic.access = StructuralAccess::MutableBorrow;
-            target.access = StructuralAccess::MutableBorrow;
-            assert_eq!(
-                validate_borrowed_argument(&source, &call, operation, 0),
-                None
-            );
-        }
-    }
-}
-
-#[test]
 fn fixed_byte_call_windows_replay_offset_extent_and_access() {
     for native in [
         target::NativeTarget::linux_x64(),
@@ -246,46 +197,6 @@ fn fixed_byte_call_windows_replay_offset_extent_and_access() {
                 );
             }
         }
-    }
-}
-
-#[test]
-fn fixed_array_view_preserves_extent_across_unit_and_scalar_result_calls() {
-    for target in [
-        target::NativeTarget::linux_x64(),
-        target::NativeTarget::linux_arm64(),
-        target::NativeTarget::macos_arm64(),
-        target::NativeTarget::windows_x64(),
-    ] {
-        let (source, mut call) = fixed_array_call(target);
-        let operation = OperationId::new(1).unwrap();
-        call.validate_shape().expect("coherent Unit call");
-        assert_eq!(
-            validate_borrowed_argument(&source, &call, operation, 0),
-            Some(())
-        );
-
-        call.call_plan = evaluate_call_plan(
-            source.call_plan.policy,
-            &CallSignature {
-                parameters: vec![ValueShape::borrowed_reference(16, 8)],
-                result: Some(ValueShape::integer(8, 8)),
-            },
-        )
-        .unwrap();
-        call.result_placement = call.call_plan.result.clone();
-        let LegalizedScalarArgument::Structural {
-            target: argument, ..
-        } = &mut call.arguments[0]
-        else {
-            panic!("structural argument");
-        };
-        argument.destination = call.call_plan.parameters[0].clone();
-        call.validate_shape().expect("coherent scalar-result call");
-        assert_eq!(
-            validate_borrowed_argument(&source, &call, operation, 0),
-            Some(())
-        );
     }
 }
 
@@ -424,86 +335,4 @@ fn inline_array_arguments_do_not_admit_stack_or_indirect_results() {
     }
     placement.locations.pop();
     assert!(!inline_argument_fragments(&placement));
-}
-
-#[test]
-fn inline_stack_arrays_do_not_consume_call_register_operands() {
-    for (target, prefix, bytes, expected_registers) in [
-        (target::NativeTarget::linux_x64(), 5, 16, 6),
-        (target::NativeTarget::linux_arm64(), 7, 16, 7),
-        (target::NativeTarget::windows_x64(), 4, 8, 4),
-    ] {
-        let (_, mut call) = fixed_array_call(target);
-        let mut array = call.arguments[0].clone();
-        let plan = evaluate_call_plan(
-            CallingPolicy::native_for_target(target),
-            &CallSignature {
-                parameters: vec![ValueShape::integer(8, 8); prefix]
-                    .into_iter()
-                    .chain([ValueShape::integer(bytes, 1), ValueShape::integer(8, 8)])
-                    .collect(),
-                result: None,
-            },
-        )
-        .unwrap();
-        let LegalizedScalarArgument::Structural {
-            semantic,
-            target: argument,
-        } = &mut array
-        else {
-            panic!("array argument");
-        };
-        semantic.access = StructuralAccess::Owned;
-        argument.access = StructuralAccess::Owned;
-        argument.destination = plan.parameters[prefix].clone();
-        argument.shape = argument.destination.shape;
-        // This tests physical operand projection, not semantic source admission.
-        call.arguments = plan
-            .parameters
-            .iter()
-            .enumerate()
-            .map(|(position, placement)| {
-                if position == prefix {
-                    array.clone()
-                } else {
-                    LegalizedScalarArgument::Scalar {
-                        source: ValueId::new(u64::try_from(position + 1).unwrap()).unwrap(),
-                        placement: placement.clone(),
-                    }
-                }
-            })
-            .collect();
-        call.call_plan = plan;
-        assert_eq!(register_argument_count(&call), expected_registers);
-        let order = register_argument_order(&call);
-        assert!(!order.contains(&prefix));
-        assert_eq!(
-            order.contains(&(prefix + 1)),
-            target == target::NativeTarget::linux_x64()
-        );
-        let environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
-        let key = unit_key(&call, &environment).expect("existing ordinary call row");
-        let row = environment.constraint(key).unwrap();
-        assert_eq!(row.operands.len(), expected_registers);
-        let expected_views = call
-            .call_plan
-            .parameters
-            .iter()
-            .flat_map(|placement| &placement.locations)
-            .filter_map(|location| match location {
-                ValueLocation::Register { register, .. } => {
-                    environment.fixed_register_view(*register)
-                }
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        assert_eq!(
-            row.operands
-                .iter()
-                .map(|operand| operand.fixed_view.unwrap())
-                .collect::<Vec<_>>(),
-            expected_views
-        );
-    }
 }

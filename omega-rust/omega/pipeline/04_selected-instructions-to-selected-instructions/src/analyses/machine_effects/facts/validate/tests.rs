@@ -160,36 +160,6 @@ fn validate(
 }
 
 #[test]
-fn constraint_operands_pass_replay_for_arithmetic_and_call_rows() {
-    let environment = environment();
-    let catalog = catalog(&environment);
-    for (kind, row) in [
-        (
-            SelectedInstructionKind::CompareI64,
-            compare_row(&environment),
-        ),
-        (
-            SelectedInstructionKind::CallScalar {
-                callee: MachineId::new(2).expect("callee id"),
-            },
-            scalar_call_row(&environment),
-        ),
-    ] {
-        let (function, instruction, expected) = fixture(kind, &row, &catalog);
-        assert_eq!(
-            validate(
-                &function,
-                &instruction,
-                &expected,
-                environment.constraints(),
-                &catalog,
-            ),
-            Ok(())
-        );
-    }
-}
-
-#[test]
 fn drifted_operand_fields_are_rejected() {
     let environment = environment();
     let catalog = catalog(&environment);

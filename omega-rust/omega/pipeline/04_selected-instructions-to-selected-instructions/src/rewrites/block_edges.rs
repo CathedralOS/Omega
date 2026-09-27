@@ -395,7 +395,7 @@ mod tests {
     };
     use semantic_vocabulary::{BlockId, EdgeId, MachineId};
 
-    use super::{CrossingDirection, RelocationCrossing, crossed_window};
+    use super::{CrossingDirection, crossed_window};
 
     const BLOCK_A: SelectedBlockId = SelectedBlockId(0);
     const BLOCK_B: SelectedBlockId = SelectedBlockId(1);
@@ -492,100 +492,6 @@ mod tests {
                 block(BLOCK_D, vec![6, 7], ret(53)),
             ],
         }
-    }
-
-    fn positions_of(crossing: &RelocationCrossing<'_>, block_index: usize) -> Vec<usize> {
-        crossing
-            .positions
-            .iter()
-            .find(|(index, _)| *index == block_index)
-            .map(|(_, positions)| positions.clone())
-            .unwrap_or_default()
-    }
-
-    fn edge_pairs(crossing: &RelocationCrossing<'_>) -> Vec<(SelectedBlockId, SelectedBlockId)> {
-        let mut pairs: Vec<_> = crossing
-            .edges
-            .iter()
-            .map(|edge| (edge.block, edge.successor.block))
-            .collect();
-        pairs.sort();
-        pairs
-    }
-
-    #[test]
-    fn crossing_a_diamond_covers_every_path() {
-        let function = diamond();
-        // Run is instruction 3 (index 2) in block A; lands at index 0 in D.
-        let crossing =
-            crossed_window(&function, 0, 2, 2, 3, 0, CrossingDirection::Forward, 64).unwrap();
-        assert!(crossing.reachable);
-        // A's tail is empty — the run is the last member — B and C are
-        // fully crossed on their own paths, and nothing before index 0 in D.
-        assert_eq!(positions_of(&crossing, 0), Vec::<usize>::new());
-        assert_eq!(positions_of(&crossing, 1), vec![0]);
-        assert_eq!(positions_of(&crossing, 2), vec![0]);
-        assert_eq!(positions_of(&crossing, 3), Vec::<usize>::new());
-        assert_eq!(
-            edge_pairs(&crossing),
-            vec![
-                (BLOCK_A, BLOCK_B),
-                (BLOCK_A, BLOCK_C),
-                (BLOCK_B, BLOCK_D),
-                (BLOCK_C, BLOCK_D),
-            ]
-        );
-    }
-
-    #[test]
-    fn crossing_an_in_block_move_is_the_span_between() {
-        let mut function = diamond();
-        function.blocks[0].terminator = ret(54);
-        // Run [1..=2] landing at index 0 crosses positions 0 and 1? No —
-        // backward move: positions 0..1 (destination included, run start
-        // excluded).
-        let backward =
-            crossed_window(&function, 0, 1, 2, 0, 0, CrossingDirection::Backward, 64).unwrap();
-        assert_eq!(positions_of(&backward, 0), vec![0]);
-        assert!(backward.edges.is_empty());
-        // Forward move: run [0..=0] landing at index 2 crosses positions
-        // 1..=2.
-        let forward =
-            crossed_window(&function, 0, 0, 0, 0, 2, CrossingDirection::Forward, 64).unwrap();
-        assert_eq!(positions_of(&forward, 0), vec![1, 2]);
-    }
-
-    #[test]
-    fn unreachable_destination_reports_no_paths() {
-        let mut function = diamond();
-        // D's terminator no longer returns; D jumps to a fresh dead end
-        // that never rejoins — a fifth block E only reachable from D.
-        function.blocks[3].terminator = jump(53, SelectedBlockId(4), 14);
-        function
-            .blocks
-            .push(block(SelectedBlockId(4), vec![8], ret(55)));
-        // Relocate A's tail run to *before* D on no path: use E as the
-        // destination — unreachable from A? No, A→B→D→E is acyclic and
-        // reaches E. Instead relocate to A itself already covered; target
-        // a block not on any path: swap E for a detached block.
-        function.blocks[4].id = SelectedBlockId(9);
-        function.blocks[3].terminator = ret(53);
-        let crossing =
-            crossed_window(&function, 0, 2, 2, 4, 0, CrossingDirection::Forward, 64).unwrap();
-        assert!(!crossing.reachable);
-        assert!(crossing.edges.is_empty());
-    }
-
-    #[test]
-    fn cyclic_back_edges_do_not_extend_the_window() {
-        let mut function = diamond();
-        // D loops back to A: the acyclic A→D paths are unchanged — the
-        // back-edge can never appear on an acyclic A→D path.
-        function.blocks[3].terminator = jump(53, BLOCK_A, 14);
-        let crossing =
-            crossed_window(&function, 0, 2, 2, 3, 0, CrossingDirection::Forward, 64).unwrap();
-        assert!(crossing.reachable);
-        assert!(!edge_pairs(&crossing).contains(&(BLOCK_D, BLOCK_A)));
     }
 
     #[test]

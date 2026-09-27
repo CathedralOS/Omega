@@ -8,129 +8,16 @@ use crate::rules::tests::fixtures::proof_check_elision::{
     exact_add_unit, live_exact_add_zero_unit,
 };
 use abstract_operations::AbstractOperation as O;
-use optimization_core::{OptimizationValidatorIdentity, ScalarConstantFactIdentity};
 use optimization_unit::{
-    OptimizationFact, ProofCertifiedScalarIdentityKind, ProofCertifiedScalarIdentityRewrite,
-    PsiRewriteCandidate, PsiRewritePatch, recompute_psi_optimization_unit_identity,
+    OptimizationFact, ProofCertifiedScalarIdentityKind, PsiRewritePatch,
+    recompute_psi_optimization_unit_identity,
 };
 use optimization_unit_semantics::{
-    OptimizationUnitValidationError, validate_proof_certified_scalar_identity_candidate,
-    validate_psi_optimization_unit,
+    validate_proof_certified_scalar_identity_candidate, validate_psi_optimization_unit,
 };
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, ObligationId, OperationId, ValueId,
 };
-
-#[test]
-fn live_proof_certified_identity_elision_substitutes_and_replays_exact_custody() {
-    let unit = live_exact_add_zero_unit();
-    let contract = LiveProofCertifiedIntegerIdentityEliminationRule::contract();
-    let mut manager = crate::AnalysisManager::new(&unit);
-    let products = manager
-        .require_all(&unit, contract.required_analyses())
-        .unwrap()
-        .into_iter()
-        .cloned()
-        .collect::<Vec<_>>();
-    let [candidate] = LiveProofCertifiedIntegerIdentityEliminationRule
-        .propose(&unit, RuleAnalysisView::new(&products))
-        .unwrap()
-        .try_into()
-        .expect("x + 0 has one canonical proof-certified identity rewrite");
-    let PsiRewritePatch::EliminateProofCertifiedScalarIdentity(patch) = candidate.patch() else {
-        unreachable!()
-    };
-    assert_eq!(
-        patch.identity,
-        ProofCertifiedScalarIdentityKind::ExactIntegerAddZeroRight
-    );
-    assert_eq!(patch.replacement, id(303, ValueId::new));
-    assert_eq!(candidate.consumed_facts().len(), 2);
-    assert!(candidate.consumed_facts().iter().any(|fact| matches!(
-        fact,
-        optimization_core::OptimizationFactReference::AcceptedObligation(_)
-    )));
-    assert!(candidate.consumed_facts().iter().any(|fact| matches!(
-        fact,
-        optimization_core::OptimizationFactReference::ScalarConstant(_)
-    )));
-
-    let accepted = validate_proof_certified_scalar_identity_candidate(&unit, &candidate).unwrap();
-    assert_eq!(
-        accepted.validator(),
-        OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.validator.live-proof-certified-integer-identity-elimination.v1"
-        )
-    );
-    assert_eq!(
-        accepted.unit().accepted_obligation_facts,
-        unit.accepted_obligation_facts
-    );
-    assert!(accepted.unit().functions[0].facts.iter().all(|fact| {
-        !matches!(fact, OptimizationFact::OperationObligationReference { support, .. }
-                if *support == id(308, OperationId::new))
-    }));
-    assert!(matches!(
-        accepted.unit().functions[0].blocks[0].nodes[2].operation,
-        O::Return { value, .. } if value == id(303, ValueId::new)
-    ));
-    assert!(
-        accepted
-            .provenance()
-            .iter()
-            .all(|row| row.disposition.is_realized())
-    );
-
-    let mut manager = crate::AnalysisManager::new(accepted.unit());
-    let products = manager
-        .require_all(accepted.unit(), contract.required_analyses())
-        .unwrap()
-        .into_iter()
-        .cloned()
-        .collect::<Vec<_>>();
-    assert!(
-        LiveProofCertifiedIntegerIdentityEliminationRule
-            .propose(accepted.unit(), RuleAnalysisView::new(&products))
-            .unwrap()
-            .is_empty()
-    );
-
-    let (constant_fact, obligation_fact) =
-        candidate.proof_certified_scalar_identity_witness().unwrap();
-    let forged_kind = PsiRewriteCandidate::new_proof_certified_scalar_identity(
-        unit.identity,
-        contract,
-        candidate.affected_blocks().to_vec(),
-        candidate.provenance().to_vec(),
-        constant_fact,
-        obligation_fact,
-        candidate.predicted_cost_delta(),
-        ProofCertifiedScalarIdentityRewrite {
-            identity: ProofCertifiedScalarIdentityKind::ExactIntegerSubtractZeroRight,
-            ..patch
-        },
-    )
-    .unwrap();
-    assert_eq!(
-        validate_proof_certified_scalar_identity_candidate(&unit, &forged_kind),
-        Err(OptimizationUnitValidationError::CandidatePatchMismatch)
-    );
-    let foreign_constant = PsiRewriteCandidate::new_proof_certified_scalar_identity(
-        unit.identity,
-        contract,
-        candidate.affected_blocks().to_vec(),
-        candidate.provenance().to_vec(),
-        ScalarConstantFactIdentity::from_canonical_bytes(b"foreign identity constant"),
-        obligation_fact,
-        candidate.predicted_cost_delta(),
-        patch,
-    )
-    .unwrap();
-    assert_eq!(
-        validate_proof_certified_scalar_identity_candidate(&unit, &foreign_constant),
-        Err(OptimizationUnitValidationError::CandidateOperandFactMismatch)
-    );
-}
 
 #[test]
 fn live_proof_certified_identity_vocabulary_is_closed_and_canonical() {

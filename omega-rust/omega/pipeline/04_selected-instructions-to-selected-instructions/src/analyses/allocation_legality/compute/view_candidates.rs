@@ -25,11 +25,6 @@ pub(super) struct CandidateViews<'a> {
 }
 
 impl<'a> CandidateViews<'a> {
-    #[cfg(test)]
-    pub(super) fn prepared_row_count(&self) -> usize {
-        self.candidates.len()
-    }
-
     pub(super) fn new(
         function: &'a FunctionLiveRanges,
         physical: &'a ValidatedPhysicalRegisterModel,

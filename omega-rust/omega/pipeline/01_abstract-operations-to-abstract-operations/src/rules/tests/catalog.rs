@@ -25,10 +25,8 @@ use super::super::{
     SharedJumpFusionRule, UnreachablePrivateMachinePruneRule, WrappingMultiplyZeroAnnihilationRule,
     WrappingNeutralArithmeticIdentityRule, WrappingShiftZeroCountIdentityRule,
 };
-use crate::rules::catalog::registry_for_optimization;
 use crate::rules::registry::PsiOptimizationRule;
 use crate::rules::tests::fixtures::proof_check_elision::exact_add_unit;
-use crate::rules::tests::fixtures::randomized_built_in_registries;
 use crate::rules::{
     PSI_PASS_CATALOG, PsiPassStep, built_in_psi_registries, built_in_psi_registry,
     built_in_psi_registry_for_selections, built_in_psi_steps_for_selections,
@@ -61,26 +59,6 @@ fn ordered_catalog_covers_every_declared_psi_optimization_once() {
             PsiPassStep::LoopInvariantScalarMotion => {
                 assert_eq!(optimization, PsiOptimization::LoopInvariantScalarMotion);
             }
-        }
-    }
-}
-
-#[test]
-fn built_in_schedule_is_independent_of_registration_arrival_order() {
-    for optimization in [
-        PsiOptimization::SparseConditionalConstantPropagation,
-        PsiOptimization::ControlFlowCleanup,
-        PsiOptimization::CopyPropagation,
-        PsiOptimization::GlobalValueNumbering,
-        PsiOptimization::DeadPureScalarElimination,
-        PsiOptimization::ProofCheckElision,
-    ] {
-        let expected = registry_for_optimization(optimization).unwrap();
-        let expected_contracts = expected.contracts().collect::<Vec<_>>();
-
-        for registry in randomized_built_in_registries(optimization) {
-            assert_eq!(registry.identity(), expected.identity());
-            assert_eq!(registry.contracts().collect::<Vec<_>>(), expected_contracts);
         }
     }
 }

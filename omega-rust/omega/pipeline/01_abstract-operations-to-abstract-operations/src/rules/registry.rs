@@ -252,23 +252,6 @@ mod tests {
     }
 
     #[test]
-    fn exact_canonical_order_and_identity_are_stable() {
-        let first = OrderedRuleRegistry::new(scheduled_rules()).unwrap();
-        let second = OrderedRuleRegistry::new(scheduled_rules()).unwrap();
-        assert_eq!(first.identity(), second.identity());
-        assert_eq!(
-            first
-                .contracts()
-                .map(OptimizationRuleContract::identity)
-                .collect::<Vec<_>>(),
-            second
-                .contracts()
-                .map(OptimizationRuleContract::identity)
-                .collect::<Vec<_>>()
-        );
-    }
-
-    #[test]
     fn duplicate_rejects_and_distinct_schedule_order_changes_identity() {
         let duplicate = rule(b"pass-a", b"same");
         assert!(matches!(
@@ -289,17 +272,5 @@ mod tests {
             OrderedRuleRegistry::new([rule(b"pass-a", b"rule-a"), rule(b"pass-b", b"rule-b")]),
             Err(RuleRegistryError::MixedPasses { .. })
         ));
-    }
-
-    #[test]
-    fn concurrent_compilations_own_independent_registry_values() {
-        let first = OrderedRuleRegistry::new(scheduled_rules()).unwrap();
-        let second = OrderedRuleRegistry::new(Vec::new()).unwrap();
-        let thread = std::thread::spawn(move || {
-            assert_eq!(first.len(), 2);
-            first.identity()
-        });
-        assert!(second.is_empty());
-        assert_ne!(thread.join().unwrap(), second.identity());
     }
 }

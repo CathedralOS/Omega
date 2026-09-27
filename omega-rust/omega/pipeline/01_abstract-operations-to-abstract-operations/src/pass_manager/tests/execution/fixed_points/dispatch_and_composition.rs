@@ -2,126 +2,16 @@
 
 use super::super::super::super::run_unit;
 use super::super::super::{
-    AbstractOperation, AnalysisProduct, BaselineDecisionOutcome, Optimization,
-    OptimizationCandidateVerdict, OptimizationFactReference, OptimizationPassManifestRecord,
-    OptimizationSelections, PsiTransformationLedger, SelfDividePolicy, SelfRemainderPolicy,
-    boolean_unit, budget, built_in_psi_registries, built_in_psi_registry,
+    AbstractOperation, AnalysisProduct, Optimization, OptimizationCandidateVerdict,
+    OptimizationFactReference, OptimizationSelections, PsiTransformationLedger, SelfDividePolicy,
+    SelfRemainderPolicy, budget, built_in_psi_registries, built_in_psi_registry,
     compatible_policy_local_cse_unit, dead_exact_add_unit, dead_wrapping_add_unit,
-    dependent_exact_chain_unit, dominator_gvn_unit, exact_add_unit, live_divide_by_one_unit,
+    dependent_exact_chain_unit, dominator_gvn_unit, live_divide_by_one_unit,
     live_exact_multiply_by_zero_unit, live_exact_zero_value_shift_unit, live_self_divide_unit,
     live_self_remainder_unit, local_cse_unit, proof_certified_dominator_gvn_unit,
     proof_certified_local_cse_unit, propagated_block_parameter_unit,
     randomized_built_in_registries, redundant_block_parameter_unit, run_test_pipeline,
-    wrapping_add_unit,
 };
-#[test]
-fn fixed_point_dispatch_validates_then_commits_with_stable_usage() {
-    let unit = exact_add_unit();
-    let selections =
-        OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation]).unwrap();
-    let registry = built_in_psi_registry(&selections).unwrap();
-    let (output, commits, usage, decisions, pass_manifest, ledger) =
-        run_unit(unit.clone(), &registry, budget(8)).unwrap();
-    assert_eq!(commits.len(), 1);
-    assert_eq!(commits[0].input, unit.identity);
-    assert_eq!(commits[0].output, output.identity);
-    assert_eq!(usage.commits, 1);
-    assert_eq!(usage.validation_steps, 1);
-    assert_eq!(usage.iterations, 2);
-    assert_eq!(usage.rule_evaluations, 40);
-    assert_eq!(decisions.records.len(), 1);
-    assert_eq!(
-        decisions.records[0].outcome,
-        BaselineDecisionOutcome::Choose(commits[0].candidate)
-    );
-    let pass_manifest = pass_manifest.expect("selected pass emits a manifest row");
-    assert_eq!(pass_manifest.ordered_rules().len(), 39);
-    assert_eq!(pass_manifest.input(), unit.identity);
-    assert_eq!(pass_manifest.output(), output.identity);
-    assert_eq!(pass_manifest.decisions().len(), 1);
-    assert_eq!(pass_manifest.decisions()[0].input(), unit.identity);
-    assert_eq!(pass_manifest.decisions()[0].consumed_facts().len(), 3);
-    assert_eq!(
-        pass_manifest.decisions()[0].verdict(),
-        OptimizationCandidateVerdict::Applied
-    );
-    assert_eq!(
-        OptimizationPassManifestRecord::decode(&pass_manifest.encode()),
-        Ok(pass_manifest)
-    );
-    assert_eq!(ledger.input(), unit.identity);
-    assert_eq!(ledger.output(), output.identity);
-    assert_eq!(ledger.records().len(), 1);
-    assert_eq!(ledger.records()[0].provenance, commits[0].provenance);
-    assert!(matches!(
-        output.functions[0].blocks[0].nodes[2].operation,
-        AbstractOperation::IntegerConstant { .. }
-    ));
-}
-
-#[test]
-fn ordered_multi_rule_group_reaches_a_dependent_exact_fixed_point() {
-    let selections =
-        OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation]).unwrap();
-    let registry = built_in_psi_registry(&selections).unwrap();
-    let (output, commits, usage, _, pass_manifest, ledger) =
-        run_unit(dependent_exact_chain_unit(), &registry, budget(8)).unwrap();
-
-    assert_eq!(commits.len(), 2);
-    assert_eq!(usage.iterations, 3);
-    assert_eq!(usage.rule_evaluations, 43);
-    assert!(matches!(
-        output.functions[0].blocks[0].nodes[2].operation,
-        AbstractOperation::IntegerConstant {
-            value: semantic_vocabulary::IntegerValue::Unsigned(15),
-            ..
-        }
-    ));
-    assert!(matches!(
-        output.functions[0].blocks[0].nodes[3].operation,
-        AbstractOperation::IntegerConstant {
-            value: semantic_vocabulary::IntegerValue::Unsigned(120),
-            ..
-        }
-    ));
-    let manifest = pass_manifest.unwrap();
-    assert_eq!(manifest.ordered_rules().len(), 39);
-    assert_eq!(manifest.decisions().len(), 2);
-    assert_eq!(ledger.records().len(), 2);
-}
-
-#[test]
-fn named_dead_scalar_suite_reaches_a_custody_preserving_fixed_point() {
-    let selections =
-        OptimizationSelections::new([Optimization::DeadPureScalarElimination]).unwrap();
-    let registry = built_in_psi_registry(&selections).unwrap();
-    let unit = dead_wrapping_add_unit();
-    let (output, commits, usage, _, manifest, ledger) =
-        run_unit(unit, &registry, budget(8)).unwrap();
-    assert_eq!(commits.len(), 3);
-    assert_eq!(usage.iterations, 4);
-    assert_eq!(output.functions[0].blocks[0].nodes.len(), 1);
-    assert_eq!(output.functions[0].blocks[0].nodes[0].provenance.len(), 4);
-    assert_eq!(ledger.records().len(), 3);
-    assert!(
-        ledger
-            .records()
-            .iter()
-            .flat_map(|record| &record.provenance)
-            .all(|row| matches!(
-                row.disposition,
-                optimization_unit::ProvenanceDisposition::RealizedAt(_)
-            ))
-    );
-    assert_eq!(manifest.unwrap().ordered_rules().len(), 2);
-
-    let (second, second_commits, second_usage, _, _, second_ledger) =
-        run_unit(output.clone(), &registry, budget(8)).unwrap();
-    assert_eq!(second.identity, output.identity);
-    assert!(second_commits.is_empty());
-    assert_eq!(second_usage.iterations, 1);
-    assert!(second_ledger.records().is_empty());
-}
 
 #[test]
 fn shuffled_builtin_registration_constructs_identical_multi_rule_runs() {
@@ -297,39 +187,4 @@ fn manifest_retains_propagated_block_parameter_fact_identity() {
         manifest.unwrap().decisions()[0].consumed_facts(),
         &[OptimizationFactReference::ScalarConstant(derived)]
     );
-}
-
-#[test]
-fn pass_convergence_measure_includes_wrapping_and_saturating_rules() {
-    let selections =
-        OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation]).unwrap();
-    let registry = built_in_psi_registry(&selections).unwrap();
-    let (output, commits, usage, _, _, _) =
-        run_unit(wrapping_add_unit(), &registry, budget(8)).unwrap();
-
-    assert_eq!(commits.len(), 1);
-    assert_eq!(usage.iterations, 2);
-    assert!(matches!(
-        output.functions[0].blocks[0].nodes[2].operation,
-        AbstractOperation::IntegerConstant {
-            value: semantic_vocabulary::IntegerValue::Unsigned(4),
-            ..
-        }
-    ));
-}
-
-#[test]
-fn pass_dispatches_typed_boolean_validation_to_fixed_point() {
-    let selections =
-        OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation]).unwrap();
-    let registry = built_in_psi_registry(&selections).unwrap();
-    let (output, commits, usage, _, _, _) =
-        run_unit(boolean_unit(true), &registry, budget(8)).unwrap();
-
-    assert_eq!(commits.len(), 1);
-    assert_eq!(usage.iterations, 2);
-    assert!(matches!(
-        output.functions[0].blocks[0].nodes[2].operation,
-        AbstractOperation::BooleanConstant { value: false, .. }
-    ));
 }

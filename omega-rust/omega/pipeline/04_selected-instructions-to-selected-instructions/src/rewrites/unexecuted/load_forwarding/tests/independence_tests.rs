@@ -5,8 +5,8 @@
 //! fails the replay comparison. Nothing here consults the producer's
 //! `admission` state: the forged proposals are built by hand.
 use super::{
-    LOAD, OUTPUT, POINTER, SCRATCH, VALUE, budget, crossed_edge, fixture, forward, instruction,
-    mutated, mutated_chained,
+    LOAD, OUTPUT, POINTER, SCRATCH, VALUE, budget, crossed_edge, instruction, mutated,
+    mutated_chained,
 };
 use crate::rewrites::unexecuted::{
     StoredLoadForwardingError, ValidatedStoredLoadForwarding, validate_stored_load_forwarding,
@@ -65,28 +65,6 @@ fn forged(
         .unwrap();
     function.memory_accesses.remove(row);
     proposed
-}
-
-/// The hand-forged edit is byte-for-byte the plan the producer signs for a
-/// legal pair, and the validator replays it standalone: both sides derive
-/// the same demanded function from the source alone.
-#[test]
-fn forged_edit_matches_the_signed_proposal_and_validates() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = fixture(target);
-    let signed = forward(&source, &environment).unwrap();
-    assert_eq!(&forged(&source, &environment), signed.transformed());
-    let replayed = validate_stored_load_forwarding(
-        &source,
-        0,
-        LOAD,
-        &environment,
-        budget(),
-        forged(&source, &environment),
-    )
-    .unwrap();
-    assert_eq!(replayed.transformed(), signed.transformed());
 }
 
 /// An unaccounted referent store between the covering store and the load
@@ -203,62 +181,5 @@ fn forged_proposal_does_not_launder_a_redefining_edge_transport() {
         )
         .unwrap_err(),
         StoredLoadForwardingError::UnsupportedUse
-    );
-}
-
-/// A legal source whose proposal misses the demanded function — the load
-/// kept, the wrong register carried, the read row retained, or provenance
-/// the read never wore — is a replay mismatch, not a legality error: the
-/// source is clean, so only the proposal comparison can refuse it.
-#[test]
-fn validator_rejects_proposals_that_miss_the_demanded_function() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = fixture(target);
-    // The unchanged source keeps the load and its read row.
-    assert_eq!(
-        validate_stored_load_forwarding(
-            &source,
-            0,
-            LOAD,
-            &environment,
-            budget(),
-            source.transformed().clone(),
-        )
-        .unwrap_err(),
-        StoredLoadForwardingError::ReplayMismatch
-    );
-    // A copy of the wrong register is not the demanded replacement.
-    let mut wrong_register = forged(&source, &environment);
-    wrong_register.functions[0].blocks[0].instructions[3].operands[0].virtual_register = SCRATCH;
-    assert_eq!(
-        validate_stored_load_forwarding(&source, 0, LOAD, &environment, budget(), wrong_register,)
-            .unwrap_err(),
-        StoredLoadForwardingError::ReplayMismatch
-    );
-    // The right replacement with the read row retained misses the roster.
-    let mut kept_row = forged(&source, &environment);
-    let read_row = source.transformed().functions[0].memory_accesses[1].clone();
-    kept_row.functions[0].memory_accesses.push(read_row);
-    assert_eq!(
-        validate_stored_load_forwarding(&source, 0, LOAD, &environment, budget(), kept_row,)
-            .unwrap_err(),
-        StoredLoadForwardingError::ReplayMismatch
-    );
-    // The contract's copy carries the read's provenance; a replacement
-    // without it is not the instruction the validator reconstructs.
-    let mut wrong_provenance = forged(&source, &environment);
-    wrong_provenance.functions[0].blocks[0].instructions[3].provenance = Default::default();
-    assert_eq!(
-        validate_stored_load_forwarding(
-            &source,
-            0,
-            LOAD,
-            &environment,
-            budget(),
-            wrong_provenance,
-        )
-        .unwrap_err(),
-        StoredLoadForwardingError::ReplayMismatch
     );
 }

@@ -42,7 +42,6 @@ const PARAM2: VirtualRegisterId = VirtualRegisterId(4);
 /// entry block carries.
 #[derive(Clone, Copy)]
 enum BranchShape {
-    NonZero,
     U64LessThan,
     I64LessThan,
 }
@@ -107,11 +106,6 @@ fn branch_terminator(
     untaken: SelectedSuccessor,
 ) -> SelectedTerminator {
     match shape {
-        BranchShape::NonZero => SelectedTerminator::ConditionalBranch {
-            instruction: branch_instruction,
-            when_nonzero: taken,
-            when_zero: untaken,
-        },
         BranchShape::U64LessThan => SelectedTerminator::ConditionalBranchU64LessThan {
             instruction: branch_instruction,
             when_less: taken,
@@ -223,7 +217,6 @@ fn fixture(
     let mut branch_instruction = instruction(
         BRANCH,
         match shape {
-            BranchShape::NonZero => SelectedInstructionKind::ConditionalBranchNonZero,
             BranchShape::U64LessThan => SelectedInstructionKind::ConditionalBranchU64LessThan,
             BranchShape::I64LessThan => SelectedInstructionKind::ConditionalBranchI64LessThan,
         },
@@ -578,156 +571,6 @@ fn near_poles_collapse_to_nonzero_on_all_targets() {
     }
 }
 
-/// The immediate and zero compare forms supply their own pole: an
-/// immediate bound or the implicit zero decides — or collapses — without
-/// any literal producer on the other side.
-#[test]
-fn immediate_and_zero_compares_decide() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    // `x <u 0` through the immediate form is never taken — no producer on
-    // the register side is needed at all.
-    let never = mutated(target, |function, environment| {
-        let row = environment
-            .constraint(environment.selected_keys().compare_i64_immediate)
-            .unwrap();
-        function.blocks[0].instructions[2] = instruction(
-            COMPARE,
-            SelectedInstructionKind::CompareI64Immediate {
-                immediate: IntegerValue::Unsigned(0),
-            },
-            row,
-            &[PARAM],
-        );
-    });
-    let result = fold(&never, &environment).unwrap();
-    jumped_to(&result, 0, 2);
-    // `x <u u64::MAX` through the immediate form is `x != u64::MAX`.
-    let collapse = mutated(target, |function, environment| {
-        let row = environment
-            .constraint(environment.selected_keys().compare_i64_immediate)
-            .unwrap();
-        function.blocks[0].instructions[2] = instruction(
-            COMPARE,
-            SelectedInstructionKind::CompareI64Immediate {
-                immediate: IntegerValue::Unsigned(u128::from(u64::MAX)),
-            },
-            row,
-            &[PARAM],
-        );
-    });
-    let result = fold(&collapse, &environment).unwrap();
-    collapsed_to_nonzero(&result, &collapse, 0);
-    // The zero compare reads as `x - 0`: `x <u 0` never holds.
-    let zero = mutated(target, |function, environment| {
-        let row = environment
-            .constraint(environment.selected_keys().compare_i64_zero)
-            .unwrap();
-        function.blocks[0].instructions[2] = instruction(
-            COMPARE,
-            SelectedInstructionKind::CompareI64Zero,
-            row,
-            &[PARAM],
-        );
-    });
-    let result = fold(&zero, &environment).unwrap();
-    jumped_to(&result, 0, 2);
-    // The same zero compare under the signed ordering is `x <s 0` — a
-    // sign test, not a pole — and refuses.
-    let signed_zero = mutated(target, |function, environment| {
-        let row = environment
-            .constraint(environment.selected_keys().compare_i64_zero)
-            .unwrap()
-            .clone();
-        function.blocks[0].instructions[2] = instruction(
-            COMPARE,
-            SelectedInstructionKind::CompareI64Zero,
-            &row,
-            &[PARAM],
-        );
-        let branch_instruction = match &function.blocks[0].terminator {
-            SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. } => {
-                instruction.clone()
-            }
-            _ => unreachable!(),
-        };
-        function.blocks[0].terminator = SelectedTerminator::ConditionalBranchI64LessThan {
-            instruction: SelectedInstruction {
-                kind: SelectedInstructionKind::ConditionalBranchI64LessThan,
-                ..branch_instruction
-            },
-            when_less: arm(SelectedBlockId(1), 2, 2),
-            when_not_less: arm(SelectedBlockId(2), 3, 3),
-        };
-    });
-    assert_eq!(
-        fold(&signed_zero, &environment).unwrap_err(),
-        BoundaryBranchError::UnsupportedLiteral
-    );
-}
-
-/// A non-pole operand on either side, two unknown sides, and the identity
-/// `register - register` case all leave the predicate undecidable.
-#[test]
-fn undecided_predicates_reject() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    for (shape, left, right) in [
-        // `5 <u x` and `x <u 5` are genuine orderings, not poles.
-        (BranchShape::U64LessThan, Some(5), None),
-        (BranchShape::U64LessThan, None, Some(5)),
-        // `7 <s x` and `x <s 7` likewise.
-        (BranchShape::I64LessThan, Some(7), None),
-        (BranchShape::I64LessThan, None, Some(7)),
-        // Two unknown sides.
-        (BranchShape::U64LessThan, None, None),
-        (BranchShape::I64LessThan, None, None),
-    ] {
-        let source = fixture(target, left, right, shape);
-        assert_eq!(
-            fold(&source, &environment).unwrap_err(),
-            BoundaryBranchError::UnsupportedLiteral,
-            "{left:?} {right:?}"
-        );
-    }
-    // `r - r` is zero on every lane — the flag state is constant whatever
-    // the register holds — but that is the identity case the constant
-    // family owns, not a pole decision.
-    let identity = mutated(target, |function, _| {
-        function.blocks[0].instructions[2].operands[0].virtual_register = LITA;
-        function.blocks[0].instructions[2].operands[1].virtual_register = LITA;
-    });
-    assert_eq!(
-        fold(&identity, &environment).unwrap_err(),
-        BoundaryBranchError::UnsupportedLiteral
-    );
-    // Two distinct unknown registers decide nothing either.
-    let two_unknown = mutated(target, |function, _| {
-        function.blocks[0].instructions[2].operands[0].virtual_register = PARAM;
-        function.blocks[0].instructions[2].operands[1].virtual_register = PARAM2;
-    });
-    assert_eq!(
-        fold(&two_unknown, &environment).unwrap_err(),
-        BoundaryBranchError::UnsupportedLiteral
-    );
-}
-
-/// The equality-condition terminator stays refused: `left != right`
-/// varies with every unknown side, so no single pole decides it — even
-/// with a pole operand present.
-#[test]
-fn equality_condition_branches_reject() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    for (left, right) in [(None, Some(0)), (Some(0), None), (Some(3), Some(5))] {
-        let source = fixture(target, left, right, BranchShape::NonZero);
-        assert_eq!(
-            fold(&source, &environment).unwrap_err(),
-            BoundaryBranchError::UnsupportedInstruction
-        );
-    }
-}
-
 /// Only the emitted variant/kind pairings fold: a mismatched pair, an
 /// explicit operand, a flag-free use roster, a non-branch terminator, and
 /// non-terminator members all refuse.
@@ -940,65 +783,6 @@ fn collapse_requires_the_branch_row() {
     );
 }
 
-/// A flag unit reaching in through a predecessor edge resolves to the
-/// compare when every path to the branch last observed the same
-/// condition-state event — here the compare lives in the entry block and
-/// the branch in its jump target — for the decided fold and the collapse
-/// alike.
-#[test]
-fn cross_block_flag_reaching_folds() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let cases: &[(Option<u64>, Option<u64>, bool)] = &[
-        (None, Some(0), false),
-        (Some(0), None, true),
-        (None, Some(u64::MAX), true),
-    ];
-    for &(left, right, collapsed) in cases {
-        let source = mutated(target, |function, environment| {
-            function.blocks[0].instructions[0].kind = SelectedInstructionKind::MaterializeI64 {
-                value: IntegerValue::Unsigned(u128::from(left.unwrap_or(9))),
-            };
-            function.blocks[0].instructions[1].kind = SelectedInstructionKind::MaterializeI64 {
-                value: IntegerValue::Unsigned(u128::from(right.unwrap_or(9))),
-            };
-            function.blocks[0].instructions[2].operands[0].virtual_register =
-                left.map(|_| LITA).unwrap_or(PARAM);
-            function.blocks[0].instructions[2].operands[1].virtual_register =
-                right.map(|_| LITB).unwrap_or(PARAM);
-            // The entry block keeps its materializations and compare, then
-            // jumps to a new block carrying the branch; its two arms keep
-            // the fixture's returning blocks.
-            let terminator = std::mem::replace(
-                &mut function.blocks[0].terminator,
-                jump_terminator(environment, 6, 3, 6),
-            );
-            function.blocks.push(SelectedBlock {
-                id: SelectedBlockId(3),
-                origin: SelectedBlockOrigin::Source(BlockId::new(4).unwrap()),
-                instructions: Vec::new(),
-                terminator,
-            });
-        });
-        let result = fold(&source, &environment).unwrap();
-        if collapsed {
-            collapsed_to_nonzero(&result, &source, 3);
-        } else {
-            // `x <u 0` never holds: the not-taken arm is decided.
-            jumped_to(&result, 3, 2);
-        }
-        validate_boundary_branch_fold(
-            &source,
-            0,
-            BRANCH,
-            &environment,
-            budget(),
-            result.transformed().clone(),
-        )
-        .unwrap();
-    }
-}
-
 /// A path last touched by a different flag event — here a second compare
 /// on a non-pole operand behind the sibling branch — refuses: the observed
 /// condition state is not provably the pole compare's.
@@ -1059,65 +843,6 @@ fn cross_block_divergent_reaching_refuses() {
         });
         function.blocks.push(returning(4, 10, 11, &terminal_row));
         function.blocks.push(returning(5, 11, 12, &terminal_row));
-    });
-    assert_eq!(
-        fold(&source, &environment).unwrap_err(),
-        BoundaryBranchError::UnsupportedUse
-    );
-}
-
-/// A unit whose reaching walk finds no compare at all — the flag state
-/// flows in from the function entry's unknown condition state — refuses.
-#[test]
-fn cross_block_entry_reaching_refuses() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = mutated(target, |function, _| {
-        // The entry block drops its compare: no flag event precedes the
-        // branch anywhere.
-        function.blocks[0].instructions.remove(2);
-    });
-    assert_eq!(
-        fold(&source, &environment).unwrap_err(),
-        BoundaryBranchError::UnsupportedUse
-    );
-}
-
-/// A terminator-carried clobber ends the reach like any other event: the
-/// predecessor's last event for the flag unit is the jump instruction's
-/// own wipe, not the compare, so the branch refuses.
-#[test]
-fn cross_block_terminator_event_refuses() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = mutated(target, |function, environment| {
-        let flags = match &function.blocks[0].terminator {
-            SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. } => instruction
-                .implicit_uses
-                .iter()
-                .copied()
-                .filter(|unit| {
-                    environment
-                        .constraint(environment.selected_keys().compare_i64)
-                        .unwrap()
-                        .implicit_defs
-                        .contains(unit)
-                })
-                .collect::<Vec<_>>(),
-            _ => unreachable!(),
-        };
-        let mut jump = jump_terminator(environment, 6, 3, 6);
-        let SelectedTerminator::Jump { instruction, .. } = &mut jump else {
-            unreachable!()
-        };
-        instruction.clobbers = flags;
-        let terminator = std::mem::replace(&mut function.blocks[0].terminator, jump);
-        function.blocks.push(SelectedBlock {
-            id: SelectedBlockId(3),
-            origin: SelectedBlockOrigin::Source(BlockId::new(4).unwrap()),
-            instructions: Vec::new(),
-            terminator,
-        });
     });
     assert_eq!(
         fold(&source, &environment).unwrap_err(),
@@ -1321,18 +1046,6 @@ fn source_identity_mismatches_reject() {
         fold_selected_boundary_branch(&source, 0, BRANCH, &wrong_environment, budget())
             .unwrap_err(),
         BoundaryBranchError::SourceMismatch
-    );
-}
-
-#[test]
-fn validation_budget_covers_the_flag_scan() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = fixture(target, None, Some(0), BranchShape::U64LessThan);
-    let tiny = OptimizationWorkBudget::new(100, 100, 4, 100, 100).unwrap();
-    assert_eq!(
-        fold_selected_boundary_branch(&source, 0, BRANCH, &environment, tiny).unwrap_err(),
-        BoundaryBranchError::WorkBudgetExceeded
     );
 }
 

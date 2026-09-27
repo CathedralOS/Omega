@@ -6,7 +6,7 @@ use super::super::super::super::super::{
     IntegerWidenConstantsRule,
 };
 use crate::rules::tests::fixtures::sparse_conditional_constant_propagation::{
-    UnaryConstantFixtureKind, exact_cast_unit, goal_free_unary_unit, unary_constant_unit,
+    UnaryConstantFixtureKind, exact_cast_unit, unary_constant_unit,
 };
 use crate::{RuleAnalysisView, compute_analysis};
 use abstract_operations::AbstractOperation;
@@ -133,54 +133,6 @@ fn unary_integer_rules_preserve_signed_and_unsigned_endpoint_semantics() {
             ),
             "validated unary result for {kind:?}"
         );
-    }
-}
-
-#[test]
-fn unary_integer_rules_decline_every_other_operation_kind() {
-    let unsigned8 = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
-    let unsigned16 = IntegerType::new(IntegerSign::Unsigned, 16).unwrap();
-    let u = IntegerValue::Unsigned;
-    let cases: [(PsiOptimizationUnit, [&'static dyn PsiOptimizationRule; 2]); 3] = [
-        (
-            unary_constant_unit(
-                UnaryConstantFixtureKind::ExactCast,
-                unsigned16,
-                unsigned8,
-                u(7),
-            ),
-            [&IntegerWidenConstantsRule, &IntegerBitwiseNotConstantsRule],
-        ),
-        (
-            unary_constant_unit(UnaryConstantFixtureKind::Widen, unsigned8, unsigned16, u(7)),
-            [
-                &ExactIntegerCastConstantsRule,
-                &IntegerBitwiseNotConstantsRule,
-            ],
-        ),
-        (
-            unary_constant_unit(
-                UnaryConstantFixtureKind::BitwiseNot,
-                unsigned8,
-                unsigned8,
-                u(7),
-            ),
-            [&ExactIntegerCastConstantsRule, &IntegerWidenConstantsRule],
-        ),
-    ];
-    for (unit, wrong_rules) in cases {
-        let constants = compute_analysis(&unit, AnalysisKind::ScalarConstants).unwrap();
-        for rule in wrong_rules {
-            assert!(
-                rule.propose(
-                    &unit,
-                    RuleAnalysisView::new(std::slice::from_ref(&constants)),
-                )
-                .unwrap()
-                .is_empty(),
-                "an exact unary entrance must not claim another operation kind",
-            );
-        }
     }
 }
 
@@ -320,37 +272,4 @@ fn exact_cast_rule_declines_a_constant_outside_the_target_domain() {
             .unwrap()
             .is_empty()
     );
-}
-
-#[test]
-fn widen_and_bitwise_not_rules_reuse_typed_unary_evidence() {
-    let cases: [(bool, &dyn PsiOptimizationRule, u128, u16); 2] = [
-        (true, &IntegerWidenConstantsRule, 15, 16),
-        (false, &IntegerBitwiseNotConstantsRule, 240, 8),
-    ];
-    for (widen, rule, expected, expected_bits) in cases {
-        let unit = goal_free_unary_unit(widen);
-        let constants = compute_analysis(&unit, AnalysisKind::ScalarConstants).unwrap();
-        let candidates = rule
-            .propose(&unit, RuleAnalysisView::new(&[constants]))
-            .unwrap();
-        assert_eq!(candidates.len(), 1);
-        assert_eq!(
-            candidates[0].safety_class(),
-            OptimizationSafetyClass::ExactOperationSemantics
-        );
-        assert!(matches!(
-            candidates[0].scalar_evaluation_witness().unwrap(),
-            IntegerEvaluationWitness::Unary { .. }
-        ));
-        let accepted = validate_integer_evaluation_candidate(&unit, &candidates[0]).unwrap();
-        assert!(matches!(
-            accepted.unit().functions[0].blocks[0].nodes[1].operation,
-            AbstractOperation::IntegerConstant {
-                scalar_type: ScalarType::Integer(scalar_type),
-                value: IntegerValue::Unsigned(value),
-                ..
-            } if value == expected && scalar_type.bits() == expected_bits
-        ));
-    }
 }

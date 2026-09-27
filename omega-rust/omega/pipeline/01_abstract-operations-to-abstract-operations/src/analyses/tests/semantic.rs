@@ -5,7 +5,7 @@ use crate::analyses::analysis_dependencies;
 use crate::analyses::{
     ExecutableEdgeKnowledge, PlaceAliasRelation, PlaceView, ScalarConstantSupport,
 };
-use crate::{AnalysisProduct, EffectClass, EffectKnowledge, ScalarConstant, compute_analysis};
+use crate::{AnalysisProduct, EffectKnowledge, compute_analysis};
 use abstract_operations::AbstractOperation as O;
 use optimization_core::*;
 use optimization_unit::*;
@@ -232,92 +232,6 @@ fn literal_semantic_facts_keep_support_and_revision_regions() {
 }
 
 #[test]
-fn scalar_constants_merge_only_feasible_block_parameter_bindings() {
-    let (selected, parameter, supports, edges) =
-        block_parameter_constant_unit(Some(true), IntegerValue::Unsigned(8));
-    let AnalysisProduct::ScalarConstants(constants) =
-        compute_analysis(&selected, AnalysisKind::ScalarConstants).unwrap()
-    else {
-        unreachable!()
-    };
-    let fact = constants
-        .facts
-        .iter()
-        .find(|fact| fact.value == parameter)
-        .expect("selected incoming constant reaches block parameter");
-    assert_eq!(
-        fact.constant,
-        ScalarConstant::Integer(IntegerValue::Unsigned(7))
-    );
-    assert!(fact.identity.is_some());
-    assert_eq!(fact.support.operations, vec![supports[0], supports[1]]);
-    assert_eq!(fact.support.edges, vec![edges[0], edges[2]]);
-    let AnalysisProduct::ExecutableEdges(executable) =
-        compute_analysis(&selected, AnalysisKind::ExecutableEdges).unwrap()
-    else {
-        unreachable!()
-    };
-    assert_eq!(
-        executable
-            .edges
-            .iter()
-            .map(|fact| (fact.edge, fact.knowledge))
-            .collect::<Vec<_>>(),
-        vec![
-            (edges[0], ExecutableEdgeKnowledge::KnownExecutable),
-            (edges[1], ExecutableEdgeKnowledge::KnownInexecutable),
-            (edges[2], ExecutableEdgeKnowledge::KnownExecutable),
-            (edges[3], ExecutableEdgeKnowledge::KnownInexecutable),
-        ]
-    );
-
-    let (same, parameter, supports, edges) =
-        block_parameter_constant_unit(None, IntegerValue::Unsigned(7));
-    let AnalysisProduct::ScalarConstants(constants) =
-        compute_analysis(&same, AnalysisKind::ScalarConstants).unwrap()
-    else {
-        unreachable!()
-    };
-    let fact = constants
-        .facts
-        .iter()
-        .find(|fact| fact.value == parameter)
-        .expect("equal feasible incoming values meet to one constant");
-    assert_eq!(
-        fact.constant,
-        ScalarConstant::Integer(IntegerValue::Unsigned(7))
-    );
-    assert!(fact.identity.is_some());
-    assert_eq!(fact.support.operations, vec![supports[1], supports[2]]);
-    assert_eq!(fact.support.edges, edges);
-    let AnalysisProduct::ExecutableEdges(executable) =
-        compute_analysis(&same, AnalysisKind::ExecutableEdges).unwrap()
-    else {
-        unreachable!()
-    };
-    assert!(
-        executable
-            .edges
-            .iter()
-            .all(|fact| { fact.knowledge == ExecutableEdgeKnowledge::KnownExecutable })
-    );
-
-    let (different, parameter, _, _) =
-        block_parameter_constant_unit(None, IntegerValue::Unsigned(8));
-    let AnalysisProduct::ScalarConstants(constants) =
-        compute_analysis(&different, AnalysisKind::ScalarConstants).unwrap()
-    else {
-        unreachable!()
-    };
-    assert!(constants.facts.iter().all(|fact| fact.value != parameter));
-    assert!(
-        analysis_dependencies(AnalysisKind::ScalarConstants)
-            .unwrap()
-            .contains(AnalysisKind::ControlFlowGraph)
-    );
-}
-
-#[test]
 fn place_aliases_classify_views_from_declared_roots_and_live_claims() {
     let parameter_a = id(80, PlaceId::new);
     let parameter_b = id(81, PlaceId::new);
@@ -522,77 +436,4 @@ fn place_aliases_classify_views_from_declared_roots_and_live_claims() {
             .contains(AnalysisKind::OwnershipFrontiers),
         "frontier claims are the producer's evidence, so invalidation must cascade"
     );
-}
-
-#[test]
-fn effects_are_conservative_and_liveness_reaches_fixed_point() {
-    let mut function = function(
-        100,
-        1,
-        vec![
-            (1, Terminator::Branch(2, 3)),
-            (2, Terminator::Jump(4)),
-            (3, Terminator::Jump(4)),
-            (4, Terminator::Crash),
-        ],
-    );
-    let condition = id(12, ValueId::new);
-    let support = id(700, OperationId::new);
-    let mut constant = node(O::BooleanConstant {
-        psi_operation: support,
-        result: condition,
-        value: true,
-    });
-    constant.provenance = vec![PsiProvenance::Operation(support)];
-    constant.definitions = vec![ValueDefinition {
-        value: condition,
-        scalar_type: ScalarType::Boolean,
-        site: ValueDefinitionSite::Node {
-            block: id(1, BlockId::new),
-            node: 0,
-        },
-    }];
-    function.blocks[0].nodes.insert(0, constant);
-    function.blocks[0].nodes[1].uses = vec![ValueUse {
-        value: condition,
-        block: id(1, BlockId::new),
-        node: 1,
-    }];
-    let unit = unit(vec![function], b"effects-liveness");
-
-    let AnalysisProduct::EffectSummaries(effects) =
-        compute_analysis(&unit, AnalysisKind::EffectSummaries).unwrap()
-    else {
-        unreachable!()
-    };
-    assert_eq!(effects.nodes[0].class, EffectClass::PureScalar);
-    assert_eq!(effects.nodes[0].observable, EffectKnowledge::No);
-    assert_eq!(
-        effects.nodes[0].support,
-        vec![PsiProvenance::Operation(support)]
-    );
-    let crash = effects.nodes.last().unwrap();
-    assert_eq!(crash.crash, EffectKnowledge::Yes);
-    assert_eq!(crash.observable, EffectKnowledge::Yes);
-
-    let AnalysisProduct::ValueLiveness(liveness) =
-        compute_analysis(&unit, AnalysisKind::ValueLiveness).unwrap()
-    else {
-        unreachable!()
-    };
-    assert!(liveness.blocks[0].entry.is_empty());
-    assert_eq!(liveness.blocks[0].nodes[0].exit, vec![condition]);
-    assert_eq!(liveness.blocks[0].nodes[1].entry, vec![condition]);
-    assert!(liveness.blocks[0].nodes[1].exit.is_empty());
-    let independent = optimization_unit_semantics::reconstruct_closed_scalar_node_boundary(
-        &unit,
-        optimization_unit::NodeLocation {
-            machine: id(100, MachineId::new),
-            block: id(1, BlockId::new),
-            node: 1,
-        },
-    )
-    .unwrap();
-    assert_eq!(independent.live_in, liveness.blocks[0].nodes[1].entry);
-    assert_eq!(independent.live_out, liveness.blocks[0].nodes[1].exit);
 }

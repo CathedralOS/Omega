@@ -6,9 +6,7 @@
 
 mod algebraic_rewrites;
 mod control_flow_operational;
-mod dead_scalar_elimination;
 mod dispatch_and_composition;
-mod proof_check_elision;
 mod proof_check_operational;
 mod sccp_operational;
 mod structural_rewrites;

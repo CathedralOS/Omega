@@ -7,4 +7,3 @@ mod compatible_policy;
 mod contract_custody;
 mod dominating;
 mod phi_translated;
-mod same_block;

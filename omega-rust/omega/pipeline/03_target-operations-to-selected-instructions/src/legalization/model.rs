@@ -7,14 +7,6 @@ pub(crate) fn legalization_validator_identity() -> OptimizationValidatorIdentity
     )
 }
 
-/// The v22 validator identity, kept as a test control against the current one.
-#[cfg(test)]
-pub(crate) fn legalization_validator_identity_v22_legacy() -> OptimizationValidatorIdentity {
-    OptimizationValidatorIdentity::from_canonical_bytes(
-        b"omega.terminal-target-legalization-independent-replay.v22",
-    )
-}
-
 /// The v21 validator identity, kept as a test control against the current one.
 #[cfg(test)]
 pub(crate) fn legalization_validator_identity_v21_legacy() -> OptimizationValidatorIdentity {

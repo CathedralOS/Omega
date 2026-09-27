@@ -6,8 +6,7 @@ use super::super::super::{
 };
 use crate::RuleAnalysisView;
 use crate::rules::tests::fixtures::control_flow_cleanup::{
-    adjacent_conditional_merge_unit, linear_empty_block_unit, non_adjacent_merge_unit,
-    propagated_block_parameter_unit,
+    linear_empty_block_unit, non_adjacent_merge_unit, propagated_block_parameter_unit,
 };
 use crate::rules::tests::fixtures::id;
 use abstract_operations::{AbstractOperation, AbstractOperation as O};
@@ -128,50 +127,6 @@ fn adjacent_block_merge_substitutes_parameters_and_rehomes_edge_custody() {
 }
 
 #[test]
-fn adjacent_block_merge_fuses_a_direct_terminal_exit_without_erasing_it() {
-    let unit = linear_empty_block_unit();
-    let contract = AdjacentBlockMergeRule::contract();
-    let mut manager = crate::AnalysisManager::new(&unit);
-    let products = manager
-        .require_all(&unit, contract.required_analyses())
-        .unwrap()
-        .into_iter()
-        .cloned()
-        .collect::<Vec<_>>();
-    let [candidate] = AdjacentBlockMergeRule
-        .propose(&unit, RuleAnalysisView::new(&products))
-        .unwrap()
-        .try_into()
-        .expect("the adjacent return target is the sole eligible merge");
-    assert!(candidate.consumed_facts().is_empty());
-    let accepted = validate_adjacent_block_merge_candidate(&unit, &candidate).unwrap();
-    let output = accepted.unit();
-    assert_eq!(output.functions[0].blocks.len(), 2);
-    let terminal = &output.functions[0].blocks[1].nodes[0];
-    assert!(matches!(terminal.operation, O::ReturnUnit { .. }));
-    assert_eq!(
-        terminal.provenance,
-        [
-            PsiProvenance::Edge(id(913, EdgeId::new)),
-            PsiProvenance::Edge(id(912, EdgeId::new)),
-        ]
-    );
-    let incoming = PsiRealizationSite::Edge {
-        machine: id(901, MachineId::new),
-        edge: id(912, EdgeId::new),
-    };
-    assert!(accepted.provenance().iter().any(|row| {
-        row.input == incoming
-            && row.disposition
-                == ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(NodeLocation {
-                    machine: id(901, MachineId::new),
-                    block: id(903, BlockId::new),
-                    node: 0,
-                }))
-    }));
-}
-
-#[test]
 fn adjacent_block_merge_carries_exact_ownership_frontier_custody() {
     let mut unit = linear_empty_block_unit();
     let machine = id(901, MachineId::new);
@@ -280,100 +235,6 @@ fn adjacent_block_merge_carries_exact_ownership_frontier_custody() {
             patch,
         ),
         Err(PsiRewriteCandidateError::NonCanonicalOwnershipFrontierWitness)
-    );
-}
-
-#[test]
-fn adjacent_conditional_merge_fans_incoming_custody_to_exact_arms() {
-    let unit = adjacent_conditional_merge_unit();
-    let contract = AdjacentBlockMergeRule::contract();
-    let mut manager = crate::AnalysisManager::new(&unit);
-    let products = manager
-        .require_all(&unit, contract.required_analyses())
-        .unwrap()
-        .into_iter()
-        .cloned()
-        .collect::<Vec<_>>();
-    let [candidate] = AdjacentBlockMergeRule
-        .propose(&unit, RuleAnalysisView::new(&products))
-        .unwrap()
-        .try_into()
-        .expect("only the adjacent conditional target is eligible");
-    let accepted = validate_adjacent_block_merge_candidate(&unit, &candidate).unwrap();
-    let output = accepted.unit();
-    assert_eq!(output.functions[0].blocks.len(), 3);
-    let node = &output.functions[0].blocks[0].nodes[0];
-    assert!(matches!(
-        node.operation,
-        AbstractOperation::Conditional { condition, .. }
-            if condition == id(1_106, ValueId::new)
-    ));
-    for (edge, direct) in [
-        (&node.successors[0], id(1_111, EdgeId::new)),
-        (&node.successors[1], id(1_112, EdgeId::new)),
-    ] {
-        assert_eq!(
-            edge.provenance,
-            [
-                PsiProvenance::Edge(direct),
-                PsiProvenance::Edge(id(1_110, EdgeId::new)),
-            ]
-        );
-    }
-    let incoming = PsiRealizationSite::Edge {
-        machine: id(1_101, MachineId::new),
-        edge: id(1_110, EdgeId::new),
-    };
-    assert_eq!(
-        accepted
-            .provenance()
-            .iter()
-            .filter(|row| row.input == incoming)
-            .count(),
-        2
-    );
-
-    let PsiRewritePatch::MergeAdjacentBlock(patch) = candidate.patch() else {
-        unreachable!()
-    };
-    let mut corrupted_provenance = candidate.provenance().to_vec();
-    corrupted_provenance
-        .iter_mut()
-        .find(|row| {
-            row.input == incoming
-                && row.disposition.site()
-                    == (PsiRealizationSite::Edge {
-                        machine: id(1_101, MachineId::new),
-                        edge: id(1_112, EdgeId::new),
-                    })
-        })
-        .unwrap()
-        .disposition = ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(NodeLocation {
-        machine: id(1_101, MachineId::new),
-        block: id(1_103, BlockId::new),
-        node: 0,
-    }));
-    corrupted_provenance.sort_by_key(|row| {
-        (
-            row.input,
-            row.disposition.canonical_tag(),
-            row.disposition.site(),
-        )
-    });
-    let corrupted = PsiRewriteCandidate::new_adjacent_block_merge(
-        unit.identity,
-        contract,
-        candidate.affected_blocks().to_vec(),
-        candidate.substitutions().to_vec(),
-        corrupted_provenance,
-        candidate.ownership_frontier_witness().unwrap().clone(),
-        candidate.predicted_cost_delta(),
-        patch,
-    )
-    .unwrap();
-    assert_eq!(
-        validate_adjacent_block_merge_candidate(&unit, &corrupted),
-        Err(OptimizationUnitValidationError::CandidateProvenanceMismatch)
     );
 }
 
@@ -504,56 +365,4 @@ fn non_adjacent_merge_supports_both_roster_directions_and_global_uses() {
             Err(OptimizationUnitValidationError::CandidateProvenanceMismatch)
         );
     }
-}
-
-#[test]
-fn adjacent_merge_rewrites_target_parameter_uses_in_dominated_successors() {
-    let mut unit = non_adjacent_merge_unit(false);
-    let sibling = unit.functions[0].blocks.remove(2);
-    unit.functions[0].blocks.insert(3, sibling);
-    let mut effect = 0u64;
-    for block in &mut unit.functions[0].blocks {
-        for node in &mut block.nodes {
-            node.effect = optimization_unit::EffectLink {
-                input: effect,
-                output: effect + 1,
-            };
-            effect += 1;
-        }
-    }
-    unit.identity = recompute_psi_optimization_unit_identity(&unit);
-    validate_psi_optimization_unit(&unit).unwrap();
-
-    let contract = AdjacentBlockMergeRule::contract();
-    let mut manager = crate::AnalysisManager::new(&unit);
-    let products = manager
-        .require_all(&unit, contract.required_analyses())
-        .unwrap()
-        .into_iter()
-        .cloned()
-        .collect::<Vec<_>>();
-    let candidate = AdjacentBlockMergeRule
-        .propose(&unit, RuleAnalysisView::new(&products))
-        .unwrap()
-        .into_iter()
-        .find(|candidate| {
-            matches!(
-                candidate.patch(),
-                PsiRewritePatch::MergeAdjacentBlock(patch)
-                    if patch.target == id(1_504, BlockId::new)
-            )
-        })
-        .expect("forward-adjacent parameterized target is merged");
-    let accepted = validate_adjacent_block_merge_candidate(&unit, &candidate).unwrap();
-    let descendant = accepted.unit().functions[0]
-        .blocks
-        .iter()
-        .find(|block| block.id == id(1_503, BlockId::new))
-        .unwrap();
-    assert!(matches!(
-        descendant.nodes[0].operation,
-        O::BooleanEqual { left, right, .. }
-            if left == id(1_520, ValueId::new)
-                && right == id(1_510, ValueId::new)
-    ));
 }

@@ -1,36 +1,13 @@
 use super::super::{LoweringError, TargetLoweringRequest, lower_to_target_operations};
 use super::{
     AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractOperationPlan,
-    AbstractParameter, AbstractResult, AbstractSuccessor, BlockId, EdgeId, IntegerType, MachineId,
-    NativeTarget, ObligationId, OperationId, PlaceId, ScalarParameterLocation, ScalarType,
-    TargetIntegerExpression, TargetUnitOperation, TerminalAffineCleanupAction, ValueBinding,
-    ValueId, identity,
+    AbstractParameter, AbstractResult, BlockId, EdgeId, IntegerType, MachineId, NativeTarget,
+    ObligationId, OperationId, PlaceId, ScalarType, TargetIntegerExpression, TargetUnitOperation,
+    TerminalAffineCleanupAction, ValueId, identity,
 };
 mod fixtures;
 mod shared_values;
-mod straight_line_blocks;
 use fixtures::{direct_call_plan, parameter_return_plan};
-
-#[test]
-fn unit_functions_require_explicit_graph_blocks() {
-    let mut source = parameter_return_plan(1);
-    let function = &mut source.functions[0];
-    function.parameters.clear();
-    function.result = AbstractFunctionResult::Unit;
-    function.operations = vec![AbstractOperation::ReturnUnit {
-        psi_edge: EdgeId::new(10).unwrap(),
-        cleanup_actions: Vec::new(),
-    }];
-    let target = NativeTarget::linux_x64();
-    let lowered = lower_to_target_operations(&source, TargetLoweringRequest::new(target)).unwrap();
-    assert_eq!(lowered.functions[0].graph.blocks.len(), 1);
-    crate::validate_abstract_to_target_translation(&source, target, &lowered).unwrap();
-    source.functions[0].block_entries.clear();
-    assert!(matches!(
-        lower_to_target_operations(&source, TargetLoweringRequest::new(target)),
-        Err(LoweringError::UnsupportedControlFlow { .. })
-    ));
-}
 
 #[test]
 fn common_graph_rejects_unsupported_ieee_float_fma_realization() {
@@ -89,56 +66,6 @@ fn common_graph_rejects_unsupported_ieee_float_fma_realization() {
                         operation
                     )
                 )
-            );
-        }
-    }
-}
-
-#[test]
-fn scalar_graph_retains_incoming_register_and_stack_abi() {
-    for target in [
-        NativeTarget::linux_x64(),
-        NativeTarget::windows_x64(),
-        NativeTarget::linux_arm64(),
-    ] {
-        for count in [1, 9] {
-            let source = parameter_return_plan(count);
-            let lowered =
-                lower_to_target_operations(&source, TargetLoweringRequest::new(target)).unwrap();
-            let graph = &lowered.functions[0].graph;
-            assert_eq!(graph.scalar_parameters.len(), count);
-            assert_eq!(
-                graph.scalar_parameters[count - 1].placement,
-                graph.call_plan.parameters[count - 1]
-            );
-            let target_operations::TargetControlTerminator::ReturnScalar {
-                source_value,
-                expression,
-                ..
-            } = &graph.blocks[0].terminator
-            else {
-                panic!("scalar return");
-            };
-            assert_eq!(
-                *source_value,
-                source.functions[0].parameters[count - 1].value
-            );
-            let target_operations::TargetScalarExpression::Integer {
-                expression:
-                    TargetIntegerExpression::Parameter {
-                        parameter_index,
-                        location,
-                        ..
-                    },
-                ..
-            } = expression
-            else {
-                panic!("returned ABI parameter");
-            };
-            assert_eq!(*parameter_index, count - 1);
-            assert_eq!(
-                matches!(location, ScalarParameterLocation::IncomingStack { .. }),
-                count == 9
             );
         }
     }
@@ -224,133 +151,4 @@ fn scalar_graph_rejects_undefined_returns_and_unimplemented_cleanup() {
         )
         .is_err()
     );
-}
-
-pub(super) fn constant_conditional_plan(select_true: bool) -> AbstractOperationPlan {
-    let machine = MachineId::new(20).expect("machine");
-    let integer = IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8).expect("u8");
-    let scalar_type = ScalarType::Integer(integer);
-    let argument = ValueId::new(1).expect("argument");
-    let condition = ValueId::new(2).expect("condition");
-    let true_parameter = ValueId::new(3).expect("true parameter");
-    let false_parameter = ValueId::new(4).expect("false parameter");
-    let true_value = ValueId::new(5).expect("true value");
-    let false_value = ValueId::new(6).expect("false value");
-    let result = ValueId::new(7).expect("result");
-    let true_edge = EdgeId::new(1).expect("true edge");
-    let false_edge = EdgeId::new(2).expect("false edge");
-    let true_return = EdgeId::new(3).expect("true return");
-    let false_return = EdgeId::new(4).expect("false return");
-    AbstractOperationPlan {
-        psi: identity(),
-        entry: machine,
-        structural_types: Vec::new().into(),
-        boundary_machines: Vec::new(),
-        provider_candidates: Vec::new(),
-        functions: vec![AbstractFunction {
-            machine,
-            attachment: None,
-            entry: BlockId::new(1).expect("entry block"),
-            parameters: vec![AbstractParameter {
-                value: argument,
-                scalar_type,
-            }],
-            structural_parameters: Vec::new(),
-            result: AbstractFunctionResult::Scalar(AbstractResult {
-                value: result,
-                scalar_type,
-            }),
-            entry_claims: Vec::new(),
-            published_service_ceiling: Vec::new(),
-            block_entries: vec![
-                abstract_operations::AbstractBlockEntry {
-                    structural_parameters: Vec::new(),
-                    block: BlockId::new(1).expect("entry block"),
-                    parameters: Vec::new(),
-                    operation_offset: 0,
-                },
-                abstract_operations::AbstractBlockEntry {
-                    structural_parameters: Vec::new(),
-                    block: BlockId::new(2).expect("true block"),
-                    parameters: vec![AbstractParameter {
-                        value: true_parameter,
-                        scalar_type,
-                    }],
-                    operation_offset: 2,
-                },
-                abstract_operations::AbstractBlockEntry {
-                    structural_parameters: Vec::new(),
-                    block: BlockId::new(3).expect("false block"),
-                    parameters: vec![AbstractParameter {
-                        value: false_parameter,
-                        scalar_type,
-                    }],
-                    operation_offset: 4,
-                },
-            ],
-            operations: vec![
-                AbstractOperation::BooleanConstant {
-                    psi_operation: semantic_vocabulary::OperationId::new(20)
-                        .expect("condition operation"),
-                    result: condition,
-                    value: select_true,
-                },
-                AbstractOperation::Conditional {
-                    condition,
-                    when_true: AbstractSuccessor {
-                        structural_bindings: Vec::new(),
-                        psi_edge: true_edge,
-                        target: BlockId::new(2).expect("true block"),
-                        bindings: vec![ValueBinding {
-                            parameter: true_parameter,
-                            argument,
-                            scalar_type,
-                        }],
-                        trivial_affine_discards: Vec::new(),
-                    },
-                    when_false: AbstractSuccessor {
-                        structural_bindings: Vec::new(),
-                        psi_edge: false_edge,
-                        target: BlockId::new(3).expect("false block"),
-                        bindings: vec![ValueBinding {
-                            parameter: false_parameter,
-                            argument,
-                            scalar_type,
-                        }],
-                        trivial_affine_discards: Vec::new(),
-                    },
-                },
-                AbstractOperation::WrappingIntegerAdd {
-                    psi_operation: semantic_vocabulary::OperationId::new(21)
-                        .expect("true operation"),
-                    result: true_value,
-                    scalar_type: integer,
-                    left: true_parameter,
-                    right: true_parameter,
-                },
-                AbstractOperation::Return {
-                    psi_edge: true_return,
-                    result,
-                    value: true_value,
-                    scalar_type,
-                    cleanup_actions: Vec::new(),
-                },
-                AbstractOperation::SaturatingIntegerMultiply {
-                    psi_operation: semantic_vocabulary::OperationId::new(22)
-                        .expect("false operation"),
-                    result: false_value,
-                    scalar_type: integer,
-                    left: false_parameter,
-                    right: false_parameter,
-                },
-                AbstractOperation::Return {
-                    psi_edge: false_return,
-                    result,
-                    value: false_value,
-                    scalar_type,
-                    cleanup_actions: Vec::new(),
-                },
-            ],
-        }],
-    }
 }

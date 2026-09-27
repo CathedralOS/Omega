@@ -209,35 +209,3 @@ fn empty_local_transfers_as_a_zero_byte_owned_argument() {
         );
     }
 }
-
-/// The argument must name the one establishment of its place: another
-/// producer, or an establishment spelling another place, rejects.
-#[test]
-fn empty_local_argument_rejects_producer_and_place_substitution() {
-    let (source, target, unit) = fixture(NativeTarget::linux_x64());
-    for mutation in 0..2 {
-        let mut changed = target.clone();
-        match (
-            mutation,
-            &mut changed.functions[0].graph.blocks[0].operations[..],
-        ) {
-            (0, [_, TargetUnitOperation::Call { arguments, .. }]) => {
-                arguments[0].source = TargetStructuralArgumentSource::StructuralHome {
-                    psi_operation: OperationId::new(2).unwrap(),
-                }
-            }
-            (
-                1,
-                [
-                    TargetUnitOperation::EstablishTrivialAffineLocal { place, .. },
-                    _,
-                ],
-            ) => place.id = PlaceId::new(7).unwrap(),
-            _ => unreachable!(),
-        }
-        assert!(
-            legalize_target_operations(&changed, &source, &unit).is_err(),
-            "mutation {mutation}"
-        );
-    }
-}

@@ -30,7 +30,7 @@ pub mod validation;
 
 pub use abstract_optimization::{AbstractOptimizationError, optimize_abstract_operations};
 #[cfg(test)]
-pub(crate) use abstract_optimization::{replay_psi_pipeline, run_psi_pipeline, run_psi_registry};
+pub(crate) use abstract_optimization::{replay_psi_pipeline, run_psi_pipeline};
 #[cfg(test)]
 pub(crate) use publication::publish_optimization_run;
 pub use publication::{OptimizedAbstractProjectionError, ValidatedOptimizedAbstractPlan};
@@ -63,8 +63,6 @@ pub(crate) use pass_manager::{
     OptimizationRun, OptimizationRunUsage, PsiOptimizationCommit, baseline_psi_cost_model_identity,
 };
 pub use ranked_rewrites::LoopInvariantScalarMotionError;
-#[cfg(test)]
-pub(crate) use ranked_rewrites::propose_countdown_invariant_constant_relocations;
 #[cfg(test)]
 pub(crate) use ranked_rewrites::{
     apply_loop_invariant_scalar_motion, propose_loop_invariant_scalar_motion,

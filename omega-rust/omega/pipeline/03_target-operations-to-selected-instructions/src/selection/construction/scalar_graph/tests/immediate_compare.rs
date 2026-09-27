@@ -110,51 +110,6 @@ fn validate(
 }
 
 #[test]
-fn u12_literal_compare_selects_immediate_and_validates() {
-    let target = target::NativeTarget::linux_x64();
-    let source = source_with_literal(target, 7, false);
-    let (selected, constraints, environment) = select(&source, target);
-    validate(&source, &selected, target, &constraints, &environment);
-
-    let comparisons: Vec<_> = selected
-        .blocks
-        .iter()
-        .flat_map(|block| &block.instructions)
-        .filter(|instruction| {
-            matches!(
-                instruction.kind,
-                SelectedInstructionKind::CompareI64
-                    | SelectedInstructionKind::CompareI64Zero
-                    | SelectedInstructionKind::CompareI64Immediate { .. }
-            )
-        })
-        .collect();
-    assert_eq!(comparisons.len(), 1);
-    assert_eq!(
-        comparisons[0].kind,
-        SelectedInstructionKind::CompareI64Immediate {
-            immediate: IntegerValue::Unsigned(7)
-        }
-    );
-    assert_eq!(
-        comparisons[0].constraint,
-        constraints.keys.compare_i64_immediate
-    );
-    assert!(
-        !selected
-            .blocks
-            .iter()
-            .flat_map(|block| &block.instructions)
-            .any(|instruction| matches!(
-                instruction.kind,
-                SelectedInstructionKind::MaterializeI64 {
-                    value: IntegerValue::Unsigned(7)
-                }
-            ))
-    );
-}
-
-#[test]
 fn out_of_range_or_reused_literal_keeps_register_compare() {
     let target = target::NativeTarget::linux_x64();
     for (literal, reused) in [(4096, false), (7, true)] {

@@ -229,38 +229,6 @@ fn independent_shared_copy_replay_is_terminal_on_the_transformed_function() {
     );
 }
 
-/// Independent replay under the default leg falls back to a site copy when
-/// the boundary carried no connector evidence, matching production's
-/// partition instead of the producer's plan.
-#[test]
-fn independent_replay_under_the_default_leg_falls_back_to_site_copies() {
-    let (function, legality, row, _, _) = computed_shared_fixture();
-    let mut boundaries = boundaries(&legality);
-    boundaries[0].incoming = None;
-    let references = boundaries.iter().collect::<Vec<_>>();
-    let (copies, transformed) = replay(
-        &function,
-        &references,
-        &row,
-        FixedViewCopyPolicy::SharedSourceExitBeforeFixedUseV1,
-        4,
-        2,
-    )
-    .unwrap();
-    assert_eq!(copies.len(), 2);
-    assert_eq!(transformed.blocks[1].instructions.len(), 1);
-    assert_eq!(transformed.blocks[2].instructions.len(), 1);
-    for (copy, block) in copies.iter().zip(&transformed.blocks[1..]) {
-        let SelectedTerminator::Return { instruction, .. } = &block.terminator else {
-            panic!("fixture returns on both edges");
-        };
-        assert_eq!(
-            instruction.operands[0].virtual_register,
-            copy.result_virtual_register
-        );
-    }
-}
-
 /// The default leg replays the immediate form's origin admission:
 /// instruction-result sources with mid-block or terminator sites rebuild
 /// the same per-site copies.

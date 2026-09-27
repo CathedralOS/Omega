@@ -34,23 +34,6 @@ pub(crate) enum BinaryConstantFixtureKind {
 }
 
 impl BinaryConstantFixtureKind {
-    pub(crate) fn proof_certified(self) -> bool {
-        matches!(
-            self,
-            Self::ExactAdd
-                | Self::ExactSubtract
-                | Self::ExactMultiply
-                | Self::ExactDivide
-                | Self::ExactRemainder
-                | Self::WrappingDivide
-                | Self::WrappingRemainder
-                | Self::SaturatingDivide
-                | Self::SaturatingRemainder
-                | Self::ExactShiftLeft
-                | Self::ExactShiftRight
-        )
-    }
-
     fn operation(
         self,
         psi_operation: OperationId,

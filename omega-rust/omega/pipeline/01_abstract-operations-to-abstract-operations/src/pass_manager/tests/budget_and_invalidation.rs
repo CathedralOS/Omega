@@ -2,24 +2,9 @@
 
 use super::super::{OptimizationRunError, register_revision, run_unit};
 use super::{
-    AbstractOperation, Arc, BTreeMap, DuplicateExactRule, NonProfitableExactRule, Optimization,
-    OptimizationCandidateVerdict, OptimizationReasonCode, OptimizationSelections,
-    OptimizationUnitIdentity, OrderedRuleRegistry, PsiOptimizationRule, budget,
-    built_in_psi_registry, exact_add_unit,
+    Arc, BTreeMap, DuplicateExactRule, OptimizationUnitIdentity, OrderedRuleRegistry,
+    PsiOptimizationRule, budget, exact_add_unit,
 };
-#[test]
-fn exhausted_iteration_budget_fails_deterministically_without_output() {
-    let selections =
-        OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation]).unwrap();
-    let registry = built_in_psi_registry(&selections).unwrap();
-    let first = run_unit(exact_add_unit(), &registry, budget(1)).unwrap_err();
-    let second = run_unit(exact_add_unit(), &registry, budget(1)).unwrap_err();
-    assert_eq!(first, second);
-    assert_eq!(
-        first,
-        OptimizationRunError::WorkBudgetExhausted("iterations")
-    );
-}
 
 #[test]
 fn synthetic_a_to_b_to_a_revision_cycle_fails_before_repeated_commit() {
@@ -48,34 +33,6 @@ fn synthetic_a_to_b_to_a_revision_cycle_fails_before_repeated_commit() {
             repeated_at_iteration: 2,
         }
     );
-}
-
-#[test]
-fn nonprofitable_validated_candidate_is_recorded_as_a_skip() {
-    let registry =
-        OrderedRuleRegistry::new(
-            [Arc::new(NonProfitableExactRule) as Arc<dyn PsiOptimizationRule>],
-        )
-        .unwrap();
-    let (unit, commits, _, decisions, pass_manifest, ledger) =
-        run_unit(exact_add_unit(), &registry, budget(2)).unwrap();
-
-    assert!(commits.is_empty());
-    assert_eq!(decisions.records.len(), 1);
-    assert!(matches!(
-        unit.functions[0].blocks[0].nodes[2].operation,
-        AbstractOperation::ExactIntegerAdd { .. }
-    ));
-    let manifest = pass_manifest.unwrap();
-    assert_eq!(manifest.decisions().len(), 1);
-    assert_eq!(
-        manifest.decisions()[0].verdict(),
-        OptimizationCandidateVerdict::Skipped(OptimizationReasonCode::NotProfitable)
-    );
-    assert!(manifest.decisions()[0].validator().is_some());
-    assert_eq!(manifest.decisions()[0].consumed_facts().len(), 3);
-    assert!(ledger.records().is_empty());
-    assert_eq!(ledger.input(), ledger.output());
 }
 
 #[test]

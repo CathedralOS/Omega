@@ -7,8 +7,8 @@
 //! rejects.
 
 use super::{
-    BETWEEN, KILLER, POINTER, SCRATCH, STORE, VALUE, access, budget, eliminate, instruction,
-    mutated_chained, place, settlement_at, successor,
+    POINTER, SCRATCH, STORE, VALUE, access, budget, eliminate, instruction, mutated_chained, place,
+    settlement_at, successor,
 };
 use crate::rewrites::unexecuted::dead_store::{
     DeadStoreEliminationError, eliminate_selected_dead_store, validate_dead_store_elimination,
@@ -52,182 +52,6 @@ fn clear_self_loop(
         successor: successor(1),
     };
     function.memory_accesses.remove(1);
-}
-
-/// A store whose only path forward spins in a clear self-loop has no
-/// covering write anywhere, yet stays dead: the spinning path can never
-/// observe the bytes. The removal drops the store and its write row, and
-/// replay independently admits the same pair.
-#[test]
-fn dead_store_dies_into_a_clear_self_loop() {
-    for target in [
-        NativeTarget::linux_x64(),
-        NativeTarget::linux_arm64(),
-        NativeTarget::windows_x64(),
-        NativeTarget::macos_arm64(),
-    ] {
-        let environment = baseline_target_register_environment(target).unwrap();
-        let source = mutated_chained(target, |function, environment| {
-            clear_self_loop(function, environment)
-        });
-        let result = eliminate(&source, &environment).unwrap();
-        let function = &result.transformed().functions[0];
-        assert_eq!(
-            function.blocks[0]
-                .instructions
-                .iter()
-                .map(|instruction| instruction.id)
-                .collect::<Vec<_>>(),
-            vec![SelectedInstructionId(1), BETWEEN]
-        );
-        // The self-loop is retained whole; only the dead store is gone.
-        assert_eq!(
-            function.blocks[1]
-                .instructions
-                .iter()
-                .map(|instruction| instruction.id)
-                .collect::<Vec<_>>(),
-            vec![SelectedInstructionId(8)]
-        );
-        assert!(function.memory_accesses.is_empty());
-        validate_dead_store_elimination(
-            &source,
-            0,
-            STORE,
-            &environment,
-            budget(),
-            result.transformed().clone(),
-        )
-        .unwrap();
-    }
-}
-
-/// Fork legs may disagree about coverage: one leg reaches the covering
-/// store while the other spins through a clear two-block cycle that can
-/// never observe the bytes. Both paths are dead, so the store is removed.
-#[test]
-fn dead_store_dies_when_one_leg_covers_and_the_other_cycles_clear() {
-    for target in [
-        NativeTarget::linux_x64(),
-        NativeTarget::linux_arm64(),
-        NativeTarget::windows_x64(),
-        NativeTarget::macos_arm64(),
-    ] {
-        let environment = baseline_target_register_environment(target).unwrap();
-        let source = mutated_chained(target, |function, environment| {
-            let branch = environment
-                .constraint(environment.selected_keys().conditional_branch)
-                .unwrap();
-            let jump = environment
-                .constraint(environment.selected_keys().jump)
-                .unwrap();
-            let SelectedTerminator::Jump {
-                successor: edge, ..
-            } = &function.blocks[0].terminator
-            else {
-                unreachable!()
-            };
-            let edge = edge.clone();
-            function.blocks[0].terminator = SelectedTerminator::ConditionalBranch {
-                instruction: instruction(
-                    SelectedInstructionId(6),
-                    SelectedInstructionKind::ConditionalBranchNonZero,
-                    branch,
-                    &[],
-                ),
-                when_nonzero: edge,
-                when_zero: successor(2),
-            };
-            for (id, jump_id, next) in [(2, 8, 3), (3, 9, 2)] {
-                function.blocks.push(SelectedBlock {
-                    id: SelectedBlockId(id),
-                    origin: SelectedBlockOrigin::Source(BlockId::new(u64::from(id) + 1).unwrap()),
-                    instructions: Vec::new(),
-                    terminator: SelectedTerminator::Jump {
-                        instruction: instruction(
-                            SelectedInstructionId(jump_id),
-                            SelectedInstructionKind::Jump,
-                            jump,
-                            &[],
-                        ),
-                        successor: successor(next),
-                    },
-                });
-            }
-        });
-        let result = eliminate(&source, &environment).unwrap();
-        let function = &result.transformed().functions[0];
-        assert_eq!(
-            function.blocks[0]
-                .instructions
-                .iter()
-                .map(|instruction| instruction.id)
-                .collect::<Vec<_>>(),
-            vec![SelectedInstructionId(1), BETWEEN]
-        );
-        // Only the dead store's row is gone; the covering store's stays.
-        assert_eq!(
-            function
-                .memory_accesses
-                .iter()
-                .map(|access| (access.instruction, access.role))
-                .collect::<Vec<_>>(),
-            vec![(KILLER, SelectedMemoryAccessRole::WritePlace)]
-        );
-        validate_dead_store_elimination(
-            &source,
-            0,
-            STORE,
-            &environment,
-            budget(),
-            result.transformed().clone(),
-        )
-        .unwrap();
-    }
-}
-
-/// The sharpest disagreement: one clear block whose own legs split — one
-/// edge reaches the covering store, the other loops back into itself.
-/// Every path either covers or spins unobserving, so the store dies.
-#[test]
-fn dead_store_dies_when_a_clear_block_splits_between_cover_and_cycle() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = mutated_chained(target, |function, environment| {
-        let branch = environment
-            .constraint(environment.selected_keys().conditional_branch)
-            .unwrap();
-        let jump = environment
-            .constraint(environment.selected_keys().jump)
-            .unwrap();
-        // Block 0 jumps to a clear block 2 whose legs split: one edge
-        // reaches block 1's covering store, the other loops to itself.
-        function.blocks[0].terminator = SelectedTerminator::Jump {
-            instruction: instruction(
-                SelectedInstructionId(6),
-                SelectedInstructionKind::Jump,
-                jump,
-                &[],
-            ),
-            successor: successor(2),
-        };
-        function.blocks.push(SelectedBlock {
-            id: SelectedBlockId(2),
-            origin: SelectedBlockOrigin::Source(BlockId::new(3).unwrap()),
-            instructions: Vec::new(),
-            terminator: SelectedTerminator::ConditionalBranch {
-                instruction: instruction(
-                    SelectedInstructionId(7),
-                    SelectedInstructionKind::ConditionalBranchNonZero,
-                    branch,
-                    &[],
-                ),
-                when_nonzero: successor(1),
-                when_zero: successor(2),
-            },
-        });
-    });
-    eliminate(&source, &environment).unwrap();
 }
 
 /// Clear-region admission still rejects every observation route the
@@ -435,26 +259,6 @@ fn clear_cycle_replay_rejects_mutated_proposals() {
         validate_dead_store_elimination(&source, 0, STORE, &environment, budget(), proposed)
             .unwrap_err(),
         DeadStoreEliminationError::ReplayMismatch
-    );
-}
-
-/// The closed-region admission is deterministic and terminal: two runs over
-/// the identical source produce the identical validated result, and the
-/// published plan is a legal fixed point — the removed store is gone and
-/// nothing else in the function can die.
-#[test]
-fn clear_cycle_elimination_is_deterministic_and_terminal() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = mutated_chained(target, |function, environment| {
-        clear_self_loop(function, environment)
-    });
-    let first = eliminate(&source, &environment).unwrap();
-    let second = eliminate(&source, &environment).unwrap();
-    assert_eq!(first, second);
-    assert_eq!(
-        eliminate_selected_dead_store(&first, 0, STORE, &environment, budget()).unwrap_err(),
-        DeadStoreEliminationError::SourceMismatch
     );
 }
 

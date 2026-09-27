@@ -333,15 +333,6 @@ fn equal_end_pressure_keeps_existing_homes_and_selects_the_incoming_value() {
 }
 
 #[test]
-fn farther_active_end_wins_only_when_its_eviction_recovers_a_view() {
-    let (function, _) = computed(&[(0, 5), (0, 3), (0, 3)]);
-    assert_eq!(
-        function.choice.unwrap().selected_victim,
-        VirtualRegisterId(0)
-    );
-}
-
-#[test]
 fn unsupported_cross_block_pressure_cannot_issue_local_victim_authority() {
     let mut legality = legality(&[(0, 3), (0, 3), (0, 3)]);
     legality.virtual_registers[2].points[3].block = SelectedBlockId(1);

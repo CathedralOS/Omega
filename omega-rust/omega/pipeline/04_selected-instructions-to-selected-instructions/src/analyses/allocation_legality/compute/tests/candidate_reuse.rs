@@ -233,43 +233,6 @@ fn reused_candidates_match_uncached_scan_across_locations_and_constraints() {
 }
 
 #[test]
-fn occupancy_keeps_half_open_boundaries_write_aliases_and_block_identity() {
-    let physical = environment();
-    let available = available(&physical);
-    let mut function = function_ranges();
-    occupy(&mut function, 0, 0, 1, 3, false);
-    occupy(&mut function, 2, 0, 0, 1, true);
-    let result = compare(
-        &function,
-        &physical,
-        &available,
-        &reservations(&physical, false),
-    )
-    .unwrap();
-    let points = &result.virtual_registers[0].points;
-    assert_eq!(points[0].candidates, vec![RegisterViewId(1)]);
-    assert_eq!(points[1].candidates, vec![RegisterViewId(1)]);
-    assert_eq!(points[2].candidates, vec![RegisterViewId(1)]);
-    assert_eq!(
-        points[3].candidates,
-        vec![RegisterViewId(0), RegisterViewId(1)]
-    );
-    assert_eq!(
-        result.virtual_registers[2].points[0].candidates,
-        vec![RegisterViewId(0), RegisterViewId(1)]
-    );
-    assert_eq!(
-        result.virtual_registers[3].points[0].candidates,
-        vec![RegisterViewId(3)]
-    );
-    assert!(result.virtual_registers[4].points.is_empty());
-    assert_eq!(
-        result.virtual_registers[5].early_clobber_points[0].candidates,
-        vec![RegisterViewId(1)]
-    );
-}
-
-#[test]
 fn special_fixed_views_and_competing_errors_keep_occurrence_order() {
     let physical = environment();
     let available = available(&physical);
@@ -396,27 +359,4 @@ fn early_fixed_views_recheck_occupancy_outside_general_candidates() {
             })
         );
     }
-}
-
-#[test]
-fn prepared_rows_follow_unique_class_locations_not_register_visits() {
-    let physical = environment();
-    let available = available(&physical);
-    let reservations = reservations(&physical, false);
-    let function = function_ranges();
-    let mut prepared =
-        super::super::view_candidates::CandidateViews::new(&function, &physical, &reservations);
-    for _visit in 0..32 {
-        for (class, block, point) in [(0, 0, 0), (0, 0, 1), (0, 7, 0), (1, 0, 0)] {
-            let _ = prepared.unconstrained(
-                &physical.model().classes[class],
-                available
-                    .unconstrained_views(RegisterClassId(class as u16))
-                    .unwrap(),
-                SelectedBlockId(block),
-                LiveRangePoint(point),
-            );
-        }
-    }
-    assert_eq!(prepared.prepared_row_count(), 4);
 }

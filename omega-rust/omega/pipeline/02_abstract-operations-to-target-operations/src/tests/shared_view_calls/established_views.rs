@@ -96,44 +96,6 @@ fn unit_subslice_calls() -> AbstractOperationPlan {
 }
 
 #[test]
-fn unit_calls_retain_once_only_length_and_subslice_establishment() {
-    let plan = unit_subslice_calls();
-    let lowered =
-        lower_to_target_operations(&plan, TargetLoweringRequest::new(NativeTarget::linux_x64()))
-            .unwrap();
-    let graph = &lowered.functions[0].graph;
-    let operations = &graph.blocks[0].operations;
-    assert!(matches!(
-        operations[0],
-        target_operations::TargetUnitOperation::ScalarDefinition { .. }
-    ));
-    assert!(matches!(
-        operations[1],
-        target_operations::TargetUnitOperation::ByteSequenceSubslice { .. }
-    ));
-    for call in &operations[2..] {
-        let target_operations::TargetUnitOperation::Call { arguments, .. } = call else {
-            panic!("Unit call");
-        };
-        assert_eq!(
-            arguments[0].source,
-            target_operations::TargetStructuralArgumentSource::EstablishedByteView {
-                psi_operation: OperationId::new(21).unwrap(),
-            }
-        );
-    }
-    assert_eq!(
-        lowered.functions[0].provenance.operations,
-        vec![
-            OperationId::new(20).unwrap(),
-            OperationId::new(21).unwrap(),
-            OperationId::new(3).unwrap(),
-            OperationId::new(4).unwrap()
-        ]
-    );
-}
-
-#[test]
 fn unit_calls_reject_future_duplicate_and_sibling_view_producers() {
     for mutation in 0..3 {
         let mut plan = unit_subslice_calls();

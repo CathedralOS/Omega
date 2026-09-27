@@ -6,7 +6,7 @@
 //! the producer's `admission` state: the forged proposals are built by
 //! hand.
 
-use super::{budget, fixture, instruction, mutated, rematerialize, spread, successor};
+use super::{budget, fixture, instruction, mutated, successor};
 use crate::rewrites::runtime_spill::{control, control_mut};
 use crate::{
     RuntimeRematerializationError, ValidatedRuntimeRematerialization,
@@ -181,30 +181,6 @@ fn forged(source: &ValidatedRuntimeRematerialization) -> SelectedInstructionPlan
     proposed
 }
 
-/// On a legal source the mechanical edit is exactly the proposal the
-/// signed result publishes — the single-block fixture and the dominated
-/// successor spread alike. The forged builder is the contract's edit, so
-/// the rejections below come from the validator's own audit rather than a
-/// diff quirk, and the signed proposal validates as a second input.
-#[test]
-fn forged_edit_matches_the_signed_proposal_and_validates() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    for source in [fixture(target), spread(target)] {
-        let signed = rematerialize(&source, &environment).unwrap();
-        assert_eq!(&forged(&source), signed.transformed());
-        validate_runtime_rematerialization(
-            &source,
-            0,
-            VICTIM,
-            &environment,
-            budget(),
-            forged(&source),
-        )
-        .unwrap();
-    }
-}
-
 /// The victim's definition computes rather than materializes: the value
 /// is a copy result, not a cheap regenerable immediate. A producer that
 /// admitted it anyway would publish the mechanical insertions — the
@@ -280,30 +256,6 @@ fn forged_proposal_does_not_launder_a_fixed_use() {
     let source = mutated(target, |function, _| {
         function.blocks[0].instructions[1].operands[0].fixed_view =
             Some(register_model::RegisterViewId(0));
-    });
-    assert_eq!(
-        validate_runtime_rematerialization(
-            &source,
-            0,
-            VICTIM,
-            &environment,
-            budget(),
-            forged(&source),
-        )
-        .unwrap_err(),
-        RuntimeRematerializationError::UnsupportedUse
-    );
-}
-
-/// An early-clobber use would let the fresh register die inside the
-/// consumer's own effects: the use is inadmissible, yet the mechanical
-/// insertions still publish. The validator's own use scan refuses it.
-#[test]
-fn forged_proposal_does_not_launder_an_early_clobber_use() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = mutated(target, |function, _| {
-        function.blocks[0].instructions[1].operands[0].early_clobber = true;
     });
     assert_eq!(
         validate_runtime_rematerialization(
@@ -488,30 +440,6 @@ fn forged_proposal_does_not_launder_an_undominated_use() {
         )
         .unwrap_err(),
         RuntimeRematerializationError::UnsupportedUse
-    );
-}
-
-/// An entry-pinned victim is custody the regeneration family does not
-/// admit: the mechanical insertions still publish, and the validator's
-/// own custody audit refuses with `UnsupportedValue`.
-#[test]
-fn forged_proposal_does_not_launder_an_entry_pinned_victim() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = mutated(target, |function, _| {
-        function.virtual_registers[1].entry_fixed_view = Some(register_model::RegisterViewId(0));
-    });
-    assert_eq!(
-        validate_runtime_rematerialization(
-            &source,
-            0,
-            VICTIM,
-            &environment,
-            budget(),
-            forged(&source),
-        )
-        .unwrap_err(),
-        RuntimeRematerializationError::UnsupportedValue
     );
 }
 

@@ -400,14 +400,3 @@ pub(crate) fn range_pair_comparison_unit(
     .unwrap();
     attach_proof_rows(unit, machine, proof_rows)
 }
-
-pub(crate) fn proof_range_pair_comparison_unit() -> PsiOptimizationUnit {
-    let scalar_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
-    range_pair_comparison_unit(
-        IntegerRangePairComparisonKind::LessOrEqual,
-        scalar_type,
-        ProofRangeKind::Zero,
-        ProofRangeKind::ZeroToThree,
-        false,
-    )
-}

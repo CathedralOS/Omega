@@ -442,37 +442,6 @@ fn define_index(
     );
 }
 
-/// The intervening byte-sequence row landing on `offset + index`'s resolved
-/// byte: a `WriteByteSequence` roster row on instruction `id` with payload
-/// base `offset` and index value `index_value`. The row attaches to the
-/// instruction as found — the window's interference decision reads the row,
-/// not the instruction's kind.
-fn sequence_row(
-    function: &mut SelectedFunction,
-    id: SelectedInstructionId,
-    offset: u32,
-    index_value: u64,
-) {
-    function.memory_accesses.push(SelectedMemoryAccess {
-        byte_count: 1,
-        ..access(
-            id,
-            3,
-            place(),
-            offset,
-            SelectedMemoryAccessRole::WriteByteSequence {
-                index: ValueId::new(index_value).unwrap(),
-                value: ValueId::new(6).unwrap(),
-                length: ValueId::new(7).unwrap(),
-                obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
-                accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
-                    [3; 32],
-                ),
-            },
-        )
-    });
-}
-
 fn sink(
     source: &ValidatedStoreMutationMotion,
     environment: &register_environment::ValidatedTargetRegisterEnvironment,

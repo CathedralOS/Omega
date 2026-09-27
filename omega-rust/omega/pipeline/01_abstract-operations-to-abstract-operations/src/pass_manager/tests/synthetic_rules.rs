@@ -4,44 +4,6 @@ use super::{
     ExactIntegerAddConstantsRule, ExactIntegerSubtractConstantsRule, PsiOptimizationRule,
     PsiOptimizationUnit, PsiRewritePatch, RuleAnalysisView, RuleProposalError,
 };
-#[derive(Debug)]
-pub(super) struct NonProfitableExactRule;
-
-impl PsiOptimizationRule for NonProfitableExactRule {
-    fn contract(&self) -> optimization_core::OptimizationRuleContract {
-        ExactIntegerAddConstantsRule::contract()
-    }
-
-    fn propose(
-        &self,
-        unit: &PsiOptimizationUnit,
-        analyses: RuleAnalysisView<'_>,
-    ) -> Result<Vec<optimization_unit::PsiRewriteCandidate>, RuleProposalError> {
-        ExactIntegerAddConstantsRule
-            .propose(unit, analyses)?
-            .into_iter()
-            .map(|candidate| {
-                let PsiRewritePatch::ReplaceIntegerOperationWithConstant(patch) = candidate.patch()
-                else {
-                    return Err(RuleProposalError::InvalidCandidate(
-                        optimization_unit::PsiRewriteCandidateError::PatchDecisionPointMismatch,
-                    ));
-                };
-                optimization_unit::PsiRewriteCandidate::new_integer_evaluation(
-                    candidate.input(),
-                    Self.contract(),
-                    candidate.affected_blocks().to_vec(),
-                    candidate.substitutions().to_vec(),
-                    candidate.provenance().to_vec(),
-                    candidate.scalar_evaluation_witness().unwrap(),
-                    0,
-                    patch,
-                )
-                .map_err(RuleProposalError::InvalidCandidate)
-            })
-            .collect()
-    }
-}
 
 #[derive(Debug)]
 pub(super) struct DuplicateExactRule;
