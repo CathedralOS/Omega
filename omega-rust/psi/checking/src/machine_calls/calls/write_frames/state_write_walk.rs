@@ -168,20 +168,23 @@ pub(crate) fn walk_state_assignments(
 ) -> Vec<(usize, AssignmentPrefix)> {
     let mut assignments = Vec::new();
     let mut inference = FrameInference::default();
-    let mut complete_state_summaries = HashMap::default();
-    let _ = inference.with_local_scope(|inference| {
-        walk_state_write_prefix_inner(
-            program,
-            machine,
-            state,
-            symbols,
-            inference,
-            &mut complete_state_summaries,
-            None,
-            None,
-            Some(&mut assignments),
-        )
-    });
+    symbols
+        .caller_sites
+        .with_complete_state_summaries(|complete_state_summaries| {
+            let _ = inference.with_local_scope(|inference| {
+                walk_state_write_prefix_inner(
+                    program,
+                    machine,
+                    state,
+                    symbols,
+                    inference,
+                    complete_state_summaries,
+                    None,
+                    None,
+                    Some(&mut assignments),
+                )
+            });
+        });
     assignments
 }
 
@@ -262,26 +265,29 @@ pub(crate) fn collect_state_write_prefixes(
         .len();
     let mut prefixes = Vec::new();
     let mut inference = FrameInference::default();
-    let mut complete_state_summaries = HashMap::default();
-    // The walk's own result is unused here: `prefixes` and
-    // `complete_state_summaries` carry everything the caller reads.
-    let _ = inference.with_local_scope(|inference| {
-        walk_state_write_prefix_inner(
-            program,
-            machine,
-            state,
-            symbols,
-            inference,
-            &mut complete_state_summaries,
-            if include_shared {
-                Some(StateWriteQuery::ReferenceResult)
-            } else {
-                None
-            },
-            Some(&mut prefixes),
-            None,
-        )
-    });
+    // The walk's own result is unused here: `prefixes` carries everything the
+    // caller reads, and solved callee summaries land in the shared memo.
+    symbols
+        .caller_sites
+        .with_complete_state_summaries(|complete_state_summaries| {
+            let _ = inference.with_local_scope(|inference| {
+                walk_state_write_prefix_inner(
+                    program,
+                    machine,
+                    state,
+                    symbols,
+                    inference,
+                    complete_state_summaries,
+                    if include_shared {
+                        Some(StateWriteQuery::ReferenceResult)
+                    } else {
+                        None
+                    },
+                    Some(&mut prefixes),
+                    None,
+                )
+            });
+        });
     while prefixes.len() < statement_count {
         prefixes.push(None);
     }

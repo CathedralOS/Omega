@@ -27,6 +27,25 @@ pub(crate) struct CallerSiteCaches {
     /// (machine symbol, site kind, site identity) -> the resolved prefix
     /// site outcome; None in the map encodes "no unique statement".
     pub prefix_site_entries: Mutex<HashMap<(SymbolHandle, u8, usize), Option<PrefixSiteEntry>>>,
+    /// state symbol -> its complete, context-independent written-path
+    /// summary. Per-state prefix walks and call-tree walks each used to solve
+    /// their callees into a private map, re-deriving one callee's summary for
+    /// every caller walk that reached it.
+    complete_state_summaries: Mutex<HashMap<SymbolHandle, Vec<String>>>,
+}
+
+impl CallerSiteCaches {
+    /// Runs `walk` against the shared complete-summary memo, or against a
+    /// private map while a walk further up the stack holds the shared one.
+    pub(crate) fn with_complete_state_summaries<T>(
+        &self,
+        walk: impl FnOnce(&mut HashMap<SymbolHandle, Vec<String>>) -> T,
+    ) -> T {
+        match self.complete_state_summaries.try_lock() {
+            Ok(mut summaries) => walk(&mut summaries),
+            Err(_) => walk(&mut HashMap::default()),
+        }
+    }
 }
 
 /// The memoizable shape of `CallerPrefixSite`: `Tracked` retains the state's
