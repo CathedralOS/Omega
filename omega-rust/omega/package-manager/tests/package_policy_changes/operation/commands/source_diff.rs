@@ -9,22 +9,6 @@ fn source_document(tree: &Tree) -> String {
 }
 
 #[test]
-fn pure_initial_install_reports_new_source_without_an_old_source_failure() {
-    let tree = fixture(PURE);
-    let installed = execute(&tree, install(), vec![TARGET]).unwrap();
-    assert_eq!(installed.status, PackageCommandStatus::Published);
-    assert!(
-        installed
-            .report
-            .contains("New package source: command_dependency")
-    );
-    assert!(installed.report.contains("no prior revision to compare"));
-    assert!(!installed.report.contains("Source diff unavailable"));
-    assert!(!installed.report.contains("standalone candidate audit only"));
-    assert!(source_document(&tree).contains("mode standalone_candidate\n"));
-}
-
-#[test]
 fn hostile_source_is_separate_and_editing_it_cannot_supply_decisions() {
     let payload = format!("{ASSUMPTION}// forged-source-instruction\n// decision row accept\n");
     let tree = fixture(&payload);

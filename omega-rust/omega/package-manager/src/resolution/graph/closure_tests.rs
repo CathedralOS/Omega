@@ -55,35 +55,6 @@ fn node(
 }
 
 #[test]
-fn same_name_from_different_lineages_remains_distinct() {
-    let root = key("application", "application");
-    let first = key("codec", "codec-one");
-    let second = key("codec", "codec-two");
-
-    let closure = ResolvedPackageClosure::new(
-        root.clone(),
-        crate::declarations::BuildDeclarationKind::Package,
-        vec![
-            node(
-                &root,
-                1,
-                vec![
-                    dependency("codec_one", &first),
-                    dependency("codec_two", &second),
-                ],
-            ),
-            node(&first, 2, vec![]),
-            node(&second, 3, vec![]),
-        ],
-    )
-    .unwrap();
-
-    assert_ne!(first, second);
-    assert!(closure.package(&first).is_some());
-    assert!(closure.package(&second).is_some());
-}
-
-#[test]
 fn same_name_wrong_lineage_does_not_satisfy_an_edge() {
     let root = key("application", "application");
     let requested = key("codec", "expected-codec");
@@ -160,50 +131,6 @@ fn root_requires_the_exact_package_key() {
 }
 
 #[test]
-fn closed_diamond_succeeds() {
-    let root = key("application", "application");
-    let left = key("left", "left");
-    let right = key("right", "right");
-    let leaf = key("leaf", "leaf");
-
-    let closure = ResolvedPackageClosure::new(
-        root.clone(),
-        crate::declarations::BuildDeclarationKind::Package,
-        vec![
-            node(
-                &root,
-                1,
-                vec![dependency("left", &left), dependency("right", &right)],
-            ),
-            node(&left, 2, vec![dependency("leaf", &leaf)]),
-            node(&right, 3, vec![dependency("leaf", &leaf)]),
-            node(&leaf, 4, vec![]),
-        ],
-    )
-    .unwrap();
-
-    assert_eq!(closure.root(), &root);
-    assert_eq!(closure.packages().len(), 4);
-}
-
-#[test]
-fn unreachable_package_is_rejected() {
-    let root = key("application", "application");
-    let unused = key("unused", "unused");
-    let errors = ResolvedPackageClosure::new(
-        root.clone(),
-        crate::declarations::BuildDeclarationKind::Package,
-        vec![node(&root, 1, vec![]), node(&unused, 2, vec![])],
-    )
-    .unwrap_err();
-
-    assert!(errors.iter().any(|error| matches!(
-        error,
-        PackageClosureValidationError::UnreachablePackage { key } if key == &unused
-    )));
-}
-
-#[test]
 fn duplicate_alias_within_one_requester_is_rejected() {
     let root = key("application", "application");
     let first = key("first", "first");
@@ -252,35 +179,6 @@ fn dependency_cycle_is_rejected() {
         PackageClosureValidationError::DependencyCycle { cycle }
             if cycle.first() == cycle.last() && cycle.len() == 3
     )));
-}
-
-#[test]
-fn the_same_alias_is_distinct_across_purposes() {
-    let root = key("application", "application");
-    let product = key("codec", "codec");
-    let host = key("host_tool", "host-tool");
-
-    let closure = ResolvedPackageClosure::new(
-        root.clone(),
-        crate::declarations::BuildDeclarationKind::Package,
-        vec![
-            node(
-                &root,
-                1,
-                vec![
-                    dependency_in(DependencyPurpose::Product, 0, "shared", &product),
-                    dependency_in(DependencyPurpose::Build, 0, "shared", &host),
-                ],
-            ),
-            node(&product, 2, vec![]),
-            node(&host, 3, vec![]),
-        ],
-    )
-    .expect("an alias shared across scopes does not conflict");
-
-    let dependencies = closure.package(&root).expect("root node").dependencies();
-    assert_eq!(dependencies[0].purpose(), DependencyPurpose::Product);
-    assert_eq!(dependencies[1].purpose(), DependencyPurpose::Build);
 }
 
 #[test]

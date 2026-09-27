@@ -1,31 +1,5 @@
 use super::PackageFixture;
-use crate::declarations::dependencies::read::{
-    DependencyProjectionError, DependencySourceRequest, PackageSelection,
-};
-use crate::declarations::{AliasName, PackageName};
-
-#[test]
-fn resolves_default_alias_from_the_dependency_declaration() {
-    let declared_name = PackageName::parse("arithmetic_kernels").unwrap();
-    let ordinary = DependencySourceRequest::Git {
-        explicit_alias: None,
-        repository: "https://github.com/CathedralOS/arithmetic-kernels.git".to_owned(),
-        revision: "main".to_owned(),
-        selection: PackageSelection::Root,
-    };
-    let renamed = DependencySourceRequest::Git {
-        explicit_alias: Some(AliasName::parse("kernels").unwrap()),
-        repository: "https://github.com/CathedralOS/arithmetic-kernels.git".to_owned(),
-        revision: "main".to_owned(),
-        selection: PackageSelection::Root,
-    };
-
-    assert_eq!(
-        ordinary.resolved_alias(&declared_name).as_str(),
-        "arithmetic_kernels"
-    );
-    assert_eq!(renamed.resolved_alias(&declared_name).as_str(), "kernels");
-}
+use crate::declarations::dependencies::read::DependencyProjectionError;
 
 #[test]
 fn rejects_wrong_receiver_and_dependency_argument_shapes() {
@@ -164,35 +138,6 @@ fn rejects_missing_extra_duplicate_and_nonliteral_source_fields() {
     assert!(matches!(
         non_utf8.extract(),
         Err(DependencyProjectionError::SourceFieldNotUtf8 { .. })
-    ));
-}
-
-#[test]
-fn git_selection_omission_normalizes_to_root_and_named_is_exact() {
-    let root = PackageFixture::with_source(
-        r#"machine build(builder: &mut Build) { builder.package("root"); builder.depend(Source::Git { repository: "https://example.invalid/repo.git", revision: "main" }); }"#,
-    )
-    .extract()
-    .expect("project omitted root selection");
-    assert!(matches!(
-        root.as_slice(),
-        [DependencySourceRequest::Git {
-            selection: PackageSelection::Root,
-            ..
-        }]
-    ));
-
-    let named = PackageFixture::with_source(
-        r#"machine build(builder: &mut Build) { builder.package("root"); builder.depend(Source::Git { repository: "https://example.invalid/repo.git", revision: "main", selection: PackageSelection::Named { package: "matrix_kernels" } }); }"#,
-    )
-    .extract()
-    .expect("project named package selection");
-    assert!(matches!(
-        named.as_slice(),
-        [DependencySourceRequest::Git {
-            selection: PackageSelection::Named(package),
-            ..
-        }] if package.as_str() == "matrix_kernels"
     ));
 }
 

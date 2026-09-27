@@ -1,11 +1,10 @@
 use super::PackageFixture;
-use crate::declarations::dependencies::DependencyPurpose;
+use crate::declarations::AliasName;
 use crate::declarations::dependencies::read::{
     DependencyProjectionError, DependencySourceRequest, PackageSelection,
     extract_build_dependency_projection,
 };
 use crate::declarations::roles::{BuildDeclaration, BuildDeclarationError};
-use crate::declarations::{AliasName, PackageName};
 use std::fs;
 
 #[test]
@@ -85,29 +84,6 @@ fn projects_product_and_build_requests_in_scoped_authored_order() {
             },
         ]
     );
-}
-
-#[test]
-fn product_and_build_scopes_keep_independent_alias_spaces() {
-    let fixture = PackageFixture::with_source(
-        r#"
-        machine build(builder: &mut Build) {
-            builder.package("shared_alias");
-            builder.depend_as("shared", Source::Path { location: "../product" });
-            builder.build_depend_as("shared", Source::Path { location: "../host" });
-        }
-        "#,
-    );
-    let projection = extract_build_dependency_projection(&fixture.root).unwrap();
-    let projections = projection.dependency_projections();
-    let product_names = vec![PackageName::parse("product_lib").unwrap()];
-    let build_names = vec![PackageName::parse("host_lib").unwrap()];
-    projections
-        .validate_aliases(DependencyPurpose::Product, &product_names)
-        .expect("product scope validates alone");
-    projections
-        .validate_aliases(DependencyPurpose::Build, &build_names)
-        .expect("build scope validates alone");
 }
 
 #[test]

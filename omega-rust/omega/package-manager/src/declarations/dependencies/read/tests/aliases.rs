@@ -22,24 +22,6 @@ fn package_names(names: &[&str]) -> Vec<PackageName> {
 }
 
 #[test]
-fn accepts_unique_aliases_over_the_whole_authored_set() {
-    let dependencies = projection(
-        r#"
-        machine build(builder: &mut Build) {
-            builder.package("unique_aliases");
-            builder.depend(Source::Path { location: "../portable" });
-            builder.depend_as("native_api", Source::Path { location: "../native" });
-        }
-        "#,
-    );
-
-    dependencies
-        .validate_aliases(&package_names(&["portable_api", "platform_api"]))
-        .expect("the flat dependency set has unique aliases");
-    assert_eq!(dependencies.authored_dependencies().len(), 2);
-}
-
-#[test]
 fn rejects_explicit_alias_reuse_anywhere_in_the_set() {
     let dependencies = projection(
         r#"

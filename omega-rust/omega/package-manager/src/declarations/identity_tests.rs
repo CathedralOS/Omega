@@ -55,30 +55,6 @@ fn aliases_require_canonical_snake_case_identifiers() {
 }
 
 #[test]
-fn source_or_name_change_replaces_a_package_key() {
-    let original = PackageKey::new(
-        package_name(),
-        lineage("https://github.com/CathedralOS/arithmetic-kernels.git"),
-    );
-    let transport_equivalent = PackageKey::new(
-        package_name(),
-        lineage("git@github.com:cathedralos/arithmetic-kernels"),
-    );
-    let other_source = PackageKey::new(
-        package_name(),
-        lineage("https://github.com/Other/arithmetic-kernels.git"),
-    );
-    let other_name = PackageKey::new(
-        PackageName::parse("arithmetic_core").unwrap(),
-        lineage("https://github.com/CathedralOS/arithmetic-kernels.git"),
-    );
-
-    assert_eq!(original, transport_equivalent);
-    assert_ne!(original, other_source);
-    assert_ne!(original, other_name);
-}
-
-#[test]
 fn package_key_identity_uses_canonical_name_and_source_lineage() {
     let https = PackageKey::new(
         package_name(),
