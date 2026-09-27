@@ -72,6 +72,12 @@ pub(crate) fn derive_checked_semantic_dependencies(
     }
 
     for (_, event) in facts.flow.ownership.permissions.iter() {
+        // Pruning keeps span-addressed ownership arenas intact. Expression
+        // roots can still resolve through a retained producer after their
+        // consumer is removed, but that dead event is not a product dependency.
+        if crate::lookup::machine_by_symbol(program, event.machine_symbol).is_none() {
+            continue;
+        }
         let statement_index = event_statement_index(program, event.state_symbol, event.source);
         let segments = facts.flow.ownership.segments.span_or_empty(event.segments);
         let Some(type_reference) = event_type_reference(
@@ -423,5 +429,61 @@ mod tests {
         let rederived = derive_checked_semantic_dependencies(&checked.typed, &checked.facts);
 
         assert_eq!(rederived, expected);
+    }
+
+    #[test]
+    fn pruned_temporary_borrow_events_do_not_reintroduce_dependency_owners() {
+        let typed = typed_program(
+            r#"
+            pub data Token { value: u64; }
+            machine forward(token: Token) -> Token { token }
+            machine read(token: &Token) {}
+            pub machine keep(token: Token) { read(&forward(token)); }
+            machine removed(token: Token) { read(&forward(token)); }
+            "#,
+        );
+        let checked =
+            crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).expect("check");
+        let keep = checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "keep")
+            .expect("keep")
+            .symbol;
+        let removed = checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "removed")
+            .expect("removed")
+            .symbol;
+        let plan = crate::CheckedTreeProductPruning::new(
+            crate::CheckedTreeProductRoots::new([keep]).expect("roots"),
+        );
+        let outcome = crate::prune_checked_tree_product(checked, &plan).expect("prune");
+        assert!(outcome.selection.pruned_machines().contains(&removed));
+        assert!(
+            outcome
+                .checked
+                .facts
+                .flow
+                .ownership
+                .permissions
+                .iter()
+                .any(|(_, event)| event.machine_symbol == removed
+                    && matches!(event.root, facts::PlaceRoot::Expression(_))),
+            "pruning preserves span-addressed temporary ownership evidence"
+        );
+        let expected = &outcome.checked.facts.flow.semantic_dependencies;
+        assert!(!expected.rows.is_empty(), "live dependencies must remain");
+        assert!(
+            expected.rows.iter().any(|row| row.consumer_machine == keep
+                && row.kind == checked_trees::CheckedSemanticDependencyKind::AutomaticCleanup),
+            "the live temporary still owes cleanup evidence"
+        );
+        let derived =
+            derive_checked_semantic_dependencies(&outcome.checked.typed, &outcome.checked.facts);
+        assert_eq!(&derived, expected);
     }
 }
