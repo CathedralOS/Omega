@@ -6812,14 +6812,22 @@ is bootstrap authority. Bootstrap construction stays on `TASKS_BOOTSTRAP.md`.
   its multiplicity is load-bearing and a `&mut self` receiver may be read
   like any other place. The arm is simply missing.
 
+  BOTH roots fail there and on nothing else. `source/psi/gates/parser/main.omg`
+  stops at `Main::prepare_parse` (state 5, statement 0) on the same
+  `self.parser.initialize(self.lexer.source.id, ...)`. So `test-parser.sh`
+  cannot run yet -- its first step is a build of that gate root -- and one
+  arm unblocks both. Everything else in the `source/psi` closure (lex,
+  parse, source, syntax, tokens, gates) resolves, types, checks and proves:
+  one diagnostic per root is the whole report.
+
   `tests/omega/pending/calls/copy_projection_from_borrowed_receiver` pins
-  the whole thing in twenty-four lines with a program-entry root, since the
+  the shape in twenty-four lines with a program-entry root, since the
   corpus runner's targetless Check route cannot see this omission at all.
   The repair belongs to whoever holds that `calls` directory; promote the
   fixture to `pass/calls/` with an exit when it lands.
 
-  Resume from that check and freshly build/run
-  `source/psi/test-parser.sh` with explicit `OMEGA_CLI` and `OMEGA_TARGET`.
+  Then freshly build/run `source/psi/test-parser.sh` with explicit
+  `OMEGA_CLI` and `OMEGA_TARGET`.
   This is a parser golden-observation gate, not a two-compiler differential
   harness. Preserve acceptance/rejection, lexical handoff, structural identity,
   capacity and determinism controls; Python only decodes/compares observations.
