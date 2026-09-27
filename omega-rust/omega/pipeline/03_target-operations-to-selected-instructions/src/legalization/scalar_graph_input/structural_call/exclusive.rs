@@ -195,7 +195,7 @@ fn block_parameter_argument(
     // a fat descriptor for a slice view, one pointer cell for a bounded view.
     let referent_size = plan.structural_types.iter().find_map(|entry| {
         (entry.id == declaration.structural_type)
-            .then(|| match &entry.shape {
+            .then_some(match &entry.shape {
                 terminal_psi::StructuralTypeShape::ByteSequence(
                     terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
                 ) => Some(16),
