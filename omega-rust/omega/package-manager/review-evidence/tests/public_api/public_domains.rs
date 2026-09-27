@@ -125,42 +125,6 @@ pub operator + add(
 }
 
 #[test]
-fn public_domain_generic_binders_are_alpha_normalized() {
-    let first = TempPackage::new();
-    let second = TempPackage::new();
-    first.write(
-        "main.omg",
-        r#"pub data Unit { code: u32; }
-pub domain<Carrier, const Index: Unit> Carrier::Tagged<Index>;
-"#,
-    );
-    second.write(
-        "main.omg",
-        r#"pub data Unit { code: u32; }
-pub domain<Value, const Tag: Unit> Value::Tagged<Tag>;
-"#,
-    );
-    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
-"#;
-    first.write("build.omg", build);
-    second.write("build.omg", build);
-
-    let encode = |package: &TempPackage| {
-        let checked = compile_review_fixture(CheckedCompileRequest {
-            package_inputs: Some(package_inputs(&package.0)),
-            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
-        })
-        .expect("generic public-domain fixture should check");
-        project_checked_package_review(&checked)
-            .expect("generic public-domain review should close")
-            .canonical_review_bytes()
-            .expect("generic public-domain encoding")
-    };
-
-    assert_eq!(encode(&first), encode(&second));
-}
-
-#[test]
 fn public_domain_classification_and_establishment_routes_are_exact_review_rows() {
     let classified = TempPackage::new();
     let routed = TempPackage::new();

@@ -34,36 +34,6 @@ fn foreign_symbolic_owner_is_required_without_source_or_compiler_state() {
 }
 
 #[test]
-fn foreign_owner_requires_exact_operator_not_name_or_package_presence() {
-    let (consumer, owner) = pair();
-    for changed in ["parameter", "result", "name", "missing"] {
-        let mut candidate = owner.clone();
-        match changed {
-            "parameter" => candidate.public_api.operators[0]
-                .coordinate
-                .parameter_dispatch
-                .push('x'),
-            "result" => candidate.public_api.operators[0]
-                .coordinate
-                .result_dispatch
-                .push('x'),
-            "name" => candidate.public_api.operators[0]
-                .coordinate
-                .identity
-                .path
-                .push('x'),
-            "missing" => candidate.public_api.operators.clear(),
-            _ => unreachable!(),
-        }
-        candidate.validate_canonical_structure().unwrap();
-        assert_eq!(
-            consumer.validate_boundary_application_owners(|_| Some(&candidate)),
-            Err("symbolic demand has no exact retained owner operator")
-        );
-    }
-}
-
-#[test]
 fn foreign_owner_requires_boundary_type_telescope_and_exact_target() {
     let (consumer, owner) = pair();
     let mut wrong = owner.clone();

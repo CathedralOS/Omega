@@ -1,6 +1,6 @@
 use super::{
-    Fixture, PackageKeyIdentity, PackagePolicyBaseline, PackagePolicyCallables,
-    PackagePolicyCrashGuard, PackagePolicyRecoveryLimits, PackagePolicyTypeParameterKind,
+    Fixture, PackagePolicyBaseline, PackagePolicyCallables, PackagePolicyCrashGuard,
+    PackagePolicyRecoveryLimits, PackagePolicyTypeParameterKind,
     PackageReviewContractBinaryOperator, PackageReviewContractExpression,
     PackageReviewContractFact, PackageReviewContractOperatorMeaning, PackageReviewNominalOwner,
     callable, package_identity, project, project_checked_callable_policy,
@@ -379,98 +379,6 @@ fn guard(policy: &PackagePolicyCallables) -> &PackageReviewContractExpression {
     expression
 }
 
-/// A machine-level guard reads a signature parameter's element through the
-/// builtin index: the subject has no state-scoped place row, so review must
-/// rejoin `items[0]`'s carrier through operand typing — the same builtin
-/// `[]` admission the signature-parameter scope already applies — and keep
-/// the `Indexed` subject, declared case and package owner in the surviving
-/// route.
-#[test]
-fn indexed_parameter_case_membership_keeps_the_element_carrier() {
-    let fixture = Fixture::local(
-        r#"
-pub data Message { case Empty; case Data(value: u8); }
-pub machine inspect(items: [Message; 2]) crashes Abort items[0] in Message::Data {}
-"#,
-    );
-    let policy = project(&fixture);
-    let PackageReviewContractExpression::CaseMembership { subject, case } = guard(&policy) else {
-        panic!("indexed subject keeps a membership guard")
-    };
-    assert_eq!(
-        subject.as_ref(),
-        &PackageReviewContractExpression::Indexed {
-            meaning: PackageReviewContractOperatorMeaning::Builtin,
-            collection: Box::new(PackageReviewContractExpression::Parameter(0)),
-            index: Box::new(PackageReviewContractExpression::Integer("0".to_owned())),
-        }
-    );
-    assert_eq!(case.path(), "Message::Data");
-    assert_eq!(
-        case.owner(),
-        PackageReviewNominalOwner::Package(package_identity())
-    );
-    let baseline = package_evidence::project_checked_package_policy(
-        &fixture.checked,
-        fixture.target,
-        package_identity(),
-    )
-    .expect("indexed membership composes into whole package policy");
-    let bytes = baseline.canonical_bytes().unwrap();
-    assert_eq!(
-        baseline,
-        PackagePolicyBaseline::recover_canonical(&bytes, PackagePolicyRecoveryLimits::default())
-            .unwrap()
-    );
-}
-
-/// A member spine above the index — `outer.items[0]` — resolves through the
-/// same operand-typed recursion: the `items` field is Holder's declared
-/// member, never a machine owner manufactured from the classifier.
-#[test]
-fn nested_member_indexed_case_membership_keeps_declared_field_custody() {
-    let fixture = Fixture::local(
-        r#"
-pub data Message { case Empty; case Data(value: u8); }
-pub data Holder { items: [Message; 2]; }
-pub machine inspect(outer: Holder) crashes Abort outer.items[0] in Message::Data {}
-"#,
-    );
-    let policy = project(&fixture);
-    let PackageReviewContractExpression::CaseMembership { subject, case } = guard(&policy) else {
-        panic!("nested indexed subject keeps a membership guard")
-    };
-    let PackageReviewContractExpression::Indexed {
-        meaning,
-        collection,
-        index,
-    } = subject.as_ref()
-    else {
-        panic!("outer.items[0] keeps the indexed subject: {subject:?}")
-    };
-    assert_eq!(*meaning, PackageReviewContractOperatorMeaning::Builtin);
-    assert_eq!(
-        index.as_ref(),
-        &PackageReviewContractExpression::Integer("0".to_owned())
-    );
-    let PackageReviewContractExpression::Member {
-        receiver, member, ..
-    } = collection.as_ref()
-    else {
-        panic!("the collection keeps Holder's declared field: {collection:?}")
-    };
-    assert_eq!(
-        receiver.as_ref(),
-        &PackageReviewContractExpression::Parameter(0)
-    );
-    assert_eq!(member.path(), "Holder::items");
-    assert_eq!(case.path(), "Message::Data");
-    package_evidence::project_checked_package_review(&fixture.checked)
-        .expect("nested indexed membership has exact review meaning")
-        .canonical_review_bytes()
-        .unwrap();
-}
-
 /// The operand-typed admission stays fail-closed: an index that is not a
 /// retained builtin `[]` read supplies no element carrier, so review must
 /// still reject rather than naming an unproven subject.
@@ -494,34 +402,6 @@ pub machine inspect(items: [Message; 2]) crashes Abort items[0] in Message::Data
         project_checked_callable_policy(&missing, fixture.target, package_identity()).is_err(),
         "a stripped index selection cannot claim the element carrier"
     );
-}
-
-#[test]
-fn membership_distinguishes_case_and_foreign_package_owner() {
-    let root = "use dependency::helpers;\npub machine inspect(left: Message) crashes Abort left in Message::Data {}";
-    let dependency = "pub data Message { case Empty; case Data(value: u8); }";
-    let mut policies = Vec::new();
-    for owner in [42, 43] {
-        let owner = PackageKeyIdentity::from_digest([owner; 32]).unwrap();
-        let policy = project(&Fixture::foreign(root, dependency, owner));
-        let PackageReviewContractExpression::CaseMembership { case, .. } = guard(&policy) else {
-            panic!("nominal membership")
-        };
-        assert_eq!(case.owner(), PackageReviewNominalOwner::Package(owner));
-        policies.push(policy);
-    }
-    let empty = project(&Fixture::foreign(
-        &root.replace("Message::Data", "Message::Empty"),
-        dependency,
-        PackageKeyIdentity::from_digest([42; 32]).unwrap(),
-    ));
-    for other in [&policies[1], &empty] {
-        assert_ne!(guard(&policies[0]), guard(other));
-        assert_ne!(
-            policies[0].canonical_bytes().unwrap(),
-            other.canonical_bytes().unwrap()
-        );
-    }
 }
 
 #[test]

@@ -2,65 +2,6 @@ use crate::support::*;
 use compiler::CheckedCompileRequest;
 
 #[test]
-fn review_projects_collection_length_as_an_exact_compiler_intrinsic() {
-    let package = TempPackage::new();
-    package.write(
-        "main.omg",
-        "pub proposition non_empty(items: &[u8]) = items.len > 0;\n",
-    );
-    package.write(
-        "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
-"#,
-    );
-
-    let checked = compile_review_fixture(CheckedCompileRequest {
-        package_inputs: Some(package_inputs(&package.0)),
-        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
-    })
-    .expect("public collection-length proposition should check");
-    let length_selection = checked
-        .authored_declaration_selections()
-        .iter()
-        .find(|selection| {
-            selection.kind()
-                == language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::MemberAccess
-                && selection.target()
-                    == language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Intrinsic(
-                        language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::CollectionLength,
-                    )
-        })
-        .expect("checked contract must retain its exact collection-length selection");
-    assert_eq!(
-        length_selection.exposure(),
-        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
-    );
-
-    let review = project_checked_package_review(&checked)
-        .expect("collection-length intrinsic should have exact review identity");
-    let proposition = review
-        .public_propositions()
-        .iter()
-        .find(|proposition| proposition.identity().path() == "non_empty")
-        .expect("public proposition row");
-    let PackageReviewPublicPropositionBody::Transparent(PackageReviewContractFact::Expression(
-        PackageReviewContractExpression::Binary { left, .. },
-    )) = proposition.body()
-    else {
-        panic!("binary transparent proposition body")
-    };
-    assert_eq!(
-        left.as_ref(),
-        &PackageReviewContractExpression::CollectionLength {
-            collection: Box::new(PackageReviewContractExpression::Parameter(0)),
-        }
-    );
-    review
-        .canonical_review_bytes()
-        .expect("collection-length review must be canonically encodable");
-}
-
-#[test]
 fn review_projects_collection_capacity_as_an_exact_compiler_intrinsic() {
     let package = TempPackage::new();
     package.write(

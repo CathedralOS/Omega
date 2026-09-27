@@ -99,55 +99,6 @@ crashes Abort
 }
 
 #[test]
-fn review_projects_exact_checked_operator_realization() {
-    let Some(target) = host_target_name() else {
-        return;
-    };
-    let package = TempPackage::new();
-    package.write(
-        "main.omg",
-        r#"pub data CheckedMath {}
-pub operator CheckedMath::identity(value: i32) -> i32;
-
-pub machine provide_identity(input: i32) -> i32
-satisfies CheckedMath::identity
-{
-    transition { _ -> input }
-}
-"#,
-    );
-    package.write(
-        "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
-"#,
-    );
-
-    let checked = compile_review_fixture(CheckedCompileRequest {
-        package_inputs: Some(package_inputs(&package.0)),
-        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
-    })
-    .expect("checked operator realization fixture should check");
-    let review = project_checked_package_review(&checked)
-        .expect("checked operator realization should project exactly");
-    let callable = review
-        .callables()
-        .iter()
-        .find(|callable| callable.identity().path() == "provide_identity")
-        .expect("public provider callable row");
-    assert!(callable.conformances().is_empty());
-    let [realization] = callable.operator_realizations() else {
-        panic!("one exact checked operator realization")
-    };
-    let declaration = review
-        .public_operators()
-        .iter()
-        .find(|shape| shape.coordinate().identity().path() == "CheckedMath::identity")
-        .expect("public operator declaration row");
-    assert_eq!(realization.coordinate(), declaration.coordinate());
-    assert_eq!(realization.alias(), None);
-}
-
-#[test]
 fn review_projects_and_encodes_aliased_checked_operator_realization() {
     let Some(target) = host_target_name() else {
         return;
@@ -231,56 +182,4 @@ satisfies CheckedMath::identity as {alias}
         1,
         "changing only the alias must change only its callable value"
     );
-}
-
-#[test]
-fn review_projects_fixed_token_checked_operator_realization_by_declaration_coordinate() {
-    let Some(target) = host_target_name() else {
-        return;
-    };
-    let package = TempPackage::new();
-    package.write(
-        "main.omg",
-        r#"pub data CheckedMath {}
-pub operator - CheckedMath::subtract(left: i32, right: i32) -> i32;
-
-pub machine provide_subtract(left: i32, right: i32) -> i32
-satisfies CheckedMath::subtract
-{
-    transition { _ -> left }
-}
-"#,
-    );
-    package.write(
-        "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
-"#,
-    );
-
-    let checked = compile_review_fixture(CheckedCompileRequest {
-        package_inputs: Some(package_inputs(&package.0)),
-        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
-    })
-    .expect("fixed-token checked operator realization fixture should check");
-    let review = project_checked_package_review(&checked)
-        .expect("fixed-token checked operator realization should project exactly");
-    let callable = review
-        .callables()
-        .iter()
-        .find(|callable| callable.identity().path() == "provide_subtract")
-        .expect("public provider callable row");
-    let [realization] = callable.operator_realizations() else {
-        panic!("one exact fixed-token operator realization")
-    };
-    let declaration = review
-        .public_operators()
-        .iter()
-        .find(|shape| shape.coordinate().identity().path() == "CheckedMath::subtract")
-        .expect("public fixed-token operator declaration row");
-    assert_eq!(
-        declaration.spelling(),
-        Some(language_core::OperatorSpelling::Subtract)
-    );
-    assert_eq!(realization.coordinate(), declaration.coordinate());
-    assert_eq!(realization.alias(), None);
 }

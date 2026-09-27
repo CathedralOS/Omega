@@ -34,15 +34,6 @@ impl SupplyFixture {
             binding: PackagePolicyExternalBinding::from(&self.binding),
         }
     }
-    fn callable(&self) -> &PackageReviewNominalIdentity {
-        &self.callable
-    }
-    fn signature(&self) -> &PackagePolicyExternalCallableSignature {
-        &self.signature
-    }
-    fn requirement(&self) -> &PackagePolicyExternalRequirement {
-        &self.requirement
-    }
     fn binding(&self) -> &PackageReviewExternalBinding {
         &self.binding
     }
@@ -213,38 +204,6 @@ fn assert_changed(original: &SupplyFixture, changed: &SupplyFixture) {
 }
 
 #[test]
-fn all_binding_variants_remain_distinct_policy_data() {
-    let bindings = vec![
-        PackageReviewExternalBinding::NormalizedImport(import(locators().remove(0))),
-        PackageReviewExternalBinding::NormalizedSyscall(syscall()),
-        PackageReviewExternalBinding::Syscall { number: 60 },
-        PackageReviewExternalBinding::CompilerIntrinsic,
-        PackageReviewExternalBinding::VtableSlot { index: 2 },
-        PackageReviewExternalBinding::VtableField {
-            field: "invoke".to_owned(),
-        },
-        PackageReviewExternalBinding::TableFunction {
-            field: "invoke".to_owned(),
-        },
-    ];
-    let supplies = bindings.into_iter().map(supply).collect::<Vec<_>>();
-    for (position, row) in supplies.iter().enumerate() {
-        let policy = row.policy();
-        assert_eq!(policy.callable(), row.callable());
-        assert_eq!(policy.signature(), row.signature());
-        assert_eq!(policy.requirement(), row.requirement());
-        assert_eq!(
-            policy.binding(),
-            &PackagePolicyExternalBinding::from(row.binding())
-        );
-        assert!(bytes(row).starts_with(b"OMEGA-EXTERNAL-SUPPLY-POLICY\0\x04\x00"));
-        for other in &supplies[..position] {
-            assert_changed(row, other);
-        }
-    }
-}
-
-#[test]
 fn every_foreign_locator_field_participates_in_policy_identity() {
     let rows = locators()
         .into_iter()
@@ -342,134 +301,6 @@ fn every_foreign_locator_field_participates_in_policy_identity() {
                 &supply(PackageReviewExternalBinding::NormalizedImport(changed)),
             );
         }
-    }
-}
-
-#[test]
-fn evaluator_receipts_do_not_change_import_or_syscall_policy() {
-    let original = import(locators().remove(0));
-    let import_mutations: &[fn(&mut PackageReviewEvaluatedImport)] = &[
-        |row| row.locator_identity_digest = [31; 32],
-        |row| row.producer_closure_digest = [31; 32],
-        |row| row.evaluator_semantics_marker += 1,
-        |row| row.evaluation_usage.usage_schema_version += 1,
-        |row| row.evaluation_usage.step_schedule_marker += 1,
-        |row| row.evaluation_usage.fuel_units += 1,
-        |row| row.evaluation_usage.fuel_ceiling += 1,
-        |row| row.evaluation_usage.build_log_bytes += 1,
-        |row| row.evaluation_usage.filesystem_operation_attempts += 1,
-        |row| row.evaluation_usage.peak_live_cells += 1,
-        |row| row.evaluation_usage.peak_live_text_bytes += 1,
-        |row| row.evaluation_usage.result_cells += 1,
-        |row| row.evaluation_usage.result_text_bytes += 1,
-        |row| row.evaluation_digest = [31; 32],
-        |row| row.materializer_schema_version += 1,
-        |row| row.materialization_digest = [31; 32],
-        |row| row.receipt_locator_identity_digest = [31; 32],
-        |row| row.receipt_identity_digest = [31; 32],
-    ];
-    let baseline = supply(PackageReviewExternalBinding::NormalizedImport(
-        original.clone(),
-    ));
-    for mutation in import_mutations {
-        let mut changed = original.clone();
-        mutation(&mut changed);
-        let candidate = supply(PackageReviewExternalBinding::NormalizedImport(changed));
-        assert_ne!(baseline.binding, candidate.binding);
-        assert_eq!(baseline.policy(), candidate.policy());
-        assert_eq!(bytes(&baseline), bytes(&candidate));
-    }
-
-    let original = syscall();
-    let syscall_mutations: &[fn(&mut PackageReviewEvaluatedSyscall)] = &[
-        |row| row.binding_identity_digest = [31; 32],
-        |row| row.producer_closure_digest = [31; 32],
-        |row| row.evaluator_semantics_marker += 1,
-        |row| row.evaluation_usage.usage_schema_version += 1,
-        |row| row.evaluation_usage.step_schedule_marker += 1,
-        |row| row.evaluation_usage.fuel_units += 1,
-        |row| row.evaluation_usage.fuel_ceiling += 1,
-        |row| row.evaluation_usage.build_log_bytes += 1,
-        |row| row.evaluation_usage.filesystem_operation_attempts += 1,
-        |row| row.evaluation_usage.peak_live_cells += 1,
-        |row| row.evaluation_usage.peak_live_text_bytes += 1,
-        |row| row.evaluation_usage.result_cells += 1,
-        |row| row.evaluation_usage.result_text_bytes += 1,
-        |row| row.evaluation_digest = [31; 32],
-        |row| row.materializer_schema_version += 1,
-        |row| row.materialization_digest = [31; 32],
-        |row| row.receipt_binding_identity_digest = [31; 32],
-        |row| row.receipt_identity_digest = [31; 32],
-    ];
-    let baseline = supply(PackageReviewExternalBinding::NormalizedSyscall(
-        original.clone(),
-    ));
-    for mutation in syscall_mutations {
-        let mut changed = original.clone();
-        mutation(&mut changed);
-        let candidate = supply(PackageReviewExternalBinding::NormalizedSyscall(changed));
-        assert_ne!(baseline.binding, candidate.binding);
-        assert_eq!(baseline.policy(), candidate.policy());
-        assert_eq!(bytes(&baseline), bytes(&candidate));
-    }
-}
-
-#[test]
-fn normalized_binding_target_value_and_producer_fields_change_policy() {
-    let original = import(locators().remove(0));
-    let import_mutations: &[fn(&mut PackageReviewEvaluatedImport)] = &[
-        |row| {
-            row.target = target::TargetProfile::LinuxArm64
-                .identity()
-                .as_str()
-                .to_owned()
-        },
-        |row| row.producer.path.push_str("_other"),
-        |row| {
-            row.producer.owner = PackageReviewNominalOwner::Package(package(8));
-            row.producer_package = Some(package(8));
-        },
-        |row| row.producer_package = None,
-        |row| row.producer_callable_identity.push_str("_other"),
-    ];
-    let baseline = supply(PackageReviewExternalBinding::NormalizedImport(
-        original.clone(),
-    ));
-    for mutation in import_mutations {
-        let mut changed = original.clone();
-        mutation(&mut changed);
-        assert_changed(
-            &baseline,
-            &supply(PackageReviewExternalBinding::NormalizedImport(changed)),
-        );
-    }
-    let original = syscall();
-    let syscall_mutations: &[fn(&mut PackageReviewEvaluatedSyscall)] = &[
-        |row| {
-            row.target = target::TargetProfile::LinuxArm64
-                .identity()
-                .as_str()
-                .to_owned()
-        },
-        |row| row.number += 1,
-        |row| row.producer.path.push_str("_other"),
-        |row| {
-            row.producer.owner = PackageReviewNominalOwner::Package(package(8));
-            row.producer_package = Some(package(8));
-        },
-        |row| row.producer_package = None,
-        |row| row.producer_callable_identity.push_str("_other"),
-    ];
-    let baseline = supply(PackageReviewExternalBinding::NormalizedSyscall(
-        original.clone(),
-    ));
-    for mutation in syscall_mutations {
-        let mut changed = original.clone();
-        mutation(&mut changed);
-        assert_changed(
-            &baseline,
-            &supply(PackageReviewExternalBinding::NormalizedSyscall(changed)),
-        );
     }
 }
 

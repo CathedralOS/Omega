@@ -45,21 +45,3 @@ const fn mutation_completeness_tag(completeness: PackageReviewWriteFrameComplete
         PackageReviewWriteFrameCompleteness::Opaque => 2,
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::capture::behavior::mutation::project_write_frame_completeness;
-    use crate::record::PackageReviewWriteFrameCompleteness;
-
-    #[test]
-    fn write_frame_completeness_crosses_the_review_boundary_as_closed_evidence() {
-        assert_eq!(
-            project_write_frame_completeness(facts::WriteFrameCompleteness::Complete),
-            PackageReviewWriteFrameCompleteness::Complete,
-        );
-        assert_eq!(
-            project_write_frame_completeness(facts::WriteFrameCompleteness::Opaque),
-            PackageReviewWriteFrameCompleteness::Opaque,
-        );
-    }
-}

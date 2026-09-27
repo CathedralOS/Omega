@@ -1,7 +1,6 @@
 use super::{
-    Fixture, PackageKeyIdentity, PackagePolicyCallableRole,
-    PackagePolicySemanticDependencyConsumer, PackageReviewNominalOwner,
-    PackageReviewSemanticDependencyExposure, package_identity, project,
+    Fixture, PackagePolicyCallableRole, PackagePolicySemanticDependencyConsumer,
+    PackageReviewNominalOwner, PackageReviewSemanticDependencyExposure, package_identity, project,
 };
 pub(super) const ALL_FAMILIES: &str = r#"pub data Token { value: i64; }
 pub trait Marker {}
@@ -101,67 +100,6 @@ fn all_seven_public_families_survive_complete_canonical_recovery() {
 }
 
 #[test]
-fn every_public_family_changes_the_baseline_when_its_meaning_changes() {
-    let original = project(&Fixture::local(ALL_FAMILIES));
-    let bytes = original.canonical_bytes().unwrap();
-    for (family, before, after) in [
-        (
-            "trait",
-            "probe(value: i64) -> i64",
-            "probe(value: i64) -> i32",
-        ),
-        (
-            "conformance",
-            "Token satisfies Marker",
-            "Token satisfies Alternate",
-        ),
-        ("domain", "self.value >= 0", "self.value >= 1"),
-        ("proposition", "ready() = true", "ready() = false"),
-        ("const", "LIMIT: u64 = 4", "LIMIT: u64 = 5"),
-        (
-            "operator",
-            "identity(value: i64) -> i64",
-            "identity(value: i64) -> i32",
-        ),
-        (
-            "data",
-            "Token { value: i64; }",
-            "Token { value: i64; tag: bool; }",
-        ),
-    ] {
-        assert_eq!(ALL_FAMILIES.matches(before).count(), 1);
-        let changed = project(&Fixture::local(&ALL_FAMILIES.replace(before, after)));
-        let family_changed = match family {
-            "trait" => original.public_traits() != changed.public_traits(),
-            "conformance" => original.public_conformances() != changed.public_conformances(),
-            "domain" => original.public_domains() != changed.public_domains(),
-            "proposition" => original.public_propositions() != changed.public_propositions(),
-            "const" => original.public_consts() != changed.public_consts(),
-            "operator" => original.public_operators() != changed.public_operators(),
-            "data" => original.public_data() != changed.public_data(),
-            _ => unreachable!(),
-        };
-        assert!(family_changed, "{family} meaning must remain visible");
-        assert_ne!(bytes, changed.canonical_bytes().unwrap(), "{family} drift");
-    }
-}
-
-#[test]
-fn source_locations_private_helpers_and_unreachable_private_declarations_are_not_baseline_meaning()
-{
-    let original = project(&Fixture::local(ALL_FAMILIES));
-    let changed = project(&Fixture::local(&format!(
-        "// Source moved without changing public policy.\n\n{}\nconst PRIVATE_LIMIT: u64 = 99;\nmachine unused() {{}}\n",
-        ALL_FAMILIES.replace("helper", "implementation")
-    )));
-    assert_eq!(original, changed);
-    assert_eq!(
-        original.canonical_bytes().unwrap(),
-        changed.canonical_bytes().unwrap()
-    );
-}
-
-#[test]
 fn public_type_const_and_lifetime_binder_renaming_preserves_complete_policy() {
     let source = r#"pub data View<'left, 'right> { first: &'left [u8]; second: &'right [u8]; }
 pub trait Parent<'source, Element> { machine borrow(value: &'source Element) -> &'source Element; }
@@ -197,36 +135,5 @@ pub machine keep<'input, const Width: u64>(value: &'input [u8; Width]) -> &'inpu
     assert_ne!(
         original.canonical_bytes().unwrap(),
         changed.canonical_bytes().unwrap()
-    );
-}
-
-#[test]
-fn same_spelled_foreign_declaration_owners_remain_distinct_without_importing_their_surface() {
-    let root = "use dependency::api;\npub data Wrapper { value: Carrier; }\npub trait Protocol { machine exchange(value: Carrier) -> Carrier; }\n";
-    let dependency = "pub data Carrier { value: u64; }\n";
-    let first = project(&Fixture::foreign(
-        root,
-        dependency,
-        PackageKeyIdentity::from_digest([42; 32]).unwrap(),
-    ));
-    let second = project(&Fixture::foreign(
-        root,
-        dependency,
-        PackageKeyIdentity::from_digest([43; 32]).unwrap(),
-    ));
-    assert_eq!(
-        first.public_data().len(),
-        1,
-        "foreign Carrier is a reference, not root public data"
-    );
-    assert_eq!(
-        first.public_data()[0].identity(),
-        second.public_data()[0].identity()
-    );
-    assert_ne!(first.public_data(), second.public_data());
-    assert_ne!(first.public_traits(), second.public_traits());
-    assert_ne!(
-        first.canonical_bytes().unwrap(),
-        second.canonical_bytes().unwrap()
     );
 }

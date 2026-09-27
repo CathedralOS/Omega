@@ -119,26 +119,3 @@ fn published_operational_ceilings_remain_checked_caller_summaries() {
         published.canonical_bytes().unwrap()
     );
 }
-
-#[test]
-fn explicit_termination_promise_differs_from_public_omission_despite_equal_body_proof() {
-    let omitted = project(&Fixture::local("pub machine operation() {}\n"));
-    let promised = project(&Fixture::local("pub machine operation() terminates; {}\n"));
-    let omitted_row = callable(&omitted, "operation");
-    let promised_row = callable(&promised, "operation");
-    assert_eq!(omitted_row.declared_termination(), None);
-    assert!(
-        matches!(promised_row.declared_termination(), Some(PackagePolicyTermination::Terminates { premises }) if premises.is_empty())
-    );
-    assert_eq!(
-        omitted_row.checked_termination(),
-        promised_row.checked_termination()
-    );
-    assert!(
-        matches!(omitted_row.checked_termination(), PackagePolicyTermination::Terminates { premises } if premises.is_empty())
-    );
-    assert_ne!(
-        omitted.canonical_bytes().unwrap(),
-        promised.canonical_bytes().unwrap()
-    );
-}

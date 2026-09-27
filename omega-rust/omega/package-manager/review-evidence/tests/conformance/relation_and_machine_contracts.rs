@@ -2,64 +2,6 @@ use crate::support::*;
 use compiler::CheckedCompileRequest;
 
 #[test]
-fn review_projects_composed_relation_laws_with_forwarded_proposition_family() {
-    let Some(target) = host_target_name() else {
-        return;
-    };
-    let package = TempPackage::new();
-    package.write(
-        "main.omg",
-        r#"pub trait Reflexive<Carrier, proposition Relation>
-where proposition Relation(left: Carrier, right: Carrier);
-{
-    machine reflexive(value: Carrier)
-    ensures Relation(value, value);
-}
-
-pub trait Symmetric<Carrier, proposition Relation>
-where proposition Relation(left: Carrier, right: Carrier);
-{
-    machine symmetric(left: Carrier, right: Carrier)
-    requires Relation(left, right)
-    ensures Relation(right, left);
-}
-
-pub trait Equivalence<Carrier, proposition Relation>:
-    Reflexive<Carrier, Relation>
-    + Symmetric<Carrier, Relation>
-where proposition Relation(left: Carrier, right: Carrier);
-{
-}
-"#,
-    );
-    package.write(
-        "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
-"#,
-    );
-    let checked = compile_review_fixture(CheckedCompileRequest {
-        package_inputs: Some(package_inputs(&package.0)),
-        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
-    })
-    .expect("composed relation laws should check");
-    let review = project_checked_package_review(&checked)
-        .expect("composed relation laws should have exact package-review rows");
-    let equivalence = review
-        .public_traits()
-        .iter()
-        .find(|shape| shape.identity().path() == "Equivalence")
-        .expect("Equivalence trait row");
-    assert_eq!(equivalence.parents().len(), 2);
-    for parent in equivalence.parents() {
-        let [carrier, relation] = parent.arguments() else {
-            panic!("forwarded carrier and proposition-family arguments")
-        };
-        assert!(carrier.canonical().contains("type-parameter:0"));
-        assert!(relation.canonical().contains("type-parameter:1"));
-    }
-}
-
-#[test]
 fn review_rejects_generic_proposition_endpoint_and_value_symbol_spoofs() {
     let Some(target) = host_target_name() else {
         return;

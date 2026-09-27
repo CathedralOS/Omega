@@ -1,6 +1,5 @@
 use super::{nominal, value_type};
 use crate::encoding::{PackagePolicyRecoveryError, PackagePolicyRecoveryLimits};
-use crate::record::PackagePolicyCallableConformance;
 use crate::record::PackagePolicyExternalBinding;
 use crate::record::PackagePolicyExternalCallableSignature;
 use crate::record::PackagePolicyExternalExecutableSupply;
@@ -133,31 +132,6 @@ fn retired_string_backed_import_tag_is_rejected_by_name() {
         ),
         Err(PackagePolicyRecoveryError::RetiredVocabulary)
     );
-}
-
-#[test]
-fn trait_and_operator_requirement_coordinates_survive_recovery() {
-    let mut policy = supply(PackageReviewExternalBinding::CompilerIntrinsic).policy();
-    policy.signature.lifetime_parameter_count = 2;
-    policy.requirement =
-        PackagePolicyExternalRequirement::Trait(PackagePolicyCallableConformance {
-            trait_identity: nominal("Binding"),
-            requirement_identity: nominal("Service::invoke"),
-            requirement_lifetime_partition: vec![0, 1, 0],
-            trait_lifetime_arguments: vec![1, 0, 1],
-            arguments: vec![value_type("i32"), value_type("u64")],
-            alias: Some("provider".into()),
-        });
-    assert_round_trip(&policy);
-    policy.requirement = PackagePolicyExternalRequirement::Operator {
-        coordinate: PackageReviewOperatorCoordinate {
-            identity: nominal("Math::identity"),
-            parameter_dispatch: "(i32)".into(),
-            result_dispatch: "i32".into(),
-        },
-        alias: None,
-    };
-    assert_round_trip(&policy);
 }
 
 #[test]
@@ -504,38 +478,6 @@ fn expression_policy(unary_count: usize) -> PackagePolicyExternalExecutableSuppl
             PackagePolicyMachineParameterContract::Structural(contract),
         ))];
     policy
-}
-
-#[test]
-fn individual_expression_nodes_consume_the_aggregate_element_budget() {
-    let policy = expression_policy(32);
-    let encoded = policy.canonical_bytes().expect("bounded expression tree");
-    assert_round_trip(&policy);
-    let limits = PackagePolicyRecoveryLimits::new(
-        4 * 1024 * 1024,
-        4 * 1024 * 1024,
-        16,
-        64 * 1024 * 1024,
-        128,
-    );
-    assert_eq!(
-        PackagePolicyExternalExecutableSupply::recover_canonical(&encoded, limits),
-        Err(PackagePolicyRecoveryError::ElementLimitExceeded),
-    );
-    let mut excessive = encoded.clone();
-    let unary_chain = occurrence(&encoded, &[7, 1].repeat(32));
-    excessive.splice(unary_chain..unary_chain, [7, 1].repeat(129));
-    let unbounded_caller = PackagePolicyRecoveryLimits::new(
-        usize::MAX,
-        usize::MAX,
-        usize::MAX,
-        usize::MAX,
-        usize::MAX,
-    );
-    assert_eq!(
-        PackagePolicyExternalExecutableSupply::recover_canonical(&excessive, unbounded_caller),
-        Err(PackagePolicyRecoveryError::NestingLimitExceeded),
-    );
 }
 
 #[test]

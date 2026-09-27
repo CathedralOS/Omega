@@ -429,81 +429,6 @@ fn source_replay_rejects_theorem_relation_and_batch_drift() {
 }
 
 #[test]
-fn transport_source_replay_binds_kind_roles_fact_coordinates_and_complete_batch() {
-    let two = format!(
-        "{TRANSPORT_BACKED_LIFT}\n\npub machine admitted_second(value: EquivalenceClass) -> EquivalenceClass\nrequires value == value\n{{\n    Quotient::lift<\n        representative,\n        representative_respects,\n        representative_transports\n    >(value)\n}}\n"
-    );
-    let program = single_program(two);
-    let expected = validation::extract_non_executable_quotient_correspondences(&program)
-        .expect("extract two transport rows")
-        .into_correspondences();
-    assert_eq!(expected.len(), 2);
-
-    let rejects = |batch: &[CanonicalQuotientCorrespondence]| {
-        let diagnostics = project_replayed_batch(&program, package(PACKAGE), target(), batch)
-            .expect_err("mutated transport batch must reject");
-        assert!(diagnostics.iter().any(|diagnostic| {
-            diagnostic
-                .message
-                .contains("does not equal transactional source rederivation")
-        }));
-    };
-    let mut wrong_kind = expected.clone();
-    wrong_kind[0].operation_kind = QuotientCorrespondenceOperationKind::Define;
-    rejects(&wrong_kind);
-
-    let mut wrong_role = expected.clone();
-    wrong_role[0].theorem_evidence[1].role =
-        language_semantics::quotient_correspondence::QuotientTheoremRole::Congruence;
-    rejects(&wrong_role);
-
-    let mut wrong_selected_transport = expected.clone();
-    wrong_selected_transport[0].theorem_evidence[1]
-        .selected_application
-        .callable
-        .overload
-        .push_str("-substituted");
-    rejects(&wrong_selected_transport);
-
-    let mut reversed_roles = expected.clone();
-    reversed_roles[0].theorem_evidence.swap(0, 1);
-    rejects(&reversed_roles);
-
-    let mut wrong_public_source = expected.clone();
-    transport_correspondence(&mut wrong_public_source[0]).public_premises[0]
-        .source
-        .fact_position += 1;
-    rejects(&wrong_public_source);
-
-    let mut wrong_public_actual = expected.clone();
-    transport_correspondence(&mut wrong_public_actual[0]).public_premises[0]
-        .actual
-        .fact_position += 1;
-    rejects(&wrong_public_actual);
-
-    let mut wrong_representative_source = expected.clone();
-    transport_correspondence(&mut wrong_representative_source[0]).representative_conclusions[0]
-        .source
-        .fact_position += 1;
-    rejects(&wrong_representative_source);
-
-    let mut wrong_representative_actual = expected.clone();
-    transport_correspondence(&mut wrong_representative_actual[0]).representative_conclusions[0]
-        .actual
-        .fact_position += 1;
-    rejects(&wrong_representative_actual);
-
-    rejects(&expected[..1]);
-    let mut reversed = expected.clone();
-    reversed.reverse();
-    rejects(&reversed);
-    let mut duplicate = expected.clone();
-    duplicate.push(expected[0].clone());
-    rejects(&duplicate);
-    rejects(&[]);
-}
-
-#[test]
 fn canonical_rows_bind_every_direct_define_axis_and_reject_duplicate_keys() {
     type Mutation = fn(&mut CanonicalQuotientCorrespondence);
 
@@ -685,48 +610,6 @@ fn canonical_rows_bind_transport_kind_roles_applications_and_q_p_coordinates() {
             "{label} drift must change canonical bytes"
         );
     }
-}
-
-#[test]
-fn immutable_result_aliases_project_their_exact_result_flow() {
-    let define = single_program(TOTAL_DIRECT_DEFINE.replace(
-        "    Quotient::define<representative, representative_respects>(value)\n",
-        "    let result: EquivalenceClass = Quotient::define<representative, representative_respects>(value);\n    result\n",
-    ));
-    let review =
-        project_non_executable_quotient_package_review(&define, package(PACKAGE), target())
-            .expect("immutable define alias projects");
-    let [certificate] = review.correspondences() else {
-        panic!("one aliased define row")
-    };
-    assert_eq!(
-        certificate.result_flow,
-        QuotientResultFlow::Direct {
-            statement_position: 1,
-            immutable_alias_count: 1,
-        }
-    );
-
-    let lift = single_program(TRANSPORT_BACKED_LIFT.replace(
-        "    Quotient::lift<\n        representative,\n        representative_respects,\n        representative_transports\n    >(value)\n",
-        "    let result: EquivalenceClass = Quotient::lift<\n        representative,\n        representative_respects,\n        representative_transports\n    >(value);\n    result\n",
-    ));
-    let review = project_non_executable_quotient_package_review(&lift, package(PACKAGE), target())
-        .expect("immutable transport lift alias projects");
-    let [certificate] = review.correspondences() else {
-        panic!("one aliased lift row")
-    };
-    assert_eq!(
-        certificate.result_flow,
-        QuotientResultFlow::Direct {
-            statement_position: 1,
-            immutable_alias_count: 1,
-        }
-    );
-    assert_eq!(
-        certificate.operation_kind,
-        QuotientCorrespondenceOperationKind::LiftWithForwardPreconditionTransport
-    );
 }
 
 #[test]

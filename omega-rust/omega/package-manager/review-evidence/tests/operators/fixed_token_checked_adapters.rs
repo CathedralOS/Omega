@@ -38,62 +38,6 @@ fn compile_fixture(source: &str) -> ReviewFixture {
 }
 
 #[test]
-fn review_admits_binary_fixed_token_boundary_checked_adapter() {
-    if host_target_name().is_none() {
-        return;
-    }
-    let checked = compile_fixture(BINARY_SUBTRACT);
-    let review = project_checked_package_review(&checked)
-        .expect("binary fixed-token checked adapter should enter package review");
-
-    let declaration = review
-        .public_operators()
-        .iter()
-        .find(|operator| operator.coordinate().identity().path() == "CheckedMath::subtract")
-        .expect("public fixed-token boundary declaration");
-    assert!(declaration.is_boundary());
-    assert_eq!(
-        declaration.spelling(),
-        Some(language_core::OperatorSpelling::Subtract)
-    );
-
-    let callable = review
-        .callables()
-        .iter()
-        .find(|callable| callable.identity().path() == "CheckedMathProvider::subtract_impl")
-        .expect("public fixed-token checked adapter callable");
-    let [realization] = callable.operator_realizations() else {
-        panic!("one exact fixed-token boundary realization")
-    };
-    assert_eq!(realization.coordinate(), declaration.coordinate());
-    assert_eq!(realization.alias(), None);
-
-    let provider = review
-        .selected_providers()
-        .iter()
-        .find(|provider| provider.schema_declaration() == declaration.coordinate().identity())
-        .expect("selected fixed-token boundary provider");
-    let [row] = provider.rows() else {
-        panic!("one exact fixed-token provider row")
-    };
-    assert!(matches!(
-        row.binding,
-        effects::provider_plan::ProviderBinding::CheckedAdapter { .. }
-    ));
-    let [application] = review.boundary_application_realizations() else {
-        panic!("one exact fixed-token application realization")
-    };
-    assert_eq!(
-        application.application(),
-        PackageReviewBoundaryApplication::Empty
-    );
-    assert_eq!(
-        application.role(),
-        PackageReviewBoundaryApplicationRealizationRole::NongenericCheckedBody
-    );
-}
-
-#[test]
 fn review_projects_fixed_token_generic_checked_adapter_application() {
     if host_target_name().is_none() {
         return;

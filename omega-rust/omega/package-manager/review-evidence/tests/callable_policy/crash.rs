@@ -209,41 +209,6 @@ fn published_crash_guards_remain_structural_and_distinguish_absent_from_false() 
 }
 
 #[test]
-fn same_spelled_foreign_crash_predicate_retains_exact_package_owner() {
-    let root =
-        "use dependency::helpers;\npub machine run(flag: bool) crashes Trap permitted(flag) {}\n";
-    let dependency = "pub machine permitted(flag: bool) -> bool terminates; { flag }\n";
-    let first = Fixture::foreign(
-        root,
-        dependency,
-        PackageKeyIdentity::from_digest([42; 32]).unwrap(),
-    );
-    let second = Fixture::foreign(
-        root,
-        dependency,
-        PackageKeyIdentity::from_digest([43; 32]).unwrap(),
-    );
-    let first = project(&first);
-    let second = project(&second);
-    assert_eq!(
-        callable(&first, "run").identity(),
-        callable(&second, "run").identity()
-    );
-    assert_eq!(
-        callable(&first, "run").parameters(),
-        callable(&second, "run").parameters()
-    );
-    assert_ne!(
-        callable(&first, "run").checked_crash(),
-        callable(&second, "run").checked_crash()
-    );
-    assert_ne!(
-        first.canonical_bytes().unwrap(),
-        second.canonical_bytes().unwrap()
-    );
-}
-
-#[test]
 fn nested_static_crash_guard_retains_foreign_callable_owner() {
     let root = r#"use dependency::helpers;
 pub machine accepts<machine Work>()

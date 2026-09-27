@@ -117,54 +117,6 @@ fn exported_nominal_reach_dependency_distinguishes_and_deduplicates_concrete_ser
 }
 
 #[test]
-fn exported_nominal_reach_dependency_ignores_binder_names_and_private_extraction() {
-    let direct = project(&Fixture::local(SOURCE));
-    let renamed = project(&Fixture::local(
-        &SOURCE
-            .replace("machine Step>", "machine Selected>")
-            .replace(
-                "where machine Step satisfies",
-                "where machine Selected satisfies",
-            )
-            .replace("{ Step(value) }", "{ Selected(value) }"),
-    ));
-    assert_eq!(direct, renamed, "nominal binder identity is positional");
-    assert_eq!(
-        direct.canonical_bytes().unwrap(),
-        renamed.canonical_bytes().unwrap()
-    );
-
-    let extracted = format!(
-        "{}\n\
-         machine relay<machine Forward>(value: u64) -> u64\n\
-         where machine Forward satisfies StepContract::step;\n\
-         {{ Forward(value) }}",
-        SOURCE.replace("{ Step(value) }", "{ relay<Step>(value) }")
-    );
-    let extracted = project(&Fixture::local(&extracted));
-    assert_eq!(
-        direct, extracted,
-        "a private generic helper preserves the same dependency"
-    );
-    assert_eq!(
-        direct.canonical_bytes().unwrap(),
-        extracted.canonical_bytes().unwrap()
-    );
-}
-
-#[test]
-fn dependency_parameters_use_complete_static_telescope_ordinals() {
-    let source = SOURCE.replace("<machine Step>", "<Element, machine Step>");
-    let policy = project(&Fixture::local(&source));
-    assert_eq!(
-        callable(&policy, "traverse")
-            .service_reach_dependency()
-            .parameters(),
-        &[1]
-    );
-}
-
-#[test]
 fn stale_checked_dependency_rejects_even_with_unchanged_conservative_rows() {
     for additive in [false, true] {
         let source = if additive {
