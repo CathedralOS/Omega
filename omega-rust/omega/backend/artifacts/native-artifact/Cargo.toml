@@ -28,6 +28,7 @@ isa-x86_64 = { path = "../../instruction_set_architectures/isa-x86_64" }
 x86-encoding = { path = "../../instruction_set_architectures/x86-encoding" }
 installation-evidence = { path = "../../runtime/installation-evidence" }
 machine-code = { path = "../../../representations/machine-code" }
+machine-emission = { path = "../../machine-emission" }
 object-file = { path = "../../object/object-file" }
 optimization-core = { path = "../../../foundation/optimization-core" }
 target-operations = { path = "../../../representations/target-operations" }

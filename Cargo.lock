@@ -1150,6 +1150,7 @@ dependencies = [
  "isa-x86_64",
  "legalized-operations",
  "machine-code",
+ "machine-emission",
  "object-file",
  "optimization-core",
  "program-entry-plan",

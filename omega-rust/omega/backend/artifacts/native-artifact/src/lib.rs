@@ -7,13 +7,16 @@
 //! It owns only canonical Terminal bytes, target artifacts, and the exact
 //! source-free identity projections needed to replay their joins.
 //!
-//! Start at `native_artifact.rs` for artifact construction and replay,
+//! Start at `fragment_object_publication.rs` for fragment emission, entry
+//! binding and object publication evidence,
+//! `native_artifact.rs` for artifact construction and replay,
 //! `proof.rs` for standalone native proof construction and verification,
 //! `callable_entry.rs` for validated callable-entry staging, or
 //! `semantic_wrapper_object.rs` for the optimized ProgramStorage
 //! semantic-wrapper object records and codec that native realization stages.
 
 mod callable_entry;
+mod fragment_object_publication;
 mod native_artifact;
 pub mod optimized_semantic_wrapper_object;
 mod physical;
@@ -29,6 +32,9 @@ pub use callable_entry::{
     OptimizedOrdinaryCallableResult, OptimizedOrdinaryCallableReturn,
     StagedValidatedOptimizedOrdinaryCallableEntry, ValidatedOptimizedOrdinaryCallableEntryManifest,
     stage_validated_optimized_ordinary_callable_entry, validate_optimized_ordinary_callable_entry,
+};
+pub use fragment_object_publication::{
+    FragmentObjectPublicationRequest, PublishedFragmentObject, publish_fragment_object,
 };
 pub use image_emission::BoundaryExecutionRecord;
 pub use native_artifact::{
