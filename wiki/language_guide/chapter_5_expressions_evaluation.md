@@ -4,7 +4,7 @@ Expressions compute values; statements perform work in a machine or state.
 The [expression specification](../spec/language/expressions.md) defines their
 schedule and operation selection. This chapter shows how those rules affect
 ordinary code. Examples describe the language contract, not complete compiler
-support; current numeric limits are recorded [beside validation](../../omega-rust/psi/semantics/validation/numeric_proofs.md).
+support; current numeric limits are recorded [beside validation](../../omega-rust/psi/checking/numeric_proofs.md).
 
 ## Literals
 

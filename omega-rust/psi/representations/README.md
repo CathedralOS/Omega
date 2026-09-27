@@ -27,12 +27,19 @@ Stage 06 optimizes lowered Psi in the same representation. The independent
 their respective program forms without creating another pipeline representation.
 
 Constituent semantic records have separate package owners:
-[facts](../semantics/facts/src/lib.rs) holds fact contexts, places and evidence;
-[flow-effects](../semantics/flow-effects/src/lib.rs) holds operational,
+[facts](checked-trees/facts/src/lib.rs) holds fact contexts, places and evidence;
+[flow-effects](../foundation/flow-effects/src/lib.rs) holds operational,
 invocation, capability and reach summaries. The shared
 [optimization selections](../foundation/optimization-selections/src/lib.rs)
 package owns pass names, canonical selections and their identities. These
 packages support the route above; none is an additional program stage.
+
+Terminal Psi also owns a family of independent companion packages: `codec/`
+for canonical artifacts, `semantics/` for operation judgments, `verification/`
+for receiving checks, and `fuel/` with `fuel/certification/` for logical costs
+and bounds. These are contracts over the same Terminal program, not additional
+IR stages. Their manifests preserve the representation-to-checker dependency
+boundary.
 
 ## Records and facts
 

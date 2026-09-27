@@ -37,7 +37,7 @@
       "item": "MATCH-SELECTIVE-LOWERING",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/semantics/validation/src/expression_types",
+        "omega-rust/psi/checking/src/expression_types",
         "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/tests/value_dispatch.rs",
         "omega-rust/psi/interpreter/checked-interpreter/tests/value_dispatch.rs",
         "tests/native-differential/tests/scalar_case_results.rs"
@@ -51,7 +51,7 @@
       "host": "linux",
       "owning_paths": [
         "omega-rust/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/module_normalization.rs",
-        "omega-rust/psi/compiler/build-time-evaluation/src/const_initializers.rs",
+        "omega-rust/psi/interpreter/build-time-evaluation/src/const_initializers.rs",
         "omega-rust/omega/compiler/compiler/tests/module_machine_indices.rs",
         "omega-rust/omega/compiler/compiler/tests/module_machine_indices"
       ],

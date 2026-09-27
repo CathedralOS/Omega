@@ -45,5 +45,5 @@ view-to-view recasts reject. Detached snapshots may be recast as ordinary
 values; a retained underlying extent loan may be submitted for another
 [placement admission](../resources/placed_access.md).
 
-The [implementation note](../../../omega-rust/psi/semantics/validation/recasts.md)
+The [implementation note](../../../omega-rust/psi/checking/recasts.md)
 records supported shapes and source positions separately from this contract.

@@ -14,18 +14,18 @@ lowered-psi = { path = "../../representations/lowered-psi" }
 arena = { path = "../../foundation/arena" }
 checked-trees = { path = "../../representations/checked-trees" }
 semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
-facts = { path = "../../semantics/facts" }
+facts = { path = "../../representations/checked-trees/facts" }
 language-core = { path = "../../foundation/language-core" }
 language-semantics = { path = "../../foundation/language-semantics" }
 numerics = { path = "../../foundation/numerics" }
-proof-admission = { path = "../../semantics/proof-admission" }
+proof-admission = { path = "../../proof/admission" }
 source = { path = "../../foundation/source" }
 symbols = { path = "../../foundation/symbols" }
 terminal-psi = { path = "../../representations/terminal-psi" }
-terminal-semantics = { path = "../../semantics/terminal-semantics" }
-terminal-codec = { path = "../../semantics/terminal-codec" }
-terminal-verifier = { path = "../../semantics/terminal-verifier" }
-validation = { path = "../../semantics/validation" }
+terminal-semantics = { path = "../../representations/terminal-psi/semantics" }
+terminal-codec = { path = "../../representations/terminal-psi/codec" }
+terminal-verifier = { path = "../../representations/terminal-psi/verification" }
+validation = { path = "../../checking" }
 sha2 = "0.10.9"
 
 [dev-dependencies]
@@ -34,13 +34,13 @@ diagnostics = { path = "../../foundation/diagnostics" }
 optimization = { path = "../../foundation/optimization-selections" }
 lowered-psi-to-lowered-psi = { path = "../06_lowered-psi-to-lowered-psi" }
 lowered-psi-to-terminal-psi = { path = "../07_lowered-psi-to-terminal-psi" }
-terminal-production = { path = "../../compiler/terminal-production" }
+terminal-production = { path = "../../terminal-production" }
 syntax-trees = { path = "../../representations/syntax-trees" }
 source-files-to-tokens = { path = "../00_source-files-to-tokens" }
 symbol-resolved-trees-to-typed-trees = { path = "../03_symbol-resolved-trees-to-typed-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../02_syntax-trees-to-symbol-resolved-trees" }
-terminal-fuel = { path = "../../semantics/terminal-fuel" }
-terminal-fixed-fuel = { path = "../../semantics/terminal-fixed-fuel" }
+terminal-fuel = { path = "../../representations/terminal-psi/fuel" }
+terminal-fixed-fuel = { path = "../../representations/terminal-psi/fuel/certification" }
 terminal-interpreter = { path = "../../interpreter/terminal-interpreter" }
 tokens-to-syntax-trees = { path = "../01_tokens-to-syntax-trees" }
 typed-trees = { path = "../../representations/typed-trees" }

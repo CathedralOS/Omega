@@ -183,8 +183,8 @@
             "item": "PCC-CANONICAL-SEMANTIC-LEDGER",
             "host": "local",
             "owning_paths": [
-                "omega-rust/psi/semantics/terminal-verifier",
-                "omega-rust/psi/semantics/proof-admission/src/certificate_search"
+                "omega-rust/psi/representations/terminal-psi/verification",
+                "omega-rust/psi/proof/admission/src/certificate_search"
             ],
             "suggested_first_slice": "discharge one ExplicitlyTrusted trusted_surface row family (reconstruction, normalization, scope, invalidation, or call/cycle-composition) with checked evidence and exact dependencies — the inventory mechanically covers dispatch/reconstructed-facts/dependencies; coverage and a Proved label are not proofs; preserve PROVED_ENTRIES and unfinished-dependency checks; revalidate justifications before refreshing any source digest in sites.rs/lib.rs. known_baseline_failures.md names this item the owner of the drifted digest rows — a bounded revalidation leg counts. linw5-proof-kernel-core owns proof-admission's mathematical_core/lib.rs/tests and terminal-codec/src — read them as inputs, do not write outside your fence",
             "host_gates": [
@@ -199,7 +199,7 @@
             "host": "local",
             "layer": 1,
             "owning_paths": [
-                "omega-rust/psi/semantics/terminal-verifier/src/validation/frontier",
+                "omega-rust/psi/representations/terminal-psi/verification/src/validation/frontier",
                 "omega-rust/psi/interpreter/terminal-interpreter",
                 "wiki/spec/terminal-psi/ownership.md"
             ],

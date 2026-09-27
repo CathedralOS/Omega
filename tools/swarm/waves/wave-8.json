@@ -121,7 +121,7 @@
       "owning_paths": [
         "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/checks/termination/progress",
         "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/checks/termination/progress.rs",
-        "omega-rust/psi/semantics/validation/src/calls/expression_scanning"
+        "omega-rust/psi/checking/src/calls/expression_scanning"
       ],
       "suggested_first_slice": "One bounded slice: per-field arrivals through an opaque-reference, recursive-proof, or unresolved-generic leaf with exact provenance (progress/{origins,lineage}.rs), or realizing one projected nested value-call operand via validation/src/calls/expression_scanning/result_realization.rs. checks/termination/ranking, validation/src/lib.rs, and flow/ are claimed until ~04:37-06:15Z \u2014 steer to owned paths."
     },
@@ -132,7 +132,7 @@
       "host": "linux",
       "owning_paths": [
         "omega-rust/omega/compiler/provider-planning",
-        "omega-rust/psi/compiler/terminal-production"
+        "omega-rust/psi/terminal-production"
       ],
       "suggested_first_slice": "Plan-side slice: target-owned private callback slots through exact conformances and validated layout paths \u2014 callback_layout_catalog under provider-planning is the seam. backend/runtime/component-publication is claimed by EXTERNAL-ENTRY-STACK-EPOCHS until ~04:32Z; keep to planning/terminal-production writes or report blocked."
     },
@@ -213,7 +213,7 @@
       "item": "TARGET-SEMANTIC-APPLICATIONS",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/compiler/build-time-evaluation"
+        "omega-rust/psi/interpreter/build-time-evaluation"
       ],
       "suggested_first_slice": "Backfill for the landed declarative-peepholes slot. One bounded slice inside the semantic evaluation owner crate \u2014 e.g. finish earlier generic-application evaluation, or one typed target observation / selected-realization-coverage class. flow/, monomorphization, and checked-interpreter are claimed by NOMINAL-FIELD-FLOW/RUNTIME-VALUE-GENERICS (leases were due ~06:15Z \u2014 re-check tools/claims.py status); keep writes inside build-time-evaluation or report blocked.",
       "backfill_for": "declarative-peepholes"
@@ -331,8 +331,8 @@
       "item": "GENERAL-CYCLIC-EXECUTION",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/semantics/terminal-verifier/src/validation/control_flow",
-        "omega-rust/psi/semantics/terminal-verifier/src/validation/control_flow.rs",
+        "omega-rust/psi/representations/terminal-psi/verification/src/validation/control_flow",
+        "omega-rust/psi/representations/terminal-psi/verification/src/validation/control_flow.rs",
         "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit",
         "omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/src/lowering/control_flow"
       ],
@@ -359,11 +359,11 @@
       "host": "linux",
       "owning_paths": [
         "omega-rust/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation/module_normalization.rs",
-        "omega-rust/psi/compiler/build-time-evaluation/src/const_initializers.rs",
-        "omega-rust/psi/compiler/build-time-evaluation/src/const_initializers",
-        "omega-rust/psi/compiler/build-time-evaluation/src/const_generic_expressions/value/match_dispatch.rs",
-        "omega-rust/psi/compiler/build-time-evaluation/src/const_generic_expressions/value/match_dispatch",
-        "omega-rust/psi/compiler/build-time-evaluation/src/admission/closure_validation.rs"
+        "omega-rust/psi/interpreter/build-time-evaluation/src/const_initializers.rs",
+        "omega-rust/psi/interpreter/build-time-evaluation/src/const_initializers",
+        "omega-rust/psi/interpreter/build-time-evaluation/src/const_generic_expressions/value/match_dispatch.rs",
+        "omega-rust/psi/interpreter/build-time-evaluation/src/const_generic_expressions/value/match_dispatch",
+        "omega-rust/psi/interpreter/build-time-evaluation/src/admission/closure_validation.rs"
       ],
       "suggested_first_slice": "Backfill after case-constraints released preparation/. One bounded slice: extend concrete failure discharge in const_initializers/invocations.rs \u2014 arithmetic guard expressions or unknown saved-entry origins need their existing checked evidence (not successful interpretation or provider-body inspection); OR extend match_dispatch nonconstant divisor integrality beyond singleton sign intervals with exact fractional-warning evidence. Preserve exact lexical/package selection before evaluation; keep machine_initializers:: module/index and scalar-composition checks in module_machine_indices green.",
       "backfill_for": "case-constraints",

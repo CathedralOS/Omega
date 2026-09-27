@@ -412,4 +412,4 @@ choice of acceptance authority.
 `PROOF-CONTRACT-MIGRATION` on the [execution board](../../../TASKS.md) owns worked
 proofs and migration through source, serialization, and replay. Neither a
 mechanical rewrite nor a few successful proofs establishes mathematical
-completeness. Current automation belongs beside [validation](../../../omega-rust/psi/semantics/validation/README.md).
+completeness. Current automation belongs beside [validation](../../../omega-rust/psi/checking/README.md).

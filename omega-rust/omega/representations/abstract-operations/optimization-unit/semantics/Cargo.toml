@@ -15,13 +15,13 @@ abstract-operations = { path = "../.." }
 semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
 language-semantics = { path = "../../../../../psi/foundation/language-semantics" }
 terminal-psi = { path = "../../../../../psi/representations/terminal-psi" }
-terminal-codec = { path = "../../../../../psi/semantics/terminal-codec" }
-terminal-fuel = { path = "../../../../../psi/semantics/terminal-fuel" }
-terminal-semantics = { path = "../../../../../psi/semantics/terminal-semantics" }
+terminal-codec = { path = "../../../../../psi/representations/terminal-psi/codec" }
+terminal-fuel = { path = "../../../../../psi/representations/terminal-psi/fuel" }
+terminal-semantics = { path = "../../../../../psi/representations/terminal-psi/semantics" }
 
 [dev-dependencies]
 language-core = { path = "../../../../../psi/foundation/language-core" }
-proof-admission = { path = "../../../../../psi/semantics/proof-admission" }
+proof-admission = { path = "../../../../../psi/proof/admission" }
 terminal-psi-to-abstract-operations = { path = "../../../../pipeline/00_terminal-psi-to-abstract-operations" }
 checked-trees-to-lowered-psi = { path = "../../../../../psi/pipeline/05_checked-trees-to-lowered-psi" }
 source-files-to-tokens = { path = "../../../../../psi/pipeline/00_source-files-to-tokens" }

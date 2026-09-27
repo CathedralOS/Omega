@@ -74,7 +74,7 @@
 //! its helpers and rejects substituted targets and missing plans;
 //! src/tests/byte_write_loop.rs exercises borrowed buffers and scalar-case returns.
 //! Read those controls when widening a route. The owning source/Terminal coverage
-//! contract is ../../compiler/terminal-production/README.md relative to this crate.
+//! contract is ../../terminal-production/README.md relative to this crate.
 //!
 //! # Erased parameters
 //!

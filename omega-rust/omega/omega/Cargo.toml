@@ -15,7 +15,7 @@ mimalloc = { version = "0.1", default-features = false }
 lowered-psi = { path = "../../psi/representations/lowered-psi" }
 lowered-psi-to-lowered-psi = { path = "../../psi/pipeline/06_lowered-psi-to-lowered-psi" }
 lowered-psi-to-terminal-psi = { path = "../../psi/pipeline/07_lowered-psi-to-terminal-psi" }
-terminal-production = { path = "../../psi/compiler/terminal-production" }
+terminal-production = { path = "../../psi/terminal-production" }
 compiler = { path = "../compiler" }
 artifacts = { path = "../compiler/artifacts" }
 platform-custody = { path = "../foundation/platform-custody" }
@@ -29,7 +29,7 @@ checked-trees-to-lowered-psi = { path = "../../psi/pipeline/05_checked-trees-to-
 semantic-vocabulary = { path = "../../psi/foundation/semantic-vocabulary" }
 diagnostics = { path = "../../psi/foundation/diagnostics" }
 checked-interpreter = { path = "../../psi/interpreter/checked-interpreter" }
-proof-admission = { path = "../../psi/semantics/proof-admission" }
+proof-admission = { path = "../../psi/proof/admission" }
 terminal-psi = { path = "../../psi/representations/terminal-psi" }
-terminal-fixed-fuel = { path = "../../psi/semantics/terminal-fixed-fuel" }
-terminal-verifier = { path = "../../psi/semantics/terminal-verifier" }
+terminal-fixed-fuel = { path = "../../psi/representations/terminal-psi/fuel/certification" }
+terminal-verifier = { path = "../../psi/representations/terminal-psi/verification" }

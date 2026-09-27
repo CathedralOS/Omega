@@ -348,6 +348,6 @@ reversed, surplus, or role/payload-mismatched evidence rejects.
 The table owns no executable operation. Execution rejects nonempty tables until
 executable quotient lowering exists. Proof-only package review reconstructs the
 complete source batch; retention alone is neither checked executable projection
-nor source-to-native correspondence. [Validation support](../../../omega-rust/psi/semantics/validation/README.md#quotient-correspondence)
+nor source-to-native correspondence. [Validation support](../../../omega-rust/psi/checking/README.md#quotient-correspondence)
 records producer limits; `QUOTIENT-THEOREM-LIFT` and `PROOF-CONTRACT-MIGRATION`
 on the [execution board](../../../TASKS.md) own remaining implementation.

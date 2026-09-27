@@ -16,7 +16,7 @@ arena = { path = "../../../psi/foundation/arena" }
 artifacts = { path = "../artifacts" }
 language-core = { path = "../../../psi/foundation/language-core" }
 syntax-trees = { path = "../../../psi/representations/syntax-trees" }
-validation = { path = "../../../psi/semantics/validation" }
+validation = { path = "../../../psi/checking" }
 build-output = { path = "../build-output" }
 calling-conventions = { path = "../../backend/calling-conventions" }
 component-description = { path = "../../backend/artifacts/component-description" }
@@ -28,10 +28,10 @@ provider-planning = { path = "../provider-planning" }
 representation-planning = { path = "../representation-planning" }
 target = { path = "../../backend/target" }
 trust-model = { path = "../trust-model" }
-build-time-evaluation = { path = "../../../psi/compiler/build-time-evaluation" }
+build-time-evaluation = { path = "../../../psi/interpreter/build-time-evaluation" }
 checked-interpreter = { path = "../../../psi/interpreter/checked-interpreter" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
-flow-effects = { path = "../../../psi/semantics/flow-effects" }
+flow-effects = { path = "../../../psi/foundation/flow-effects" }
 language-semantics = { path = "../../../psi/foundation/language-semantics" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 terminal-psi = { path = "../../../psi/representations/terminal-psi" }

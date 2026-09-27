@@ -23,6 +23,6 @@ libc = "0.2.186"
 mutation-matrix = { path = "../../psi/foundation/mutation-matrix", features = ["test-support"] }
 package-manager = { path = "../../omega/package-manager" }
 package-source = { path = "../../omega/package-manager/source-acquisition" }
-proof-admission = { path = "../../psi/semantics/proof-admission" }
+proof-admission = { path = "../../psi/proof/admission" }
 semantic-vocabulary = { path = "../../psi/foundation/semantic-vocabulary" }
 target = { path = "../../omega/backend/target" }

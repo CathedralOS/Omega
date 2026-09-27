@@ -169,7 +169,7 @@ steps; they are not a promise of a complete nonlinear solver.
 
 The checker may discharge a supported instance, consume an explicitly cited
 theorem, or reject an unproved obligation. Current automation limits belong
-beside [validation](../../omega-rust/psi/semantics/validation/README.md), not in
+beside [validation](../../omega-rust/psi/checking/README.md), not in
 the definition of dependent values.
 
 ## Facts Across Calls

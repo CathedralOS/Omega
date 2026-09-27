@@ -23,12 +23,12 @@ extents = { path = "../../../../psi/foundation/extents" }
 language-semantics = { path = "../../../../psi/foundation/language-semantics" }
 numerics = { path = "../../../../psi/foundation/numerics" }
 terminal-psi = { path = "../../../../psi/representations/terminal-psi" }
-terminal-codec = { path = "../../../../psi/semantics/terminal-codec" }
-terminal-fixed-fuel = { path = "../../../../psi/semantics/terminal-fixed-fuel" }
+terminal-codec = { path = "../../../../psi/representations/terminal-psi/codec" }
+terminal-fixed-fuel = { path = "../../../../psi/representations/terminal-psi/fuel/certification" }
 sha2 = "0.10.9"
 
 [dev-dependencies]
-proof-admission = { path = "../../../../psi/semantics/proof-admission" }
+proof-admission = { path = "../../../../psi/proof/admission" }
 symbols = { path = "../../../../psi/foundation/symbols" }
-terminal-verifier = { path = "../../../../psi/semantics/terminal-verifier" }
+terminal-verifier = { path = "../../../../psi/representations/terminal-psi/verification" }
 target = { path = "../../target" }

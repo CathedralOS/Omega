@@ -13,17 +13,17 @@ arena = { path = "../../foundation/arena" }
 checked-trees = { path = "../../representations/checked-trees" }
 semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
 diagnostics = { path = "../../foundation/diagnostics" }
-flow-effects = { path = "../../semantics/flow-effects" }
-facts = { path = "../../semantics/facts" }
+flow-effects = { path = "../../foundation/flow-effects" }
+facts = { path = "../../representations/checked-trees/facts" }
 language-core = { path = "../../foundation/language-core" }
 language-semantics = { path = "../../foundation/language-semantics" }
 numerics = { path = "../../foundation/numerics" }
-proof = { path = "../../semantics/proof" }
-proof-admission = { path = "../../semantics/proof-admission" }
+proof = { path = "../../proof" }
+proof-admission = { path = "../../proof/admission" }
 source = { path = "../../foundation/source" }
 symbols = { path = "../../foundation/symbols" }
 typed-trees = { path = "../../representations/typed-trees" }
-validation = { path = "../../semantics/validation" }
+validation = { path = "../../checking" }
 sha2 = "0.10"
 
 [dev-dependencies]

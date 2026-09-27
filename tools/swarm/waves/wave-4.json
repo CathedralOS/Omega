@@ -43,9 +43,9 @@
       "item": "STRICT-FLOAT-RANGES",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/semantics/validation/src/type_references",
-        "omega-rust/psi/semantics/validation/src/expression_types",
-        "omega-rust/psi/semantics/validation/src/contract_entailment"
+        "omega-rust/psi/checking/src/type_references",
+        "omega-rust/psi/checking/src/expression_types",
+        "omega-rust/psi/checking/src/contract_entailment"
       ],
       "suggested_first_slice": "Replace the strict-floating declaration fence with one retained exclusive-range proof path that preserves the authored endpoint and rejects the endpoint and NaN through one type-reference or cast reader."
     },
@@ -153,7 +153,7 @@
       "host": "linux",
       "probe_only": true,
       "owning_paths": [
-        "omega-rust/psi/semantics/validation/src/relevance",
+        "omega-rust/psi/checking/src/relevance",
         "omega-rust/psi/representations/typed-trees/src/typed_trees/evidence/proof_only.rs"
       ],
       "suggested_first_slice": "Probe one remaining erased carrier from validation through proof-only representation and report whether its runtime layout and noninterference obligations fit a bounded slice."
@@ -166,7 +166,7 @@
       "probe_only": true,
       "owning_paths": [
         "omega-rust/psi/foundation/access-plans/src",
-        "omega-rust/psi/semantics/validation/src/placed_views"
+        "omega-rust/psi/checking/src/placed_views"
       ],
       "suggested_first_slice": "Probe one checked-to-native plan-laid view replay path and record the exact missing placement, backing, range, or lifetime seam before attempting a bounded implementation."
     }

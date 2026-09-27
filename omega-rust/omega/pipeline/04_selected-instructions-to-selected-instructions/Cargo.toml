@@ -26,7 +26,7 @@ calling-conventions = { path = "../../backend/calling-conventions" }
 legalized-operations = { path = "../../representations/target-operations/legalized-operations" }
 target-operations = { path = "../../representations/target-operations" }
 task-plans = { path = "../../backend/runtime/task-plans" }
-terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
+terminal-codec = { path = "../../../psi/representations/terminal-psi/codec" }
 sha2 = "0.10.9"
 
 [dev-dependencies]

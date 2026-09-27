@@ -17,7 +17,7 @@ build-output = { path = "../build-output" }
 effects = { path = "../../backend/plans/provider-evidence" }
 target = { path = "../../backend/target" }
 checked-trees = { path = "../../../psi/representations/checked-trees" }
-build-time-evaluation = { path = "../../../psi/compiler/build-time-evaluation" }
+build-time-evaluation = { path = "../../../psi/interpreter/build-time-evaluation" }
 checked-interpreter = { path = "../../../psi/interpreter/checked-interpreter" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 terminal-psi = { path = "../../../psi/representations/terminal-psi" }

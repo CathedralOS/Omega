@@ -40,7 +40,7 @@
         "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/field_domain.rs",
         "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/values/bounds",
         "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts",
-        "omega-rust/psi/semantics/flow-effects",
+        "omega-rust/psi/foundation/flow-effects",
         "samples/cli/games/dungeon_crawler_cli"
       ],
       "suggested_first_slice": "Bind live field coverage for one collection element family through indexing or a call boundary — corrupted elements and stale aliased fields reject. The dungeon RoomLookup/MazeBuilder acceptance is the outer witness; pick the smallest seam that produces a real rejection."

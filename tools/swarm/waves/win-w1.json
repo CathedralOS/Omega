@@ -29,8 +29,8 @@
       "item": "BORROW-PROOF-CONVERGENCE",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/semantics/validation/src/places.rs",
-        "omega-rust/psi/semantics/validation/src/slice_ranking.rs"
+        "omega-rust/psi/checking/src/places.rs",
+        "omega-rust/psi/checking/src/slice_ranking.rs"
       ],
       "suggested_first_slice": "Extend one ordinary borrow-checking range proof beyond exact shared immutable slices without creating or amplifying authority."
     },

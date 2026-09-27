@@ -27,7 +27,7 @@ semantic-vocabulary = { path = "../../psi/foundation/semantic-vocabulary" }
 language-semantics = { path = "../../psi/foundation/language-semantics" }
 checked-interpreter = { path = "../../psi/interpreter/checked-interpreter" }
 diagnostics = { path = "../../psi/foundation/diagnostics" }
-proof-admission = { path = "../../psi/semantics/proof-admission" }
+proof-admission = { path = "../../psi/proof/admission" }
 source = { path = "../../psi/foundation/source" }
 source-files-to-tokens = { path = "../../psi/pipeline/00_source-files-to-tokens" }
 syntax-trees = { path = "../../psi/representations/syntax-trees" }

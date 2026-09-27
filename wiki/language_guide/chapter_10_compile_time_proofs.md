@@ -14,7 +14,7 @@ Failure to prove a statement is not proof of its negation.
 This chapter teaches the intended model. The [foundation](../spec/proofs/foundation.md)
 selects dependent mathematics, proof-relevant identity and strict logical proofs;
 its [mathematical source forms](../spec/proofs/mathematical_bindings.md) are selected.
-The current [source automation](../../omega-rust/psi/semantics/validation/README.md#source-proof-automation)
+The current [source automation](../../omega-rust/psi/checking/README.md#source-proof-automation)
 implements a bounded fragment. Schematic examples below do not claim complete
 compiler support or supply omitted proofs.
 
@@ -444,7 +444,7 @@ After establishing the theorem, callers cite its contract at their exact indices
 The current prover contains narrow first-order sequence shapes, not unrestricted
 quantifier search. A missing instance or exhausted automation yields an unproved
 obligation, not a counterexample. Current automation belongs beside
-[validation](../../omega-rust/psi/semantics/validation/README.md).
+[validation](../../omega-rust/psi/checking/README.md).
 
 ## Induction Is Ranked Recursion
 
@@ -676,4 +676,4 @@ and simple generic facts. When it cannot, authors supply explicit helper proofs
 or a reviewed boundary claim. The distinction between intended certified
 elaboration and current trusted source automation remains important; see
 [certified elaboration](../spec/proofs/contracts.md#certified-elaboration-and-review)
-and the [implementation note](../../omega-rust/psi/semantics/validation/README.md#source-proof-automation).
+and the [implementation note](../../omega-rust/psi/checking/README.md#source-proof-automation).

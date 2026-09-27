@@ -13,11 +13,11 @@ test-support = []
 
 [dependencies]
 effects = { path = "../../plans/provider-evidence" }
-proof-admission = { path = "../../../../psi/semantics/proof-admission" }
+proof-admission = { path = "../../../../psi/proof/admission" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
-terminal-codec = { path = "../../../../psi/semantics/terminal-codec" }
+terminal-codec = { path = "../../../../psi/representations/terminal-psi/codec" }
 terminal-psi = { path = "../../../../psi/representations/terminal-psi" }
-terminal-verifier = { path = "../../../../psi/semantics/terminal-verifier" }
+terminal-verifier = { path = "../../../../psi/representations/terminal-psi/verification" }
 sha2 = "0.10.9"
 
 [dev-dependencies]

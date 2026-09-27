@@ -14,4 +14,4 @@ effects = { path = "../../plans/provider-evidence" }
 native-artifact = { path = "../native-artifact" }
 target = { path = "../../target" }
 image-emission = { path = "../../images/image-emission" }
-terminal-codec = { path = "../../../../psi/semantics/terminal-codec" }
+terminal-codec = { path = "../../../../psi/representations/terminal-psi/codec" }

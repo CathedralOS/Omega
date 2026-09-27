@@ -78,7 +78,7 @@
       "item": "PSIIR",
       "host": "local",
       "owning_paths": [
-        "omega-rust/psi/semantics/terminal-fixed-fuel"
+        "omega-rust/psi/representations/terminal-psi/fuel/certification"
       ],
       "suggested_first_slice": "continue resource analysis in terminal-fixed-fuel: bee9db0661 (macw7) made cyclic closure failures report UnboundedCycleComponent{component, OpenCalleeSet{operation}}; 3c43ed43dc tightened Natural ranked-cycle multipliers to literal requires ceilings with relevant_preconditions. Take the next bound-precision step per the item text \u2014 encoding contract coverage stays with tests/architecture/encoding_contract.rs, not new wire format.",
       "host_gates": [
@@ -96,7 +96,7 @@
         "omega-rust/psi/representations/syntax-trees/src/syntax_trees/type_system",
         "omega-rust/psi/representations/symbol-resolved-trees/src/symbol_resolved_trees/type_system",
         "omega-rust/psi/representations/typed-trees/src/typed_trees/type_system",
-        "omega-rust/psi/semantics/validation/src/proof_contracts/arithmetic_domains"
+        "omega-rust/psi/checking/src/proof_contracts/arithmetic_domains"
       ],
       "suggested_first_slice": "bounded first slice: reject the revoked `u64 [1..=8]` scalar range suffix in the parser and inventory every Range-variant consumer across resolved/typed trees + arithmetic_domains that must move to explicit domains \u2014 the migration recipe is wiki/drafts/designs/range_suffix_migration.md. Library/sample/Epsilon migrations are follow-on claims, not this slice; corpus fixture edits under tests/omega are allowed except pass/collections and run/ (foreign-held).",
       "host_gates": [

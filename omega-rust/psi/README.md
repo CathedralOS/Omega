@@ -1,4 +1,4 @@
-# Psi Compiler Workspace
+# Psi source processing and execution
 
 Psi owns Omega source semantics: lexing, parsing, resolution, typing, checking,
 proof, target-neutral optimization and production of Terminal Psi. Terminal Psi
@@ -20,22 +20,31 @@ than acquiring an alternate source-to-native route.
   flow and ownership settlement.
 - [Source representations](representations/README.md): durable semantic shape
   and the links between increasingly resolved forms.
-- [Terminal production](compiler/terminal-production/README.md): checked trees
+- [Terminal production](terminal-production/README.md): checked trees
   → Lowered Psi → optimized Lowered Psi → Terminal Psi. Its coordinator
   sequences those transforms rather than defining another executable IR.
 - [Terminal representation](representations/terminal-psi/src/lib.rs),
-  [codec](semantics/terminal-codec/README.md) and
-  [verifier](semantics/terminal-verifier/README.md): separate owners of the
+  [codec](representations/terminal-psi/codec/README.md) and
+  [verifier](representations/terminal-psi/verification/README.md): separate owners of the
   current module, canonical serialization and independent evidence checking.
-- [Proof admission](semantics/proof-admission/README.md): product-local proof
+- [Source checking](checking/src/program_validation.rs): declaration, call,
+  value and proof-contract judgments reused by checking and interpretation.
+- [Source proof](proof/src/lib.rs): obligation construction and proof search,
+  with independent mathematical checking in its admission package.
+- [Proof admission](proof/admission/README.md): product-local proof
   judgments and certificates, distinct from the
   [bootstrap proof tools](../../bootstrap/proofs/README.md).
-- [Build-time evaluation](compiler/build-time-evaluation/README.md) and
+- [Build-time evaluation](interpreter/build-time-evaluation/README.md) and
   [checked interpreter](interpreter/checked-interpreter/src/interpreter.rs): semantic
   evaluation and source-shaped reference execution.
 - [Terminal interpreter](interpreter/terminal-interpreter/README.md): verified
   artifact execution. Interpreter coverage does not establish native support
   or fixed-work evidence.
+
+There is no separate compiler driver in this directory. The pipeline transforms,
+source checking, proof services, interpreters and Terminal production each have
+their own entrance. Terminal encoding, verification and fuel contracts are
+independent packages beside their representation, not unrelated semantics utilities.
 
 Cross-layer interpreter/native comparisons belong in test harnesses.
 Reference interpretation remains Psi-owned and is not a native fallback.

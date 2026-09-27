@@ -15,7 +15,7 @@ compiler phases and product subsystems:
 Dependencies point to host libraries and Psi foundations, never to program IRs,
 producing stages or product coordinators. Source storage, arenas, symbols,
 numerics and target-neutral optimization selections remain in
-[Psi foundation](../../psi/foundation/).
+[Psi foundation](../../psi/foundation).
 
 Compiler artifact records and output writing belong to the independent
 [artifacts package](../compiler/artifacts/README.md) under compiler ownership.

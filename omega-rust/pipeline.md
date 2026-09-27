@@ -92,7 +92,8 @@ historical evidence only and must not be implemented.
 | Responsibility | Owner |
 | --- | --- |
 | Current program forms and their attached records/codecs | `representations/`, grouped by pipeline program family |
-| Language meaning and independently reusable validity/proof | Psi `semantics/`; independent domain-specific checker packages beside their representation |
+| Source-program judgments | Psi `checking/`; source proof planning/search in `proof/`, independent mathematical checking in `proof/admission/` |
+| Terminal encoding, semantic reconstruction, verification and fuel | Independent packages beneath `representations/terminal-psi/` |
 | Transformation, rewrite, private scratch and analyses | Owning `pipeline/X-to-Y` or `X-to-X` |
 | ISA, ABI, runtime carriers, object/relocation/image mechanics | Omega `backend/` |
 | Shared target-neutral source/arena/numeric primitives and optimization selections | Psi `foundation/` |
@@ -100,15 +101,17 @@ historical evidence only and must not be implemented.
 | Product sequencing, requested outputs and composition policy | Omega `compiler/` and its independent supporting packages |
 | Source acquisition, package operations and review | Omega `package-manager/` and its independent supporting packages |
 | Checked and Terminal Psi execution | Psi `interpreter/` |
-| Target-neutral build-machine evaluation | Psi `compiler/build-time-evaluation/` |
+| Compile-time interpretation and result elaboration | Psi `interpreter/build-time-evaluation/` |
+| Checked program → published Terminal artifact | Psi `terminal-production/` |
 | Ordinary library reference implementations | `library/`, outside the compiler halves |
 
 ### Program families and support packages
 
 Psi exposes seven successive program forms: tokens, syntax trees, resolved
-trees, typed trees, checked trees, Lowered Psi and Terminal Psi. Shared facts
-and flow summaries live in `psi/semantics/`; the pass-selection vocabulary lives
-in `psi/foundation/optimization-selections/`.
+trees, typed trees, checked trees, Lowered Psi and Terminal Psi. Checked fact
+contexts have their own package at `psi/representations/checked-trees/facts/`.
+Shared effect-summary records and pass-selection vocabulary live in
+`psi/foundation/flow-effects/` and `psi/foundation/optimization-selections/`.
 
 Omega exposes six top-level program families: abstract operations, target
 operations, selected instructions, register homes, post-allocation machine and
@@ -149,11 +152,21 @@ it. Package operations and evidence capture consume compiler services; the
 compiler does not depend back on package management. Shared process and
 filesystem utilities remain independent packages under `omega/foundation/`.
 
-`psi/interpreter/` contains the separate `checked-interpreter` and
-`terminal-interpreter` engines. They execute prepared representations; the
-compiler coordinates source preparation and uses
-`psi/compiler/build-time-evaluation/` for target-neutral build execution.
-Interpreter ownership remains on the Psi side of the firewall.
+`psi/interpreter/` contains the independent `checked-interpreter` and
+`terminal-interpreter` engines and `build-time-evaluation`, which admits
+compile-time execution and elaborates its results into source and typed trees.
+`psi/terminal-production/` sequences checked-program lowering, optimization and
+publication. These are named services, not a second complete compiler driver;
+there is no `psi/compiler/` umbrella.
+
+`psi/checking/` owns reusable source-program judgments. `psi/proof/` constructs
+and solves source proof obligations; its independent `admission/` package owns
+the mathematical kernel and supplied-certificate checking shared with Terminal
+verification. Terminal-specific codec, semantic reconstruction, verification,
+fuel schedule and fuel certification packages live beside Terminal Psi under
+`psi/representations/terminal-psi/`. Each keeps its own manifest and dependency
+direction. Nesting gives these companions a subject; it adds no program stage.
+A general `psi/semantics/` bucket obscures these distinct responsibilities.
 
 The independent `optimization-unit-semantics` checker lives at
 `omega/representations/abstract-operations/optimization-unit/semantics/`, beside the representation
@@ -310,10 +323,14 @@ names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
   the same representation; do not invent a `PreOptimized`/`PostOptimized` pair.
   The folders must expose the connected `X-to-Y`, `Y-to-Y`, `Y-to-Z` sequence,
   not merely name individually plausible calculations. See [optimization phases](../wiki/spec/build/optimizations.md#phase-and-product-boundaries).
-- Psi `semantics/` — language meaning, validation, and proof. A domain-specific
-  checker may instead live beside its representation as an independent package;
-  representation data and candidate production must remain independent of it.
-- Psi `interpreter/` — separate engines for checked and Terminal Psi execution.
+- Psi `checking/` — reusable source-program judgments.
+- Psi `proof/` — source obligation construction and proof search; independent
+  `proof/admission/` owns the shared mathematical checker.
+- Terminal companion packages live beneath `representations/terminal-psi/`:
+  `codec/`, `semantics/`, `verification/`, `fuel/` and `fuel/certification/`.
+  Representation data and candidate production remain independent of checking.
+- Psi `terminal-production/` — checked-program lowering through publication.
+- Psi `interpreter/` — checked and Terminal execution plus compile-time evaluation.
 - `compiler/` — compilation coordination and independent supporting packages.
 - Omega `package-manager/` — package operations and independent acquisition,
   resolver execution, and review packages.
