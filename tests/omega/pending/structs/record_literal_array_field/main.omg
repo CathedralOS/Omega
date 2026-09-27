@@ -1,0 +1,50 @@
+// Constructing a record literal that supplies a value for an ARRAY-typed field
+// has no route. Reduced from `samples/cli/systems/wire_protocol`.
+//
+//   R { samples: [0, 0, 0, 0] }   (field `[i32; 4]`)   OMITTED (this fixture)
+//   R { inner: Inner { v: 1 } }   (nested-record field) checks
+//   R { v: 1 }                    (scalar field)        checks
+//   let a: [i32; 4] = [1, 2, 3, 4];                     checks
+//
+// The array value does not have to be written inline: filling the field from a
+// VARIABLE omits identically, so it is the record literal having to supply an
+// array-typed field, not the array literal expression. A bare array literal
+// bound to an array local checks, which is the control that separates the two.
+//
+// Ruled out, each against its own control: `FixedVec`, generics and const
+// generics (the reduction has none); NESTING, which the sample's shape invites
+// -- a flat record omits and a nested-RECORD field is the clean checking
+// control; the negative values the sample spells `0 - 2`; array length and
+// element type (`[i32; 4]`, `[i32; 1]`, `[u8; 4]` all omit); passing the local
+// by `&`/`&mut` and using it after the call; and having an array-typed field at
+// all -- a record whose array field is never literal-constructed checks, as
+// does one written by element assignment.
+//
+// The label depends on where the literal is constructed, not on what declined:
+// a `let` local reports `statement sequence: local data: structural call
+// binding` and a self-field store of the same literal reports `structural field
+// store: record literal source`. Neither string names an array or a record
+// literal field. Do not pin a repair on either.
+//
+// ADJACENT but distinct, and the controls say so: in
+// `tests/omega/pending/collections/element_policy_array_literal_store` a whole
+// array literal stored into an array FIELD checks when the element is plain and
+// omits only under an element arithmetic policy. Here the element is plain
+// `i32` and it omits anyway, because the array is being supplied through a
+// record literal. Three composite gaps now sit beside each other -- that one, 
+// this one, and `tests/omega/pending/structs/policy_field_record_local_read`.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Packet {
+    samples: [i32; 4];
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let packet: Packet = Packet { samples: [0, 0, 0, 0] };
+    self.console.exit_process(0);
+}
