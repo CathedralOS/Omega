@@ -170,19 +170,57 @@ fn move_and_store_structural_field_round_trip() {
 }
 
 #[test]
-fn a_move_sourced_outside_mutable_borrow_rejects_at_encoding() {
+fn move_and_store_structural_field_in_owned_home_round_trip() {
+    let mut module = window_module();
+    let machine = &mut module.machines[0];
+    machine.structural_parameters.clear();
+    machine.structural_places[0].kind = StructuralPlaceKind::OperationResult {
+        producer: operation_id(5),
+        structural_type: structural_type_id(2),
+    };
+    machine.blocks[0].operations.insert(
+        0,
+        Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: operation_id(5),
+            result: structural_result(1, 2),
+            kind: OperationKind::EstablishZeroedStructural {},
+        },
+    );
+    let bytes = encode_module(&module).expect("owned home window module encodes");
+    assert_eq!(decode_module(&bytes), Ok(module));
+}
+
+#[test]
+fn a_move_sourced_from_shared_borrow_rejects_at_encoding() {
+    let mut module = window_module();
+    // Keep the Envelope and selected Cell valid so rejection witnesses access
+    // authority, not an unrelated field-type mismatch.
+    module.machines[0].structural_parameters[0].access = StructuralAccess::SharedBorrow;
+    assert_eq!(
+        encode_module(&module),
+        Err(CodecError::MalformedStructuralFoundation(
+            "structural field move requires a mutable-borrowed parameter"
+        ))
+    );
+}
+
+#[test]
+fn a_move_selecting_a_scalar_field_rejects_at_encoding() {
     let mut module = window_module();
     let OperationKind::MoveStructuralField { source, .. } =
         &mut module.machines[0].blocks[0].operations[0].kind
     else {
         unreachable!()
     };
-    // The moved result place is owned, not a mutable-borrowed parameter.
+    // Owned homes are admissible, but Cell's flag is scalar rather than the
+    // structural Cell result this move declares.
     *source = place_id(3);
     assert_eq!(
         encode_module(&module),
         Err(CodecError::MalformedStructuralFoundation(
-            "structural field move requires a mutable-borrowed parameter"
+            "structural field move does not select a structural field"
         ))
     );
 }
