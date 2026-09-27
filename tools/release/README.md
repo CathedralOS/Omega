@@ -125,7 +125,7 @@ Code-signing/notarization require publisher credentials and are not implied by
 manifest validation or archive checksums.
 
 `.github/workflows/install-upgrade.yml` tests two existing prereleases through
-Homebrew on macOS ARM64 and WinGet on Windows Server 2025:
+Homebrew on macOS ARM64/Linux x64 and WinGet on Windows Server 2025:
 
 ```sh
 gh workflow run install-upgrade.yml --ref main \

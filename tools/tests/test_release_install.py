@@ -33,6 +33,7 @@ class InstallationTests(unittest.TestCase):
 
     def test_installer_mutation_rejects_non_ci_hosts(self):
         arguments = ["install_upgrade", "check", "--manager", "winget",
+                     "--host", "x86_64-pc-windows-msvc",
                      "--previous-tag", "v0.1.0-alpha.2", "--tag", "v0.1.0-alpha.3"]
         with patch.object(sys, "argv", arguments), patch.dict(os.environ, GITHUB_ACTIONS="false"), \
              patch.object(installation, "release_input") as release_input:
@@ -42,6 +43,7 @@ class InstallationTests(unittest.TestCase):
 
     def test_installer_refuses_existing_command(self):
         arguments = ["install_upgrade", "check", "--manager", "homebrew",
+                     "--host", "aarch64-apple-darwin",
                      "--previous-tag", "v0.1.0-alpha.2", "--tag", "v0.1.0-alpha.3"]
         with patch.object(sys, "argv", arguments), patch.dict(os.environ, GITHUB_ACTIONS="true"), \
              patch.object(installation.shutil, "which", return_value="existing-omega"), \

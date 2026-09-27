@@ -117,6 +117,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("operation", choices=("download", "check"))
     parser.add_argument("--manager", choices=("homebrew", "winget"), required=True)
+    parser.add_argument("--host", choices=tuple(package.HOST_TARGETS), required=True)
     parser.add_argument("--previous-tag", required=True)
     parser.add_argument("--tag", required=True)
     parser.add_argument("--workspace", type=Path, default=package.ROOT / "build/install-upgrade")
@@ -127,7 +128,9 @@ def main():
         raise ValueError("installer mutation is restricted to disposable GitHub Actions hosts")
     if arguments.operation == "check" and shutil.which("omega"):
         raise ValueError("refusing to replace an existing omega installation")
-    host = "x86_64-pc-windows-msvc" if arguments.manager == "winget" else "aarch64-apple-darwin"
+    host = arguments.host
+    if (arguments.manager == "winget") != host.endswith("windows-msvc"):
+        raise ValueError("package manager does not match the requested host")
     workspace = arguments.workspace.resolve()
     assets = workspace / "assets"
     inputs = [release_input(tag, host, assets, workspace / f"{arguments.operation}-{index}",
@@ -147,7 +150,7 @@ def main():
         finally:
             server.shutdown()
             thread.join()
-    report = dict(manager=arguments.manager, previous=inputs[0][1]["version"],
+    report = dict(manager=arguments.manager, host=host, previous=inputs[0][1]["version"],
                   current=inputs[1][1]["version"], unchanged_lock_sha256=digest,
                   native_exit_before=42, native_exit_after=42)
     (workspace / "result.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
