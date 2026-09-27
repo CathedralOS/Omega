@@ -3851,96 +3851,79 @@ syntax and other terminal services are not prerequisites.
 
 - **OPERATOR-MACHINE-SUPPLY.** Complete
   [declaration-owned executable supply](wiki/spec/language/expressions.md#executable-supply),
-  [call preconditions](wiki/spec/language/machines.md#call-preconditions), and
-  [licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization)
-  through independent Terminal replay and native execution, then retire the
-  separate `operator` introducer.
+  [call preconditions](wiki/spec/language/machines.md#call-preconditions) and
+  [licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization).
+  Prioritize existing calls reaching verified Terminal and native execution;
+  broader algebra coverage and retiring the separate `operator` introducer
+  remain follow-on work.
 
-  Remaining work:
-
-  - Carry call-containing scalar requirements into Terminal without dropping
-    premises. Resume from
-    `contract_application_terms::runtime_body_calls_execute_with_checked_premises`:
-    checked interpretation covers `restricted(saved, value)` under
-    `observe(left) == observe(right)`, but the test stops before Terminal.
-    `05_checked-trees-to-lowered-psi/tests/call_premise_terminal_boundary.rs` pins
-    `covered_requires`'s unrepresentable clause and its rejection in
-    `scalar_graph_lowering/graph_preparation.rs`. Replace those limitation
-    expectations with canonical reload, independent verification, interpretation,
-    and native agreement; retain the same-program clause-free control.
-  - Extend call-premise formation across remaining contract owners and
-    substitutions: abstract signature declarations, domain/default predicates,
-    static callable/evidence arguments, receiver/projection terms and
-    citation/induction case guarantees. Abstract **callee** attribution already
-    exists in `specification_calls.rs::RequirementOwner::Signature`; that does
-    not validate every call occurring **inside** an abstract contract.
-    `specification_calls.rs::arguments_select_plainly` excludes evidence
-    arguments, and its requirement loop handles `ProofFact::Expression` but
-    not `ProofFact::Proposition`. Use `package-evidence`'s
-    `contract_expressions::evidence_calls` customer, including
-    `requires p: carries(value) requires observes(value; p)`.
-    Retain the encoding contract's evidence-argument coordinates: input position,
-    callee proposition, source evidence term, and instantiated proposition.
-    Establish premises before result formation or guarantee intake, including
-    erased/discarded uses; recursion separately requires descent. Preserve
-    exact subject/argument identity, complete constructor values versus tag-only
-    evidence, and public-contract boundaries. Unsupported evidence is not proof.
-  - Complete selected token-body supply outside the admitted expression routes,
-    including open-ended ranges and match-pattern equality. Reproduce the
-    build-machine refusal before assigning its repair. General structural/domain/
-    case-pattern admission belongs to **MATCH-SELECTIVE-LOWERING**. Preserve
-    [Equatable's sealed type-owned route](wiki/spec/language/conformances.md):
-    visible crowned `==` declarations cannot override it. Check the declaration
-    admission of `machine == Card::same(..)` against that rule without inventing
-    a competing equality route. Reuse ordinary calls,
-    attached receiver loans and once-only operand evaluation; no separate
-    operator interpreter or fallback arithmetic. These refusals are
-    implementation boundaries, not new semantic prohibitions.
-  - Finish per-law normalization coverage atop the explicit selected-conformance
-    route in `open_index_expressions.rs`. Preserve separate commutativity and
-    associativity permissions in `OpenIndexOperationSelection`, with
-    `validation/tests/open_index_algebra_laws.rs` and `type_identity/tests.rs`
-    controls. Distributivity and zero/one identities need their own slots and
-    consumers. Carry per-law normalization into semantic domain identity through
-    `monomorphization::refresh_closed_domain_instance_identities`, with a
-    source-rooted fixture rather than only validation-level tests.
-    Preserve missing/ambiguous selection, wrong-operation and unproved-law
-    controls. Noncommutative operations remain usable without rewrites; AC
-    grants neither zero identity nor integer-addition meaning.
-  - Preserve `token_bound_machine_operand_selection_exit_canary_runs` as the
-    native token/named-call control. `expressions/declared_operator_match_result`
-    separately checks three entries (`select_true`, `select_false`, `by_name`);
-    its lack of a selected native entry is not a compiler lowering gap.
-  - Migrate library/corpus/embedded-test declarations and remove the old parser
-    and representation consumers. Use the
+  - Retain call-containing scalar requirements through stage 05's
+    `scalar_graph/scalar_contracts.rs` and `scalar_graph_lowering/graph_preparation.rs`.
+    `tests/call_premise_terminal_boundary.rs` checks `restricted(saved, value)`
+    under `requires observe(left) == observe(right)` but expects Terminal
+    rejection: `covered_requires` refuses the unrepresented clause. Replace
+    that limitation with canonical reload, independent verification and
+    interpreter/native agreement, comparing a clause-free control. Do not drop
+    premises or substitute execution of the callee for admission.
+  - Complete formation checks in `contract_entailment/specification_calls.rs`
+    and stage 04's `checks/contracts/evidence.rs` across static callable/evidence
+    arguments and generic dispatch, calls inside abstract signatures,
+    domain/default predicates, receiver/projection terms and citation/induction
+    guarantees. Abstract callee
+    attribution and nominal named-evidence calls already exist; the latter's
+    exact binding and corruption controls are in package-evidence's
+    `tests/contract_expressions/evidence_calls.rs`. Preserve input position,
+    callee proposition, source evidence and instantiated proposition. Boolean
+    premises still require independent prior facts; a supplied witness does not
+    discharge them. Form results and import guarantees only after admission,
+    including erased/discarded uses; recursive descent remains separate. Retain
+    exact subjects, complete constructor values versus tag-only facts and
+    public-contract boundaries.
+  - Extend `operators/token_bound_machine_calls.rs` beyond binary/indexed
+    expressions to open-ended ranges and body-bearing match equality. The
+    existing floating requirement comparison does not execute a selected source
+    body. Verify Build execution before retaining its old refusal as a blocker.
+    General patterns belong to **MATCH-SELECTIVE-LOWERING**. Preserve
+    [Equatable's sealed type-owned route](wiki/spec/language/conformances.md#core-equality-acquisition):
+    verify that `machine == Card::same(..)` cannot override it through visibility.
+    Reuse ordinary calls, receiver loans and once-only operands; no operator
+    interpreter, satisfier search or fallback arithmetic.
+  - Extend `open_index_expressions.rs` / `OpenIndexOperationSelection` with
+    distributivity and zero/one law evidence and consumers. Commutativity and
+    associativity already license separate rewrites; neither grants identities
+    or integer-addition meaning. Preserve `checking/tests/open_index_algebra_laws.rs`
+    and typed-trees' `type_identity/tests.rs`; verify source-produced selections
+    through `monomorphization::refresh_closed_domain_instance_identities` and
+    publication. Retain missing/ambiguous selection, wrong-operation and
+    unproved-law rejection; noncommutative operations remain usable.
+  - Migrate library/corpus/embedded declarations, then remove legacy parser/IR
+    consumers and undifferentiated `MachineSupplyMode::Boundary`. The
     [retirement inventory](wiki/drafts/audits/operator_introducer_retirement_inventory.md)
-    for navigation, not as a current census. Tokenless boundary rows depend on
-    **TOP-LEVEL-BOUNDARY-REQUIREMENTS**, including generic requirements.
-    Trait and domain token signatures already accept ordinary `machine` grammar;
-    preserve `validation/tests/trait_token_heads.rs` and parser diagnostics
-    while removing the legacy `operator` head. Rejoin
-    `SpelledOperator`, provider planning, selected build-time execution,
-    package evidence and result-domain dispatch to the surviving declarations.
+    is navigation, not a census. Tokenless boundary migration depends on
+    **TOP-LEVEL-BOUNDARY-REQUIREMENTS**, including generic requirements. Preserve
+    ordinary trait token heads (`checking/tests/trait_token_heads.rs`),
+    domain-homed top-level machines, diagnostics, `SpelledOperator`, provider
+    planning, build-time execution, package evidence and result-domain dispatch.
     Preserve semantic identities or explicitly reject stale schemas.
-    Nat declaration-owned bodies, closed-family package ownership and attached
-    index receiver adaptation already exist.
 
-  Acceptance: the selected true-arm wrapped `250 + 10` and named call produce
-  `260u64`; the false arm produces `1` without invoking the operation. Checked
-  execution, reloaded/independently verified Terminal and native execution agree.
-  Cover generic/stateful bodies, private helpers behind public declarations,
-  qualifiers, ordered once-only operands, receiver/result loans and ordinary
-  contract rejection. Missing body, bodyless-plus-satisfier supply, duplicate
-  owner shapes, foreign primitive-family injection and forged primitive identity
+  Acceptance: use `tests/omega/pass/expressions/declared_operator_match_result/`:
+  `select_true` and `by_name` produce `260u64` from wrapped `250 + 10`;
+  `select_false` produces `1` without invoking the operation. Bind an executable
+  entry and observe native results; the existing fixture has no Build root.
+  Checked interpretation, reloaded Terminal and native execution must agree.
+  Stage 04 and checked-interpreter `tests/token_bound_machine_calls.rs` cover
+  narrower ordinary-call/interpretation routes. Check generic/stateful bodies,
+  private helpers, qualifiers, ordered operands and receiver/result loans through
+  source-free replay. Missing bodies, bodyless-plus-satisfier supply, duplicate
+  shapes, foreign primitive-family injection and forged primitive identity
   reject; unrelated imports/conformances cannot alter selection or collide.
-  Call premises apply in runtime, admitted compile-time evaluation and proof
-  term formation alike. Nat named/token calls require order even in
-  erased/discarded proof terms;
-  equal operands and predecessor at one accept, while missing premises and
-  missing recursive descent reject independently. Operation, conformance/law
-  and call/loan identities survive substitution and replay. Trait-selected
-  supply, **FLOAT-PROVIDERS** and canonical compiler primitives keep their
-  separate routes.
+  Runtime, compile-time and proof calls owe the same premises: preserve Nat
+  named/token order requirements, equal operands and predecessor-at-one
+  acceptance, and independent missing-
+  premise/descent rejection. Operation, conformance/law and call/loan identities
+  survive substitution; trait supply, **FLOAT-PROVIDERS** and compiler primitives
+  retain their separate routes.
+
 - **MODULE-NAMESPACE-RESOLUTION.** Complete exact declaration selection through
   checking, constant evaluation and source-independent publication under the
   [module/name contract](wiki/spec/language/modules.md).
