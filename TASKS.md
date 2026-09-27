@@ -799,10 +799,17 @@ the complete product bar; focused successes below do not establish that baseline
   The restored full route, checked with compiler `da93dcf45ae1` against
   application `5fd89ec0a100`, rejects Terminal construction at
   `scalar field store sequence: write frame agreement` in `Main::gate`.
-  That state is unchanged; its retained write frame includes reachable callees.
-  Isolated restored geometry and the command fixture's nested alignment store
-  check successfully. Trace the scan callees' opaque write frames without
-  weakening independent frame replay, then rerun the full restored route.
+  Its retained frame includes reachable callees. Static checked calls now use
+  their exact signature's storage ceiling when recursive body inference is
+  incomplete, while retaining argument writes and refusing unmodeled service
+  authority. The extracted periodicity ProgramEntry reproduction advances to
+  `statement sequence: local data: structural value: root identity`; the
+  unchanged full restored route is still being checked. Follow that outer
+  result through construction, scan calls and native execution; a complete
+  frame alone does not establish an executable callee body. In particular,
+  declaration-qualified self-tail calls in the periodicity helper still need
+  exact-identity normalization to the existing constant-stack transition route,
+  preserving real non-tail rejection and authored termination obligations.
 
   Whole-graph checking remains expensive: the successful discovery above took
   roughly 42 minutes. **CHECK-CLOSURE-ONCE** owns repeated package/checked-stage
