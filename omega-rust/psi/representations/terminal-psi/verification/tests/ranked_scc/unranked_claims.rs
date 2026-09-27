@@ -17,8 +17,8 @@ use terminal_psi::{
     ValueDeclaration, VocabularyMarker,
 };
 use terminal_verifier::{
-    ModuleError, reconstruct_structural_ownership_frontiers, validate_module_for_interpretation,
-    validate_module_for_optimization,
+    ControlCycleIneligibility, ModuleError, reconstruct_structural_ownership_frontiers,
+    validate_module_for_interpretation, validate_module_for_optimization,
 };
 
 /// The emitted `Boot::launch` shape: an entry block falls into a `retain`
@@ -308,7 +308,10 @@ fn claim_cycle_rejects_edge_rebinding_of_a_pinned_root() {
     });
     assert_eq!(
         validate_module(&module).map(|_| ()),
-        Err(ModuleError::ControlCycle(id(2, BlockId::new)))
+        Err(ModuleError::ControlCycleIneligible {
+            block: id(2, BlockId::new),
+            reason: ControlCycleIneligibility::UnpinnedClaims,
+        })
     );
 }
 
@@ -352,7 +355,10 @@ fn claim_cycle_rejects_edge_discard_of_a_pinned_root() {
     trivial_affine_discards.push(id(1, PlaceId::new));
     assert_eq!(
         validate_module(&module).map(|_| ()),
-        Err(ModuleError::ControlCycle(id(2, BlockId::new)))
+        Err(ModuleError::ControlCycleIneligible {
+            block: id(2, BlockId::new),
+            reason: ControlCycleIneligibility::UnpinnedClaims,
+        })
     );
 }
 
@@ -402,7 +408,10 @@ fn claim_cycle_rejects_transfer_of_a_pinned_claim() {
     });
     assert_eq!(
         validate_module(&module).map(|_| ()),
-        Err(ModuleError::ControlCycle(id(2, BlockId::new)))
+        Err(ModuleError::ControlCycleIneligible {
+            block: id(2, BlockId::new),
+            reason: ControlCycleIneligibility::UnpinnedClaims,
+        })
     );
 }
 
@@ -455,6 +464,9 @@ fn claim_cycle_rejects_return_of_a_pinned_claim() {
     });
     assert_eq!(
         validate_module(&module).map(|_| ()),
-        Err(ModuleError::ControlCycle(id(2, BlockId::new)))
+        Err(ModuleError::ControlCycleIneligible {
+            block: id(2, BlockId::new),
+            reason: ControlCycleIneligibility::UnpinnedClaims,
+        })
     );
 }

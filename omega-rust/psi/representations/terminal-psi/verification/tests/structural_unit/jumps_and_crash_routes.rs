@@ -12,7 +12,7 @@ use terminal_psi::{
     SuccessorEdge, TerminalAffineCleanupAction, TerminalMachineResult, TerminalModule, Terminator,
     ValueDeclaration,
 };
-use terminal_verifier::{ModuleError, validate_module};
+use terminal_verifier::{ControlCycleIneligibility, ModuleError, validate_module};
 
 #[test]
 fn jump_applies_a_canonical_subset_of_affine_discards() {
@@ -759,7 +759,10 @@ fn unit_crash_ceiling_follows_only_unanimous_cfg_formal_copies() {
     // reached.
     assert_eq!(
         validate_module(&cyclic).unwrap_err(),
-        ModuleError::ControlCycle(block_id(102))
+        ModuleError::ControlCycleIneligible {
+            block: block_id(102),
+            reason: ControlCycleIneligibility::UnpinnedClaims,
+        }
     );
 
     let mut foreign = module.clone();

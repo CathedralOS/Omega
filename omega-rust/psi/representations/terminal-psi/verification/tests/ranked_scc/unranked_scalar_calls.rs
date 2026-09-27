@@ -1,12 +1,12 @@
 use super::{
-    AdmissionProfile, Block, BlockId, CertificateEnvelope, ContractId, EdgeId, EvidenceIdentity,
-    EvidenceRoute, IntegerSign, IntegerType, MachineId, ModuleError, ObligationEvidence,
-    ObligationId, Operation, OperationId, OperationKind, OperationResult, PlaceId, ProofBundle,
-    ProofNode, ProofRule, ProofSystemMarker, Proposition, ScalarTerm, ScalarType, StructuralAccess,
-    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPlaceDeclaration,
-    StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape,
-    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, ValueId, id,
-    unranked_scalar_cycle, validate_module, validate_module_for_interpretation,
+    AdmissionProfile, Block, BlockId, CertificateEnvelope, ContractId, ControlCycleIneligibility,
+    EdgeId, EvidenceIdentity, EvidenceRoute, IntegerSign, IntegerType, MachineId, ModuleError,
+    ObligationEvidence, ObligationId, Operation, OperationId, OperationKind, OperationResult,
+    PlaceId, ProofBundle, ProofNode, ProofRule, ProofSystemMarker, Proposition, ScalarTerm,
+    ScalarType, StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeId,
+    StructuralTypeShape, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
+    ValueId, id, unranked_scalar_cycle, validate_module, validate_module_for_interpretation,
     verify_module_for_interpretation,
 };
 use semantic_vocabulary::{StructuralCaseId, StructuralFieldId};
@@ -642,7 +642,10 @@ fn cyclic_structural_call_result_needs_its_plain_or_confined_shape() {
     assert!(
         matches!(
             validate_module(&affine),
-            Err(ModuleError::ControlCycle { .. })
+            Err(ModuleError::ControlCycleIneligible {
+                reason: ControlCycleIneligibility::BlockOperation { .. },
+                ..
+            })
         ),
         "affine unconfined result: {:?}",
         validate_module(&affine)
@@ -674,6 +677,6 @@ fn cyclic_structural_call_result_needs_its_plain_or_confined_shape() {
     };
     assert!(matches!(
         validate_module(&dispatched),
-        Err(ModuleError::ControlCycle { .. })
+        Err(ModuleError::ControlCycleIneligible { .. })
     ));
 }

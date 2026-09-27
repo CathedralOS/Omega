@@ -684,7 +684,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/representations/terminal-psi/verification/src/lib.rs",
-        sha256: Some("c7f16ccd166271781cbbb3fad22156a64f62fda1daa2d8070ed40750cb40a8be"),
+        sha256: Some("501f69b1be18521ef981f6bd08c8b33bc388f08b090c98f9708643a186621a04"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -794,7 +794,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/representations/terminal-psi/verification/src/validation.rs",
-        sha256: Some("7f4f148235b6867c4be9ca1c88e230c7206fb4fdcbc9d54c2c6c6b091d21b997"),
+        sha256: Some("ca9b77bc0f6db53912a0fc6dd34e57c0f1aa96f66ee215c4c509a2aaed8ad4dd"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -894,7 +894,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/representations/terminal-psi/verification/src/validation/control_flow/block_graph.rs",
-        sha256: Some("de7ceca3b2c423051e92ee251c4b82fb58846111ad435873fe83e5ef932c749c"),
+        sha256: Some("ecefe5b9c720e99b8d7859c708f08a0168176a3cfa56145ca07c47454225b98e"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -904,7 +904,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/representations/terminal-psi/verification/src/validation/control_flow/unranked_cycles.rs",
-        sha256: Some("ab0a62f17da525a789c04db07454706631718a5a5f77276c0ce6bbe3c7fb69cd"),
+        sha256: Some("a13b2dadd2905d093f0beafaad80baf029fc6976c0d5639b114c0b51fc0f6147"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -954,7 +954,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/representations/terminal-psi/verification/src/validation/error.rs",
-        sha256: Some("73b2e3ed84f9bb8bbfc4e150bbb9f743346fea26432e03761e646e34a47781f6"),
+        sha256: Some("8a587476d47968a1d2c0034521aafc4e67c8710431be3dd2b04fc52c1dc9898f"),
         inventory_machinery: false,
     },
     ImplementationSite {

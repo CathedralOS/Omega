@@ -45,6 +45,38 @@ pub enum SuspensionCallPlanError {
     MissingCallSidePlan,
 }
 
+/// The first eligibility clause a cyclic machine fails inside
+/// `control_flow::unranked_cycles`, so a declined cycle names the wall it hit
+/// instead of only the block that closed the graph.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ControlCycleIneligibility {
+    /// The machine's structural result is neither a plain scalar case nor a
+    /// plain record.
+    ResultShape,
+    /// A claim root is not pinned on an owned machine entry parameter, or a
+    /// block names a pinned root or moves a pinned claim identity.
+    UnpinnedClaims,
+    /// Content identity reshuffles are present.
+    ContentIdentityReshuffles,
+    /// Content partition compositions are present.
+    ContentPartitionCompositions,
+    /// A `requires` proposition observes a mutably borrowed structural
+    /// parameter.
+    RequiresObservesMutableBorrow,
+    /// The structural parameter at this index is neither a plain owned input
+    /// nor an admitted carrier shape.
+    Parameter { index: usize },
+    /// A structural place outside the admitted kinds exists.
+    StructuralPlace { place: PlaceId },
+    /// A block terminator outside the admitted set for this result shape.
+    BlockTerminator { block: BlockId },
+    /// A block operation ineligible inside the cyclic region.
+    BlockOperation {
+        block: BlockId,
+        operation: OperationId,
+    },
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ModuleError {
     InvalidReferenceCustody {
@@ -1608,6 +1640,10 @@ pub enum ModuleError {
     },
     InvalidRankedScc(MachineId),
     ControlCycle(BlockId),
+    ControlCycleIneligible {
+        block: BlockId,
+        reason: ControlCycleIneligibility,
+    },
     UnreachableBlock(BlockId),
     MalformedProposition(PropositionError),
 }

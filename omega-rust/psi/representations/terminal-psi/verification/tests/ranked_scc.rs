@@ -17,7 +17,7 @@ use terminal_psi::{
     TerminalRankedScc, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use terminal_verifier::{
-    ModuleError, ObligationEvidence, ProofBundle, VerificationError,
+    ControlCycleIneligibility, ModuleError, ObligationEvidence, ProofBundle, VerificationError,
     reconstruct_control_cycle_obligations, reconstruct_interpretable_operation_obligations,
     validate_module, validate_module_for_interpretation, validate_module_for_optimization,
     validate_module_representation, verify_module, verify_module_for_fixed_fuel,

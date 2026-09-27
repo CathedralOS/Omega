@@ -56,8 +56,8 @@ pub use terminal_trace_v1::{
 };
 pub(crate) use validation::reconstruct_validated_structural_ownership_frontiers;
 pub use validation::{
-    AtomicAccessRefusal, BoundaryCrashOutcomeError, ContractClauseKind, ModuleError,
-    ServiceCeilingOwner, StructuralSignatureOwner, SuspensionCallPlanError,
+    AtomicAccessRefusal, BoundaryCrashOutcomeError, ContractClauseKind, ControlCycleIneligibility,
+    ModuleError, ServiceCeilingOwner, StructuralSignatureOwner, SuspensionCallPlanError,
     ValidatedInterpretableTerminalModule, ValidatedOptimizableTerminalModule,
     ValidatedTerminalModule, VerifiedLiveClaim, VerifiedMachineStructuralFrontiers,
     VerifiedOwnedStructuralPlace, VerifiedPartialStructuralCustody,

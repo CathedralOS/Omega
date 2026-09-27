@@ -8,14 +8,20 @@ use super::{
     TerminalMachineResult, TerminalModule, Terminator,
 };
 use crate::validation::{
-    BTreeSet, ClaimId, OperationResult, PlaceId, StructuralArgument, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPlaceKind, TerminalAffineCleanupAction,
+    BTreeSet, ClaimId, ControlCycleIneligibility, OperationResult, PlaceId, StructuralArgument,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPlaceKind,
+    TerminalAffineCleanupAction,
 };
 use crate::validation::{block_views, primitive_storage};
 
 /// Eligibility carries no proof or dominance authority. The caller runs the
 /// ordinary operand, view, successor, and frontier checks after this fence.
-pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bool {
+/// Returns the first clause the machine fails so the decline names the wall it
+/// hit rather than a bare cycle rejection.
+pub(super) fn ineligibility(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+) -> Option<ControlCycleIneligibility> {
     let claim_roots = machine
         .entry_claims
         .iter()
@@ -47,82 +53,90 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
             })
             && crate::validation::record::plain_type(module, result.structural_type)
     });
-    if (machine.result.structural().is_some() && !scalar_case_result && !plain_record_result)
-        || !claims_pinned_at_entry(machine, &claim_roots)
-        || !machine.content_identity_reshuffles.is_empty()
-        || !machine.content_partition_compositions.is_empty()
-        || machine.contract.requires.iter().any(|requirement| {
-            crate::validation::proposition_observes_places(
-                requirement,
-                &machine
-                    .structural_parameters
-                    .iter()
-                    .filter(|parameter| parameter.access == StructuralAccess::MutableBorrow)
-                    .map(|parameter| parameter.place)
-                    .collect::<Vec<_>>(),
-            )
-        })
-        || machine.structural_parameters.iter().any(|parameter| {
-            !plain_owned(parameter)
-                && !(parameter.access == StructuralAccess::Owned
-                    && claim_roots.contains(&parameter.place))
-                && (parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                    || !parameter.qualifications.is_empty()
-                    || !parameter.projected_qualifications.is_empty()
-                    || !(persistent_receiver(module, parameter)
-                        || block_views::mutable_records::parameter_type(module, parameter)
-                        || (parameter.access == StructuralAccess::SharedBorrow
-                            && module.structural_types.iter().any(|declaration| {
-                                declaration.id == parameter.structural_type
-                                    && matches!(
-                                        declaration.shape,
-                                        StructuralTypeShape::Record { .. }
-                                    )
-                            })
-                            && crate::validation::record::plain_type(
-                                module,
-                                parameter.structural_type,
-                            ))
-                        || ((parameter.access == StructuralAccess::SharedBorrow
-                            || (parameter.access == StructuralAccess::MutableBorrow
-                                && (machine.result == TerminalMachineResult::Unit
-                                    || scalar_case_result
-                                    // A scalar result moves no custody — the
-                                    // borrowed carrier's cycle reads and writes
-                                    // carry the identical proof as `Unit`.
-                                    || machine.result.scalar().is_some())))
-                            && module.structural_types.iter().any(|declaration| {
-                                declaration.id == parameter.structural_type
-                                    && (matches!(
-                                        declaration.shape,
-                                        StructuralTypeShape::ByteSequence(carrier)
-                                        if carrier.is_borrowed()
-                                    ) || matches!(
-                                        declaration.shape,
-                                        StructuralTypeShape::ElementView { .. }
-                                    ))
-                            }))))
-        })
-        || machine.structural_places.iter().any(|place| {
-            !(matches!(
-                place.kind,
-                StructuralPlaceKind::Parameter { .. }
-                    | StructuralPlaceKind::BlockParameter { .. }
-                    | StructuralPlaceKind::OperationResult { .. }
-                    | StructuralPlaceKind::ByteSequenceLiteral { .. }
-                    | StructuralPlaceKind::ProviderAttachment { .. }
-                    | StructuralPlaceKind::TrivialAffineLocal { .. }
-            ) || (scalar_case_result || plain_record_result)
-                && place.kind == StructuralPlaceKind::Result)
-        })
-    {
-        return false;
+    if machine.result.structural().is_some() && !scalar_case_result && !plain_record_result {
+        return Some(ControlCycleIneligibility::ResultShape);
+    }
+    if !claims_pinned_at_entry(machine, &claim_roots) {
+        return Some(ControlCycleIneligibility::UnpinnedClaims);
+    }
+    if !machine.content_identity_reshuffles.is_empty() {
+        return Some(ControlCycleIneligibility::ContentIdentityReshuffles);
+    }
+    if !machine.content_partition_compositions.is_empty() {
+        return Some(ControlCycleIneligibility::ContentPartitionCompositions);
+    }
+    if machine.contract.requires.iter().any(|requirement| {
+        crate::validation::proposition_observes_places(
+            requirement,
+            &machine
+                .structural_parameters
+                .iter()
+                .filter(|parameter| parameter.access == StructuralAccess::MutableBorrow)
+                .map(|parameter| parameter.place)
+                .collect::<Vec<_>>(),
+        )
+    }) {
+        return Some(ControlCycleIneligibility::RequiresObservesMutableBorrow);
+    }
+    if let Some(index) = machine.structural_parameters.iter().position(|parameter| {
+        !plain_owned(parameter)
+            && !(parameter.access == StructuralAccess::Owned
+                && claim_roots.contains(&parameter.place))
+            && (parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                || !parameter.qualifications.is_empty()
+                || !parameter.projected_qualifications.is_empty()
+                || !(persistent_receiver(module, parameter)
+                    || block_views::mutable_records::parameter_type(module, parameter)
+                    || (parameter.access == StructuralAccess::SharedBorrow
+                        && module.structural_types.iter().any(|declaration| {
+                            declaration.id == parameter.structural_type
+                                && matches!(declaration.shape, StructuralTypeShape::Record { .. })
+                        })
+                        && crate::validation::record::plain_type(
+                            module,
+                            parameter.structural_type,
+                        ))
+                    || ((parameter.access == StructuralAccess::SharedBorrow
+                        || (parameter.access == StructuralAccess::MutableBorrow
+                            && (machine.result == TerminalMachineResult::Unit
+                                || scalar_case_result
+                                // A scalar result moves no custody — the
+                                // borrowed carrier's cycle reads and writes
+                                // carry the identical proof as `Unit`.
+                                || machine.result.scalar().is_some())))
+                        && module.structural_types.iter().any(|declaration| {
+                            declaration.id == parameter.structural_type
+                                && (matches!(
+                                    declaration.shape,
+                                    StructuralTypeShape::ByteSequence(carrier)
+                                    if carrier.is_borrowed()
+                                ) || matches!(
+                                    declaration.shape,
+                                    StructuralTypeShape::ElementView { .. }
+                                ))
+                        }))))
+    }) {
+        return Some(ControlCycleIneligibility::Parameter { index });
+    }
+    if let Some(place) = machine.structural_places.iter().find(|place| {
+        !(matches!(
+            place.kind,
+            StructuralPlaceKind::Parameter { .. }
+                | StructuralPlaceKind::BlockParameter { .. }
+                | StructuralPlaceKind::OperationResult { .. }
+                | StructuralPlaceKind::ByteSequenceLiteral { .. }
+                | StructuralPlaceKind::ProviderAttachment { .. }
+                | StructuralPlaceKind::TrivialAffineLocal { .. }
+        ) || (scalar_case_result || plain_record_result)
+            && place.kind == StructuralPlaceKind::Result)
+    }) {
+        return Some(ControlCycleIneligibility::StructuralPlace { place: place.id });
     }
     let cyclic_blocks = crate::control_graph::cyclic_components(machine)
         .into_iter()
         .flatten()
         .collect::<BTreeSet<_>>();
-    machine.blocks.iter().all(|block| {
+    machine.blocks.iter().find_map(|block| {
         let case_source = local_case_result(module, block);
         let terminator_eligible =
             matches!(
@@ -139,19 +153,25 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
                     if returned_claims.is_empty()
                         && (crate::validation::scalar::case::plain_return_source(module, machine, *source)
                             || (plain_record_result && crate::validation::record::plain_return_source(module, machine, *source))));
-        let operations_eligible = block
+        if !terminator_eligible {
+            return Some(ControlCycleIneligibility::BlockTerminator { block: block.id });
+        }
+        block
             .operations
             .iter()
-            .all(|operation| {
+            .find(|operation| {
                 // A prefix/exit constructor executes outside every cycle and
                 // may establish an affine plain home. The frontier still owns
                 // it through all arrivals and requires exact final disposal.
-                (!cyclic_blocks.contains(&block.id)
-                    && operation.result.structural().is_some_and(|result|
-                        block_views::mutable_records::owned_home(module, machine, result.place).is_some()))
-                    || cycle_operation_eligible(module, machine, block, case_source, operation)
-            });
-        terminator_eligible && operations_eligible
+                (cyclic_blocks.contains(&block.id)
+                    || operation.result.structural().is_none_or(|result|
+                        block_views::mutable_records::owned_home(module, machine, result.place).is_none()))
+                    && !cycle_operation_eligible(module, machine, block, case_source, operation)
+            })
+            .map(|operation| ControlCycleIneligibility::BlockOperation {
+                block: block.id,
+                operation: operation.id,
+            })
     })
 }
 

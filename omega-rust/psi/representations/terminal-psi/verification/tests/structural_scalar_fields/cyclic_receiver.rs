@@ -276,7 +276,10 @@ fn mutable_entry_requirements_are_not_loop_invariants() {
         ));
     assert!(matches!(
         validate_module(&module),
-        Err(ModuleError::ControlCycle(_))
+        Err(ModuleError::ControlCycleIneligible {
+            reason: terminal_verifier::ControlCycleIneligibility::RequiresObservesMutableBorrow,
+            ..
+        })
     ));
 }
 
