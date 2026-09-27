@@ -76,3 +76,76 @@ pub machine Scale::place(value: u64) -> u64
             .is_empty()
     );
 }
+
+#[test]
+fn widened_reads_and_unrelated_calls_close_fresh_package_obligations() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data ByteBuffer { bytes: [u8; 2]; }
+pub machine ByteBuffer::byte_at(&mut self, index: u64) -> u64
+    ensures 0 <= result && result < 256
+{
+    transition index < 2 {
+        true -> hit(index)
+        _ -> miss()
+    }
+    state hit(&mut self, index: u64) -> u64 { self.bytes[index] as u64 }
+    state miss(&mut self) -> u64 { 0 }
+}
+pub machine ByteBuffer::slice_byte(&mut self, values: &[u8], position: u64) -> u64
+    requires position < values.len
+    ensures 0 <= result && result < 256
+{
+    values[position] as u64
+}
+pub data Region { base: u64; size: u64; }
+data EndAddress { value: u64; }
+machine Region::end_address(&self) -> EndAddress {
+    EndAddress { value: ((self.base as u64 in Saturating) + (self.size as u64 in Saturating)) as u64 }
+}
+pub machine Region::contains(&self, address: u64) -> u64
+    ensures 0 <= result && result < 2
+{
+    transition { _ -> check(address) }
+    state check(&self, address: u64) -> u64 {
+        let end: EndAddress = self.end_address();
+        transition address >= self.base && address <= end.value {
+            true -> (1)
+            false -> (0)
+        }
+    }
+}
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+"#,
+    );
+    let checked = compile_review_fixture(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
+    .expect("ordinary return bounds survive indexed widening and unrelated calls");
+    assert!(checked.custody.contract_entailment_stand_downs().is_empty());
+    let projection = project_checked_package_review(&checked)
+        .expect("fresh capture independently checks the ordinary return bodies");
+    assert!(projection.contract_entailment_open_obligations().is_empty());
+    assert!(
+        projection
+            .contract_entailment_assumption_discharges()
+            .is_empty()
+    );
+    let results = reconstruct_ordinary_package_obligation_results(&checked)
+        .expect("package replay closes the exact return guarantees");
+    assert!(results.open_contract_entailment_obligations().is_empty());
+    assert!(
+        results
+            .contract_entailment_assumption_discharges()
+            .is_empty()
+    );
+}

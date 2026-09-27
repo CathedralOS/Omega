@@ -548,24 +548,28 @@ the complete product bar; focused successes below do not establish that baseline
   [conditional loading premises](wiki/spec/build/component_publication.md#products-and-authority),
   not a fabricated runtime installation grant or mandatory Rust supervisor.
 
-  Compiler integration at `d5e1542d45e` with application
+  Compiler integration at `301eca0a256` with application
   `5fd89ec0a100e214a8bc45ba8874b106875b4928` (canonical-range migration,
-  not yet published), on macOS ARM64: `omega update --project
-  <application>/squalr-engine-api --target linux_x86_64`, followed by ordinary
-  local source-replacement review and `omega update --resume --project
-  <application>/squalr-engine-api`, checks the API and publishes its local lock.
-  All four `StorageSizeConversions` result guarantees now close through
-  `omega-rust/psi/checking/src/proof_contracts/contract_entailment/result_bounds.rs`;
-  fresh package replay confirms no assumption certificate is substituted.
-  The previous whole-application update reached scanning and rejected the
-  `u8` to `u64` argument to `ScalarByteArrayScan::shift_bad_load` for losing
-  its `0..255` interval. Shared exact-widening inference and focused call
-  tests now cover that dependency; full application acceptance remains open.
-  Next run `omega update --project <application>/squalr-tests --target
+  not yet published), on macOS ARM64: ordinary `omega update --project
+  <application>/squalr-engine-targets-native --target linux_x86_64` and
+  `omega update --resume --project <application>/squalr-engine-targets-native`
+  now check all four source packages and publish the local lock after review.
+  `ProcName::byte_at` and `NormalizedModule::byte_at` retain the source interval
+  through exact integer widening; `NormalizedModule::contains_address` proves
+  its literal result bounds independently of the unrelated end-address call.
+  Existing API `StorageSizeConversions` guarantees remain closed. Fresh package
+  replay verifies these bodies without assumption certificates; stale guards,
+  invalid capture intervals, selected indexing and non-total casts still refuse.
+  The review preserves existing authority under local source/host replacement;
+  these checkout-local locks are not application publication.
+
+  Continue `omega update --project <application>/squalr-tests --target
   linux_x86_64` through ordinary review, then the application check/native
-  harness. Keep the package graph intact. The native
+  harness. The previous full run passed scanning's widened-byte requirement
+  and stopped at the now-closed native-targets result guarantees. Keep the
+  17-package/37-edge graph intact. The native
   `structs/affine_record_state_clone` witness exits 70; neither that witness
-  nor API package acceptance establishes full application clone acceptance.
+  nor package acceptance establishes full application native acceptance.
 
 - **VEC-NATIVE-GROWTH.** (split-of:BUMP-ALLOCATOR-CANARY) Implement ordinary
   library `Vec<T>` for Squalr's growable scan results. Owners:
