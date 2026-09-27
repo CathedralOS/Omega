@@ -39,6 +39,20 @@
 //! application result to the equal literal; the binary64 rows stay
 //! unreferenced so operand retargets exercise the carrier-mismatch join,
 //! while retargets onto the direct carriers stay representable.
+//!
+//! The representable legs run through the shared
+//! `run_one_field_substitution_matrix` driver over the declared
+//! `FloatMeaningCustodyFieldForTest` inventory in
+//! `float_meaning_custody_fields.rs`: each leg mutates one `TerminalModule`
+//! field, must still encode and round-trip canonically, keeps the module
+//! verifiable under the retained bundle (the rosters carry no proof
+//! obligations), diverges the honestly recomputed semantic and artifact
+//! identities, and is rejected by the two custody replays — the
+//! retained-manifest join and the sealed proof subject join — asserted inside
+//! the matrix's checker. The raw wire axes (count lies, closed tags, zero
+//! identities, dense-index and first-use lies, duplicate and carrier-
+//! mismatching keys, roster-order violations) and the producer-side encode
+//! rejections stay authored below.
 
 use std::ops::Range;
 
@@ -52,7 +66,7 @@ use semantic_vocabulary::{
     PropositionError, ScalarType, StructuralPlaceKind,
 };
 use terminal_codec::{
-    ArtifactManifestError, CodecError, ProofCodecError, build_artifact_manifest,
+    CodecError, ProofCodecError, build_artifact_manifest,
     build_identity_optimization_execution_record, decode_module, decode_proof_section_for,
     encode_module, terminal_psi_identity, validate_artifact_manifest,
 };
@@ -69,6 +83,15 @@ use terminal_psi::{
     StructuralTypeShape, TerminalMachine, TerminalMachineResult, Terminator, ValueDeclaration,
 };
 use terminal_verifier::{FloatMeaningProjectionVerificationError, ModuleError, verify_module};
+
+use mutation_matrix::{OneFieldSubstitutionMatrix, run_one_field_substitution_matrix};
+
+#[path = "float_meaning_custody_fields.rs"]
+mod float_meaning_custody_fields;
+use float_meaning_custody_fields::{
+    FloatMeaningCustodyFieldForTest, float_meaning_custody_outcome,
+    substitute_float_meaning_for_test,
+};
 
 /// Byte offsets of every wire field inside the two float-meaning rosters.
 /// Optional spans record the payload coordinates of the source variant the
@@ -91,7 +114,6 @@ struct ProjectionSpan {
     source: Range<usize>,
     source_id: Option<Range<usize>>,
     source_format: Option<Range<usize>>,
-    source_bits: Option<Range<usize>>,
     owner: Option<Range<usize>>,
     producer: Option<Range<usize>>,
     coordinate: Option<Range<usize>>,
@@ -164,7 +186,6 @@ impl<'bytes> SpanWalker<'bytes> {
         let source_tag = self.take(1);
         let mut source_id = None;
         let mut source_format = None;
-        let mut source_bits = None;
         let mut owner = None;
         let mut producer = None;
         let mut coordinate = None;
@@ -184,8 +205,12 @@ impl<'bytes> SpanWalker<'bytes> {
                 source_format = Some(self.take(1));
             }
             // ExactBinary32Literal / ExactBinary64Literal: raw landed bits.
-            2 => source_bits = Some(self.take(4)),
-            3 => source_bits = Some(self.take(8)),
+            2 => {
+                self.take(4);
+            }
+            3 => {
+                self.take(8);
+            }
             // DirectMachineParameter / DirectMachineResult: owner and value.
             4 | 5 => {
                 owner = Some(self.take(8));
@@ -265,7 +290,6 @@ impl<'bytes> SpanWalker<'bytes> {
             source: source_start..operation.start,
             source_id,
             source_format,
-            source_bits,
             owner,
             producer,
             coordinate,
@@ -778,60 +802,64 @@ fn terminal_float_meaning_rosters_reject_every_one_field_substitution() {
     let semantic_identity = terminal_psi_identity(&module).expect("semantic identity");
     assert_eq!(retained.semantic(), semantic_identity);
 
-    // A substitution that still forms a canonical module honestly recomputes
-    // a divergent semantic and artifact identity: the substituted module
-    // still verifies under the retained bundle (the rosters carry no proof
-    // obligations), while the retained custody replays — the manifest join
-    // and the sealed proof subject join — reject it.
-    let divergent = |name: &'static str, mutated: &[u8]| {
-        let substituted = decode_module(mutated)
-            .unwrap_or_else(|error| panic!("{name} must still decode: {error:?}"));
-        assert_ne!(substituted, module, "{name} must change the module");
-        assert_eq!(
-            encode_module(&substituted).expect("re-encode the substitution"),
-            mutated,
-            "{name} must re-encode canonically"
-        );
-        assert_ne!(
-            terminal_psi_identity(&substituted).expect("substituted semantic identity"),
-            semantic_identity,
-            "{name} must diverge the honestly recomputed semantic identity"
-        );
-        verify_module(&substituted, &bundle, &AdmissionProfile::default()).unwrap_or_else(
-            |error| panic!("{name} must keep the substituted module verifiable: {error:?}"),
-        );
-        let recomputed_optimization =
-            build_identity_optimization_execution_record(&substituted, &bundle)
-                .expect("identity optimization over the substituted module");
-        let recomputed =
-            build_artifact_manifest(&substituted, &bundle, &recomputed_optimization, None, None)
-                .expect("honest manifest over the substituted module");
-        assert_ne!(
-            recomputed.identity(),
-            retained.identity(),
-            "{name} must diverge the recomputed artifact identity"
-        );
-        assert_eq!(
+    // Every representable substitution still forms a canonical module that
+    // honestly recomputes a divergent semantic and artifact identity: the
+    // substituted module still verifies under the retained bundle (the
+    // rosters carry no proof obligations), while the retained custody replays
+    // — the manifest join and the sealed proof subject join — reject it, all
+    // asserted inside the matrix's checker. The donor is an authentic
+    // semantic module with empty float-meaning rosters.
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "float-meaning projection and equality rosters",
+        fields: FloatMeaningCustodyFieldForTest::INVENTORY,
+        honest: &|| module.clone(),
+        donor: semantic_module(),
+        custody: &|record: &terminal_psi::TerminalModule| {
+            terminal_psi_identity(record).expect("semantic identity")
+        },
+        substitute: &substitute_float_meaning_for_test,
+        check: &|record: &terminal_psi::TerminalModule| {
+            let encoded = encode_module(record).expect("a declared leg must encode canonically");
+            assert_eq!(
+                decode_module(&encoded),
+                Ok(record.clone()),
+                "a declared leg must decode canonically under the same subject"
+            );
+            verify_module(record, &bundle, &AdmissionProfile::default()).unwrap_or_else(|error| {
+                panic!("a declared leg must keep the substituted module verifiable: {error:?}")
+            });
+            let recomputed_optimization =
+                build_identity_optimization_execution_record(record, &bundle)
+                    .expect("identity optimization over the substituted module");
+            let recomputed =
+                build_artifact_manifest(record, &bundle, &recomputed_optimization, None, None)
+                    .expect("honest manifest over the substituted module");
+            assert_ne!(
+                recomputed.identity(),
+                retained.identity(),
+                "a declared leg must diverge the recomputed artifact identity"
+            );
+            assert!(
+                matches!(
+                    decode_proof_section_for(record, artifact.proof_bytes()),
+                    Err(ProofCodecError::ProofSubjectMismatch { .. })
+                ),
+                "a declared leg must reject at the sealed proof subject join"
+            );
             validate_artifact_manifest(
-                &substituted,
+                record,
                 &bundle,
                 &recomputed_optimization,
                 None,
                 None,
                 retained,
-            ),
-            Err(ArtifactManifestError::ManifestMismatch),
-            "{name} must reject at the retained-manifest replay"
-        );
-        assert!(
-            matches!(
-                decode_proof_section_for(&substituted, artifact.proof_bytes()),
-                Err(ProofCodecError::ProofSubjectMismatch { .. })
-            ),
-            "{name} must reject at the sealed proof subject join"
-        );
-        substituted
-    };
+            )
+            .map(|()| terminal_psi_identity(record).expect("leg semantic identity"))
+        },
+        outcome: &float_meaning_custody_outcome,
+        joined_replay: None,
+    });
+
     // A substitution that cannot form a canonical module rejects inside the
     // canonical decoder with an exact error.
     let rejected = |name: &'static str, mutated: &[u8], expected: CodecError| {
@@ -943,12 +971,9 @@ fn terminal_float_meaning_rosters_reject_every_one_field_substitution() {
         CodecError::UnexpectedEnd,
     );
     // Clearing both rosters stays representable: the recomputed identity
-    // diverges and the retained custody replays reject.
-    let mut cleared = encoded[..spans.projection_count.start].to_vec();
-    cleared.extend_from_slice(&0_u32.to_le_bytes());
-    cleared.extend_from_slice(&0_u32.to_le_bytes());
-    cleared.extend_from_slice(&encoded[equalities[3].row.end..]);
-    divergent("a cleared float-meaning section", &cleared);
+    // diverges and the retained custody replays reject. The
+    // `FloatMeaningRostersCleared` inventory leg exercises it through the
+    // matrix.
     // Clearing only the projection roster strands the retained equality
     // operands at the module-bound join.
     let mut stranded = encoded[..spans.projection_count.start].to_vec();
@@ -1027,13 +1052,9 @@ fn terminal_float_meaning_rosters_reject_every_one_field_substitution() {
             CodecError::InvalidTag("FloatMeaningSource", tag),
         );
     }
-    divergent(
-        "a transitional source retargeted to an exact binary64 literal",
-        &splice(
-            projections[4].source.clone(),
-            &[&[3_u8], &0x4000_0000_0000_0000_u64.to_le_bytes()[..]].concat(),
-        ),
-    );
+    // A same-format retarget on the last transitional row stays
+    // representable: the `TransitionalSourceRetargetedToLiteral64` inventory
+    // leg exercises it through the matrix.
     // Retargeting the first transitional user strands the first-use source
     // density of every later transitional row.
     rejected(
@@ -1103,23 +1124,10 @@ fn terminal_float_meaning_rosters_reject_every_one_field_substitution() {
     );
 
     // Exact literal payloads are the freely representable axis: any bit
-    // pattern, including a NaN payload the projection law erases, reidentifies
-    // the source and diverges.
-    divergent(
-        "a substituted exact binary32 literal",
-        &put_u32(projections[2].source_bits.clone().unwrap(), 0xbf80_0000),
-    );
-    divergent(
-        "an exact binary32 literal reidentified as NaN payload",
-        &put_u32(projections[2].source_bits.clone().unwrap(), 0x7fc0_0001),
-    );
-    divergent(
-        "a substituted exact binary64 literal",
-        &put_u64(
-            projections[5].source_bits.clone().unwrap(),
-            0x4000_0000_0000_0000,
-        ),
-    );
+    // pattern, including a NaN payload the projection law erases,
+    // reidentifies the source and diverges: the `Binary32LiteralBitsSubstituted`,
+    // `Binary32LiteralReidentifiedAsNan`, and `Binary64LiteralBitsSubstituted`
+    // inventory legs exercise all three through the matrix.
 
     // --- direct parameter source ---------------------------------------------
 
@@ -1628,14 +1636,13 @@ fn terminal_float_meaning_rosters_reject_every_one_field_substitution() {
     // An operand retarget onto a transitional binary64 carrier stays
     // representable: the format-carrying row constrains only its Format
     // operand, and a non-literal operand leaves the application undischarged.
-    divergent(
-        "a semantic application operand retargeted to a transitional binary64 carrier",
-        &put_u32(projections[11].application_operand_id.clone().unwrap(), 4),
-    );
+    // The `ApplicationOperandRetargetedToTransitional64` inventory leg
+    // exercises it through the matrix.
     // A retarget of the discharged literal onto the application source lands
     // on the identical (source, operation) key and rejects at the module
     // join; retargeting the application onto a fresh literal stays
-    // representable.
+    // representable through the `ApplicationRetargetedToLiteral` inventory
+    // leg.
     rejected(
         "a literal retargeted onto the semantic application source",
         &splice(
@@ -1646,13 +1653,6 @@ fn terminal_float_meaning_rosters_reject_every_one_field_substitution() {
             first: 11,
             duplicate: 12,
         }),
-    );
-    divergent(
-        "a semantic application retargeted to an exact literal",
-        &splice(
-            projections[11].source.clone(),
-            &[&[2_u8], &0x4080_0000_u32.to_le_bytes()[..]].concat(),
-        ),
     );
 
     // --- operation and the closed contract identity ---------------------------
@@ -1754,15 +1754,9 @@ fn terminal_float_meaning_rosters_reject_every_one_field_substitution() {
         CodecError::UnexpectedEnd,
     );
     // The equalities carry no obligation the projections need: clearing or
-    // truncating the roster tail keeps the module representable.
-    let mut cleared_equalities = encoded[..spans.equality_count.start].to_vec();
-    cleared_equalities.extend_from_slice(&0_u32.to_le_bytes());
-    cleared_equalities.extend_from_slice(&encoded[equalities[3].row.end..]);
-    divergent("a cleared float-equality roster", &cleared_equalities);
-    divergent(
-        "a dropped trailing float-equality row",
-        &drop_row(spans.equality_count.clone(), equalities[3].row.clone()),
-    );
+    // truncating the roster tail keeps the module representable — the
+    // `EqualityRosterCleared` and `TrailingEqualityDropped` inventory legs
+    // exercise both through the matrix.
     rejected(
         "a dropped first float-equality row",
         &drop_row(spans.equality_count.clone(), equalities[0].row.clone()),
@@ -1822,52 +1816,17 @@ fn terminal_float_meaning_rosters_reject_every_one_field_substitution() {
         ),
     );
     // Inside one carrier an operand retarget stays representable, including a
-    // self-equality and an operand pair coinciding with another row's.
-    divergent(
-        "a float-equality retargeted inside its carrier",
-        &put_u32(equalities[0].right.clone(), 2),
-    );
-    divergent(
-        "a float-equality collapsed to a self-equality",
-        &put_u32(equalities[0].left.clone(), 1),
-    );
-    divergent(
-        "a second float-equality retargeted inside its carrier",
-        &put_u32(equalities[2].left.clone(), 0),
-    );
-    // Every direct carrier shares the binary32 meaning catalog operation, so
-    // retargeting an operand onto any of them stays representable.
-    divergent(
-        "a float-equality retargeted onto a direct machine-result carrier",
-        &put_u32(equalities[0].right.clone(), 6),
-    );
-    divergent(
-        "a float-equality retargeted onto a direct operation-result carrier",
-        &put_u32(equalities[0].right.clone(), 7),
-    );
-    divergent(
-        "a float-equality retargeted onto a direct call-result carrier",
-        &put_u32(equalities[2].right.clone(), 8),
-    );
-    divergent(
-        "a float-equality retargeted onto a direct block-parameter carrier",
-        &put_u32(equalities[2].right.clone(), 9),
-    );
-    divergent(
-        "a float-equality retargeted onto a direct structural-leaf carrier",
-        &put_u32(equalities[2].right.clone(), 10),
-    );
-    // The semantic application's result rides the same proof-value space: a
-    // same-format operand retarget onto it stays representable, including a
-    // retarget of the application's own discharged-literal equality.
-    divergent(
-        "a float-equality retargeted onto the semantic application carrier",
-        &put_u32(equalities[0].right.clone(), 11),
-    );
-    divergent(
-        "a second float-equality retargeted onto the application carrier",
-        &put_u32(equalities[2].right.clone(), 11),
-    );
+    // self-equality and an operand pair coinciding with another row's — the
+    // `EqualityRetargetedInsideCarrier`, `EqualityCollapsedToSelf`, and
+    // `SecondEqualityRetargetedInsideCarrier` legs. Every direct carrier
+    // shares the binary32 meaning catalog operation, so retargeting an
+    // operand onto any of them stays representable — the
+    // `EqualityRetargetedTo*Carrier` legs — and the semantic application's
+    // result rides the same proof-value space, including a retarget of the
+    // application's own discharged-literal equality — the
+    // `EqualityRetargetedToApplicationCarrier` and
+    // `SecondEqualityRetargetedToApplicationCarrier` legs. All ten run
+    // through the matrix.
 
     // --- producer-side rejections --------------------------------------------
 
