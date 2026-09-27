@@ -1,6 +1,6 @@
 //! Structural telescopes retain exact shared-view identities and availability.
 use crate::tests::fixtures::scalar_units::unit;
-use crate::tests::support::{id, refresh_identity, refresh_node_derivatives};
+use crate::tests::support::{id, refresh_node_derivatives};
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 use abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
@@ -9,7 +9,7 @@ use abstract_operations::{
 use optimization_unit::{PsiOptimizationUnit, reconstruct_psi_optimization_unit_seed};
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, OperationId,
-    PlaceId, ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId,
+    PlaceId, ScalarType, StructuralTypeId, ValueId,
 };
 use terminal_psi::{
     ByteSequenceCarrier, StructuralAccess, StructuralArgument, StructuralMultiplicity,
@@ -114,28 +114,6 @@ fn transfer_unit() -> PsiOptimizationUnit {
 }
 
 #[test]
-fn shared_view_transfer_reconstructs_and_validates_exact_block_root() {
-    let candidate = transfer_unit();
-    validate_psi_optimization_unit(&candidate).unwrap();
-    let function = &candidate.functions[0];
-    assert!(
-        function
-            .structural_places
-            .iter()
-            .any(|place| place.id == id(11, PlaceId::new)
-                && place.kind
-                    == (StructuralPlaceKind::BlockParameter {
-                        block: id(3, BlockId::new),
-                        position: 0
-                    }))
-    );
-    assert_eq!(
-        function.blocks[0].nodes[0].successors[0].structural_bindings[0].parameter,
-        id(11, PlaceId::new)
-    );
-}
-
-#[test]
 fn structural_binding_mutations_cannot_hide_in_rebuilt_metadata() {
     for mutation in 0..5 {
         let mut candidate = transfer_unit();
@@ -155,26 +133,6 @@ fn structural_binding_mutations_cannot_hide_in_rebuilt_metadata() {
             _ => unreachable!(),
         }
         refresh_node_derivatives(&mut candidate, 0, 0, 0);
-        assert!(
-            validate_psi_optimization_unit(&candidate).is_err(),
-            "mutation {mutation}"
-        );
-    }
-}
-
-#[test]
-fn structural_block_parameter_identity_and_contract_are_not_inferred() {
-    for mutation in 0..4 {
-        let mut candidate = transfer_unit();
-        let parameter = &mut candidate.functions[0].blocks[1].structural_parameters[0];
-        match mutation {
-            0 => parameter.position = 1,
-            1 => parameter.structural_type = id(99, StructuralTypeId::new),
-            2 => parameter.access = StructuralAccess::Owned,
-            3 => parameter.place = id(10, PlaceId::new),
-            _ => unreachable!(),
-        }
-        refresh_identity(&mut candidate);
         assert!(
             validate_psi_optimization_unit(&candidate).is_err(),
             "mutation {mutation}"

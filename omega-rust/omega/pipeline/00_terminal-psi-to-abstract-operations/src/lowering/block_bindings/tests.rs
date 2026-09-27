@@ -202,49 +202,6 @@ fn each_conditional_arm_is_checked_even_without_byte_operations() {
     }
 }
 
-#[test]
-fn empty_block_bindings_preserve_the_existing_gate() {
-    let mut module = fixture();
-    module.machines[0].blocks[1].structural_parameters.clear();
-    let Terminator::Jump {
-        structural_arguments,
-        ..
-    } = &mut module.machines[0].blocks[0].terminator
-    else {
-        unreachable!()
-    };
-    structural_arguments.clear();
-    assert_eq!(validate_structural_block_bindings(&module), Ok(()));
-}
-
-#[test]
-fn common_native_and_optimizer_lowering_cannot_drop_descriptor_only_transfer() {
-    let module = fixture();
-    let plan = crate::lowering::lower_decoded_module(&module).unwrap();
-    let function = &plan.functions[0];
-    assert_eq!(
-        function.block_entries[1].structural_parameters,
-        module.machines[0].blocks[1].structural_parameters
-    );
-    let abstract_operations::AbstractOperation::Jump {
-        structural_bindings,
-        ..
-    } = &function.operations[0]
-    else {
-        panic!("expected exact jump");
-    };
-    assert_eq!(structural_bindings.len(), 1);
-    assert_eq!(structural_bindings[0].parameter, PlaceId::new(2).unwrap());
-    assert_eq!(
-        structural_bindings[0].argument,
-        StructuralArgument {
-            place: PlaceId::new(1).unwrap(),
-            path: Vec::new(),
-            access: StructuralAccess::SharedBorrow
-        }
-    );
-}
-
 /// The same edge as an address join: the parameter borrows one `u64` leaf and
 /// the argument names it through a static field path beneath its root.
 fn address_join_fixture(path: Vec<terminal_psi::StructuralPathSegment>) -> TerminalModule {

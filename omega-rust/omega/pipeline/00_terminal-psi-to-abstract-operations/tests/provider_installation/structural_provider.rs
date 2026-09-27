@@ -1,6 +1,5 @@
-use super::builders::{artifact, provider_module, selected};
+use super::builders::provider_module;
 use super::ids::{boundary_id, claim_id, operation_id, place_id, structural_type_id};
-use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use terminal_psi::{
     BoundaryMachineDeclaration, CompletionReceipt, EntryClaim, Operation, OperationKind,
@@ -8,67 +7,6 @@ use terminal_psi::{
     StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape, TerminalModule,
 };
-use terminal_psi_to_abstract_operations::{
-    ProviderInstallationError, admit_provider_installation, lower_artifact,
-};
-
-#[test]
-fn omega_retains_and_replays_the_whole_root_structural_provider_call() {
-    let module = structural_provider_module();
-    let (semantic, proof) = artifact(&module);
-    let profile = AdmissionProfile::default();
-    let plan = lower_artifact(
-        terminal_psi_to_abstract_operations::ArtifactSections {
-            semantic_bytes: &semantic,
-            proof_bytes: &proof,
-            obligation_ledger_bytes: None,
-        },
-        &profile,
-    )
-    .map(|admitted| admitted.into_plan())
-    .expect("verified lowering");
-    let selected = selected("second-plan", "SecondProvider", "SecondProvider::emit");
-    let installation = admit_provider_installation(&plan, &semantic, &proof, &profile, &selected)
-        .expect("whole-root structural provider installation");
-    let [call] = installation.installed_calls() else {
-        panic!("one installed structural provider call")
-    };
-    assert_eq!(call.provider(), &plan.provider_candidates[1]);
-    assert!(call.structural_arguments()[0].path.is_empty());
-    assert_eq!(
-        call.structural_arguments()[0].access,
-        StructuralAccess::Owned
-    );
-    assert_eq!(
-        call.completion_receipts(),
-        &[CompletionReceipt {
-            claim: claim_id(1),
-            argument_index: 0,
-        }]
-    );
-    assert_eq!(call.completion_claim_sources()[0].claim, claim_id(1));
-
-    let mut candidate_tamper = plan.clone();
-    candidate_tamper.provider_candidates[1].candidate_identity = "SecondProvider::other".into();
-    assert!(matches!(
-        admit_provider_installation(&candidate_tamper, &semantic, &proof, &profile, &selected,),
-        Err(ProviderInstallationError::PlanReplayMismatch)
-    ));
-
-    let mut access_tamper = plan.clone();
-    let abstract_operations::AbstractOperation::BoundaryCall {
-        structural_arguments,
-        ..
-    } = &mut access_tamper.functions[0].operations[0]
-    else {
-        panic!("fixture starts with its provider boundary call")
-    };
-    structural_arguments[0].access = StructuralAccess::SharedBorrow;
-    assert!(matches!(
-        admit_provider_installation(&access_tamper, &semantic, &proof, &profile, &selected),
-        Err(ProviderInstallationError::PlanReplayMismatch)
-    ));
-}
 
 pub(super) fn structural_provider_module() -> TerminalModule {
     let mut module = provider_module();

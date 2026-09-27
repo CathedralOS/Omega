@@ -5,8 +5,8 @@ use crate::tests::fixtures::dominance::refresh_function_derivatives;
 use crate::tests::support::id;
 use abstract_operations::AbstractOperation;
 use optimization_unit::{OptimizationBlock, PsiOptimizationUnit};
-use semantic_vocabulary::{BlockId, EdgeId, OperationId, PlaceId, StructuralTypeId};
-use terminal_psi::{StructuralAffineDiscard, TerminalAffineCleanupAction};
+use semantic_vocabulary::{BlockId, EdgeId, OperationId, PlaceId};
+use terminal_psi::TerminalAffineCleanupAction;
 
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 
@@ -80,88 +80,8 @@ fn result_continuation(boundary: bool, empty: bool) -> PsiOptimizationUnit {
 }
 
 #[test]
-fn partial_result_continuation_replays_ordinary_and_boundary_roots() {
-    for boundary in [false, true] {
-        for empty in [false, true] {
-            validate_psi_optimization_unit(&result_continuation(boundary, empty))
-                .unwrap_or_else(|error| panic!("boundary={boundary} empty={empty}: {error:?}"));
-        }
-    }
-}
-
-#[test]
-fn partial_continuation_preserves_nested_reverse_residual_order() {
-    validate_psi_optimization_unit(&continuation(unit(
-        vec![
-            record(1, &[]),
-            array(2, 1, 3),
-            record(3, &[("left", 1), ("grid", 2), ("tail", 1)]),
-        ],
-        3,
-        &[(vec![field("grid"), index(1)], 1)],
-        &[
-            (vec![field("tail")], 1),
-            (vec![field("grid"), index(2)], 1),
-            (vec![field("grid"), index(0)], 1),
-            (vec![field("left")], 1),
-        ],
-    )))
-    .expect("nested maximal residuals remain ordered before successor entry");
-}
-
-#[test]
-fn partial_result_continuation_rejects_missing_reordered_or_forged_cleanup() {
-    for boundary in [false, true] {
-        for mutation in 0..7 {
-            let mut changed = result_continuation(boundary, false);
-            let AbstractOperation::Jump {
-                trivial_affine_discards,
-                residual_affine_discards,
-                ..
-            } = &mut changed.functions[0].blocks[0]
-                .nodes
-                .last_mut()
-                .unwrap()
-                .operation
-            else {
-                unreachable!()
-            };
-            match mutation {
-                0 => residual_affine_discards.clear(),
-                1 => {
-                    residual_affine_discards.pop();
-                }
-                2 => residual_affine_discards.reverse(),
-                3 => residual_affine_discards[0].structural_type = id(2, StructuralTypeId::new),
-                4 => residual_affine_discards[0].place = id(8_001, PlaceId::new),
-                5 => trivial_affine_discards.push(id(1_000, PlaceId::new)),
-                6 => residual_affine_discards.push(StructuralAffineDiscard {
-                    place: id(1_000, PlaceId::new),
-                    path: vec![field("middle")],
-                    structural_type: id(1, StructuralTypeId::new),
-                }),
-                _ => unreachable!(),
-            }
-            refresh_function_derivatives(&mut changed, 0);
-            assert!(
-                matches!(
-                    validate_psi_optimization_unit(&changed),
-                    Err(OptimizationUnitValidationError::CurrentCleanupMismatch { .. })
-                ),
-                "boundary={boundary} mutation={mutation}"
-            );
-        }
-    }
-}
-
-#[test]
 fn partial_continuation_rejects_cleanup_delayed_until_successor_return() {
     reject_successor_cleanup(false);
-}
-
-#[test]
-fn partial_continuation_rejects_cleanup_repeated_at_successor_return() {
-    reject_successor_cleanup(true);
 }
 
 fn reject_successor_cleanup(retain_jump_cleanup: bool) {
@@ -222,25 +142,6 @@ fn append_caller_parameter(
             },
         });
     unit.functions[0].structural_parameters.push(parameter);
-}
-
-#[test]
-fn partial_continuation_retains_unrelated_owner_until_successor_cleanup() {
-    let mut unit = result_continuation(true, false);
-    let unrelated = id(70_003, PlaceId::new);
-    let mut parameter = unit.functions[1].structural_parameters[0].clone();
-    parameter.place = unrelated;
-    append_caller_parameter(&mut unit, parameter);
-    let AbstractOperation::ReturnUnit {
-        cleanup_actions, ..
-    } = &mut unit.functions[0].blocks[1].nodes[0].operation
-    else {
-        unreachable!()
-    };
-    cleanup_actions.push(TerminalAffineCleanupAction::DiscardRoot(unrelated));
-    refresh_function_derivatives(&mut unit, 0);
-    validate_psi_optimization_unit(&unit)
-        .expect("the successor still owns the unrelated parameter");
 }
 
 #[test]

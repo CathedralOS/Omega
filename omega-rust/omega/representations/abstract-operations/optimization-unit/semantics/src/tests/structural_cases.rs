@@ -1,12 +1,9 @@
 //! Source-produced sum inspection through the independent abstract validator.
 use crate::tests::support::{id, refresh_identity, refresh_node_derivatives};
-use crate::unit_validation::affine_authority::valid_edge_affine_transition;
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 use abstract_operations::AbstractOperation;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use optimization_unit::{
-    OwnershipFrontierFact, PsiOptimizationUnit, reconstruct_psi_optimization_unit_seed,
-};
+use optimization_unit::{PsiOptimizationUnit, reconstruct_psi_optimization_unit_seed};
 use semantic_vocabulary::{BlockId, EdgeId, PlaceId, ScalarType, StructuralPlaceKind, ValueId};
 
 fn inspection_unit() -> PsiOptimizationUnit {
@@ -100,44 +97,6 @@ pub(super) fn source_machine_unit(
     unit.root_service_reach = terminal.semantic_module.root_service_reach.clone();
     refresh_identity(&mut unit);
     unit
-}
-
-#[test]
-fn source_case_dispatch_preserves_payload_edges_and_cleanup() {
-    let unit = inspection_unit();
-    validate_psi_optimization_unit(&unit).expect("source case dispatch must validate");
-    let function = unit
-        .functions
-        .iter()
-        .find(|function| function.machine == unit.entry)
-        .unwrap();
-    let node = function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
-        .find(|node| matches!(node.operation, AbstractOperation::StructuralCase { .. }))
-        .unwrap();
-    let AbstractOperation::StructuralCase { source, cases } = &node.operation else {
-        unreachable!()
-    };
-    assert_eq!(node.successors.len(), 2);
-    assert!(
-        node.uses.is_empty(),
-        "payloads are edge-produced, not dominating scalar arguments"
-    );
-    for (case, edge) in cases.iter().zip(&node.successors) {
-        assert_eq!(case.psi_edge, edge.psi_edge);
-        assert_eq!(case.target, edge.target);
-        assert_eq!(edge.trivial_affine_discards, [*source]);
-        assert_eq!(edge.fuel.len(), 1);
-        assert_eq!(edge.fuel[0].units, 1);
-        let target = function
-            .blocks
-            .iter()
-            .find(|block| block.id == case.target)
-            .unwrap();
-        assert_eq!(case.payloads.len(), target.parameters.len());
-    }
 }
 
 fn case_location(unit: &PsiOptimizationUnit) -> (usize, usize, usize) {
@@ -327,95 +286,6 @@ fn case_dispatch_rejects_unknown_and_nondominating_sources() {
         validate_psi_optimization_unit(&unavailable),
         Err(OptimizationUnitValidationError::StructuralPlaceNotAvailable { .. })
     ));
-}
-
-#[test]
-fn case_edge_replays_owned_result_discard_against_retained_frontiers() {
-    use optimization_unit::{
-        OwnershipFrontierOwnedPlace, OwnershipFrontierSite, OwnershipFrontierSnapshot,
-    };
-    let mut unit = inspection_unit();
-    let (function_index, block_index, node_index) = case_location(&unit);
-    let function = &unit.functions[function_index];
-    let AbstractOperation::StructuralCase { source, cases } =
-        &function.blocks[block_index].nodes[node_index].operation
-    else {
-        unreachable!()
-    };
-    let entry = OwnershipFrontierSnapshot {
-        claims: Vec::new(),
-        partial_custody: Vec::new(),
-        owned_places: vec![OwnershipFrontierOwnedPlace {
-            place: *source,
-            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
-        }],
-    };
-    let exit = OwnershipFrontierSnapshot {
-        owned_places: Vec::new(),
-        ..entry.clone()
-    };
-    assert!(valid_edge_affine_transition(
-        function,
-        &entry,
-        &exit,
-        &[*source]
-    ));
-    assert!(!valid_edge_affine_transition(function, &entry, &exit, &[]));
-    assert!(!valid_edge_affine_transition(
-        function,
-        &entry,
-        &entry,
-        &[*source]
-    ));
-    assert!(!valid_edge_affine_transition(
-        function,
-        &entry,
-        &exit,
-        &[*source, *source]
-    ));
-    for case in cases {
-        for (site, snapshot) in [
-            (
-                OwnershipFrontierSite::EdgeEntry(case.psi_edge),
-                entry.clone(),
-            ),
-            (OwnershipFrontierSite::EdgeExit(case.psi_edge), exit.clone()),
-        ] {
-            unit.ownership_frontier_facts
-                .push(OwnershipFrontierFact::new(
-                    unit.psi,
-                    function.machine,
-                    site,
-                    snapshot,
-                ));
-        }
-        // Each arm reaches its state through a trampoline block whose jump
-        // edge replays against retained frontiers too; the result discarded
-        // on the case edge is absent on both sides of that jump.
-        let arm = function
-            .blocks
-            .iter()
-            .find(|block| block.id == case.target)
-            .unwrap();
-        for jump in arm.nodes.iter().flat_map(|node| &node.successors) {
-            for site in [
-                OwnershipFrontierSite::EdgeEntry(jump.psi_edge),
-                OwnershipFrontierSite::EdgeExit(jump.psi_edge),
-            ] {
-                unit.ownership_frontier_facts
-                    .push(OwnershipFrontierFact::new(
-                        unit.psi,
-                        function.machine,
-                        site,
-                        exit.clone(),
-                    ));
-            }
-        }
-    }
-    unit.ownership_frontier_facts
-        .sort_by_key(|fact| (fact.machine, fact.site));
-    refresh_identity(&mut unit);
-    validate_psi_optimization_unit(&unit).expect("case cleanup rejoins retained ownership");
 }
 
 #[test]

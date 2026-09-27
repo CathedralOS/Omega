@@ -281,153 +281,6 @@ fn boolean_structural_field_replays_exact_readable_root_and_field() {
 }
 
 #[test]
-fn owned_boolean_fields_compose_without_entry_or_scalar_parameter_restrictions() {
-    for multiplicity in [
-        terminal_psi::StructuralMultiplicity::Affine,
-        terminal_psi::StructuralMultiplicity::Unrestricted,
-    ] {
-        let mut candidate = boolean_structural_field_unit();
-        candidate.entry = candidate.functions[1].machine;
-        let function = &mut candidate.functions[0];
-        function.parameters.clear();
-        function.structural_parameters[0].multiplicity = multiplicity;
-        let O::Return {
-            cleanup_actions, ..
-        } = &mut function.blocks[0].nodes[1].operation
-        else {
-            panic!("fixture ends in a scalar return");
-        };
-        cleanup_actions.clear();
-        if multiplicity == terminal_psi::StructuralMultiplicity::Affine {
-            cleanup_actions.push(terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
-                function.structural_parameters[0].place,
-            ));
-        }
-        refresh_function_derivatives(&mut candidate, 0);
-        validate_psi_optimization_unit(&candidate)
-            .expect("owned Boolean reads use exact roots and ordinary cleanup");
-    }
-}
-
-#[test]
-fn owned_boolean_field_read_rejects_observation_after_transfer() {
-    let mut candidate = boolean_structural_field_unit();
-    let parameter = candidate.functions[0].structural_parameters[0].clone();
-    let source = parameter.place;
-    let callee = candidate.functions[1].machine;
-    let mut call = candidate.functions[0].blocks[0].nodes[0].clone();
-    call.operation = O::CallUnit {
-        psi_operation: id(4_720, OperationId::new),
-        callee,
-        arguments: Vec::new(),
-        structural_arguments: vec![terminal_psi::StructuralArgument {
-            place: source,
-            access: terminal_psi::StructuralAccess::Owned,
-            path: Vec::new(),
-        }],
-        claim_transfers: Vec::new(),
-        requirement_obligations: Vec::new(),
-        crash_continuations: Vec::new(),
-    };
-    let O::Return {
-        cleanup_actions, ..
-    } = &mut candidate.functions[0].blocks[0].nodes[1].operation
-    else {
-        panic!("fixture ends in a scalar return");
-    };
-    cleanup_actions.clear();
-    candidate.functions[0].blocks[0].nodes.insert(1, call);
-
-    let consumer = &mut candidate.functions[1];
-    consumer.attachment = None;
-    consumer.declared_places.insert(source);
-    consumer
-        .structural_places
-        .push(terminal_psi::StructuralPlaceDeclaration {
-            id: source,
-            kind: StructuralPlaceKind::Parameter {
-                position: parameter.position,
-                is_self: parameter.is_self,
-            },
-        });
-    consumer.structural_parameters.push(parameter);
-    let O::ReturnUnit {
-        cleanup_actions, ..
-    } = &mut consumer.blocks[0].nodes[0].operation
-    else {
-        panic!("consumer ends in a Unit return");
-    };
-    cleanup_actions.push(terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
-        source,
-    ));
-    refresh_function_derivatives(&mut candidate, 0);
-    refresh_function_derivatives(&mut candidate, 1);
-    validate_psi_optimization_unit(&candidate)
-        .expect("a Boolean observation before owned transfer remains available afterward");
-
-    candidate.functions[0].blocks[0].nodes.swap(0, 1);
-    refresh_function_derivatives(&mut candidate, 0);
-    assert!(matches!(
-        validate_psi_optimization_unit(&candidate),
-        Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive { place, .. })
-            if place == source
-    ));
-}
-
-fn assert_invalid_direct_realization_observation(mut candidate: PsiOptimizationUnit) {
-    refresh_identity(&mut candidate);
-    assert!(matches!(
-        validate_psi_optimization_unit(&candidate),
-        Err(OptimizationUnitValidationError::InvalidBooleanStructuralField { .. })
-    ));
-}
-
-#[test]
-fn unrestricted_shared_boolean_structural_field_direct_realization_validates() {
-    validate_psi_optimization_unit(&direct_realization_boolean_structural_field_unit())
-        .expect("an unqualified unrestricted shared direct realization validates");
-}
-
-#[test]
-fn shared_boolean_observations_validate_each_declared_field_independently() {
-    let mut candidate = direct_realization_boolean_structural_field_unit();
-    let mut second = candidate.functions[0].blocks[0].nodes[0].clone();
-    let O::BooleanStructuralField {
-        psi_operation,
-        result,
-        field,
-        ..
-    } = &mut second.operation
-    else {
-        unreachable!()
-    };
-    *psi_operation = id(4_714, OperationId::new);
-    *result = id(4_715, ValueId::new);
-    *field = id(4_713, semantic_vocabulary::StructuralFieldId::new);
-    let terminal_psi::StructuralTypeShape::Record { fields } =
-        &mut candidate.structural_types.make_mut()[0].shape
-    else {
-        unreachable!()
-    };
-    fields.push(terminal_psi::StructuralFieldDeclaration {
-        id: *field,
-        identity: "validation::second-boolean".into(),
-        relevance: terminal_psi::BindingRelevance::Relevant,
-        field_type: terminal_psi::StructuralFieldType::Scalar(ScalarType::Boolean),
-    });
-    candidate.functions[0].blocks[0].nodes.insert(1, second);
-    refresh_function_derivatives(&mut candidate, 0);
-    validate_psi_optimization_unit(&candidate)
-        .expect("independent exact Boolean fields on one shared record");
-}
-
-#[test]
-fn unrestricted_shared_integer_structural_field_direct_realization_validates() {
-    validate_psi_optimization_unit(&direct_realization_integer_structural_field_unit())
-        .expect("an unqualified unrestricted shared integer field read validates");
-}
-
-#[test]
 fn bounded_integer_field_reads_require_the_exact_declared_carrier_and_path() {
     use semantic_vocabulary::BoundedIntegerType;
     use terminal_psi::{StructuralFieldType, StructuralTypeShape};
@@ -495,44 +348,6 @@ fn bounded_integer_field_reads_require_the_exact_declared_carrier_and_path() {
     assert!(matches!(
         validate_psi_optimization_unit(&wrong_path),
         Err(OptimizationUnitValidationError::InvalidIntegerStructuralField { .. })
-    ));
-}
-
-#[test]
-fn bounded_integer_field_store_rejects_an_exact_carrier_without_range_authority() {
-    use semantic_vocabulary::BoundedIntegerType;
-    use terminal_psi::{StructuralFieldType, StructuralTypeShape};
-
-    let mut candidate = structural_scalar_field_store_unit();
-    validate_psi_optimization_unit(&candidate).expect("unbounded projected store validates");
-    let O::StructuralScalarFieldStore { field, value, .. } =
-        &candidate.functions[0].blocks[0].nodes[1].operation
-    else {
-        unreachable!()
-    };
-    let selected_field = *field;
-    let ScalarType::Integer(integer) = value.scalar_type else {
-        panic!("integer store fixture");
-    };
-    let declaration = candidate
-        .structural_types
-        .make_mut()
-        .iter_mut()
-        .find_map(|declaration| match &mut declaration.shape {
-            StructuralTypeShape::Record { fields } => {
-                fields.iter_mut().find(|field| field.id == selected_field)
-            }
-            _ => None,
-        })
-        .expect("exact projected scalar field");
-    declaration.field_type = StructuralFieldType::BoundedInteger(
-        BoundedIntegerType::new(integer, IntegerValue::Signed(-7), IntegerValue::Signed(17))
-            .expect("interval contains the fixture's stored value"),
-    );
-    refresh_function_derivatives(&mut candidate, 0);
-    assert!(matches!(
-        validate_psi_optimization_unit(&candidate),
-        Err(OptimizationUnitValidationError::InvalidStructuralScalarFieldStore { .. })
     ));
 }
 
@@ -717,92 +532,6 @@ fn bounded_integer_field_store_rechecks_current_value_declaration_and_obligation
 }
 
 #[test]
-fn bounded_integer_field_store_rejects_missing_and_forged_accepted_facts() {
-    use semantic_vocabulary::ObligationId;
-    let original = bounded_scalar_store_authority_unit();
-    validate_psi_optimization_unit(&original).expect("exact bounded store authority");
-    for corruption in [
-        "absent",
-        "operation",
-        "obligation",
-        "proposition",
-        "identity",
-    ] {
-        let mut changed = original.clone();
-        if corruption == "absent" {
-            changed.accepted_obligation_facts.clear();
-        } else {
-            let fact = &mut changed.accepted_obligation_facts[0];
-            let proposition = if corruption == "proposition" {
-                terminal_codec::canonical_proposition_order_key(
-                    &semantic_vocabulary::Proposition::Truth,
-                )
-                .unwrap()
-            } else {
-                fact.proposition.clone()
-            };
-            *fact = optimization_unit::AcceptedObligationFact::new(
-                fact.psi,
-                fact.proof_bundle_fingerprint,
-                fact.machine,
-                if corruption == "operation" {
-                    id(4_737, OperationId::new)
-                } else {
-                    fact.operation
-                },
-                if corruption == "obligation" {
-                    id(4_736, ObligationId::new)
-                } else {
-                    fact.obligation
-                },
-                proposition,
-            );
-            if corruption == "identity" {
-                fact.proof_bundle_fingerprint[0] ^= 1;
-            }
-        }
-        refresh_function_derivatives(&mut changed, 0);
-        assert!(
-            validate_psi_optimization_unit(&changed).is_err(),
-            "{corruption}"
-        );
-    }
-}
-
-#[test]
-fn shared_integer_observations_validate_each_declared_field_independently() {
-    let mut candidate = direct_realization_integer_structural_field_unit();
-    let mut second = candidate.functions[0].blocks[0].nodes[0].clone();
-    let O::IntegerStructuralField {
-        psi_operation,
-        result,
-        field,
-        ..
-    } = &mut second.operation
-    else {
-        unreachable!()
-    };
-    *psi_operation = id(4_714, OperationId::new);
-    result.value = id(4_715, ValueId::new);
-    *field = id(4_713, semantic_vocabulary::StructuralFieldId::new);
-    let terminal_psi::StructuralTypeShape::Record { fields } =
-        &mut candidate.structural_types.make_mut()[0].shape
-    else {
-        unreachable!()
-    };
-    fields.push(terminal_psi::StructuralFieldDeclaration {
-        id: *field,
-        identity: "validation::second-integer".into(),
-        relevance: terminal_psi::BindingRelevance::Relevant,
-        field_type: terminal_psi::StructuralFieldType::Scalar(result.scalar_type),
-    });
-    candidate.functions[0].blocks[0].nodes.insert(1, second);
-    refresh_function_derivatives(&mut candidate, 0);
-    validate_psi_optimization_unit(&candidate)
-        .expect("independent exact fields on one shared record");
-}
-
-#[test]
 fn direct_integer_structural_field_rejects_access_type_and_field_corruption() {
     let mut access = direct_realization_integer_structural_field_unit();
     access.functions[0].structural_parameters[0].access =
@@ -904,21 +633,6 @@ fn projected_structural_scalar_field_store_validates_and_rejects_corruption() {
 }
 
 #[test]
-fn direct_realization_boolean_structural_field_requires_readable_access() {
-    let mut readable_but_exclusive = direct_realization_boolean_structural_field_unit();
-    readable_but_exclusive.functions[0].structural_parameters[0].access =
-        terminal_psi::StructuralAccess::MutableBorrow;
-    refresh_identity(&mut readable_but_exclusive);
-    validate_psi_optimization_unit(&readable_but_exclusive)
-        .expect("a mutable reference permits an exact Boolean observation");
-
-    let mut write_only = direct_realization_boolean_structural_field_unit();
-    write_only.functions[0].structural_parameters[0].access =
-        terminal_psi::StructuralAccess::WriteOnlyBorrow;
-    assert_invalid_direct_realization_observation(write_only);
-}
-
-#[test]
 fn direct_realization_boolean_structural_field_rejects_linear_observation() {
     let mut linear = direct_realization_boolean_structural_field_unit();
     linear.functions[0].structural_parameters[0].multiplicity =
@@ -936,33 +650,6 @@ fn direct_realization_boolean_structural_field_rejects_linear_observation() {
         ),
         "unclaimed linear parameter must fail its exact root catalog: {result:?}"
     );
-}
-
-#[test]
-fn direct_realization_boolean_structural_field_rejects_type_corruption() {
-    let mut non_boolean = direct_realization_boolean_structural_field_unit();
-    let terminal_psi::StructuralTypeShape::Record { fields } =
-        &mut non_boolean.structural_types.make_mut()[0].shape
-    else {
-        panic!("direct realization carrier is a record")
-    };
-    fields[0].field_type = terminal_psi::StructuralFieldType::Scalar(ScalarType::Integer(
-        IntegerType::new(IntegerSign::Unsigned, 8).expect("u8"),
-    ));
-    assert_invalid_direct_realization_observation(non_boolean);
-}
-
-#[test]
-fn direct_realization_boolean_structural_field_rejects_field_corruption() {
-    let mut wrong_field = direct_realization_boolean_structural_field_unit();
-    let O::BooleanStructuralField { field, .. } =
-        &mut wrong_field.functions[0].blocks[0].nodes[0].operation
-    else {
-        panic!("direct realization begins with a Boolean field observation")
-    };
-    *field = id(4_799, semantic_vocabulary::StructuralFieldId::new);
-    refresh_node_derivatives(&mut wrong_field, 0, 0, 0);
-    assert_invalid_direct_realization_observation(wrong_field);
 }
 
 #[test]

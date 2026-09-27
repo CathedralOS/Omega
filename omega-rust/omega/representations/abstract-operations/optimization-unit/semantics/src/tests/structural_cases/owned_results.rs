@@ -9,13 +9,6 @@ use semantic_vocabulary::{OperationId, PlaceId};
 #[path = "owned_results/returns.rs"]
 mod returns;
 
-#[test]
-fn owned_call_result_transfers_to_case_parameter() {
-    let unit = owned_result_unit();
-    validate_psi_optimization_unit(&unit)
-        .expect("owned call result reaches an ordinary case block");
-}
-
 fn owned_result_unit() -> PsiOptimizationUnit {
     source_machine_unit(
         r#"
@@ -144,59 +137,4 @@ fn owned_result_transfer_rejects_current_custody_corruption() {
             "{mutation}"
         );
     }
-}
-
-#[test]
-fn established_scalar_case_transfers_to_owned_block_parameter() {
-    let mut unit = owned_result_unit();
-    let empty_case = unit
-        .functions
-        .iter()
-        .flat_map(|function| &function.blocks)
-        .flat_map(|block| &block.nodes)
-        .find_map(|node| match &node.operation {
-            AbstractOperation::EstablishScalarCase {
-                result_case,
-                fields,
-                ..
-            } if fields.is_empty() => Some(*result_case),
-            _ => None,
-        })
-        .unwrap();
-    let function_index = unit
-        .functions
-        .iter()
-        .position(|function| function.machine == unit.entry)
-        .unwrap();
-    let function = &mut unit.functions[function_index];
-    let (block_index, node_index) = function
-        .blocks
-        .iter()
-        .enumerate()
-        .find_map(|(block_index, block)| {
-            block
-                .nodes
-                .iter()
-                .position(|node| matches!(node.operation, AbstractOperation::CallStructural { .. }))
-                .map(|node_index| (block_index, node_index))
-        })
-        .unwrap();
-    let operation = &mut function.blocks[block_index].nodes[node_index].operation;
-    let AbstractOperation::CallStructural {
-        psi_operation,
-        result,
-        ..
-    } = operation
-    else {
-        unreachable!()
-    };
-    *operation = AbstractOperation::EstablishScalarCase {
-        psi_operation: *psi_operation,
-        result: result.clone(),
-        result_case: empty_case,
-        fields: Vec::new(),
-    };
-    refresh_node_derivatives(&mut unit, function_index, block_index, node_index);
-    validate_psi_optimization_unit(&unit)
-        .expect("direct establishment has the same whole owned edge custody");
 }

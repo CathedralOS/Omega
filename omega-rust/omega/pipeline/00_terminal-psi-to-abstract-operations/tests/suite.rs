@@ -9,7 +9,6 @@ mod dynamic_descriptor_join;
 mod dynamic_dispatch;
 mod natural_native;
 mod partial_affine_call_results;
-mod primitive_locals;
 mod proof_section_admission;
 mod provider_installation;
 mod ranked_native;

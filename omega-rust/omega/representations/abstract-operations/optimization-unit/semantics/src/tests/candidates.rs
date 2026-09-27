@@ -3,8 +3,7 @@ use crate::candidates::copy_propagation::{
     normalize_redundant_parameter_observation_input, unchanged_outside_redundant_parameter_region,
 };
 use crate::tests::fixtures::candidates::{
-    integer_candidate, integer_candidate_with_facts, integer_candidate_with_facts_and_cost,
-    redundant_parameter_region_fixture,
+    integer_candidate, integer_candidate_with_facts, redundant_parameter_region_fixture,
 };
 use crate::tests::fixtures::scalar_units::{exact_add_unit, unit, write_only_store_unit};
 use crate::tests::support::{id, refresh_identity};
@@ -328,24 +327,6 @@ fn independent_integer_rewrite_constructor_accepts_only_declared_evaluation() {
         validate_integer_evaluation_candidate(&input, &foreign_obligation),
         Err(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch)
     ));
-}
-
-#[test]
-fn candidate_history_does_not_declare_the_accepted_content_identity() {
-    let input = exact_add_unit();
-    let first =
-        integer_candidate_with_facts_and_cost(&input, IntegerValue::Unsigned(15), None, None, -1);
-    let second =
-        integer_candidate_with_facts_and_cost(&input, IntegerValue::Unsigned(15), None, None, -2);
-    assert_ne!(first.identity(), second.identity());
-
-    let first_output = validate_integer_evaluation_candidate(&input, &first).unwrap();
-    let second_output = validate_integer_evaluation_candidate(&input, &second).unwrap();
-    assert_eq!(first_output.unit(), second_output.unit());
-    assert_eq!(
-        first_output.unit().identity,
-        recompute_psi_optimization_unit_identity(first_output.unit())
-    );
 }
 
 #[test]

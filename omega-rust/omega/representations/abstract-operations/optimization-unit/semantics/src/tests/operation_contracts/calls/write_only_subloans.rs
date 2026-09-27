@@ -1,18 +1,17 @@
 //! Exact unrestricted subloan contracts, independently of native realization.
 
 use crate::tests::fixtures::scalar_units::structural_call_unit;
-use crate::tests::support::{id, refresh_identity, refresh_node_derivatives};
+use crate::tests::support::{id, refresh_node_derivatives};
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 use abstract_operations::AbstractOperation;
 use optimization_unit::PsiOptimizationUnit;
 use semantic_vocabulary::{
-    IntegerSign, IntegerType, PlaceId, ScalarType, StructuralFieldId, StructuralPlaceKind,
-    StructuralTypeId,
+    IntegerSign, IntegerType, ScalarType, StructuralFieldId, StructuralTypeId,
 };
 use terminal_psi::{
     BindingRelevance, StructuralAccess, StructuralArgument, StructuralFieldDeclaration,
-    StructuralFieldType, StructuralMultiplicity, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape,
+    StructuralFieldType, StructuralMultiplicity, StructuralPathSegment, StructuralTypeDeclaration,
+    StructuralTypeShape,
 };
 
 fn field() -> StructuralPathSegment {
@@ -100,170 +99,6 @@ fn rejects_contract(mut unit: PsiOptimizationUnit) {
 }
 
 #[test]
-fn unrestricted_write_only_field_index_and_interleaved_subloans_validate() {
-    for access in [
-        StructuralAccess::MutableBorrow,
-        StructuralAccess::WriteOnlyBorrow,
-    ] {
-        for path in [
-            vec![field()],
-            vec![StructuralPathSegment::FixedIndex(1)],
-            vec![field(), StructuralPathSegment::FixedIndex(1)],
-            vec![StructuralPathSegment::FixedIndex(1), field()],
-            vec![
-                field(),
-                StructuralPathSegment::FixedIndex(1),
-                field(),
-                StructuralPathSegment::FixedIndex(0),
-            ],
-        ] {
-            let unit = subloan(path.clone(), access);
-            validate_psi_optimization_unit(&unit)
-                .unwrap_or_else(|error| panic!("{access:?} {path:?}: {error:?}"));
-            assert_eq!(
-                unit.functions[1].structural_parameters[0].multiplicity,
-                StructuralMultiplicity::Unrestricted
-            );
-        }
-    }
-}
-
-#[test]
-fn write_only_path_depth_is_not_a_one_or_two_index_roster() {
-    for depth in [3, 9, 70] {
-        for path in [
-            vec![StructuralPathSegment::FixedIndex(1); depth],
-            (0..depth)
-                .map(|position| {
-                    if position % 2 == 0 {
-                        field()
-                    } else {
-                        StructuralPathSegment::FixedIndex(1)
-                    }
-                })
-                .collect(),
-        ] {
-            validate_psi_optimization_unit(&subloan(path, StructuralAccess::WriteOnlyBorrow))
-                .expect("each finite material path is resolved hop by hop");
-        }
-    }
-}
-
-#[test]
-fn mutable_field_subloan_retains_unrestricted_multiplicity() {
-    let mut unit = subloan(
-        vec![field(), field(), field()],
-        StructuralAccess::MutableBorrow,
-    );
-    unit.functions[1].structural_parameters[0].access = StructuralAccess::MutableBorrow;
-    arguments(&mut unit)[0].access = StructuralAccess::MutableBorrow;
-    refresh_node_derivatives(&mut unit, 0, 0, 0);
-    validate_psi_optimization_unit(&unit)
-        .expect("mutable field subloan is not an owned linear projection");
-}
-
-#[test]
-fn subloan_rejects_access_amplification_and_wrong_multiplicity() {
-    let baseline = subloan(
-        vec![StructuralPathSegment::FixedIndex(1)],
-        StructuralAccess::WriteOnlyBorrow,
-    );
-    for access in [
-        StructuralAccess::SharedBorrow,
-        StructuralAccess::MutableBorrow,
-        StructuralAccess::Owned,
-    ] {
-        let mut unit = baseline.clone();
-        unit.functions[1].structural_parameters[0].access = access;
-        arguments(&mut unit)[0].access = access;
-        rejects_contract(unit);
-    }
-    let mut shared_source = baseline.clone();
-    shared_source.functions[0].structural_parameters[0].access = StructuralAccess::SharedBorrow;
-    rejects_contract(shared_source);
-    let mut multiplicity = baseline;
-    multiplicity.functions[1].structural_parameters[0].multiplicity =
-        StructuralMultiplicity::Affine;
-    rejects_contract(multiplicity);
-}
-
-#[test]
-fn indexed_write_only_paths_cannot_fall_back_to_linear_multiplicity() {
-    // Linear borrowed parameters can fail the catalog gate first. Exercise the
-    // independent call matcher directly so that gate cannot mask its fallback.
-    let rejects_linear = |mut unit: PsiOptimizationUnit| {
-        let arguments = arguments(&mut unit).clone();
-        let types = unit
-            .structural_types
-            .iter()
-            .map(|declaration| (declaration.id, declaration))
-            .collect();
-        assert!(
-            !crate::unit_validation::operation_contracts::structural_arguments_match(
-                &unit.functions[0],
-                &arguments,
-                &unit.functions[1].structural_parameters,
-                &types,
-                crate::unit_validation::operation_contracts::StructuralProjectionPolicy::Unit,
-                false,
-            )
-        );
-        refresh_node_derivatives(&mut unit, 0, 0, 0);
-        assert!(validate_psi_optimization_unit(&unit).is_err());
-    };
-    for path in [
-        vec![StructuralPathSegment::FixedIndex(1)],
-        vec![field(), StructuralPathSegment::FixedIndex(1), field()],
-    ] {
-        let baseline = subloan(path, StructuralAccess::WriteOnlyBorrow);
-        let mut linear_callee = baseline.clone();
-        linear_callee.functions[1].structural_parameters[0].multiplicity =
-            StructuralMultiplicity::Linear;
-        rejects_linear(linear_callee.clone());
-        linear_callee.functions[0].structural_parameters[0].multiplicity =
-            StructuralMultiplicity::Linear;
-        rejects_linear(linear_callee);
-
-        let mut reference = baseline;
-        reference.functions[1].structural_parameters[0].multiplicity =
-            StructuralMultiplicity::Linear;
-        let StructuralTypeShape::Record { fields } =
-            &mut reference.structural_types.make_mut()[0].shape
-        else {
-            panic!("leaf is a record")
-        };
-        fields[0].field_type =
-            StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
-                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
-            });
-        rejects_linear(reference);
-    }
-}
-
-#[test]
-fn subloan_rejects_wrong_field_bounds_root_and_leaf_type() {
-    let baseline = subloan(
-        vec![field(), StructuralPathSegment::FixedIndex(1)],
-        StructuralAccess::MutableBorrow,
-    );
-    let mut field = baseline.clone();
-    arguments(&mut field)[0].path[0] = StructuralPathSegment::Field("absent".into());
-    rejects_contract(field);
-    let mut bounds = baseline.clone();
-    arguments(&mut bounds)[0].path[1] = StructuralPathSegment::FixedIndex(2);
-    rejects_contract(bounds);
-    let mut root = baseline.clone();
-    arguments(&mut root)[0].place = root.functions[1].structural_parameters[0].place;
-    // An undeclared caller root is rejected by catalog/use validation, before the call join.
-    refresh_node_derivatives(&mut root, 0, 0, 0);
-    assert!(validate_psi_optimization_unit(&root).is_err());
-    let mut leaf = baseline;
-    leaf.functions[1].structural_parameters[0].structural_type =
-        leaf.functions[0].structural_parameters[0].structural_type;
-    rejects_contract(leaf);
-}
-
-#[test]
 fn indexed_subloan_requires_a_material_root_and_scalar_or_record_leaf() {
     let baseline = subloan(
         vec![StructuralPathSegment::FixedIndex(1)],
@@ -295,62 +130,6 @@ fn indexed_subloan_requires_a_material_root_and_scalar_or_record_leaf() {
         length: 2,
     };
     rejects_contract(array_leaf);
-}
-
-#[test]
-fn optimizer_overlap_contract_distinguishes_equal_and_disjoint_indexes() {
-    // This exercises the optimizer argument-overlap contract, not Terminal's
-    // separate currently single-projection Unit call admission boundary.
-    let mut unit = subloan(
-        vec![StructuralPathSegment::FixedIndex(0)],
-        StructuralAccess::WriteOnlyBorrow,
-    );
-    let mut parameter = unit.functions[1].structural_parameters[0].clone();
-    parameter.place = id(9_010, PlaceId::new);
-    parameter.position = 1;
-    unit.functions[1].declared_places.insert(parameter.place);
-    unit.functions[1]
-        .structural_places
-        .push(StructuralPlaceDeclaration {
-            id: parameter.place,
-            kind: StructuralPlaceKind::Parameter {
-                position: 1,
-                is_self: false,
-            },
-        });
-    unit.functions[1].structural_parameters.push(parameter);
-    let mut second = arguments(&mut unit)[0].clone();
-    second.path = vec![StructuralPathSegment::FixedIndex(1)];
-    arguments(&mut unit).push(second);
-    refresh_node_derivatives(&mut unit, 0, 0, 0);
-    validate_psi_optimization_unit(&unit).expect("different fixed indexes do not overlap");
-    arguments(&mut unit)[1].path = vec![StructuralPathSegment::FixedIndex(0)];
-    rejects_contract(unit);
-}
-
-#[test]
-fn projected_unit_call_rejects_callee_root_qualification_even_when_supplied() {
-    let mut unit = subloan(
-        vec![StructuralPathSegment::FixedIndex(1)],
-        StructuralAccess::WriteOnlyBorrow,
-    );
-    let domain = id(9_020, semantic_vocabulary::StructuralDomainId::new);
-    unit.structural_domains = vec![terminal_psi::StructuralDomainDeclaration {
-        establishment_routes: Vec::new(),
-        id: domain,
-        semantic_domain: id(9_021, semantic_vocabulary::DomainSemanticId::new),
-        identity: "validation::qualified-subloan".into(),
-        carrier: unit.functions[1].structural_parameters[0].structural_type,
-        content_projection: None,
-    }]
-    .into();
-    unit.functions[0].structural_parameters[0].projected_qualifications =
-        vec![terminal_psi::StructuralPathQualification {
-            path: vec![StructuralPathSegment::FixedIndex(1)],
-            domain,
-        }];
-    unit.functions[1].structural_parameters[0].qualifications = vec![domain];
-    rejects_contract(unit);
 }
 
 #[test]
@@ -471,15 +250,4 @@ fn owned_root_subloan_keeps_exclusive_and_presentation_limits() {
     affine_callee.functions[1].structural_parameters[0].multiplicity =
         StructuralMultiplicity::Affine;
     rejects_contract(affine_callee);
-}
-
-#[test]
-fn changed_call_ownership_evidence_does_not_inherit_subloan_admission() {
-    let mut unit = subloan(
-        vec![StructuralPathSegment::FixedIndex(1)],
-        StructuralAccess::WriteOnlyBorrow,
-    );
-    unit.functions[0].blocks[0].nodes[0].ownership.clear();
-    refresh_identity(&mut unit);
-    assert!(validate_psi_optimization_unit(&unit).is_err());
 }

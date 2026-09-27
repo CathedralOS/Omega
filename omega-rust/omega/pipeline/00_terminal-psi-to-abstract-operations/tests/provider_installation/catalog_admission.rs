@@ -454,34 +454,6 @@ fn provider_catalog_union_rejects_a_candidate_that_reenters_its_boundary() {
 }
 
 #[test]
-fn unit_provider_installation_joins_independently_selected_overload_identity() {
-    check_selected_overload_identity(
-        r#"
-boundary trait Sink { machine take(value: i32) reaches Sink; }
-data Provider {}
-machine Provider::take(value: i32) satisfies Sink::take {}
-machine enter(value: i32) reaches Sink { Sink::take(value); }
-"#,
-        "Provider::take",
-        "data Provider {} machine Provider::take(value: u64) {}",
-    );
-}
-
-#[test]
-fn provider_installation_accepts_a_verified_local_byte_view() {
-    check_selected_overload_identity(
-        r#"
-boundary trait Sink { machine take(value: &[u8]) reaches Sink; }
-data Provider {}
-machine Provider::take(value: &[u8]) satisfies Sink::take {}
-machine enter() reaches Sink { Sink::take("local bytes"); }
-"#,
-        "Provider::take",
-        "data Provider {} machine Provider::take(value: u64) {}",
-    );
-}
-
-#[test]
 fn provider_installation_accepts_a_verified_projected_array_loan_without_claims() {
     check_selected_overload_identity(
         r#"

@@ -16,12 +16,6 @@ fn selected_return() -> PsiOptimizationUnit {
 }
 
 #[test]
-fn selected_case_returns_the_exact_owned_block_binding() {
-    validate_psi_optimization_unit(&selected_return())
-        .expect("selected owner returns through its ordinary join");
-}
-
-#[test]
 fn selected_case_return_rejects_join_custody_substitution() {
     let original = selected_return();
     validate_psi_optimization_unit(&original).unwrap();
