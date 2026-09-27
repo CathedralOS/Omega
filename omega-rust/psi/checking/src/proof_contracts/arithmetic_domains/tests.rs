@@ -9,6 +9,90 @@ fn iv(low: i64, high: i64) -> Interval {
 }
 
 #[test]
+fn collection_length_retains_its_count_carrier_and_live_bounds() {
+    use super::{ArithmeticDomain, PrimitiveType, ValueEnvironment, validate_value_range};
+    for (carrier, expected) in [
+        ("[u8; 32]", iv(32, 32)),
+        ("&[u8; 32]", iv(32, 32)),
+        ("[u8; 0]", iv(0, 0)),
+        ("[u8; 32] in Text", iv(0, 32)),
+    ] {
+        let program = crate::front_end::typed_program(&format!(
+            "domain [u8; 32]::Text requires valid_utf8(self);\n\
+             machine measure(value: {carrier}) {{ let count: u64 = value.len; }}"
+        ));
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "measure")
+            .unwrap();
+        let state = &program.machine_states(machine)[0];
+        let typed_trees::statement::StatementNode::LocalData(local) =
+            &program.statement_table.statements(state.statement_nodes)[0]
+        else {
+            panic!("count initializer");
+        };
+        let mut diagnostics = Vec::new();
+        let (interval, primitive, domain) = validate_value_range(
+            &program,
+            machine,
+            Some(state),
+            local.initial_value,
+            &ValueEnvironment::new(),
+            Some(PrimitiveType::U64),
+            ArithmeticDomain::Exact,
+            "count initializer",
+            &mut diagnostics,
+        );
+        assert!(diagnostics.is_empty(), "{carrier}: {diagnostics:?}");
+        assert_eq!(interval, expected, "{carrier}");
+        assert_eq!(primitive, Some(PrimitiveType::U64), "{carrier}");
+        assert_eq!(
+            domain, None,
+            "count typing must not impose an arithmetic policy"
+        );
+    }
+}
+
+#[test]
+fn collection_length_store_requires_an_explicit_carrier_conversion() {
+    for carrier in ["[u8; 32]", "[u8; 32] in Text"] {
+        for (destination, value, accepted) in [
+            ("i32", "self.values.len", false),
+            ("u32", "self.values.len", false),
+            ("u64", "self.values.len", true),
+            ("i32", "self.values.len as i32", true),
+        ] {
+            let program = crate::front_end::typed_program(&format!(
+                "domain [u8; 32]::Text requires valid_utf8(self);\n\
+                 data Probe {{ values: {carrier}; count: {destination}; }}\n\
+                 machine Probe::run(&mut self) {{ self.count = {value}; }}"
+            ));
+            let result = crate::validate_program(&program);
+            if accepted {
+                assert!(
+                    result.is_ok(),
+                    "{carrier}, {destination}, {value}: {result:?}"
+                );
+            } else {
+                let errors = result.expect_err("a count does not implicitly change carrier");
+                assert!(
+                    errors.iter().any(|error| error
+                        .message
+                        .contains(&format!("implicitly converts `u64` to `{destination}`"))),
+                    "{errors:?}"
+                );
+            }
+        }
+    }
+    let nominal = crate::front_end::typed_program(
+        "data Record { len: i32; } data Probe { record: Record; count: i32; }\n\
+         machine Probe::run(&mut self) { self.count = self.record.len; }",
+    );
+    crate::validate_program(&nominal).expect("a nominal len field is not collection metadata");
+}
+
+#[test]
 fn signed_division_preserves_one_sided_nonzero_divisor_bounds() {
     let positive = Interval {
         low: Some(2),
