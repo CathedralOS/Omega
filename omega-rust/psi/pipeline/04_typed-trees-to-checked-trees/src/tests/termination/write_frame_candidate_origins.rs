@@ -16,6 +16,7 @@ fn probe_program_with_helpers(body: &str, helpers: &str) -> typed_trees::TypedTr
         machine identity(value: u64) -> u64 {{ value }}
         machine write_only(value: &write u64) -> u64 {{ value = 1; 0 }}
         machine opaque_ref(value: &mut u64) -> &mut u64 {{ opaque_ref(value) }}
+        machine opaque_write(value: &mut u64) {{ opaque_write(value); }}
         machine pick(a: &mut u64, b: &mut u64, tag: u64) -> &mut u64 {{ match tag {{ 0 -> a, _ -> b }} }}
         machine pick_view(a: View, b: View, tag: u64) -> &mut u64 {{ match tag {{ 0 -> a.body, _ -> b.body }} }}
         machine pick_carrier(a: &mut View, b: &mut View, tag: u64) -> &mut View {{ match tag {{ 0 -> a, _ -> b }} }}
@@ -96,6 +97,14 @@ fn divergent_origins_compose_through_expression_calls() {
         (
             "conditional_actual",
             "let alias: &mut u64 = pick(&mut self.value, &mut self.other, self.tag); consume(match self.tag { 0 -> &mut alias, _ -> &mut self.audit });",
+            ["self.audit", "self.other", "self.value"].as_slice(),
+        ),
+        // An opaque static body still has a signature-derived write ceiling.
+        // Every possible actual referent belongs to it; this says nothing
+        // about termination or the origin of a returned reference.
+        (
+            "opaque_static_callee_keeps_conditional_actual",
+            "let alias: &mut u64 = pick(&mut self.value, &mut self.other, self.tag); opaque_write(match self.tag { 0 -> &mut alias, _ -> &mut self.audit });",
             ["self.audit", "self.other", "self.value"].as_slice(),
         ),
         (
@@ -201,11 +210,6 @@ fn unproven_candidate_routes_stay_opaque() {
             "divergent_binding_unproven_rebind",
             "",
             "let alias: &mut u64 = pick(&mut self.value, &mut self.other, self.tag); alias = opaque_ref(&mut self.audit); consume(&mut self.tag);",
-        ),
-        (
-            "opaque_callee_cannot_drop_conditional_actual",
-            "machine opaque_write(value: &mut u64) { opaque_write(value); }",
-            "let alias: &mut u64 = pick(&mut self.value, &mut self.other, self.tag); opaque_write(match self.tag { 0 -> &mut alias, _ -> &mut self.audit });",
         ),
         // A member-read actual transports an interior reference value whose
         // own referent the frame cannot name.

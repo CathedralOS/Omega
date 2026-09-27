@@ -890,6 +890,53 @@ fn transparent_returned_index_frame_accepts_a_finite_exact_call_tree() {
 
     for (name, expected_paths) in [
         ("Main::call_index_result", vec!["self.cells"]),
+        // Scalar recursion has a bounded write ceiling without establishing
+        // a returned reference. The latter stays in the opaque controls below.
+        ("Main::recursive_call_index_result", vec!["self.cells"]),
+        (
+            "Main::recursive_slice_view_call_index_result",
+            vec!["self.cells"],
+        ),
+        (
+            "Main::recursive_slice_view_member_call_index_result",
+            vec!["self.cell_bucket.cells"],
+        ),
+        (
+            "Main::recursive_alias_slice_view_call_index_result",
+            vec!["self.cells"],
+        ),
+        (
+            "Main::recursive_member_alias_slice_view_call_index_result",
+            vec!["self.bucket.cells"],
+        ),
+        (
+            "Main::recursive_repeated_alias_slice_view_call_index_result",
+            vec!["self.matrix"],
+        ),
+        (
+            "Main::recursive_member_repeated_alias_slice_view_call_index_result",
+            vec!["self.grid_bucket.rows"],
+        ),
+        (
+            "Main::recursive_alias_chain_slice_view_call_index_result",
+            vec!["self.cells"],
+        ),
+        (
+            "Main::recursive_member_alias_chain_slice_view_call_index_result",
+            vec!["self.bucket.cells"],
+        ),
+        (
+            "Main::recursive_coarse_alias_slice_view_call_index_result",
+            vec!["self.matrix"],
+        ),
+        (
+            "Main::recursive_coarse_member_slice_view_call_index_result",
+            vec!["self.row_items"],
+        ),
+        (
+            "Main::recursive_coarse_helper_member_slice_view_call_index_result",
+            vec!["self.row_items"],
+        ),
         (
             "Main::write_call_index_result",
             vec!["self.cells", "self.value"],
@@ -1047,21 +1094,9 @@ fn transparent_returned_index_frame_accepts_a_finite_exact_call_tree() {
     }
 
     for name in [
-        "Main::recursive_call_index_result",
         "Main::recursive_helper_slice_view_call_index_result",
         "Main::recursive_projected_helper_slice_view_call_index_result",
         "Main::recursive_attached_projected_slice_view_call_index_result",
-        "Main::recursive_slice_view_member_call_index_result",
-        "Main::recursive_alias_slice_view_call_index_result",
-        "Main::recursive_member_alias_slice_view_call_index_result",
-        "Main::recursive_repeated_alias_slice_view_call_index_result",
-        "Main::recursive_member_repeated_alias_slice_view_call_index_result",
-        "Main::recursive_alias_chain_slice_view_call_index_result",
-        "Main::recursive_member_alias_chain_slice_view_call_index_result",
-        "Main::recursive_coarse_alias_slice_view_call_index_result",
-        "Main::recursive_coarse_member_slice_view_call_index_result",
-        "Main::recursive_coarse_helper_member_slice_view_call_index_result",
-        "Main::recursive_slice_view_call_index_result",
     ] {
         let machine = typed
             .machines()

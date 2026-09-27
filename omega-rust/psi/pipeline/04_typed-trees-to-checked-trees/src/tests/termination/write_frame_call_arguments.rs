@@ -99,8 +99,8 @@ fn computed_call_arguments_preserve_every_write_and_reject_hostile_siblings() {
         (
             "recursive",
             "consume_record(Pair { first: compute(audit) + 1, second: recursive(other) + 1 });",
-            false,
-            false,
+            true,
+            true,
         ),
         (
             "reborrow",

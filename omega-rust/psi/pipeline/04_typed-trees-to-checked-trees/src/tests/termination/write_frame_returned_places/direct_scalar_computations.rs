@@ -252,6 +252,10 @@ fn transparent_returned_place_accepts_finite_fixed_array_assignment_values() {
             "Main::three_array_computations_result",
             vec!["self.cells", "self.first", "self.values"],
         ),
+        (
+            "Main::recursive_array_value_result",
+            vec!["self.cells", "self.values"],
+        ),
     ] {
         let machine = typed
             .machines()
@@ -279,7 +283,6 @@ fn transparent_returned_place_accepts_finite_fixed_array_assignment_values() {
 
     for name in [
         "Main::array_binding_reborrow_result",
-        "Main::recursive_array_value_result",
         "ReferenceMain::reference_array_result",
     ] {
         let machine = typed
@@ -295,7 +298,7 @@ fn transparent_returned_place_accepts_finite_fixed_array_assignment_values() {
             !resolver
                 .inferred_state_write_frame(machine, entry)
                 .is_complete(),
-            "{name} must reject reference-bearing elements, binding reborrows, or recursive calls"
+            "{name} must reject reference-bearing elements or binding reborrows"
         );
     }
 }
@@ -841,10 +844,22 @@ fn transparent_returned_place_accepts_direct_concrete_literal_member_values() {
         );
     }
 
+    let recursive = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::recursive_literal_member_result")
+        .expect("recursive scalar literal member caller");
+    assert_eq!(
+        resolver
+            .inferred_state_write_frame(recursive, &typed.machine_states(recursive)[0])
+            .complete_paths(),
+        Some(["self.cells", "self.target"].map(str::to_owned).as_slice()),
+        "a parameter-free scalar helper adds no caller-storage write, even if its body is recursive"
+    );
+
     for name in [
         "Main::generic_literal_member_result",
         "Main::reborrow_literal_member_result",
-        "Main::recursive_literal_member_result",
         "ReferenceMain::reference_literal_member_result",
     ] {
         let machine = typed

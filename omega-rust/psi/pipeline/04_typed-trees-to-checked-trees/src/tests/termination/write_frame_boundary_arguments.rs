@@ -906,8 +906,8 @@ fn boundary_arguments_publish_declared_reach_and_all_producer_writes() {
         (
             "recursive",
             "self.device.array([compute(&mut self.audit), recursive(&mut self.other) + 1]);",
-            false,
-            false,
+            true,
+            true,
         ),
         (
             "indexed_argument",
