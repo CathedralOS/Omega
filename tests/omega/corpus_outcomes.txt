@@ -181,11 +181,13 @@ fail/calls/nontail_value_self_call_rejected rejected 11ms expected
 	`self.triple(..)` here is NON-TAIL self-recursion: the result feeds the surrounding computation, so the frame must survive the call. Runtime recursion is TAIL-ONLY (measured recursion amendment) -- recursion depth lives in explicit storage you size. Restructure so the recursive step is the transition arm `-> self.triple(..)` on a measured machine, or iterate with an explicit stack.
 fail/calls/plain_let_reassign_rejected rejected 9ms expected
 	machine `Main::main` state `main` assignment cannot write `x` because it is not mutable in this state (if `x` is undeclared -- a typo -- no such field or local exists)
-fail/calls/terminal_return_type_mismatch_rejected rejected 0ms expected
+fail/calls/terminal_return_type_mismatch_rejected rejected 181ms expected
 	machine `Main::main` state `main` stores a boolean into a `i32` return value, which holds a numeric value
+	store in machine `Main::main` state `main` terminal expression implicitly converts `bool` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
 fail/calls/unresolved_value_call_rejected rejected 8ms expected
 	machine `Main::main` state `main`: value call `bogus_fn(..)` does not resolve to a state of this machine, an attached sibling machine, or a free machine -- it would silently bind 0 (ZII) at runtime. Check the name.
-fail/calls/value_call_param_effect_arm_rejected checked 70ms
+fail/calls/value_call_param_effect_arm_rejected rejected 467ms unexpected
+	native-artifact Terminal production failed: Lowering(InvalidTerminalModule(InvalidBlockStructuralParameter { block: BlockId(6), place: PlaceId(7) }))
 fail/calls/value_call_wrong_argument_count_rejected rejected 4ms expected
 	state `pick` expects 2 argument(s), got 1
 fail/calls/void_value_callee_rejected rejected 6ms expected
@@ -434,8 +436,9 @@ fail/expressions/arithmetic_domain_literal_target_overflow rejected 4ms expected
 	anonymous integer value `300` does not fit destination `u8` in machine `Main::main` state `main` local `c`
 fail/expressions/arithmetic_domain_mixed rejected 8ms expected
 	mixed arithmetic domains in machine `Main::main` state `main` local `c`: one operand is `Wrapping` and the other is `Saturating`. Decision 17 forbids implicit domain mixing -- cross domains with an explicit `as` cast, or declare both operands in the same domain.
-fail/expressions/bool_numeric_operand_mixing_rejected rejected 3ms expected
+fail/expressions/bool_numeric_operand_mixing_rejected rejected 178ms expected
 	machine `Main::main` state `main` applies an operator to a boolean and a numeric value -- Omega does not coerce a boolean to a number -- compare booleans directly (`b == true`) or convert a number explicitly (`n != 0`)
+	store in machine `Main::main` state `main` local `n` implicitly converts `bool` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
 fail/expressions/cast_result_range rejected 0ms expected
 	cast target range in machine `main` state `entry` cast expression is not proven from the source value; all target predicates must hold before policy qualification (unknown numeric bounds or unsupported non-integer membership require an explicit proof)
 fail/expressions/cast_struct_to_number_rejected rejected 6ms expected
@@ -465,8 +468,8 @@ fail/expressions/scalar_into_data_field_rejected rejected 4ms expected
 	machine `Main::main` state `main` assignment binds a numeric value into the `Inner` data place; a scalar value cannot fill a struct or enum slot
 fail/expressions/struct_operator_undeclared_rejected rejected 8ms expected
 	machine `Main::main` state `main` applies `Add` to a `P` value, but no such operator is declared for these operand types; declare a matching token-bearing machine or select its declared trait meaning
-fail/expressions/token_bound_machine_duplicate_shape_rejected rejected 0ms expected
-	`Wrapped::plus` binds the fixed operator token `+` already bound by `Wrapped::add` for the same owner and operand shape (Wrapped#124, Wrapped#124); a second spelling needs a distinct operand shape or a separate owner
+fail/expressions/token_bound_machine_duplicate_shape_rejected rejected 49ms expected
+	`Wrapped::plus` binds the fixed operator token `+` already bound by `Wrapped::add` for the same owner and operand shape (Wrapped#130, Wrapped#130); a second spelling needs a distinct operand shape or a separate owner
 fail/expressions/token_bound_machine_foreign_family_rejected rejected 0ms expected
 	`Wrapped::add` binds the fixed operator token `+` but no operand names its semantic home `Wrapped` (u8#7, u8#7); a closed family's direct token bindings belong to the owner of a participating operand
 fail/float/exclusive_float_range_endpoint_rejected rejected 1ms expected
@@ -569,8 +572,8 @@ fail/operators/operand_requires_invalidated rejected 104ms expected
 	cannot prove requires contract for call equal from compare: value >= 0 (needs fact `right >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/operators/root_operator_alpha_equivalent_generic_duplicate rejected 0ms expected
 	duplicate operator declaration `Slice::index`
-fail/operators/selected_crash_invocation rejected 0ms expected
-	selected operator `Float::equal` in `compare` has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/operators/selected_crash_invocation rejected 266ms expected
+	call from `compare` to `Float::equal` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/ownership/assign_immutable_parameter rejected 1ms expected
 	machine `Main::main` state `overwrite` assignment cannot write `input_value` because it is not mutable in this state (if `input_value` is undeclared -- a typo -- no such field or local exists)
 fail/ownership/borrowed_storage_boundary_call rejected 1ms expected
@@ -680,8 +683,8 @@ fail/proofs/proof_integer_zero_divisor rejected 1ms expected
 	cannot prove ensures contract for exit from undefined_quotient at statement 0: embed(7) / embed(divisor) == embed(7) / embed(divisor)
 fail/proofs/proposition_relation_inherited_law_rejected rejected 1ms expected
 	machine `related_reflexive` satisfies `Reflexive::reflexive` but proves no ensures matching proposition law `proposition:fact:related(value,value)` after trait-family substitution
-fail/proofs/quotient_congruence_substituted_rejected rejected 3ms expected
-	`Quotient::lift` has compiler-derived direct-terminal relations RA=[0:equivalent] and RR=equivalent plus exact representative telescope F#196(Representative)->Representative plus checked unconditional-termination=machine#130:state#196 plus checked pure representative effect summary plus exact theorem#128:state#189(Representative, Representative)[static-bindings:0] plus expected exact theorem-schema=[parameters:2, relations:1, legality:2, applications:2, conclusion:1] (verification failed: the selected theorem's requires fact count does not exactly match all relation and representative-legality premises) plus checked theorem termination summary plus checked pure theorem effect summary plus checked crash-free theorem routes plus exact forward-transport#132:state#201(Representative, Representative)[static-bindings:0] plus transport-schema=[parameters:2, public-Q:2, representative-P:2] plus checked forward-transport termination summary plus checked pure forward-transport effect summary plus checked crash-free forward-transport routes plus exact direct-lift-runtime=[0] plus exact Q=[dependent:1, fixed:0] plus exact P=[dependent:1, fixed:0] (canonical Terminal correspondence unavailable: the complete correspondence certificate is absent) and complete transition-free single-state normal-result coverage through the exact result root, but executable quotient operations are not admitted until complete operation/static correspondence, exact selected theorem schema verification, general precondition implication and adapted lift arguments, fixed representative call obligations, canonical Terminal correspondence are independently checked
+fail/proofs/quotient_congruence_substituted_rejected rejected 240ms expected
+	`Quotient::lift` has compiler-derived direct-terminal relations RA=[0:equivalent] and RR=equivalent plus exact representative telescope F#599(Representative)->Representative plus checked unconditional-termination=machine#187:state#599 plus checked pure representative effect summary plus exact theorem#185:state#592(Representative, Representative)[static-bindings:0] plus expected exact theorem-schema=[parameters:2, relations:1, legality:2, applications:2, conclusion:1] (verification failed: the selected theorem's requires fact count does not exactly match all relation and representative-legality premises) plus checked theorem termination summary plus checked pure theorem effect summary plus checked crash-free theorem routes plus exact forward-transport#189:state#604(Representative, Representative)[static-bindings:0] plus transport-schema=[parameters:2, public-Q:2, representative-P:2] plus checked forward-transport termination summary plus checked pure forward-transport effect summary plus checked crash-free forward-transport routes plus exact direct-lift-runtime=[0] plus exact Q=[dependent:1, fixed:0] plus exact P=[dependent:1, fixed:0] (canonical Terminal correspondence unavailable: the complete correspondence certificate is absent) and complete transition-free single-state normal-result coverage through the exact result root, but executable quotient operations are not admitted until complete operation/static correspondence, exact selected theorem schema verification, general precondition implication and adapted lift arguments, fixed representative call obligations, canonical Terminal correspondence are independently checked
 fail/proofs/quotient_define_transport_role_rejected rejected 1ms expected
 	`Quotient::define` requires exactly `F, Congruence`; forward transport is not a `define` role
 fail/proofs/quotient_lift_congruence_missing_rejected rejected 1ms expected
@@ -707,8 +710,8 @@ fail/proofs/quotient_theorem_boundary_rejected rejected 2ms expected
 	`Quotient::define` retains its exact representative operation and selected theorem machine application, but its direct-terminal relation plan is unresolved (the selected theorem must be one bodyful checked machine; boundary, accepted, and external proof sources cannot license quotient substitution); executable quotient operations are not admitted
 fail/proofs/quotient_theorem_result_bearing_rejected rejected 2ms expected
 	`Quotient::define` retains its exact representative operation and selected theorem machine application, but its direct-terminal relation plan is unresolved (the selected theorem must return Unit; a result-bearing machine is not proof-static authority); executable quotient operations are not admitted
-fail/proofs/quotient_transport_roles_reversed_rejected rejected 2ms expected
-	`Quotient::lift` has compiler-derived direct-terminal relations RA=[0:equivalent] and RR=equivalent plus exact representative telescope F#196(Representative)->Representative plus checked unconditional-termination=machine#130:state#196 plus checked pure representative effect summary plus exact theorem#132:state#201(Representative, Representative)[static-bindings:0] plus expected exact theorem-schema=[parameters:2, relations:1, legality:2, applications:2, conclusion:1] (verification failed: the selected theorem's requires fact count does not exactly match all relation and representative-legality premises) plus checked theorem termination summary plus checked pure theorem effect summary plus checked crash-free theorem routes plus exact forward-transport#131:state#198(Representative, Representative)[static-bindings:0] plus transport-schema verification failed: the selected transport theorem's requires fact count does not exactly match the complete ordered public-Q roster for both representative sides plus checked forward-transport termination summary plus checked pure forward-transport effect summary plus checked crash-free forward-transport routes plus exact direct-lift-runtime=[0] plus exact Q=[dependent:1, fixed:0] plus exact P=[dependent:1, fixed:0] (canonical Terminal correspondence unavailable: the complete correspondence certificate is absent) and complete transition-free single-state normal-result coverage through the exact result root, but executable quotient operations are not admitted until complete operation/static correspondence, exact selected theorem schema verification, exact selected forward-transport schema verification, general precondition implication and adapted lift arguments, fixed representative call obligations, canonical Terminal correspondence are independently checked
+fail/proofs/quotient_transport_roles_reversed_rejected rejected 240ms expected
+	`Quotient::lift` has compiler-derived direct-terminal relations RA=[0:equivalent] and RR=equivalent plus exact representative telescope F#599(Representative)->Representative plus checked unconditional-termination=machine#187:state#599 plus checked pure representative effect summary plus exact theorem#189:state#604(Representative, Representative)[static-bindings:0] plus expected exact theorem-schema=[parameters:2, relations:1, legality:2, applications:2, conclusion:1] (verification failed: the selected theorem's requires fact count does not exactly match all relation and representative-legality premises) plus checked theorem termination summary plus checked pure theorem effect summary plus checked crash-free theorem routes plus exact forward-transport#188:state#601(Representative, Representative)[static-bindings:0] plus transport-schema verification failed: the selected transport theorem's requires fact count does not exactly match the complete ordered public-Q roster for both representative sides plus checked forward-transport termination summary plus checked pure forward-transport effect summary plus checked crash-free forward-transport routes plus exact direct-lift-runtime=[0] plus exact Q=[dependent:1, fixed:0] plus exact P=[dependent:1, fixed:0] (canonical Terminal correspondence unavailable: the complete correspondence certificate is absent) and complete transition-free single-state normal-result coverage through the exact result root, but executable quotient operations are not admitted until complete operation/static correspondence, exact selected theorem schema verification, exact selected forward-transport schema verification, general precondition implication and adapted lift arguments, fixed representative call obligations, canonical Terminal correspondence are independently checked
 fail/proofs/ranked_accumulator_guarantee_wrong_step_twin rejected 24ms expected
 	machine `descend` cannot prove ensures contract proof fact `result <= previous` on the transition arm guarded by `n > 0 == true`
 fail/proofs/remainder_range_false_twin rejected 1ms expected
@@ -751,9 +754,10 @@ fail/range/guarded_copy_stale_after_write rejected 11ms expected
 	cannot prove requires contract for call store from Main::main: w >= 0 && w <= 9 (needs fact `v >= 0 && v <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/range/guarded_runtime_index_collection_write rejected 12ms expected
 	cannot prove requires contract for call bump from Main::main: u < 16 (needs fact `v < 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
-fail/range/indexed_field_range_runtime_write_rejected rejected 8ms expected
+fail/range/indexed_field_range_runtime_write_rejected rejected 181ms expected
 	data `Cell`'s default domain is still FALSE at a call: the invariant window opened on `self.cells[*]` must close first -- restore the `where` facts before this consumption point (ch11)
 	data `Cell`'s default domain is still FALSE at state exit: the invariant window opened on `self.cells[*]` must close first -- restore the `where` facts before this consumption point (ch11)
+	machine `Main::main` state `main` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/ranges/index_signed_guard_below_zero rejected 14ms expected
 	cannot prove index `self.j` is non-negative (>= 0)
 fail/ranges/loop_increment_index_unbounded rejected 8ms expected
@@ -873,9 +877,8 @@ fail/termination/proof_joint_machine_cycle_nondecreasing rejected 1ms expected
 	proof-only machine call cycle: `left`, `right` -- the ranking subject does not structurally decrease on every exact edge; every member must declare `terminates by <param>;`, and every edge must pass a case-payload subterm of the caller's ranking subject
 fail/termination/proof_joint_machine_cycle_unmeasured rejected 1ms expected
 	proof-only machine call cycle: `left`, `right` -- unmeasured proof machine in component; every member must declare `terminates by <param>;`, and every edge must pass a case-payload subterm of the caller's ranking subject
-fail/termination/rank_range_call_component_prefix_write rejected 1ms expected
+fail/termination/rank_range_call_component_prefix_write rejected 178ms expected
 	machine call cycle: `Main::scan_a`, `Main::scan_b` -- a write, call, or alias invalidates the entry-relative ranking; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
-	machine `Main::scan_a` state `scan_b` argument `index` stores a value not provably within its declared range: the range is a store-enforced invariant every read trusts (indexes, exact arithmetic), so the stored value must be proven to honor it. Narrow the value with a dominating guard, a dependent bound, or a requires coupling -- or widen/remove the range
 fail/termination/rank_range_call_computed_copy_unproven rejected 2ms expected
 	machine call cycle: `Main::count`, `Main::step` -- rank range membership, pinned endpoints, or nonincrease is unproven at a call site; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 fail/termination/rank_range_declared_step_unbounded rejected 5ms expected

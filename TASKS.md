@@ -703,27 +703,72 @@ the complete product bar; focused successes below do not establish that baseline
   Prioritize the actual operation named by `omitted at local construction`,
   not the downstream `rejoins 0 Terminal attachment identities` symptom.
 
-  The fail tier is status-clean: all 435 fixtures reject and none records
-  `checked`. What the gate reported on a clean checkout was 25 moves against
-  the golden, and they are not one problem. Three were `fail/arithmetic` rows,
-  now attributed and re-pinned (below), so re-measure before quoting the
-  count. Twenty-two were diagnostic text: `fail/arithmetic/narrowing_signedness_rejected`, for one, still
-  rejects and still carries its fragment, but the message is now
-  **IMPLICIT-STORE-CONVERSION**'s rather than the narrowing-proof rule's.
-  Others gain a diagnostic from bundled library code rather than their own --
-  `fail/modules/ambiguous_imported_data` now also reports
-  `LinuxArm64::extent_shape` storing outside a declared range. Attribute each
-  row to the lane that moved it before re-pinning; a bulk re-record would pin
-  whatever those lanes broke as expected.
+  The fail tier is measured, not estimated: 438 fixtures, every one rejects,
+  every one carries an `expected.txt`, and three reject without their own
+  fragment. The earlier counts on this row -- 435 fixtures, 41 without an
+  expected file, 25 moves against the golden -- are retired. Re-measure with
+  `python3 tools/corpus_gate.py --filter fail/`; it is roughly five minutes
+  once the runner is built.
 
-  Six fail fixtures reject for a reason other than their own subject, so
-  they pin nothing. `fail/build/uefi_program_entry_wrong_calling_policy`
-  declares its own `UefiApplication` beside the one its
-  `use omega::language::std::calling;` pulls in from
-  `std/targets/uefi_x86_64/entry.omg`, and refuses at
-  "requires exactly one loaded `UefiApplication` boundary schema, but found
-  2" before any policy is weighed; whether ambiguity or the policy is the
-  right answer there is the entry-slot owner's call.
+  Ten rows had moved, all attributed, and nine are re-pinned. The tenth is
+  held back deliberately, and the list is what it is worth knowing:
+  - **Redundant conversion messages.** `calls/terminal_return_type_mismatch\
+_rejected` and `expressions/bool_numeric_operand_mixing_rejected` each gained
+    "implicitly converts `bool` to `i32`" beside the boolean-store rule that
+    already refused them. The advice is not wrong -- boolean-to-integer
+    conversion is a landed leg, so `b as i32` really does compile -- it is
+    the same duplication **IMPLICIT-STORE-CONVERSION** produces against the
+    suffix rule and against domain weakening. Four fixtures now report one
+    authored mistake twice.
+  - **Arena indices printed to authors.**
+    `expressions/token_bound_machine_duplicate_shape_rejected` moved only
+    `Wrapped#124` to `Wrapped#130`, and the two `proofs/quotient_*_rejected`
+    rows moved only `F#196`/`machine#130:state#196`/`theorem#128:state#189`
+    to `F#599`/`machine#187:state#599`/`theorem#185:state#592`. Nothing about
+    those programs changed. These messages print raw arena indices, which
+    carry no meaning to an author and move whenever anything upstream
+    allocates differently, so they will churn this golden again. Worth
+    replacing with stable identity.
+  - **A prover gain.** `termination/rank_range_call_component_prefix_write`
+    LOST its second diagnostic: `self.scan_b(index + 1, limit)` is now proven
+    within `[0..=4]` from `index < limit` and `limit <= 4`. Its own subject
+    still leads.
+  - **A related message gained.**
+    `range/indexed_field_range_runtime_write_rejected` also reports the
+    `where`-facts store, which is its own subject restated.
+  - **The token migration reached the crash lane.**
+    `operators/selected_crash_invocation` moved from
+    `checked_operators()` to `checked_calls()` in
+    `04_/src/checks/crashes.rs`, so "selected operator `Float::equal` in
+    `compare`" became "call from `compare` to `Float::equal` at statement 0
+    call 0". It still carries its fragment, but the call lane's message
+    spells an internal coordinate where the operator lane named the subject.
+    **OPERATOR-BOUNDARY-CALLS** owns the routing; the message is this row's.
+  - **Held back: `modules/ambiguous_imported_data`.** It gained FIVE
+    diagnostics from bundled library code -- `LinuxArm64::extent_shape`,
+    `LinuxX86_64`, `MacosArm64`, `MacosX64`, `WindowsX86_64` -- each saying
+    `field_range`'s `first_field` is not provably within `[0..=254]`.
+    Recording that would pin std failing its own obligation as expected. The
+    guard is right there (`record_bounded` transitions on
+    `first_field < 255`), and a standalone reduction of exactly that shape --
+    a case-destructured `u64` threaded through two states, guarded, then
+    passed to a `[0..=254]` parameter -- CHECKS CLEAN. So the trigger is the
+    closure, not the code, and this is the only fixture in the tier that
+    shows it: it is also the only one with two sibling packages beside a
+    resolution failure. Reduce from the fixture down, not from a small
+    program up.
+
+  THREE fail fixtures reject for a reason other than their own subject, so
+  they pin nothing: `build/uefi_program_entry_wrong_calling_policy` (its own
+  paragraph below has the measurement),
+  `calls/value_call_param_effect_arm_rejected` and
+  `providers/checked_boundary_operator_const_application_unselected`. The
+  other three this row used to list --
+  `operators/operand_requires_invalidated`,
+  `slices/index_operator_contract_unproven` and
+  `slices/subslice_range_operator_contract_unproven` -- now reject carrying
+  their own fragments and are gone from the list; the phase-order reading
+  below stays only for the one that remains.
   `fail/calls/value_call_param_effect_arm_rejected` expects "composed scalar
   call structural actual lost its authored position" from checking and is
   instead refused at realization by Terminal validation
@@ -787,12 +832,12 @@ the complete product bar; focused successes below do not establish that baseline
   four repin. That belongs with **OPERATOR-BOUNDARY-CALLS**; the
   ranges-seam bounds diagnostic has no other customer either way.
 
-  All six are pinned `unexpected` in the golden rather than hidden.
-  `fail/ranges/index_signed_guard_below_zero` and
-  `fail/ranges/loop_increment_index_unbounded` are no longer among them: both
-  now reject with their own expected fragment, so the
-  **IMPLICIT-STORE-CONVERSION** `__hoist_0` masking they were recorded under
-  is finished.
+  All three are visible in the golden rather than hidden -- two pinned
+  `unexpected`, and `value_call_param_effect_arm_rejected` newly so: the
+  golden used to record it `checked`, because realization was not reached.
+  It now records "native-artifact Terminal production failed:
+  Lowering(InvalidTerminalModule(InvalidBlockStructuralParameter { block:
+  BlockId(6), place: PlaceId(7) }))", which is the gate named above.
 
   When an item's acceptance names a pass fixture, check that the fixture's
   entry runs the thing. 103 of 704 pass fixtures end in an empty
@@ -945,12 +990,13 @@ the complete product bar; focused successes below do not establish that baseline
   package or requirement identity rather than by bare name. That is the
   entry-slot owner's call, so the fixture stays pinned `unexpected` rather
   than repinned onto the duplicate, which would cement one answer to it.
-  41 of 1258 fail fixtures carry no `expected.txt`, so the gate records that
-  they reject without being able to say whether the reason is theirs. The
-  `fail/arithmetic` group is pinned; the rest of the groups are not. Pin from a
-  recorded diagnostic, but read each one first: three of the twenty-two
-  arithmetic fixtures were refused for something other than their subject and
-  pinning them blind would have cemented it.
+
+  Pinning the tier is finished: all 438 fail fixtures carry an
+  `expected.txt`, so the gate can say for every one of them whether the
+  reason is its own. What that exposed, when the `fail/arithmetic` group was
+  read rather than pinned blind, is below -- three of its fixtures were
+  refused for something other than their subject, and pinning them blind
+  would have cemented it.
 
   All three are repaired. `exact_overflow_value_call_hint` and
   `wrong_struct_type_argument_rejected` reach their own refusals, and
