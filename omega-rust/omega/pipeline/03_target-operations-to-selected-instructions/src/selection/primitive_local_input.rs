@@ -91,19 +91,17 @@ pub(super) fn readable(
     }
     source.structural.as_ref().is_some_and(|signature| {
         signature.entry_claims.is_empty()
-            && signature.parameters.iter().any(|parameter| {
-                parameter.semantic.place == place
-                    && matches!(
-                        parameter.semantic.access,
-                        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                    )
-                    && parameter.semantic.multiplicity != StructuralMultiplicity::Linear
+            && borrowed_parameter(source, place).is_some_and(|parameter| {
+                matches!(
+                    parameter.access,
+                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                ) && parameter.multiplicity != StructuralMultiplicity::Linear
                     && (!path.is_empty()
-                        || parameter.semantic.multiplicity == StructuralMultiplicity::Unrestricted)
-                    && parameter.semantic.qualifications.is_empty()
-                    && parameter.semantic.projected_qualifications.is_empty()
+                        || parameter.multiplicity == StructuralMultiplicity::Unrestricted)
+                    && parameter.qualifications.is_empty()
+                    && parameter.projected_qualifications.is_empty()
                     && crate::structural_inputs::structural_reference_input::primitive_geometry(
-                        parameter.semantic.structural_type,
+                        parameter.structural_type,
                         path,
                         scalar,
                         &signature.structural_types,
@@ -111,6 +109,22 @@ pub(super) fn readable(
                     .is_some()
             })
     })
+}
+
+/// Entry referents and state address joins retain the same declared storage
+/// type. The join lookup also rejoins its exact block/place declaration.
+fn borrowed_parameter(
+    source: &LegalizedScalarFunction,
+    place: PlaceId,
+) -> Option<&terminal_psi::StructuralParameterDeclaration> {
+    source
+        .structural
+        .as_ref()?
+        .parameters
+        .iter()
+        .find(|parameter| parameter.semantic.place == place)
+        .map(|parameter| &parameter.semantic)
+        .or_else(|| super::address_join_input::join(source, place).map(|(_, parameter)| parameter))
 }
 
 /// Exact field geometry is independent of whether its home came from an owned
@@ -136,13 +150,10 @@ pub(super) fn read_geometry(
                 return indices.is_empty().then_some((*place, 0));
             }
             let signature = source.structural.as_ref()?;
-            let parameter = signature
-                .parameters
-                .iter()
-                .find(|parameter| parameter.semantic.place == *place)?;
+            let parameter = borrowed_parameter(source, *place)?;
             let (offset, _, elements) =
                 crate::structural_inputs::structural_reference_input::primitive_geometry(
-                    parameter.semantic.structural_type,
+                    parameter.structural_type,
                     path,
                     scalar,
                     &signature.structural_types,

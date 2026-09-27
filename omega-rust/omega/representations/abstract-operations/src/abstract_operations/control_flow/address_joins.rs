@@ -124,9 +124,10 @@ pub fn referent_type<'a>(
     Some(current.id)
 }
 
-/// A primitive scalar, or a record built only from scalar leaves and plain
-/// records. `active` holds the records being walked, so a malformed recursive
-/// catalog fails closed instead of looping.
+/// A primitive scalar, or an aggregate built only from owned scalar storage.
+/// Fixed arrays retain their backing storage exactly like nested records;
+/// they do not introduce a loan or descriptor into the borrowed referent.
+/// `active` rejects malformed recursive catalogs, including array cycles.
 fn is_plain_referent<'a>(
     identity: StructuralTypeId,
     lookup: impl Fn(StructuralTypeId) -> Option<&'a StructuralTypeDeclaration> + Copy,
@@ -149,7 +150,11 @@ fn is_plain_referent<'a>(
                     | StructuralFieldType::IeeeFloat(_) => true,
                     StructuralFieldType::Structural(child) => {
                         lookup(*child).is_some_and(|child| {
-                            matches!(child.shape, StructuralTypeShape::Record { .. })
+                            matches!(
+                                child.shape,
+                                StructuralTypeShape::Record { .. }
+                                    | StructuralTypeShape::FixedArray { .. }
+                            )
                         }) && is_plain_referent(*child, lookup, active)
                     }
                     StructuralFieldType::ByteSequence(_) | StructuralFieldType::Erased { .. } => {
@@ -159,10 +164,15 @@ fn is_plain_referent<'a>(
             active.pop();
             plain
         }
+        StructuralTypeShape::FixedArray { element, .. } => {
+            active.push(identity);
+            let plain = is_plain_referent(*element, lookup, active);
+            active.pop();
+            plain
+        }
         StructuralTypeShape::Reference { .. }
         | StructuralTypeShape::ByteSequence(_)
         | StructuralTypeShape::ElementView { .. }
-        | StructuralTypeShape::FixedArray { .. }
         | StructuralTypeShape::Sum { .. }
         | StructuralTypeShape::Mixed { .. } => false,
     }

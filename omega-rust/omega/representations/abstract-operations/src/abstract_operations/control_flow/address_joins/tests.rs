@@ -186,3 +186,57 @@ fn referent_types_resolve_record_leaves_to_their_canonical_declaration() {
         None
     );
 }
+
+#[test]
+fn array_referents_retain_nested_storage_but_cannot_hide_loans_or_cycles() {
+    let mut types = catalog();
+    types.extend([
+        declaration(
+            8,
+            StructuralTypeShape::FixedArray {
+                element: id(3),
+                length: 2,
+            },
+        ),
+        declaration(
+            9,
+            StructuralTypeShape::Record {
+                fields: vec![field(6, StructuralFieldType::Structural(id(8)))],
+            },
+        ),
+        declaration(
+            10,
+            StructuralTypeShape::FixedArray {
+                element: id(4),
+                length: 2,
+            },
+        ),
+        declaration(
+            11,
+            StructuralTypeShape::Record {
+                fields: vec![field(7, StructuralFieldType::Structural(id(10)))],
+            },
+        ),
+        declaration(
+            12,
+            StructuralTypeShape::FixedArray {
+                element: id(12),
+                length: 2,
+            },
+        ),
+        declaration(
+            13,
+            StructuralTypeShape::Record {
+                fields: vec![field(8, StructuralFieldType::Structural(id(12)))],
+            },
+        ),
+    ]);
+    for access in [
+        StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow,
+    ] {
+        assert!(is_address_join(&parameter(9, access), &types));
+        assert!(!is_address_join(&parameter(11, access), &types));
+        assert!(!is_address_join(&parameter(13, access), &types));
+    }
+}

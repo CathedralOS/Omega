@@ -232,6 +232,7 @@ fn scalar_primitive_store_target_rejects_source_and_return_substitutions() {
             "access",
             "referent",
             "placement",
+            "block storage",
             "source value",
             "source type",
             "store order",
@@ -246,11 +247,12 @@ fn scalar_primitive_store_target_rejects_source_and_return_substitutions() {
         ] {
             let mut changed = target.clone();
             match mutation {
-                "access" | "referent" | "placement" | "source value" | "source type" => {
+                "access" | "referent" | "placement" | "block storage" | "source value"
+                | "source type" => {
                     let TargetUnitOperation::WriteOnlyPrimitiveStore {
                         destination,
                         destination_type,
-                        destination_placement,
+                        destination_storage,
                         source: stored,
                         ..
                     } = store(&mut changed)
@@ -263,7 +265,22 @@ fn scalar_primitive_store_target_rejects_source_and_return_substitutions() {
                             destination_type.shape =
                                 StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean)
                         }
-                        "placement" => destination_placement.shape.byte_size = 4,
+                        "placement" => {
+                            let target_operations::TargetStructuralArgumentSource::Placement(
+                                placement,
+                            ) = destination_storage
+                            else {
+                                panic!("entry placement");
+                            };
+                            placement.shape.byte_size = 4;
+                        }
+                        "block storage" => {
+                            *destination_storage =
+                                target_operations::TargetStructuralArgumentSource::BlockParameter {
+                                    block: source.functions[0].entry,
+                                    place: destination.place,
+                                };
+                        }
                         "source value" | "source type" => match stored {
                             TargetUnitWriteOnlyPrimitiveStoreSource::Parameter {
                                 source_value,

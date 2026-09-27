@@ -71,6 +71,18 @@ pub(super) fn validate_primitive_scalar_read(
         let root = optimized
             .structural_parameters
             .iter()
+            .chain(
+                optimized
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.structural_parameters)
+                    .filter(|parameter| {
+                        abstract_operations::control_flow::address_joins::is_address_join_in(
+                            parameter,
+                            &unit.structural_types,
+                        )
+                    }),
+            )
             .find(|parameter| parameter.place == *expected)
             .ok_or(invalid.clone())?;
         let (_, _, elements) =

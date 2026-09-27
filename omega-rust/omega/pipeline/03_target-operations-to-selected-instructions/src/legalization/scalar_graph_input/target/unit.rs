@@ -443,8 +443,21 @@ pub(super) fn validate_operation(
             let elements = if terminal_psi::is_static_structural_path(expected_path) {
                 Vec::new()
             } else {
-                let root = parameters
+                let root = optimized
+                    .structural_parameters
                     .iter()
+                    .chain(
+                        optimized
+                            .blocks
+                            .iter()
+                            .flat_map(|block| &block.structural_parameters)
+                            .filter(|parameter| {
+                                abstract_operations::control_flow::address_joins::is_address_join_in(
+                                    parameter,
+                                    &unit.structural_types,
+                                )
+                            }),
+                    )
                     .find(|parameter| parameter.place == *expected_source)
                     .ok_or(LegalizationError::custody())?;
                 crate::structural_inputs::structural_reference_input::primitive_geometry(

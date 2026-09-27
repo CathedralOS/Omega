@@ -74,10 +74,7 @@ pub(super) fn emit(
             .parameters
             .iter()
             .any(|parameter| parameter.semantic == *destination)
-            || matches!(
-                row.kind,
-                LegalizedScalarInstructionKind::StructuralScalarFieldStore { .. }
-            ) && destination.access == StructuralAccess::MutableBorrow
+            || destination.access == StructuralAccess::MutableBorrow
                 && crate::selection::address_join_input::join(source, destination.place)
                     .is_some_and(|(_, parameter)| parameter == destination))
         || !matches!(

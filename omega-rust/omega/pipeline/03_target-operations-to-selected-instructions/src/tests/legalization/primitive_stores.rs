@@ -177,13 +177,13 @@ fn indexed_primitive_storage_retains_root_path_footprint_and_access() {
                     environment.constraints(),
                 )
                 .unwrap();
-                for mutation in 0..5 {
+                for mutation in 0..6 {
                     let mut changed = target.clone();
                     let TargetUnitOperation::WriteOnlyPrimitiveStore {
                         destination,
                         path,
                         destination_type,
-                        destination_placement,
+                        destination_storage,
                         ..
                     } = target_store(&mut changed)
                     else {
@@ -194,7 +194,22 @@ fn indexed_primitive_storage_retains_root_path_footprint_and_access() {
                         1 => path[2] = Segment::FixedIndex(3),
                         2 => destination.place = PlaceId::new(99).unwrap(),
                         3 => destination_type.id = leaf,
-                        _ => destination_placement.shape.byte_size = width,
+                        4 => {
+                            let target_operations::TargetStructuralArgumentSource::Placement(
+                                placement,
+                            ) = destination_storage
+                            else {
+                                panic!("entry placement");
+                            };
+                            placement.shape.byte_size = width;
+                        }
+                        _ => {
+                            *destination_storage =
+                                target_operations::TargetStructuralArgumentSource::BlockParameter {
+                                    block: source.functions[0].entry,
+                                    place: destination.place,
+                                };
+                        }
                     }
                     reject_target(&source, &changed, &unit, legalized.plan());
                 }

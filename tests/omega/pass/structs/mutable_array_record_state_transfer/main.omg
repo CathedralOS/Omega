@@ -1,0 +1,37 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Cell { values: [i32; 2]; value: i32; }
+data Worker {}
+data Main { console: Binding<Console>; cell: Cell; }
+
+// State transfer must retain the caller's storage, including its writes.
+machine Worker::write(cell: &mut Cell) -> i32 {
+    transition { _ -> step(cell, 0) }
+    state step(cell: &mut Cell, position: u64) -> i32
+    requires position <= 2;
+    {
+        transition position < 2 {
+            true -> store(cell, position)
+            false -> finish(cell)
+        }
+    }
+    state store(cell: &mut Cell, position: u64) -> i32
+    requires position < 2;
+    {
+        cell.values[position] = 70;
+        cell.value = cell.values[position];
+        transition { _ -> step(cell, position + 1) }
+    }
+    state finish(cell: &mut Cell) -> i32 { cell.value }
+}
+
+machine Main::main(&mut self) reaches Console {
+    let result: i32 = Worker::write(&mut self.cell);
+    transition self.cell.values[0] == 70 && self.cell.values[1] == 70 {
+        true -> success()
+        false -> failure()
+    }
+    state success(&mut self) { self.console.exit_process(self.cell.value); }
+    state failure(&mut self) { self.console.exit_process(71); }
+}
