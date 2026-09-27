@@ -11,6 +11,8 @@ use typed_trees::{
     types::{PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode},
 };
 
+mod guarded_returns;
+
 impl ExitScalars<'_, '_> {
     pub(super) fn proves_bounds(&self, expression: ExpressionHandle) -> bool {
         has_builtin_operators(self.program, &self.facts.operators, expression)
@@ -21,6 +23,7 @@ impl ExitScalars<'_, '_> {
                 expression,
             )
             && (self.result_bounds_comparison(expression) == Some(true)
+                || self.guarded_return_bounds_comparison(expression) == Some(true)
                 || self.current_bounds_comparison(expression) == Some(true))
     }
 
