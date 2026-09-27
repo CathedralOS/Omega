@@ -1,0 +1,75 @@
+// A carrier `.len` reaches the arithmetic walk with NO carrier of its own, so a
+// store that mismatches it escapes the store-conversion check and surfaces as a
+// Terminal omission instead. Reduced from `samples/cli/text/text_padding`.
+//
+//   source                 -> u64 destination   -> i32 destination
+//   ordinary `u64` field      checks               IMPLICIT-STORE-CONVERSION
+//   carrier `.len`            checks               OMITTED (this fixture)
+//
+// `let total: u64 = self.message.len;` checks, and so does `.len + 1` into a
+// `u64`. The type layer already calls a length `u64`; only the proof layer
+// disagrees, and only the mismatch shows it.
+//
+// The contract is not silent. `wiki/spec/language/counts_and_addresses.md`
+// gives Count as "a nonnegative magnitude. General lengths, sizes, and
+// compiler-facing policy geometry use `u64`", and says an admitted
+// integer-width family "would not change `.len` ... contracts". So a length IS
+// a `u64` carrier and this divergence is an implementation gap, not an open
+// design question.
+//
+// Both halves of the gap live in
+// `psi/checking/.../arithmetic_domains/expression_analysis/folded_values.rs`:
+//
+//   - a fixed array with a literal length folds to a POINT interval built with
+//     `..NEUTRAL`, which leaves `primitive: None`
+//   - a length read off a CONSTRAINED carrier (`[u8; 32] in Utf8`) is refused
+//     outright -- deliberately, since a live length differs from capacity --
+//     and falls through to the place analysis, which returns NEUTRAL because a
+//     `.len` member is not a place
+//
+// Either way the source primitive is `None`, `check_narrowing_assignment`
+// returns before its mismatch arm, and a carrier-less source "keeps landing by
+// range": a `[u8; 32]` length fits `i32` on range, nothing rejects it, and the
+// Terminal plan has no row to lower it with. Stamping `u64` on the fold, and
+// giving the constrained carrier `[0, capacity]` with the same carrier, closes
+// both. That file is held by another lane, so the repair is named rather than
+// made here.
+//
+// One caution for whoever makes it: the same `Analysis` feeds arithmetic, so
+// stamping a DOMAIN alongside the carrier would put eight green
+// `tests/omega/pass/{slices,operators,dependent}` fixtures that do arithmetic
+// on a `.len` under overflow proof. The carrier alone is what this store needs;
+// leave `domain: None`.
+//
+// `samples/cli/text/text_padding` asserts in its own header that carrier `.len`
+// "resolves uniformly in every value position (guards, host-call args, field
+// writes, arithmetic, let bindings)". Measured, one of those five holds:
+//
+//   guard, uncast (`self.message.len > 5`)          checks
+//   field write, uncast                             OMITTED
+//   let binding, uncast                             OMITTED (initializer phase)
+//   arithmetic, uncast (`16 - self.message.len`)    OMITTED
+//   host-call argument, even CAST                   OMITTED (boundary claim
+//                                                   transfers -- a different
+//                                                   gap, not this one)
+//
+// Casting at the read (`self.message.len as i32 in Saturating`) or binding it
+// to a `u64` local first both check, which is `text_padding`'s own repair.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+domain [u8; 32]::Utf8
+requires
+    valid_utf8(self);
+
+data Main {
+    console: Binding<Console>;
+    message: [u8; 32] in Utf8;
+    width: i32;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.message = "ALERT temp";
+    self.width = self.message.len;
+    self.console.exit_process(self.width);
+}
