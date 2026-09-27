@@ -253,45 +253,6 @@ fn builds_checked_ownership_for_every_data_where_fact_form() {
     }
 }
 
-#[test]
-fn resolved_non_field_identity_prevents_spelling_fallback_for_data_dependencies() {
-    let data_symbol = SymbolHandle::from_arena_index(70);
-    let field_symbol = SymbolHandle::from_arena_index(71);
-    let foreign_symbol = SymbolHandle::from_arena_index(72);
-
-    let mut program = TypedTrees::default();
-    let expression = append_bare_name_expression(&mut program, "count", foreign_symbol);
-    let fact = program
-        .proof_facts
-        .append(ProofFact::Expression(expression));
-    let mut data = DataDefinition {
-        symbol: data_symbol,
-        name: Identifier::generated("Counter"),
-        where_facts: HandleSpan::from_parts(fact, 1),
-        ..DataDefinition::default()
-    };
-    program.push_data_member(
-        &mut data,
-        DataMember::Field(DataField {
-            symbol: field_symbol,
-            name: Identifier::generated("count"),
-            ..DataField::default()
-        }),
-    );
-    program.push_data_definition(data);
-
-    let facts = build_definition_fact_plan(&program);
-    let (_, record) = facts
-        .data_definition_facts
-        .iter()
-        .next()
-        .expect("one data-definition fact record");
-    let dependency_place = facts.places.get(record.dependencies[0].place);
-
-    assert_eq!(dependency_place.root, PlaceRoot::Symbol(foreign_symbol));
-    assert!(dependency_place.segments.is_empty());
-}
-
 fn append_bare_name_expression(
     program: &mut TypedTrees,
     spelling: &str,

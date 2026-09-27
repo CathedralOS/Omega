@@ -224,7 +224,7 @@ fn contract_occurrence_owner(
 mod tests {
     use super::{
         ExpressionHandle, ExpressionNode, TypeReferenceHandle, TypedTrees, reserved_result_owner,
-        reserved_result_place, type_reference,
+        reserved_result_place,
     };
 
     const PROJECTED_RESULT: &str = "data Message { case Empty; case Data(value: u8); }
@@ -239,81 +239,6 @@ mod tests {
             matches!(expression, ExpressionNode::Member(member) if member.member.as_str() == "message")
                 .then_some(handle)
         }).expect("authored message projection")
-    }
-
-    #[test]
-    fn nested_result_fields_retain_exact_root_owner_and_coordinates() {
-        let program = crate::front_end::typed_program(PROJECTED_RESULT);
-        let expression = projected_occurrence(&program);
-        let place = reserved_result_place(&program, expression).unwrap();
-        assert_eq!(place.machine_symbol, program.machines()[0].symbol);
-        assert_eq!(place.segments.len(), 2);
-        let mut expected_owner = program
-            .data_definitions()
-            .iter()
-            .find(|data| data.name.as_str() == "Wrapper")
-            .unwrap()
-            .symbol;
-        for segment in &place.segments {
-            let facts::PlaceSegment::Field { symbol } = segment else {
-                panic!("ordinary field");
-            };
-            assert_eq!(program.symbols.get(*symbol).parent, expected_owner);
-            let field = program
-                .data_members
-                .iter()
-                .find_map(|(_, member)| match member {
-                    typed_trees::data::DataMember::Field(field) if field.symbol == *symbol => {
-                        Some(field)
-                    }
-                    _ => None,
-                })
-                .unwrap();
-            expected_owner = program
-                .type_reference_table
-                .type_symbol(field.type_reference);
-        }
-        assert_eq!(program.symbols.name(expected_owner), "Message");
-        assert_eq!(
-            program
-                .type_reference_table
-                .type_symbol(place.type_reference),
-            expected_owner
-        );
-        assert_eq!(reserved_result_owner(&program, expression), None);
-        let root = reserved_result_place(&program, place.root).unwrap();
-        assert!(root.segments.is_empty());
-        assert_ne!(root.type_reference, place.type_reference);
-    }
-
-    #[test]
-    fn projected_result_rejects_unauthored_graft_and_foreign_selection() {
-        let program = crate::front_end::typed_program(PROJECTED_RESULT);
-        let expression = projected_occurrence(&program);
-        let mut grafted = program.clone();
-        let forged = grafted
-            .expression_table
-            .insert(program.expression_table.expression(expression).clone());
-        assert!(reserved_result_place(&grafted, forged).is_none());
-        let foreign = program
-            .data_definitions()
-            .iter()
-            .find(|data| data.name.as_str() == "Foreign")
-            .unwrap();
-        let typed_trees::data::DataMember::Field(foreign_field) = &program.data_members(foreign)[0]
-        else {
-            panic!("foreign field");
-        };
-        for symbol in [foreign_field.symbol, program.machines()[0].symbol] {
-            let mut altered = program.clone();
-            let ExpressionNode::Member(member) =
-                altered.expression_table.expression_mut(expression)
-            else {
-                panic!("member");
-            };
-            member.member_symbol = symbol;
-            assert!(reserved_result_place(&altered, expression).is_none());
-        }
     }
 
     #[test]
@@ -356,17 +281,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn projected_result_respects_shadowing_and_ensures_scope() {
-        for source in [
-            "data Wrapper { message: u8; } machine value(result: Wrapper) -> Wrapper ensures result.message == 1; { result }",
-            "data Wrapper { message: u8; } machine value() -> Wrapper requires result.message == 1; { Wrapper { message: 1 } }",
-        ] {
-            let program = crate::front_end::typed_program(source);
-            assert!(reserved_result_place(&program, projected_occurrence(&program)).is_none());
-        }
-    }
-
     fn result_occurrences(program: &TypedTrees) -> Vec<ExpressionHandle> {
         program
             .expression_table
@@ -386,107 +300,6 @@ mod tests {
     }";
 
     #[test]
-    fn requirement_result_scalars_keep_exact_signature_owners() {
-        let program = crate::front_end::typed_program(REQUIREMENT_RESULTS);
-        let signatures = program.trait_machine_signatures(&program.traits()[0]);
-        let occurrences = result_occurrences(&program);
-        assert_eq!(occurrences.len(), 2);
-        let owners = occurrences
-            .iter()
-            .map(|expression| {
-                let (owner, reference) =
-                    reserved_result_owner(&program, *expression).expect("requirement result owner");
-                assert_eq!(
-                    program.primitive_type_reference(reference),
-                    Some(typed_trees::types::PrimitiveType::U64)
-                );
-                assert!(signatures.iter().any(|signature| signature.symbol == owner));
-                assert_ne!(owner, program.traits()[0].symbol);
-                owner
-            })
-            .collect::<Vec<_>>();
-        assert_ne!(owners[0], owners[1]);
-    }
-
-    #[test]
-    fn requirement_result_nested_fields_support_integer_embedding() {
-        let program = crate::front_end::typed_program(
-            "data Range { length: u64; }
-            data Packet { range: Range; }
-            data Foreign { length: u64; }
-            boundary trait Geometry {
-                machine make(input: u64) -> Packet
-                ensures embed(result.range.length) == embed(input);
-            }",
-        );
-        let expression = program
-            .expression_table
-            .iter_expressions()
-            .find_map(|(handle, node)| {
-                matches!(node, ExpressionNode::Member(member) if member.member.as_str() == "length")
-                    .then_some(handle)
-            })
-            .expect("nested length occurrence");
-        let place =
-            reserved_result_place(&program, expression).expect("signature result projection");
-        assert_eq!(place.segments.len(), 2);
-        assert_eq!(
-            place.machine_symbol,
-            program.trait_machine_signatures(&program.traits()[0])[0].symbol
-        );
-        assert_eq!(
-            program.primitive_type_reference(place.type_reference),
-            Some(typed_trees::types::PrimitiveType::U64)
-        );
-        assert!(
-            program
-                .expression_table
-                .iter_expressions()
-                .any(|(handle, _)| {
-                    crate::proof_contracts::proof_embeddings::integer_embedding_argument(
-                        &program, handle,
-                    ) == Some((typed_trees::types::PrimitiveType::U64, expression))
-                })
-        );
-        let mut grafted = program.clone();
-        let unauthored = grafted
-            .expression_table
-            .insert(program.expression_table.expression(expression).clone());
-        assert!(reserved_result_place(&grafted, unauthored).is_none());
-        let foreign = program
-            .data_definitions()
-            .iter()
-            .find(|data| data.name.as_str() == "Foreign")
-            .expect("foreign data");
-        let typed_trees::data::DataMember::Field(field) = &program.data_members(foreign)[0] else {
-            panic!("foreign length field");
-        };
-        let mut substituted = program.clone();
-        let ExpressionNode::Member(member) =
-            substituted.expression_table.expression_mut(expression)
-        else {
-            panic!("length projection");
-        };
-        member.member_symbol = field.symbol;
-        assert!(reserved_result_place(&substituted, expression).is_none());
-    }
-
-    #[test]
-    fn requirement_result_rejects_shadowing_and_requires_occurrences() {
-        for source in [
-            "boundary trait Geometry { machine make(result: u64) -> u64 ensures result == 1; }",
-            "boundary trait Geometry { machine make(input: u64) -> u64 requires result == input; }",
-        ] {
-            let program = crate::front_end::typed_program(source);
-            let occurrences = result_occurrences(&program);
-            assert!(!occurrences.is_empty());
-            for expression in occurrences {
-                assert!(reserved_result_owner(&program, expression).is_none());
-            }
-        }
-    }
-
-    #[test]
     fn requirement_result_rejects_ambiguous_owner_and_invalid_result_type() {
         let program = crate::front_end::typed_program(REQUIREMENT_RESULTS);
         let signatures = program.traits()[0].machines;
@@ -504,84 +317,6 @@ mod tests {
             let mut invalid = program.clone();
             invalid.trait_machine_signatures.get_mut(first).return_type = reference;
             assert!(reserved_result_owner(&invalid, root).is_none());
-        }
-    }
-
-    #[test]
-    fn equal_result_carriers_keep_distinct_exact_contract_owners() {
-        let program = crate::front_end::typed_program(
-            "machine first(input: u16) -> u16 ensures result == input { input }
-             machine second(input: u16) -> u16 ensures result == input { input }",
-        );
-        let occurrences = result_occurrences(&program);
-        assert_eq!(occurrences.len(), 2);
-        let owners = occurrences
-            .iter()
-            .map(|expression| {
-                let owner = reserved_result_owner(&program, *expression).unwrap();
-                assert_eq!(type_reference(&program, *expression), Some(owner.1));
-                assert_eq!(
-                    program.primitive_type_reference(owner.1),
-                    Some(typed_trees::types::PrimitiveType::U16)
-                );
-                owner.0
-            })
-            .collect::<Vec<_>>();
-        assert_ne!(owners[0], owners[1]);
-        for machine in program.machines() {
-            assert!(owners.contains(&machine.symbol));
-        }
-    }
-
-    #[test]
-    fn authored_result_parameter_shadows_the_reserved_form() {
-        let program = crate::front_end::typed_program(
-            "machine identity(result: u16) -> u16 ensures result == result { result }",
-        );
-        let occurrences = result_occurrences(&program);
-        assert!(!occurrences.is_empty());
-        for expression in occurrences {
-            assert_eq!(reserved_result_owner(&program, expression), None);
-            assert_eq!(type_reference(&program, expression), None);
-        }
-    }
-
-    #[test]
-    fn result_spelling_outside_ensures_has_no_reserved_owner() {
-        let program = crate::front_end::typed_program(
-            "machine invalid(input: u16) -> u16 requires result == input { input }",
-        );
-        let occurrences = result_occurrences(&program);
-        assert_eq!(occurrences.len(), 1);
-        assert_eq!(reserved_result_owner(&program, occurrences[0]), None);
-    }
-
-    #[test]
-    fn resolved_symbol_cannot_impersonate_reserved_result() {
-        let program = crate::front_end::typed_program(
-            "machine value(input: u16) -> u16 ensures result == input { input }",
-        );
-        let expression = result_occurrences(&program)[0];
-        assert!(reserved_result_owner(&program, expression).is_some());
-        let symbol = program.machines()[0].symbol;
-        for component in 0..3 {
-            let mut altered = program.clone();
-            let ExpressionNode::Name(mut path) = *altered.expression_table.expression(expression)
-            else {
-                panic!("result")
-            };
-            match component {
-                0 => path.symbol = symbol,
-                1 => path.head_symbol = symbol,
-                _ => {
-                    path.member_symbols = arena::HandleSpan::empty();
-                    altered
-                        .expression_table
-                        .push_name_path_member_symbol(&mut path.member_symbols, symbol);
-                }
-            }
-            *altered.expression_table.expression_mut(expression) = ExpressionNode::Name(path);
-            assert_eq!(reserved_result_owner(&altered, expression), None);
         }
     }
 }

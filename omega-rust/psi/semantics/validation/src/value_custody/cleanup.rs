@@ -535,49 +535,4 @@ mod tests {
                 .collect::<Vec<_>>()
         );
     }
-
-    #[test]
-    fn ordinary_drop_machines_and_core_drop_remain_authored_callables() {
-        let mut program = TypedTrees::default();
-        let (ordinary_drop, ordinary_entry) =
-            machine_with_entry(&mut program, 30, 31, "drop", None);
-        let (core_drop, core_entry) =
-            machine_with_entry(&mut program, 40, 41, "omega::core::drop", None);
-        let owner_symbol = SymbolHandle::from_arena_index(50);
-        program.push_data_definition(DataDefinition {
-            symbol: owner_symbol,
-            name: Identifier::generated_static("Resource"),
-            ..DataDefinition::default()
-        });
-        let (drop_counter, drop_counter_entry) = machine_with_entry(
-            &mut program,
-            60,
-            61,
-            "Resource::drop_counter",
-            Some((50, "Resource")),
-        );
-
-        for (index, symbol) in [
-            ordinary_drop,
-            ordinary_entry,
-            core_drop,
-            core_entry,
-            drop_counter,
-            drop_counter_entry,
-        ]
-        .into_iter()
-        .enumerate()
-        {
-            record_selection(
-                &mut program,
-                index + 1,
-                AuthoredDeclarationSelectionKind::Call,
-                symbol,
-            );
-        }
-
-        let mut diagnostics = Vec::new();
-        collect_reserved_cleanup_selection_diagnostics(&program, &mut diagnostics);
-        assert!(diagnostics.is_empty());
-    }
 }

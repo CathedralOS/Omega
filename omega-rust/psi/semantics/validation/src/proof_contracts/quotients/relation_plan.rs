@@ -57,8 +57,6 @@ use runtime_correspondence::{
 };
 #[cfg(test)]
 use runtime_correspondence::{DirectLiftArgumentSource, DirectLiftRuntimePosition};
-#[cfg(test)]
-use theorem::derive_selected_theorem_telescope;
 use theorem::{SelectedTheoremPurity, SelectedTheoremTelescope, SelectedTheoremTermination};
 use theorem_schema::{ExpectedTheoremSchema, derive_expected_theorem_schema};
 use theorem_schema_verification::{VerifiedTheoremSchema, verify_selected_theorem_schema};
@@ -67,12 +65,8 @@ use transport_schema::{
 };
 
 #[cfg(test)]
-use result_flow::immutable_alias_fallthrough_root;
+pub(super) use result_flow::complete_state_forwarding_result_flow;
 pub(super) use result_flow::{CompleteResultFlow, complete_result_flow, fallthrough_result_root};
-#[cfg(test)]
-pub(super) use result_flow::{
-    complete_single_state_result_flow, complete_state_forwarding_result_flow,
-};
 #[cfg(test)]
 use static_application::{
     derive_exact_representative_static_application, substituted_type_matches,

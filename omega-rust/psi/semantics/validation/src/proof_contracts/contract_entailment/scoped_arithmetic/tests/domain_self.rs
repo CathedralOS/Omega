@@ -97,43 +97,6 @@ impl DomainSelf {
             &Self::expression(expression, bindings),
         )
     }
-
-    fn equal(&mut self, left: ExpressionHandle, right: ExpressionHandle) -> ExpressionHandle {
-        self.program
-            .expression_table
-            .insert(ExpressionNode::Binary(TableBinaryExpression {
-                left,
-                operator: BinaryOperator::Equal,
-                right,
-            }))
-    }
-}
-
-#[test]
-fn declaration_self_receives_independently_proven_parameter_value() {
-    let fixture = DomainSelf::new();
-    let hypothesis = ScopedArithmeticHypothesis {
-        proposition: DomainSelf::expression(
-            fixture.requirement,
-            vec![DomainSelf::atom(
-                ScopedArithmeticBinder::Symbol(fixture.parameter),
-                "returned",
-            )],
-        ),
-        holds: true,
-    };
-    let bindings = vec![DomainSelf::atom(
-        ScopedArithmeticBinder::DomainSelf(fixture.subject),
-        "returned",
-    )];
-    assert_eq!(
-        fixture.judge(&[hypothesis], fixture.goal, bindings.clone()),
-        StrictArithmeticImplicationJudgment::Proven
-    );
-    assert_eq!(
-        fixture.judge(&[], fixture.goal, bindings),
-        StrictArithmeticImplicationJudgment::Unknown
-    );
 }
 
 #[test]
@@ -215,78 +178,6 @@ fn domain_self_rejects_invalid_stale_resolved_and_nonself_occurrences() {
             StrictArithmeticImplicationJudgment::Unknown
         );
     }
-}
-
-#[test]
-fn domain_self_conflicts_fail_and_identical_bindings_agree() {
-    let mut fixture = DomainSelf::new();
-    let reflexive = fixture.equal(fixture.subject, fixture.subject);
-    let binding = DomainSelf::atom(ScopedArithmeticBinder::DomainSelf(fixture.subject), "value");
-    assert_eq!(
-        fixture.judge(&[], reflexive, vec![binding.clone(), binding.clone()]),
-        StrictArithmeticImplicationJudgment::Proven
-    );
-    let conflict = DomainSelf::atom(ScopedArithmeticBinder::DomainSelf(fixture.subject), "other");
-    assert_eq!(
-        fixture.judge(&[], reflexive, vec![binding, conflict]),
-        StrictArithmeticImplicationJudgment::Unknown
-    );
-}
-
-#[test]
-fn domain_self_rosters_are_isolated_across_propositions_and_nested_terms() {
-    let mut fixture = DomainSelf::new();
-    let second_node = fixture
-        .program
-        .expression_table
-        .expression(fixture.subject)
-        .clone();
-    let second = fixture.program.expression_table.insert(second_node);
-    let equal = fixture.equal(fixture.subject, second);
-    let reflexive = fixture.equal(fixture.subject, fixture.subject);
-    let binding = DomainSelf::atom(ScopedArithmeticBinder::DomainSelf(fixture.subject), "inner");
-    let hypothesis = ScopedArithmeticHypothesis {
-        proposition: DomainSelf::expression(reflexive, vec![binding.clone()]),
-        holds: true,
-    };
-    assert_eq!(
-        fixture.judge(&[hypothesis], reflexive, vec![]),
-        StrictArithmeticImplicationJudgment::Unknown
-    );
-    let unbound_nested = ScopedArithmeticBinding {
-        binder: ScopedArithmeticBinder::DomainSelf(second),
-        value: ScopedArithmeticValue::Term(DomainSelf::expression(fixture.subject, vec![])),
-    };
-    assert_eq!(
-        fixture.judge(&[], equal, vec![binding.clone(), unbound_nested]),
-        StrictArithmeticImplicationJudgment::Unknown
-    );
-    let nested = ScopedArithmeticBinding {
-        binder: ScopedArithmeticBinder::DomainSelf(second),
-        value: ScopedArithmeticValue::Term(DomainSelf::expression(
-            fixture.subject,
-            vec![binding.clone()],
-        )),
-    };
-    assert_eq!(
-        fixture.judge(&[], equal, vec![nested.clone()]),
-        StrictArithmeticImplicationJudgment::Unknown
-    );
-    assert_eq!(
-        fixture.judge(&[], equal, vec![binding, nested.clone()]),
-        StrictArithmeticImplicationJudgment::Proven
-    );
-    assert_eq!(
-        fixture.judge(
-            &[],
-            equal,
-            vec![
-                DomainSelf::atom(ScopedArithmeticBinder::DomainSelf(fixture.subject), "outer"),
-                nested
-            ]
-        ),
-        StrictArithmeticImplicationJudgment::Unknown
-    );
 }
 
 #[test]

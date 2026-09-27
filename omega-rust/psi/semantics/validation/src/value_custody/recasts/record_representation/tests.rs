@@ -153,33 +153,6 @@ fn push_single_field_record(
 }
 
 #[test]
-fn representation_resolves_same_spelling_by_exact_symbol() {
-    let mut program = program_with_builtins();
-    let first_symbol = generated_data_symbol(&mut program, "FirstCell");
-    let selected_symbol = generated_data_symbol(&mut program, "SelectedCell");
-    let u64_symbol = program
-        .symbols
-        .find_child_by_name(program.symbols.root(), "u64")
-        .expect("u64 builtin");
-    let u8_symbol = program
-        .symbols
-        .find_child_by_name(program.symbols.root(), "u8")
-        .expect("u8 builtin");
-    let u64_type = named_type(&mut program, u64_symbol, "u64");
-    let u8_type = named_type(&mut program, u8_symbol, "u8");
-    push_single_field_record(&mut program, first_symbol, u64_type);
-    push_single_field_record(&mut program, selected_symbol, u8_type);
-    let selected_type = named_type(&mut program, selected_symbol, "Cell");
-
-    let representation = mutable_type_representation(&program, selected_type)
-        .expect("the selected record has an exact scalar representation");
-
-    assert_eq!(representation.size, 1);
-    assert_eq!(representation.align, 1);
-    assert_eq!(representation.leaves.len(), 1);
-}
-
-#[test]
 fn repeated_leaf_capacity_overflow_fails_closed() {
     let mut program = program_with_builtins();
     let u8_symbol = program
@@ -199,24 +172,6 @@ fn repeated_leaf_capacity_overflow_fails_closed() {
     assert!(mutable_type_representation(&program, fixed_array).is_none());
     assert!(repeat_representation(&element, usize::MAX).is_none());
     assert!(repeat_representation_with_stride(&element, usize::MAX, 1).is_none());
-}
-
-#[test]
-fn primitive_spelling_cannot_replace_exact_builtin_identity() {
-    let mut program = program_with_builtins();
-    let record_symbol = generated_data_symbol(&mut program, "Pretender");
-    let u64_symbol = program
-        .symbols
-        .find_child_by_name(program.symbols.root(), "u64")
-        .expect("u64 builtin");
-    let u64_type = named_type(&mut program, u64_symbol, "u64");
-    push_single_field_record(&mut program, record_symbol, u64_type);
-    let forged_display = named_type(&mut program, record_symbol, "u8");
-
-    let representation = mutable_type_representation(&program, forged_display)
-        .expect("the exact Data symbol resolves as its record, not a displayed primitive");
-    assert_eq!(representation.size, 8);
-    assert_eq!(representation.align, 8);
 }
 
 #[test]

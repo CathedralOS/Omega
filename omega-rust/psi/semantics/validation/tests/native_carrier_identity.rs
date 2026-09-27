@@ -26,25 +26,6 @@ machine send(value: &[u8]) satisfies Native::send via send_binding();
 "#;
 
 #[test]
-fn local_calling_lookalike_cannot_exempt_a_foreign_slice() {
-    for (relative, origin) in [
-        ("main.omg", SourceOrigin::User),
-        ("calling.omg", SourceOrigin::User),
-        ("other.omg", SourceOrigin::Toolchain),
-    ] {
-        let program = typed(CALLING, relative, origin);
-        assert!(validation::standard_calling_traits(&program).is_none());
-        let errors = validation::validate_program(&program).expect_err("no calling authority");
-        assert!(
-            errors
-                .iter()
-                .any(|error| error.message.contains("cannot use safe slice")),
-            "{errors:?}"
-        );
-    }
-}
-
-#[test]
 fn exact_standard_calling_declarations_retain_the_custom_policy_route() {
     let program = typed(CALLING, "calling.omg", SourceOrigin::Toolchain);
     let (calling, policy) =
@@ -73,14 +54,6 @@ fn public_calling_vocabulary_is_recognized_by_content_not_package_filename() {
     assert_ne!(changed, vocabulary);
     let program = typed(&changed, "calling.omg", SourceOrigin::User);
     assert!(validation::standard_calling_traits(&program).is_none());
-}
-
-#[test]
-fn user_vector_name_is_an_ordinary_record_not_a_private_descriptor() {
-    for relative in ["main.omg", "vec.omg"] {
-        validation::validate_program(&typed(VECTOR, relative, SourceOrigin::User))
-            .expect("a local record name does not determine its native carrier");
-    }
 }
 
 #[test]

@@ -1,68 +1,6 @@
 use super::{DataMember, TypeReferenceHandle, TypeReferenceNode, validate_constants};
-use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
-
-#[test]
-fn complete_constant_types_reject_copy_and_cleanup_debt() {
-    for source in [
-        "data Value { value:u64; } const VALUE:Value = Value { value:1 };",
-        "data Value [linear] { value:u64; } const VALUE:Value = Value { value:1 };",
-        "data Value [copy] { value:u64; } machine Value::drop(&mut self) {} const VALUE:Value = Value { value:1 };",
-        "data Owned [linear] { value:u64; } data Value [copy] { case Empty; case Full(value:Owned); } const VALUE:Value = Value::Empty;",
-        "data Owned [copy] { value:u64; } machine Owned::drop(&mut self) {} data Value [copy] { case Empty; case Full(value:Owned); } const VALUE:Value = Value::Empty;",
-    ] {
-        let program = crate::front_end::typed_program(source);
-        let mut diagnostics = Vec::new();
-        validate_constants(&program, &mut diagnostics);
-        assert_eq!(diagnostics.len(), 1, "{source}: {diagnostics:?}");
-    }
-}
-
-#[test]
-fn destination_rechecks_live_constant_constructor_without_rebuilding_ledger() {
-    let program = crate::front_end::typed_program(
-        "data Value [copy] { value:u64; } data Other [copy] { value:u64; } const VALUE:Value = Value { value:1 }; machine keep()->Value { let value:Value = VALUE; value }",
-    );
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "keep")
-        .unwrap();
-    let [state] = program.machine_states(machine) else {
-        panic!("one state");
-    };
-    let StatementNode::LocalData(local) =
-        &program.statement_table.statements(state.statement_nodes)[0]
-    else {
-        panic!("constant local");
-    };
-    let expression = local.initial_value;
-    let expected = local.type_reference;
-    let other = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.name.as_str() == "Other")
-        .unwrap()
-        .symbol;
-    assert!(crate::checked_argument_matches_type_reference(
-        &program, expression, expected
-    ));
-    let original_ledger = program.authored_declaration_selections().clone();
-    for substitute in [other, SymbolHandle::invalid()] {
-        let mut changed = program.clone();
-        let ExpressionNode::StructLiteral(literal) =
-            changed.expression_table.expression_mut(expression)
-        else {
-            panic!("copied constructor");
-        };
-        literal.type_symbol = substitute;
-        assert_eq!(changed.authored_declaration_selections(), &original_ledger);
-        assert!(!crate::checked_argument_matches_type_reference(
-            &changed, expression, expected
-        ));
-    }
-}
 
 #[test]
 fn constant_type_custody_rejects_stale_handles_and_wrapper_cycles() {

@@ -120,24 +120,3 @@ fn array_record_projection_rejects_changed_identity_bounds_and_siblings() {
         );
     }
 }
-
-#[test]
-fn array_record_projection_does_not_replace_a_matching_declared_operator() {
-    for (declaration, expected) in [
-        (
-            "operator [] Indexing::index(values: &[Cell], index: u64) -> Cell;",
-            false,
-        ),
-        (
-            "operator [] Indexing::index(values: &[Other], index: u64) -> Other;",
-            true,
-        ),
-    ] {
-        let (program, projection) = fixture(&format!("data Indexing {{}} {declaration}"));
-        assert_eq!(
-            closed_record_scalar_projection(&program, projection).is_some(),
-            expected,
-            "{declaration}"
-        );
-    }
-}

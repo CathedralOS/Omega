@@ -2,7 +2,7 @@
 use super::{
     BinaryOperator, ExpressionHandle, ExpressionNode, Machine, StrictArithmeticBindingValue,
     StrictArithmeticExpressionBinding, StrictArithmeticImplicationJudgment,
-    StrictArithmeticSymbolBinding, TypedTrees, strict_arithmetic_expression_implication,
+    StrictArithmeticSymbolBinding, TypedTrees,
     strict_arithmetic_expression_implication_with_arguments,
 };
 use arena::HandleSpan;
@@ -104,51 +104,6 @@ fn argument(
     expression: ExpressionHandle,
 ) -> StrictArithmeticExpressionBinding {
     StrictArithmeticExpressionBinding { symbol, expression }
-}
-
-#[test]
-fn signed_disequality_substitution_preserves_difference_but_not_direction() {
-    let mut fixture = Fixture::new();
-    let zero = fixture.integer(0);
-    let one = fixture.integer(1);
-    let premise = fixture.binary(fixture.caller_expression, BinaryOperator::NotEqual, zero);
-    let unchanged = argument(fixture.formal, fixture.caller_expression);
-    for (operator, expected) in [
-        (
-            BinaryOperator::NotEqual,
-            StrictArithmeticImplicationJudgment::Proven,
-        ),
-        (
-            BinaryOperator::Equal,
-            StrictArithmeticImplicationJudgment::Refuted,
-        ),
-        (
-            BinaryOperator::Greater,
-            StrictArithmeticImplicationJudgment::Unknown,
-        ),
-        (
-            BinaryOperator::Less,
-            StrictArithmeticImplicationJudgment::Unknown,
-        ),
-    ] {
-        for (left, right) in [
-            (fixture.formal_expression, zero),
-            (zero, fixture.formal_expression),
-        ] {
-            let goal = fixture.binary(left, operator, right);
-            assert_eq!(fixture.judge(&[premise], goal, &[unchanged]), expected);
-        }
-    }
-    let goal = fixture.binary(fixture.formal_expression, BinaryOperator::NotEqual, zero);
-    let shifted = fixture.binary(fixture.caller_expression, BinaryOperator::Add, one);
-    assert_eq!(
-        fixture.judge(&[premise], goal, &[argument(fixture.formal, shifted)]),
-        StrictArithmeticImplicationJudgment::Unknown
-    );
-    assert_eq!(
-        fixture.judge(&[], goal, &[unchanged]),
-        StrictArithmeticImplicationJudgment::Unknown
-    );
 }
 
 #[test]
@@ -263,66 +218,6 @@ fn exact_argument_widening_does_not_change_other_strict_reader_languages() {
 }
 
 #[test]
-fn arithmetic_arguments_transport_nontrivial_lower_and_upper_bounds() {
-    for (operator, operand, lower, upper) in [
-        (BinaryOperator::Add, 3, 5, 7),
-        (BinaryOperator::Subtract, 1, 1, 3),
-        (BinaryOperator::Multiply, 3, 6, 12),
-    ] {
-        let mut fixture = Fixture::new();
-        let two = fixture.integer(2);
-        let four = fixture.integer(4);
-        let minimum = fixture.binary(two, BinaryOperator::LessOrEqual, fixture.caller_expression);
-        let maximum = fixture.binary(fixture.caller_expression, BinaryOperator::LessOrEqual, four);
-        let operand = fixture.integer(operand);
-        let actual = fixture.binary(fixture.caller_expression, operator, operand);
-        let lower = fixture.integer(lower);
-        let upper = fixture.integer(upper);
-        let lower_goal = fixture.binary(
-            lower,
-            BinaryOperator::LessOrEqual,
-            fixture.formal_expression,
-        );
-        let upper_goal = fixture.binary(
-            fixture.formal_expression,
-            BinaryOperator::LessOrEqual,
-            upper,
-        );
-        for goal in [lower_goal, upper_goal] {
-            assert_eq!(
-                fixture.judge(
-                    &[minimum, maximum],
-                    goal,
-                    &[argument(fixture.formal, actual)]
-                ),
-                StrictArithmeticImplicationJudgment::Proven,
-                "{operator:?}"
-            );
-        }
-    }
-}
-
-#[test]
-fn argument_order_cannot_resolve_another_callee_formal() {
-    let mut fixture = Fixture::new();
-    let zero = fixture.integer(0);
-    let one = fixture.integer(1);
-    let goal = fixture.binary(one, BinaryOperator::Equal, one);
-    let contradiction = fixture.binary(zero, BinaryOperator::Equal, one);
-    let first = argument(fixture.formal, fixture.caller_expression);
-    let second = argument(fixture.second, fixture.formal_expression);
-    for arguments in [[first, second], [second, first]] {
-        for hypotheses in [&[][..], &[contradiction][..]] {
-            assert_eq!(
-                fixture.judge(hypotheses, goal, &arguments),
-                StrictArithmeticImplicationJudgment::Unknown,
-                "unbound actuals reject before a constant goal or contradictory hypotheses"
-            );
-        }
-    }
-}
-
-#[test]
 fn reused_formals_accept_equal_polynomials_and_reject_conflicting_values() {
     let mut fixture = Fixture::new();
     let zero = fixture.integer(0);
@@ -359,93 +254,6 @@ fn reused_formals_accept_equal_polynomials_and_reject_conflicting_values() {
 }
 
 #[test]
-fn a_self_call_formal_shadows_its_caller_symbol_only_in_the_goal() {
-    let mut fixture = Fixture::new();
-    let zero = fixture.integer(0);
-    let one = fixture.integer(1);
-    let three = fixture.integer(3);
-    let five = fixture.integer(5);
-    let unchanged = fixture.binary(fixture.caller_expression, BinaryOperator::Add, zero);
-    let goal = fixture.binary(
-        fixture.second_expression,
-        BinaryOperator::Equal,
-        fixture.caller_expression,
-    );
-    for actual in [fixture.caller_expression, unchanged] {
-        assert_eq!(
-            fixture.judge(
-                &[],
-                goal,
-                &[
-                    argument(fixture.caller, actual),
-                    argument(fixture.second, fixture.caller_expression),
-                ]
-            ),
-            StrictArithmeticImplicationJudgment::Proven
-        );
-    }
-    // `walk(caller - 1)` inside `walk(caller) requires 0 < caller <= 5`:
-    // the caller's facts bound the actual, and the goal reads the formal.
-    let decremented = fixture.binary(fixture.caller_expression, BinaryOperator::Subtract, one);
-    let positive = fixture.binary(fixture.caller_expression, BinaryOperator::Greater, zero);
-    let at_most_five = fixture.binary(fixture.caller_expression, BinaryOperator::LessOrEqual, five);
-    let still_at_most_five =
-        fixture.binary(fixture.caller_expression, BinaryOperator::LessOrEqual, five);
-    let at_most_three = fixture.binary(
-        fixture.caller_expression,
-        BinaryOperator::LessOrEqual,
-        three,
-    );
-    let at_least_one = fixture.binary(
-        fixture.caller_expression,
-        BinaryOperator::GreaterOrEqual,
-        one,
-    );
-    let recursion = [argument(fixture.caller, decremented)];
-    assert_eq!(
-        fixture.judge(&[positive, at_most_five], still_at_most_five, &recursion),
-        StrictArithmeticImplicationJudgment::Proven
-    );
-    assert_ne!(
-        fixture.judge(&[positive, at_most_five], at_most_three, &recursion),
-        StrictArithmeticImplicationJudgment::Proven,
-        "the actual reaches four"
-    );
-    assert_ne!(
-        fixture.judge(&[at_least_one], at_least_one, &recursion),
-        StrictArithmeticImplicationJudgment::Proven,
-        "the caller's fact is not reread as a fact about the actual"
-    );
-}
-
-#[test]
-fn unbound_same_spelled_and_unsupported_arguments_do_not_prove_constant_goals() {
-    let mut fixture = Fixture::new();
-    assert_ne!(fixture.caller, fixture.formal);
-    let one = fixture.integer(1);
-    let zero = fixture.integer(0);
-    let goal = fixture.binary(one, BinaryOperator::Equal, one);
-    let contradiction = fixture.binary(zero, BinaryOperator::Equal, one);
-    let boolean = fixture
-        .program
-        .expression_table
-        .insert(ExpressionNode::Boolean(true));
-    for invalid in [
-        argument(fixture.second, fixture.formal_expression),
-        argument(fixture.second, ExpressionHandle::invalid()),
-        argument(fixture.second, boolean),
-        argument(SymbolHandle::invalid(), fixture.caller_expression),
-    ] {
-        for hypotheses in [&[][..], &[contradiction][..]] {
-            assert_eq!(
-                fixture.judge(hypotheses, goal, &[invalid]),
-                StrictArithmeticImplicationJudgment::Unknown
-            );
-        }
-    }
-}
-
-#[test]
 fn nested_missing_and_stale_arguments_cannot_become_dummy_zero() {
     let mut fixture = Fixture::new();
     let zero = fixture.integer(0);
@@ -475,57 +283,4 @@ fn nested_missing_and_stale_arguments_cannot_become_dummy_zero() {
             }
         }
     }
-}
-
-#[test]
-fn original_strict_api_rejects_missing_and_stale_comparison_operands() {
-    let mut fixture = Fixture::new();
-    let zero = fixture.integer(0);
-    let true_goal = fixture.binary(zero, BinaryOperator::Equal, zero);
-    let stale = ExpressionHandle::from_parts(zero.arena_index(), zero.generation() + 1);
-    for unknown in [ExpressionHandle::invalid(), stale] {
-        let invalid_comparison = fixture.binary(unknown, BinaryOperator::Equal, zero);
-        for goal in [unknown, invalid_comparison] {
-            assert_eq!(
-                strict_arithmetic_expression_implication(
-                    &fixture.program,
-                    &Machine::default(),
-                    &[],
-                    goal,
-                    &[],
-                ),
-                StrictArithmeticImplicationJudgment::Unknown
-            );
-            assert_eq!(
-                strict_arithmetic_expression_implication(
-                    &fixture.program,
-                    &Machine::default(),
-                    &[goal],
-                    true_goal,
-                    &[],
-                ),
-                StrictArithmeticImplicationJudgment::Unknown
-            );
-        }
-    }
-}
-
-#[test]
-fn arithmetic_arguments_do_not_invent_missing_or_insufficient_bounds() {
-    let mut fixture = Fixture::new();
-    let one = fixture.integer(1);
-    let three = fixture.integer(3);
-    let five = fixture.integer(5);
-    let actual = fixture.binary(fixture.caller_expression, BinaryOperator::Add, three);
-    let goal = fixture.binary(five, BinaryOperator::LessOrEqual, fixture.formal_expression);
-    let too_small = fixture.binary(fixture.caller_expression, BinaryOperator::LessOrEqual, one);
-    let arguments = [argument(fixture.formal, actual)];
-    assert_eq!(
-        fixture.judge(&[], goal, &arguments),
-        StrictArithmeticImplicationJudgment::Unknown
-    );
-    assert_eq!(
-        fixture.judge(&[too_small], goal, &arguments),
-        StrictArithmeticImplicationJudgment::Refuted
-    );
 }

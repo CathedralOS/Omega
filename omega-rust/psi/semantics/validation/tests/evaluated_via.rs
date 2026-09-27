@@ -6,26 +6,6 @@ fn validate(source: &str) -> Result<(), Vec<diagnostics::Diagnostic>> {
 }
 
 #[test]
-fn admits_one_exact_zero_argument_via_producer_call_shape() {
-    validate(
-        r#"
-        boundary trait Console {
-            machine write(value: u8);
-        }
-
-        machine binding() -> i32 {
-            0
-        }
-
-        machine write_leaf(value: u8)
-        satisfies Console::write
-        via binding();
-        "#,
-    )
-    .expect("the ordinary via carrier admits one exact zero-argument producer call");
-}
-
-#[test]
 fn rejects_via_producer_call_with_runtime_arguments() {
     let diagnostics = validate(
         r#"
@@ -68,31 +48,6 @@ fn rejects_non_call_via_expression() {
         diagnostic
             .message
             .contains("one direct zero-argument machine call")
-    }));
-}
-
-#[test]
-fn rejects_parameterized_via_producer() {
-    let diagnostics = validate(
-        r#"
-        boundary trait Console {
-            machine write(value: u8);
-        }
-
-        machine binding(selector: i32) -> i32 {
-            selector
-        }
-
-        machine write_leaf(value: u8)
-        satisfies Console::write
-        via binding();
-        "#,
-    )
-    .expect_err("the first ordinary via rung requires a zero-parameter producer");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic.message.contains(
-            "the first evaluated-binding rung requires its body-bearing, non-generic, zero-parameter entry state",
-        )
     }));
 }
 

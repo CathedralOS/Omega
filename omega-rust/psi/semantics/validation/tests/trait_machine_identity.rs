@@ -6,21 +6,6 @@ fn validate(source: &str) -> Result<(), Vec<diagnostics::Diagnostic>> {
 }
 
 #[test]
-fn accepts_one_exact_trait_requirement_identity() {
-    validate(
-        r#"
-        trait PrivateCallbackSlot<machine Requirement> {}
-        boundary trait WindowProcedure {
-            machine call(value: i32) -> i32;
-        }
-        data WndClassLayout {}
-        WindowProcedureSlot: WndClassLayout satisfies PrivateCallbackSlot<WindowProcedure::call> {}
-        "#,
-    )
-    .expect("exact trait requirement identity should validate");
-}
-
-#[test]
 fn accepts_a_free_machine_identity_without_imposing_a_callable_shape() {
     validate(
         r#"

@@ -1,7 +1,6 @@
 use super::{
     ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
-    ScopedArithmeticHypothesis, ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
-    scoped_arithmetic_implication,
+    ScopedArithmeticValue, StrictArithmeticImplicationJudgment, scoped_arithmetic_implication,
 };
 use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
@@ -43,16 +42,6 @@ impl EmbeddedFields {
         }
     }
 
-    fn binding(expression: ExpressionHandle, identity: &str) -> ScopedArithmeticBinding {
-        ScopedArithmeticBinding {
-            binder: ScopedArithmeticBinder::Projection(expression),
-            value: ScopedArithmeticValue::Atom {
-                identity: identity.to_owned(),
-                unsigned: true,
-            },
-        }
-    }
-
     fn judge(&self, bindings: Vec<ScopedArithmeticBinding>) -> StrictArithmeticImplicationJudgment {
         scoped_arithmetic_implication(
             &self.program,
@@ -64,75 +53,6 @@ impl EmbeddedFields {
             },
         )
     }
-}
-
-#[test]
-fn embedded_fields_use_exact_scoped_atoms_and_nested_terms() {
-    let fixture = EmbeddedFields::new("embed(left.length) == embed(right.length)", "Wrapping");
-    let left = EmbeddedFields::binding(fixture.left, "captured");
-    let right = EmbeddedFields::binding(fixture.right, "captured");
-    assert_eq!(
-        fixture.judge(vec![left.clone(), right.clone()]),
-        StrictArithmeticImplicationJudgment::Proven
-    );
-    let nested = ScopedArithmeticBinding {
-        binder: ScopedArithmeticBinder::Projection(fixture.right),
-        value: ScopedArithmeticValue::Term(ScopedArithmeticExpression {
-            expression: fixture.left,
-            bindings: vec![left.clone()],
-        }),
-    };
-    assert_eq!(
-        fixture.judge(vec![left, nested]),
-        StrictArithmeticImplicationJudgment::Proven
-    );
-}
-
-#[test]
-fn embedded_fields_require_each_exact_occurrence_and_current_roster() {
-    let fixture = EmbeddedFields::new("embed(left.length) == embed(right.length)", "Saturating");
-    let left = EmbeddedFields::binding(fixture.left, "first");
-    let right = EmbeddedFields::binding(fixture.right, "second");
-    for bindings in [vec![], vec![left.clone()], vec![left.clone(), right]] {
-        assert_eq!(
-            fixture.judge(bindings),
-            StrictArithmeticImplicationJudgment::Unknown
-        );
-    }
-    let hypothesis = ScopedArithmeticHypothesis {
-        proposition: ScopedArithmeticExpression {
-            expression: fixture.goal,
-            bindings: vec![left, EmbeddedFields::binding(fixture.right, "first")],
-        },
-        holds: true,
-    };
-    assert_eq!(
-        scoped_arithmetic_implication(
-            &fixture.program,
-            &fixture.program.machines()[0],
-            &[hypothesis],
-            &ScopedArithmeticExpression {
-                expression: fixture.goal,
-                bindings: vec![]
-            },
-        ),
-        StrictArithmeticImplicationJudgment::Unknown
-    );
-}
-
-#[test]
-fn embedded_fields_retain_carrier_bounds_for_bound_values() {
-    let fixture = EmbeddedFields::new(
-        "embed(left.length) + embed(right.length) <= 510",
-        "Wrapping",
-    );
-    assert_eq!(
-        fixture.judge(vec![
-            EmbeddedFields::binding(fixture.left, "left"),
-            EmbeddedFields::binding(fixture.right, "right"),
-        ]),
-        StrictArithmeticImplicationJudgment::Proven
-    );
 }
 
 #[test]

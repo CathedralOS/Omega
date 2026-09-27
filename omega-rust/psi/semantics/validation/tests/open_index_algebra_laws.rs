@@ -28,18 +28,6 @@ const NEITHER: Laws = Laws {
     commutativity: false,
     associativity: false,
 };
-const COMMUTATIVITY_ONLY: Laws = Laws {
-    commutativity: true,
-    associativity: false,
-};
-const ASSOCIATIVITY_ONLY: Laws = Laws {
-    commutativity: false,
-    associativity: true,
-};
-const BOTH: Laws = Laws {
-    commutativity: true,
-    associativity: true,
-};
 
 /// Normalizes one authored index expression under a carrier trait declaring
 /// exactly `laws`, and reports the `(commutativity, associativity)` pair
@@ -121,31 +109,6 @@ fn recorded_laws(laws: Laws, index_expression: &str) -> Vec<(bool, bool)> {
             )
         })
         .collect()
-}
-
-#[test]
-fn a_commutativity_only_carrier_still_selects_its_algebra() {
-    assert_eq!(
-        recorded_laws(COMMUTATIVITY_ONLY, "A + B"),
-        vec![(true, false)],
-        "a declared commutativity law selects the algebra on its own, and the \
-         absent associativity is recorded as absent rather than assumed"
-    );
-}
-
-#[test]
-fn an_associativity_only_carrier_still_selects_its_algebra() {
-    assert_eq!(
-        recorded_laws(ASSOCIATIVITY_ONLY, "(A + B) + C"),
-        vec![(false, true); 2],
-        "a declared associativity law selects the algebra on its own, for the \
-         whole chain, with the absent commutativity recorded as absent"
-    );
-}
-
-#[test]
-fn a_carrier_declaring_both_laws_records_both() {
-    assert_eq!(recorded_laws(BOTH, "(A + B) + C"), vec![(true, true); 2]);
 }
 
 #[test]

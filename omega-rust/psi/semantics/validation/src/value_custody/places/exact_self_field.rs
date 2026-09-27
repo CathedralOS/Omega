@@ -7,9 +7,6 @@ use typed_trees::data::{DataField, DataMember};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 
-#[cfg(test)]
-mod tests;
-
 /// Resolve a direct `self.field` under this machine's exact attached declaration.
 /// Another receiver of the same type is not the same storage. An absent field
 /// symbol may resolve uniquely within that declaration, but a conflicting

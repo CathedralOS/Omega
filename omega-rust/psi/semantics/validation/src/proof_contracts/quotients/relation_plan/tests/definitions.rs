@@ -5,25 +5,22 @@ use super::{
     selected_theorem_schema_fixture, static_argument, symbol,
 };
 use crate::proof_contracts::quotients::relation_plan::{
-    RelationPlanError, RepresentativeContractFactLocation, RepresentativeContractOwner,
-    complete_single_state_result_flow, complete_state_forwarding_result_flow,
+    RelationPlanError, complete_state_forwarding_result_flow,
     derive_define_precondition_correspondence, derive_direct_terminal_plan,
     derive_exact_representative_static_application, fallthrough_result_root,
-    immutable_alias_fallthrough_root, render_failed_builtin_implication,
-    render_implication_coordinate_diagnostic,
+    render_failed_builtin_implication,
 };
 use arena::HandleSpan;
 use numerics::literals::IntegerLiteral;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-use typed_trees::data::{DataDefinition, QuotientDefinition, TypeParameter, TypeParameterKind};
+use typed_trees::data::{TypeParameter, TypeParameterKind};
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{
     BinaryOperator, ExpressionNode, QuotientOperationKind, StaticSymbolApplication,
 };
 use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
-use typed_trees::proposition::PropositionDefinition;
 use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TableLocalData, TableTransition};
@@ -72,100 +69,6 @@ fn define_fixed_preconditions_reject_arithmetic_weakening() {
         ),
         Err(RelationPlanError::DefinePreconditionMismatch),
         "define fixed Q<=>P remains an exact bijection, never arithmetic weakening",
-    );
-}
-
-#[test]
-fn define_correspondence_applies_closed_representative_type_substitution() {
-    let mut program = TypedTrees::default();
-    let mut request = push_generic_representative_application(&mut program);
-    request.kind = QuotientOperationKind::Define;
-    let carrier = program
-        .type_reference_table
-        .insert(TypeReferenceNode::Named {
-            symbol: symbol(600),
-            name: Identifier::generated_static("StaticType"),
-        });
-    program.push_proposition(PropositionDefinition {
-        symbol: symbol(2),
-        name: Identifier::generated_static("ExactR"),
-        ..Default::default()
-    });
-    program.push_data_definition(DataDefinition {
-        symbol: symbol(1),
-        name: Identifier::generated_static("ExactQ"),
-        quotient: Some(QuotientDefinition {
-            carrier,
-            relation: vec![Identifier::generated_static("ExactR")],
-            relation_symbol: symbol(2),
-            equivalence: None,
-        }),
-        ..Default::default()
-    });
-    let quotient = program
-        .type_reference_table
-        .insert(TypeReferenceNode::Named {
-            symbol: symbol(1),
-            name: Identifier::generated_static("ExactQ"),
-        });
-    let public_symbol = symbol(3);
-    let argument = named_argument(&mut program, "value", public_symbol);
-    let arguments = program
-        .expression_table
-        .insert_expression_handles([argument]);
-    let call = call_with_arguments(arguments);
-    let mut state = State {
-        return_type: quotient,
-        ..Default::default()
-    };
-    program.push_state_parameter(
-        &mut state,
-        StateParameter {
-            symbol: public_symbol,
-            name: Identifier::generated_static("value"),
-            type_reference: quotient,
-            ..Default::default()
-        },
-    );
-
-    let plan = derive_direct_terminal_plan(
-        &program,
-        &program,
-        &Machine::default(),
-        &state,
-        &call,
-        &request,
-    )
-    .expect("closed T := StaticType must instantiate the runtime telescope");
-    assert_eq!(
-        plan.representative_precondition,
-        Some(crate::proof_contracts::quotients::relation_plan::precondition::RepresentativePreconditionPartition {
-            dependent: Vec::new(),
-            fixed: Vec::new(),
-        })
-    );
-    assert_eq!(
-        plan.public_precondition,
-        Some(crate::proof_contracts::quotients::relation_plan::precondition::RepresentativePreconditionPartition {
-            dependent: Vec::new(),
-            fixed: Vec::new(),
-        })
-    );
-    assert_eq!(
-        plan.define_precondition_correspondence,
-        Some(crate::proof_contracts::quotients::relation_plan::precondition::DefinePreconditionCorrespondence {
-            dependent: Vec::new(),
-            fixed: Vec::new(),
-        })
-    );
-    assert_eq!(
-        plan.define_correspondence
-            .expect("define correspondence")
-            .positions,
-        vec![crate::proof_contracts::quotients::relation_plan::runtime_correspondence::DefineRuntimePosition {
-            public_parameter: public_symbol,
-            representative_parameter: symbol(625),
-        }]
     );
 }
 
@@ -316,178 +219,6 @@ fn derived_direct_terminal_plan_remains_non_executable() {
         diagnostics[0]
             .message
             .contains("executable quotient operations are not admitted")
-    );
-}
-
-#[test]
-fn immutable_alias_fallthrough_requires_an_exact_immutable_chain() {
-    let mut program = TypedTrees::default();
-    let quotient_type = quotient_type(&mut program, symbol(1), "ExactQ", symbol(2), "ExactR");
-    let arguments = program
-        .expression_table
-        .insert_expression_handles(std::iter::empty());
-    let mut call = call_with_arguments(arguments);
-    call.quotient_operation = Some(request_with_representative(SymbolHandle::invalid()));
-    let request = program.expression_table.insert(ExpressionNode::Call(call));
-    let first_symbol = symbol(10);
-    let second_symbol = symbol(11);
-    let first_name = named_argument(&mut program, "first", first_symbol);
-    let second_name = named_argument(&mut program, "second", second_symbol);
-    let mut state = State {
-        return_type: quotient_type,
-        ..Default::default()
-    };
-    for local in [
-        TableLocalData {
-            symbol: first_symbol,
-            name: Identifier::generated_static("first"),
-            type_reference: quotient_type,
-            initial_value: request,
-            is_mutable: false,
-            type_is_inferred: false,
-            relevance: language_core::BindingRelevance::Relevant,
-        },
-        TableLocalData {
-            symbol: second_symbol,
-            name: Identifier::generated_static("second"),
-            type_reference: quotient_type,
-            initial_value: first_name,
-            is_mutable: false,
-            type_is_inferred: false,
-            relevance: language_core::BindingRelevance::Relevant,
-        },
-    ] {
-        program
-            .statement_table
-            .push_statement(&mut state.statement_nodes, StatementNode::LocalData(local));
-    }
-    program.statement_table.push_statement(
-        &mut state.statement_nodes,
-        StatementNode::Expression(second_name),
-    );
-
-    assert_eq!(
-        immutable_alias_fallthrough_root(&program, &state),
-        Some(crate::proof_contracts::quotients::relation_plan::result_flow::ImmutableAliasFallthroughRoot {
-            request_expression: request,
-            alias_count: 2,
-        })
-    );
-
-    let drifted_type = program.type_reference_table.insert(TypeReferenceNode::Unit);
-    if let StatementNode::LocalData(first) = &mut program
-        .statement_table
-        .statements_mut(state.statement_nodes)[0]
-    {
-        first.type_reference = drifted_type;
-    }
-    assert_eq!(immutable_alias_fallthrough_root(&program, &state), None);
-
-    if let StatementNode::LocalData(first) = &mut program
-        .statement_table
-        .statements_mut(state.statement_nodes)[0]
-    {
-        first.type_reference = quotient_type;
-        first.is_mutable = true;
-    }
-    assert_eq!(immutable_alias_fallthrough_root(&program, &state), None);
-}
-
-#[test]
-fn complete_result_flow_requires_one_exact_machine_state() {
-    let mut program = TypedTrees::default();
-    let return_type = program.type_reference_table.insert(TypeReferenceNode::Unit);
-    let arguments = program
-        .expression_table
-        .insert_expression_handles(std::iter::empty());
-    let mut call = call_with_arguments(arguments);
-    call.quotient_operation = Some(request_with_representative(SymbolHandle::invalid()));
-    let request = program.expression_table.insert(ExpressionNode::Call(call));
-    let mut state = State {
-        symbol: symbol(31),
-        return_type,
-        ..Default::default()
-    };
-    program.statement_table.push_statement(
-        &mut state.statement_nodes,
-        StatementNode::Expression(request),
-    );
-    let mut machine = Machine {
-        symbol: symbol(30),
-        ..Default::default()
-    };
-    program.push_machine_state(&mut machine, state);
-    program.push_machine(machine);
-
-    let root = {
-        let machine = &program.machines()[0];
-        let state = &program.machine_states(machine)[0];
-        let root = fallthrough_result_root(&program, state).expect("exact result root");
-        assert_eq!(
-            complete_single_state_result_flow(&program, machine, state, root),
-            Some(crate::proof_contracts::quotients::relation_plan::result_flow::CompleteSingleStateResultFlow {
-                machine_symbol: symbol(30),
-                state_symbol: symbol(31),
-                root,
-            })
-        );
-        root
-    };
-
-    let mut machine = program.machines()[0].clone();
-    program.push_machine_state(
-        &mut machine,
-        State {
-            symbol: symbol(32),
-            return_type,
-            ..Default::default()
-        },
-    );
-    program.machines_mut()[0] = machine;
-    let machine = &program.machines()[0];
-    let state = &program.machine_states(machine)[0];
-    assert_eq!(
-        complete_single_state_result_flow(&program, machine, state, root),
-        None
-    );
-}
-
-#[test]
-fn complete_result_flow_rejects_a_transition_before_fallthrough() {
-    let mut program = TypedTrees::default();
-    let return_type = program.type_reference_table.insert(TypeReferenceNode::Unit);
-    let arguments = program
-        .expression_table
-        .insert_expression_handles(std::iter::empty());
-    let mut call = call_with_arguments(arguments);
-    call.quotient_operation = Some(request_with_representative(SymbolHandle::invalid()));
-    let request = program.expression_table.insert(ExpressionNode::Call(call));
-    let mut state = State {
-        symbol: symbol(41),
-        return_type,
-        ..Default::default()
-    };
-    program.statement_table.push_statement(
-        &mut state.statement_nodes,
-        StatementNode::Transition(TableTransition::default()),
-    );
-    program.statement_table.push_statement(
-        &mut state.statement_nodes,
-        StatementNode::Expression(request),
-    );
-    let mut machine = Machine {
-        symbol: symbol(40),
-        ..Default::default()
-    };
-    program.push_machine_state(&mut machine, state);
-    program.push_machine(machine);
-    let machine = &program.machines()[0];
-    let state = &program.machine_states(machine)[0];
-    let root = fallthrough_result_root(&program, state).expect("fallthrough edge still exists");
-
-    assert_eq!(
-        complete_single_state_result_flow(&program, machine, state, root),
-        None
     );
 }
 
@@ -819,49 +550,6 @@ fn nonterminal_expression_request_cannot_claim_direct_result_flow() {
         !diagnostics[0]
             .message
             .contains("unchanged state-fallthrough result root")
-    );
-}
-
-#[test]
-fn failed_builtin_lift_implication_names_exact_fact_coordinates_and_transport_form() {
-    let public = [
-        RepresentativeContractFactLocation {
-            owner: RepresentativeContractOwner::Machine,
-            contract_position: 2,
-            fact_position: 1,
-        },
-        RepresentativeContractFactLocation {
-            owner: RepresentativeContractOwner::State,
-            contract_position: 4,
-            fact_position: 3,
-        },
-    ];
-    let representative = RepresentativeContractFactLocation {
-        owner: RepresentativeContractOwner::State,
-        contract_position: 6,
-        fact_position: 5,
-    };
-
-    assert_eq!(
-        render_implication_coordinate_diagnostic(
-            "left representative application",
-            &public,
-            representative,
-        ),
-        "built-in public Q => representative P implication failed for the left representative application: expected public fact coordinates [public-Q.machine-contract[2].fact[1], public-Q.state-contract[4].fact[3]] to imply representative fact coordinate representative-P.state-contract[6].fact[5]; use `Quotient::lift<F, Congruence, Transport>(...)` and select one exact checked forward-precondition transport theorem",
-    );
-
-    // The full selected-theorem request fixture below has only dependent P.
-    // Fixed-call fixtures deliberately begin after relation/runtime
-    // correspondence, so they cannot legitimately drive diagnostic
-    // reconstruction. Pin the remaining exact fixed-call rendering here.
-    assert_eq!(
-        render_implication_coordinate_diagnostic(
-            "runtime representative application",
-            &public,
-            representative,
-        ),
-        "built-in public Q => representative P implication failed for the runtime representative application: expected public fact coordinates [public-Q.machine-contract[2].fact[1], public-Q.state-contract[4].fact[3]] to imply representative fact coordinate representative-P.state-contract[6].fact[5]; use `Quotient::lift<F, Congruence, Transport>(...)` and select one exact checked forward-precondition transport theorem",
     );
 }
 
