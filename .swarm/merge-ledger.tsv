@@ -224,3 +224,7 @@ a33887adcb	frontier-multiplicity-index	indexed multiplicity + shared bound index
 2026-09-25T17:07:22Z	ffb9fa6588	leaf/transition-target-parent-jump	coordinator	transition target resolution via symbol parent
 2026-09-25T17:08:57Z	746bd87b4a	leaf/diagnostic-dedup-no-format	coordinator	dedupe nested-field diags via message field
 2026-09-25T17:15:39Z	2510444243	leaf/places-data-def-memo	coordinator	unique data-def lookup via build memo
+2026-09-27T08:50Z	f2f461d9610	macw10-coordinator	me	landed: OWNED-SELF-RECEIVER fix-forward — task_plans fixtures discharge linear receiver via boundary requirement; emission+stage-05 migration already carried by 741bc8998c9; 68/68 task_plans + 1101/1101 stage-05 green
+2026-09-27T08:50Z	604e01bbf35	macw10-boundary-calls	coordinator	landed: OPERATOR-BOUNDARY-CALLS — generic boundary requirements settle through closed instance rows (4 commits); item stays on board, open frontier recorded (operator call occurrences never mint); gate 2475/2477, 2 rank_ranges reds pre-existing on main
+2026-09-27T08:50Z	-	macw10-laid-views-r3	coordinator	slot dead, WIP parked as 0e50c195842 on swarm/macw10-laid-views-r3 (placed-view entry probe mid-leg); worktree retained
+2026-09-27T08:50Z	-	macw10-sweep	coordinator	all sweep failures attributed: rank_ranges x4, hosted_exit, stage-00 affine x2, package-evidence x18, inspect_terminal/topology-plan/command_line/build_outputs — all reproduce on clean main; corpus golden drift only, not repinned

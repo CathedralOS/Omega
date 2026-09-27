@@ -1,0 +1,82 @@
+{
+  "wave": "macw10",
+  "host": "local",
+  "drained": "2026-09-27",
+  "base_at_launch": "see slots.json prompts (build/swarm/macw10/)",
+  "slots": [
+    {
+      "slot": "coordinator",
+      "item": "OWNED-SELF-RECEIVER-AFFINE-DISCARD",
+      "result": "landed",
+      "commits": ["95891403bf4", "f2f461d9610"],
+      "item_closed": true,
+      "note": "owned self receiver is ordinary parameter syntax — normal completion no longer consumes a linear or affine receiver; explicit UFCS self arguments resolve to the enclosing machine symbol in call-source custody. Fix-forward narrowed during rebase: 741bc8998c9 carried the emission arm and the stage-05 fixture migration in parallel, so f2f461d9610 lands only the provider-planning task_plans rework (boundary requirement Task::settle<T>(self)). 68/68 task_plans + 1101/1101 stage-05 green."
+    },
+    {
+      "slot": "boundary-calls",
+      "item": "OPERATOR-BOUNDARY-CALLS",
+      "result": "landed",
+      "commits": ["204fd072f49", "2eeae2bbc38", "d5bd069919a", "604e01bbf35"],
+      "item_closed": false,
+      "note": "generic boundary requirements settle through closed instance rows: service_schema admits a static generic template's authored schema, specialized_requirement_row joins template-keyed selected rows to exact closed requirements, and selected dispatch settles one closed adapter row per demanded instance. Open frontier recorded on the item: operator applications never mint a requirement-level call occurrence, so the Unit planner cannot emit BoundaryCall for them. Gate 2475/2477 — 2 rank_ranges reds reproduce on clean main."
+    },
+    {
+      "slot": "aarch64-wrapper",
+      "item": "NATIVE-WRAPPER-ENCODING-AARCH64",
+      "result": "landed",
+      "commits": ["a42b82af74d"],
+      "item_closed": true,
+      "note": "discharged on a no_gap verdict: three layers already reject non-UEFI wrapper contracts and hosted profiles route through hosted bridges with correct A64 encodings; program-entry-plan semantic_wrapper 8/8 + image-emission hosted_receiver 33/33. Related seed work landed on swarm/macw10-alpha-seed: 1a70b42afe4 re-forges the macOS ARM64 seed at 128 GiB, 3867b4f2a1a discharges alpha seed memsize native validation."
+    },
+    {
+      "slot": "exact-machine-r2",
+      "item": "EXACT-MACHINE-SIMPLIFICATIONS",
+      "result": "landed",
+      "commits": ["e38f3e0bb05"],
+      "item_closed": false,
+      "note": "dead/redundant/equivalent-compare rewrites enter selected-instructions admission; exact cast bounds reuse the retained equality closure (f278281c1b8 in the same family). Item remains on TASKS_OPTIMIZER."
+    },
+    {
+      "slot": "licm-r2",
+      "item": "GENERAL-LICM",
+      "result": "landed",
+      "commits": ["cef60c8aaa0"],
+      "item_closed": false,
+      "note": "the selected pass schedule reaches loop-invariant scalar motion; earlier slot general-licm completed and licm-r2 carried it to landing. Item remains on TASKS_OPTIMIZER."
+    },
+    {
+      "slot": "join-invariants",
+      "item": "JOIN-INVARIANT-REWRITE-TRANSPORT",
+      "result": "landed",
+      "commits": ["4def3ad560a"],
+      "item_closed": false,
+      "note": "scalar joins carry exact-add proof demands. Item remains on TASKS_OPTIMIZER."
+    },
+    {
+      "slot": "laid-views",
+      "item": "PLAN-LAID-VIEWS",
+      "result": "landed",
+      "commits": ["6658d8b11f3"],
+      "item_closed": false,
+      "note": "placed-view accessor carriers attach through the plan row. r2 died on rate limit; r3 died with work mid-leg — WIP parked as 0e50c195842 on swarm/macw10-laid-views-r3 (placed-view entry probe); worktree retained for resume."
+    },
+    {
+      "slot": "psiir-fuel",
+      "item": "PSIIR",
+      "result": "landed",
+      "commits": ["c77e5048a31", "876263c1285"],
+      "item_closed": false,
+      "note": "fixed-fuel integer-math clauses bound ranks over linear rows (r1); r2 died on rate limit; r3 landed fixed-fuel premises carrying invariant and edge-guard path facts. Item remains on TASKS.md."
+    },
+    {
+      "slot": "post-handoff-r2",
+      "item": "POST-HANDOFF-WRITER-OWNERSHIP",
+      "result": "landed",
+      "commits": ["c9f20a2e2bb"],
+      "item_closed": false,
+      "note": "post-handoff writer plans, lowering, and execution live in Omega owners; r1 died on rate limit with WIP kept, r2 completed the landing. Item remains on TASKS.md."
+    }
+  ],
+  "dead_slots": ["laid-views-r2", "psiir-fuel-r2", "post-handoff", "laid-views-r3"],
+  "sweep_note": "all sweep failures attributed to clean main — rank_ranges x4, hosted_exit_settlement, stage-00 affine suites x2, package-evidence x18, inspect_terminal/topology-plan/command_line/completed_build_outputs; corpus golden drift (cba5c020 baseline) confirmed at a4527505cc and not repinned"
+}
