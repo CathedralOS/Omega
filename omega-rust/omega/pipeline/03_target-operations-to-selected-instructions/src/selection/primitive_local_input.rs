@@ -211,10 +211,13 @@ pub(super) fn read_geometry(
                     .iter()
                     .flat_map(|block| &block.instructions)
                     .filter_map(|row| {
-                        // A leaf copy establishes an owned home whose fields
-                        // use the same producer/type custody as other aggregates.
+                        // Explicit and zeroed construction, copies and call
+                        // results all publish owned homes. Reads retain the
+                        // exact producer/type custody regardless of how that
+                        // home's fields were initialized.
                         let result = match &row.kind {
                             Instruction::EstablishRecord { result, .. }
+                            | Instruction::EstablishZeroedStructural { result, .. }
                             | Instruction::StructuralLeafCopy { result, .. } => result,
                             Instruction::Call(call) => call.structural_result.as_ref()?,
                             _ => return None,

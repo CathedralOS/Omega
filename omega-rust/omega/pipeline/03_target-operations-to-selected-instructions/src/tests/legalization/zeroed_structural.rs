@@ -4,10 +4,10 @@ use crate::{
     legalize_target_operations, select_instructions, selection_constraints,
     validate_selected_instructions,
 };
-use abstract_operations::AbstractOperation;
+use abstract_operations::{AbstractFunctionResult, AbstractOperation, AbstractResult};
 use semantic_vocabulary::{
     FuelScheduleIdentity, IntegerSign, IntegerType, OperationId, PlaceId, ScalarType,
-    StructuralFieldId, StructuralTypeId,
+    StructuralFieldId, StructuralTypeId, ValueId,
 };
 use terminal_psi::{
     BindingRelevance, StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
@@ -16,7 +16,7 @@ use terminal_psi::{
 };
 
 #[test]
-fn zeroed_records_and_array_leaves_select_exact_stores_and_reject_substitution() {
+fn zeroed_records_and_array_leaves_select_exact_stores_and_reads() {
     for native in [
         target::NativeTarget::linux_x64(),
         target::NativeTarget::linux_arm64(),
@@ -78,15 +78,39 @@ fn zeroed_records_and_array_leaves_select_exact_stores_and_reject_substitution()
                     },
                 },
             );
-            if multiplicity == StructuralMultiplicity::Affine {
-                let AbstractOperation::ReturnUnit {
-                    cleanup_actions, ..
-                } = &mut source.functions[0].operations[1]
-                else {
-                    panic!("unit return")
-                };
-                cleanup_actions.push(TerminalAffineCleanupAction::DiscardRoot(place));
-            }
+            let read = ValueId::new(1).unwrap();
+            let returned = ValueId::new(2).unwrap();
+            let AbstractOperation::ReturnUnit { psi_edge, .. } = source.functions[0].operations[1]
+            else {
+                panic!("unit return");
+            };
+            source.functions[0].result = AbstractFunctionResult::Scalar(AbstractResult {
+                value: returned,
+                scalar_type: scalar(64),
+            });
+            source.functions[0].operations[1] = AbstractOperation::IntegerStructuralField {
+                psi_operation: OperationId::new(2).unwrap(),
+                result: AbstractResult {
+                    value: read,
+                    scalar_type: scalar(64),
+                },
+                source: place,
+                path: Vec::new(),
+                field: StructuralFieldId::new(2).unwrap(),
+            };
+            source.functions[0]
+                .operations
+                .push(AbstractOperation::Return {
+                    psi_edge,
+                    result: returned,
+                    value: read,
+                    scalar_type: scalar(64),
+                    cleanup_actions: if multiplicity == StructuralMultiplicity::Affine {
+                        vec![TerminalAffineCleanupAction::DiscardRoot(place)]
+                    } else {
+                        Vec::new()
+                    },
+                });
             let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
                 &source,
                 FuelScheduleIdentity::new(1).unwrap(),
@@ -135,6 +159,44 @@ fn zeroed_records_and_array_leaves_select_exact_stores_and_reject_substitution()
                 .collect::<Vec<_>>();
             stores.sort();
             assert_eq!(stores, [(0, 1), (8, 8), (16, 2), (18, 2), (20, 2)]);
+            assert!(
+                selected.plan().functions[0]
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.instructions)
+                    .any(|instruction| matches!(
+                        instruction.kind,
+                        selected_instructions::SelectedInstructionKind::Load64 { byte_offset: 8 }
+                    ))
+            );
+            let mut changed_read = selected.plan().clone();
+            let read = changed_read.functions[0]
+                .blocks
+                .iter_mut()
+                .flat_map(|block| &mut block.instructions)
+                .find(|instruction| {
+                    matches!(
+                        instruction.kind,
+                        selected_instructions::SelectedInstructionKind::Load64 { .. }
+                    )
+                })
+                .unwrap();
+            let selected_instructions::SelectedInstructionKind::Load64 { byte_offset } =
+                &mut read.kind
+            else {
+                unreachable!()
+            };
+            *byte_offset = 0;
+            assert!(
+                validate_selected_instructions(
+                    &legal,
+                    &constraints,
+                    environment.physical(),
+                    environment.constraints(),
+                    changed_read
+                )
+                .is_err()
+            );
             let mut changed = selected.plan().clone();
             let store = changed.functions[0]
                 .blocks
