@@ -40,6 +40,11 @@ against `tests/omega/corpus_both_<target>.txt`:
     python3 tools/corpus_gate.py --interpret --filter _exit
     python3 tools/corpus_gate.py --both --filter run/
 
+Reading a move — the summary cuts each field at 300 columns, so use
+`--write-moves` to get every moved fixture's before/after records in full:
+
+    python3 tools/corpus_gate.py --filter fail/ --write-moves build/moves.json
+
 Measuring your own change — one pass, not two:
 
     git stash && python3 tools/corpus_gate.py --baseline --record && git stash pop
@@ -422,6 +427,11 @@ def main() -> int:
     parser.add_argument("--shard",
                         help="k/N — deterministic hash-slice of the corpus "
                              "(sets OMEGA_CORPUS_SHARD for the runner)")
+    parser.add_argument("--write-moves", type=Path, metavar="PATH",
+                        help="write every moved fixture's BEFORE and AFTER "
+                             "records to PATH as JSON, untruncated — the "
+                             "summary below cuts each field at 300 columns, "
+                             "which hides the diagnostic that actually moved")
     options = parser.parse_args()
     leg = ""
     if options.both:
@@ -578,10 +588,22 @@ def main() -> int:
         summary += (f"; executed {len(executed)} (exit codes {dict(exits)}), "
                     f"{differs} with stdout differing from expected")
 
+    def write_moves() -> None:
+        if not options.write_moves:
+            return
+        options.write_moves.parent.mkdir(parents=True, exist_ok=True)
+        options.write_moves.write_text(
+            json.dumps(structured_diffs, indent=2) + "\n", encoding="utf-8")
+        print(f"corpus_gate: wrote {len(structured_diffs)} moved fixture(s) "
+              f"to {options.write_moves}")
+
     if not structural_moves and not perf_moves:
         print(f"corpus_gate: clean — {summary}")
         for line in perf_notes[:20]:
             print(line)
+        # A clean run still rewrites the file, so a reader never mistakes a
+        # previous run's moves for this one's.
+        write_moves()
         return 0
     for line in structural_moves[:60]:
         print(line)
@@ -594,6 +616,7 @@ def main() -> int:
         print(line)
     print(f"corpus_gate: {len(structural_moves)} structural move(s), "
           f"{len(perf_moves)} perf move(s) — {summary}")
+    write_moves()
     if options.jev:
         jev_advise(structured_diffs)
     return 1
