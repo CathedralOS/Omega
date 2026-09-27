@@ -23,6 +23,7 @@ mod cyclic_header_invariants;
 mod element_fields;
 mod entry_requirement_crash_coverage;
 mod fact_call_projections;
+mod field_domain_writes;
 mod indexing;
 mod instantiation;
 mod mutable_parameter_results;
