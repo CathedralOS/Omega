@@ -162,6 +162,7 @@ pub(crate) fn validate_function_structural_catalog(
                                     result,
                                     ..
                                 }
+                                | O::EstablishZeroedStructural { psi_operation, result }
                                 | O::EstablishReference {
                                     psi_operation,
                                     result,
@@ -250,6 +251,7 @@ pub(crate) fn validate_function_structural_catalog(
             | O::EstablishScalarArray { result, .. }
             | O::EstablishScalarCase { result, .. }
             | O::EstablishRecord { result, .. }
+            | O::EstablishZeroedStructural { result, .. }
             | O::MoveStructuralField { result, .. }
             | O::StructuralLeafCopy { result, .. }
             | O::CallStructural { result, .. }
@@ -304,6 +306,10 @@ pub(crate) fn validate_function_structural_catalog(
                 psi_operation,
                 result,
                 ..
+            }
+            | O::EstablishZeroedStructural {
+                psi_operation,
+                result,
             }
             | O::EstablishReference {
                 psi_operation,

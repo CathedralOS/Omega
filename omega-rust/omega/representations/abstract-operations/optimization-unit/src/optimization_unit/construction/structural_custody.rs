@@ -68,6 +68,7 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
             places.insert(place.id);
         }
         O::EstablishPrimitiveLocal { result, .. }
+        | O::EstablishZeroedStructural { result, .. }
         | O::EstablishScalarArray { result, .. }
         | O::EstablishScalarCase { result, .. }
         | O::CallStructural { result, .. }
@@ -236,6 +237,7 @@ pub(super) fn collect_operation_structural_places(
             result,
             ..
         }
+        | AbstractOperation::EstablishZeroedStructural { psi_operation, result }
         | AbstractOperation::EstablishReference {
             psi_operation,
             result,

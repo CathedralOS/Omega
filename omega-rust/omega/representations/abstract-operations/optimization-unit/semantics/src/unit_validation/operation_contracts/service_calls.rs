@@ -8,7 +8,7 @@ use crate::unit_validation::operation_contracts::payloadless_cases::{
     plain_scalar_sum_call, scalar_case_establishment_matches, validate_structural_call_result,
 };
 use crate::unit_validation::operation_contracts::records::{
-    plain_record_call, record_establishment_matches,
+    plain_record_call, record_establishment_matches, zeroed_establishment_matches,
 };
 use crate::unit_validation::operation_contracts::scalar_arrays::{
     plain_scalar_array_call, scalar_array_establishment_matches,
@@ -116,6 +116,9 @@ pub(crate) fn operation_structural_call_contract_matches(
             scalar_case_establishment_matches(caller, operation, types)
         }
         O::EstablishRecord { .. } => record_establishment_matches(caller, operation, types),
+        O::EstablishZeroedStructural { .. } => {
+            zeroed_establishment_matches(caller, operation, types)
+        }
         O::CallUnit {
             callee,
             structural_arguments,

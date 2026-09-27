@@ -52,6 +52,7 @@ pub(crate) fn reconstruct_declared_places(
                 | O::EstablishScalarArray { result, .. }
                 | O::EstablishScalarCase { result, .. }
                 | O::EstablishRecord { result, .. }
+                | O::EstablishZeroedStructural { result, .. }
                 | O::EstablishReference { result, .. }
                 // The extraction's moved subtree is a declared operation
                 // result place like any establishment's.
