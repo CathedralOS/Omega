@@ -7,7 +7,7 @@ description: Tune and evaluate TypeSafe/Jev judgments in Omega agent workflows, 
 
 Find a decision where semantic understanding earns its cost, then improve the
 consuming workflow. Jarod wants iterative tuning toward a substantial practical
-win, not a catalogue of generic model limitations or a favorable benchmark alone.
+win measured end to end.
 
 Read [the experiment record](references/experiment-record.md) when continuing this
 work: it preserves the conversation's decisions, measured results, and artifact
@@ -67,12 +67,12 @@ Preserve interrupted attempts and their costs when switching an existing trial.
 
 Inspect failed outcomes before tuning: absent evidence, truncated candidates,
 ambiguous criteria, policy mistakes, model errors, and runner failures need different
-repairs. Preserve attempts; do not retry wrong answers until they pass. Narrow
-infrastructure retries need explicit accounting and a bounded stopping condition.
+repairs. Preserve every attempt and its result. Infrastructure retries carry
+explicit accounting and a bounded stopping condition.
 
-Use end-to-end improvements to justify integration. A promising retrieval score
-earns a worker trial, not an automatic approval gate. No observed speedup authorizes
-publication, automatic retry cancellation, or suppressing required checks.
+End-to-end improvements justify integration. A promising retrieval score earns a
+worker trial. Publication and required checks follow the repository's normal
+rules regardless of measured speedup.
 
 ## Bind generated architectures to requirements
 
@@ -152,9 +152,8 @@ to Jev. False claims and missing evidence remain unresolved, not automatically f
 
 ## Keep knowledge portable
 
-Maintain this project skill only in `.agents/skills/`. Put dated measurements in
-the linked record, not permanent model-capability rules. Raw experiments live in
-ignored `build/experiments/`; those paths are local evidence, not shipped fixtures.
-Preserve enough sanitized results here to survive their loss. Do not commit keys,
-raw session exports, or personal provider configuration. Reuse existing experiment
-helpers when present; do not build a second orchestration framework.
+Maintain this project skill in `.agents/skills/`. Dated measurements go in the
+linked record. Raw experiments live in ignored `build/experiments/`; preserve
+enough sanitized results here to survive their loss. Keys, raw session exports,
+and personal provider configuration stay out of the repository. Reuse the
+existing experiment helpers.

@@ -9,25 +9,22 @@ description: >-
 
 # Learn from repeated work
 
-Improve the cost of reaching verified customer outcomes by learning from recurring
-experience. A review can conclude that no supported change exists. Its cadence
-does not determine whether the evidence justifies an optimization.
+Improve the cost of reaching running programs by learning from recurring
+experience. A review can conclude that no supported change exists.
 
-This is a separate review invoked by the user or an already configured scheduled
-task. Do not attach it to every advance, create a schedule, or recursively launch
-another retrospective merely because this review finished.
+This review runs when the user invokes it. It ends when its report is written.
 
 ## Establish the evidence
 
 Use the requested batch, time window, or earlier experiment. If none is supplied,
 select a bounded recent batch of completed runs for the same project and explain
 the selection. Use available conversation history, run logs, tool observations,
-diffs, and check results. Inspect the underlying records behind promising summaries;
-do not crawl unrelated histories or create a new telemetry system.
+diffs, and check results, and inspect the underlying records behind summaries.
 
-Identify which runs and revisions were actually examined and any missing history.
-If only one run is available, report its observations as hypotheses and name what
-additional evidence would distinguish them. Never invent recurrence to fill a report.
+Identify which runs and revisions were examined and any missing history. If only
+one run is available, report its observations as hypotheses and name what
+additional evidence would distinguish them. Recurrence is counted, not
+inferred.
 
 Read available reasoning as evidence of the agent's assumptions and decisions,
 not proof that an action happened or an explanation is correct. Establish execution
@@ -50,18 +47,17 @@ for a recurring-pattern claim, but their comparability and causal evidence deter
 whether a process change is justified.
 
 Examine the whole route to the result. Repeated searches might reflect an unclear
-ownership boundary or missing diagnostic rather than poor search technique. Consider
-instructions, source organization, tools, and the environment as possible causes;
-check current code and governing contracts before recommending a change. Avoid
-turning every symptom into another rule or graph node.
+ownership boundary or missing diagnostic. Consider instructions, source
+organization, tools, and the environment as possible causes; check current code
+and governing contracts before recommending a change.
 
 ## Test a change that earns its cost
 
-Prefer removal, clarification, or an existing mechanism over a new subsystem.
-Propose the smallest change addressing the supported cause, including why it should
-help, what evidence would contradict it, and how to undo it. A retrospective request
-authorizes analysis and proposals; implement or publish changes only within the
-user's authorized scope and the repository's normal workflow.
+Prefer removal, clarification, or an existing mechanism. Propose the smallest
+change addressing the supported cause, including why it should help, what
+evidence would contradict it, and how to undo it. A retrospective request
+authorizes analysis and proposals; implementation follows the user's authorized
+scope and the repository's normal workflow.
 
 Evaluate against subsequent comparable work or independent held-out tasks, not only
 the trajectories used to invent the change. Keep verified customer acceptance and
@@ -72,19 +68,15 @@ Do not claim a speedup from unlike tasks or infer unknown usage.
 
 Distinguish a proposed experiment, an implemented but unevaluated change, and an
 improvement supported across runs. Retain, revise, or revert based on those outcomes.
-The retrospective process itself can be examined in a later batch when repeated
-evidence justifies it; do not optimize the reviewer after its first review.
 
 ## Leave a useful result
 
 Report the examined batch, supported patterns with evidence references, plausible
 causes and counterexamples, and any recommended experiment with its acceptance and
 revisit conditions. Keep weak hypotheses separate from supported findings. If no
-pattern warrants action, say so and identify only useful missing evidence.
+pattern warrants action, say so.
 
-Use the conversation or a user-requested report for review evidence. Do not append
-run history to execution boards, copy raw reasoning into source comments, or create
-a new trace ledger. Preserve verified design rationale at its existing owner when
-an authorized change needs it. Follow [AGENTS.md](../../../AGENTS.md) and
-[AGENTS.md](../../../AGENTS.md) for repository
-ownership, validation, and landing; this skill does not invoke advance.
+The report lives in the conversation or the user-requested report file.
+Verified design rationale goes to its existing owner in code when an authorized
+change needs it. Follow [AGENTS.md](../../../AGENTS.md) for repository
+ownership, validation, and landing.

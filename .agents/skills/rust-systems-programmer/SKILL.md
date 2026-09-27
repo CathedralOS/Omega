@@ -11,7 +11,7 @@ Use this skill to choose where decisions happen, who owns working state, and wha
 
 Read [AGENTS.md](../../../AGENTS.md) and its authoritative [repository conventions](../../../AGENTS.md#conventions-and-workflow), then the owning design or task contract. Trace the affected producer and consuming callers. Preserve observable order, semantic identity, failure behavior, and supported execution boundaries. Use the repository toolchain and APIs. Durable compiler storage follows arena, generational-handle, and ZII contracts; worker-local vectors are construction storage. Source text beyond resolution is limited to the payload roles named in those conventions, not semantic identity.
 
-Use this exact repository skill when invoked by path. A delegated evaluation should report the absolute path it read. Do not create a framework or refactor unrelated code just to demonstrate the skill.
+Use this exact repository skill when invoked by path. A delegated evaluation reports the absolute path it read. The change is the one the task asked for.
 
 ## Choose the relevant operation
 
@@ -28,36 +28,31 @@ Use this exact repository skill when invoked by path. A delegated evaluation sho
 | Names or source slices are repeatedly allocated | Retain source ownership, validate spelling/ranges, and inspect derived operations. | [Source storage](references/storage-and-execution.md#retain-source-storage-instead-of-copying-each-name) |
 | Moving a pattern into arena/handle-based code | Preserve durable identity and publication contracts. | [Omega examples](references/squalr-patterns.md) |
 
-Read the relevant reference, not every reference. A simple change may need none of these patterns. Source examples explain why a choice fits; they do not establish a speedup or make that choice universal.
+Read the reference the decision needs. A simple change may need none of these patterns. Source examples explain why a choice fits in its context.
 
 ## Shape the implementation
 
 For compiler lowering, apply [compositional lowering](../../../omega-rust/pipeline.md#compositional-lowering).
-Recognizers for incidental source arrangements are code rot, not a reusable
-implementation boundary. Before widening one, trace whether ordinary operation
-sequencing or explicit data/control/ownership joins can replace the special path.
-Keep semantic and ABI restrictions explicit and independently verified; do not
-turn a failed proof into an accepted fallback. Test composition, not only the
-particular spelling which exposed the gap.
+When a recognizer for an incidental source arrangement is in the path, trace
+whether ordinary operation sequencing or explicit data/control/ownership joins
+replace it. Keep semantic and ABI restrictions explicit and independently
+verified; a failed proof stays a rejection. Test the composition the general
+case needs.
 
 Identify which facts change per request, partition, and element. Prepare reusable facts at the outer lifetime; specialize local choices where their inputs become known; keep the inner operation narrow. Borrow immutable context, own mutable working state, and transfer useful output storage to the consumer.
 
-Use coherent domain names and responsibility-focused modules. Preserve precise input modes instead of growing an all-purpose context. Reuse existing abstractions; allow a little duplication when it keeps invariant decisions outside a hot loop. Recover from errors at the boundary that owns recovery. Apply the [coding conventions](references/rust-conventions.md) when writing or reviewing Rust.
+Use coherent domain names and responsibility-focused modules with precise input modes. Reuse existing abstractions; allow a little duplication when it keeps invariant decisions outside a hot loop. Recover from errors at the boundary that owns recovery. Apply the [coding conventions](references/rust-conventions.md) when writing or reviewing Rust.
 
 ## Finish with evidence
 
-For a proposed change, identify the avoided work and the contract that must survive. Inspect the whole path, including post-processing and inherited equality, hashing, formatting, or serialization. A smaller source diff or fewer allocations at one stage does not prove lower peak RAM or faster execution.
+For a proposed change, identify the avoided work and the contract that must survive. Inspect the whole path, including post-processing and inherited equality, hashing, formatting, or serialization. Peak RAM and execution time are measured, not inferred from the diff.
 
-For implementation, carry the smallest justified change through formatting and [scoped validation](../../../tools/testing.md#validation-scope). Test the changed ownership/order/boundary behavior; measure performance when making a performance claim. Report what changed, what was verified, and any remaining copy or bottleneck that limits the result. A justified no-change decision is valid; generic advice is not a substitute for an authorized implementation.
+For implementation, carry the smallest justified change through formatting and [scoped validation](../../../tools/testing.md#validation-scope). Test the changed ownership/order/boundary behavior; measure performance when making a performance claim. Report what changed, what was verified, and any remaining copy or bottleneck that limits the result.
 
 When changing code organization, follow the touched route from its public
 entrypoint to the operation and result handling before handoff, applying
 [Discoverability architecture](../../../omega-rust/pipeline.md#discoverability-architecture).
-Use the linked main.rs and compiler.rs as orchestration examples. Repeat that
-ownership test at subordinate multi-step flows; a tidy crate root above
-unstructured sibling folders is incomplete. First choose
-that entrance from the file tree, without relying on prior repository knowledge;
-Rust's `lib.rs`/`mod.rs` wiring alone may not identify the domain owner. Check that names
-and calls reveal the owner and next step without a forwarding maze. Fix confusing
-navigation within the change; flag wider problems without turning a local task
-into a repository-wide reorganization.
+Use the linked main.rs and compiler.rs as orchestration examples, and repeat
+that ownership test at subordinate multi-step flows. Choose the entrance from
+the file tree; check that names and calls reveal the owner and next step. Fix
+confusing navigation within the change and flag wider problems.
