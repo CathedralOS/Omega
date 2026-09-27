@@ -384,6 +384,100 @@ fn generated_concrete_generic_nominal_normalizes_to_its_exact_origin() {
 }
 
 #[test]
+fn lifetime_only_applications_preserve_the_runtime_nominal_identity() {
+    let mut builder = SymbolTableBuilder::new();
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let owners = SymbolTableBuilder::child_handles(builder.insert_children(
+        root,
+        [
+            (SymbolKind::Data, SymbolNameRef::Static("Carrier")),
+            (SymbolKind::Data, SymbolNameRef::Static("Other")),
+        ],
+    ))
+    .collect::<Vec<_>>();
+    let mut program = TypedTrees {
+        symbols: builder.finish(),
+        ..TypedTrees::default()
+    };
+    let bare = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Named {
+            symbol: owners[0],
+            name: Identifier::generated("Carrier"),
+        });
+    let empty = program
+        .type_reference_table
+        .insert_type_reference_handles([]);
+    for lifetime in ["first", "second"] {
+        let applied = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Generic {
+                base_symbol: owners[0],
+                base_name: Identifier::generated("Carrier"),
+                lifetime_arguments: vec![Identifier::generated(lifetime)],
+                arguments: empty,
+            });
+        assert_eq!(
+            program.normalized_type_identity(bare),
+            program.normalized_type_identity(applied)
+        );
+        assert_eq!(
+            program.package_qualified_type_identity(bare),
+            program.package_qualified_type_identity(applied)
+        );
+        let borrowed_bare = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: bare,
+                access: ReferenceAccess::Shared,
+                lifetime: None,
+            });
+        let borrowed_applied = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: applied,
+                access: ReferenceAccess::Shared,
+                lifetime: Some(Identifier::generated(lifetime)),
+            });
+        assert_eq!(
+            program.normalized_type_identity(borrowed_bare),
+            program.normalized_type_identity(borrowed_applied)
+        );
+    }
+    let other = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Generic {
+            base_symbol: owners[1],
+            base_name: Identifier::generated("Carrier"),
+            lifetime_arguments: vec![Identifier::generated("first")],
+            arguments: empty,
+        });
+    assert_ne!(
+        program.normalized_type_identity(bare),
+        program.normalized_type_identity(other)
+    );
+    assert_ne!(
+        program.package_qualified_type_identity(bare),
+        program.package_qualified_type_identity(other)
+    );
+    let arguments = program
+        .type_reference_table
+        .insert_type_reference_handles([bare]);
+    let with_runtime_argument = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Generic {
+            base_symbol: owners[0],
+            base_name: Identifier::generated("Carrier"),
+            lifetime_arguments: vec![Identifier::generated("first")],
+            arguments,
+        });
+    assert_ne!(
+        program.normalized_type_identity(bare),
+        program.normalized_type_identity(with_runtime_argument)
+    );
+}
+
+#[test]
 fn same_spelled_package_nominals_have_distinct_qualified_identities() {
     let path = "shared::Packet";
     let first =

@@ -10,8 +10,7 @@ use crate::execution::terminal_unit::types::{base_type_identity, machine_binders
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralResultBindingPlan, Multiplicity, TypeReferenceNode, TypedTrees,
-    is_reference,
+    CheckedUnitStructuralResultBindingPlan, Multiplicity, TypedTrees, is_reference,
 };
 
 pub(super) fn build(
@@ -147,17 +146,16 @@ pub(super) fn build(
                 program,
                 target_state.return_type,
             )
+            // Closed contents and the retained body determine the carrier,
+            // including lifetime-only applications. Named syntax is not an
+            // extra ownership proof; the classifier still rejects open types,
+            // carried loans, nominal cleanup and unknown qualifications.
             || (matches!(
                 result.multiplicity,
                 Multiplicity::Affine | Multiplicity::Unrestricted
             ) && validation::has_plain_owned_contents_with_numeric_constraints(
                 program,
                 target_state.return_type,
-            ) && matches!(
-                program
-                    .type_reference_table
-                    .type_reference(target_state.return_type),
-                TypeReferenceNode::Named { .. }
             ))
             || (result.multiplicity == Multiplicity::Unrestricted
                 && validation::is_closed_primitive_array_type(
