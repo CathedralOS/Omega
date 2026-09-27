@@ -4226,46 +4226,42 @@ syntax and other terminal services are not prerequisites.
   replay; ordinary `UniqueCoveringCandidate` plans remain subject to authored
   replay. No mandatory PCC request or synthesized receiver-policy file.
 
-- **FILESYSTEM-RELEASE-CONTRACT.** Connect the program's checked open/query/close
-  derivation to native authority classification under the
-  [bounded occurrence-specific release contract](wiki/spec/build/permissions.md#bounded-occurrence-specific-release-proof).
-  Successful acquisition must establish the exact object/argument contract;
-  every intervening call must preserve the handle and aliases; applicable
-  returning paths release once with no later use. Query-only or empty authority
-  is not a preservation contract, and build execution proves nothing about the
-  shipped program's lifecycle.
+- **FILESYSTEM-RELEASE-CONTRACT.** Execute
+  `tests/omega/pass/filesystem/windows_canonicalize_exit` on Windows: canonicalize
+  a file and directory, preserve missing-path `NotFound`, clean up and exit 70.
+  Its build selects `Main::main`; the separate `FailedOpen` entry has no remaining
+  call-count harness. Exercise failed acquisition and prove it performs neither
+  path query nor close. Keep the authored `UnitResult` stores, case observations,
+  nested error matches and buffer handling.
 
-  The native policy helpers in
+  Prioritize prerequisites through **STATE-LOCAL-VALUE-FRONTIER** /
+  **NOMINAL-FIELD-FLOW**. The corpus records conditional state-parameter transfer
+  refusal at state 8, statement 2; re-drive the whole program before assigning a
+  current blocker. Structural replacement already handles constructed and
+  call-produced cases through move/store pairs: stage 05's registered
+  `tests/constructed_field_replacement_source.rs` serializes, verifies and
+  interprets these stores. Extend that composition rather than rebuild it.
+
+  Derive the [bounded release proof](wiki/spec/build/permissions.md#bounded-occurrence-specific-release-proof)
+  from checked program flow: successful acquisition under the exact object/argument
+  contract, handle/alias identity, preservation by intervening calls, one release
+  on applicable returning paths and no subsequent use. Retain Terminal evidence,
+  independently validate it and bind the exact native occurrence. Helpers in
   `02_abstract-operations-to-target-operations/src/provider_admission/terminal_authority_policy/filesystem.rs`
-  already bind an occurrence commitment into syscall/foreign-import mechanism
-  identities and emit a constrained empty row, but only tests call them.
-  Implement the checked-flow derivation, retained Terminal evidence and independent
-  validation, then rejoin that exact occurrence at realization. Hashing an asserted
-  proof is not checking it. Changed arguments, flow, calls or contracts require
-  re-establishment; absent proof uses only a justified conservative classification
-  or rejects, never an invented empty row.
+  already construct contract commitments and syscall/foreign-import classification
+  keys, but have no callers beyond exports. A supplied digest, open flags,
+  query-only authority or build execution does not prove the lifecycle.
 
-  Drive `tests/omega/pass/filesystem/windows_canonicalize_exit` through native
-  execution (expected exit 70 on Windows), including its failed-open control.
-  Its stored `UnitResult` customer still needs general structural sum
-  replacement, borrowed case observation, whole nominal receiver replacement
-  (including match-produced assignments), and nested layout/custody through
-  **STATE-LOCAL-VALUE-FRONTIER** / **NOMINAL-FIELD-FLOW**. The scalar-store path
-  does not provide this; existing `StoreStructuralField` repairs an opened
-  borrowed hole, not arbitrary nominal replacement. Resume prerequisite work
-  with that full customer plan, not another isolated source-shape recognizer.
-  The earlier entry-attachment/fused-provider diagnostics at `069276b986dc`
-  have not been rerun; re-drive the fixture before treating them as current.
-
-  Acceptance: constrained close earns one evidence-bound empty row; failed
-  acquisition, escape, reused aliases, second close, invalidating calls and
-  stale/substituted evidence reject narrowing. Preserve Windows shared-delete
-  behavior: another actor's pending deletion may complete on ordinary close,
-  but deletion attached to this handle excludes the empty classification.
-  `filesystem/native_close` closes an arbitrary integer, so retain it as an
-  unconstrained control, not proof of a successful acquisition. General owned
-  handles are not a prerequisite. **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW** owns
-  permission/review rows and the broad filesystem-summary replacement.
+  Acceptance: a proved close earns one occurrence-bound empty classification;
+  failed acquisition, escape, reused aliases, double close, invalidating calls and
+  stale/substituted proofs cannot narrow authority. Changed arguments, flow or
+  contracts require new evidence; otherwise use a justified conservative class
+  or reject. Preserve Windows read/write/delete sharing: external pending deletion
+  may complete on ordinary close, while deletion attached to this handle excludes
+  the empty class. `filesystem/native_close` closes arbitrary descriptor 5 and
+  remains an unconstrained control. General owned handles are not a prerequisite.
+  **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW** owns permission/review rows and broad
+  filesystem-summary replacement.
 
 - **R5.** Complete compositional caller-visible may-write inference in
   `omega-rust/psi/checking/src/machine_calls/calls/write_frames.rs` and its subordinate
