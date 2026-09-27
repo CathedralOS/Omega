@@ -651,7 +651,7 @@ fn normalized_foreign_structural_signature_requires_the_exact_admitted_lane() {
         StructuralParameterDeclaration, StructuralPathQualification, StructuralPathSegment,
     };
 
-    use crate::physical::derivation::children::normalized_foreign_structural_parameter_shapes;
+    use crate::physical::derivation::foreign_calls::normalized_foreign_structural_parameter_shapes;
 
     let pointer = ValueShape::integer(8, 8);
     let parameter =

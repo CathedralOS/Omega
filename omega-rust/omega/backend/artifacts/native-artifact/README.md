@@ -48,7 +48,24 @@ encoding custody stays in
 [native-realization](../../../compiler/src/native/optimized_semantic_wrapper_object/mod.rs). Follow
 [physical/derivation.rs](src/physical/derivation.rs) for independent physical
 evidence reconstruction and [physical/mod.rs](src/physical/mod.rs) for its
-retained carriers.
+retained carriers. The derivation coordinator in
+[evidence.rs](src/physical/derivation/evidence.rs) rejoins surviving occurrences
+and dispatches their boundary evidence to three owners:
+
+- [hosted_builtins.rs](src/physical/derivation/hosted_builtins.rs) owns the hosted
+  builtin catalog and its argument, result, and emitted-byte custody.
+- [provider_settlements.rs](src/physical/derivation/provider_settlements.rs)
+  rejoins admitted provider settlements and accounts for their port effects.
+- [foreign_calls.rs](src/physical/derivation/foreign_calls.rs) reconstructs
+  normalized foreign-call evidence, including argument placement, callbacks,
+  and import relocations. Its
+  [fragment_custody.rs](src/physical/derivation/foreign_calls/fragment_custody.rs)
+  rejoins fragment-published imports and selected-call records; the sibling
+  `floating_control.rs` checks the saved and restored control-state envelope.
+
+Settlement identity encoding and provider-execution custody remain shared,
+named owners beside these derivations. Missing coverage still produces an
+explicit evidence gap; contradictory retained custody remains an error.
 
 This crate consumes source-free inputs. It does not select source providers,
 install an artifact, or publish executable files.
