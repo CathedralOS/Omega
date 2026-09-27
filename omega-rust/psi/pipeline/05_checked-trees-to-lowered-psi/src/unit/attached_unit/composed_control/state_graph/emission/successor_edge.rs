@@ -398,12 +398,12 @@ impl StateGraphEmission<'_, '_> {
                         return unsupported("Unit graph local loan requires an activation entry home");
                     }
                     let result = case_emission::result(state, binding_ordinal, operations)?;
-                    if result.multiplicity == StructuralMultiplicity::Affine {
-                        if let Some(previous) = self.loaned_local_homes.insert(binding_ordinal, place)
-                            && previous != place
-                        {
-                            return unsupported("Unit graph local loan changed its backing home");
-                        }
+                    if result.multiplicity == StructuralMultiplicity::Affine
+                        && let Some(previous) =
+                            self.loaned_local_homes.insert(binding_ordinal, place)
+                        && previous != place
+                    {
+                        return unsupported("Unit graph local loan changed its backing home");
                     }
                 }
                 structural_arguments.push(StructuralArgument {
