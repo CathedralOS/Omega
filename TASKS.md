@@ -5180,6 +5180,33 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   as itself through 05, Terminal verification and selection. Three samples
   wait on it: `cli/text/{parse_int,roman_numeral,string_hash}`.
 
+  **The same unimplemented rule has a SECOND, contradictory behaviour, and
+  it is the one to fix first.**
+  `omega-rust/psi/checking/src/proof_contracts/arithmetic_domains/operand_reports.rs`
+  refuses a comparison between two declared places of different integer
+  types with "the operands have different integer types and the operation
+  would silently truncate the wider one to the narrower width; convert one
+  with an `as` cast so both are the same type". That is the spec's own
+  first truth-table row -- `-1` of type `i32` against `10` of type `u64` --
+  and the `as` cast it prescribes is both the conversion the spec says is
+  not required and, for this row, unavailable: neither value is
+  representable in the other's carrier. A LENGTH PROJECTION has no declared
+  primitive type, which is exactly why `self.i < self.text.len` escapes
+  that rule, passes checking, and is refused a second time and silently in
+  the lowering instead. Two sites, one missing rule, opposite failure
+  modes.
+  `tests/omega/pending/expressions/mixed_integer_comparison_places` pins
+  the declared-place row beside the guard one, with an exit that
+  distinguishes the right answer from an unsigned promotion.
+
+  Order the work so the last step is not skipped: delete the comparison
+  half of the `operand_reports` rule (it stays correct for bitwise, which
+  IS carrier-bound), let the lowering keep two carriers, and only then make
+  Terminal and native compare by mathematical value. Relaxing the first two
+  alone was measured: the guard reduction compiles immediately, which is
+  what would let a promoted comparison answer wrongly instead of being
+  refused.
+
   A second traced omission with its route mapped. `samples/cli/systems/
   vending_machine` omits at `state graph: terminator: conditional successors:
   parameter transfer` because `handoff` passes a structural call inline as a
