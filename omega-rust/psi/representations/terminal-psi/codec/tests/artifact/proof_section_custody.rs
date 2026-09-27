@@ -22,23 +22,29 @@
 //! The same holds for `Admitted` evidence routes inside a derivable
 //! obligation: the substitution is representable and identity-bound while the
 //! verifier refuses an admission where a derivation exists.
+//!
+//! The representable legs run through the shared
+//! `run_one_field_substitution_matrix` driver over the declared
+//! `ProofSectionCustodyFieldForTest` inventory in
+//! `proof_section_custody_fields.rs`: each leg mutates one `ProofBundle`
+//! field, must still encode canonically, diverges the bound artifact
+//! identity, and is rejected by the retained-manifest replay; the
+//! `verify_module` semantic verdict per leg is pinned through the driver's
+//! joined-replay hook, since provenance substitutions are verifier-admitted
+//! while identity-bound. Encoding rejections, wire-level tag/identity
+//! corruptions, and the transport-envelope replay stay authored below.
 
 use std::ops::Range;
 
 use super::{
-    block_id, canonical_artifact, edge_id, evidence_id, evidence_term_id, i32_type, machine_id,
-    obligation_id, proof_recursive_component, proof_recursive_evidence, proposition_id,
-    semantic_module,
+    canonical_artifact, evidence_id, evidence_term_id, i32_type, machine_id, obligation_id,
+    proof_recursive_component, proof_recursive_evidence, proposition_id, semantic_module,
 };
 use proof_admission::{
-    AdmissionEvidence, AdmissionKind, AdmissionProfile, CertificateEnvelope, EvidenceRoute,
-    PrimitiveJudgment, ProofNode, ProofRule, ProofSystemMarker, RecursiveComponentCertificate,
-    RecursiveEdgeCertificate,
+    AdmissionProfile, CertificateEnvelope, EvidenceRoute, PrimitiveJudgment, ProofNode, ProofRule,
+    ProofSystemMarker,
 };
-use semantic_vocabulary::{
-    AdmissionSiteId, CycleComponentId, IntegerValue, ProfileDecisionId, Proposition,
-    PropositionError, RankingRelationId, RecursiveComponentId, ScalarTerm,
-};
+use semantic_vocabulary::{IntegerValue, Proposition, PropositionError, ScalarTerm};
 use terminal_codec::{
     ArtifactManifestError, CanonicalTerminalArtifact, CanonicalTerminalArtifactError,
     ProofCodecError, build_artifact_manifest, build_identity_optimization_execution_record,
@@ -46,15 +52,22 @@ use terminal_codec::{
     validate_artifact_manifest, verify_terminal_artifact_proof,
 };
 use terminal_psi::{
-    ContractClause, CrashCertificate, CrashObligationEvidence, CrashObligationOwner,
-    EvidenceContractLane, EvidenceContractLaneKind, EvidenceInterfaceIdentity,
+    ContractClause, EvidenceContractLane, EvidenceContractLaneKind, EvidenceInterfaceIdentity,
     EvidenceRequirementIdentity, EvidenceTermDeclaration, PropositionApplicationIdentity,
     PropositionDeclaration, PropositionEvidence, TerminalModule,
 };
 use terminal_verifier::{
-    ControlCycleEvidence, EvidenceProducerProvenance, EvidenceProducerRealization,
-    EvidenceProducerRowSource, ObligationEvidence, ProofBundle, RecursiveComponentEvidence,
-    verify_module,
+    EvidenceProducerProvenance, EvidenceProducerRealization, EvidenceProducerRowSource,
+    ObligationEvidence, ProofBundle, verify_module,
+};
+
+use mutation_matrix::{OneFieldSubstitutionMatrix, run_one_field_substitution_matrix};
+
+#[path = "proof_section_custody_fields.rs"]
+mod proof_section_custody_fields;
+use proof_section_custody_fields::{
+    ProofSectionCustodyFieldForTest, proof_section_custody_outcome, proof_section_semantic_verdict,
+    substitute_proof_section_for_test, surplus_crash, surplus_cycle,
 };
 
 /// Byte offsets of every wire field inside the canonical sealed section.
@@ -586,50 +599,65 @@ fn sealed_proof_section_rejects_every_one_field_substitution() {
         proof_bundle_fingerprint(&bundle).expect("honest bundle fingerprint"),
     );
 
-    // A substitution that still forms a canonical bundle reseals under the
-    // same subject, honestly recomputes a divergent artifact identity, and is
-    // rejected by the retained-manifest replay. `verifies` records whether
-    // the semantic replay also rejects the mutated bundle: provenance fields
-    // such as certificate identities are admitted by the verifier but still
-    // diverge the bound identity.
-    let representable = |name: &'static str, mutated: &ProofBundle, verifies: bool| {
-        let mutated_section = encode_proof_section(&module, mutated)
-            .unwrap_or_else(|error| panic!("{name} must still encode: {error:?}"));
-        assert_ne!(mutated_section, section, "{name} must change the section");
-        assert_eq!(
-            decode_proof_section_for(&module, &mutated_section),
-            Ok(mutated.clone()),
-            "{name} must still decode under the same subject"
-        );
-        let recomputed_optimization =
-            build_identity_optimization_execution_record(&module, mutated)
-                .expect("identity optimization over the substituted bundle");
-        let recomputed =
-            build_artifact_manifest(&module, mutated, &recomputed_optimization, None, None)
-                .expect("honest manifest over the substituted bundle");
-        assert_ne!(
-            recomputed.identity(),
-            retained.identity(),
-            "{name} must diverge the recomputed artifact identity"
-        );
-        assert_eq!(
+    // Every representable substitution still forms a canonical bundle that
+    // reseals under the same subject, honestly recomputes a divergent artifact
+    // identity, and is rejected by the retained-manifest replay. The
+    // joined-replay leg pins each leg's `verify_module` verdict through
+    // `proof_section_semantic_verdict`: provenance fields such as certificate
+    // identities are admitted by the verifier but still diverge the bound
+    // identity. The donor is an authentic proof bundle produced for a foreign
+    // module.
+    let mut donor_module = semantic_module();
+    donor_module.machines[0].id = machine_id(7);
+    donor_module.entry = machine_id(7);
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "sealed proof section",
+        fields: ProofSectionCustodyFieldForTest::INVENTORY,
+        honest: &|| bundle.clone(),
+        donor: custody_bundle(&donor_module),
+        custody: &|record: &ProofBundle| {
+            proof_bundle_fingerprint(record).expect("bundle fingerprint")
+        },
+        substitute: &substitute_proof_section_for_test,
+        check: &|record: &ProofBundle| {
+            let mutated_section =
+                encode_proof_section(&module, record).expect("a declared leg must encode");
+            assert_eq!(
+                decode_proof_section_for(&module, &mutated_section),
+                Ok(record.clone()),
+                "a declared leg must decode canonically under the same subject"
+            );
+            let recomputed_optimization =
+                build_identity_optimization_execution_record(&module, record)
+                    .expect("identity optimization over the substituted bundle");
+            let recomputed =
+                build_artifact_manifest(&module, record, &recomputed_optimization, None, None)
+                    .expect("honest manifest over the substituted bundle");
+            assert_ne!(
+                recomputed.identity(),
+                retained.identity(),
+                "a declared leg must diverge the recomputed artifact identity"
+            );
             validate_artifact_manifest(
                 &module,
-                mutated,
+                record,
                 &recomputed_optimization,
                 None,
                 None,
                 retained,
-            ),
-            Err(ArtifactManifestError::ManifestMismatch),
-            "{name} must reject at the retained-manifest replay"
-        );
-        assert_eq!(
-            verify_module(&module, mutated, &AdmissionProfile::default()).is_ok(),
-            verifies,
-            "{name} has the wrong semantic-replay outcome"
-        );
-    };
+            )
+            .map(|()| proof_bundle_fingerprint(record).expect("leg fingerprint"))
+        },
+        outcome: &proof_section_custody_outcome,
+        joined_replay: Some(&|record: &ProofBundle, field| {
+            assert_eq!(
+                verify_module(&module, record, &AdmissionProfile::default()).is_ok(),
+                proof_section_semantic_verdict(field),
+                "{field:?} has the wrong semantic-replay outcome"
+            );
+        }),
+    });
+
     // A substitution that cannot be represented canonically rejects inside
     // the sealed-section encoder's canonical-order validation.
     let encode_rejected = |name: &'static str, mutated: &ProofBundle, expected: ProofCodecError| {
@@ -741,92 +769,18 @@ fn sealed_proof_section_rejects_every_one_field_substitution() {
         &changed,
         ProofCodecError::NonCanonicalEvidenceOrder,
     );
-    let mut changed = bundle.clone();
-    changed.evidence[2].obligation = obligation_id(4);
-    representable("the last obligation's identity", &changed, false);
-
-    // Route-kind substitutions are representable: a derivable obligation
-    // still rejects an `Admitted` route, and a kernel judgment that cannot
-    // prove the conclusion is refused by the checker. An equally valid
-    // derivation keeps the semantic verdict but still diverges the identity.
-    let mut changed = bundle.clone();
-    changed.evidence[0].route =
-        EvidenceRoute::KernelDerived(PrimitiveJudgment::ClosedIntegerRelation);
-    representable(
-        "a certificate-to-kernel route of equal strength",
-        &changed,
-        true,
-    );
-    let mut changed = bundle.clone();
-    changed.evidence[0].route = EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth);
-    representable(
-        "a certificate-to-kernel route that cannot prove",
-        &changed,
-        false,
-    );
-    let mut changed = bundle.clone();
-    changed.evidence[2].route = EvidenceRoute::KernelDerived(PrimitiveJudgment::ReflexiveEquality);
-    representable("a kernel judgment that cannot prove", &changed, false);
-    let admitted = AdmissionEvidence {
-        site: AdmissionSiteId::new(21).expect("site identity"),
-        kind: AdmissionKind::ProviderFact,
-        authority_identity: evidence_id(22),
-        evidence_identity: evidence_id(23),
-        profile_decision: ProfileDecisionId::new(24).expect("decision identity"),
-    };
-    let mut changed = bundle.clone();
-    changed.evidence[2].route = EvidenceRoute::Admitted(admitted);
-    representable("a kernel-to-admitted route", &changed, false);
-    let admitted_fields: [(&'static str, Box<dyn Fn(&mut AdmissionEvidence)>); 5] = [
-        (
-            "an admitted site",
-            Box::new(|evidence| {
-                evidence.site = AdmissionSiteId::new(25).expect("site identity");
-            }),
-        ),
-        (
-            "an admitted kind",
-            Box::new(|evidence| {
-                evidence.kind = AdmissionKind::CheckedAssemblyClaim;
-            }),
-        ),
-        (
-            "an admitted authority",
-            Box::new(|evidence| {
-                evidence.authority_identity = evidence_id(26);
-            }),
-        ),
-        (
-            "an admitted evidence identity",
-            Box::new(|evidence| {
-                evidence.evidence_identity = evidence_id(27);
-            }),
-        ),
-        (
-            "an admitted profile decision",
-            Box::new(|evidence| {
-                evidence.profile_decision = ProfileDecisionId::new(28).expect("decision identity");
-            }),
-        ),
-    ];
-    for (name, mutate) in admitted_fields {
-        let mut changed = bundle.clone();
-        let mut substitution = admitted;
-        mutate(&mut substitution);
-        changed.evidence[2].route = EvidenceRoute::Admitted(substitution);
-        representable(name, &changed, false);
-    }
+    // The last row's obligation stays canonical (`TrailingObligationIdentity`);
+    // route-kind substitutions are representable — a derivable obligation
+    // still rejects an `Admitted` route, a kernel judgment that cannot prove
+    // the conclusion is refused by the verifier, and an equally valid
+    // derivation keeps the semantic verdict while diverging the identity —
+    // and every `Admitted` payload field is bound; the inventory legs
+    // `EvidenceRouteTo*` and `Admitted*` exercise all of these through the
+    // matrix.
 
     // Certificate envelope: the evidence identity is producer provenance
-    // admitted by the verifier, while the marker has no second canonical
-    // value and rejects on the wire.
-    let mut changed = bundle.clone();
-    let EvidenceRoute::CertificateDerived(envelope) = &mut changed.evidence[0].route else {
-        unreachable!()
-    };
-    envelope.identity = evidence_id(91);
-    representable("a certificate's evidence identity", &changed, true);
-
+    // admitted by the verifier (`CertificateEvidenceIdentitySubstituted`),
+    // while the marker has no second canonical value and rejects on the wire.
     let mut mutated = section.clone();
     mutated[spans.evidence[0]
         .certificate
@@ -854,72 +808,10 @@ fn sealed_proof_section_rejects_every_one_field_substitution() {
         ProofCodecError::ZeroIdentity("EvidenceIdentity"),
     );
 
-    // Proof node fields: the conclusion proposition is checked against the
-    // obligation, the rule must derive it, and every rule payload is bound.
-    let mut changed = bundle.clone();
-    let EvidenceRoute::CertificateDerived(envelope) = &mut changed.evidence[0].route else {
-        unreachable!()
-    };
-    envelope.proof.conclusion = Proposition::Truth;
-    representable("a certificate's conclusion proposition", &changed, false);
-    let mut changed = bundle.clone();
-    let EvidenceRoute::CertificateDerived(envelope) = &mut changed.evidence[0].route else {
-        unreachable!()
-    };
-    let Proposition::Equal(_, right) = &mut envelope.proof.conclusion else {
-        unreachable!()
-    };
-    *right = ScalarTerm::integer(i32_type(), IntegerValue::Signed(8)).expect("i32 literal");
-    representable("a conclusion's equality operand", &changed, false);
-    let mut changed = bundle.clone();
-    let EvidenceRoute::CertificateDerived(envelope) = &mut changed.evidence[0].route else {
-        unreachable!()
-    };
-    envelope.proof.rule = ProofRule::Primitive(PrimitiveJudgment::Truth);
-    representable("a certificate's rule kind", &changed, false);
-    let mut changed = bundle.clone();
-    let EvidenceRoute::CertificateDerived(envelope) = &mut changed.evidence[0].route else {
-        unreachable!()
-    };
-    let ProofRule::EqualityTransitivity {
-        left_equals_middle, ..
-    } = &mut envelope.proof.rule
-    else {
-        unreachable!()
-    };
-    left_equals_middle.rule = ProofRule::Assumption { index: 9 };
-    representable("a child's assumption index", &changed, false);
-    let mut changed = bundle.clone();
-    let EvidenceRoute::CertificateDerived(envelope) = &mut changed.evidence[0].route else {
-        unreachable!()
-    };
-    let ProofRule::EqualityTransitivity {
-        left_equals_middle, ..
-    } = &mut envelope.proof.rule
-    else {
-        unreachable!()
-    };
-    left_equals_middle.conclusion = Proposition::Falsehood;
-    representable("a child's conclusion", &changed, false);
-
-    let mut changed = bundle.clone();
-    let EvidenceRoute::CertificateDerived(envelope) = &mut changed.evidence[1].route else {
-        unreachable!()
-    };
-    let ProofRule::ConjunctionIntroduction(children) = &mut envelope.proof.rule else {
-        unreachable!()
-    };
-    children.pop();
-    representable("a dropped conjunction child", &changed, false);
-    let mut changed = bundle.clone();
-    let EvidenceRoute::CertificateDerived(envelope) = &mut changed.evidence[1].route else {
-        unreachable!()
-    };
-    let ProofRule::ConjunctionIntroduction(children) = &mut envelope.proof.rule else {
-        unreachable!()
-    };
-    children[0].rule = ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality);
-    representable("a leaf's primitive judgment", &changed, false);
+    // Proof node fields are all representable and bound: the conclusion
+    // proposition is checked against the obligation, the rule must derive it,
+    // and every rule payload is bound — the `Certificate*` and `Conjunction*`
+    // inventory legs exercise each through the matrix.
     let mut changed = bundle.clone();
     let EvidenceRoute::CertificateDerived(envelope) = &mut changed.evidence[1].route else {
         unreachable!()
@@ -932,17 +824,10 @@ fn sealed_proof_section_rejects_every_one_field_substitution() {
     );
 
     // Roster shape: dropping or inserting a row is representable but the
-    // verifier's reconstructed obligation set refuses either direction;
-    // reordered and duplicated rows reject at canonical encoding.
-    let mut changed = bundle.clone();
-    changed.evidence.pop();
-    representable("a dropped evidence row", &changed, false);
-    let mut changed = bundle.clone();
-    changed.evidence.push(ObligationEvidence {
-        obligation: obligation_id(9),
-        route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
-    });
-    representable("an inserted evidence row", &changed, false);
+    // verifier's reconstructed obligation set refuses either direction —
+    // the `EvidenceRowDropped`/`EvidenceRowAppended` legs exercise both
+    // through the matrix — while reordered and duplicated rows reject at
+    // canonical encoding.
     let mut changed = bundle.clone();
     changed.evidence.swap(1, 2);
     encode_rejected(
@@ -1028,86 +913,13 @@ fn sealed_proof_section_rejects_every_one_field_substitution() {
     // reconstructed obligation; the certificate's ranking relation is
     // semantic, its identity is provenance, and every route is bound ---
 
-    let mut changed = bundle.clone();
-    changed.recursive_components[0].component =
-        RecursiveComponentId::new(changed.recursive_components[0].component.get() + 1)
-            .expect("nonzero component identity");
-    representable("a recursive component identity", &changed, false);
-    let mut changed = bundle.clone();
-    changed.recursive_components[0].certificate.identity = evidence_id(9021);
-    representable("a component certificate's identity", &changed, true);
-    let mut changed = bundle.clone();
-    changed.recursive_components[0].certificate.ranking_relation =
-        RankingRelationId::new(9022).expect("nonzero ranking relation");
-    representable(
-        "a component certificate's ranking relation",
-        &changed,
-        false,
-    );
-    let mut changed = bundle.clone();
-    changed.recursive_components[0].certificate.well_foundedness =
-        EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth);
-    representable("a well-foundedness route kind", &changed, false);
-    let mut changed = bundle.clone();
-    let EvidenceRoute::CertificateDerived(envelope) =
-        &mut changed.recursive_components[0].certificate.well_foundedness
-    else {
-        unreachable!()
-    };
-    envelope.identity = evidence_id(9023);
-    representable("a well-foundedness envelope identity", &changed, true);
-    let mut changed = bundle.clone();
-    let EvidenceRoute::CertificateDerived(envelope) =
-        &mut changed.recursive_components[0].certificate.well_foundedness
-    else {
-        unreachable!()
-    };
-    envelope.proof.rule = ProofRule::SemanticAxiom { index: 9 };
-    representable("a well-foundedness axiom index", &changed, false);
-    let mut changed = bundle.clone();
-    let EvidenceRoute::CertificateDerived(envelope) =
-        &mut changed.recursive_components[0].certificate.well_foundedness
-    else {
-        unreachable!()
-    };
-    envelope.proof.conclusion = Proposition::Truth;
-    representable("a well-foundedness conclusion", &changed, false);
+    // The component identity, certificate identity, ranking relation,
+    // well-foundedness route and its envelope's identity/axiom/conclusion,
+    // each decrease edge's obligation/axiom/envelope/route, and the roster
+    // drop/insert and edge-drop shapes are representable — the `Component*`,
+    // `WellFoundedness*`, and `DecreaseEdge*` inventory legs exercise each
+    // through the matrix.
 
-    let mut changed = bundle.clone();
-    changed.recursive_components[0].certificate.edges[0].obligation = obligation_id(9_000_001);
-    representable("a decrease edge's obligation", &changed, false);
-    let mut changed = bundle.clone();
-    let EvidenceRoute::CertificateDerived(envelope) =
-        &mut changed.recursive_components[0].certificate.edges[0].evidence
-    else {
-        unreachable!()
-    };
-    envelope.proof.rule = ProofRule::SemanticAxiom { index: 7 };
-    representable("a decrease edge's axiom index", &changed, false);
-    let mut changed = bundle.clone();
-    let EvidenceRoute::CertificateDerived(envelope) =
-        &mut changed.recursive_components[0].certificate.edges[0].evidence
-    else {
-        unreachable!()
-    };
-    envelope.identity = evidence_id(9024);
-    representable("a decrease edge's envelope identity", &changed, true);
-    let mut changed = bundle.clone();
-    changed.recursive_components[0].certificate.edges[0].evidence =
-        EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth);
-    representable("a decrease edge's route kind", &changed, false);
-
-    let mut changed = bundle.clone();
-    changed.recursive_components.pop();
-    representable("a dropped recursive component row", &changed, false);
-    let mut changed = bundle.clone();
-    let surplus = RecursiveComponentEvidence {
-        component: RecursiveComponentId::new(changed.recursive_components[0].component.get() + 1)
-            .expect("nonzero component identity"),
-        certificate: changed.recursive_components[0].certificate.clone(),
-    };
-    changed.recursive_components.push(surplus);
-    representable("an inserted recursive component row", &changed, false);
     let mut changed = bundle.clone();
     changed.recursive_components[0].certificate.edges.reverse();
     encode_rejected(
@@ -1123,9 +935,6 @@ fn sealed_proof_section_rejects_every_one_field_substitution() {
         &changed,
         ProofCodecError::NonCanonicalRecursiveComponentEvidence,
     );
-    let mut changed = bundle.clone();
-    changed.recursive_components[0].certificate.edges.pop();
-    representable("a dropped component edge", &changed, false);
 
     let mut mutated = section.clone();
     mutated[spans.components[0].component.clone()].copy_from_slice(&0_u64.to_le_bytes());
@@ -1146,96 +955,10 @@ fn sealed_proof_section_rejects_every_one_field_substitution() {
     // that replay refuses; each certificate field is still bound into the
     // recomputed identity ---
 
-    let surplus_cycle = |component: u64| -> ControlCycleEvidence {
-        ControlCycleEvidence {
-            component: CycleComponentId::new(component).expect("nonzero cycle identity"),
-            certificate: RecursiveComponentCertificate {
-                identity: evidence_id(41),
-                ranking_relation: RankingRelationId::new(51).expect("nonzero ranking relation"),
-                well_foundedness: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
-                edges: vec![
-                    RecursiveEdgeCertificate {
-                        obligation: obligation_id(61),
-                        evidence: EvidenceRoute::CertificateDerived(CertificateEnvelope {
-                            identity: evidence_id(71),
-                            proof_system_marker: ProofSystemMarker::CURRENT,
-                            proof: ProofNode {
-                                conclusion: Proposition::Truth,
-                                rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
-                            },
-                        }),
-                    },
-                    RecursiveEdgeCertificate {
-                        obligation: obligation_id(62),
-                        evidence: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
-                    },
-                ],
-            },
-        }
-    };
-    let mut changed = bundle.clone();
-    changed.control_cycles.push(surplus_cycle(31));
-    representable("an inserted control-cycle row", &changed, false);
-    let cycle_fields: [(&'static str, Box<dyn Fn(&mut ControlCycleEvidence)>); 6] = [
-        (
-            "a control-cycle component identity",
-            Box::new(|row| {
-                row.component = CycleComponentId::new(32).expect("nonzero cycle identity");
-            }),
-        ),
-        (
-            "a control-cycle certificate identity",
-            Box::new(|row| {
-                row.certificate.identity = evidence_id(42);
-            }),
-        ),
-        (
-            "a control-cycle ranking relation",
-            Box::new(|row| {
-                row.certificate.ranking_relation =
-                    RankingRelationId::new(52).expect("nonzero ranking relation");
-            }),
-        ),
-        (
-            "a control-cycle well-foundedness route",
-            Box::new(|row| {
-                row.certificate.well_foundedness =
-                    EvidenceRoute::CertificateDerived(CertificateEnvelope {
-                        identity: evidence_id(72),
-                        proof_system_marker: ProofSystemMarker::CURRENT,
-                        proof: ProofNode {
-                            conclusion: Proposition::Truth,
-                            rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
-                        },
-                    });
-            }),
-        ),
-        (
-            "a control-cycle edge obligation",
-            Box::new(|row| {
-                row.certificate.edges[0].obligation = obligation_id(60);
-            }),
-        ),
-        (
-            "a control-cycle edge route",
-            Box::new(|row| {
-                row.certificate.edges[1].evidence = EvidenceRoute::Admitted(AdmissionEvidence {
-                    site: AdmissionSiteId::new(63).expect("site identity"),
-                    kind: AdmissionKind::ForeignBoundaryGuarantee,
-                    authority_identity: evidence_id(64),
-                    evidence_identity: evidence_id(65),
-                    profile_decision: ProfileDecisionId::new(66).expect("decision identity"),
-                });
-            }),
-        ),
-    ];
-    for (name, mutate) in cycle_fields {
-        let mut changed = bundle.clone();
-        let mut row = surplus_cycle(31);
-        mutate(&mut row);
-        changed.control_cycles.push(row);
-        representable(name, &changed, false);
-    }
+    // Insertion and every field of a surplus row are representable; the
+    // `ControlCycle*` inventory legs exercise each through the matrix, with
+    // `surplus_cycle` shared between the matrix hook and the roster axis
+    // below.
     let mut changed = bundle.clone();
     changed.control_cycles = vec![surplus_cycle(32), surplus_cycle(31)];
     encode_rejected(
@@ -1250,58 +973,10 @@ fn sealed_proof_section_rejects_every_one_field_substitution() {
     // certificate lane and proof node are still bound into the recomputed
     // identity ---
 
-    let surplus_crash = |machine: u64| -> CrashObligationEvidence {
-        CrashObligationEvidence {
-            owner: CrashObligationOwner::Site {
-                machine: machine_id(machine),
-                block: block_id(81),
-                edge: edge_id(82),
-            },
-            coverage: vec![vec![CrashCertificate {
-                with_value_equalities: false,
-                proof: ProofNode {
-                    conclusion: Proposition::Truth,
-                    rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
-                },
-            }]],
-            refutation: Vec::new(),
-        }
-    };
-    let mut changed = bundle.clone();
-    changed.crash_obligations.push(surplus_crash(83));
-    representable("an inserted crash-obligation row", &changed, false);
-    let crash_fields: [(&'static str, Box<dyn Fn(&mut CrashObligationEvidence)>); 3] = [
-        (
-            "a crash-obligation owner",
-            Box::new(|row| {
-                row.owner = CrashObligationOwner::Site {
-                    machine: machine_id(84),
-                    block: block_id(81),
-                    edge: edge_id(82),
-                };
-            }),
-        ),
-        (
-            "a crash certificate's denotation lane",
-            Box::new(|row| {
-                row.coverage[0][0].with_value_equalities = true;
-            }),
-        ),
-        (
-            "a crash certificate's proof rule",
-            Box::new(|row| {
-                row.coverage[0][0].proof.rule =
-                    ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation);
-            }),
-        ),
-    ];
-    for (name, mutate) in crash_fields {
-        let mut changed = bundle.clone();
-        let mut row = surplus_crash(83);
-        mutate(&mut row);
-        changed.crash_obligations.push(row);
-        representable(name, &changed, false);
-    }
+    // Insertion and every field of a surplus row are representable; the
+    // `CrashObligation*`/`CrashCertificate*` inventory legs exercise each
+    // through the matrix, with `surplus_crash` shared between the matrix hook
+    // and the roster axis below.
     let mut changed = bundle.clone();
     changed.crash_obligations = vec![surplus_crash(84), surplus_crash(83)];
     encode_rejected(
@@ -1321,50 +996,10 @@ fn sealed_proof_section_rejects_every_one_field_substitution() {
         &changed,
         ProofCodecError::NonCanonicalEvidenceProducerOrder,
     );
-    let mut changed = bundle.clone();
-    changed.evidence_producers[0].term = evidence_term_id(2);
-    representable("a producer's evidence term", &changed, false);
-    let mut changed = bundle.clone();
-    changed.evidence_producers[0].conformance_identity = "package::other-conformance".to_owned();
-    representable("a producer's conformance identity", &changed, true);
-    let mut changed = bundle.clone();
-    changed.evidence_producers[0].evidence_trait_identity = "package::Other".to_owned();
-    representable("a producer's evidence trait", &changed, false);
-    let mut changed = bundle.clone();
-    changed.evidence_producers[0].rows[0].declaring_trait_identity = "package::Other".to_owned();
-    representable("a realization's declaring trait", &changed, false);
-    let mut changed = bundle.clone();
-    changed.evidence_producers[0].rows[0].declaring_trait_arguments =
-        vec!["package::Argument".to_owned()];
-    representable("a realization's trait arguments", &changed, false);
-    let mut changed = bundle.clone();
-    changed.evidence_producers[0].rows[0].requirement_identity =
-        "package::Evidence::other".to_owned();
-    representable("a realization's requirement", &changed, false);
-    let mut changed = bundle.clone();
-    changed.evidence_producers[0].rows[0].realization_machine_identity =
-        "package::other-machine".to_owned();
-    representable("a realization's machine identity", &changed, true);
-    let mut changed = bundle.clone();
-    changed.evidence_producers[0].rows[0].realization_state_identity =
-        "package::producer::other".to_owned();
-    representable("a realization's state identity", &changed, true);
-    let mut changed = bundle.clone();
-    changed.evidence_producers[0].rows[0].source = EvidenceProducerRowSource::Reference;
-    representable("a realization's source kind", &changed, true);
-
-    let mut changed = bundle.clone();
-    changed.evidence_producers.pop();
-    representable("a dropped producer row", &changed, false);
-    let mut changed = bundle.clone();
-    changed.evidence_producers.push(EvidenceProducerProvenance {
-        id: evidence_id(2),
-        term: evidence_term_id(2),
-        conformance_identity: "package::conformance".to_owned(),
-        evidence_trait_identity: "package::Evidence".to_owned(),
-        rows: Vec::new(),
-    });
-    representable("an inserted producer row", &changed, false);
+    // The term join, conformance and trait identities, every realization-row
+    // field, and the roster drop/insert shapes are representable — the
+    // `Producer*` and `Realization*` inventory legs exercise each through the
+    // matrix.
     let mut changed = bundle.clone();
     changed.evidence_producers[0].conformance_identity = String::new();
     encode_rejected(
