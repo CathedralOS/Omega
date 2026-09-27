@@ -384,67 +384,73 @@ backend-visible; full corpus runs only at the end of an item.
     **== Gate ==**, exit **70**; the latter writes through a mutable output
     parameter across a call. Check exact live bytes/length, not only admission.
 
-- **COMPOSITE-TRANSITION-ARGUMENT.** (new-scope) A transition argument of
-  COMPOSITE type routes only when it is a LOCAL. A composite LITERAL, a
-  composite FIELD read and a composite VALUE CALL all omit at
-  `state graph: terminator: jump successor: parameter transfer`, in both the
-  unconditional and guarded forms; scalars route from any source. Pinned at
-  `tests/omega/pending/control_flow/composite_state_parameter`.
-  CORRECTS a claim landed earlier today as COMPOSITE-STATE-PARAMETER, which
-  said "a state parameter whose type is not a scalar has no route". That was
-  measured only with a composite LITERAL argument; a local of the identical
-  type passes, so the parameter's type is half the condition and the
-  argument's PROVENANCE is the other half. The old reading would have sent a
-  repair at the parameter list, where nothing is broken. Still standing from
-  that measurement: an arithmetic policy on a SCALAR parameter routes, and
-  `[copy]` changes nothing, so this is neither about policies nor
-  copyability. A reference-to-composite and a fixed array were measured only
-  on the literal reading -- do not assume the local exemption covers them.
-  Acceptance: the pending fixture checks and a composite literal, field read
-  and call argument all route.
+- **COMPOSITE-TRANSITION-ARGUMENT.** (new-scope) Finish legal record literals,
+  field projections and composite call results supplied directly to internal
+  states. `successor_bindings` in `terminal_unit/state_graph/mod.rs` already
+  forwards whole parameters, retained local results, admitted subslices and
+  selected case payloads; ordinary projected roots and new argument values
+  need their own construction/transfer. Preserve exact type, access, copy/move
+  semantics and residual cleanup under [state arrivals](wiki/spec/language/state_contracts.md).
+  `tests/omega/pending/control_flow/composite_state_parameter` discards its
+  `Pair { a: 1 }`; observe the payload. Compare distinct literal, field, call
+  and local sources on unconditional and guarded edges. Retain scalar-policy
+  controls and exercise legal reference and fixed-array arguments separately.
+  Existing `tests/omega/pass/structs/{mutable_record_state_transfer,
+  mutable_array_record_state_transfer,affine_record_state_clone}` record native
+  **70** for carried borrows/local backing; they do not cover direct composite
+  arguments. Acceptance: selected operands execute once, retain their values
+  through Terminal reload and native execution, and unselected operands have
+  no effects. With **VALUE-CALL-TRANSITION-ARGUMENT**, preserve
+  `samples/cli/systems/vending_machine`'s `Change` delivery and exit **70**.
 
-- **VALUE-CALL-TRANSITION-ARGUMENT.** (new-scope) A value call cannot be a
-  transition argument, at any type -- a callee and parameter both `i32` omit
-  at `state graph: terminator: jump successor: scalar arguments`, while
-  binding the call to a local first checks and ordinary arithmetic in the
-  same position checks. `samples/cli/systems/vending_machine`, whose
-  `transition self.a == 35 { true -> report(self.make_change(100, 55), 17) }`
-  hits this AND COMPOSITE-TRANSITION-ARGUMENT at once, since `report` also
-  takes a `Change`. Pinned at
-  `tests/omega/pending/calls/value_call_transition_argument`. SAME FAMILY as
-  VALUE-CALL-SUBEXPRESSION -- a call that is not the root of what its site
-  lowers -- with the same local-binding workaround, so expect one answer for
-  both. Acceptance: the pending fixture checks and `vending_machine` leaves
-  the omission cluster (it needs both items).
+- **VALUE-CALL-TRANSITION-ARGUMENT.** (new-scope) Complete calls in internal
+  state arguments using the existing scalar computation route. Psi stage 04
+  already records `TransitionArgument` roots; stage 05's
+  `composed_control/state_graph/scalars.rs` rejoins them and
+  `state_graph/emission/successor_edge.rs` emits calls after edge selection.
+  Reproduce the remaining admission/emission gap, not a blanket absence of
+  call vocabulary. `tests/omega/pending/calls/value_call_transition_argument`
+  currently ignores the delivered `amount`; make it observable and compare
+  direct calls against local-binding and arithmetic controls.
+  The recorded rejection for
+  `tests/omega/pass/calls/runtime_guarded_effectful_transition_argument_exit`
+  is at conditional successor scalar arguments. Acceptance: its skipped arm
+  leaves **0** hits; selected/local calls produce **7/20** with **1** hit;
+  paired calls produce **10/11** with **2** hits; nested calls produce **21**
+  with **2** hits; native and reloaded Terminal exit **70**. Add an effect
+  sensitive to call order: the existing identical increments only count calls.
+  Preserve [arrival snapshots](wiki/spec/language/state_contracts.md) when later
+  arguments mutate storage. Share expression construction with
+  **VALUE-CALL-SUBEXPRESSION**; composite delivery remains the preceding task.
+  `samples/cli/systems/vending_machine` must retain **3** sales, the delivered
+  extra remainder **20**, and checksum/exit **70**.
 
-- **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER.** (new-scope) A boundary-call
-  parameter whose declared type is a fixed array of PRIMITIVE elements has no
-  lowering route, and neither does such a result. Three GUI samples stop at
-  the same call, `self.gui.window_create(self.cls, self.title, ...)` over
-  `class_name: [u8; 7], title: [u8; 10]`: `gui/{window_app, window_demo,
-  image_viewer}`. Pinned at
-  `tests/omega/pending/providers/boundary_primitive_array_argument`. Nothing
-  about the call site matters -- not element type, length, argument count,
-  argument provenance, or return direction -- and declaring such a method
-  without calling it is fine; only the declared parameter type at a BOUNDARY
-  call. Narrower than "any composite by value": a record and a `[Point; 2]`
-  also fail at a boundary but at `completion`, a separate site, and a
-  composite by value at an ORDINARY call passes.
-  The guards are unconditional and read directly, in
-  `04_typed-trees-to-checked-trees/.../calls/trait_boundary_call.rs`:
-  `is_closed_primitive_array_type` on each `formal` inside the
-  `boundary arguments` phase loop, and on the substituted return just after
-  the `boundary result` phase. That predicate is true exactly for a
-  literal-length `FixedArray` of possibly-nested `Bool | I8..I64 | U8..U64 |
-  F32 | F64`, matching the measured behaviour including why `[Point; 2]`
-  escapes it. The argument guard sits BEFORE the byte-sequence-literal and
-  subslice admissions, which is why a string-literal argument declines too.
-  Untested prediction worth one line: nested `[[u8; 2]; 2]` should decline
-  identically. Acceptance: the pending fixture checks and all three samples
-  leave the cluster -- converting every array-typed boundary parameter to
-  `&mut` already makes `window_app` and `window_demo` check clean and leaves
-  `image_viewer` with only honest provider-absence diagnostics, which is the
-  removal test that proved one shared cause.
+- **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER.** (new-scope) Carry authored by-value
+  fixed primitive arrays through boundary arguments and results. The formal,
+  source-parameter and result refusals in `calls/trait_boundary_call.rs` use
+  `is_closed_primitive_array_type` (nested literal extents ending in Boolean,
+  fixed-width integer or IEEE elements). Removing the argument guard was
+  recorded to advance only to `completion`. Rejoin by-value presentation and
+  completion together: `return_unit_affine_discards` in
+  `terminal_unit/types/mod.rs` classifies owned projections as moves and refuses
+  borrowed roots. Preserve legitimate copies, moves and remaining caller storage.
+  Stage 05's `scalar_array_source/call_results.rs` still deliberately rejects
+  boundary array results, even empty or discarded ones; ordinary array-call
+  support does not establish boundary payload transport.
+  `tests/omega/pending/providers/boundary_primitive_array_argument` selects a
+  macOS provider that ignores the array and returns constant **7**. Make the
+  provider inspect transferred elements and the caller observe the result;
+  retain its valid Build identity, selected provider and demanded entry. Cover
+  field/literal/local sources, scalar/reference controls, nested arrays and
+  array results across trait and direct boundary calls. Validate exact payload,
+  extent, scalar/structural interleave and selected requirement/provider custody
+  under [boundary calls](wiki/spec/terminal-psi/boundary_calls.md), through
+  Terminal reload/verification and native execution.
+  Customers: `samples/gui/{window_app,window_demo,image_viewer}` pass class
+  arrays of **7** bytes and titles of **10/11/13** bytes. Acceptance retains
+  these by-value signatures and realizes their calls; domain/reference rewrites
+  evade the task. Track later provider or GUI failures under **SAMPLE-CORPUS**
+  rather than treating a changed omission label as success.
 
 - **OPERATOR-BOUNDARY-CALLS.** (split-of:PROVIDER-SELECTION-AFTER-TERMINAL)
   Finish requirement-level calls and Omega stage 00 installation for legacy
