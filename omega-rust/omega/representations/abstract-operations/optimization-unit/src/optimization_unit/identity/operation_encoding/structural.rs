@@ -319,11 +319,23 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             source,
             path,
         } => {
-            bytes.u8(88);
+            bytes.u8(match path {
+                abstract_operations::StructuralCopyPath::Ordinary(_) => 88,
+                abstract_operations::StructuralCopyPath::Case(_) => 91,
+            });
             bytes.id(*psi_operation);
             encode_structural_operation_result(bytes, result);
             bytes.id(*source);
-            bytes.slice(path, encode_structural_path_segment);
+            match path {
+                abstract_operations::StructuralCopyPath::Ordinary(path) => {
+                    bytes.slice(path, encode_structural_path_segment);
+                }
+                abstract_operations::StructuralCopyPath::Case(path) => {
+                    crate::optimization_unit::identity::proposition_encoding::encode_canonical_path(
+                        bytes, path,
+                    );
+                }
+            }
         }
         _ => unreachable!("operation family routing admitted a non-structural operation"),
     }

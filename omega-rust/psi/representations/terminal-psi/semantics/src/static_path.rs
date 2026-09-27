@@ -193,3 +193,71 @@ pub fn runtime_structural_path_tip<'a>(
     }
     types.find(|declaration| declaration.id == root)
 }
+
+/// Resolve a case-qualified structural leaf by declaration-local identities.
+/// Each Case enters one sum payload namespace and must be followed by its
+/// field. This checks static type meaning only: it does not establish that
+/// the case is active, grant readable access, or authorize copying the leaf.
+pub fn canonical_case_leaf_type<'a>(
+    types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    mut root: StructuralTypeId,
+    path: &[CanonicalStructuralPathSegment],
+) -> Option<StructuralTypeId> {
+    let declaration = |identity| {
+        let mut matching = types.clone().filter(|candidate| candidate.id == identity);
+        let selected = matching.next()?;
+        matching.next().is_none().then_some(selected)
+    };
+    let mut case_fields: Option<&[terminal_psi::StructuralFieldDeclaration]> = None;
+    let mut saw_case = false;
+    for segment in path {
+        let shape = &declaration(root)?.shape;
+        match segment {
+            CanonicalStructuralPathSegment::Case(identity) => {
+                if case_fields.is_some() {
+                    return None;
+                }
+                let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
+                    shape
+                else {
+                    return None;
+                };
+                let mut matching = cases.iter().filter(|case| case.id == *identity);
+                case_fields = Some(&matching.next()?.fields);
+                if matching.next().is_some() {
+                    return None;
+                }
+                saw_case = true;
+            }
+            CanonicalStructuralPathSegment::Field(identity) => {
+                let fields = match case_fields.take() {
+                    Some(fields) => fields,
+                    None => match shape {
+                        StructuralTypeShape::Record { fields }
+                        | StructuralTypeShape::Mixed { fields, .. } => fields,
+                        _ => return None,
+                    },
+                };
+                let mut matching = fields.iter().filter(|field| field.id == *identity);
+                let field = matching.next()?;
+                if matching.next().is_some() || field.relevance.is_erased() {
+                    return None;
+                }
+                let StructuralFieldType::Structural(child) = field.field_type else {
+                    return None;
+                };
+                root = child;
+            }
+            CanonicalStructuralPathSegment::FixedIndex(index) => {
+                let StructuralTypeShape::FixedArray { element, length } = shape else {
+                    return None;
+                };
+                if case_fields.is_some() || index >= length {
+                    return None;
+                }
+                root = *element;
+            }
+        }
+    }
+    (saw_case && case_fields.is_none()).then_some(declaration(root)?.id)
+}

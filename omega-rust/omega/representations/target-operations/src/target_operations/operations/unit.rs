@@ -98,7 +98,7 @@ pub enum TargetUnitOperation {
         psi_operation: OperationId,
         result_home: TargetStructuralHomeRequirement,
         source: PlaceId,
-        path: Vec<StructuralPathSegment>,
+        path: abstract_operations::StructuralCopyPath,
         byte_offset: u32,
         /// Runtime traversals through `RuntimeIndex` segments, in path
         /// order: each resolved operand scales by its `stride` and joins

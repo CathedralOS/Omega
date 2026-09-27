@@ -392,12 +392,20 @@ pub(super) fn lower(
         OperationKind::MoveStructuralField { .. } | OperationKind::StoreStructuralField { .. } => {
             borrowed_windows::lower(operation, machine, structural_types)
         }
-        OperationKind::StructuralLeafCopy { source, path } => {
-            structural_leaf_copy::lower(operation, machine, structural_types, *source, path)
-        }
-        OperationKind::StructuralCaseLeafCopy { .. } => {
-            Err(LoweringError::UnsupportedStructuralCase(operation.id))
-        }
+        OperationKind::StructuralLeafCopy { source, path } => structural_leaf_copy::lower(
+            operation,
+            machine,
+            structural_types,
+            *source,
+            abstract_operations::StructuralCopyPath::Ordinary(path.clone()),
+        ),
+        OperationKind::StructuralCaseLeafCopy { source, path } => structural_leaf_copy::lower(
+            operation,
+            machine,
+            structural_types,
+            *source,
+            abstract_operations::StructuralCopyPath::Case(path.clone()),
+        ),
         OperationKind::Call { .. } => calls::lower(
             operation,
             machine,

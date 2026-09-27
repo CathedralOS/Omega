@@ -133,8 +133,7 @@ pass/calls/runtime_mutable_call_before_transition_args_exit rejected 1187ms
 pass/calls/runtime_mutable_local_parameter_write_exit rejected 793ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: caller structural result` (state 0, statement 2)
 pass/calls/runtime_nested_case_argument_exit checked 1225ms
-pass/calls/runtime_nested_value_call_guard_exit rejected 1325ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Duration::saturating_subtract`), which was itself omitted at local construction at `state graph: terminator: conditional successors: parameter transfer` (state 0, statement 2)
+pass/calls/runtime_nested_value_call_guard_exit checked 4393ms
 pass/calls/runtime_option_value_call_exit checked 1158ms
 pass/calls/runtime_owned_case_temporaries_exhaustive_dispatch_exit checked 957ms
 pass/calls/runtime_param_receiver_second_instance_exit rejected 856ms

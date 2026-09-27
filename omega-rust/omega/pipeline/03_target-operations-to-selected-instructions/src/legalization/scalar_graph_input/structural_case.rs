@@ -255,7 +255,7 @@ pub(in crate::legalization) fn membership_layout(
 pub(in crate::legalization) fn leaf_copy_layout(
     function: &PsiOptimizationFunction,
     source: PlaceId,
-    path: &[terminal_psi::StructuralPathSegment],
+    path: &abstract_operations::StructuralCopyPath,
     result: &StructuralOperationResult,
     plan: &AbstractOperationPlan,
 ) -> Result<
@@ -274,15 +274,28 @@ pub(in crate::legalization) fn leaf_copy_layout(
         return Err(LegalizationError::custody());
     }
     let identity = source_identity(function, source)?;
-    let (endpoint, byte_offset, indices) = if path.is_empty() {
-        (identity, 0, Vec::new())
-    } else {
-        crate::structural_inputs::structural_reference_input::runtime_projection(
-            identity,
-            path,
-            &plan.structural_types,
-        )
-        .ok_or(LegalizationError::custody())?
+    let (endpoint, byte_offset, indices) = match path {
+        abstract_operations::StructuralCopyPath::Case(path) => {
+            let (endpoint, offset) =
+                crate::structural_inputs::structural_reference_input::case_projection(
+                    identity,
+                    path,
+                    &plan.structural_types,
+                )
+                .ok_or(LegalizationError::custody())?;
+            (endpoint, offset, Vec::new())
+        }
+        abstract_operations::StructuralCopyPath::Ordinary(path) if path.is_empty() => {
+            (identity, 0, Vec::new())
+        }
+        abstract_operations::StructuralCopyPath::Ordinary(path) => {
+            crate::structural_inputs::structural_reference_input::runtime_projection(
+                identity,
+                path,
+                &plan.structural_types,
+            )
+            .ok_or(LegalizationError::custody())?
+        }
     };
     if endpoint != result.structural_type
         || super::reference_custody::contains_reference(&plan.structural_types, endpoint)

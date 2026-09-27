@@ -410,7 +410,7 @@ pub(super) fn validate(
             let extent = scalar_graph_input::borrowed_windows::moved(
                 optimized, root, spelled, *field, expected, plan,
             )?;
-            *path == extent.path
+            *path == abstract_operations::StructuralCopyPath::Ordinary(extent.path)
                 && (*byte_offset, *shape) == (extent.byte_offset, extent.shape)
                 && indices_rejoin(indices, &extent.elements)
         } => {}

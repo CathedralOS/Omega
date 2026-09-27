@@ -63,7 +63,7 @@ pub(super) fn move_field(
         *psi_operation,
         result,
         source.place(),
-        &path,
+        &path.into(),
         source.structural_type(),
         function,
         types,

@@ -309,7 +309,7 @@ fn leaf_copy_source_access(
         AbstractOperation::StructuralLeafCopy {
             psi_operation: OperationId::new(1).unwrap(),
             source: PlaceId::new(1).unwrap(),
-            path,
+            path: path.into(),
             result: StructuralOperationResult {
                 qualification_establishments: Vec::new(),
                 place: PlaceId::new(2).unwrap(),
@@ -401,6 +401,247 @@ pub(crate) fn fixture(
 }
 
 #[test]
+fn case_leaf_copy_preserves_payload_identity_and_replays_storage() {
+    use abstract_operations::StructuralCopyPath;
+    use semantic_vocabulary::{CanonicalStructuralPathSegment as Segment, StructuralCaseId};
+    let selected_path = |case_id| {
+        StructuralCopyPath::Case(vec![
+            Segment::Case(StructuralCaseId::new(case_id).unwrap()),
+            Segment::Field(StructuralFieldId::new(2).unwrap()),
+        ])
+    };
+    let root = declare(
+        40,
+        "test::Payloads",
+        StructuralTypeShape::Sum {
+            cases: vec![
+                case(
+                    1,
+                    "First",
+                    vec![field(2, "value", structural_field(inner_type()))],
+                ),
+                case(
+                    2,
+                    "Second",
+                    vec![
+                        field(1, "prefix", StructuralFieldType::Scalar(i64_type())),
+                        field(2, "value", structural_field(inner_type())),
+                    ],
+                ),
+            ],
+        },
+    );
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
+    ] {
+        let mut source = leaf_copy_source(root.clone(), Vec::new(), inner_type().id);
+        let AbstractOperation::StructuralLeafCopy { path, .. } =
+            &mut source.functions[0].operations[0]
+        else {
+            panic!("copy");
+        };
+        *path = selected_path(2);
+        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &source,
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap();
+        optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+        let target = abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            TargetLoweringRequest::new(native),
+        )
+        .unwrap();
+        let legal = legalize_target_operations(&target, &source, &unit).unwrap();
+        assert_eq!(
+            leaf_copy_rows(&target, &legal),
+            (16, calling_conventions::ValueShape::integer(16, 8))
+        );
+        let environment =
+            register_environment::baseline_target_register_environment(native).unwrap();
+        let constraints = selection_constraints(&legal, &environment);
+        let selected = select_instructions(
+            &legal,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .unwrap();
+        validate_selected_instructions(
+            &legal,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+            selected.plan().clone(),
+        )
+        .unwrap();
+        for mutation in 0..3 {
+            let mut forged = target.clone();
+            let TargetUnitOperation::StructuralLeafCopy {
+                path, byte_offset, ..
+            } = &mut forged.functions[0].graph.blocks[0].operations[0]
+            else {
+                panic!("copy");
+            };
+            match mutation {
+                0 => *path = selected_path(1),
+                1 => *byte_offset = 8,
+                _ => {
+                    *path = selected_path(1);
+                    *byte_offset = 8;
+                }
+            }
+            assert!(
+                legalize_target_operations(&forged, &source, &unit).is_err(),
+                "case/offset mutation {mutation}"
+            );
+        }
+        for bad_path in [
+            selected_path(9),
+            StructuralCopyPath::Case(vec![Segment::Case(StructuralCaseId::new(2).unwrap())]),
+            StructuralCopyPath::Case(vec![Segment::Field(StructuralFieldId::new(1).unwrap())]),
+        ] {
+            let mut forged = source.clone();
+            let AbstractOperation::StructuralLeafCopy { path, .. } =
+                &mut forged.functions[0].operations[0]
+            else {
+                panic!("copy");
+            };
+            *path = bad_path;
+            assert!(
+                abstract_operations_to_target_operations::lower_to_target_operations(
+                    &forged,
+                    TargetLoweringRequest::new(native)
+                )
+                .is_err()
+            );
+        }
+        let mut missing_store = selected.plan().clone();
+        let body = &mut missing_store.functions[0].blocks[0].instructions;
+        let store = body
+            .iter()
+            .position(|row| matches!(row.kind, SelectedInstructionKind::Store { .. }))
+            .expect("copy writes fresh storage");
+        body.remove(store);
+        assert!(
+            validate_selected_instructions(
+                &legal,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+                missing_store
+            )
+            .is_err()
+        );
+    }
+}
+
+#[test]
+fn case_leaf_copy_composes_mixed_fields_arrays_and_nested_records() {
+    use abstract_operations::StructuralCopyPath;
+    use semantic_vocabulary::{CanonicalStructuralPathSegment as Segment, StructuralCaseId};
+    let payload_array = declare(
+        103,
+        "test::PayloadArray",
+        StructuralTypeShape::FixedArray {
+            element: outer_type().id,
+            length: 2,
+        },
+    );
+    let nested = declare(
+        102,
+        "test::NestedMixed",
+        StructuralTypeShape::Mixed {
+            fields: vec![field(1, "common", StructuralFieldType::Scalar(i64_type()))],
+            cases: vec![case(
+                2,
+                "Ready",
+                vec![field(1, "payload", structural_field(payload_array.clone()))],
+            )],
+        },
+    );
+    let nested_array = declare(
+        101,
+        "test::NestedMixedArray",
+        StructuralTypeShape::FixedArray {
+            element: nested.id,
+            length: 2,
+        },
+    );
+    let root = declare(
+        90,
+        "test::RootMixed",
+        StructuralTypeShape::Mixed {
+            fields: vec![
+                field(1, "pad", StructuralFieldType::Scalar(i64_type())),
+                field(2, "array", structural_field(nested_array.clone())),
+            ],
+            cases: vec![case(1, "Empty", Vec::new())],
+        },
+    );
+    let path = vec![
+        Segment::Field(StructuralFieldId::new(2).unwrap()),
+        Segment::FixedIndex(1),
+        Segment::Case(StructuralCaseId::new(2).unwrap()),
+        Segment::Field(StructuralFieldId::new(1).unwrap()),
+        Segment::FixedIndex(1),
+        Segment::Field(StructuralFieldId::new(2).unwrap()),
+    ];
+    let mut source = leaf_copy_source(root, Vec::new(), inner_type().id);
+    source
+        .structural_types
+        .make_mut()
+        .extend([nested_array, nested, payload_array]);
+    source
+        .structural_types
+        .make_mut()
+        .sort_by_key(|declaration| declaration.id);
+    let AbstractOperation::StructuralLeafCopy { path: retained, .. } =
+        &mut source.functions[0].operations[0]
+    else {
+        panic!("copy");
+    };
+    *retained = StructuralCopyPath::Case(path);
+    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        &source,
+        FuelScheduleIdentity::new(1).unwrap(),
+    )
+    .unwrap();
+    optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+    let target = abstract_operations_to_target_operations::lower_to_target_operations(
+        &source,
+        TargetLoweringRequest::new(NativeTarget::macos_arm64()),
+    )
+    .unwrap();
+    let legal = legalize_target_operations(&target, &source, &unit).unwrap();
+    assert_eq!(
+        leaf_copy_rows(&target, &legal),
+        (128, calling_conventions::ValueShape::integer(16, 8))
+    );
+    for position in [1, 4] {
+        let mut forged = source.clone();
+        let AbstractOperation::StructuralLeafCopy {
+            path: StructuralCopyPath::Case(path),
+            ..
+        } = &mut forged.functions[0].operations[0]
+        else {
+            panic!("case copy");
+        };
+        path[position] = Segment::FixedIndex(2);
+        assert!(
+            abstract_operations_to_target_operations::lower_to_target_operations(
+                &forged,
+                TargetLoweringRequest::new(NativeTarget::macos_arm64())
+            )
+            .is_err()
+        );
+    }
+}
+
+#[test]
 fn leaf_copy_rejects_projection_and_home_substitution() {
     let native = NativeTarget::linux_x64();
     let (source, target, unit) = fixture(native);
@@ -419,7 +660,7 @@ fn leaf_copy_rejects_projection_and_home_substitution() {
         };
         match mutation {
             0 => *actual_source = PlaceId::new(9).unwrap(),
-            1 => *path = vec![StructuralPathSegment::Field("tag".into())],
+            1 => *path = vec![StructuralPathSegment::Field("tag".into())].into(),
             2 => *byte_offset = 0,
             3 => {
                 let target_operations::TargetStructuralHomeOrigin::OperationResult {

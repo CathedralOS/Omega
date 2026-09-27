@@ -267,7 +267,7 @@ fn leaf_copy_builds_and_validates_its_optimization_unit() {
     let mut changed = unit.clone();
     match &mut changed.functions[0].blocks[0].nodes[0].operation {
         AbstractOperation::StructuralLeafCopy { path, .. } => {
-            *path = vec![StructuralPathSegment::Field("right".into())];
+            *path = vec![StructuralPathSegment::Field("right".into())].into();
         }
         _ => unreachable!(),
     }
@@ -275,6 +275,141 @@ fn leaf_copy_builds_and_validates_its_optimization_unit() {
         optimization_unit::recompute_psi_optimization_unit_identity(&changed),
         unit.identity,
         "path rename must change the canonical unit identity"
+    );
+}
+
+#[test]
+fn case_payload_copy_retains_verified_membership_and_local_identity() {
+    let source = r#"
+        data Info [copy] { pid: u32; }
+        data OpenResult [copy] { case Opened(info: Info); case Failed(error: Info); }
+        machine open(pid: u32) -> OpenResult {
+            OpenResult::Opened { info: Info { pid: pid } }
+        }
+        data Root {}
+        machine Root::enter() -> u32 {
+            let decoy: OpenResult = open(9);
+            let actual: OpenResult = open(70);
+            transition actual {
+                OpenResult::Opened { info } -> have(info)
+                OpenResult::Failed { error } -> failed()
+            }
+            state have(info: Info) -> u32 { info.pid }
+            state failed() -> u32 { 0 }
+        }
+    "#;
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .unwrap();
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .unwrap();
+    let typed =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        checked_trees_to_lowered_psi::TerminalMachineSelection::Name("Root::enter"),
+    )
+    .unwrap();
+    let module = lowered.semantic_module;
+    let proof = lowered.proof_bundle;
+    let profile = AdmissionProfile::default();
+    terminal_verifier::verify_module(&module, &proof, &profile).unwrap();
+    let expected: Vec<_> = module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match &operation.kind {
+            OperationKind::StructuralCaseLeafCopy { source, path, .. } => {
+                Some((operation.id, *source, path.clone()))
+            }
+            _ => None,
+        })
+        .collect();
+    assert!(
+        !expected.is_empty(),
+        "source must exercise case-qualified copying"
+    );
+    let semantic_bytes = encode_module(&module).unwrap();
+    let proof_bytes = encode_proof_section(&module, &proof).unwrap();
+    let admitted = terminal_psi_to_abstract_operations::lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic_bytes,
+            proof_bytes: &proof_bytes,
+            obligation_ledger_bytes: None,
+        },
+        &profile,
+    )
+    .expect("verified local case payload lowers natively");
+    let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
+        admitted
+            .into_optimization_artifact()
+            .into_optimization_input(),
+        terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+    )
+    .unwrap();
+    optimization_unit_semantics::validate_psi_optimization_unit(verified.unit()).unwrap();
+    for (operation, source, expected_path) in &expected {
+        assert!(verified.unit().functions.iter().flat_map(|function| &function.blocks)
+            .flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
+                AbstractOperation::StructuralLeafCopy { psi_operation, source: retained_source,
+                    path: abstract_operations::StructuralCopyPath::Case(path), .. }
+                if psi_operation == operation && retained_source == source && path == expected_path)));
+    }
+    // A valid layout is not evidence that this case is active. Changing only
+    // the case identity must fail the original independently checked proof.
+    let mut forged = module.clone();
+    let operation = forged
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| operation.id == expected[0].0)
+        .unwrap();
+    let OperationKind::StructuralCaseLeafCopy { path, .. } = &mut operation.kind else {
+        panic!("case copy");
+    };
+    let semantic_vocabulary::CanonicalStructuralPathSegment::Case(original_case) = path[0] else {
+        panic!("root case payload");
+    };
+    let alternative = module
+        .structural_types
+        .iter()
+        .find_map(|declaration| {
+            let StructuralTypeShape::Sum { cases } = &declaration.shape else {
+                return None;
+            };
+            cases.iter().find(|case| case.id != original_case)
+        })
+        .expect("another declared payload case");
+    *path = vec![
+        semantic_vocabulary::CanonicalStructuralPathSegment::Case(alternative.id),
+        semantic_vocabulary::CanonicalStructuralPathSegment::Field(alternative.fields[0].id),
+    ];
+    assert!(terminal_verifier::verify_module(&forged, &proof, &profile).is_err());
+    let mut unobserved = module.clone();
+    let observation = unobserved
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            matches!(operation.kind,
+            OperationKind::StructuralCaseMembership { source, .. } if source == expected[0].1)
+        })
+        .unwrap();
+    observation.kind = OperationKind::BooleanConstant { value: true };
+    assert!(
+        terminal_verifier::verify_module(&unobserved, &proof, &profile).is_err(),
+        "a true Boolean without the case observation cannot authorize a payload read"
     );
 }
 

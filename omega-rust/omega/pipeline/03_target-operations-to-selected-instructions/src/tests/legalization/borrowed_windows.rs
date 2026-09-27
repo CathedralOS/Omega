@@ -115,7 +115,7 @@ fn source(access: StructuralAccess) -> abstract_operations::AbstractOperationPla
                 psi_operation: operation(1),
                 result: result(2),
                 source: place(1),
-                path: vec![StructuralPathSegment::Field("inner".into())],
+                path: vec![StructuralPathSegment::Field("inner".into())].into(),
             },
             AbstractOperation::MoveStructuralField {
                 psi_operation: operation(2),
@@ -203,7 +203,7 @@ fn window_rows_reject_extent_field_and_home_substitution() {
                         ..
                     },
                 ) if *psi_operation == operation(2) => {
-                    *path = vec![StructuralPathSegment::Field("tag".into())]
+                    *path = vec![StructuralPathSegment::Field("tag".into())].into()
                 }
                 (
                     4,

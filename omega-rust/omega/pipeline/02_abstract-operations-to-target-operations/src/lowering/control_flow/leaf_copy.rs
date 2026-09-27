@@ -10,7 +10,7 @@ use abstract_operations::{AbstractFunction, AbstractOperation};
 use semantic_vocabulary::{OperationId, PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
-use terminal_psi::{StructuralOperationResult, StructuralPathSegment};
+use terminal_psi::StructuralOperationResult;
 
 /// A leaf copy reads an owned home or a readable parameter root; the
 /// verifier's copyable-path replay already excluded every other source kind.
@@ -69,7 +69,7 @@ pub(super) fn copy_extent(
     psi_operation: OperationId,
     result: &StructuralOperationResult,
     source: PlaceId,
-    path: &[StructuralPathSegment],
+    path: &abstract_operations::StructuralCopyPath,
     root_type: StructuralTypeId,
     function: &AbstractFunction,
     types: &StructuralTypeLookup<'_>,
@@ -77,8 +77,18 @@ pub(super) fn copy_extent(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    let (endpoint, shape, byte_offset, indices) = if path.is_empty() {
-        (
+    let (endpoint, shape, byte_offset, indices) = match path {
+        abstract_operations::StructuralCopyPath::Case(path) => {
+            let (endpoint, shape, offset) = crate::lowering::structural_layout::case_projection(
+                root_type,
+                path,
+                types,
+                &mut BTreeMap::new(),
+                &mut BTreeSet::new(),
+            )?;
+            (endpoint, shape, offset, Vec::new())
+        }
+        abstract_operations::StructuralCopyPath::Ordinary(path) if path.is_empty() => (
             root_type,
             crate::lowering::structural_layout::structural_shape(
                 root_type,
@@ -88,15 +98,16 @@ pub(super) fn copy_extent(
             )?,
             0,
             Vec::new(),
-        )
-    } else {
-        crate::lowering::structural_layout::runtime_projection(
-            root_type,
-            path,
-            types,
-            &mut BTreeMap::new(),
-            &mut BTreeSet::new(),
-        )?
+        ),
+        abstract_operations::StructuralCopyPath::Ordinary(path) => {
+            crate::lowering::structural_layout::runtime_projection(
+                root_type,
+                path,
+                types,
+                &mut BTreeMap::new(),
+                &mut BTreeSet::new(),
+            )?
+        }
     };
     if endpoint != result.structural_type {
         return Err(LoweringError::unsupported_control_flow(function.machine));
@@ -126,7 +137,7 @@ pub(super) fn copy_extent(
         psi_operation,
         result_home,
         source,
-        path: path.to_vec(),
+        path: path.clone(),
         byte_offset,
         indices,
     });

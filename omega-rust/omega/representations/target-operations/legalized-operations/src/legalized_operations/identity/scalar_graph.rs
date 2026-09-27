@@ -212,10 +212,34 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     shape,
                     indices,
                 } => {
-                    bytes.push(86);
+                    bytes.push(match path {
+                        abstract_operations::StructuralCopyPath::Ordinary(_) => 86,
+                        abstract_operations::StructuralCopyPath::Case(_) => 92,
+                    });
                     super::structural_result::encode_operation_result(bytes, result);
                     bytes.extend_from_slice(&source.get().to_le_bytes());
-                    super::structural_types::encode_structural_path(bytes, path);
+                    match path {
+                        abstract_operations::StructuralCopyPath::Ordinary(path) => {
+                            super::structural_types::encode_structural_path(bytes, path);
+                        }
+                        abstract_operations::StructuralCopyPath::Case(path) => {
+                            encode_len(bytes, path.len());
+                            for segment in path {
+                                use semantic_vocabulary::CanonicalStructuralPathSegment;
+                                let (tag, identity) = match segment {
+                                    CanonicalStructuralPathSegment::Field(field) => {
+                                        (1, field.get())
+                                    }
+                                    CanonicalStructuralPathSegment::FixedIndex(index) => {
+                                        (2, *index)
+                                    }
+                                    CanonicalStructuralPathSegment::Case(case) => (3, case.get()),
+                                };
+                                bytes.push(tag);
+                                bytes.extend_from_slice(&identity.to_le_bytes());
+                            }
+                        }
+                    }
                     bytes.extend_from_slice(&byte_offset.to_le_bytes());
                     super::calling::encode_shape(bytes, *shape);
                     encode_runtime_indices(bytes, indices);

@@ -347,7 +347,7 @@ pub enum LegalizedScalarInstructionKind {
     StructuralLeafCopy {
         result: terminal_psi::StructuralOperationResult,
         source: semantic_vocabulary::PlaceId,
-        path: Vec<terminal_psi::StructuralPathSegment>,
+        path: abstract_operations::StructuralCopyPath,
         byte_offset: u32,
         shape: calling_conventions::ValueShape,
         /// Resolved operands for `RuntimeIndex` segments in path order;
