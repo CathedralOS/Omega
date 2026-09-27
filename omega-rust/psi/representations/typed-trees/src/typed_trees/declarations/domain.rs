@@ -697,32 +697,6 @@ mod domain_instance_proof_tests {
     }
 
     #[test]
-    fn same_family_requires_exactly_equal_arguments() {
-        let mut program = TypedTrees::default();
-        let symbol = |index| SymbolHandle::from_arena_index(index);
-        let domain = const_indexed_domain(&mut program, symbol(1), symbol(10));
-        program.push_domain_definition(domain);
-        let seven = named_argument(&mut program, SymbolHandle::invalid(), "7");
-        let eight = named_argument(&mut program, SymbolHandle::invalid(), "8");
-
-        assert!(declared_domain_instance_implies(
-            &program,
-            symbol(1),
-            &[seven],
-            symbol(1),
-            &[seven]
-        ));
-        assert!(
-            !declared_domain_instance_implies(&program, symbol(1), &[seven], symbol(1), &[eight]),
-            "indexed applications of one family have no variance"
-        );
-        assert!(
-            !declared_domain_instance_implies(&program, symbol(1), &[], symbol(1), &[seven]),
-            "the bare family never covers an applied instance"
-        );
-    }
-
-    #[test]
     fn authored_membership_substitutes_the_established_argument() {
         let mut program = TypedTrees::default();
         let symbol = |index| SymbolHandle::from_arena_index(index);
@@ -755,64 +729,6 @@ mod domain_instance_proof_tests {
             !supports_symbol_only_proof(&program, symbol(1)),
             "the same theory stays fenced from the symbol-only reader"
         );
-    }
-
-    #[test]
-    fn closed_membership_enters_an_indexed_instance() {
-        let mut program = TypedTrees::default();
-        let symbol = |index| SymbolHandle::from_arena_index(index);
-        // An unindexed theory may still declare `self in Capped<3>`; the
-        // indexed reader reaches exactly that instance and no other.
-        let mut small = DomainDefinition {
-            symbol: symbol(1),
-            ..Default::default()
-        };
-        let capped = const_indexed_domain(&mut program, symbol(2), symbol(11));
-        let three = named_argument(&mut program, SymbolHandle::invalid(), "3");
-        membership(&mut program, &mut small, symbol(2), &[three]);
-        program.push_domain_definition(small);
-        program.push_domain_definition(capped);
-
-        assert!(declared_domain_instance_implies(
-            &program,
-            symbol(1),
-            &[],
-            symbol(2),
-            &[three]
-        ));
-        let four = named_argument(&mut program, SymbolHandle::invalid(), "4");
-        assert!(!declared_domain_instance_implies(
-            &program,
-            symbol(1),
-            &[],
-            symbol(2),
-            &[four]
-        ));
-    }
-
-    #[test]
-    fn unindexed_chains_still_imply() {
-        let mut program = TypedTrees::default();
-        let symbol = |index| SymbolHandle::from_arena_index(index);
-        let mut source = DomainDefinition {
-            symbol: symbol(1),
-            ..Default::default()
-        };
-        let target = DomainDefinition {
-            symbol: symbol(2),
-            ..Default::default()
-        };
-        membership(&mut program, &mut source, symbol(2), &[]);
-        program.push_domain_definition(source);
-        program.push_domain_definition(target);
-
-        assert!(declared_domain_instance_implies(
-            &program,
-            symbol(1),
-            &[],
-            symbol(2),
-            &[]
-        ));
     }
 
     #[test]

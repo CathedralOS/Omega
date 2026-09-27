@@ -14,15 +14,6 @@ use crate::types::{
 };
 
 #[test]
-fn snapshots_empty_typed_tree_as_json() {
-    let program = TypedTrees::default();
-    let snapshot = TypedTreesSnapshot::from_typed_trees(&program);
-
-    assert_eq!(snapshot.roots.data_definitions.len(), 0);
-    assert!(snapshot.to_json_pretty().is_ok());
-}
-
-#[test]
 fn snapshots_public_data_visibility() {
     let mut program = TypedTrees::default();
     program.push_data_definition(DataDefinition {

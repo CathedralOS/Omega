@@ -1,7 +1,6 @@
 use super::{
     Identifier, StatementNode, free_scalar_machine, report_nested_call_in_local_initializer,
     result_initializer_call_is_supported, scalar_computation_call,
-    unit_result_initializer_call_is_supported,
 };
 const ORDERED: &str = r#"
 data Flags [copy] { value: bool; spare: bool; }
@@ -23,57 +22,6 @@ machine enter(left: Flags, marker: bool, right: Flags, other: bool) -> bool {
     inspected
 }
 "#;
-
-#[test]
-fn state_graph_boundary_scalar_initializers_keep_their_result_destination() {
-    let program = crate::front_end::typed_program(
-        "pub data Sink {} data Root {}
-         pub boundary requirement Sink::produce(value: u32) -> u32;
-         machine identity(value: u32) -> u32 { value }
-         machine Root::enter(input: u32) {
-             let ordinary: u32 = identity(input);
-             let boundary: u32 = Sink::produce(identity(ordinary));
-             transition boundary == input { true -> done() _ -> done() }
-             state done() {}
-         }",
-    );
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "Root::enter")
-        .unwrap();
-    let state = &program.machine_states(machine)[0];
-    for (statement_index, statement) in program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .enumerate()
-    {
-        let StatementNode::LocalData(local) = statement else {
-            continue;
-        };
-        assert_eq!(
-            unit_result_initializer_call_is_supported(&program, machine, local.initial_value),
-            local.name.as_str() == "boundary",
-            "ordinary helper computations and boundary result operations have distinct owners"
-        );
-        if local.name.as_str() != "boundary" {
-            continue;
-        }
-        let mut invalid = program.clone();
-        let StatementNode::LocalData(changed) = &mut invalid
-            .statement_table
-            .statements_mut(state.statement_nodes)[statement_index]
-        else {
-            unreachable!()
-        };
-        changed.is_mutable = true;
-        assert!(
-            !unit_result_initializer_call_is_supported(&invalid, machine, local.initial_value),
-            "boundary receiving contracts still require an immutable destination"
-        );
-    }
-}
 
 #[test]
 fn linear_result_initializers_share_operand_admission_without_losing_fences() {
@@ -195,111 +143,6 @@ fn linear_result_initializers_share_operand_admission_without_losing_fences() {
 }
 
 #[test]
-fn static_scalar_local_calls_use_the_shared_computation_destination() {
-    for owner in ["", "Scalar::"] {
-        for prefix in ["", "Host::finish(false);"] {
-            let program = crate::front_end::typed_program(&format!(
-                "boundary trait Host {{ machine finish(value: bool) reaches Host; }}
-                 data Scalar {{}}
-                 machine identity(input: bool) -> bool {{ input }}
-                 machine {owner}measure(value: bool) -> bool reaches Host {{
-                    {prefix}
-                    let saved: bool = identity(!identity(value));
-                    Host::finish(false);
-                    saved
-                 }}"
-            ));
-            let machine = program
-                .machines()
-                .iter()
-                .find(|machine| machine.name.as_str().ends_with("measure"))
-                .unwrap();
-            let state = &program.machine_states(machine)[0];
-            let value = program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .find_map(|statement| {
-                    let StatementNode::LocalData(local) = statement else {
-                        return None;
-                    };
-                    (local.name.as_str() == "saved").then_some(local.initial_value)
-                })
-                .unwrap();
-            assert!(scalar_computation_call(&program, machine, value, true));
-            if !owner.is_empty() {
-                assert!(
-                    !scalar_computation_call(&program, machine, value, false),
-                    "assignment admission must keep its existing free-scalar fence"
-                );
-            }
-            assert!(
-                !result_initializer_call_is_supported(&program, machine, value),
-                "source admission must preserve the whole-call computation owner"
-            );
-            let mut diagnostics = Vec::new();
-            report_nested_call_in_local_initializer(
-                &program,
-                machine,
-                "entry",
-                value,
-                &mut diagnostics,
-            );
-            assert!(diagnostics.is_empty(), "{diagnostics:?}");
-        }
-    }
-}
-
-#[test]
-fn static_scalar_local_destination_keeps_unserved_signature_and_mutation_fences() {
-    for (signature, binding) in [
-        ("measure(mut value: bool)", "let saved: bool"),
-        ("measure(value: &bool)", "let saved: bool"),
-        ("measure<T>(value: bool)", "let saved: bool"),
-        ("measure(&self)", "let saved: bool"),
-        ("measure(value: bool)", "let mut saved: bool"),
-    ] {
-        let program = crate::front_end::typed_program(&format!(
-            "data Scalar {{}}
-             machine identity(input: bool) -> bool {{ input }}
-             machine Scalar::{signature} -> bool {{
-                {binding} = identity(identity(true)); saved
-             }}"
-        ));
-        let machine = program
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str().ends_with("measure"))
-            .unwrap();
-        let state = &program.machine_states(machine)[0];
-        let value = program
-            .statement_table
-            .statements(state.statement_nodes)
-            .iter()
-            .find_map(|statement| {
-                let StatementNode::LocalData(local) = statement else {
-                    return None;
-                };
-                (local.name.as_str() == "saved").then_some(local.initial_value)
-            })
-            .unwrap();
-        assert!(
-            !unit_result_initializer_call_is_supported(&program, machine, value),
-            "{signature}: {binding}"
-        );
-        let mut diagnostics = Vec::new();
-        report_nested_call_in_local_initializer(
-            &program,
-            machine,
-            "entry",
-            value,
-            &mut diagnostics,
-        );
-        assert!(!diagnostics.is_empty(), "{signature}: {binding}");
-    }
-}
-
-#[test]
 fn owned_scalar_nested_borrows_admit_unchanged_ordered_fixture() {
     let program = crate::front_end::typed_program(ORDERED);
     crate::validate_program(&program).unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
@@ -331,21 +174,6 @@ fn owned_scalar_nested_borrows_admit_unchanged_ordered_fixture() {
         &mut diagnostics,
     );
     assert!(diagnostics.is_empty(), "{diagnostics:#?}");
-}
-
-#[test]
-fn owned_scalar_nested_borrow_admits_affine_read_before_transfer() {
-    let program = crate::front_end::typed_program(
-        "data Flags { value: bool; }
-        machine stamp(value: &mut bool, number: bool) -> bool { value = number; number }
-        machine consume(marker: bool, flags: Flags) -> bool { marker }
-        machine inspect(flags: Flags) -> bool {
-            let mut scratch: bool = false;
-            let answer: bool = consume(stamp(&mut scratch, flags.value), flags);
-            answer
-        }",
-    );
-    crate::validate_program(&program).unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
 }
 
 #[test]

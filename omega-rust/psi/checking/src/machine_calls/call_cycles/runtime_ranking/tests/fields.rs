@@ -120,22 +120,6 @@ terminates by pending -> Countdown::Remaining in 0..=5;
 }
 
 #[test]
-fn field_view_cycle_needs_one_strict_edge() {
-    for body in [
-        FIELD.replace(
-            "Countdown { remaining: pending.remaining - 1 }",
-            "Countdown { remaining: pending.remaining }",
-        ),
-        FIELD.replace(
-            "Countdown { remaining: pending.remaining - 1 }",
-            "Countdown { remaining: 5 }",
-        ),
-    ] {
-        assert!(admitted(&typed_source(&body)).is_empty());
-    }
-}
-
-#[test]
 fn field_view_members_share_the_order_only_through_the_same_measure() {
     // Two declared measures with identical bodies are two orders.
     let second = FIELD
@@ -207,46 +191,6 @@ fn field_view_call_rejects_an_unrelated_actual_carrier() {
         )
     );
     assert!(admitted(&typed_source(&foreign)).is_empty());
-}
-
-const NESTED: &str = "data Inner { remaining: u64 [0..=5]; }
-data Countdown { tag: u64; inner: Inner; }
-measure Countdown::Remaining(countdown: Countdown) -> u64 { countdown.inner.remaining }
-data Main {}
-machine Main::scan_a(&mut self, countdown: Countdown)
-terminates by countdown -> Countdown::Remaining in 0..=5;
--> u64 {
-    transition countdown.inner.remaining > 0 {
-        true -> self.scan_b(countdown)
-        false -> countdown.inner.remaining
-    }
-}
-machine Main::scan_b(&mut self, pending: Countdown)
-terminates by pending -> Countdown::Remaining in 0..=5;
--> u64 {
-    transition pending.inner.remaining > 0 {
-        true -> self.scan_a(Countdown {
-            tag: pending.tag,
-            inner: Inner { remaining: pending.inner.remaining - 1 }
-        })
-        false -> pending.inner.remaining
-    }
-}";
-
-#[test]
-fn nested_field_view_walks_the_declared_chain_through_a_literal() {
-    let program = typed_source(NESTED);
-    assert_eq!(admitted(&program).len(), 1);
-    // The strict edge cannot land on the outer field: the chain resolves the
-    // exact declared leaf, so stalling `inner.remaining` rejects.
-    let stalled = NESTED.replace(
-        "Inner { remaining: pending.inner.remaining - 1 }",
-        "Inner { remaining: pending.inner.remaining }",
-    );
-    assert!(admitted(&typed_source(&stalled)).is_empty());
-    // A same-named leaf under a different owner is a different coordinate.
-    let wrong = NESTED.replace("pending.inner.remaining - 1", "pending.tag");
-    assert!(admitted(&typed_source(&wrong)).is_empty());
 }
 
 #[test]

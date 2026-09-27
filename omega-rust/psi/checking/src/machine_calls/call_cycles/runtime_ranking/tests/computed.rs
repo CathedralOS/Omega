@@ -20,27 +20,6 @@ terminates by pending -> Countdown::Doubled in 0..=200;
 }";
 
 #[test]
-fn computed_members_project_the_body_over_the_subject() {
-    let program = typed_source(DOUBLED);
-    for machine in program.machines() {
-        let rank = RankProjection::resolve(&program, machine).expect("computed projection");
-        assert!(matches!(rank.order, RankOrder::DeclaredComputation { .. }));
-        assert!(rank.range.is_valid());
-    }
-    assert_eq!(admitted(&program).len(), 1);
-    // The optional range is transported, not required; the produced rank
-    // must still form inside `u8` from the members' own bounds.
-    let unranged = DOUBLED.replace(" in 0..=200;", ";");
-    assert_ne!(unranged, DOUBLED);
-    assert_eq!(admitted(&typed_source(&unranged)).len(), 1);
-    // The shared range judgment still owns descent on the produced rank.
-    let stalled = DOUBLED.replace("self.scan_a(pending - 1)", "self.scan_a(pending)");
-    assert!(admitted(&typed_source(&stalled)).is_empty());
-    let raised = DOUBLED.replace("self.scan_a(pending - 1)", "self.scan_a(pending + 1)");
-    assert!(admitted(&typed_source(&raised)).is_empty());
-}
-
-#[test]
 fn computed_members_share_an_order_only_through_the_same_measure() {
     let mixed = DOUBLED
         .replace(

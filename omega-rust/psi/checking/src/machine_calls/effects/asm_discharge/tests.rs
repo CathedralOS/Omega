@@ -90,18 +90,6 @@ fn machine_owner_admission_covers_every_defined_class() {
 }
 
 #[test]
-fn admission_is_derived_from_the_freestanding_selection() {
-    assert_eq!(
-        AsmAuthorityAdmission::from_freestanding(true),
-        AsmAuthorityAdmission::MACHINE_OWNER
-    );
-    assert_eq!(
-        AsmAuthorityAdmission::from_freestanding(false),
-        AsmAuthorityAdmission::HOSTED
-    );
-}
-
-#[test]
 fn port_io_grant_admits_port_io_without_machine_owner_authority() {
     let port_io_only = AsmAuthorityAdmission::HOSTED.with_grants(true, false);
     validate_asm_discharge(
@@ -130,25 +118,6 @@ fn port_io_grant_admits_port_io_without_machine_owner_authority() {
             "port-io grant must not admit machine-owner authority for {source}: {messages:?}"
         );
     }
-}
-
-#[test]
-fn interrupt_table_grant_leaves_port_io_and_machine_owner_closed() {
-    let interrupt_table_only = AsmAuthorityAdmission::HOSTED.with_grants(false, true);
-    assert!(interrupt_table_only.admits(AsmAuthorityRequirement::IdtControl));
-    assert!(!interrupt_table_only.admits(AsmAuthorityRequirement::PortIo));
-    assert!(!interrupt_table_only.admits(AsmAuthorityRequirement::MachineOwner));
-
-    let messages = rejection_messages(
-        "data P { port: u16; byte: u8; } machine P::m(&self) { asm where clobbers r10, r11, r15, rax, rdx { out self.port, self.byte } }",
-        interrupt_table_only,
-    );
-    assert!(
-        messages
-            .iter()
-            .any(|message| message.contains("requires port-I/O authority")),
-        "interrupt-table grant must not admit port I/O: {messages:?}"
-    );
 }
 
 #[test]

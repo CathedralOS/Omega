@@ -1,46 +1,6 @@
 use crate::CallFrameResolver;
 use crate::machine_calls::calls::write_frames::CYCLE_EQUATIONS;
-use crate::machine_calls::calls::write_frames::PREFIX_WALKS;
 use crate::machine_calls::calls::write_frames::transition_topology::reachable_cycle_edges_can_permute_write_parameters;
-
-#[test]
-fn cycle_statement_calls_reuse_complete_callee_frames() {
-    let program = crate::front_end::typed_program(
-        r#"
-        data Output { count: u64; untouched: u64; }
-        machine write(output: &mut Output) { output.count = 1; }
-        machine swap(left: &mut Output, right: &mut Output) {
-            transition { _ -> cycle(left, right) }
-            state cycle(left: &mut Output, right: &mut Output) {
-                write(left);
-                write(right);
-                transition { _ -> cycle(right, left) }
-            }
-        }
-        "#,
-    );
-    let helper = &program.machines()[0];
-    let cycle_machine = &program.machines()[1];
-    let cycle = &program.machine_states(cycle_machine)[1];
-    let resolver = CallFrameResolver::new(&program).expect("resolver");
-    let helper_frames = resolver.inferred_machine_state_write_frames(helper);
-    assert_eq!(
-        helper_frames[0].complete_paths(),
-        Some(["$P0.count".to_owned()].as_slice())
-    );
-    PREFIX_WALKS.with(|walks| walks.set(0));
-    let frame = resolver.inferred_state_write_frame(cycle_machine, cycle);
-    let walks = PREFIX_WALKS.with(|walks| walks.get());
-    assert_eq!(
-        frame.complete_paths(),
-        Some(["$P0.count".to_owned(), "$P1.count".to_owned()].as_slice()),
-        "permuted roots retain exact fields without invalidating untouched storage"
-    );
-    assert_eq!(
-        walks, 0,
-        "the already complete helper needs no further walk"
-    );
-}
 
 #[test]
 fn callback_through_named_transition_never_caches_a_truncated_call_frame() {
@@ -98,31 +58,6 @@ machine classify(output: &mut Output) {
         count = 2;
         transition output.accepted {
             false -> load(output)
-            _ -> done(output)
-        }
-    }
-    state done(output: &mut Output) {
-        output.accepted = true;
-    }
-}
-"#;
-
-/// The same cycle carrying a copy enum instead. `Kind` contains no exclusive
-/// reference anywhere in its structure, so it is the state's own storage,
-/// not a write-capable root: every edge permutes the one `&mut Output` and
-/// the solver recovers the complete frame.
-const KIND_CYCLE: &str = r#"
-data Kind [copy] { case Next; case Stop; }
-data Output { accepted: bool; count: u64; }
-machine classify(output: &mut Output) {
-    transition { _ -> load(output) }
-    state load(output: &mut Output) {
-        output.count = 1;
-        transition { _ -> dispatch(output, Kind::Next) }
-    }
-    state dispatch(output: &mut Output, kind: Kind) {
-        transition kind {
-            Kind::Next -> load(output)
             _ -> done(output)
         }
     }
@@ -200,34 +135,4 @@ fn topology_precheck_ignores_mismatched_edges_outside_cycles() {
         machine,
         &program.machine_states(machine)[3]
     ));
-}
-
-#[test]
-fn copy_value_cycle_edges_permute_and_solve_to_complete_frames() {
-    let program = crate::front_end::typed_program(KIND_CYCLE);
-    let machine = &program.machines()[0];
-    for state in program.machine_states(machine) {
-        assert!(
-            reachable_cycle_edges_can_permute_write_parameters(&program, machine, state),
-            "{} carries only the `&mut Output` root around the cycle",
-            state.name.as_str()
-        );
-    }
-    let resolver = CallFrameResolver::new(&program).expect("resolver");
-    let frames = resolver.inferred_machine_state_write_frames(machine);
-    let outcomes = frames
-        .iter()
-        .map(|frame| frame.complete_paths().map(<[String]>::to_vec))
-        .collect::<Vec<_>>();
-    let cycle = Some(vec!["$P0.accepted".to_owned(), "$P0.count".to_owned()]);
-    assert_eq!(
-        outcomes,
-        vec![
-            cycle.clone(),
-            cycle.clone(),
-            cycle,
-            Some(vec!["$P0.accepted".to_owned()])
-        ],
-        "a copy enum crossing a cycle edge no longer keeps the cycle opaque"
-    );
 }

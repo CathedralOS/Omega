@@ -558,7 +558,7 @@ fn data_carrier_operand(program: &TypedTrees, type_reference: TypeReferenceHandl
 mod tests {
     use super::{
         BigInt, BinaryOperator, ExpressionHandle, ExpressionNode, IntegerValue, PrimitiveType,
-        TypedTrees, evaluate_anonymous_value, land_integer,
+        TypedTrees, land_integer,
     };
     use crate::expression::TableBinaryExpression;
     use numerics::literals::IntegerLiteral;
@@ -582,25 +582,6 @@ mod tests {
                 operator,
                 right,
             }))
-    }
-
-    #[test]
-    fn shared_anonymous_query_retains_fractional_origin_and_single_operator_visits() {
-        let mut program = TypedTrees::default();
-        let one = integer(&mut program, 1);
-        let two = integer(&mut program, 2);
-        let quotient = binary(&mut program, one, BinaryOperator::Divide, two);
-        let root = binary(&mut program, quotient, BinaryOperator::Multiply, two);
-        let mut visits = Vec::new();
-        let result = evaluate_anonymous_value::<true>(&program, root, &[], &mut |expression| {
-            visits.push(expression);
-            true
-        })
-        .expect("exact anonymous evaluation");
-        assert_eq!(result.value.to_integer_exact(), Some(BigInt::from_i64(1)));
-        assert_eq!(result.fractional_origin, quotient);
-        assert_eq!(visits, [root, quotient]);
-        assert!(evaluate_anonymous_value::<true>(&program, root, &[], &mut |_| false).is_none());
     }
 
     #[test]

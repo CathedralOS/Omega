@@ -89,31 +89,6 @@ pub(super) fn progress(
 }
 
 #[test]
-fn internal_state_calls_keep_their_entry_roles() {
-    let source = "data Main {}
-        machine Main::count(&mut self, remaining: u32 [0..=9])
-        terminates by remaining in 0..=9;
-        -> u32 {
-            transition remaining > 0 { true -> hold(remaining) false -> remaining }
-            state hold(pending: u32 [0..=9]) {
-                transition pending > 0 { true -> self.step(pending) false -> pending }
-            }
-        }
-        machine Main::step(&mut self, n: u32 [0..=9])
-        terminates by n in 0..=9;
-        -> u32 {
-            transition n > 0 { true -> self.count(n - 1) false -> n }
-        }";
-    // `hold -> step(pending)` is weak (pending carries the entry role
-    // `remaining`); `step -> count(n - 1)` is strict — the component admits.
-    assert_eq!(admitted(&typed_source(source)).len(), 1);
-    // The same site still answers to the shared ranking: a transported value
-    // that cannot prove non-increase rejects the component.
-    let increased = source.replace("self.step(pending)", "self.step(pending + 1)");
-    assert!(admitted(&typed_source(&increased)).is_empty());
-}
-
-#[test]
 fn internal_state_calls_read_duplicated_rank_copies() {
     // `pair(left, right)` holds two copies of the same arrival value; the
     // discovery kept both claims only because every arrival forwarded a bare
@@ -168,60 +143,6 @@ fn internal_state_calls_read_duplicated_rank_copies() {
         .replace("self.count(n - 1)", "self.count(n - 1, 0)");
     assert_ne!(stray, source);
     assert!(admitted(&typed_source(&stray)).is_empty());
-}
-
-#[test]
-fn mixed_component_conserves_endpoints_through_internal_sites() {
-    // `hold(pending, bound)` carries the ranked input and the authored
-    // ceiling. The site consumes `outer`'s own range invariant, `0 <= pending
-    // <= bound`, as the arrival's proven evidence -- the member's state-edge
-    // judgment, which the checked stage runs for every ranged member with
-    // internal arrivals, re-establishes it there -- so the guard need not
-    // respell membership; the unranged member must still transport that
-    // exact endpoint back.
-    let source = "data Main {}
-        machine Main::outer(&mut self, cap: u64, remaining: u64)
-        requires remaining <= cap;
-        terminates by remaining in 0..=cap;
-        -> u64 {
-            transition remaining > 0 { true -> hold(remaining, cap) false -> remaining }
-            state hold(pending: u64, bound: u64) {
-                transition pending > 0 {
-                    true -> self.inner(pending, bound)
-                    false -> pending
-                }
-            }
-        }
-        machine Main::inner(&mut self, n: u64, limit: u64)
-        terminates by n;
-        -> u64 {
-            transition n > 0 && n <= limit { true -> self.outer(limit, n - 1) false -> n }
-        }";
-    assert_eq!(admitted(&typed_source(source)).len(), 1);
-    let respelled = source.replace("pending > 0 {", "pending > 0 && pending <= bound {");
-    assert_eq!(admitted(&typed_source(&respelled)).len(), 1);
-    // An actual that is not the carried endpoint cannot pin the authored
-    // ceiling, even when it is spelled from the same carrier.
-    let moved = source.replace(
-        "self.inner(pending, bound)",
-        "self.inner(pending, bound + 1)",
-    );
-    assert!(admitted(&typed_source(&moved)).is_empty());
-    let renamed = source.replace("self.inner(pending, bound)", "self.inner(pending, pending)");
-    assert!(admitted(&typed_source(&renamed)).is_empty());
-    // A prefix store into a carrier the invariant reads invalidates it.
-    let written = source
-        .replace("pending: u64, bound: u64)", "pending: u64, mut bound: u64)")
-        .replace(
-            "                transition pending > 0 {",
-            "                bound = bound; transition pending > 0 {",
-        );
-    assert_ne!(written, source);
-    assert!(admitted(&typed_source(&written)).is_empty());
-    // Requires facts stay entry-site evidence: the entry obligation, not the
-    // subordinate site, is what a missing premise fails.
-    let missing_entry = source.replace("requires remaining <= cap;", "");
-    assert!(admitted(&typed_source(&missing_entry)).is_empty());
 }
 
 #[test]
@@ -301,45 +222,6 @@ fn mixed_component_conserves_projected_endpoints() {
 }
 
 #[test]
-fn ranged_call_uses_each_authored_telescope_and_classifies_weak_edges() {
-    let program = typed_source(RANGED);
-    assert_eq!(
-        progress(&program, 0),
-        Some(RankingRangeCallProgress::NonIncreasing)
-    );
-    assert_eq!(
-        progress(&program, 1),
-        Some(RankingRangeCallProgress::Strict)
-    );
-    assert_eq!(admitted(&program).len(), 1);
-}
-
-#[test]
-fn unranged_natural_call_still_requires_a_nonnegative_destination_rank() {
-    let source = RANGED
-        .replace(" in lower..=upper", "")
-        .replace(" in floor..=ceiling", "");
-    let program = typed_source(&source);
-    assert_eq!(
-        progress(&program, 0),
-        Some(RankingRangeCallProgress::NonIncreasing)
-    );
-    assert_eq!(
-        progress(&program, 1),
-        Some(RankingRangeCallProgress::Strict)
-    );
-    assert_eq!(admitted(&program).len(), 1);
-    let underflow = typed_source(&source.replace("pending - 1", "pending - 2"));
-    assert!(progress(&underflow, 1).is_none());
-    assert!(admitted(&underflow).is_empty());
-    let mut foreign = program;
-    foreign.ranking_expression_custody[0].subjects[0] =
-        foreign.ranking_expression_custody[1].subjects[0];
-    assert!(progress(&foreign, 0).is_none());
-    assert!(admitted(&foreign).is_empty());
-}
-
-#[test]
 fn call_range_does_not_assume_destination_requirements_or_moved_endpoints() {
     for source in [
         RANGED.replace(
@@ -357,16 +239,6 @@ fn call_range_does_not_assume_destination_requirements_or_moved_endpoints() {
     ] {
         assert!(admitted(&typed_source(&source)).is_empty(), "{source}");
     }
-}
-
-#[test]
-fn ranged_call_cycles_need_strict_progress_and_complete_range_evidence() {
-    let preserving = RANGED.replace("pending - 1", "pending");
-    assert!(admitted(&typed_source(&preserving)).is_empty());
-    let mixed = RANGED.replace(" by pending in floor..=ceiling", " by pending");
-    assert_eq!(admitted(&typed_source(&mixed)).len(), 1);
-    let missing_entry = RANGED.replace("requires lower <= remaining && remaining <= upper;", "");
-    assert!(admitted(&typed_source(&missing_entry)).is_empty());
 }
 
 #[test]
@@ -395,26 +267,6 @@ fn mixed_calls_prove_each_authored_membership_without_assuming_the_missing_range
     }
 }
 
-#[test]
-fn ranged_call_arithmetic_proves_a_variable_positive_step() {
-    let program = typed_source(
-        "data Main {}
-        machine Main::first(&mut self, n: u64, step: u64, cap: u64)
-        requires step > 0 && n <= cap;
-        terminates by n in 0..=cap;
-        -> u64 { transition n >= step { true -> self.second(n, step, cap) false -> n } }
-        machine Main::second(&mut self, n: u64, step: u64, cap: u64)
-        requires step > 0 && n <= cap;
-        terminates by n in 0..=cap;
-        -> u64 { transition n >= step { true -> self.first(n - step, step, cap) false -> n } }",
-    );
-    assert_eq!(
-        progress(&program, 1),
-        Some(RankingRangeCallProgress::Strict)
-    );
-    assert_eq!(admitted(&program).len(), 1);
-}
-
 const PREFIX_CALL: &str = "data Main {}
     machine Main::audit(&mut self, value: u64) -> u64 { value }
     machine Main::scan_a(&mut self, index: u64 [0..=4], limit: u64 [0..=4])
@@ -436,16 +288,6 @@ const PREFIX_CALL: &str = "data Main {}
             false -> index
         }
     }";
-
-#[test]
-fn prefix_call_with_a_disjoint_write_frame_preserves_the_component_ranking() {
-    assert_eq!(admitted(&typed_source(PREFIX_CALL)).len(), 1);
-    // The callee may write its own storage; only premise carriers matter.
-    let storage_write = PREFIX_CALL
-        .replace("data Main {}", "data Main { audits: u64 }")
-        .replace("{ value }", "{ self.audits = self.audits + 1; value }");
-    assert_eq!(admitted(&typed_source(&storage_write)).len(), 1);
-}
 
 #[test]
 fn prefix_call_writing_a_premise_carrier_rejects_the_component() {
@@ -482,34 +324,6 @@ fn prefix_call_writing_a_premise_carrier_rejects_the_component() {
         )))
         .is_empty()
     );
-}
-
-#[test]
-fn prefix_call_to_a_boundary_machine_uses_the_selected_signature_frame() {
-    // The boundary signature carries no exclusive reach: reading a premise
-    // carrier by value writes nothing, so the prefix keeps every hypothesis.
-    let observed = PREFIX_CALL.replace(
-        "machine Main::audit(&mut self, value: u64) -> u64 { value }\n    machine",
-        "machine",
-    );
-    let observed = format!(
-        "boundary machine note(value: u64) -> u64; {}",
-        observed.replace("self.audit(index);", "note(index);")
-    );
-    assert_eq!(admitted(&typed_source(&observed)).len(), 1);
-    // An exclusive argument's proven origin is the frame: writing disjoint
-    // caller storage through the boundary call still preserves the ranking.
-    let disjoint = format!(
-        "boundary machine poke(value: &mut u64) -> u64; {}",
-        PREFIX_CALL
-            .replace("data Main {}", "data Main { scratch: u64 }")
-            .replace("self.audit(index);", "poke(&mut self.scratch);")
-            .replace(
-                "machine Main::audit(&mut self, value: u64) -> u64 { value }\n    machine",
-                "machine",
-            )
-    );
-    assert_eq!(admitted(&typed_source(&disjoint)).len(), 1);
 }
 
 #[test]

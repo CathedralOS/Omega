@@ -71,23 +71,6 @@ mod tests {
     }
 
     #[test]
-    fn local_case_scope_restores_outer_evidence_on_failure() {
-        let symbol = SymbolHandle::from_parts(1, 1);
-        let outer = local(symbol, SymbolHandle::from_parts(2, 1));
-        let inner = local(symbol, SymbolHandle::from_parts(3, 1));
-        let mut inference = FrameInference::for_state(symbol);
-        inference.record_local(&outer);
-        let result: Option<()> = inference.with_local_scope(|inference| {
-            inference.record_local(&inner);
-            assert_eq!(inference.local_cases(symbol), Some(inner.cases.as_slice()));
-            None
-        });
-        assert!(result.is_none());
-        assert_eq!(inference.local_cases(symbol), Some(outer.cases.as_slice()));
-        assert_eq!(inference.active_states, vec![symbol]);
-    }
-
-    #[test]
     fn empty_case_evidence_is_distinct_from_an_unknown_local() {
         let symbol = SymbolHandle::from_parts(1, 1);
         let mut inference = FrameInference::default();

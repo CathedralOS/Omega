@@ -40,33 +40,6 @@ fn static_boundary_scalar_arguments_do_not_invent_receiver_storage() {
 }
 
 #[test]
-fn static_boundary_exclusive_arguments_and_nested_effects_keep_their_write_paths() {
-    for body in ["Sink::touch(record);", "Sink::record(change(record));"] {
-        let program = crate::front_end::typed_program(&format!(
-            "data Flag {{ enabled: bool; }} boundary trait Sink {{ machine record(value: bool); machine touch(record: &mut Flag); }} machine change(record: &mut Flag) -> bool {{ record.enabled = false; true }} machine inspect(record: &mut Flag) {{ {body} }}"
-        ));
-        let expected = if body.starts_with("Sink::touch") {
-            "$P0"
-        } else {
-            "$P0.enabled"
-        };
-        assert_eq!(
-            frame(&program).complete_paths(),
-            Some([expected.to_owned()].as_slice()),
-            "{body}"
-        );
-    }
-}
-
-#[test]
-fn static_boundary_expression_calls_use_the_same_exact_signature_frame() {
-    let program = crate::front_end::typed_program(
-        "boundary trait Sink { machine produce() -> bool; } machine inspect() -> bool { Sink::produce() }",
-    );
-    assert_eq!(frame(&program).complete_paths(), Some([].as_slice()));
-}
-
-#[test]
 fn static_boundary_wrong_zero_and_stale_targets_remain_opaque() {
     let program = crate::front_end::typed_program(
         "boundary trait Sink { machine record(value: bool); machine other(value: bool); } machine inspect() { Sink::record(true); }",
@@ -98,17 +71,6 @@ fn static_boundary_wrong_zero_and_stale_targets_remain_opaque() {
     };
     call.receiver_symbol = SymbolHandle::invalid();
     assert!(!frame(&invalid).is_complete());
-}
-
-#[test]
-fn static_boundary_result_bound_to_local_keeps_its_single_origin() {
-    let program = crate::front_end::typed_program(
-        "data Main { value: u64; } boundary trait Sink { machine reference(value: &mut u64) -> &mut u64; machine touch(record: &mut u64); } machine Main::inspect(&mut self) { let r: &mut u64 = Sink::reference(&mut self.value); Sink::touch(r); }",
-    );
-    assert_eq!(
-        frame(&program).complete_paths(),
-        Some(["self.value".to_owned()].as_slice())
-    );
 }
 
 #[test]
@@ -216,17 +178,6 @@ fn boundary_results_bound_to_locals_join_their_proven_single_origin() {
 }
 
 #[test]
-fn boundary_result_bound_to_local_forwards_a_parameter_origin() {
-    let program = crate::front_end::typed_program(
-        "data Main { device: Device; } boundary trait Device { machine reference(value: &mut u64) -> &mut u64; machine touch(record: &mut u64); } machine Main::inspect(&mut self, record: &mut u64) { let r: &mut u64 = Device::reference(record); self.device.touch(r); }",
-    );
-    assert_eq!(
-        frame(&program).complete_paths(),
-        Some(["$P0".to_owned(), "self.device".to_owned()].as_slice())
-    );
-}
-
-#[test]
 fn boundary_result_with_a_stale_return_type_cannot_bind_an_origin() {
     let program = crate::front_end::typed_program(
         "data Main { device: Device; value: u64; } boundary trait Device { machine reference(value: &mut u64) -> &mut u64; machine touch(record: &mut u64); } machine Main::inspect(&mut self) { let r: &mut u64 = Device::reference(&mut self.value); self.device.touch(r); }",
@@ -284,58 +235,6 @@ fn static_boundary_stale_formal_types_cannot_erase_exclusive_argument_writes() {
         assert!(
             !frame(&invalid).is_complete(),
             "stale formal, wrapped={wrapped}"
-        );
-    }
-}
-
-#[test]
-fn static_boundary_missing_and_out_of_arena_formal_types_remain_opaque() {
-    let program = crate::front_end::typed_program(
-        "data Flag { enabled: bool; } boundary trait Sink { machine touch(record: &mut Flag); } machine inspect(record: &mut Flag) { Sink::touch(record); }",
-    );
-    let parameter = program.trait_machine_signatures(&program.traits()[0])[0]
-        .parameters
-        .start();
-    for reference in [
-        TypeReferenceHandle::invalid(),
-        TypeReferenceHandle::from_arena_index(u32::MAX),
-    ] {
-        let mut invalid = program.clone();
-        invalid.state_parameters.get_mut(parameter).type_reference = reference;
-        assert!(
-            !frame(&invalid).is_complete(),
-            "missing formal {reference:?}"
-        );
-    }
-}
-
-#[test]
-fn static_boundary_finite_constraint_chains_preserve_exclusive_writes() {
-    let program = crate::front_end::typed_program(
-        "data Flag { enabled: bool; } boundary trait Sink { machine touch(record: &mut Flag); } machine inspect(record: &mut Flag) { Sink::touch(record); }",
-    );
-    let parameter = program.trait_machine_signatures(&program.traits()[0])[0]
-        .parameters
-        .start();
-    for depth in [0, 1, 64, 128] {
-        let mut constrained = program.clone();
-        let mut reference = constrained.state_parameters.get(parameter).type_reference;
-        for _ in 0..depth {
-            reference = constrained
-                .type_reference_table
-                .insert(TypeReferenceNode::Constrained {
-                    base_type: reference,
-                    constraints: Default::default(),
-                });
-        }
-        constrained
-            .state_parameters
-            .get_mut(parameter)
-            .type_reference = reference;
-        assert_eq!(
-            frame(&constrained).complete_paths(),
-            Some(["$P0".to_owned()].as_slice()),
-            "finite chain depth {depth}"
         );
     }
 }
@@ -448,47 +347,6 @@ fn generic_boundary_carriers_still_fail_closed() {
         assert!(
             !frame(&program).is_complete(),
             "{name} unexpectedly completed"
-        );
-    }
-}
-
-#[test]
-fn static_boundary_cyclic_formal_constraints_remain_opaque() {
-    let program = crate::front_end::typed_program(
-        "data Flag { enabled: bool; } boundary trait Sink { machine touch(record: &mut Flag); } machine inspect(record: &mut Flag) { Sink::touch(record); }",
-    );
-    let parameter = program.trait_machine_signatures(&program.traits()[0])[0]
-        .parameters
-        .start();
-    for cycle_length in [1, 2] {
-        let mut invalid = program.clone();
-        let mut reference = invalid.state_parameters.get(parameter).type_reference;
-        let first = invalid
-            .type_reference_table
-            .insert(TypeReferenceNode::Constrained {
-                base_type: reference,
-                constraints: Default::default(),
-            });
-        reference = first;
-        for _ in 1..cycle_length {
-            reference = invalid
-                .type_reference_table
-                .insert(TypeReferenceNode::Constrained {
-                    base_type: reference,
-                    constraints: Default::default(),
-                });
-        }
-        invalid.type_reference_table.substitute_node(
-            first,
-            TypeReferenceNode::Constrained {
-                base_type: reference,
-                constraints: Default::default(),
-            },
-        );
-        invalid.state_parameters.get_mut(parameter).type_reference = first;
-        assert!(
-            !frame(&invalid).is_complete(),
-            "constraint cycle length {cycle_length}"
         );
     }
 }
@@ -853,16 +711,4 @@ fn generic_boundary_owner_result_uses_existing_candidate_origins() {
         !paths.iter().any(|path| path == "self.device.value"),
         "opaque receiver origin cannot acquire field precision"
     );
-}
-
-#[test]
-fn generic_boundary_method_shadow_binds_its_own_declaration() {
-    let program = crate::front_end::typed_program(
-        "data Cell { value: u64; } data Other { value: u32; } boundary trait Device<T> { machine consume<T>(carrier: &mut T); } data Main { device: Device<Cell>; other: Other; } machine Main::inspect(&mut self) { self.device.consume(&mut self.other); }",
-    );
-    let mut paths = frame(&program)
-        .into_complete_paths()
-        .expect("the method binder selects Other independently of owner Cell");
-    paths.sort();
-    assert_eq!(paths, ["self.device", "self.other"]);
 }

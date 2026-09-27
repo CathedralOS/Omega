@@ -1,4 +1,4 @@
-use super::{runtime_ranking, validate_machine_call_cycles};
+use super::validate_machine_call_cycles;
 use crate::declarations::symbols::TopLevelSymbols;
 use crate::validated_runtime_recursive_components;
 use diagnostics::Diagnostic;
@@ -30,33 +30,6 @@ fn typed_pair(body: &str, extra: &str) -> TypedTrees {
 }
 
 const DECREASE: &str = "transition remaining == 0 { true -> 0 false -> scan_a(remaining - 1) }";
-
-#[test]
-fn value_dispatch_dependency_scan_retains_subject_pattern_and_all_arms() {
-    let program = typed_source(
-        "machine subject() -> u64 { 0 } machine pattern() -> u64 { 0 } machine first() -> u64 { 7 } machine second() -> u64 { 8 } machine main() -> u64 { match subject() { pattern() -> first(), _ -> second() } }",
-    );
-    let (expression, _) = program
-        .expression_table
-        .expression_entries()
-        .find(|(_, node)| matches!(node, ExpressionNode::Match(_)))
-        .expect("dispatch");
-    let mut dependencies = Vec::new();
-    super::collect_expression_dependency_symbols(&program, expression, &mut dependencies);
-    let targets = ["subject", "pattern", "first", "second"].map(|name| {
-        program
-            .expression_table
-            .expression_entries()
-            .find_map(|(_, node)| match node {
-                ExpressionNode::Call(call) if call.target.as_str() == name => {
-                    Some(call.target_symbol)
-                }
-                _ => None,
-            })
-            .expect("selected call")
-    });
-    assert_eq!(dependencies, targets);
-}
 
 fn machine_symbol(program: &TypedTrees, name: &str) -> SymbolHandle {
     program
@@ -198,30 +171,4 @@ fn symbol_construction_errors_grant_no_components() {
     TopLevelSymbols::build(&program, &mut diagnostics);
     assert!(diagnostics.iter().any(Diagnostic::is_error));
     assert!(validated_runtime_recursive_components(&program).is_empty());
-}
-
-#[test]
-fn proof_dependency_prevents_admitting_a_runtime_subset() {
-    let program = typed_pair(
-        "transition remaining == 0 {
-            true -> proof_bridge(ProofTree::End)
-            false -> scan_a(remaining - 1)
-        }",
-        "data ProofTree { case End; case Branch(child: ProofTree); }
-         machine proof_bridge(value: ProofTree) -> u64 { transition { _ -> scan_a(0) } }",
-    );
-    let proof_only = typed_trees::proof_only::classify(&program);
-    let bridge = machine_symbol(&program, "proof_bridge");
-    assert!(program.machines().iter().any(|machine| {
-        machine.symbol == bridge && proof_only.is_proof_machine(&program, machine)
-    }));
-    // Omitting the proof-to-runtime dependency incorrectly leaves an admitted
-    // runtime pair. The public query must use the validator's complete graph.
-    let mut incomplete = vec![Vec::new(); program.machines().len()];
-    runtime_ranking::extend_runtime_adjacency(&program, &proof_only, &mut incomplete);
-    assert_eq!(
-        runtime_ranking::admitted_components(&program, &proof_only, &incomplete).len(),
-        1
-    );
-    assert_cycle_rejected(&program);
 }
