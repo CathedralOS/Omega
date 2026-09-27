@@ -11,10 +11,10 @@ use optimization_unit::{
 };
 use semantic_vocabulary::{MachineId, OperationId};
 
+use crate::rules::accepted_obligations::accepted_obligation_fact;
 use crate::rules::sparse_conditional_constant_propagation::{
     constant_evaluation_contract, integer_constant,
 };
-use crate::rules::support::accepted_obligation_fact;
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]

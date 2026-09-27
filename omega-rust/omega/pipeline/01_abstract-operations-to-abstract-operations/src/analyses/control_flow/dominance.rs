@@ -7,6 +7,17 @@ use semantic_vocabulary::BlockId;
 
 use super::{DominatorAnalysis, FunctionControlFlow, graph::control_flow};
 
+pub(crate) fn block_dominates(
+    dominators: &[(BlockId, Vec<BlockId>)],
+    dominator: BlockId,
+    block: BlockId,
+) -> bool {
+    dominators
+        .iter()
+        .find(|(candidate, _)| *candidate == block)
+        .is_some_and(|(_, rows)| rows.contains(&dominator))
+}
+
 pub(in crate::analyses) fn dominators(
     unit: &PsiOptimizationUnit,
     reverse: bool,

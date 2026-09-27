@@ -15,7 +15,6 @@ use semantic_vocabulary::{OperationId, ValueId};
 use crate::rules::sparse_conditional_constant_propagation::{
     constant_evaluation_contract, integer_constant, integer_value_type,
 };
-use crate::rules::support::boolean_constant;
 use crate::{
     AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
     ScalarConstantAnalysis,
@@ -126,7 +125,7 @@ fn evaluate(
             },
             BooleanEvaluationKind::Not,
         ) => {
-            let (operand, operand_fact) = boolean_constant(constants, function.machine, *operand)?;
+            let (operand, operand_fact) = constants.boolean_constant(function.machine, *operand)?;
             (
                 *psi_operation,
                 *result,
@@ -143,8 +142,8 @@ fn evaluate(
             },
             BooleanEvaluationKind::Equal,
         ) => {
-            let (left, left_fact) = boolean_constant(constants, function.machine, *left)?;
-            let (right, right_fact) = boolean_constant(constants, function.machine, *right)?;
+            let (left, left_fact) = constants.boolean_constant(function.machine, *left)?;
+            let (right, right_fact) = constants.boolean_constant(function.machine, *right)?;
             (
                 *psi_operation,
                 *result,

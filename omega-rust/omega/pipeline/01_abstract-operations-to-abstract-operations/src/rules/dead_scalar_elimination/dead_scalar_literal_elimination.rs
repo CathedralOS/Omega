@@ -10,7 +10,7 @@ use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
 use semantic_vocabulary::ScalarType;
 
 use crate::rules::DEAD_PURE_SCALAR_PASS_NAME;
-use crate::rules::support::{DeadScalarShape, propose_unproved_dead_scalar_nodes};
+use crate::rules::node_elision::{DeadScalarShape, propose_unproved_dead_scalar_nodes};
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]

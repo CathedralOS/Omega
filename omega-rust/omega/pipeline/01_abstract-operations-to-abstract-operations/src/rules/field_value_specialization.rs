@@ -69,7 +69,8 @@ impl PsiOptimizationRule for FieldValueSpecializationRule {
                 AnalysisKind::StronglyConnectedComponents,
             ));
         };
-        let frozen = super::support::frozen_machines(unit, scc);
+        // This specialization preserves cyclic machines byte-for-byte.
+        let frozen = scc.cyclic_machines(unit);
         let mut candidates = Vec::new();
         for function in &unit.functions {
             if frozen.contains(&function.machine) {

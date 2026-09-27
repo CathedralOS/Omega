@@ -18,10 +18,10 @@ use optimization_unit::{
 use semantic_vocabulary::{IntegerType, IntegerValue, MachineId, OperationId, ValueId};
 
 use super::integer_binary_shapes;
+use crate::rules::accepted_obligations::accepted_obligation_fact;
 use crate::rules::sparse_conditional_constant_propagation::{
     constant_evaluation_contract, integer_constant,
 };
-use crate::rules::support::accepted_obligation_fact;
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 fn contract(rule_name: &[u8], safety: OptimizationSafetyClass) -> OptimizationRuleContract {

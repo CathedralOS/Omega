@@ -18,7 +18,6 @@ use super::IntegerRangeComparisonKind;
 use crate::rules::sparse_conditional_constant_propagation::{
     integer_value_type, range_comparison_contract,
 };
-use crate::rules::support::literal_integer_constant;
 use crate::{
     AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
     ScalarConstantAnalysis, ValueRangeAnalysis,
@@ -114,7 +113,7 @@ fn propose_over(
                     | IntegerRangeComparisonKind::ConstantLessOrEqualRange => (right, left),
                 };
                 let Some((constant_value, constant_fact)) =
-                    literal_integer_constant(constants, function.machine, constant_operand)
+                    constants.literal_integer_constant(function.machine, constant_operand)
                 else {
                     continue;
                 };

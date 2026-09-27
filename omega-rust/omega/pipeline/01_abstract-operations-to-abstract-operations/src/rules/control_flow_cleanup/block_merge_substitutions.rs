@@ -5,7 +5,6 @@ use optimization_unit::{OptimizationBlock, ScalarSubstitution};
 use semantic_vocabulary::{BlockId, MachineId};
 
 use crate::UseDefinitionAnalysis;
-use crate::rules::support::replacement_dominates_parameter_uses;
 
 pub(super) fn merge_substitutions(
     machine: MachineId,
@@ -21,12 +20,11 @@ pub(super) fn merge_substitutions(
         .map(|(parameter, binding)| {
             (binding.parameter == parameter.value
                 && binding.scalar_type == parameter.scalar_type
-                && replacement_dominates_parameter_uses(
+                && use_definitions.replacement_dominates_parameter_uses(
                     machine,
                     binding.argument,
                     parameter.value,
                     dominators,
-                    use_definitions,
                 ))
             .then_some(ScalarSubstitution {
                 from: parameter.value,

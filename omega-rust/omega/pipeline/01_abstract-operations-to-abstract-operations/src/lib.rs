@@ -38,8 +38,7 @@ pub use publication::{OptimizedAbstractProjectionError, ValidatedOptimizedAbstra
 pub(crate) use analyses::{AnalysisManager, AnalysisProduct, ScalarConstant, compute_analysis};
 pub(crate) use analyses::{
     AnalysisManagerError, CallGraphAnalysis, EffectClass, EffectKnowledge, EffectSummaryAnalysis,
-    OwnershipFrontierAnalysis, ScalarConstantAnalysis, StronglyConnectedComponentAnalysis,
-    UseDefinitionAnalysis, ValueRangeAnalysis,
+    OwnershipFrontierAnalysis, ScalarConstantAnalysis, UseDefinitionAnalysis, ValueRangeAnalysis,
 };
 pub(crate) use analyses::{
     CountdownInvariantConstantAnalysisError, CountdownInvariantConstantPlacementAnalysisError,

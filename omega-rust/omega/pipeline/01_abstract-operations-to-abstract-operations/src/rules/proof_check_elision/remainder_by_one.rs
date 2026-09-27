@@ -12,8 +12,8 @@ use optimization_unit::{
 use semantic_vocabulary::IntegerCarrier;
 
 use crate::rules::PROOF_CHECK_ELISION_PASS_NAME;
+use crate::rules::accepted_obligations::accepted_obligation_fact;
 use crate::rules::proof_check_elision::identity_rewrite::{integer_one, integer_zero};
-use crate::rules::support::{accepted_obligation_fact, literal_integer_constant};
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -115,7 +115,7 @@ impl PsiOptimizationRule for LiveProofCertifiedIntegerRemainderByOneEliminationR
                         continue;
                     }
                     let Some((constant, constant_fact)) =
-                        literal_integer_constant(constants, function.machine, *right)
+                        constants.literal_integer_constant(function.machine, *right)
                     else {
                         continue;
                     };
