@@ -662,7 +662,16 @@ the complete product bar; focused successes below do not establish that baseline
     `Main::clock` wanting a Fused `Clock`: `cli/{algorithms/
     {binary_search_viz,sort_visualizer}, rendering/{bouncing_console,
     ripple_field,tick_marquee}, simulation/{cellular_automaton,
-    game_of_life_glider,langtons_ant,random_walk}}`. Not sample defects.
+    game_of_life_glider,langtons_ant,random_walk}}`. These are WIRING, not a
+    capability gap, and the pattern is already written three times in
+    `samples/gui/{window_app,window_demo,windowed_calculator}`: each declares
+    a provider data, a `macos_arm64 ... provider_defaults` calling
+    `select_provider<Clock, ...>`, and a `satisfies Clock::sleep` machine
+    over `darwin_poll(0, 0, timeout)`. `MacosClock` in
+    `source/library/std/macos_gui.omg` already carries the same body. The
+    nine CLI samples bind `windows_x86_64`, `linux_x86_64`, `linux_arm64`
+    and `macos_arm64` roots but select a `Clock` provider for the first
+    three only.
   - **nested value call, 4** -- the `operator` to `machine` migration
     reaching authored arithmetic:
     `cli/{basics/temperature_convert, rendering/{bouncing_ball_2d,
