@@ -1044,6 +1044,28 @@ _min_by_neg_one`, `blockexec/blocking_executor_custody_claims_compile`,
   are no longer what the gate prints. **CANARY-CORPUS-ROSTER-ACCOUNTING**
   owns both files.
 
+  **Measured again at 9f3882a40c: 33 moves, and THIRTEEN of them are pure
+  recording debt** -- six fixtures added without a golden row
+  (`pass/{calls/value_call_param_effect_arm,
+  ownership/linear_self_receiver_disposition,
+  structs/{copied_array_field_shared_record,
+  mutable_array_record_state_transfer,mutable_record_state_transfer,
+  nested_unused_provider_fields}}`), one added fail fixture
+  (`fail/borrows/mutable_record_state_alias`), one REMOVED fixture whose
+  golden row is still there
+  (`fail/calls/value_call_param_effect_arm_rejected`, promoted to the pass
+  tier beside it), and five rows that simply IMPROVED
+  (`pass/{arithmetic/saturating_signed_divide_min_by_neg_one,
+  blockexec/blocking_executor_custody_claims_compile,
+  capabilities/uses_caller_folder,
+  expressions/runtime_flat_boolean_logic_exit,
+  traits/equatable_record_equality_exit}`). The other twenty are the
+  host-dependent rows below. Every developer's gate prints all 33, and the
+  count is growing -- it was 27 a few hours earlier. `corpus_gate.py` now
+  prints the breakdown by class under its summary, so a reader can see at
+  a glance whether a run says anything about their own change.
+  **CANARY-CORPUS-ROSTER-ACCOUNTING** owns the golden.
+
   The PASS tier is where the red moved to, and it is now attributed. Measured
   unfiltered at 63c72b29128: 1144 fixtures, 22 moves, every one of them in
   the pass tier. Five were fixtures other lanes added without a golden row,

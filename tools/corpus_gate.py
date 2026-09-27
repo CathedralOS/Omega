@@ -362,6 +362,36 @@ def jev_advise(diffs: list) -> None:
               file=sys.stderr)
 
 
+def move_classes(diffs: list) -> str:
+    """Separate RECORDING DEBT from behaviour that moved.
+
+    A fixture added, removed or repaired by another lane prints as a move
+    for every developer until its golden row catches up, and that debt
+    accumulates: it is most of what an unfiltered run shows on a clean
+    checkout. Naming the classes lets a reader see in one line whether the
+    run is telling them something about their own change.
+    """
+    classes = collections.Counter()
+    for diff in diffs:
+        before = diff.get("before", {}).get("status")
+        after = diff.get("after", {}).get("status")
+        if before == "absent":
+            classes["fixture added, golden not recorded"] += 1
+        elif after == "absent":
+            classes["fixture removed, golden row left behind"] += 1
+        elif before == "rejected" and after == "checked":
+            classes["improved, golden not re-recorded"] += 1
+        elif before == "checked" and after == "rejected":
+            classes["REGRESSED"] += 1
+        else:
+            classes["diagnostics or facts moved"] += 1
+    if not classes:
+        return "corpus_gate: no structured diffs to classify"
+    parts = ", ".join(f"{count} {name}"
+                      for name, count in classes.most_common())
+    return f"corpus_gate: of those — {parts}"
+
+
 def shown(value) -> str:
     """One field of a record, as a diff line shows it."""
     if isinstance(value, list):
@@ -616,6 +646,7 @@ def main() -> int:
         print(line)
     print(f"corpus_gate: {len(structural_moves)} structural move(s), "
           f"{len(perf_moves)} perf move(s) — {summary}")
+    print(move_classes(structured_diffs))
     write_moves()
     if options.jev:
         jev_advise(structured_diffs)
