@@ -74,6 +74,34 @@ pub(crate) fn plain_record_call(
         && plain_record(types, signature.structural_type)
 }
 
+/// Zero initialization publishes the same owned result as explicit aggregate
+/// construction, but owes whole-shape zero validity instead of field operands.
+/// Reconstruct that judgment from the current type catalog: prior Terminal
+/// admission cannot authorize a rewritten result with a different shape.
+pub(crate) fn zeroed_establishment_matches(
+    function: &PsiOptimizationFunction,
+    operation: &O,
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+) -> bool {
+    let O::EstablishZeroedStructural {
+        psi_operation,
+        result,
+    } = operation
+    else {
+        return false;
+    };
+    function.structural_places.iter().any(|place| {
+        place.id == result.place
+            && matches!(place.kind, StructuralPlaceKind::OperationResult { producer, structural_type }
+                if producer == *psi_operation && structural_type == result.structural_type)
+    }) && matches!(result.multiplicity, StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted)
+        && result.qualifications.is_empty()
+        && result.projected_qualifications.is_empty()
+        && result.qualification_establishments.is_empty()
+        && result.claims.is_empty()
+        && terminal_semantics::zeroed_structural_shape(types.values().copied(), result.structural_type)
+}
+
 pub(crate) fn record_establishment_matches(
     function: &PsiOptimizationFunction,
     operation: &O,
@@ -192,6 +220,7 @@ fn source_has_claims(function: &PsiOptimizationFunction, place: PlaceId) -> bool
                     O::EstablishScalarArray { result, .. }
                     | O::EstablishScalarCase { result, .. }
                     | O::EstablishRecord { result, .. }
+                    | O::EstablishZeroedStructural { result, .. }
                     | O::EstablishReference { result, .. }
                     | O::MoveStructuralField { result, .. }
                     | O::CallStructural { result, .. }
@@ -341,7 +370,9 @@ pub(crate) fn completed_record_source<'a>(
         .iter()
         .flat_map(|block| &block.nodes)
         .filter_map(|node| match &node.operation {
-            O::EstablishRecord { result, .. } | O::CallStructural { result, .. }
+            O::EstablishRecord { result, .. }
+            | O::EstablishZeroedStructural { result, .. }
+            | O::CallStructural { result, .. }
                 if result.place == place =>
             {
                 Some(result)

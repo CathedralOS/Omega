@@ -26,6 +26,7 @@ mod unit_view_graph;
 mod widening;
 mod wrapping_add;
 mod wrapping_division;
+mod zeroed_structural;
 
 /// Accept every obligation reference the unit's functions record, as the
 /// verified-Terminal projection does for an artifact whose certificates the

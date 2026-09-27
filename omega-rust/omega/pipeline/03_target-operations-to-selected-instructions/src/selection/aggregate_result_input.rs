@@ -180,6 +180,9 @@ pub(super) fn has_local_aggregates(source: &LegalizedScalarFunction) -> bool {
         .flat_map(|block| &block.instructions)
         .any(|row| match &row.kind {
             LegalizedScalarInstructionKind::EstablishTrivialAffineLocal { .. } => true,
+            LegalizedScalarInstructionKind::EstablishZeroedStructural { .. } => {
+                super::zeroed_structural_input::storage(source, row).is_some()
+            }
             LegalizedScalarInstructionKind::EstablishRecord { .. } => {
                 super::record_input::fields(source, row).is_some()
             }

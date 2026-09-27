@@ -124,6 +124,110 @@ fn record_unit(affine: bool) -> PsiOptimizationUnit {
     candidate
 }
 
+fn zeroed_child_record_unit(affine: bool) -> PsiOptimizationUnit {
+    let mut candidate = record_unit(affine);
+    let node = &mut candidate.functions[0].blocks[0].nodes[1];
+    let AbstractOperation::EstablishRecord {
+        psi_operation,
+        result,
+        ..
+    } = &node.operation
+    else {
+        panic!("child record establishment");
+    };
+    node.operation = AbstractOperation::EstablishZeroedStructural {
+        psi_operation: *psi_operation,
+        result: result.clone(),
+    };
+    refresh_function_derivatives(&mut candidate, 0);
+    candidate
+}
+
+#[test]
+fn zeroed_record_result_composes_with_owned_record_construction() {
+    for affine in [false, true] {
+        let candidate = zeroed_child_record_unit(affine);
+        assert_eq!(validate_psi_optimization_unit(&candidate), Ok(()));
+    }
+}
+
+#[test]
+fn zeroed_record_rejects_changed_producer_result_and_availability() {
+    let original = zeroed_child_record_unit(true);
+    assert_eq!(validate_psi_optimization_unit(&original), Ok(()));
+    for mutation in 0..5 {
+        let mut changed = original.clone();
+        let AbstractOperation::EstablishZeroedStructural {
+            psi_operation,
+            result,
+        } = &mut changed.functions[0].blocks[0].nodes[1].operation
+        else {
+            panic!("zeroed child record");
+        };
+        match mutation {
+            0 => *psi_operation = id(999, OperationId::new),
+            1 => result.place = id(999, PlaceId::new),
+            2 => result.structural_type = id(902, StructuralTypeId::new),
+            3 => result.multiplicity = StructuralMultiplicity::Linear,
+            4 => changed.functions[0].blocks[0].nodes.swap(1, 3),
+            _ => unreachable!(),
+        }
+        refresh_function_derivatives(&mut changed, 0);
+        assert!(
+            validate_psi_optimization_unit(&changed).is_err(),
+            "mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn zeroed_record_replays_zero_validity_from_the_current_type_catalog() {
+    use crate::unit_validation::operation_contracts::zeroed_establishment_matches;
+    use semantic_vocabulary::BoundedIntegerType;
+
+    let original = zeroed_child_record_unit(false);
+    let function = &original.functions[0];
+    let operation = &function.blocks[0].nodes[1].operation;
+    let types = original
+        .structural_types
+        .iter()
+        .map(|declaration| (declaration.id, declaration))
+        .collect();
+    assert!(zeroed_establishment_matches(function, operation, &types));
+    for mutation in 0..3 {
+        let mut declarations = original.structural_types.to_vec();
+        let StructuralTypeShape::Record { fields } = &mut declarations[0].shape else {
+            panic!("child record");
+        };
+        let StructuralFieldType::Scalar(ScalarType::Integer(integer)) = fields[0].field_type else {
+            panic!("integer field");
+        };
+        fields[0].field_type = match mutation {
+            // A valid bounded carrier whose zero bit pattern is not a value.
+            0 => StructuralFieldType::BoundedInteger(
+                BoundedIntegerType::new(
+                    integer,
+                    IntegerValue::Unsigned(1),
+                    IntegerValue::Unsigned(10),
+                )
+                .unwrap(),
+            ),
+            1 => StructuralFieldType::Structural(id(999, StructuralTypeId::new)),
+            // Recursive containment cannot be initialized by a finite zero fill.
+            2 => StructuralFieldType::Structural(id(901, StructuralTypeId::new)),
+            _ => unreachable!(),
+        };
+        let types = declarations
+            .iter()
+            .map(|declaration| (declaration.id, declaration))
+            .collect();
+        assert!(
+            !zeroed_establishment_matches(function, operation, &types),
+            "mutation {mutation}"
+        );
+    }
+}
+
 #[test]
 fn record_field_home_and_producer_corruption_rejects_after_metadata_refresh() {
     let original = record_unit(true);

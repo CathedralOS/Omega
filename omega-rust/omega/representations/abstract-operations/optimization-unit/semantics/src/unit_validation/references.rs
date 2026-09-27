@@ -387,6 +387,7 @@ fn operation_structural_result(operation: &O) -> Option<&terminal_psi::Structura
         | O::EstablishScalarArray { result, .. }
         | O::EstablishScalarCase { result, .. }
         | O::EstablishRecord { result, .. }
+        | O::EstablishZeroedStructural { result, .. }
         | O::EstablishReference { result, .. }
         // A window extraction publishes a structural result too; its type
         // joins the reference-bearing result contract like every other

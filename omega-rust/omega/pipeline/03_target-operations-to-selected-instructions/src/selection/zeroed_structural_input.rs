@@ -22,7 +22,10 @@ pub(super) fn storage<'a>(
     };
     let declarations = &source.structural.as_ref()?.structural_types;
     if row.result.is_some()
-        || result.multiplicity != StructuralMultiplicity::Unrestricted
+        || !matches!(
+            result.multiplicity,
+            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+        )
         || !result.claims.is_empty()
         || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
@@ -40,13 +43,30 @@ pub(super) fn storage<'a>(
         // A zeroed leaf path is fully static — every segment is a declared
         // field or a literal index — so the projection spells no runtime
         // element.
-        let (offset, width, elements) =
-            crate::structural_inputs::structural_reference_input::primitive_geometry(
+        // Record leaves name their parent and field separately; array leaves
+        // end at a primitive structural type. Preserve that distinction or a
+        // record field either disappears or aliases another field's offset.
+        let (offset, width, elements) = match &leaf {
+            terminal_semantics::ZeroedStructuralLeaf::RecordField {
+                path,
+                field,
+                scalar_type,
+            } => crate::structural_inputs::structural_reference_input::store(
                 result.structural_type,
-                leaf.path(),
-                leaf.scalar_type(),
+                path,
+                *field,
+                *scalar_type,
                 declarations,
-            )?;
+            )?,
+            terminal_semantics::ZeroedStructuralLeaf::ArrayScalar { path, scalar_type } => {
+                crate::structural_inputs::structural_reference_input::primitive_geometry(
+                    result.structural_type,
+                    path,
+                    *scalar_type,
+                    declarations,
+                )?
+            }
+        };
         if !elements.is_empty() {
             return None;
         }

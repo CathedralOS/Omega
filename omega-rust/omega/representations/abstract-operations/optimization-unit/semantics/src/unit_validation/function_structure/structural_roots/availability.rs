@@ -26,6 +26,7 @@ pub(crate) fn validate_structural_place_availability(
                 | O::EstablishScalarArray { result, .. }
                 | O::EstablishScalarCase { result, .. }
                 | O::EstablishRecord { result, .. }
+                | O::EstablishZeroedStructural { result, .. }
                 | O::EstablishReference { result, .. }
                 // The extraction produces the moved subtree at its own node;
                 // a repair consuming it must sit downstream.

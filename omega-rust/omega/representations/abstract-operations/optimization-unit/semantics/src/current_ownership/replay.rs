@@ -432,6 +432,7 @@ pub(super) fn validate_current_ownership_cfg(
                 O::EstablishScalarArray { result, .. }
                 | O::EstablishScalarCase { result, .. }
                 | O::EstablishRecord { result, .. }
+                | O::EstablishZeroedStructural { result, .. }
                 | O::EstablishReference { result, .. }
                 // The moved subtree enters frame custody as an owned
                 // structural result; a later repair may consume it.
