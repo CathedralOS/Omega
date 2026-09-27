@@ -54,6 +54,25 @@ pub(crate) fn terminal_byte_sequence_carrier(
                 }),
             }
         }
+        checked_trees::CheckedByteSequenceCarrier::BoundedView { access, capacity } => {
+            ByteSequenceCarrier::BoundedView {
+                access: access.map(|access| match access {
+                    checked_trees::CheckedStructuralAccess::Owned => {
+                        terminal_psi::StructuralAccess::Owned
+                    }
+                    checked_trees::CheckedStructuralAccess::SharedBorrow => {
+                        terminal_psi::StructuralAccess::SharedBorrow
+                    }
+                    checked_trees::CheckedStructuralAccess::MutableBorrow => {
+                        terminal_psi::StructuralAccess::MutableBorrow
+                    }
+                    checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => {
+                        terminal_psi::StructuralAccess::WriteOnlyBorrow
+                    }
+                }),
+                capacity,
+            }
+        }
         checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity } => {
             ByteSequenceCarrier::BoundedOwned { capacity }
         }

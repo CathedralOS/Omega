@@ -181,6 +181,7 @@ pub(crate) fn emit(
                     declaration.shape,
                     StructuralTypeShape::ByteSequence(
                         terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                            | terminal_psi::ByteSequenceCarrier::BoundedView { .. }
                     )
                 )
         })

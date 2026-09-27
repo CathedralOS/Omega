@@ -58,7 +58,7 @@ impl TerminalExecution {
         let value = self.structural_values.get(&place).ok_or_else(invalid)?;
         if value.structural_type != parameter.structural_type
             || !matches!(self.structural_types.get(&parameter.structural_type), Some(declaration)
-                            if declaration.shape.is_borrowed_byte_view())
+                            if declaration.shape.is_borrowed_byte_carrier())
         {
             return Err(invalid());
         }

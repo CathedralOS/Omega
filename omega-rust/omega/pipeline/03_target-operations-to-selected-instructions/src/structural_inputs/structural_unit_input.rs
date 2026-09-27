@@ -123,7 +123,7 @@ pub(crate) fn accepts_borrowed_parameters(
         // Per-operation replay, not the result shape, decides whether this
         // access permits each field observation or mutation.
         let record = matches!(declaration.shape, StructuralTypeShape::Record { .. });
-        let byte_view = declaration.shape.is_borrowed_byte_view();
+        let byte_view = declaration.shape.is_borrowed_byte_carrier();
         let element_view = matches!(declaration.shape, StructuralTypeShape::ElementView { .. });
         // A fixed array borrows as one pointer to its dense leaf storage;
         // elements keep the referent's layout, so no descriptor rides along.

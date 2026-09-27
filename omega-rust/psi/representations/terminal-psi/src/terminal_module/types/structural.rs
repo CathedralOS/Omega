@@ -81,6 +81,26 @@ impl StructuralTypeShape {
             Self::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
         )
     }
+
+    /// Whether the carrier borrows caller-owned storage — the access-bearing
+    /// descriptors (`BorrowedView`, `BoundedView`). This answers custody, not
+    /// descriptor layout: a bounded view's descriptor is a bare pointer with
+    /// no stored length, so consumers that read one must not use this.
+    pub const fn is_borrowed_byte_carrier(&self) -> bool {
+        matches!(
+            self,
+            Self::ByteSequence(
+                ByteSequenceCarrier::BorrowedView { .. } | ByteSequenceCarrier::BoundedView { .. }
+            )
+        )
+    }
+}
+
+impl ByteSequenceCarrier {
+    /// Whether this carrier reads through borrowed storage at all.
+    pub const fn is_borrowed(&self) -> bool {
+        matches!(self, Self::BorrowedView { .. } | Self::BoundedView { .. })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -169,6 +189,14 @@ pub enum ByteSequenceCarrier {
     /// could not share one carrier if the access rode inside it.
     BorrowedView {
         access: Option<crate::terminal_module::ownership::StructuralAccess>,
+    },
+    /// A `&'r [u8; N]` or `&'r mut [u8; N]` reference to fixed storage. The
+    /// extent is the declaration's literal length, not a stored descriptor
+    /// field, so `capacity` rides the carrier and the descriptor is a bare
+    /// referent pointer.
+    BoundedView {
+        access: Option<crate::terminal_module::ownership::StructuralAccess>,
+        capacity: u64,
     },
     BoundedOwned {
         capacity: u64,

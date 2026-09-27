@@ -72,10 +72,10 @@ pub(super) fn validate_declarations(
                         && (declaration.access == StructuralAccess::Owned
                             || matches!(
                                 row.shape,
-                                StructuralTypeShape::ByteSequence(
-                                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                                ) | StructuralTypeShape::ElementView { .. }
+                                StructuralTypeShape::ByteSequence(carrier)
+                                if carrier.is_borrowed()
                             )
+                            || matches!(row.shape, StructuralTypeShape::ElementView { .. })
                             || mutable_records::parameter_type(module, declaration)
                             || (declaration.access == StructuralAccess::SharedBorrow
                                 && (matches!(row.shape, StructuralTypeShape::PrimitiveScalar(_))
@@ -175,9 +175,8 @@ pub(super) fn validate_successor(
                 row.id == expected.structural_type
                     && matches!(
                         row.shape,
-                        StructuralTypeShape::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                        )
+                        StructuralTypeShape::ByteSequence(carrier)
+                        if carrier.is_borrowed()
                     )
             });
             if expected.multiplicity != StructuralMultiplicity::Unrestricted
@@ -390,12 +389,14 @@ pub(super) fn mutable_availability(
             || (parameter.access == StructuralAccess::MutableBorrow
                 && module.structural_types.iter().any(|declaration| {
                     declaration.id == parameter.structural_type
-                        && matches!(
+                        && (matches!(
                             declaration.shape,
-                            StructuralTypeShape::ByteSequence(
-                                terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
-                            ) | StructuralTypeShape::ElementView { .. }
-                        )
+                            StructuralTypeShape::ByteSequence(carrier)
+                            if carrier.is_borrowed()
+                        ) || matches!(
+                            declaration.shape,
+                            StructuralTypeShape::ElementView { .. }
+                        ))
                 }))
     };
     let record_loans = machine

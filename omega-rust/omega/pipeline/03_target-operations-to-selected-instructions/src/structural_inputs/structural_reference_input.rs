@@ -550,7 +550,7 @@ pub(crate) fn bounded_byte_field_view(
         || !source.qualifications.is_empty()
         || !source.projected_qualifications.is_empty()
         || !declarations.iter().any(|declaration| {
-            declaration.id == view_type && declaration.shape.is_borrowed_byte_view()
+            declaration.id == view_type && declaration.shape.is_borrowed_byte_carrier()
         })
     {
         return None;
@@ -610,6 +610,11 @@ fn shape_inner(
         StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
             ..
         }) => Some(ValueShape::integer(16, 8)),
+        // The bounded descriptor is one pointer cell — the capacity lives in
+        // the type, not the referent storage.
+        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedView {
+            ..
+        }) => Some(ValueShape::integer(8, 8)),
         // An element view rides the same borrowed descriptor pair: base
         // pointer plus extent, realized as one borrowed aggregate slot.
         StructuralTypeShape::ElementView { .. } => Some(ValueShape::integer(16, 8)),
@@ -712,6 +717,9 @@ pub(crate) fn field_shape(
                 terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity } => {
                     capacity.checked_add(8)?
                 }
+                // A bounded view's extent lives in the declaration; the
+                // stored descriptor is the bare referent pointer.
+                terminal_psi::ByteSequenceCarrier::BoundedView { .. } => 8,
                 terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => 16,
             };
             Some(ValueShape::integer(u16::try_from(bytes).ok()?, 8))

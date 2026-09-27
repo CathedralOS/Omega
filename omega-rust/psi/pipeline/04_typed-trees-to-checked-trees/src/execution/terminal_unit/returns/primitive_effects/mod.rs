@@ -111,14 +111,14 @@ pub(in crate::execution::terminal_unit) fn has_plain_primitive_borrows(
         }
         // A borrowed byte view is the same unrestricted observation lane a
         // plain `&primitive` rides: the reference carries the borrow and the
-        // slice referee carries the byte element.
-        if checked_trees::is_borrowed_view(
-            crate::execution::terminal_unit::types::byte_sequence_carrier(
-                program,
-                parameter.type_reference,
-                &[],
-            ),
-        ) {
+        // referee carries the byte element.
+        if crate::execution::terminal_unit::types::byte_sequence_carrier(
+            program,
+            parameter.type_reference,
+            &[],
+        )
+        .is_some_and(checked_trees::CheckedByteSequenceCarrier::is_borrowed)
+        {
             has_borrow = true;
             return true;
         }

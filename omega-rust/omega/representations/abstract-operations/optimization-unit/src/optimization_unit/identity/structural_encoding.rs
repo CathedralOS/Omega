@@ -511,6 +511,14 @@ pub(super) fn encode_byte_carrier(bytes: &mut CanonicalBytes, carrier: ByteSeque
                 None => bytes.u8(0),
             }
         }
+        ByteSequenceCarrier::BoundedView { access, capacity } => {
+            bytes.u8(3);
+            match access {
+                Some(access) => encode_structural_access(bytes, access),
+                None => bytes.u8(0),
+            }
+            bytes.u64(capacity);
+        }
         ByteSequenceCarrier::BoundedOwned { capacity } => {
             bytes.u8(2);
             bytes.u64(capacity);

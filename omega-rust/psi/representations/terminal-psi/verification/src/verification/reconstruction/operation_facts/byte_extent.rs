@@ -2,9 +2,12 @@
 
 use std::collections::BTreeSet;
 
-use semantic_vocabulary::{PlaceId, Proposition, ScalarTerm, StructuralPlaceKind};
+use semantic_vocabulary::{
+    PlaceId, Proposition, ScalarTerm, StructuralPlaceKind, StructuralTypeId,
+};
 use terminal_psi::{
-    Operation, OperationKind, StructuralAccess, TerminalMachine, TerminalModule, Terminator,
+    ByteSequenceCarrier, Operation, OperationKind, StructuralAccess, StructuralTypeShape,
+    TerminalMachine, TerminalModule, Terminator,
 };
 use terminal_semantics::{
     StructuralEffectObservation, literal_length_equation, structural_effect_leaf_observation,
@@ -62,6 +65,30 @@ pub(super) fn length_equation(
             context.dominators(),
         ));
     }
+    // A bounded view's length is its static capacity on every root kind that
+    // declares one; the machine's proof vocabulary already keys on the exact
+    // place identity, so one capacity equation serves every downstream read.
+    if let Some(capacity) = bounded_view_capacity(module, machine, place_kind) {
+        let Some(result) = current.result.scalar() else {
+            return Ok(None);
+        };
+        let integer_type =
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .expect("u64 is valid");
+        let bound = ScalarTerm::integer(
+            integer_type,
+            semantic_vocabulary::IntegerValue::Unsigned(u128::from(capacity)),
+        )
+        .map_err(|error| {
+            ModuleError::OperationSemanticSchema(
+                terminal_semantics::OperationSemanticError::InvalidProposition(error),
+            )
+        })?;
+        return Ok(Some(Proposition::Equal(
+            ScalarTerm::value(result.id, result.scalar_type),
+            bound,
+        )));
+    }
     let StructuralPlaceKind::OperationResult { producer, .. } = place_kind else {
         return Ok(None);
     };
@@ -85,6 +112,48 @@ pub(super) fn length_equation(
         .map_err(ModuleError::OperationSemanticSchema)
 }
 
+/// The static capacity of a bounded-view byte carrier on this root, if the
+/// root's declared type is one. Other carriers have no static extent.
+fn bounded_view_capacity(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    place_kind: StructuralPlaceKind,
+) -> Option<u64> {
+    let structural_type = match place_kind {
+        StructuralPlaceKind::Parameter { position, .. } => machine
+            .structural_parameters
+            .get(position as usize)
+            .map(|parameter| parameter.structural_type)?,
+        StructuralPlaceKind::OperationResult {
+            structural_type, ..
+        }
+        | StructuralPlaceKind::ByteSequenceLiteral {
+            structural_type, ..
+        }
+        | StructuralPlaceKind::TrivialAffineLocal {
+            structural_type, ..
+        } => structural_type,
+        _ => return None,
+    };
+    bounded_view_capacity_of(module, structural_type)
+}
+
+fn bounded_view_capacity_of(
+    module: &TerminalModule,
+    structural_type: StructuralTypeId,
+) -> Option<u64> {
+    module
+        .structural_types
+        .iter()
+        .find_map(|declaration| match declaration.shape {
+            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
+                capacity,
+                ..
+            }) if declaration.id == structural_type => Some(capacity),
+            _ => None,
+        })
+}
+
 /// Reconstruct the exact descriptor binding at every arrival. The equation
 /// relates two real observations, never a generic parameter extent or invariant.
 fn block_length_equation(
@@ -102,9 +171,17 @@ fn block_length_equation(
         .find(|candidate| candidate.id == block)?
         .structural_parameters
         .get(position as usize)?;
-    if destination.place != source || destination.access != StructuralAccess::MutableBorrow {
+    if destination.place != source
+        || !matches!(
+            destination.access,
+            StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
+        )
+    {
         return None;
     }
+    // A shared view's extent is fixed at binding; only a mutable borrow can
+    // observe a length a mutating writer may have replaced since the read.
+    let needs_freshness = destination.access == StructuralAccess::MutableBorrow;
     let current_position = operation_position(machine, current.id)?;
     let current_block = machine.blocks[current_position.0].id;
     let mut candidates = Vec::new();
@@ -149,15 +226,17 @@ fn block_length_equation(
         // Every name encountered along the transfer chain is checked. A
         // mutation through an intermediate binding cannot hide behind the
         // destination's new place identity. Checking the union is conservative.
-        if aliases.into_iter().any(|place| {
-            !crate::validation::view_length_is_current(
-                module,
-                machine,
-                producer.id,
-                current.id,
-                place,
-            )
-        }) {
+        if needs_freshness
+            && aliases.into_iter().any(|place| {
+                !crate::validation::view_length_is_current(
+                    module,
+                    machine,
+                    producer.id,
+                    current.id,
+                    place,
+                )
+            })
+        {
             continue;
         }
         let result = current.result.scalar()?;
@@ -228,7 +307,16 @@ fn descriptor_origins(
             continue;
         }
         if block.id == machine.entry {
-            return None;
+            // A lineage terminating at entry names a machine parameter: that
+            // place's descriptor is the origin. Other roots have no chain.
+            if !machine
+                .structural_parameters
+                .iter()
+                .any(|parameter| parameter.place == tracked)
+            {
+                return None;
+            }
+            continue;
         }
         let parameter_position = block
             .structural_parameters
@@ -240,7 +328,11 @@ fn descriptor_origins(
          -> Option<()> {
             let previous = if let Some(position) = parameter_position {
                 let argument = arguments.get(position)?;
-                if argument.access != StructuralAccess::MutableBorrow || !argument.path.is_empty() {
+                if !matches!(
+                    argument.access,
+                    StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
+                ) || !argument.path.is_empty()
+                {
                     return None;
                 }
                 argument.place

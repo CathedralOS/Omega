@@ -300,6 +300,19 @@ pub(super) fn encode_structural_fields(bytes: &mut Vec<u8>, fields: &[Structural
 pub(super) fn encode_byte_sequence_carrier(bytes: &mut Vec<u8>, carrier: ByteSequenceCarrier) {
     match carrier {
         ByteSequenceCarrier::BorrowedView { .. } => bytes.push(1),
+        ByteSequenceCarrier::BoundedView { access, capacity } => {
+            bytes.push(3);
+            bytes.push(match access {
+                Some(access) => match access {
+                    StructuralAccess::Owned => 1,
+                    StructuralAccess::SharedBorrow => 2,
+                    StructuralAccess::MutableBorrow => 3,
+                    StructuralAccess::WriteOnlyBorrow => 4,
+                },
+                None => 0,
+            });
+            bytes.extend_from_slice(&capacity.to_le_bytes());
+        }
         ByteSequenceCarrier::BoundedOwned { capacity } => {
             bytes.push(2);
             bytes.extend_from_slice(&capacity.to_le_bytes());

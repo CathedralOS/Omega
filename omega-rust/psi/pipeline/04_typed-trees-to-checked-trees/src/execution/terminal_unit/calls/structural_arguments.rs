@@ -464,11 +464,8 @@ pub(crate) fn structural_call_arguments(
                         CheckedStructuralAccess::MutableBorrow
                             | CheckedStructuralAccess::SharedBorrow
                     )
-                    && checked_trees::is_borrowed_view(byte_sequence_carrier(
-                        program,
-                        target.type_reference,
-                        &[],
-                    ))
+                    && byte_sequence_carrier(program, target.type_reference, &[])
+                        .is_some_and(checked_trees::CheckedByteSequenceCarrier::is_borrowed)
                     && segments.iter().all(|segment| {
                         matches!(
                             segment,

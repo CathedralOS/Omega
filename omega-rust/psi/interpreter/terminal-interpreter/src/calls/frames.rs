@@ -106,10 +106,8 @@ impl TerminalExecution {
             let StructuralTypeShape::ByteSequence(carrier) = &declaration.shape else {
                 continue;
             };
-            if !matches!(
-                carrier,
-                terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-            ) || parameter.structural_type != resolved.structural_type
+            if !carrier.is_borrowed()
+                || parameter.structural_type != resolved.structural_type
                 || parameter.multiplicity != StructuralMultiplicity::Unrestricted
                 || parameter.access != argument.access
                 || !matches!(

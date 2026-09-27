@@ -294,7 +294,8 @@ fn preceding_byte_loan_preserves_carrier(
             .all(|reference| {
                 structural_access_for_type_reference(program, reference)
                     == Some(CheckedStructuralAccess::MutableBorrow)
-                    && checked_trees::is_borrowed_view(byte_sequence_carrier(program, reference, &[]))
+                    && byte_sequence_carrier(program, reference, &[])
+                        .is_some_and(checked_trees::CheckedByteSequenceCarrier::is_borrowed)
             }))
     {
         return false;

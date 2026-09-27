@@ -54,7 +54,7 @@ pub(super) fn view_type(
     declared_view_type(source, place).filter(|identity| {
         source.structural.as_ref().is_some_and(|signature| {
             signature.structural_types.iter().any(|declaration| {
-                declaration.id == *identity && declaration.shape.is_borrowed_byte_view()
+                declaration.id == *identity && declaration.shape.is_borrowed_byte_carrier()
             })
         })
     })

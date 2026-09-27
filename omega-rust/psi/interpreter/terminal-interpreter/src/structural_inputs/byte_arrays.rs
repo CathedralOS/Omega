@@ -32,6 +32,15 @@ pub(crate) fn byte_array_length(
     types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
     array: StructuralTypeId,
 ) -> Option<u64> {
+    // A bounded view's capacity is the fixed byte extent; its element is the
+    // implicit u8, so no element declaration is needed.
+    if let StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedView {
+        capacity,
+        ..
+    }) = types.get(&array)?.shape
+    {
+        return (capacity != 0).then_some(capacity);
+    }
     let StructuralTypeShape::FixedArray { element, length } = types.get(&array)?.shape else {
         return None;
     };
@@ -164,7 +173,7 @@ impl TerminalExecution {
         ) || !self
             .structural_types
             .get(&parameter.structural_type)
-            .is_some_and(|declaration| declaration.shape.is_borrowed_byte_view())
+            .is_some_and(|declaration| declaration.shape.is_borrowed_byte_carrier())
         {
             return Ok(None);
         }

@@ -557,7 +557,9 @@ fn collect_field_leaves(
             let leaf = field_shape(field, declarations, cache, active)?;
             leaves.push((base_offset, u32::from(leaf.byte_size), false));
         }
-        StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView { .. }) => {
+        StructuralFieldType::ByteSequence(
+            ByteSequenceCarrier::BorrowedView { .. } | ByteSequenceCarrier::BoundedView { .. },
+        ) => {
             let leaf = field_shape(field, declarations, cache, active)?;
             leaves.push((base_offset, u32::from(leaf.byte_size), false));
         }
@@ -963,6 +965,11 @@ fn field_shape(
         StructuralFieldType::Structural(nested) => shape(*nested, declarations, cache, active),
         StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView { .. }) => {
             Ok(ValueShape::integer(16, 8))
+        }
+        // The bound lives in the declaration; the stored descriptor is the
+        // bare referent pointer.
+        StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedView { .. }) => {
+            Ok(ValueShape::integer(8, 8))
         }
         StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity }) => {
             let bytes = capacity.checked_add(8).ok_or(InvalidStructuralShape)?;

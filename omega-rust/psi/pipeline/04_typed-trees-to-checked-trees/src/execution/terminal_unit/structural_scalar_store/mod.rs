@@ -336,6 +336,11 @@ fn plan_assignment(
         {
             Some(None)
         }
+        Some(checked_trees::CheckedByteSequenceCarrier::BoundedView { capacity, .. })
+            if byte_stores::field_view_is_mutable(program, field.type_reference) =>
+        {
+            Some(Some(capacity))
+        }
         _ => None,
     };
     // Byte-field and whole-sum stores, and the scalar-graph lane's record

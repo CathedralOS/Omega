@@ -1,17 +1,20 @@
 //! Projections ending in a primitive structural referent.
 //!
-//! A primitive leaf is a `PrimitiveScalar` place: a whole primitive root, or
-//! an element reached through record fields holding structural children and
-//! fixed-array elements. Primitive stores and reads name it by a
+//! A primitive leaf is a `PrimitiveScalar` place: a whole primitive root, an
+//! element reached through record fields holding structural children and
+//! fixed-array elements, or a byte carrier's u8 element. Primitive stores and reads name it by a
 //! `StructuralPathSegment` projection whose elements may be runtime-selected
 //! (`primitive_projection_type`); a static projection also has one canonical
 //! spelling (`canonical_primitive_path`) that facts are keyed by. The backend's
 //! abstract operations keep the canonical form (`primitive_place_type`).
 
 use crate::static_path::canonical_structural_path_tip;
-use semantic_vocabulary::{CanonicalStructuralPathSegment, ScalarType, StructuralTypeId};
+use semantic_vocabulary::{
+    CanonicalStructuralPathSegment, IntegerSign, IntegerType, ScalarType, StructuralTypeId,
+};
 use terminal_psi::{
-    StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
+    ByteSequenceCarrier, StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration,
+    StructuralTypeShape,
 };
 
 /// Reconstruct the primitive leaf from declaration identities and fixed bounds.
@@ -55,18 +58,15 @@ pub fn fixed_array_place_shape<'a>(
 /// Resolve a primitive leaf projection that may select elements at run time.
 /// Fields step only into structural children, a literal index stays inside
 /// its extent, and a runtime index steps into any fixed array's element: its
-/// bound is the obligation of the operation carrying the path. `Referent` and
-/// byte windows name no primitive leaf. This grants no access authority.
+/// bound is the obligation of the operation carrying the path. `Referent`
+/// names no primitive leaf; a byte carrier's element is the u8 scalar.
+/// This grants no access authority.
 pub fn primitive_projection_type<'a>(
     declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Option<ScalarType> {
-    let tip = walk_primitive_projection(declarations, root, path, |_| {})?;
-    match tip.shape {
-        StructuralTypeShape::PrimitiveScalar(scalar) => Some(scalar),
-        _ => None,
-    }
+    walk_primitive_projection(declarations, root, path, |_| {})?.primitive_scalar()
 }
 
 /// The canonical spelling of a static primitive projection, the key facts
@@ -93,24 +93,53 @@ pub fn canonical_static_projection<'a>(
     &'a StructuralTypeDeclaration,
 )> {
     let mut canonical = Some(Vec::with_capacity(path.len()));
-    let tip = walk_primitive_projection(declarations, root, path, |step| {
-        match (step, &mut canonical) {
-            (Some(segment), Some(canonical)) => canonical.push(segment),
-            (None, canonical) => *canonical = None,
-            (Some(_), None) => {}
-        }
-    })?;
+    let ProjectionTip::Declared(tip) =
+        walk_primitive_projection(declarations, root, path, |step| {
+            match (step, &mut canonical) {
+                (Some(segment), Some(canonical)) => canonical.push(segment),
+                (None, canonical) => *canonical = None,
+                (Some(_), None) => {}
+            }
+        })?
+    else {
+        return None;
+    };
     Some((canonical?, tip))
+}
+
+/// The tip of a primitive projection: a declared structural type, or a byte
+/// carrier's element — the u8 scalar that rides no declared identity.
+enum ProjectionTip<'a> {
+    Declared(&'a StructuralTypeDeclaration),
+    ByteElement,
+}
+
+impl ProjectionTip<'_> {
+    fn primitive_scalar(&self) -> Option<ScalarType> {
+        match self {
+            Self::Declared(declaration) => match declaration.shape {
+                StructuralTypeShape::PrimitiveScalar(scalar) => Some(scalar),
+                _ => None,
+            },
+            Self::ByteElement => Some(ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 8).expect("u8"),
+            )),
+        }
+    }
 }
 
 /// One walk for both entry points. `step` receives each segment's canonical
 /// spelling, or `None` for a runtime-selected element.
 fn walk_primitive_projection<'a>(
     declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
-    mut root: StructuralTypeId,
+    root: StructuralTypeId,
     path: &[StructuralPathSegment],
     mut step: impl FnMut(Option<CanonicalStructuralPathSegment>),
-) -> Option<&'a StructuralTypeDeclaration> {
+) -> Option<ProjectionTip<'a>> {
+    enum Position {
+        Declared(StructuralTypeId),
+        ByteElement,
+    }
     let unique = |id: StructuralTypeId| {
         let mut matching = declarations
             .clone()
@@ -118,9 +147,13 @@ fn walk_primitive_projection<'a>(
         let declaration = matching.next()?;
         matching.next().is_none().then_some(declaration)
     };
+    let mut position = Position::Declared(root);
     for segment in path {
+        let Position::Declared(root) = position else {
+            return None;
+        };
         let declaration = unique(root)?;
-        root = match (segment, &declaration.shape) {
+        position = match (segment, &declaration.shape) {
             (StructuralPathSegment::Field(identity), StructuralTypeShape::Record { fields }) => {
                 let mut matching = fields.iter().filter(|field| field.identity == *identity);
                 let field = matching.next()?;
@@ -131,26 +164,45 @@ fn walk_primitive_projection<'a>(
                     return None;
                 };
                 step(Some(CanonicalStructuralPathSegment::Field(field.id)));
-                child
+                Position::Declared(child)
             }
             (
                 StructuralPathSegment::FixedIndex(index),
                 StructuralTypeShape::FixedArray { element, length },
             ) if index < length => {
                 step(Some(CanonicalStructuralPathSegment::FixedIndex(*index)));
-                *element
+                Position::Declared(*element)
             }
             (
                 StructuralPathSegment::RuntimeIndex { .. },
                 StructuralTypeShape::FixedArray { element, .. },
             ) => {
                 step(None);
-                *element
+                Position::Declared(*element)
+            }
+            (
+                StructuralPathSegment::FixedIndex(index),
+                StructuralTypeShape::ByteSequence(carrier),
+            ) => {
+                if let ByteSequenceCarrier::BoundedView { capacity, .. } = carrier
+                    && index >= capacity
+                {
+                    return None;
+                }
+                step(Some(CanonicalStructuralPathSegment::FixedIndex(*index)));
+                Position::ByteElement
+            }
+            (StructuralPathSegment::RuntimeIndex { .. }, StructuralTypeShape::ByteSequence(_)) => {
+                step(None);
+                Position::ByteElement
             }
             _ => return None,
         };
     }
-    unique(root)
+    match position {
+        Position::Declared(root) => unique(root).map(ProjectionTip::Declared),
+        Position::ByteElement => Some(ProjectionTip::ByteElement),
+    }
 }
 
 #[cfg(test)]

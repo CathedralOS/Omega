@@ -133,6 +133,9 @@ pub(crate) fn runtime_index_sites(
                     StructuralTypeShape::FixedArray { length, .. } if declaration.id == array => {
                         Some(length)
                     }
+                    StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. },
+                    ) if declaration.id == array => Some(capacity),
                     _ => None,
                 })
                 .ok_or(invalid)?;

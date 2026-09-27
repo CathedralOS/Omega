@@ -58,6 +58,9 @@ fn terminal_summary(
                     terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => {
                         "byte_sequence(borrowed_view)".to_owned()
                     }
+                    terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. } => {
+                        format!("byte_sequence(bounded_view,capacity={capacity})")
+                    }
                     terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity } => {
                         format!("byte_sequence(bounded_owned,capacity={capacity})")
                     }

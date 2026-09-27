@@ -168,6 +168,15 @@ pub enum CheckedByteSequenceCarrier {
     BorrowedView {
         access: Option<CheckedStructuralAccess>,
     },
+    /// A `&'r [u8; N]` or `&'r mut [u8; N]` reference to fixed storage. The
+    /// bound is the declaration's own literal length — like `BoundedOwned`
+    /// the extent lives in the type, but the referent stays in the caller's
+    /// frame exactly as `BorrowedView`, so the descriptor carries no runtime
+    /// length at all.
+    BoundedView {
+        access: Option<CheckedStructuralAccess>,
+        capacity: u64,
+    },
     BoundedOwned {
         capacity: u64,
     },
@@ -190,9 +199,19 @@ impl From<language_core::ReferenceAccess> for CheckedStructuralAccess {
 impl CheckedByteSequenceCarrier {
     /// Whether this is a borrowed view, whatever access it carries. A reader
     /// that only needs the descriptor shape asks this; comparing against a
-    /// constructed carrier would answer no for the other access.
+    /// constructed carrier would answer no for the other access. The bounded
+    /// view is deliberately excluded: it borrows fixed storage whose extent
+    /// is declared, so descriptor consumers that read a stored length would
+    /// find none.
     pub const fn is_borrowed_view(self) -> bool {
         matches!(self, Self::BorrowedView { .. })
+    }
+
+    /// Whether the carrier reads through borrowed storage at all — the
+    /// access-bearing descriptors (`BorrowedView`, `BoundedView`). Owned
+    /// carriers answer no.
+    pub const fn is_borrowed(self) -> bool {
+        matches!(self, Self::BorrowedView { .. } | Self::BoundedView { .. })
     }
 }
 
@@ -206,6 +225,10 @@ impl CheckedByteSequenceCarrier {
     pub const fn without_access(self) -> Self {
         match self {
             Self::BorrowedView { .. } => Self::BorrowedView { access: None },
+            Self::BoundedView { capacity, .. } => Self::BoundedView {
+                access: None,
+                capacity,
+            },
             other => other,
         }
     }

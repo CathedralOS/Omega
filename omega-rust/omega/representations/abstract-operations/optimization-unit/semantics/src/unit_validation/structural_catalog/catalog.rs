@@ -48,7 +48,8 @@ pub(super) fn index_structural_types(
             terminal_psi::StructuralTypeShape::Reference { .. } => {}
             terminal_psi::StructuralTypeShape::PrimitiveScalar(_) => {}
             terminal_psi::StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
+                terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                | terminal_psi::ByteSequenceCarrier::BoundedView { .. },
             ) => {}
             terminal_psi::StructuralTypeShape::ByteSequence(
                 terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
