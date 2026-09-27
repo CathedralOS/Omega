@@ -189,7 +189,74 @@ golden.
 6. `refresh-samples` needs the per-sample package reviews completed once
    on the lane host before its compile failures are even the binding
    constraint (79 admission-wall + 69 compile-red + 2 missing
-   `build.omg` at this commit).
+   `build.omg` at this commit). — completed at `bc4393d798`; see the
+   follow-up section below.
 7. The next recorder run should use
    `--native-execution "python3 tools/corpus_gate.py --native"` — the
    canary `_runs` command names a test target deleted at `c60792d7bd`.
+
+## Follow-up at `bc4393d798`: per-sample package reviews completed
+
+The host-preparation residual named above was executed on this host.
+For each of the 150 maintained sample projects the sweep ran:
+
+1. `omega update --project <sample> --target macos_arm64` — writes
+   `build/package-manager/review-macos_arm64.txt` (exit 3 = review
+   written with pending decisions; exit 1 = candidate checking failed
+   before a review could be generated).
+2. `decision row <fp> pending` → `accept` in the review file.
+3. `omega update --project <sample> --resume` — publishes `build.omg`
+   and `omega.lock`.
+
+`samples/apps/squalr` was excluded — it sits in another session's claim
+(and has no `main.omg`, so the gate does not enumerate it anyway). All
+files written by this sweep are gitignored host state (`omega.lock`,
+`build/`); no tracked sample file changed.
+
+### Review outcome taxonomy (all at `bc4393d798`)
+
+- **85/150 admitted** (`omega.lock` present):
+  - 59 published directly by `update` — zero pending decisions (graphs
+    with no capability rows needing an explicit verdict).
+  - 26 via `pending → accept` + `--resume`.
+- **65/150 refused before review generation** — `package candidate
+  checking failed`; the review file is never produced, so no decision
+  exists to flip. Dominant diagnostics: `ProgramEntry establishment
+  rejoins 0 Terminal attachment identities`, `requires a selected Fused
+  provider` (Clock, FilesystemHost), implicit arithmetic-domain
+  conversions, `unimplemented:` boundary-operator Terminal routes, and
+  the tail-only-recursion rule (a designed rejection, not a bug).
+- 2 of the 65 are missing `build.omg` (`cli/proofs/math_proofs`,
+  `cli/device/device_extent_access`) — structural, not semantic.
+
+### Post-review `refresh-samples` reading
+
+`omega refresh-samples` after the sweep (same env as the matrix runs):
+**75 of 150 built**, exit 1 — up from 0 of 150 at `0293d4cad9`. The
+failure tail is now entirely compile/realization-side:
+
+- 75 built → emitted `build/omega-program` Mach-O per sample.
+- 10 realization-red: admitted but `cannot realize accepted package
+  production` — `terminal-artifact production requires one exact
+  selected program entry` (uefi_hello, trapping_probe, …) and
+  `Lowering(UnsupportedByteSequenceLiteral)` (run_length_encode).
+- 63 candidate-check-red + 2 missing `build.omg` — the same wall the
+  `update` sweep hit.
+
+### Direct execution of the emitted products
+
+All 75 `build/omega-program` binaries were executed on this host
+(`perl alarm 15; exec`, stdin `</dev/null`): every one exited with
+status < 128 — no signal kills, no timeouts, no crashes. Histogram:
+40×70, 12×0, then single-count exits 1, 3, 6, 8, 10, 12, 13, 16, 20,
+24, 25, 32, 42, 46, 60, 64, 75, 85, 87, 99, 120. The codes are
+program-defined results (e.g. `bubble_sort` exits 10 = `nums[0]` after
+sorting), not fault codes.
+
+### Residual classification after this leg
+
+The review wall is gone: every admitted sample that clears compile and
+realization emits a working Mach-O that runs on this host. The
+remaining sample-gate work is compiler-side — the 10 realization-stage
+diagnostics and the 63 checked-compilation reds — plus the two
+structural `build.omg` omissions.
