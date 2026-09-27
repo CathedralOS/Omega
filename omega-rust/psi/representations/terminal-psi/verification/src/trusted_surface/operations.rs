@@ -17,49 +17,48 @@ const TS_LEAF_SCHEMA: &str =
     "omega-rust/psi/representations/terminal-psi/semantics/src/scalar_leaf_schema.rs";
 const TS_LEAF_SEMANTICS: &str =
     "omega-rust/psi/representations/terminal-psi/semantics/src/scalar_leaf_semantics.rs";
-const TS_PBS: &str = "omega-rust/psi/representations/terminal-psi/semantics/src/proof_bearing_scalar.rs";
-const TS_PBS_GOAL: &str =
-    "omega-rust/psi/representations/terminal-psi/semantics/src/proof_bearing_scalar/canonical_goal.rs";
-const TS_SE: &str = "omega-rust/psi/representations/terminal-psi/semantics/src/structural_effect.rs";
+const TS_PBS: &str =
+    "omega-rust/psi/representations/terminal-psi/semantics/src/proof_bearing_scalar.rs";
+const TS_PBS_GOAL: &str = "omega-rust/psi/representations/terminal-psi/semantics/src/proof_bearing_scalar/canonical_goal.rs";
+const TS_SE: &str =
+    "omega-rust/psi/representations/terminal-psi/semantics/src/structural_effect.rs";
 const TS_SE_EXTENT: &str =
     "omega-rust/psi/representations/terminal-psi/semantics/src/structural_effect/byte_extent.rs";
-const TS_CALLS: &str = "omega-rust/psi/representations/terminal-psi/semantics/src/call_composition.rs";
+const TS_CALLS: &str =
+    "omega-rust/psi/representations/terminal-psi/semantics/src/call_composition.rs";
 const TS_CALLS_VIEW: &str =
     "omega-rust/psi/representations/terminal-psi/semantics/src/call_composition/fixed_byte_view.rs";
 const TS_RECORD: &str = "omega-rust/psi/representations/terminal-psi/semantics/src/record_field.rs";
-const TS_SCALAR_ARRAY: &str = "omega-rust/psi/representations/terminal-psi/semantics/src/scalar_array.rs";
-const OP_FACTS: &str =
-    "omega-rust/psi/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts.rs";
+const TS_SCALAR_ARRAY: &str =
+    "omega-rust/psi/representations/terminal-psi/semantics/src/scalar_array.rs";
+const OP_FACTS: &str = "omega-rust/psi/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts.rs";
 const OP_FACTS_POLARITY: &str = "omega-rust/psi/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/boolean_polarity.rs";
 const OP_FACTS_BYTE_EXTENT: &str = "omega-rust/psi/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/byte_extent.rs";
 const OP_FACTS_ELEMENT_EXTENT: &str = "omega-rust/psi/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/element_extent.rs";
 const TS_SE_ELEMENT_EXTENT: &str =
     "omega-rust/psi/representations/terminal-psi/semantics/src/structural_effect/element_extent.rs";
-const VAL_ELEMENTS_ESTABLISH: &str =
-    "omega-rust/psi/representations/terminal-psi/verification/src/validation/element_view/establishment.rs";
-const VAL_ELEMENTS_LENGTH: &str =
-    "omega-rust/psi/representations/terminal-psi/verification/src/validation/element_view/length.rs";
+const VAL_ELEMENTS_ESTABLISH: &str = "omega-rust/psi/representations/terminal-psi/verification/src/validation/element_view/establishment.rs";
+const VAL_ELEMENTS_LENGTH: &str = "omega-rust/psi/representations/terminal-psi/verification/src/validation/element_view/length.rs";
 const VAL_ELEMENTS_READ: &str =
     "omega-rust/psi/representations/terminal-psi/verification/src/validation/element_view/read.rs";
-const VAL_ELEMENTS_SUBSLICE: &str =
-    "omega-rust/psi/representations/terminal-psi/verification/src/validation/element_view/subslice.rs";
+const VAL_ELEMENTS_SUBSLICE: &str = "omega-rust/psi/representations/terminal-psi/verification/src/validation/element_view/subslice.rs";
 const OP_FACTS_RECORD: &str = "omega-rust/psi/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/record.rs";
 const OP_FACTS_SCALAR_CASE: &str = "omega-rust/psi/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/scalar_case.rs";
 const OP_FACTS_STRUCTURAL_CASE: &str = "omega-rust/psi/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/structural_case.rs";
 const TV_CALLS: &str =
     "omega-rust/psi/representations/terminal-psi/verification/src/verification/call_composition.rs";
-const VAL_OPS: &str = "omega-rust/psi/representations/terminal-psi/verification/src/validation/operations.rs";
-const VAL_RECORD: &str = "omega-rust/psi/representations/terminal-psi/verification/src/validation/record.rs";
+const VAL_OPS: &str =
+    "omega-rust/psi/representations/terminal-psi/verification/src/validation/operations.rs";
+const VAL_RECORD: &str =
+    "omega-rust/psi/representations/terminal-psi/verification/src/validation/record.rs";
 const VAL_SCALAR_CASE: &str =
     "omega-rust/psi/representations/terminal-psi/verification/src/validation/scalar/case.rs";
 const VAL_STRUCTURAL_CASE: &str =
     "omega-rust/psi/representations/terminal-psi/verification/src/validation/structural/case.rs";
 const VAL_SCALAR_ARRAY: &str =
     "omega-rust/psi/representations/terminal-psi/verification/src/validation/scalar/array.rs";
-const VAL_CASE_MEMBERSHIP: &str =
-    "omega-rust/psi/representations/terminal-psi/verification/src/validation/structural/case_membership.rs";
-const VAL_LEAF_COPY: &str =
-    "omega-rust/psi/representations/terminal-psi/verification/src/validation/structural/leaf_copy.rs";
+const VAL_CASE_MEMBERSHIP: &str = "omega-rust/psi/representations/terminal-psi/verification/src/validation/structural/case_membership.rs";
+const VAL_LEAF_COPY: &str = "omega-rust/psi/representations/terminal-psi/verification/src/validation/structural/leaf_copy.rs";
 const VAL_PRIMITIVE_STORAGE: &str =
     "omega-rust/psi/representations/terminal-psi/verification/src/validation/primitive_storage.rs";
 const TS_PRIMITIVE_PLACE: &str =
@@ -70,20 +69,14 @@ const VAL_STRUCTURAL_OPS: &str = "omega-rust/psi/representations/terminal-psi/ve
 const VAL_UNIT_OPERATION: &str = "omega-rust/psi/representations/terminal-psi/verification/src/validation/structural/operations/unit_operation.rs";
 const VAL_BORROWED_WINDOWS: &str =
     "omega-rust/psi/representations/terminal-psi/verification/src/validation/borrowed_windows.rs";
-const VAL_STRUCTURAL_SCALAR: &str =
-    "omega-rust/psi/representations/terminal-psi/verification/src/validation/structural/scalar_fields.rs";
-const VAL_STRUCTURAL_BYTES: &str =
-    "omega-rust/psi/representations/terminal-psi/verification/src/validation/structural/byte_sequence_fields.rs";
-const VAL_STRUCTURAL_BYTES_STORE: &str =
-    "omega-rust/psi/representations/terminal-psi/verification/src/validation/structural/byte_sequence_store.rs";
-const VAL_BYTES_LENGTH: &str =
-    "omega-rust/psi/representations/terminal-psi/verification/src/validation/byte_sequence/length.rs";
+const VAL_STRUCTURAL_SCALAR: &str = "omega-rust/psi/representations/terminal-psi/verification/src/validation/structural/scalar_fields.rs";
+const VAL_STRUCTURAL_BYTES: &str = "omega-rust/psi/representations/terminal-psi/verification/src/validation/structural/byte_sequence_fields.rs";
+const VAL_STRUCTURAL_BYTES_STORE: &str = "omega-rust/psi/representations/terminal-psi/verification/src/validation/structural/byte_sequence_store.rs";
+const VAL_BYTES_LENGTH: &str = "omega-rust/psi/representations/terminal-psi/verification/src/validation/byte_sequence/length.rs";
 const VAL_BYTES_READ: &str =
     "omega-rust/psi/representations/terminal-psi/verification/src/validation/byte_sequence/read.rs";
-const VAL_BYTES_WRITE: &str =
-    "omega-rust/psi/representations/terminal-psi/verification/src/validation/byte_sequence/write.rs";
-const VAL_BYTES_SUBSLICE: &str =
-    "omega-rust/psi/representations/terminal-psi/verification/src/validation/byte_sequence/subslice.rs";
+const VAL_BYTES_WRITE: &str = "omega-rust/psi/representations/terminal-psi/verification/src/validation/byte_sequence/write.rs";
+const VAL_BYTES_SUBSLICE: &str = "omega-rust/psi/representations/terminal-psi/verification/src/validation/byte_sequence/subslice.rs";
 const VAL_FLOAT: &str =
     "omega-rust/psi/representations/terminal-psi/verification/src/validation/float_meaning.rs";
 const VAL_PARTIAL_AFFINE: &str =
@@ -96,8 +89,7 @@ const VAL_TRAPPING: &str =
     "omega-rust/psi/representations/terminal-psi/verification/src/validation/trapping_integer.rs";
 const VAL_ATOMIC: &str =
     "omega-rust/psi/representations/terminal-psi/verification/src/validation/atomic_access.rs";
-const VAL_SUSPENSION: &str =
-    "omega-rust/psi/representations/terminal-psi/verification/src/validation/suspension_call_plan.rs";
+const VAL_SUSPENSION: &str = "omega-rust/psi/representations/terminal-psi/verification/src/validation/suspension_call_plan.rs";
 
 const TRUSTED: SoundnessStatus = SoundnessStatus::ExplicitlyTrusted {
     root: "root:rust-reference-verifier",
