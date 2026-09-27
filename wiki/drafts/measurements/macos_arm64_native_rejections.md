@@ -88,17 +88,32 @@ outright, and should: a bare scalar local assignment is not a structural
 field store. So widening that branch is the wrong repair, and it is exactly
 where reading alone leads.
 
-Instrumented rather than argued: all 44 `return None` exits across
-`structural_scalar_store/{mod,destination}.rs` were marked, then the failing
-program and the WORKING one (`let mut x: i32 = 0; x = 1;`) were run and their
-traces diffed. Same marks at nearly the same counts. **The working case does
-not succeed anywhere in that subtree**, so it is not the repair site — the
-structural store is merely the last route the trace entered, which is also
-why the phase names a `destination parameter` for a local that is neither a
-field nor a parameter.
+Instrumented rather than argued, in two rounds. The first marked all 44
+`return None` exits across `structural_scalar_store/{mod,destination}.rs` and
+diffed the failing program against the WORKING one
+(`let mut x: i32 = 0; x = 1;`): same marks at nearly the same counts.
 
-Next step: find what plans `x = 1` for an INITIALIZED `mut` scalar local.
-That route is the one missing the declared-zeroed case.
+That alone did NOT support the conclusion, and the flaw is worth naming
+because it is easy to repeat. Marking only declines cannot distinguish "the
+working case never succeeds here" from "it succeeds after the same declines"
+— the sentinel rule. A second round marked the SUCCESS constructions instead:
+both programs reach the one success site exactly 1151 times, identically. Now
+the conclusion holds. **The structural store subtree is not the repair
+site**; it is merely the last route the trace entered, which is also why the
+phase names a `destination parameter` for a local that is neither a field nor
+a parameter.
+
+A third round marked all 74 `return None` exits across the sequence planner
+(`control/statement_sequence.rs`, `control/statement_sequence/local_data.rs`,
+`terminal_unit/mod.rs`). No mark appears only in the failing run; every
+difference is FEWER declines in it (920 against 922, 2202 against 2204),
+which is a run doing less work, not a distinctive decline. So the explicit
+exits there are not the site either.
+
+What remains unsearched is the `?` operator, which is how most of this
+codebase exits an Option and which none of the three rounds instrumented.
+Next step: cover `?` exits, and find what plans `x = 1` for an INITIALIZED
+`mut` scalar local — that route is the one missing the declared-zeroed case.
 
 ## Method notes for whoever re-runs this
 
