@@ -63,7 +63,7 @@ fn token_bearing_machines_retain_their_spelling_and_named_machines_have_none() {
     let equal = program
         .machines
         .iter()
-        .find(|machine| machine.name.to_string() == "Vec2::equal")
+        .find(|machine| machine.name.as_str() == "Vec2::equal")
         .expect("boundary requirement machine");
     assert_eq!(
         equal.supply_mode,

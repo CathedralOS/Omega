@@ -73,12 +73,9 @@ pub fn zeroed_structural_leaves<'types>(
     let mut pending = vec![(root, Vec::new())];
     let mut visited_cells = 0usize;
     while let Some((current, path)) = pending.pop() {
-        let Some(declaration) = declarations
+        let declaration = declarations
             .iter()
-            .find(|declaration| declaration.id == current)
-        else {
-            return None;
-        };
+            .find(|declaration| declaration.id == current)?;
         match &declaration.shape {
             StructuralTypeShape::PrimitiveScalar(scalar_type) => {
                 leaves.push(ZeroedStructuralLeaf::ArrayScalar {

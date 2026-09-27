@@ -95,5 +95,5 @@ fn eliminate_cases(
     // tolerates, and one of those branches already failed. So every later
     // case fails too; trying them costs 2^n builder searches and never
     // changes the answer.
-    return None;
+    None
 }

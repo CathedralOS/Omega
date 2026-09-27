@@ -19,7 +19,6 @@ use super::{
     is_record_pattern_marker, retain_selected_sources, scalar_computation_local_at,
     structural_operands,
 };
-use typed_trees;
 
 /// The sequence state a `let` statement reads and extends.
 pub(super) struct Planner<'a, 'program, 'shapes> {

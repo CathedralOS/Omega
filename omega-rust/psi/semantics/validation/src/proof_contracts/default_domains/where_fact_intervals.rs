@@ -277,53 +277,6 @@ fn field_intervals(
     )
 }
 
-#[cfg(test)]
-mod tests {
-    use super::case_where_field_intervals;
-    use typed_trees::data::DataMember;
-
-    #[test]
-    fn case_intervals_are_local_and_reject_relational_predicates() {
-        let program = crate::front_end::typed_program(
-            "data Choice {
-                case Small(value: i32) where 0 <= value && value <= 15;
-                case Large(value: i32) where value > 100 && value < 200;
-                case Plain(value: i32);
-                case Related(left: i32, right: i32) where left <= right;
-            }",
-        );
-        let data = program
-            .data_definitions()
-            .iter()
-            .find(|data| data.name.as_str() == "Choice")
-            .unwrap();
-        let cases = program
-            .data_members(data)
-            .iter()
-            .filter_map(|member| match member {
-                DataMember::Variant(case) => Some(case),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        for (case, low, high) in [(cases[0], 0, 15), (cases[1], 101, 199)] {
-            let field = &program.data_payload_fields(case)[0];
-            assert_eq!(
-                case_where_field_intervals(&program, case),
-                Some(vec![(field.symbol, Some(low), Some(high))])
-            );
-        }
-        assert_ne!(
-            program.data_payload_fields(cases[0])[0].symbol,
-            program.data_payload_fields(cases[1])[0].symbol
-        );
-        assert_eq!(
-            case_where_field_intervals(&program, cases[2]),
-            Some(Vec::new())
-        );
-        assert_eq!(case_where_field_intervals(&program, cases[3]), None);
-    }
-}
-
 /// The interval a store to `target` must land in when the target is a field
 /// of data whose facts are all interval-only: every store re-proves its own
 /// field's interval, which is then the whole default domain for that field.
@@ -480,4 +433,51 @@ fn factor_lower_bound(
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::case_where_field_intervals;
+    use typed_trees::data::DataMember;
+
+    #[test]
+    fn case_intervals_are_local_and_reject_relational_predicates() {
+        let program = crate::front_end::typed_program(
+            "data Choice {
+                case Small(value: i32) where 0 <= value && value <= 15;
+                case Large(value: i32) where value > 100 && value < 200;
+                case Plain(value: i32);
+                case Related(left: i32, right: i32) where left <= right;
+            }",
+        );
+        let data = program
+            .data_definitions()
+            .iter()
+            .find(|data| data.name.as_str() == "Choice")
+            .unwrap();
+        let cases = program
+            .data_members(data)
+            .iter()
+            .filter_map(|member| match member {
+                DataMember::Variant(case) => Some(case),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        for (case, low, high) in [(cases[0], 0, 15), (cases[1], 101, 199)] {
+            let field = &program.data_payload_fields(case)[0];
+            assert_eq!(
+                case_where_field_intervals(&program, case),
+                Some(vec![(field.symbol, Some(low), Some(high))])
+            );
+        }
+        assert_ne!(
+            program.data_payload_fields(cases[0])[0].symbol,
+            program.data_payload_fields(cases[1])[0].symbol
+        );
+        assert_eq!(
+            case_where_field_intervals(&program, cases[2]),
+            Some(Vec::new())
+        );
+        assert_eq!(case_where_field_intervals(&program, cases[3]), None);
+    }
 }
