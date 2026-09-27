@@ -1,5 +1,6 @@
-data Countdown { remaining: u64 [0..=5]; }
-measure Countdown::Remaining(countdown: Countdown) -> u64 { countdown.remaining }
+data Countdown where 0 <= remaining, remaining <= 5 { remaining: u64; }
+measure Countdown::Remaining(countdown: Countdown) -> u64
+{ countdown.remaining }
 
 machine walk(countdown: Countdown)
 terminates by countdown -> Countdown::Remaining in 0..=5;

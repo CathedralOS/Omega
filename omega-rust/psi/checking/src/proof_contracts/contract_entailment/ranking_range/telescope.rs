@@ -7,8 +7,10 @@
 use super::fields::{collect_record_paths, record_referent};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
+use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
+use typed_trees::signature::SignatureContractKind;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
@@ -534,7 +536,8 @@ pub(crate) fn positive_step_amount(
             program.state_parameters(state).iter().any(|parameter| {
                 !parameter.is_self
                     && parameter.symbol == name.symbol
-                    && declared_positive_floor(program, parameter.type_reference)
+                    && (declared_positive_floor(program, parameter.type_reference)
+                        || requires_positive_floor(program, state, parameter.symbol))
             })
         }
         _ => false,
@@ -570,6 +573,81 @@ fn declared_positive_floor(program: &TypedTrees, mut reference: TypeReferenceHan
         reference = *base_type;
     }
     false
+}
+
+/// The state's entry `requires` facts prove the formal's floor is at least
+/// 1: `1 <= step` or `step >= 1` shape conjuncts, read the way a declared
+/// range floor reads. Arrival obligations discharge requires at every
+/// incoming edge, so the fact holds wherever the step's carrier is judged.
+/// The owning machine's contracts cover the root state, whose formal-level
+/// requires live on the machine signature.
+fn requires_positive_floor(program: &TypedTrees, state: &State, symbol: SymbolHandle) -> bool {
+    let owner = program.machines().iter().find(|machine| {
+        program
+            .machine_states(machine)
+            .iter()
+            .any(|candidate| candidate.symbol == state.symbol)
+    });
+    let contracts: &[_] = if owner.is_some_and(|machine| {
+        program
+            .machine_states(machine)
+            .first()
+            .is_some_and(|root| root.symbol == state.symbol)
+    }) {
+        program.machine_contracts(owner.unwrap())
+    } else {
+        program.state_contracts(state)
+    };
+    contracts.iter().any(|contract| {
+        contract.kind == SignatureContractKind::Requires
+            && program
+                .proof_facts
+                .span_or_empty(contract.facts)
+                .iter()
+                .any(|fact| match fact {
+                    ProofFact::Expression(expression) => {
+                        positive_floor_fact(program, *expression, symbol)
+                    }
+                    _ => false,
+                })
+    })
+}
+
+/// One requires fact's contribution: `&&`-conjuncts decompose, then a plain
+/// comparison must bound the named formal's literal floor at 1 or above.
+fn positive_floor_fact(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    symbol: SymbolHandle,
+) -> bool {
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    if binary.operator == BinaryOperator::And {
+        return positive_floor_fact(program, binary.left, symbol)
+            || positive_floor_fact(program, binary.right, symbol);
+    }
+    let name = |side: ExpressionHandle| {
+        let ExpressionNode::Name(name) = program.expression_table.expression(side) else {
+            return false;
+        };
+        name.symbol.is_valid() && name.head_symbol == name.symbol && name.symbol == symbol
+    };
+    let floor = |side: ExpressionHandle, strictness: bool| {
+        let ExpressionNode::Integer(literal) = program.expression_table.expression(side) else {
+            return false;
+        };
+        literal
+            .value_i64()
+            .is_some_and(|value| if strictness { value >= 0 } else { value >= 1 })
+    };
+    match binary.operator {
+        BinaryOperator::LessOrEqual => floor(binary.left, false) && name(binary.right),
+        BinaryOperator::Less => floor(binary.left, true) && name(binary.right),
+        BinaryOperator::GreaterOrEqual => name(binary.left) && floor(binary.right, false),
+        BinaryOperator::Greater => name(binary.left) && floor(binary.right, true),
+        _ => false,
+    }
 }
 
 /// Strip `Atomic` wrappers, matching the call-component judgment's arrival

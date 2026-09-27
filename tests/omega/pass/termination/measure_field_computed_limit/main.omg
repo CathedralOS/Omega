@@ -1,9 +1,10 @@
-data Countdown {
-    remaining: u64 [0..=5];
-    limit: u64 [0..=5];
+data Countdown where 0 <= remaining, remaining <= 5, 0 <= limit, limit <= 5 {
+    remaining: u64;
+    limit: u64;
 }
 
-measure Countdown::Remaining(countdown: Countdown) -> u64 { countdown.remaining }
+measure Countdown::Remaining(countdown: Countdown) -> u64
+{ countdown.remaining }
 
 machine walk(countdown: Countdown)
 requires countdown.remaining <= countdown.limit;

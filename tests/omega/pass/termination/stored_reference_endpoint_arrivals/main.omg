@@ -1,12 +1,15 @@
-data Wrap { remaining: u64 [4..=500]; }
+data Wrap where 4 <= remaining, remaining <= 500 { remaining: u64; }
 data Indirect { target: &Wrap; }
 
-machine walk(remaining: u64 [0..=4], indirect: Indirect)
+machine walk(remaining: u64, indirect: Indirect)
+    requires 0 <= remaining && remaining <= 4
 terminates by remaining -> Nat::Descending in 0..=indirect.target.remaining;
 -> u64 {
     transition { _ -> iterate(indirect, remaining) }
 
-    state iterate(held: Indirect, pending: u64 [0..=4]) {
+    state iterate(held: Indirect, pending: u64)
+        requires 0 <= pending && pending <= 4
+    {
         transition pending > 0 {
             true -> iterate(held, pending - 1)
             false -> pending

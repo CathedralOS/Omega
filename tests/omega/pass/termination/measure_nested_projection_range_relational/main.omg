@@ -3,11 +3,13 @@
 // requirement relates that exact path to an invocation-fixed ceiling, and
 // every self edge rebuilds the literal chain down to the ranked field while
 // the ceiling and the step stay pinned.
-data Inner { remaining: u64 [0..=5]; }
+data Inner where 0 <= remaining, remaining <= 5 { remaining: u64; }
 data Countdown { label: u64; inner: Inner; }
-measure Countdown::Remaining(countdown: Countdown) -> u64 { countdown.inner.remaining }
+measure Countdown::Remaining(countdown: Countdown) -> u64
+{ countdown.inner.remaining }
 
-machine walk(countdown: Countdown, ceiling: u64 [0..=5], amount: u64 [1..=2])
+machine walk(countdown: Countdown, ceiling: u64, amount: u64)
+    requires 0 <= ceiling && ceiling <= 5 && 1 <= amount && amount <= 2
 requires countdown.inner.remaining <= ceiling;
 terminates by countdown -> Countdown::Remaining in 0..=ceiling;
 -> u64 {

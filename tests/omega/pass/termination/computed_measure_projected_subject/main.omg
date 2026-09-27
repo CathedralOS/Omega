@@ -3,8 +3,9 @@
 // exact `u64` member coordinate rather than a bare formal. The flat self
 // call descends directly; the two-state form transports the same coordinate
 // and the pinned ceiling through the discovered telescope.
-data Countdown { remaining: u64 [0..=5]; }
-measure Countdown::Doubled(value: u64) -> u64 { value * 2 }
+data Countdown where 0 <= remaining, remaining <= 5 { remaining: u64; }
+measure Countdown::Doubled(value: u64) -> u64
+{ value * 2 }
 
 machine walk_flat(countdown: Countdown)
 terminates by countdown.remaining -> Countdown::Doubled in 0..=10;
@@ -15,12 +16,15 @@ terminates by countdown.remaining -> Countdown::Doubled in 0..=10;
     }
 }
 
-machine walk(countdown: Countdown, limit: u64 [0..=10])
+machine walk(countdown: Countdown, limit: u64)
+    requires 0 <= limit && limit <= 10
 requires countdown.remaining * 2 <= limit;
 terminates by countdown.remaining -> Countdown::Doubled in 0..=limit;
 -> u64 {
     transition { _ -> step(countdown, limit) }
-    state step(current: Countdown, bound: u64 [0..=10]) {
+    state step(current: Countdown, bound: u64)
+        requires 0 <= bound && bound <= 10
+    {
         transition current.remaining > 0 {
             true -> step(Countdown { remaining: current.remaining - 1 }, bound)
             false -> current.remaining

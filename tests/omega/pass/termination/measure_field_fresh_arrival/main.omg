@@ -1,8 +1,9 @@
-data Countdown {
-    remaining: u64 [0..=5];
-    limit: u64 [0..=5];
+data Countdown where 0 <= remaining, remaining <= 5, 0 <= limit, limit <= 5 {
+    remaining: u64;
+    limit: u64;
 }
-measure Countdown::Remaining(countdown: Countdown) -> u64 { countdown.remaining }
+measure Countdown::Remaining(countdown: Countdown) -> u64
+{ countdown.remaining }
 
 machine walk(countdown: Countdown)
 terminates by countdown -> Countdown::Remaining in 0..=5;
@@ -11,7 +12,8 @@ terminates by countdown -> Countdown::Remaining in 0..=5;
         true -> iterate(Countdown { remaining: 3, limit: 5 })
         false -> countdown.remaining
     }
-    state iterate(pending: Countdown) {
+    state iterate(pending: Countdown)
+    {
         transition pending.remaining > 0 {
             true -> iterate(Countdown {
                 remaining: pending.remaining - 1,

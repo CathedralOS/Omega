@@ -2345,6 +2345,27 @@ impl<'program> Engine<'program> {
                 // Ordinary proof views are source-defined data and machines.
                 // Their spelling cannot introduce an arithmetic atom or stand
                 // in for a selected declaration and its checked semantics.
+                // A value call result is different: the callee proved its
+                // `ensures` conjuncts at every exit, so inside the strict
+                // judgment the produced term is an opaque atom carrying the
+                // declared return carrier intersected with those conjuncts.
+                if self.strict_symbol_bindings.is_some()
+                    && let Some(interval) =
+                        crate::proof_contracts::arithmetic_domains::call_result_interval(
+                            self.program,
+                            &call,
+                        )
+                {
+                    let atom = format!("\0call-result:{expression:?}");
+                    self.arithmetic_intervals.insert(
+                        atom.clone(),
+                        Interval {
+                            low: interval.low().map(BigInt::from_i64),
+                            high: interval.high().map(BigInt::from_i64),
+                        },
+                    );
+                    return Some(Polynomial::atom(atom));
+                }
                 None
             }
             ExpressionNode::Cast(cast)

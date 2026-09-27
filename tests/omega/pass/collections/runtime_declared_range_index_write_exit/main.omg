@@ -4,22 +4,26 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
-data Main {
+data Main where 0 <= i, i <= 4 {
     console: Binding<Console>;
     arr: [i32; 5];
-    i: u64 [0..=4];
+    i: u64;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(&mut self) reaches Console
+{
     transition { _ -> write() }
 
-    state write(&mut self) {
+    state write(&mut self)
+    {
         self.arr[self.i] = 30;
         transition self.arr[0] == 30 {
             true -> matched()
             false -> unmatched()
         }
     }
-    state matched(&mut self) { self.console.exit_process(30); }
-    state unmatched(&mut self) { self.console.exit_process(0); }
+    state matched(&mut self)
+    { self.console.exit_process(30); }
+    state unmatched(&mut self)
+    { self.console.exit_process(0); }
 }

@@ -710,6 +710,28 @@ fn prove_edge(
     for &(guard, holds) in guards {
         collect_guard(&mut engine, guard, holds, &mut comparisons, 0)?;
     }
+    // Arrival `requires` facts hold inside this state: the caller discharged
+    // them at every incoming edge, so the relational judgment reads them as
+    // hypotheses the way it reads guards. The root state's arrival contract
+    // is the machine's own `requires` (installed again at reentry: each
+    // incoming machine call re-discharges it); any other state's is its
+    // signature's. Membership and proposition facts stay outside this
+    // arithmetic projection -- they are neither assumed nor claimed.
+    let requires_contracts = if state.symbol == root.symbol {
+        program.machine_contracts(machine)
+    } else {
+        program.state_contracts(state)
+    };
+    for contract in requires_contracts {
+        if contract.kind != SignatureContractKind::Requires {
+            continue;
+        }
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            if let ProofFact::Expression(expression) = fact {
+                collect_guard(&mut engine, *expression, true, &mut comparisons, 0)?;
+            }
+        }
+    }
 
     // Endpoint arithmetic uses the same exact entry aliases and field
     // coordinates as the rank. Bind non-polynomial term meaning after those
