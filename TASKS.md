@@ -6987,42 +6987,22 @@ is bootstrap authority. Bootstrap construction stays on `TASKS_BOOTSTRAP.md`.
   is the separate Epsilon-written implementation; Rust is a nonauthoritative
   differential comparator.
 
-  A fresh product-root check is measured, and it is ONE diagnostic away.
-  `omega --check source/omega/main.omg` fails with exactly one: the entry's
-  unit plan is omitted at `call operation: projected operand support`
-  (state 5 `parse`, statement 0), and the program is refused with the
-  downstream symptom, "selected ProgramEntry establishment rejoins 0
-  Terminal attachment identities". The statement is
-  `self.parser.initialize(self.lexer.source.id, ...)`.
+  On macOS, both `omega --check source/omega/main.omg` and
+  `omega --check source/psi/gates/parser/main.omg` stop at an unavailable
+  `Parser::parse` callee: local construction reports
+  `structural field store: pure source: scalar expression row`
+  (state 3, statement 1). The reader is
+  `04_typed-trees-to-checked-trees/src/execution/terminal_unit/structural_scalar_store/value.rs`;
+  coordinate with its live claim before editing. Resolve that retained scalar
+  expression through the existing store path, then rerun both product roots.
+  One reported diagnostic does not establish that later stages are complete.
 
-  Instrumented at the raise site, the single structural argument is
-  `Parameter { parameter_index: 0 }` with path
-  `[Field("lexer"), Field("source"), Field("id")]`, type identity
-  `named(name(SourceId))`, access `Owned`. `SourceId` is `[copy]`, so the
-  target parameter's type is Unrestricted -- and
-  `omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/calls/argument_paths.rs`'s
-  `ordinary_projected_call_is_supported` admits an owned field-path
-  projection only when the target type is AFFINE and the caller's source
-  parameter is itself `Owned` + `Affine` + claim-free. That arm exists to
-  account for the residual complement the caller publishes on its return
-  edge. A COPY projection has no residual: it duplicates the value and
-  leaves the caller's place untouched, so neither the source's access nor
-  its multiplicity is load-bearing and a `&mut self` receiver may be read
-  like any other place. The arm is simply missing.
-
-  BOTH roots fail there and on nothing else. `source/psi/gates/parser/main.omg`
-  stops at `Main::prepare_parse` (state 5, statement 0) on the same
-  `self.parser.initialize(self.lexer.source.id, ...)`. So `test-parser.sh`
-  cannot run yet -- its first step is a build of that gate root -- and one
-  arm unblocks both. Everything else in the `source/psi` closure (lex,
-  parse, source, syntax, tokens, gates) resolves, types, checks and proves:
-  one diagnostic per root is the whole report.
-
-  `tests/omega/pending/calls/copy_projection_from_borrowed_receiver` pins
-  the shape in twenty-four lines with a program-entry root, since the
-  corpus runner's targetless Check route cannot see this omission at all.
-  The repair belongs to whoever holds that `calls` directory; promote the
-  fixture to `pass/calls/` with an exit when it lands.
+  The copied-argument regression remains in
+  `tests/omega/pending/calls/copy_projection_from_borrowed_receiver` pending
+  fixture promotion and its corpus-golden update; coordinate that shared file
+  with its live owner. Preserve the authored ProgramEntry root and native exit
+  check when moving it to `pass/calls/`. A targetless check alone does not
+  exercise its original omission.
 
   Then freshly build/run `source/psi/test-parser.sh` with explicit
   `OMEGA_CLI` and `OMEGA_TARGET`.
