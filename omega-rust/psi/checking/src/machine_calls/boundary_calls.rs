@@ -1,22 +1,23 @@
-//! Omega-owned boundary-provider admission after Psi semantic checking.
+//! Source boundary authority and the exact checked calls that exercise it.
+//!
+//! This check uses declarations and checked flow only. Selected providers,
+//! target mechanisms and receiver permissions are separate Omega obligations.
 
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
-pub fn check_boundary_provider_approval(
+/// Validate checked call coordinates and reject ordinary whole-trait
+/// implementations that attempt to mint the called boundary capability.
+/// This does not select a provider or grant native execution authority.
+pub fn validate_boundary_calls(
     checked: &checked_trees::CheckedTrees,
 ) -> Result<(), Vec<Diagnostic>> {
     let program = &checked.typed;
     let calls = checked_boundary_call_coordinates(checked)?;
-    let registry = effects::build_boundary_provider_approval_registry(program);
-    let unapproved = effects::audit_boundary_provider_calls(program, calls, &registry);
-
-    if unapproved.is_empty() {
-        return Ok(());
-    }
-
-    Err(unapproved
+    let approved = approved_boundary_traits(program);
+    let diagnostics: Vec<_> = calls
         .into_iter()
+        .filter(|call| !approved.contains(&call.boundary_trait_symbol))
         .map(|call| {
             Diagnostic::error(format!(
                 "unapproved boundary call: {} in {} exercises a boundary capability with no approved provider for that exact capability",
@@ -24,12 +25,77 @@ pub fn check_boundary_provider_approval(
                 symbol_name(program, call.state_symbol),
             ))
         })
-        .collect())
+        .collect();
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
+/// Approval is exact to the authored boundary declaration, never its service
+/// reach or a provider selected for another capability. All calls consume the
+/// same derived roster; it carries no provider-selection authority.
+fn approved_boundary_traits(program: &typed_trees::TypedTrees) -> Vec<SymbolHandle> {
+    let mut approved = Vec::new();
+    for definition in program
+        .traits()
+        .iter()
+        .filter(|definition| definition.is_boundary)
+    {
+        let exact_symbol_owners = program
+            .traits()
+            .iter()
+            .filter(|candidate| candidate.symbol == definition.symbol)
+            .count();
+        let declaration_module = program.symbols.symbol_module(definition.symbol);
+        let exact_name_owners = program
+            .traits()
+            .iter()
+            .filter(|candidate| {
+                candidate.is_boundary
+                    && candidate.name.as_str() == definition.name.as_str()
+                    && program.symbols.symbol_module(candidate.symbol) == declaration_module
+                    && program
+                        .symbols
+                        .same_symbol_source_package(candidate.symbol, definition.symbol)
+            })
+            .count();
+        let has_exact_identity = definition.symbol.is_valid()
+            && !definition.name.as_str().is_empty()
+            && exact_symbol_owners == 1
+            && exact_name_owners == 1;
+        // A requirement-level checked adapter or external leaf is a supply
+        // edge, not an in-package implementation of the whole capability.
+        let implemented_in_package = program.conformances().iter().any(|conformance| {
+            matches!(
+                conformance.subject,
+                typed_trees::trait_definition::ConformanceSubject::Carrier(_)
+            ) && conformance.trait_symbol == definition.symbol
+        });
+        if has_exact_identity && !implemented_in_package {
+            approved.push(definition.symbol);
+        }
+    }
+    approved
+}
+
+/// Private scratch coordinates preserve call order and exact requirement
+/// ownership during validation. They are not another published evidence form.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct BoundaryCallCoordinate {
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    target_state_symbol: SymbolHandle,
+    boundary_trait_symbol: SymbolHandle,
+    boundary_signature_symbol: SymbolHandle,
+    statement_index: usize,
+    call_ordinal: usize,
 }
 
 fn checked_boundary_call_coordinates(
     checked: &checked_trees::CheckedTrees,
-) -> Result<Vec<effects::BoundaryCallCoordinate>, Vec<Diagnostic>> {
+) -> Result<Vec<BoundaryCallCoordinate>, Vec<Diagnostic>> {
     let program = &checked.typed;
     let flow = &checked.facts.flow.control;
     let mut diagnostics = Vec::new();
@@ -202,7 +268,7 @@ fn checked_boundary_call_coordinates(
             if boundary_edges.is_empty() {
                 match exact_direct_boundary_requirement(program, call.target_symbol) {
                     Ok(Some((boundary_trait_symbol, boundary_signature_symbol))) => {
-                        coordinates.push(effects::BoundaryCallCoordinate {
+                        coordinates.push(BoundaryCallCoordinate {
                             machine_symbol: flow_state.machine_symbol,
                             state_symbol: flow_state.state_symbol,
                             target_state_symbol: call.target_symbol,
@@ -260,7 +326,7 @@ fn checked_boundary_call_coordinates(
                     diagnostics.push(diagnostic);
                     continue;
                 }
-                coordinates.push(effects::BoundaryCallCoordinate {
+                coordinates.push(BoundaryCallCoordinate {
                     machine_symbol: flow_state.machine_symbol,
                     state_symbol: flow_state.state_symbol,
                     target_state_symbol: call.target_symbol,

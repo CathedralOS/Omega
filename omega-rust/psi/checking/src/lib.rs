@@ -13,6 +13,7 @@ pub use declarations::standard_declarations::{
     standard_calling_traits, standard_calling_vocabularies,
 };
 use declarations::state_signatures::StateSignatureOwner;
+pub use machine_calls::boundary_calls::validate_boundary_calls;
 pub use machine_calls::calls::{
     named_conformance_target_requirement, result_initializer_call_is_supported,
     unit_result_initializer_call_is_supported, unit_return_call_is_supported,

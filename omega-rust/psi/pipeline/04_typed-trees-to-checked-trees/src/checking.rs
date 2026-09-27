@@ -346,7 +346,9 @@ fn lower_typed_trees_uncached(
     validation::validate_reserved_cleanup_selections(&program)?;
     validation::validate_declaration_visibility(&program)?;
 
-    Ok(CheckedTrees::with_roots(program, facts))
+    let checked = CheckedTrees::with_roots(program, facts);
+    validation::validate_boundary_calls(&checked)?;
+    Ok(checked)
 }
 
 /// One Omega-selected generic checked body that must be specialized for the

@@ -3,14 +3,13 @@
 //! Checked provider-plan derivation and realization.
 //!
 //! This crate owns provider selection, calling-policy realization, component
-//! progress, task activation planning, and boundary-provider approval. The
+//! progress and task activation planning. The
 //! compiler coordinator supplies checked inputs and consumes the resulting
 //! plans; it does not define their domain model.
 //!
 //! Start at `provider_planning.rs` for selection and checked-program binding;
 //! every other folder is one public vocabulary the compiler consumes by path.
 
-pub mod approval;
 pub mod calling_policy_plans;
 pub mod compiler_intrinsics;
 pub mod component_progress;

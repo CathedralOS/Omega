@@ -453,7 +453,6 @@ fn concrete_task_start_fixture() -> (
         }
 
         data LocalTaskRuntime { }
-        LocalTaskRuntimeTaskRuntime: LocalTaskRuntime satisfies TaskRuntime;
         machine LocalTaskRuntime::start<T, Arguments, machine Target>(
             &self,
             arguments: Arguments
@@ -558,7 +557,6 @@ fn nested_task_call_fixture() -> (
         }
 
         data LocalTaskRuntime { }
-        LocalTaskRuntimeTaskRuntime: LocalTaskRuntime satisfies TaskRuntime;
         machine LocalTaskRuntime::start<T, Arguments, machine Target>(
             &self,
             arguments: Arguments

@@ -5,8 +5,8 @@
 //! Its identity commits those records; compact report coordinates never replace
 //! the retained plans or strong commitments during replay.
 //!
-//! `provider_evidence/providers/` owns provider plans, approval registries and
-//! boundary-call audits. `authority/` owns terminal mechanism classifications
+//! `provider_evidence/providers/` owns provider plans and their canonical encoding.
+//! `authority/` owns terminal mechanism classifications
 //! and service permissions; `executable_scopes/` owns executable manifests and
 //! scope admission, including source-free selected-composition exclusion replay;
 //! `component_eras/` owns era ledgers and progress evidence.
@@ -72,16 +72,9 @@ pub use provider_evidence::executable_scopes::process_static_services::{
     ProcessStaticServicePolicy, ProcessStaticServiceRegistry, ServiceHandoverCompletion,
     ServiceHandoverError, ServiceRegistrationCandidate, ServiceRegistrationError,
 };
-pub use provider_evidence::providers::boundary_call_audit::{
-    BoundaryCallCoordinate, UnapprovedBoundaryCall, audit_boundary_provider_calls,
-    build_boundary_provider_approval_registry,
-};
 pub use provider_evidence::providers::foreign_locator::{
     ForeignLocatorCandidate, ForeignLocatorIdentityDigest, ForeignLocatorValidationError,
     NormalizedForeignLocator, normalize_foreign_locator,
-};
-pub use provider_evidence::providers::provider_approval::{
-    BoundaryCallApproval, BoundaryProviderApproval, BoundaryProviderApprovalRegistry,
 };
 pub use provider_evidence::providers::provider_plan;
 pub use provider_evidence::{

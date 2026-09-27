@@ -10,7 +10,7 @@ and strong commitments, not that compact coordinate alone.
 Follow the subordinate owners:
 
 - [providers/](src/provider_evidence/providers/mod.rs): provider plans and their
-  canonical encoding, approvals and boundary-call audits.
+  canonical encoding.
 - [authority/](src/provider_evidence/authority/mod.rs): terminal mechanisms,
   physical authority classifications and service permissions.
 - [executable_scopes/](src/provider_evidence/executable_scopes/mod.rs): admitted
