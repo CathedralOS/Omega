@@ -592,6 +592,16 @@ fn validate(
     finish_diagnostics(diagnostics)?;
     // Warning collection follows all formation and flow checks: a warning must
     // not make a clean assignment skip its range or value-environment update.
+    // LAST, like the landing warnings beside it. A bitwise operation with no
+    // carrier has no meaning, but that is only worth saying when nothing else
+    // already explains the program: a cross-class store or a suffix mismatch
+    // over the same expression is the more useful answer, and running this
+    // first would displace it. What this catches is the program whose ONLY
+    // problem is the missing carrier, which otherwise passes checking and
+    // disappears into a unit-plan omission.
+    let mut anonymous_bitwise = Vec::new();
+    literals::validate_anonymous_bitwise(program, &mut anonymous_bitwise);
+    finish_diagnostics(anonymous_bitwise)?;
     finish_diagnostics(literals::anonymous_integer_landing_warnings(program))?;
     exact_integer_casts
         .sort_by_key(|fact| (fact.expression.arena_index(), fact.expression.generation()));
