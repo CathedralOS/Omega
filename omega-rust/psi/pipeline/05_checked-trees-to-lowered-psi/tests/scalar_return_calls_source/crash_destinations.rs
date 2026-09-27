@@ -155,6 +155,57 @@ fn direct_fallback_routes_keep_entry_parameters_ahead_of_prior_local_values() {
     }
 }
 
+#[test]
+fn identical_boolean_results_preserve_condition_call_crashes() {
+    let source = r#"
+            machine maybe_crash(input: bool) -> bool
+            requires true == true
+            ensures true == true
+            crashes Abort
+                input
+            {
+                transition input { true -> fail() false -> false }
+                state fail() -> bool { crash Abort; }
+            }
+            machine value(selected: bool, input: bool) -> bool
+            requires true == true
+            ensures true == true
+            crashes Abort
+            crashes Trap
+            {
+                transition { selected || (maybe_crash(input) && false) -> true }
+                crash Trap;
+            }
+        "#;
+    let artifact = encoded(source);
+    for selected in [false, true] {
+        for input in [false, true] {
+            let result = execute(
+                &artifact,
+                &[
+                    TerminalScalarValue::Boolean(selected),
+                    TerminalScalarValue::Boolean(input),
+                ],
+            );
+            if selected {
+                assert_eq!(
+                    result.unwrap(),
+                    TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(true))
+                );
+            } else {
+                assert_crash(
+                    result,
+                    if input {
+                        terminal_psi::CrashCause::Abort
+                    } else {
+                        terminal_psi::CrashCause::Trap
+                    },
+                );
+            }
+        }
+    }
+}
+
 fn custody_source(computed: bool) -> String {
     let predicate = if computed {
         "identity(flag) && true"

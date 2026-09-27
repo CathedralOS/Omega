@@ -85,34 +85,53 @@ impl Expansion<'_> {
                 site,
                 active,
             )?;
-            let when_false_target = self.argument(
-                &Argument::Computation(when_false),
-                carried,
-                completion,
-                site,
-                active,
-            )?;
-            let mut continuation = self.push(LoweredScalarBranchState {
-                structural_parameters: Vec::new(),
-                structural_effects: Vec::new(),
-                parameter_types: carried.clone(),
-                erased_formal_types: Vec::new(),
-                erased_proof_formals: Vec::new(),
-                bindings: Vec::new(),
-                terminator: LoweredScalarBranchTerminator::Conditional {
-                    condition: LoweredBooleanReturnExpression::Parameter {
-                        position: condition_position,
+            let plans = &self.checked.facts.values.scalar_computations;
+            let identical_values = !self
+                .completed
+                .iter()
+                .any(|(node, _)| *node == when_true || *node == when_false)
+                && matches!(
+                    (&plans.nodes.get(when_true).kind, &plans.nodes.get(when_false).kind),
+                    (CheckedScalarComputationKind::Value(left), CheckedScalarComputationKind::Value(right))
+                        if left == right
+                );
+            // Equal pure values need no path split, but the condition must still
+            // run: it may call, mutate storage, or crash. Already completed
+            // values are snapshots, not interchangeable with a fresh read of
+            // the same expression, so keep their original paths. The prefix below
+            // preserves that evaluation before reaching this common result.
+            let mut continuation = if identical_values {
+                when_true_target
+            } else {
+                let when_false_target = self.argument(
+                    &Argument::Computation(when_false),
+                    carried,
+                    completion,
+                    site,
+                    active,
+                )?;
+                self.push(LoweredScalarBranchState {
+                    structural_parameters: Vec::new(),
+                    structural_effects: Vec::new(),
+                    parameter_types: carried.clone(),
+                    erased_formal_types: Vec::new(),
+                    erased_proof_formals: Vec::new(),
+                    bindings: Vec::new(),
+                    terminator: LoweredScalarBranchTerminator::Conditional {
+                        condition: LoweredBooleanReturnExpression::Parameter {
+                            position: condition_position,
+                        },
+                        when_true_target,
+                        when_true_arguments: parameters(carried),
+                        when_true_erased_arguments: Vec::new(),
+                        when_true_erased_proof_arguments: Vec::new(),
+                        when_false_target,
+                        when_false_arguments: parameters(carried),
+                        when_false_erased_arguments: Vec::new(),
+                        when_false_erased_proof_arguments: Vec::new(),
                     },
-                    when_true_target,
-                    when_true_arguments: parameters(carried),
-                    when_true_erased_arguments: Vec::new(),
-                    when_true_erased_proof_arguments: Vec::new(),
-                    when_false_target,
-                    when_false_arguments: parameters(carried),
-                    when_false_erased_arguments: Vec::new(),
-                    when_false_erased_proof_arguments: Vec::new(),
-                },
-            });
+                })
+            };
             for (position, computation) in order.iter().enumerate().rev() {
                 // Construction runs backwards, execution forwards: only earlier
                 // completed values are available while emitting this node.
