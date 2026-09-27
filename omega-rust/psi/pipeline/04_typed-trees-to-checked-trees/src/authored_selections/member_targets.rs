@@ -233,11 +233,38 @@ pub(crate) fn expression_is_contextual_domain_primitive(
         .is_some()
 }
 
+/// With a walk's `owners` index the statements containing the expression come
+/// from its recorded sites instead of a whole-program rescan; the verdict
+/// (every containing statement types the operand as a primitive, and one
+/// exists) does not depend on the order they are visited in.
 pub(crate) fn expression_is_contextual_statement_primitive(
     program: &TypedTrees,
+    facts: &CheckFacts,
     containing_expression: typed_trees::expression::ExpressionHandle,
     operand: typed_trees::expression::ExpressionHandle,
+    owners: Option<&contexts::OwnerEnvironmentIndex>,
 ) -> bool {
+    if let Some(owners) = owners {
+        let sites = owners.containing_statement_sites(program, facts, containing_expression);
+        let mut found = false;
+        for (machine, state, statement_index) in sites {
+            let machine = &program.machines()[machine];
+            let state = &program.machine_states(machine)[state];
+            let Some(type_reference) = crate::flow::expression_type_reference_in_state(
+                program,
+                state.symbol,
+                statement_index,
+                operand,
+            ) else {
+                return false;
+            };
+            if program.primitive_type_reference(type_reference).is_none() {
+                return false;
+            }
+            found = true;
+        }
+        return found;
+    }
     let mut found = false;
     for machine in program.machines() {
         for state in program.machine_states(machine) {
@@ -444,9 +471,12 @@ fn reaches(
     }
 }
 
+/// `program_owners`, when a walk supplies one, is its index over no checked
+/// facts (`OwnerEnvironmentIndex::program_only`).
 pub(crate) fn expression_is_intrinsic_primitive_without_origin(
     program: &TypedTrees,
     expression: typed_trees::expression::ExpressionHandle,
+    program_owners: Option<&contexts::OwnerEnvironmentIndex>,
 ) -> bool {
     let type_reference = match program.tables.expression_table.expression(expression) {
         ExpressionNode::Boolean(_) | ExpressionNode::Float(_) | ExpressionNode::Integer(_) => {
@@ -466,7 +496,7 @@ pub(crate) fn expression_is_intrinsic_primitive_without_origin(
                     &CheckFacts::default(),
                     expression,
                     member,
-                    None,
+                    program_owners,
                 ),
                 Some(contexts::OwnerMemberTarget::CollectionMeasure(_))
             ) {
@@ -547,12 +577,23 @@ pub(crate) fn expression_is_intrinsic_primitive_without_origin(
             // point at.
             return operand_types.iter().any(|operand| {
                 matches!(operand, typed_trees::operator::OperandType::Primitive(_))
-            }) || expression_is_intrinsic_primitive_without_origin(program, binary.left)
-                || expression_is_intrinsic_primitive_without_origin(program, binary.right);
+            }) || expression_is_intrinsic_primitive_without_origin(
+                program,
+                binary.left,
+                program_owners,
+            ) || expression_is_intrinsic_primitive_without_origin(
+                program,
+                binary.right,
+                program_owners,
+            );
         }
         ExpressionNode::Unary(_) => return true,
         ExpressionNode::Borrow(inner) => {
-            return expression_is_intrinsic_primitive_without_origin(program, inner.target);
+            return expression_is_intrinsic_primitive_without_origin(
+                program,
+                inner.target,
+                program_owners,
+            );
         }
         _ => None,
     };
