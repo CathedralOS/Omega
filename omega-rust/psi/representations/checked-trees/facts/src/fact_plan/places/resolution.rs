@@ -88,53 +88,67 @@ pub fn canonical_place_label_from_parts(
     root: PlaceRoot,
     segments: &[PlaceSegment],
 ) -> String {
-    let mut label = match root {
-        PlaceRoot::Unknown => "unknown".to_owned(),
-        PlaceRoot::Symbol(symbol) => symbol_label(program, symbol),
-        PlaceRoot::Expression(expression) => program.expression_table.display_name(expression),
-        PlaceRoot::TypeReference(type_reference) => program.display_type_reference(type_reference),
-    };
+    let mut label = String::new();
+    write_canonical_place_label(program, root, segments, &mut label);
+    label
+}
+
+/// Append [`canonical_place_label_from_parts`]'s text to `label`, writing each
+/// name and index straight into it instead of through a temporary string.
+pub(crate) fn write_canonical_place_label(
+    program: &TypedTrees,
+    root: PlaceRoot,
+    segments: &[PlaceSegment],
+    label: &mut String,
+) {
+    use std::fmt::Write as _;
+
+    match root {
+        PlaceRoot::Unknown => label.push_str("unknown"),
+        PlaceRoot::Symbol(symbol) => push_symbol_label(program, symbol, label),
+        PlaceRoot::Expression(expression) => {
+            program
+                .expression_table
+                .write_display_name(expression, label);
+        }
+        PlaceRoot::TypeReference(type_reference) => {
+            label.push_str(&program.display_type_reference(type_reference));
+        }
+    }
 
     for segment in segments {
         match segment {
             PlaceSegment::Field { symbol } => {
                 label.push(language_core::PLACE_MEMBER_SEPARATOR);
-                label.push_str(&symbol_label(program, *symbol));
+                push_symbol_label(program, *symbol, label);
             }
             PlaceSegment::Case { variant } => {
                 label.push_str("::");
-                label.push_str(&symbol_label(program, *variant));
+                push_symbol_label(program, *variant, label);
             }
             PlaceSegment::FixedIndex { index } => {
-                label.push('[');
-                label.push_str(&index.to_string());
-                label.push(']');
+                let _ = write!(label, "[{index}]");
             }
             PlaceSegment::FixedRange { start, end } => {
-                label.push('[');
-                label.push_str(&start.to_string());
-                label.push_str("..");
-                label.push_str(&end.to_string());
-                label.push(']');
+                let _ = write!(label, "[{start}..{end}]");
             }
             PlaceSegment::Index { expression } => {
                 label.push('[');
-                label.push_str(&program.expression_table.display_name(*expression));
+                program
+                    .expression_table
+                    .write_display_name(*expression, label);
                 label.push(']');
             }
         }
     }
-
-    label
 }
 
-/// A symbol's declared spelling, which the symbol table retains for every
-/// declaration, parameter and local; only an invalid handle has none.
-fn symbol_label(program: &TypedTrees, symbol: SymbolHandle) -> String {
-    if !symbol.is_valid() {
-        return "unknown".to_owned();
+fn push_symbol_label(program: &TypedTrees, symbol: SymbolHandle, label: &mut String) {
+    if symbol.is_valid() {
+        label.push_str(program.symbols.name(symbol));
+    } else {
+        label.push_str("unknown");
     }
-    program.symbols.name(symbol).to_owned()
 }
 
 fn expression_type_symbol(

@@ -485,8 +485,34 @@ impl FactPlan {
         left: PlaceHandle,
         right: PlaceHandle,
     ) -> bool {
-        self.places_equal(left, right)
-            || self.place_label(program, left) == self.place_label(program, right)
+        if self.places_equal(left, right) {
+            return true;
+        }
+        // Labels are only compared, so both are written into this thread's
+        // reusable buffers instead of two fresh strings per comparison.
+        thread_local! {
+            static LABELS: std::cell::RefCell<(String, String)> =
+                const { std::cell::RefCell::new((String::new(), String::new())) };
+        }
+        let write_label = |place: PlaceHandle, label: &mut String| {
+            let place = self.places.get(place);
+            label.clear();
+            crate::fact_plan::places::resolution::write_canonical_place_label(
+                program,
+                place.root,
+                self.place_segments.span_or_empty(place.segments),
+                label,
+            );
+        };
+        LABELS.with(|labels| match labels.try_borrow_mut() {
+            Ok(mut labels) => {
+                let (left_label, right_label) = &mut *labels;
+                write_label(left, left_label);
+                write_label(right, right_label);
+                left_label == right_label
+            }
+            Err(_) => self.place_label(program, left) == self.place_label(program, right),
+        })
     }
 
     /// The canonical label of one stored place; see
