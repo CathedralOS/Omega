@@ -95,6 +95,11 @@ backend-visible; full corpus runs only at the end of an item.
   `samples/cli/collections/matrix_multiply` -- a policy on an array's ELEMENT
   removes the whole-array store row
   (`tests/omega/pending/collections/element_policy_array_literal_store`).
+  The array half is WIDER than policy: an array whose element is a RECORD
+  omits identically (`[Cell; 2]` refuses the literal a `[i32; 2]` accepts), so
+  the rule is that the element is not a plain SCALAR -- a policy is one way to
+  fail that and a record is another. `samples/cli/rendering/dungeon_render`
+  (`grid: [Cell; 24]`) is the second customer and reports the same phase.
   The controls that make it one shape: `[i32; 3] in Wrapping` takes a whole
   literal but `[i32 in Wrapping; 3]` does not, and a self-held record with a
   policy field reads fine while a local of it does not. Nesting, `[copy]`,
@@ -187,14 +192,20 @@ backend-visible; full corpus runs only at the end of an item.
   generalizing it is the likely shape. Acceptance: the pending fixture checks,
   all the omitting forms above check, and the sample leaves the cluster.
 
-- **SUM-VALUE-STATE-PARAMETER.** (new-scope) Passing a SUM-typed value as a
-  state parameter omits at
-  `state graph: terminator: jump successor: parameter transfer`, with or
-  without a `_` arm in the dispatch that reaches it. Found while reducing
-  FIELD-SUBJECT-NAMED-ARM-CHAIN, where it blocked measuring the
-  parameter-subject axis. Not yet pinned and no sample attributed to it;
-  the first step is a fixture and a check of whether any refusing sample is
-  actually behind it.
+- **COMPOSITE-STATE-PARAMETER.** (new-scope) A state parameter whose type is
+  not a scalar has no route, at
+  `state graph: terminator: jump successor: parameter transfer`. A sum, a
+  record, an array and a reference-to-record all omit; `i32`, `bool` and even
+  `i32 in Wrapping` all check. So it is neither sum-ness nor copyability --
+  `[copy]` on the sum changes nothing -- but scalar versus composite. Pinned at
+  `tests/omega/pending/control_flow/composite_state_parameter`. Found while
+  reducing FIELD-SUBJECT-NAMED-ARM-CHAIN, where it blocked the
+  parameter-subject axis. Passing the argument from a FIELD instead of a
+  literal yields a different and legitimate diagnostic, so the fixture uses a
+  literal. No sample is attributed yet: `systems/vending_machine` reports the
+  NEIGHBOURING `conditional successors: parameter transfer` and its state
+  parameters are `i32 in Wrapping`, measured to check, so its `-> Change`
+  return is the likelier subject -- measure before folding it in.
 
 - **CARRIER-LENGTH-STORE-CARRIER.** (new-scope) A carrier `.len` reaches the
   arithmetic walk with no carrier of its own, so a store into anything but
@@ -826,11 +837,26 @@ the complete product bar; focused successes below do not establish that baseline
   groups the first diagnostic per sample. About twelve minutes on eight
   workers, no native build and no writes to the tree.
 
-  Measured on macOS arm64 at `cf9d37120c6`: **148 projects, 85 check, 63
-  refuse**, in seven causes. The earlier one-in-seven slice guessed the
-  ordering right but not the shape -- IMPLICIT-STORE-CONVERSION is the
-  SECOND cause over the whole tree, not a singleton, and the Clock provider
-  is third.
+  RE-MEASURED on macOS arm64 at `de525cf687d` (2026-09-27), 131 commits after
+  the first reading: **148 projects, 85 check, 63 refuse**. The headline did
+  not move, and the composition did -- so read the phase lists below as of
+  this commit and rebuild the CLI before trusting any of them. Causes now:
+  unit-plan omission 25, implicit store conversion 17, provider absent on this
+  host 10, nested value call 4, boundary provider route unimplemented 3, other
+  2, non-tail self recursion 1, default-domain field requirement 1.
+
+  What moved since `cf9d37120c6`: omissions 27 -> 25 and TWELVE phases -> TEN;
+  `structural field store: pure source: scalar expression row` 5 -> 4;
+  `structural field store: scalar field type` 1 -> 2 (`dungeon_render` joined
+  `matrix_multiply`); two phases appeared that the old list does not name,
+  `structural field store: byte sequence carrier` (3:
+  `cli/{basics/text_greeting, systems/status_report, text/string_catalog}`)
+  and `call operation: boundary arguments` (3: `gui/{image_viewer, window_app,
+  window_demo}`), neither diagnosed. The two `other` rows are
+  `cli/simulation/cellular_automaton` and `cli/systems/file_permissions`, both
+  now taking the anonymous-bitwise diagnostic rather than omitting -- that is
+  the check added earlier the same day doing its job, and both are sample
+  edits, not compiler work.
 
   - **unit-plan omission, 27 -- and TWELVE distinct phases.** The shared
     "rejoins 0 Terminal attachment identities" line is the symptom; each
