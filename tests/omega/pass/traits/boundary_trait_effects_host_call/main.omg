@@ -12,6 +12,19 @@ pub boundary trait Console {
         Console;
 }
 
+// The package-authored provider that provider selection assembles into the
+// Fused plan the entry's `Binding<Console>` field demands. The boundary is
+// the checked surface under test; the bodies pin no runtime behavior.
+data ConsoleProvider { }
+
+machine ConsoleProvider::write_line(text: &[u8] in Utf8)
+satisfies Console::write_line {
+}
+
+machine ConsoleProvider::exit_process(return_code: i32)
+satisfies Console::exit_process {
+}
+
 data Main {
     console: Binding<Console>;
 }

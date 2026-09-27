@@ -4,8 +4,8 @@
 use omega_language_std::time;
 
 use omega_language_std::console;
+use omega_language_std::clock;
 use omega::language::core::binding;
-pub boundary trait Clock { machine sleep(milliseconds: u32); }
 
 data Main {
     console: Binding<Console>;
