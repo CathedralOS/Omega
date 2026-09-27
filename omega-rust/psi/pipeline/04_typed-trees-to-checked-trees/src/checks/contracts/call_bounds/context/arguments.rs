@@ -146,6 +146,41 @@ fn meaning(
                 type_reference: Some(parameter.type_reference),
             })
         }
+        ExpressionNode::Member(_) => {
+            // A member operand denotes the owner's attached data. Its declared
+            // carrier is the member's field type, spelled through `self`. Only
+            // `self`-rooted members are admitted: a member rooted at a formal
+            // (`countdown.remaining`) names the callee's storage, and the
+            // closed vocabulary gives it no binding -- its atom would collide
+            // with the caller's same-declared parameter in a recursive call.
+            let machine = crate::lookup::machine_by_symbol(program, owner)?;
+            // `self` canonicalizes to the machine-symbol root; some surfaces
+            // spell the is_self parameter's symbol instead.
+            let self_root = program
+                .machine_states(machine)
+                .iter()
+                .flat_map(|state| program.state_parameters(state))
+                .find(|parameter| parameter.is_self)
+                .map(|parameter| parameter.symbol);
+            match crate::flow::canonical_place_from_expression(program, expression) {
+                Some(place)
+                    if place.root == facts::PlaceRoot::Symbol(machine.symbol)
+                        || Some(place.root) == self_root.map(facts::PlaceRoot::Symbol) => {}
+                _ => return None,
+            }
+            let type_reference = validation::declared_place_type_raw(
+                program,
+                machine,
+                program.machine_states(machine).first(),
+                expression,
+            )?;
+            let primitive = program.primitive_type_reference(type_reference)?;
+            fixed_integer(primitive).then_some(Meaning {
+                primitive,
+                domain: program.arithmetic_domain_for_type_reference(type_reference),
+                type_reference: Some(type_reference),
+            })
+        }
         ExpressionNode::Integer(literal) => {
             let primitive = crate::values::scalar_expression_type(
                 &checked_trees::CheckedScalarExpression::IntegerLiteral {

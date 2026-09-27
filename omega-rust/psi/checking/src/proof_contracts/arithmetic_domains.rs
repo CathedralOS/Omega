@@ -65,7 +65,7 @@ pub(crate) use guard_narrowing::{
 };
 pub use integer_ranges::integer_widen_is_total;
 pub(crate) use integer_ranges::{
-    collect_exact_integer_cast_facts, integer_bit_width, literal_i64,
+    collect_exact_integer_cast_facts, integer_bit_width, literal_i64, primitive_range,
     validate_anonymous_integer_range, validate_value_range,
 };
 pub(crate) use interval::Interval;

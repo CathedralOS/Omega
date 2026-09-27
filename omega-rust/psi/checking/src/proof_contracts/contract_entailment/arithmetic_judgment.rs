@@ -2192,6 +2192,74 @@ impl<'program> Engine<'program> {
         }
         let node = self.program.expression_table.expression(expression).clone();
         match node {
+            ExpressionNode::Member(_)
+                if self.strict_symbol_bindings.is_some() && !self.proof_integer_formation =>
+            {
+                // A resolved member place names the value its storage holds
+                // at this occurrence: every store enforced the declared
+                // range and the owning data's `where` facts, so the standing
+                // interval bounds the atom at any read, mutable or not. The
+                // identity is the canonical member-chain spelling, so every
+                // occurrence of one place shares the atom.
+                // Only `self`-rooted members are admitted: a member rooted at
+                // a formal names the callee's storage, and an unbound record
+                // actual leaves the formal's declaration symbol in scope --
+                // the atom would collide with the caller's same-declared
+                // parameter on a recursive call and read another frame's
+                // hypotheses.
+                let machine = self
+                    .program
+                    .machines()
+                    .iter()
+                    .find(|candidate| candidate.symbol == self.machine_symbol)?;
+                let self_symbol = self
+                    .program
+                    .machine_states(machine)
+                    .iter()
+                    .flat_map(|state| self.program.state_parameters(state))
+                    .find(|parameter| parameter.is_self)
+                    .map(|parameter| parameter.symbol);
+                // `self` canonicalizes to the machine-symbol root; some
+                // surfaces spell the is_self parameter's symbol instead.
+                let root = member_receiver_root_symbol(self.program, expression);
+                if root != Some(self.machine_symbol) && root != self_symbol {
+                    return None;
+                }
+                let state = self.program.machine_states(machine).first()?;
+                // The atom exists even when the place is no narrower than
+                // its carrier: relational hypotheses still name it. Bare
+                // `standing_integer_interval` deliberately reports None for
+                // carrier-only places, so the carrier is the floor here.
+                let place_type = crate::value_custody::places::declared_place_type_raw(
+                    self.program,
+                    machine,
+                    Some(state),
+                    expression,
+                )?;
+                let carrier =
+                    self.program
+                        .primitive_type_reference(place_type)
+                        .and_then(|primitive| {
+                            crate::proof_contracts::arithmetic_domains::primitive_range(primitive)
+                        })?;
+                let interval =
+                    crate::proof_contracts::arithmetic_domains::standing_integer_interval(
+                        self.program,
+                        machine,
+                        state,
+                        expression,
+                    )
+                    .unwrap_or(carrier);
+                let atom = format!("\0{}", integer_source_identity(self.program, expression));
+                self.arithmetic_intervals.insert(
+                    atom.clone(),
+                    Interval {
+                        low: interval.low.map(BigInt::from_i64),
+                        high: interval.high.map(BigInt::from_i64),
+                    },
+                );
+                Some(Polynomial::atom(atom))
+            }
             ExpressionNode::Member(_) => None,
             ExpressionNode::Integer(value) => Some(Polynomial::constant(value.value_bignum()?)),
             ExpressionNode::Borrow(inner) => self.normalize(inner.target),
@@ -2452,6 +2520,25 @@ impl<'program> Engine<'program> {
         self.seed_matrix();
         self.close_matrix();
         Some(polynomial)
+    }
+}
+
+/// The declaration symbol a member chain bottoms out on, or None when the
+/// receiver is not a name place (a literal, a call result, a projection).
+fn member_receiver_root_symbol(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<SymbolHandle> {
+    let mut handle = expression;
+    loop {
+        match program.expression_table.expression(handle) {
+            ExpressionNode::Member(member) => handle = member.receiver,
+            ExpressionNode::Borrow(inner) => handle = inner.target,
+            ExpressionNode::Name(path) => {
+                return path.symbol.is_valid().then_some(path.symbol);
+            }
+            _ => return None,
+        }
     }
 }
 

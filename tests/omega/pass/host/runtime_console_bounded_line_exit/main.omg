@@ -42,8 +42,8 @@ reaches Console
             ByteRead::Eof -> done(reason, count)
         }
     }
-    state suffix(&mut self, reason: i32, count: u64, value: i32 [0..=255])
-    requires 0 <= reason && reason <= 100
+    state suffix(&mut self, reason: i32, count: u64, value: i32)
+    requires 0 <= reason && reason <= 100 && 0 <= value && value <= 255
     {
         self.console.write_byte(value);
         transition { _ -> done(reason, count) }
