@@ -1019,7 +1019,7 @@ the complete product bar; focused successes below do not establish that baseline
   | `arithmetic/dual_float`, `basics/unit_converter`, `simulation/particle_sim`; `arithmetic/{sensor_min_max,vector_distance,fibonacci_golden}`; `basics/temperature_convert`, `rendering/{bouncing_ball_2d,mandelbrot,mandelbrot_zoom}` | **OPERATOR-BOUNDARY-CALLS**: executable float comparisons/arithmetic, nested value calls, and selected `F64::{minimum,maximum,from_i32}` respectively. Conversion is a separate operation from binary arithmetic. Retain `pending/arithmetic/float_computation_no_route`; adding `core::float_operations` only changes where the missing route is exposed. |
   | `collections/entity_list`, `rendering/bouncing_particles`, `algorithms/dutch_flag` | **STATE-LOCAL-VALUE-FRONTIER** and **MATCH-SELECTIVE-LOWERING**: runtime-indexed record-field reads and case selection, pinned by `pending/collections/runtime_indexed_record_field_store` and `pending/control_flow/runtime_indexed_case_dispatch`. `dutch_flag` must construct, read and swap the actual Color array, interact with Console and exit 70; integer substitutes are not acceptance. |
   | `systems/descriptor_walk`, `systems/elapsed_timer` | **REFERENCE-LOCAL-BINDING-ROUTES** / **RECAST-SOURCE-POSITIONS** for the borrowed local recast; **PASS-TIER-GUARDS-OWED** for the copy projection from a borrowed receiver, also a product-compiler customer. Rerun complete samples after the focused operation is repaired. |
-  | `collections/matrix_multiply`, `rendering/dungeon_render`, `systems/wire_protocol`, `probes/value_call_in_expr`, `systems/vending_machine` | **MEMBER-POLICY-REMOVES-COMPOSITE-ROWS**, **RECORD-LITERAL-ARRAY-FIELD**, **VALUE-CALL-SUBEXPRESSION**, and both **COMPOSITE-TRANSITION-ARGUMENT** / **VALUE-CALL-TRANSITION-ARGUMENT** own the respective operations. `dungeon_render` also needs **NOMINAL-FIELD-FLOW**'s domain provenance. |
+  | `collections/matrix_multiply`, `rendering/dungeon_render`, `systems/wire_protocol`, `probes/value_call_in_expr`, `systems/vending_machine` | **MEMBER-POLICY-REMOVES-COMPOSITE-ROWS**, **RECORD-LITERAL-ARRAY-FIELD**, **VALUE-CALL-SUBEXPRESSION**, and both **COMPOSITE-TRANSITION-ARGUMENT** / **VALUE-CALL-TRANSITION-ARGUMENT** own the respective operations. Retain `dungeon_render`'s field/glyph evidence under **NOMINAL-FIELD-FLOW** while verifying its complete program; transition transport is already implemented. |
   | `basics/text_greeting`, `systems/status_report`, `text/string_catalog` | **BYTE-CARRIER-STORE-LITERAL-ONLY** owns carrier copies and concatenation into bounded `Utf8` storage. The producer admits only String literals; a plain copy also fails, as pinned by `pending/text/byte_carrier_store_literal_only`. Preserve `self.t = "a" + self.s + "b"` and the alias case through Terminal verification, interpretation and lowering. Existing prefix replacement and live-byte stores do not supply append semantics; unrolling by capacity is not the general operation. Keep corpus customers `text/runtime_bounded_carrier{,_alias}_concat_exit`. |
   | `gui/{image_viewer,window_app,window_demo}` | **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER** owns the authored by-value primitive-array boundary arguments/results. Changing every parameter to a domain carrier or reference evades that acceptance. Exact fixture/sample provider selection remains required. |
   | `systems/file_journal`, `systems/note_vault`, `interpreters/calculator_rpn` | **STATE-LOCAL-VALUE-FRONTIER**: result custody, library callee composition, and indexed nested-field initialization. Follow `Filesystem::create_dir_all` in `note_vault`; for `calculator_rpn`, retain the Console-bearing receiver and `let a: i32 in Saturating = self.stack.slots[0]`. Its std-free reduction does not reproduce the full program. |
@@ -1547,6 +1547,57 @@ the complete product bar; focused successes below do not establish that baseline
   suffix parsing, Range type representations, range-shell inference and
   suffix-recommending diagnostics; require suffix rejection in every type
   position, preserve the unrelated range constructs, and delete the recipe.
+
+- **NOMINAL-FIELD-FLOW.** Unify receiver and named mutable-argument field
+  obligations under [ordinary mutable-receiver contracts](wiki/spec/language/dependent_values.md#mutable-receivers-and-declared-field-domains).
+  An established `&mut self` owes the same declared field/default domains as
+  `&mut T` at call admission, entry, return and fact handback, including domains
+  that reject zero. This is an implementation gap, not an unsettled design.
+
+  Owner: `omega-rust/psi/pipeline/04_typed-trees-to-checked-trees`.
+  `src/semantic/facts/field_domains.rs` still seeds receiver rows through
+  `append_data_field_domain_facts`' zero-validity filter, while
+  `append_state_parameter_domain_facts` skips `self` and seeds named parameters
+  without that filter. `src/checks/contracts/nominal_inputs.rs`,
+  `src/checks/contracts/exits/result_domains.rs` and `src/flow/call_phases/referents.rs`
+  consume the split rows. Replace the receiver exception with shared declared
+  obligations; retain zero-validity checks for actual ZII storage establishment.
+  Nominal annotations cannot resurrect facts retired by mutation.
+
+  Transition argument transport already exists in `src/flow/state_values.rs` and
+  `src/flow/state_values/fields.rs`: live literal, byte-predicate and integer-bound
+  facts rebase onto named parameter storage and join across incoming edges.
+  Incoming glyph bounds also reach `dungeon_render`'s `put(ch: u8)` path.
+  Verify the complete sample using these routes. A byte store preserves `Utf8`
+  only with the necessary carrier/byte evidence: `ValidUtf8` alone does not
+  imply `AsciiOnly`.
+
+  Acceptance: paired method/free-machine cases over the same established
+  `&mut T` agree for nested non-ZII domains, valid mutation and return through
+  the shared path. Invalid arrivals, unclosed invariant windows and stale aliases
+  reject at calls, transitions and returns. Extra input-only `requires` are not
+  implicit postconditions; preserve explicit `ensures`. Verify equally initialized
+  ASCII carriers and guarded stores through receiver and named transition
+  arguments, retaining the poisoned-edge/missing-fact controls in
+  `tests/element_field_flow_probe.rs` and the join/mutation controls in
+  `src/tests/contracts/state_field_values.rs`. Preserve indexing, view, copy and
+  whole-extent controls in
+  `src/tests/contracts/{element_fields,nominal_parameter_fields}.rs`;
+  require exact finite candidate-origin coverage, never universal coverage from
+  unresolved selectors.
+
+  Re-drive `omega --check --target linux_x86_64 samples/cli/games/dungeon_crawler_cli/main.omg`
+  without bypassing `RoomLookup`, `MazeBuilder` or game-state field validity.
+  Coordinate canonical range migration with **CANONICALIZE-SCALAR-RANGE-CONTRACTS**,
+  explicit policy casts with **IMPLICIT-STORE-CONVERSION**, and any `&mut Room`
+  output migration with **WRITE-ONLY-BORROW**. Constrained nested `&write`
+  forwarding already has checked-source coverage in
+  `src/tests/borrow/write_only/write_only_subloans.rs`'s
+  `qualified_field_write_only_subloans_carry_exact_atoms`; preserve it and verify
+  the customer's actual stores. Preserve valid ZII locals without initializers;
+  arbitrary incoming storage gains no ZII facts. Migrate revoked test syntax
+  without weakening negative controls. **SAMPLE-CORPUS** retains complete sample
+  publication and runtime oracles after checking closes.
 
 ## Automatic service reach
 
@@ -4485,92 +4536,6 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   exact subject; missing, stale or substituted provenance grants none.
   Keep rejection fixtures until their complete custody is implemented.
   Terminal execution is not native acceptance.
-
-- **NOMINAL-FIELD-FLOW.** Remove the receiver-specific default-domain exception
-  under [ordinary mutable-receiver contracts](wiki/spec/language/dependent_values.md#mutable-receivers-and-declared-field-domains)
-  and close the dungeon checking customer. `&mut self` is an ordinary `&mut T`
-  argument; this is implementation cleanup, not an owner-blocked design choice.
-  Owners: `04_typed-trees-to-checked-trees/src/semantic/facts/field_domains.rs`,
-  `checks/contracts/`, and `flow/call_phases/referents.rs`.
-
-  Consolidate receiver and named mutable-argument domain obligations across
-  call admission, entry assumptions, return checks, and fact handback. Remove
-  receiver-only ZII filtering and superseded special cases rather than adding
-  stronger facts alongside the old path.
-
-  Measured, and it is not a receiver exception. The two programs earlier
-  recorded here as a controlled pair were not one. A `&mut self` body that
-  writes `self.line[self.i] = 46` into a `[u8; 4] in Utf8` is accepted and the
-  `&mut Holder` twin is refused, but they give the checker different
-  information: the receiver's carrier was assigned the string literal `"    "`
-  in the same machine, and `carrier_proves_predicate` reads that
-  `AssignedValue` fact directly, while the parameter arrives carrying only its
-  declared-domain premise.
-
-  The required predicate is the point. Writing an ASCII byte into a byte
-  carrier emits its `BytePredicate` fact only when the carrier already proves
-  `AsciiOnly`; the declared domain proves `ValidUtf8`, and `ValidUtf8` does not
-  imply `AsciiOnly` -- correctly, since overwriting one byte of a multi-byte
-  sequence breaks it. So the parameter case is a sound refusal on the evidence
-  it has, not an exception the receiver escapes.
-
-  The real asymmetry is fact transport. `ctlC` -- the named form with
-  `buf.line = "    "` assigned in the same machine, then
-  `buf.line[buf.i] = 46` in a state reached by `put(buf)` -- is still refused,
-  so the `AssignedValue` literal fact reaches a receiver's own states through
-  the state graph but does not cross a call argument for a `&mut T` parameter.
-  That is what to repair, and it is transport rather than a domain exception.
-  Two earlier revisions of this note said otherwise; both were written from the
-  uncontrolled pair.
-
-  Where to look, and where not to.
-  `flow/transfers/context_transport.rs` already transports `AssignedValue`
-  beside `AssignedCase`, `AssignedScalarValue` and `BytePredicate`, but it
-  transports them for a WRITE, keyed on `write.source_place`, so it is not the
-  path a transition argument takes. `flow/transfers/projected.rs` copies
-  literal `AssignedValue` leaves for field predicates, also not that path. The
-  remaining candidates are the state-entry side, `flow/state.rs` and
-  `flow/entry_origins.rs`, which is where an arriving edge's arguments seed the
-  target state's facts.
-
-  `samples/cli/rendering/dungeon_render` is the sample customer and needs more
-  than this: its glyph reaches the carrier as `put(ch: u8)` -> `self.lab` ->
-  `self.line[self.c]`, and `u8` carries no range, so no ASCII fact exists to
-  discharge even once the paths agree. The literal cases above are the ones
-  this item can close. Keep ZII seeding for actual zeroed
-  storage establishment; never infer incoming value validity from allocation.
-  Reuse nominal-input and whole-extent collection-field checking. Update comments
-  and tests that encode the receiver exception without removing real construction,
-  invalidation, or restoration controls.
-
-  Add paired method/free-machine regressions over the same `&mut T`: established
-  non-ZII field domains survive valid mutation and return; invalid incoming values,
-  unclosed invariant windows, and stale facts after writes reject. Exercise nested
-  fields and explicit receiver `requires`/`ensures`; stronger input-only domains
-  are not implicit postconditions. The tests must expose the old discrepancy and
-  pass through the shared path, not a receiver-only compatibility branch.
-
-  Re-drive `omega --check --target linux_x86_64 samples/cli/games/dungeon_crawler_cli/main.omg`,
-  retaining `RoomLookup`, `MazeBuilder` and game-state field obligations.
-  Coordinate remaining bracketed-range migration with
-  **CANONICALIZE-SCALAR-RANGE-CONTRACTS** and any `RoomLookup` output migration
-  with **WRITE-ONLY-BORROW**. Its output still spells `&mut Room`, but
-  constrained-record `&write` admission is not wholly missing:
-  `tests/contracts/nominal_parameter_fields.rs` positively checks declared
-  nested invariants. Re-probe actual store/forwarding limits; ZII-valid local
-  storage is not invalid merely because no explicit initializer was written.
-  The historical `Filesystem::host` provider-join failure is not a current
-  measured blocker; canonical plan minting now exists. Attribute any reproduced
-  package/native stop to its owner, not field-fact machinery.
-
-  Acceptance: equivalent receiver/argument programs have the same checked domain
-  obligations, the superseded receiver path is removed, and the unchanged dungeon
-  command passes without bypassing field validity. Preserve indexing/view/copy/call transport and finite
-  candidate-origin coverage in `tests/contracts/{element_fields,nominal_parameter_fields}.rs`;
-  corrupted elements and stale aliases reject at calls, transitions and returns.
-  Nominal annotations never resurrect retired facts, unresolved selectors
-  never represent universal coverage, and arbitrary incoming storage gains
-  no ZII facts. Preserve negative controls while migrating revoked syntax.
 
 - **CML4.** Complete edge-local residual cleanup under the
   [ownership contract](wiki/spec/terminal-psi/ownership.md): outgoing values
