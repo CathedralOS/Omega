@@ -1,3 +1,5 @@
+mod boolean_requirements;
+
 use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use diagnostics::Diagnostic;
 use facts::{FactPayload, FactPlace, PlaceRoot, PlaceSegment};
@@ -6,11 +8,7 @@ use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 
-use super::places::expression_is_boolean_place_like;
-use super::prover::{
-    call_entry_contexts_prove_boolean_contract_expression, closed_boolean_value,
-    semantic_contexts_prove_contract_fact,
-};
+use super::prover::semantic_contexts_prove_contract_fact;
 use crate::labels::{
     call_target_label, joined_place_label, machine_name, semantic_fact_requirement_label,
     symbol_name,
@@ -60,96 +58,16 @@ pub(super) fn check_call_requires(
         for fact in facts.semantic.context_view(context).facts() {
             let satisfied = match fact.payload {
                 FactPayload::ContractBooleanExpression { expression, .. } => {
-                    if std::env::var_os("OMEGA_DEBUG_ROUTES").is_some() {
-                        eprintln!(
-                            "ROUTE target={} closed={} proves={} entry_ctx={} in_ctx={} structural={}",
-                            crate::labels::symbol_name(program, call_flow.target_symbol),
-                            closed_boolean_value(program, &facts.operators, expression)
-                                == Some(true),
-                            super::call_bounds::proves(
-                                program, facts, state_flow, call_flow, expression
-                            ),
-                            call_entry_contexts_prove_boolean_contract_expression(
-                                program,
-                                facts,
-                                state_flow,
-                                call_flow,
-                                &entry_contexts,
-                                expression,
-                                call_frames
-                            ),
-                            super::call_bounds::proves_in_context(
-                                program,
-                                facts,
-                                state_flow,
-                                call_flow,
-                                &entry_contexts,
-                                expression,
-                                call_frames
-                            ),
-                            super::entailment::structural_call_requirement(
-                                program,
-                                facts,
-                                state_flow,
-                                call_flow,
-                                expression,
-                                call_frames
-                            ),
-                        );
-                    }
-                    closed_boolean_value(program, &facts.operators, expression) == Some(true)
-                        || super::call_bounds::proves(
-                            program, facts, state_flow, call_flow, expression,
-                        )
-                        || call_entry_contexts_prove_boolean_contract_expression(
-                            program,
-                            facts,
-                            state_flow,
-                            call_flow,
-                            &entry_contexts,
-                            expression,
-                            call_frames,
-                        )
-                        || super::call_bounds::proves_in_context(
-                            program,
-                            facts,
-                            state_flow,
-                            call_flow,
-                            &entry_contexts,
-                            expression,
-                            call_frames,
-                        )
-                        || super::entailment::structural_call_requirement(
-                            program,
-                            facts,
-                            state_flow,
-                            call_flow,
-                            expression,
-                            call_frames,
-                        )
-                        || if !expression_is_boolean_place_like(program, expression) {
-                            // R1: a DOMINATING incoming-arm guard establishes a
-                            // boolean requires fact -- the ranges machinery's
-                            // IncomingGuard walk-back is the soundness gate
-                            // (single-predecessor edges, rewrite-fenced across
-                            // intermediate states), and the caller state's OWN
-                            // statements must preserve the named fields up to
-                            // the call (conservative whole-state scan).
-                            incoming_guard_proves_requires(
-                                program,
-                                facts,
-                                state_flow,
-                                call_flow,
-                                expression,
-                                incoming_guards,
-                                call_frames,
-                            )
-                        } else {
-                            // The actual-aware proof above already checked
-                            // this formal. A raw callee name is not a caller
-                            // fact, even when both parameters spell `flag`.
-                            false
-                        }
+                    boolean_requirements::proves(
+                        program,
+                        facts,
+                        state_flow,
+                        call_flow,
+                        &entry_contexts,
+                        expression,
+                        incoming_guards,
+                        call_frames,
+                    )
                 }
                 _ => semantic_contexts_prove_contract_fact(
                     program,
@@ -1263,21 +1181,16 @@ fn replace_unqualified_identifiers(label: &str, replacements: &[(&str, String)])
     result
 }
 
-/// A named transition is itself an incoming edge. Its taken-arm guard may
-/// establish the target state's arrival requirement after positional
-/// substitution (`value > 0` becomes `self.value > 0`). Ordinary call entry
-/// contexts are statement-entry facts and therefore deliberately do not assume
-/// that guard; discharge it explicitly for the transition target only, and
-/// only while the arm's own operands, evaluated after the guard and before
-/// the jump, leave the guard's storage unwritten (`guard_operands`).
-fn transition_guard_proves_requires(
-    program: &typed_trees::TypedTrees,
-    facts: &CheckFacts,
+fn selected_transition_call<'program>(
+    program: &'program typed_trees::TypedTrees,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
-    fact: &facts::Fact,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> bool {
+) -> Option<(
+    crate::semantic::calls::CallSite<'program>,
+    &'program typed_trees::machine::Machine,
+    &'program typed_trees::state::State,
+    typed_trees::expression::ExpressionHandle,
+)> {
     let Some(call_site) = crate::semantic::calls::find_call_site(
         program,
         state_flow.machine_symbol,
@@ -1285,27 +1198,27 @@ fn transition_guard_proves_requires(
         call_flow.statement_index,
         call_flow.call_ordinal,
     ) else {
-        return false;
+        return None;
     };
     let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
-        return false;
+        return None;
     };
     let Some(caller_state) = program
         .machine_states(machine)
         .iter()
         .find(|state| state.symbol == state_flow.state_symbol)
     else {
-        return false;
+        return None;
     };
     let Some(StatementNode::Transition(transition)) = program
         .statement_table
         .statements(caller_state.statement_nodes)
         .get(call_flow.statement_index)
     else {
-        return false;
+        return None;
     };
     let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard else {
-        return false;
+        return None;
     };
     // The arm this guard selects, in either spelling. A bare named target is
     // one; so is `-> (callee(..))`, which `ac52bc4114` requires of an attached
@@ -1324,8 +1237,79 @@ fn transition_guard_proves_requires(
         crate::semantic::calls::CallSite::Statement(_) => false,
     };
     if !selects_this_call {
-        return false;
+        return None;
     }
+    Some((call_site, machine, caller_state, guard))
+}
+
+/// Query one original Boolean conjunct through the same selected-arm and
+/// operand-currentness gates as the complete contract fact.
+fn transition_guard_proves_boolean_requirement(
+    program: &typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    state_flow: &FlowStateFact,
+    call_flow: &FlowCallFact,
+    expression: typed_trees::expression::ExpressionHandle,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> bool {
+    let Some((call_site, _, _, guard)) = selected_transition_call(program, state_flow, call_flow)
+    else {
+        return false;
+    };
+    let Some(target_parameters) =
+        crate::semantic::calls::call_target_parameters(program, call_flow.target_symbol)
+    else {
+        return false;
+    };
+    let required_label = super::labels::instantiate_call_contract_expression_label(
+        program,
+        state_flow.state_symbol,
+        call_flow.statement_index,
+        &call_site,
+        target_parameters,
+        expression,
+    );
+    (guard_conjunct_matches(program, guard, &required_label)
+        || super::call_bounds::proves(
+            program,
+            facts,
+            state_flow,
+            call_flow,
+            expression,
+            Some(guard),
+        ))
+        && super::guard_operands::requirement_reads_survive_earlier_operand_writes(
+            program,
+            facts,
+            state_flow,
+            call_flow,
+            crate::semantic::calls::call_site_argument_expressions(program, &call_site),
+            target_parameters,
+            &super::guard_operands::boolean_requirement_mentions(program, expression),
+            call_frames,
+        )
+}
+
+/// A named transition is itself an incoming edge. Its taken-arm guard may
+/// establish the target state's arrival requirement after positional
+/// substitution (`value > 0` becomes `self.value > 0`). Ordinary call entry
+/// contexts are statement-entry facts and therefore deliberately do not assume
+/// that guard; discharge it explicitly for the transition target only, and
+/// only while the arm's own operands, evaluated after the guard and before
+/// the jump, leave the guard's storage unwritten (`guard_operands`).
+fn transition_guard_proves_requires(
+    program: &typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    state_flow: &FlowStateFact,
+    call_flow: &FlowCallFact,
+    fact: &facts::Fact,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> bool {
+    let Some((call_site, machine, caller_state, guard)) =
+        selected_transition_call(program, state_flow, call_flow)
+    else {
+        return false;
+    };
     let Some(target_parameters) =
         crate::semantic::calls::call_target_parameters(program, call_flow.target_symbol)
     else {
