@@ -17,9 +17,11 @@ the exact vocabulary. The compiler's
 supplies both preludes from one mapping; its
 [checked handoff](omega/compiler/src/checked/optimization/checked_handoff/mod.rs)
 retains selection and report requests.
-[Rollback settlement](omega/compiler/src/checked/optimization/rollback/mod.rs)
-computes effective selection before artifact production without changing the
-authored selection.
+[Rollback settlement](omega/foundation/optimization-core/src/optimization_core/rollback.rs)
+owns exact-name validation, subtractive selection and the resulting receipt.
+The compiler consumes its effective selection before artifact production without
+changing the authored selection; product-specific phase admission remains in
+the compiler.
 
 The [Psi X-to-X entrance](psi/pipeline/06_lowered-psi-to-lowered-psi/src/lib.rs)
 consumes complete unsealed `LoweredPsi`, validates both sides, and returns the

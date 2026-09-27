@@ -1,12 +1,14 @@
-//! Optimizer module role: executable entrance. Exact-name release rollback settlement.
+//! Exact-name rollback settlement shared by compilation and release tooling.
+//! Parsing, subtraction and the resulting receipt belong with the canonical
+//! selection vocabulary; product-specific phase admission stays with consumers.
 
+mod receipt;
 mod request;
 
+pub use receipt::OptimizationRollbackReceipt;
 pub use request::OptimizationRollbackInputError;
 
-use optimization_core::OptimizationSelections;
-
-use crate::report::OptimizationRollbackReceipt;
+use crate::OptimizationSelections;
 
 /// A release-tooling overlay that can only subtract exact rules selected by
 /// `build.omg`. It cannot add, alias, or reorder an optimization.
@@ -64,3 +66,6 @@ impl OptimizationRollback {
         OptimizationRollbackSettlement { effective, receipt }
     }
 }
+
+#[cfg(test)]
+mod tests;

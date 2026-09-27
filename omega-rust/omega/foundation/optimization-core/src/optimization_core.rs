@@ -5,6 +5,7 @@
 //! owns the domain-separated identities carried between stages, `manifest`
 //! their common publication records, `decisions` the baseline logs and the
 //! external decision wire schema (not candidate selection),
+//! `rollback` the subtractive exact-rule overlay and its receipt,
 //! `report_request` the auxiliary human projection request, and
 //! `mutation_matrix` the test-support substitution matrix custody families
 //! reuse.
@@ -17,6 +18,7 @@ pub(crate) mod manifest;
 pub(crate) mod mutation_matrix;
 pub(crate) mod post_terminal;
 pub(crate) mod report_request;
+pub(crate) mod rollback;
 
 use sha2::{Digest, Sha256};
 use std::fmt;

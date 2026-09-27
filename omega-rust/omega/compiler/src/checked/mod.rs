@@ -9,8 +9,8 @@
 //! settlement, and the sealed carrier; `admission` settles the checked
 //! program's trust obligations against the owner's admissions and writes the
 //! optional observations; `package` owns declaration admission;
-//! `optimization` owns the checked optimization handoff and the release
-//! rollback request every product settles against.
+//! `optimization` owns the checked optimization handoff. Exact-rule rollback
+//! settlement is owned by `optimization_core`.
 
 mod admission;
 mod checking;
@@ -30,6 +30,6 @@ pub use checking::{
     checked_compilation_call_count, compile_to_checked, preliminary_check_totals,
     settled_check_totals, typed_frontier_reuse_count,
 };
-pub use optimization::rollback::{
+pub use optimization_core::{
     OptimizationRollback, OptimizationRollbackInputError, OptimizationRollbackSettlement,
 };

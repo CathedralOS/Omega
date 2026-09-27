@@ -2,7 +2,7 @@
 //! selected, what a release asked to turn off, and the intersection that actually
 //! was removed before the selected stages executed.
 
-use optimization_core::{Optimization, OptimizationSelections};
+use crate::{Optimization, OptimizationSelections};
 
 /// Release-tooling custody for one subtractive exact-rule overlay.
 ///
