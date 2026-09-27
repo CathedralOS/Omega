@@ -111,6 +111,15 @@ pub(super) fn scale(
     Ok(address)
 }
 
+/// What a footprint's write stores: a named scalar `value` (a primitive or
+/// scalar field store), a structural element byte copy (a borrowed window's
+/// reseat — chunks carry no single semantic value), or nothing (a read).
+pub(super) enum Written {
+    None,
+    Scalar(ValueId),
+    Structural,
+}
+
 /// Record the footprint of the next access instruction: the exact place
 /// extent for a static projection, or one row per runtime element, in path
 /// order, whose certificate proves that element's selector inside its array.
@@ -122,19 +131,19 @@ pub(super) fn footprint(
     byte_offset: u32,
     byte_count: u32,
     indices: &[LegalizedRuntimeIndexOperand],
-    written: Option<ValueId>,
+    written: Written,
 ) -> Result<(), SelectedInstructionError> {
     if indices.is_empty() {
-        let role = if written.is_some() {
-            SelectedMemoryAccessRole::WritePlace
-        } else {
+        let role = if matches!(written, Written::None) {
             SelectedMemoryAccessRole::ReadPlace
+        } else {
+            SelectedMemoryAccessRole::WritePlace
         };
         return memory(builder, row, place, byte_offset, byte_count, role);
     }
     for index in indices {
         let role = match written {
-            Some(value) => SelectedMemoryAccessRole::WriteIndexedPrimitive {
+            Written::Scalar(value) => SelectedMemoryAccessRole::WriteIndexedPrimitive {
                 index: index.operand.value,
                 value,
                 stride: index.stride,
@@ -142,7 +151,14 @@ pub(super) fn footprint(
                 obligation: index.obligation,
                 accepted_fact: index.accepted_fact,
             },
-            None => SelectedMemoryAccessRole::ReadIndexedPrimitive {
+            Written::Structural => SelectedMemoryAccessRole::WriteIndexedStructural {
+                index: index.operand.value,
+                stride: index.stride,
+                extent: index.extent,
+                obligation: index.obligation,
+                accepted_fact: index.accepted_fact,
+            },
+            Written::None => SelectedMemoryAccessRole::ReadIndexedPrimitive {
                 index: index.operand.value,
                 stride: index.stride,
                 extent: index.extent,

@@ -236,7 +236,8 @@ pub(super) fn resolved_sequence_position(
                 .and_then(|landed| u64::from(access.byte_offset).checked_add(landed));
         }
         SelectedMemoryAccessRole::ReadIndexedPrimitive { .. }
-        | SelectedMemoryAccessRole::WriteIndexedPrimitive { .. } => {
+        | SelectedMemoryAccessRole::WriteIndexedPrimitive { .. }
+        | SelectedMemoryAccessRole::WriteIndexedStructural { .. } => {
             return function
                 .memory_accesses
                 .iter()
@@ -247,7 +248,8 @@ pub(super) fn resolved_sequence_position(
                 })
                 .filter_map(|element| match element.role {
                     SelectedMemoryAccessRole::ReadIndexedPrimitive { index, stride, .. }
-                    | SelectedMemoryAccessRole::WriteIndexedPrimitive { index, stride, .. } => {
+                    | SelectedMemoryAccessRole::WriteIndexedPrimitive { index, stride, .. }
+                    | SelectedMemoryAccessRole::WriteIndexedStructural { index, stride, .. } => {
                         Some((index, stride))
                     }
                     _ => None,

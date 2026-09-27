@@ -119,6 +119,12 @@ pub enum TargetUnitOperation {
         field: StructuralFieldId,
         value_home: TargetStructuralHomeRequirement,
         byte_offset: u32,
+        /// Runtime traversals through `RuntimeIndex` segments, in path
+        /// order, resolved like `StructuralLeafCopy::indices` — the spelled
+        /// path may end in an element selection (the window's element leaf),
+        /// whose selector scales into the same `byte_offset` the static
+        /// prefix resolved. Empty for fully static projections.
+        indices: Vec<TargetStructuralRuntimeIndex>,
     },
     /// Read one inline byte under the exact current field-length observation.
     StructuralByteSequenceFieldRead {

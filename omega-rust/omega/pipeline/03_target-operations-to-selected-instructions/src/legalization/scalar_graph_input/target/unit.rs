@@ -201,7 +201,7 @@ pub(super) fn validate_operation(
             AbstractOperation::MoveStructuralField { .. }
             | AbstractOperation::StoreStructuralField { .. },
         ) => {
-            borrowed_windows::validate(target, abstracted, optimized, plan)?;
+            borrowed_windows::validate(target, abstracted, optimized, sources, plan)?;
         }
         // An empty-record local realizes no storage: the row is its exact
         // establishment, of the module's own empty record, at the trivial

@@ -56,7 +56,9 @@ use super::bodies::UnitPlans;
 use super::primitive_locals::{self, PrimitiveLocal};
 use super::signatures::MachineSignature;
 use super::view_ranges::{ViewRangeSite, ViewRangeSource};
-use crate::emission::borrowed_window::{BorrowedWindowLedger, BorrowedWindowRepairValue};
+use crate::emission::borrowed_window::{
+    BorrowedWindowLedger, BorrowedWindowRepairValue, WindowEvaluation,
+};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::view_subslice::ViewFamily;
@@ -483,8 +485,10 @@ impl OperationFrame<'_, '_> {
                 self.move_structural_field(result, source)
             }
             CheckedUnitEffectOperationPlan::StoreStructuralField {
-                destination, value, ..
-            } => self.store_structural_field(destination, value),
+                statement_index,
+                destination,
+                value,
+            } => self.store_structural_field(*statement_index, destination, value),
             CheckedUnitEffectOperationPlan::CallContinuationCleanup {
                 affine_discards, ..
             } => self.call_continuation_cleanup(affine_discards),
@@ -961,6 +965,15 @@ impl OperationFrame<'_, '_> {
             access: checked_trees::CheckedStructuralAccess::Owned,
         };
         require_parameter_window_root(self.parameters, &window_place, self.evaluation)?;
+        let mut evaluation = WindowEvaluation {
+            checked: self.checked,
+            machine: self.machine,
+            state: self.state,
+            statement_index: store.statement_index,
+            evaluation: &mut *self.evaluation,
+            source_value_count: self.source_value_count,
+            calls: &mut *self.calls,
+        };
         let moved = self.windows.emit_move(
             &window_place,
             &checked_trees::CheckedUnitStructuralResultBindingPlan {
@@ -970,10 +983,14 @@ impl OperationFrame<'_, '_> {
                 multiplicity: language_semantics::Multiplicity::Unrestricted,
             },
             self.parameters,
-            &self.evaluation.structural_locals,
             self.structural_types.declarations(),
             self.type_ids,
+            &mut evaluation,
+            self.values,
             self.next_place,
+            self.next_value,
+            self.next_block,
+            self.next_edge,
             self.operations,
         )?;
         // The moved-out leaf is an internal temporary, not an authored
@@ -1006,9 +1023,13 @@ impl OperationFrame<'_, '_> {
                 structural_type: hole_type,
             },
             self.parameters,
-            &self.evaluation.structural_locals,
             self.structural_types.declarations(),
             self.type_ids,
+            &mut evaluation,
+            self.values,
+            self.next_value,
+            self.next_block,
+            self.next_edge,
             self.operations,
         )
     }
@@ -1078,14 +1099,27 @@ impl OperationFrame<'_, '_> {
         self.results
             .require_next(result, "borrowed-window move result binding is not dense")?;
         require_parameter_window_root(self.parameters, source, self.evaluation)?;
+        let mut evaluation = WindowEvaluation {
+            checked: self.checked,
+            machine: self.machine,
+            state: self.state,
+            statement_index: result.statement_index,
+            evaluation: &mut *self.evaluation,
+            source_value_count: self.source_value_count,
+            calls: &mut *self.calls,
+        };
         let moved = self.windows.emit_move(
             source,
             result,
             self.parameters,
-            &self.evaluation.structural_locals,
             self.structural_types.declarations(),
             self.type_ids,
+            &mut evaluation,
+            self.values,
             self.next_place,
+            self.next_value,
+            self.next_block,
+            self.next_edge,
             self.operations,
         )?;
         let producer = self
@@ -1397,6 +1431,7 @@ impl OperationFrame<'_, '_> {
     /// transported the result.
     fn store_structural_field(
         &mut self,
+        statement_index: u32,
         destination: &CheckedUnitStructuralArgumentPlan,
         value: &CheckedUnitStructuralArgumentPlan,
     ) -> Result<(), LoweringError> {
@@ -1415,13 +1450,26 @@ impl OperationFrame<'_, '_> {
             structural_type: repair.structural_type,
         };
         require_parameter_window_root(self.parameters, destination, self.evaluation)?;
+        let mut evaluation = WindowEvaluation {
+            checked: self.checked,
+            machine: self.machine,
+            state: self.state,
+            statement_index,
+            evaluation: &mut *self.evaluation,
+            source_value_count: self.source_value_count,
+            calls: &mut *self.calls,
+        };
         self.windows.emit_store(
             destination,
             repair,
             self.parameters,
-            &self.evaluation.structural_locals,
             self.structural_types.declarations(),
             self.type_ids,
+            &mut evaluation,
+            self.values,
+            self.next_value,
+            self.next_block,
+            self.next_edge,
             self.operations,
         )
     }

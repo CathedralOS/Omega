@@ -112,14 +112,19 @@ pub(super) fn store_field(
         )?;
     // The value must be a complete owned home of the declared field type
     // whose layout is the field's own extent: the reseat writes exactly
-    // those bytes. A spelled window path has no runtime index to scale.
+    // those bytes. A runtime element step's selector resolves to its
+    // dominating scalar source, as the leaf-copy sibling does.
+    let indices = super::scalar_sources::runtime_indices(
+        indices,
+        function,
+        &super::scalar_sources::ScalarSources::from(&*live),
+    )?;
     let value_home = live
         .structural_homes
         .get(&value.place)
         .cloned()
         .ok_or_else(invalid)?;
-    if !indices.is_empty()
-        || super::references::contains_reference(types, field_type)
+    if super::references::contains_reference(types, field_type)
         || value_home.structural_type() != field_type
         || value_home.multiplicity() == StructuralMultiplicity::Linear
         || value_home.has_claims()
@@ -141,6 +146,7 @@ pub(super) fn store_field(
         field: *field,
         value_home,
         byte_offset,
+        indices,
     });
     provenance.operations.push(*psi_operation);
     Ok(())
@@ -164,14 +170,47 @@ fn window_root(
 
 /// The spelled window path extended by the vacated field's own segment, so
 /// the byte copy resolves the field's offset and extent like any projection.
+/// A path already ending in an element selection is complete as spelled —
+/// `field` then names the array's own declaration in the last record the
+/// path crosses, not a further member.
 fn field_path(
     types: &StructuralTypeLookup<'_>,
     root: semantic_vocabulary::StructuralTypeId,
     path: &[StructuralPathSegment],
     field: StructuralFieldId,
 ) -> Option<Vec<StructuralPathSegment>> {
+    if matches!(
+        path.last(),
+        Some(StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. })
+    ) {
+        let field_position = path
+            .iter()
+            .rposition(|segment| matches!(segment, StructuralPathSegment::Field(_)))?;
+        // The owner prefix may itself cross runtime elements — resolve it
+        // through the projection that carries them.
+        let (owner, ..) = crate::lowering::structural_layout::runtime_projection(
+            root,
+            &path[..field_position],
+            types,
+            &mut BTreeMap::new(),
+            &mut BTreeSet::new(),
+        )
+        .ok()?;
+        let (StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. }) =
+            &types.get(&owner)?.shape
+        else {
+            return None;
+        };
+        fields
+            .iter()
+            .any(|declaration| declaration.id == field && !declaration.relevance.is_erased())
+            .then_some(())?;
+        return Some(path.to_vec());
+    }
     let parent = types.subtree(root, path)?;
-    let StructuralTypeShape::Record { fields } = &types.get(&parent)?.shape else {
+    let (StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. }) =
+        &types.get(&parent)?.shape
+    else {
         return None;
     };
     let declaration = fields

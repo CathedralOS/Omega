@@ -148,7 +148,7 @@ pub(in crate::selection) fn read(
         byte_offset,
         u32::from(shape.byte_size),
         indices,
-        None,
+        super::runtime_address::Written::None,
     )?;
     builder.emit(
         instruction,

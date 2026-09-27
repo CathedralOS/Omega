@@ -108,6 +108,7 @@ pub(super) fn plan(
     assignment_phase("statement sequence: assignment: borrowed window restore");
     if let Some(store) = windows.restore(
         program,
+        facts,
         machine,
         state,
         structural_parameters,
@@ -171,6 +172,7 @@ pub(super) fn plan(
         produced.binding_ordinal = u32::try_from(*structural_count).ok()?;
         let replacement = windows.replace(
             program,
+            facts,
             machine,
             state,
             structural_parameters,
@@ -261,6 +263,7 @@ pub(super) fn plan(
         result.binding_ordinal = u32::try_from(*structural_count).ok()?;
         let replacement = windows.replace(
             program,
+            facts,
             machine,
             state,
             structural_parameters,

@@ -146,6 +146,21 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &SelectedFunction) {
                 bytes.extend_from_slice(&extent.to_le_bytes());
                 bytes.extend_from_slice(&accepted_fact.bytes());
             }
+            SelectedMemoryAccessRole::WriteIndexedStructural {
+                index,
+                stride,
+                extent,
+                obligation,
+                accepted_fact,
+            } => {
+                bytes.push(13);
+                for identity in [index.get(), obligation.get()] {
+                    bytes.extend_from_slice(&identity.to_le_bytes());
+                }
+                bytes.extend_from_slice(&stride.to_le_bytes());
+                bytes.extend_from_slice(&extent.to_le_bytes());
+                bytes.extend_from_slice(&accepted_fact.bytes());
+            }
             SelectedMemoryAccessRole::ReadIndexedPrimitive {
                 index,
                 stride,

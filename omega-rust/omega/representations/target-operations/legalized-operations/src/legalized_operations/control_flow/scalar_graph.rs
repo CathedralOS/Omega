@@ -363,6 +363,10 @@ pub enum LegalizedScalarInstructionKind {
         value: semantic_vocabulary::PlaceId,
         byte_offset: u32,
         shape: calling_conventions::ValueShape,
+        /// Resolved operands for `RuntimeIndex` segments in path order —
+        /// the path may end in an element selection (the window's element
+        /// leaf). Empty for fully static projections.
+        indices: Vec<LegalizedRuntimeIndexOperand>,
     },
     /// Establish one empty-record affine local. It occupies no bytes, so,
     /// like reference custody rows, it emits no instruction: the row keeps

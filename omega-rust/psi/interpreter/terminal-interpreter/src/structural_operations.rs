@@ -12,7 +12,7 @@ use crate::structural_inputs::case_membership::StructuralCaseContents;
 use crate::values::StructuralScalarRuntimeField;
 use crate::values::{StructuralByteSequenceRuntimeField, StructuralRuntimePlace};
 use crate::values::{TerminalScalarCaseValue, TerminalScalarValue, TerminalStructuralValue};
-use semantic_vocabulary::{IntegerType, IntegerValue, ScalarType};
+use semantic_vocabulary::{IntegerType, IntegerValue, ScalarType, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     OperationKind, StructuralAccess, StructuralAffineDiscard, StructuralArgument,
@@ -753,13 +753,7 @@ impl TerminalExecution {
         {
             return Err(invalid());
         }
-        let (parent, hole) = self.structural_window_hole(source, path, field)?;
-        let StructuralFieldType::Structural(field_type) =
-            parent_field_type(&self.structural_types, parent.structural_type, field)
-                .ok_or_else(invalid)?
-        else {
-            return Err(invalid());
-        };
+        let (hole, field_type) = self.structural_window_hole(source, path, field)?;
         if field_type != result.structural_type {
             return Err(invalid());
         }
@@ -806,13 +800,7 @@ impl TerminalExecution {
         {
             return Err(invalid());
         }
-        let (parent, hole) = self.structural_window_hole(destination, path, field)?;
-        let StructuralFieldType::Structural(field_type) =
-            parent_field_type(&self.structural_types, parent.structural_type, field)
-                .ok_or_else(invalid)?
-        else {
-            return Err(invalid());
-        };
+        let (hole, field_type) = self.structural_window_hole(destination, path, field)?;
         let affine = self
             .live_affine_frontier
             .iter()
@@ -860,16 +848,70 @@ impl TerminalExecution {
         Ok(OperationFlow::Advance)
     }
 
-    /// The resolved parent carrier and runtime hole path one window operation
-    /// names: `path` walks borrowed storage to the containing record, then the
-    /// hole sits one `Field` segment deeper under the field's spelled identity.
+    /// The resolved runtime hole path one window operation names and the
+    /// hole's declared type. A field leaf resolves `path` to the containing
+    /// record, then the hole sits one `Field` segment deeper under the
+    /// field's spelled identity. An element leaf ends `path` in an element
+    /// selection, so the resolved place already is the hole and `field`
+    /// names the array's field declaration in the last record the path
+    /// crosses.
     fn structural_window_hole(
         &self,
         root: semantic_vocabulary::PlaceId,
         path: &[StructuralPathSegment],
         field: semantic_vocabulary::StructuralFieldId,
-    ) -> Result<(TerminalStructuralValue, StructuralRuntimePlace), TerminalInterpretError> {
+    ) -> Result<(StructuralRuntimePlace, StructuralTypeId), TerminalInterpretError> {
         let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        if matches!(
+            path.last(),
+            Some(StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. })
+        ) {
+            let hole = resolve_structural_arguments(
+                &self.structural_types,
+                &self.structural_values,
+                &[StructuralArgument {
+                    place: root,
+                    path: path.to_vec(),
+                    access: StructuralAccess::MutableBorrow,
+                }],
+            )?
+            .pop()
+            .ok_or_else(invalid)?;
+            let field_position = path
+                .iter()
+                .rposition(|segment| matches!(segment, StructuralPathSegment::Field(_)))
+                .ok_or_else(invalid)?;
+            let owner = resolve_structural_arguments(
+                &self.structural_types,
+                &self.structural_values,
+                &[StructuralArgument {
+                    place: root,
+                    path: path[..field_position].to_vec(),
+                    access: StructuralAccess::MutableBorrow,
+                }],
+            )?
+            .pop()
+            .ok_or_else(invalid)?;
+            let StructuralFieldType::Structural(_) = self
+                .structural_types
+                .get(&owner.structural_type)
+                .and_then(|declaration| match &declaration.shape {
+                    StructuralTypeShape::Record { fields }
+                    | StructuralTypeShape::Mixed { fields, .. } => {
+                        fields.iter().find(|candidate| {
+                            candidate.id == field && !candidate.relevance.is_erased()
+                        })
+                    }
+                    _ => None,
+                })
+                .ok_or_else(invalid)?
+                .field_type
+            else {
+                return Err(invalid());
+            };
+            let declared = hole.structural_type;
+            return Ok((StructuralRuntimePlace::from(&hole), declared));
+        }
         let parent = resolve_structural_arguments(
             &self.structural_types,
             &self.structural_values,
@@ -881,7 +923,7 @@ impl TerminalExecution {
         )?
         .pop()
         .ok_or_else(invalid)?;
-        let identity = self
+        let (identity, field_type) = self
             .structural_types
             .get(&parent.structural_type)
             .and_then(|declaration| match &declaration.shape {
@@ -891,11 +933,16 @@ impl TerminalExecution {
                     .find(|candidate| candidate.id == field && !candidate.relevance.is_erased()),
                 _ => None,
             })
-            .map(|declaration| declaration.identity.clone())
+            .and_then(|declaration| match declaration.field_type {
+                StructuralFieldType::Structural(field_type) => {
+                    Some((declaration.identity.clone(), field_type))
+                }
+                _ => None,
+            })
             .ok_or_else(invalid)?;
         let mut hole = StructuralRuntimePlace::from(&parent);
         hole.path.push(StructuralPathSegment::Field(identity));
-        Ok((parent, hole))
+        Ok((hole, field_type))
     }
 
     /// Move every runtime cell under `from` to the same subtree suffix under
@@ -1319,27 +1366,4 @@ impl TerminalExecution {
         );
         Ok(OperationFlow::Advance)
     }
-}
-
-/// The declared structural type of one non-erased `field` on a record or mixed
-/// parent — the only field shape a borrowed-storage window may name.
-fn parent_field_type(
-    structural_types: &std::collections::BTreeMap<
-        semantic_vocabulary::StructuralTypeId,
-        StructuralTypeDeclaration,
-    >,
-    parent: semantic_vocabulary::StructuralTypeId,
-    field: semantic_vocabulary::StructuralFieldId,
-) -> Option<StructuralFieldType> {
-    structural_types
-        .get(&parent)
-        .and_then(|declaration| match &declaration.shape {
-            StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. } => {
-                fields
-                    .iter()
-                    .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())
-                    .map(|candidate| candidate.field_type.clone())
-            }
-            _ => None,
-        })
 }

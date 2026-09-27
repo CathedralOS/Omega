@@ -51,6 +51,8 @@ fn admits_runtime_indexes(kind: &OperationKind) -> bool {
             | OperationKind::PrimitiveScalarRead { .. }
             | OperationKind::WriteOnlyPrimitiveStore { .. }
             | OperationKind::StructuralScalarFieldStore { .. }
+            | OperationKind::MoveStructuralField { .. }
+            | OperationKind::StoreStructuralField { .. }
     )
 }
 

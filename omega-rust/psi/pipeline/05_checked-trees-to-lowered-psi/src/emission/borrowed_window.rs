@@ -36,7 +36,9 @@ use super::{
     StructuralTypeId, allocate_dense, place_id,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
-use crate::emission::structural_scalar_store::lower_structural_field_path;
+use crate::emission::operation_emission::calls::CallEmissionContext;
+use crate::emission::runtime_elements::{self, ProjectionStep};
+use crate::emission::structural_scalar_store::{WindowLeaf, lower_window_path};
 use crate::terminal_identities::lookup_type_id;
 use checked_trees::{
     CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
@@ -55,9 +57,11 @@ pub(crate) struct OpenBorrowedWindow {
     pub(crate) field: StructuralFieldId,
     pub(crate) hole_type: StructuralTypeId,
     pub(crate) moved: PlaceId,
-    /// `path` extended by the field's own spelled segment: the exact place
-    /// as a Terminal route, for overlap checks against later routes.
-    full_path: Vec<StructuralPathSegment>,
+    /// The checked route the authored statement spelled, leaf included: hole
+    /// identity is compared at this coordinate — Terminal runtime-element
+    /// segments evaluate fresh `ValueId`s per operation, so equal places
+    /// share the checked path, not the emitted one.
+    checked_path: Vec<CheckedUnitStructuralPathSegment>,
     spelling: String,
 }
 
@@ -69,7 +73,7 @@ impl OpenBorrowedWindow {
     /// still carry one agreeing hole.
     fn same_hole(&self, other: &Self) -> bool {
         self.source == other.source
-            && self.full_path == other.full_path
+            && self.checked_path == other.checked_path
             && self.field == other.field
             && self.hole_type == other.hole_type
     }
@@ -91,12 +95,15 @@ pub(crate) struct BorrowedWindowLedger {
     open: Vec<OpenBorrowedWindow>,
 }
 
-/// The resolved exact place a move or repair names beneath a parameter root.
+/// The resolved exact place a move or repair names beneath a window root:
+/// the carrier's projection steps (a runtime element evaluates when the
+/// operation emits), the checked route as the hole's key, the leaf's field
+/// declaration id, and the hole's declared type.
 struct ResolvedWindowPlace {
     source: PlaceId,
-    path: Vec<StructuralPathSegment>,
+    steps: Vec<ProjectionStep>,
+    checked_path: Vec<CheckedUnitStructuralPathSegment>,
     field: StructuralFieldId,
-    full_path: Vec<StructuralPathSegment>,
     hole_type: StructuralTypeId,
     spelling: String,
 }
@@ -114,16 +121,20 @@ impl BorrowedWindowLedger {
         moved: &CheckedUnitStructuralArgumentPlan,
         result: &CheckedUnitStructuralResultBindingPlan,
         parameters: &[StructuralParameterDeclaration],
-        locals: &[(symbols::SymbolHandle, StructuralArgument)],
         structural_types: &[StructuralTypeDeclaration],
         type_ids: &[(String, StructuralTypeId)],
+        evaluation: &mut WindowEvaluation<'_, '_>,
+        values: &mut Vec<terminal_psi::ValueDeclaration>,
         next_place: &mut u64,
+        next_value: &mut u64,
+        next_block: &mut u64,
+        next_edge: &mut u64,
         operations: &mut OperationBuffer,
     ) -> Result<PlaceId, LoweringError> {
         let place = resolve_window_place(
             moved,
             parameters,
-            locals,
+            &evaluation.evaluation.structural_locals,
             operations,
             structural_types,
             type_ids,
@@ -134,12 +145,29 @@ impl BorrowedWindowLedger {
                 "the moved binding's type differs from the declared field type",
             ));
         }
+        let indexes = runtime_elements::evaluate_selectors(
+            &place.steps,
+            evaluation.checked,
+            evaluation.machine,
+            evaluation.state,
+            evaluation.statement_index,
+            evaluation.evaluation,
+            evaluation.source_value_count,
+            values,
+            next_value,
+            next_block,
+            next_edge,
+            operations,
+            evaluation.calls,
+        )?;
+        let path = runtime_elements::complete_path(place.steps, indexes, evaluation.calls)?;
         if let Some(absent) = self.open.iter().find(|absent| {
-            absent.source == place.source && paths_overlap(&absent.full_path, &place.full_path)
+            absent.source == place.source
+                && paths_overlap(&absent.checked_path, &place.checked_path)
         }) {
             return Err(unpinned(
                 &place.spelling,
-                if absent.full_path == place.full_path {
+                if absent.checked_path == place.checked_path {
                     "the place is already absent: repeated extraction of one open window"
                 } else {
                     "the place overlaps an open window: extraction through absent storage"
@@ -147,7 +175,7 @@ impl BorrowedWindowLedger {
             ));
         }
         let moved_place = place_id(allocate_dense(next_place)?);
-        operations.invalidate_field_lengths_under(place.source, &place.path);
+        operations.invalidate_field_lengths_under(place.source, &path);
         let id = operations.allocate();
         operations.push(Operation {
             static_reach_binding: None,
@@ -164,17 +192,17 @@ impl BorrowedWindowLedger {
             }),
             kind: OperationKind::MoveStructuralField {
                 source: place.source,
-                path: place.path.clone(),
+                path: path.clone(),
                 field: place.field,
             },
         });
         self.open.push(OpenBorrowedWindow {
             source: place.source,
-            path: place.path,
+            path,
             field: place.field,
             hole_type: place.hole_type,
             moved: moved_place,
-            full_path: place.full_path,
+            checked_path: place.checked_path,
             spelling: place.spelling,
         });
         Ok(moved_place)
@@ -189,24 +217,29 @@ impl BorrowedWindowLedger {
         destination: &CheckedUnitStructuralArgumentPlan,
         value: BorrowedWindowRepairValue,
         parameters: &[StructuralParameterDeclaration],
-        locals: &[(symbols::SymbolHandle, StructuralArgument)],
         structural_types: &[StructuralTypeDeclaration],
         type_ids: &[(String, StructuralTypeId)],
+        evaluation: &mut WindowEvaluation<'_, '_>,
+        values: &mut Vec<terminal_psi::ValueDeclaration>,
+        next_value: &mut u64,
+        next_block: &mut u64,
+        next_edge: &mut u64,
         operations: &mut OperationBuffer,
     ) -> Result<(), LoweringError> {
         let place = resolve_window_place(
             destination,
             parameters,
-            locals,
+            &evaluation.evaluation.structural_locals,
             operations,
             structural_types,
             type_ids,
         )?;
         let Some(index) = self.open.iter().position(|absent| {
-            absent.source == place.source && absent.full_path == place.full_path
+            absent.source == place.source && absent.checked_path == place.checked_path
         }) else {
             let reason = if self.open.iter().any(|absent| {
-                absent.source == place.source && paths_overlap(&absent.full_path, &place.full_path)
+                absent.source == place.source
+                    && paths_overlap(&absent.checked_path, &place.checked_path)
             }) {
                 "the store overlaps an open window without naming its exact place"
             } else {
@@ -221,7 +254,23 @@ impl BorrowedWindowLedger {
                 "the repair value's type differs from the type moved out of the place",
             ));
         }
-        operations.invalidate_field_lengths_under(place.source, &place.path);
+        let indexes = runtime_elements::evaluate_selectors(
+            &place.steps,
+            evaluation.checked,
+            evaluation.machine,
+            evaluation.state,
+            evaluation.statement_index,
+            evaluation.evaluation,
+            evaluation.source_value_count,
+            values,
+            next_value,
+            next_block,
+            next_edge,
+            operations,
+            evaluation.calls,
+        )?;
+        let path = runtime_elements::complete_path(place.steps, indexes, evaluation.calls)?;
+        operations.invalidate_field_lengths_under(place.source, &path);
         let id = operations.allocate();
         operations.push(Operation {
             static_reach_binding: None,
@@ -230,7 +279,7 @@ impl BorrowedWindowLedger {
             result: OperationResult::Unit,
             kind: OperationKind::StoreStructuralField {
                 destination: place.source,
-                path: place.path,
+                path,
                 field: place.field,
                 value: StructuralArgument {
                     place: value.place,
@@ -309,9 +358,28 @@ fn terminal_multiplicity(multiplicity: Multiplicity) -> StructuralMultiplicity {
 }
 
 /// Two exact places beneath one root overlap when either names the other or
-/// an ancestor of it.
-fn paths_overlap(first: &[StructuralPathSegment], second: &[StructuralPathSegment]) -> bool {
+/// an ancestor of it. The comparison runs on the checked route: distinct
+/// runtime selectors keep the authority the source checker admitted — a
+/// selector equality question belongs to the value proof, not the ledger.
+fn paths_overlap(
+    first: &[CheckedUnitStructuralPathSegment],
+    second: &[CheckedUnitStructuralPathSegment],
+) -> bool {
     first.starts_with(second) || second.starts_with(first)
+}
+
+/// The frame pieces a window with runtime elements evaluates its selectors
+/// through: the checked facts that retained each `AssignmentIndex`
+/// coordinate, and the same scalar evaluation surface the store's own value
+/// completes on.
+pub(crate) struct WindowEvaluation<'a, 'calls> {
+    pub(crate) checked: &'a checked_trees::CheckedTrees,
+    pub(crate) machine: symbols::SymbolHandle,
+    pub(crate) state: symbols::SymbolHandle,
+    pub(crate) statement_index: u32,
+    pub(crate) evaluation: &'a mut crate::unit::attached_unit::argument_evaluation::Evaluation,
+    pub(crate) source_value_count: usize,
+    pub(crate) calls: &'a mut CallEmissionContext<'calls>,
 }
 
 fn resolve_window_place(
@@ -404,51 +472,45 @@ fn resolve_window_place(
             "the place is not taken as an owned value",
         ));
     }
-    let Some((CheckedUnitStructuralPathSegment::Field(field_identity), carrier_path)) =
-        plan.path.split_last()
-    else {
-        return Err(unpinned(
-            &spelling,
-            "the route is not an exact field beneath the root: whole-root, indexed and \
-             referent routes are not pinned windows",
-        ));
-    };
-    if !carrier_path
-        .iter()
-        .all(|segment| matches!(segment, CheckedUnitStructuralPathSegment::Field(_)))
-    {
-        return Err(unpinned(
-            &spelling,
-            "the route crosses an index or referent: only exact field chains are pinned",
-        ));
-    }
-    let (path, field) =
-        lower_structural_field_path(root_type, carrier_path, field_identity, structural_types)
-            .map_err(|_| {
-                unpinned(
+    let (steps, leaf) = lower_window_path(root_type, &plan.path, structural_types).map_err(|_| {
+        let reason = if plan.path.is_empty() {
+            "whole-root routes are not pinned windows"
+        } else if plan.path.iter().any(|segment| {
+            !matches!(segment, CheckedUnitStructuralPathSegment::Field(_))
+        }) {
+            "index or referent routes do not resolve through the declared records and              fixed arrays"
+        } else {
+            "the route does not resolve through the declared records and fixed arrays"
+        };
+        unpinned(&spelling, reason)
+    })?;
+    let (field, hole_type) = match leaf {
+        WindowLeaf::Field(field) => {
+            let StructuralFieldType::Structural(hole_type) = field.field_type else {
+                return Err(unpinned(
                     &spelling,
-                    "the field chain does not resolve through the declared records",
-                )
-            })?;
-    let StructuralFieldType::Structural(hole_type) = field.field_type else {
-        return Err(unpinned(
-            &spelling,
-            "the field is not a structural subtree: scalar and byte fields open no window",
-        ));
+                    "the field is not a structural subtree: scalar and byte fields open no \
+                     window",
+                ));
+            };
+            (field.id, hole_type)
+        }
+        WindowLeaf::Element {
+            field,
+            element_type,
+        } => (field.id, element_type),
     };
     if lookup_type_id(type_ids, &plan.type_identity)? != hole_type {
         return Err(unpinned(
             &spelling,
-            "the checked place type differs from the declared field type",
+            "the checked place type differs from the declared leaf type",
         ));
     }
-    let mut full_path = path.clone();
-    full_path.push(StructuralPathSegment::Field(field.identity.clone()));
     Ok(ResolvedWindowPlace {
         source,
-        path,
-        field: field.id,
-        full_path,
+        steps,
+        checked_path: plan.path.clone(),
+        field,
         hole_type,
         spelling,
     })
@@ -566,10 +628,12 @@ mod tests {
     //! emitted pair is replayed through `terminal_verifier::validate_module`
     //! so the spelling is the one independent verification reconstructs.
 
-    use super::{BorrowedWindowLedger, BorrowedWindowRepairValue};
+    use super::{BorrowedWindowLedger, BorrowedWindowRepairValue, WindowEvaluation};
     use crate::TerminalMachineSelection;
     use crate::emission::operation_emission::buffer::OperationBuffer;
+    use crate::emission::operation_emission::calls::CallEmissionContext;
     use crate::lowering_error::LoweringError;
+    use crate::unit::attached_unit::argument_evaluation::Evaluation;
     use checked_trees::{
         CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
         CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
@@ -741,10 +805,127 @@ mod tests {
         }
     }
 
+    /// The checked/scalar evaluation surface `emit_move`/`emit_store` need
+    /// to resolve runtime element selectors; the fixtures' paths are all
+    /// field-only, so this harness is never read.
+    struct WindowHarness {
+        checked: checked_trees::CheckedTrees,
+        calls: CallEmissionContext<'static>,
+        evaluation: Evaluation,
+        values: Vec<terminal_psi::ValueDeclaration>,
+        next_value: u64,
+        next_block: u64,
+        next_edge: u64,
+    }
+
+    impl WindowHarness {
+        fn new() -> Self {
+            // Identities are ZII: zero is absence, so block ids start at 1.
+            let mut next_block = 1;
+            Self {
+                checked: checked_trees::CheckedTrees::default(),
+                calls: CallEmissionContext {
+                    machine_ids: &[],
+                    requirement_counts: &[],
+                    next_obligation_identity: 0,
+                    obligation_limit: 0,
+                },
+                evaluation: Evaluation::new(&mut next_block).expect("empty evaluation frame"),
+                values: Vec::new(),
+                next_value: 0,
+                next_block,
+                next_edge: 0,
+            }
+        }
+
+        fn emit_move(
+            &mut self,
+            ledger: &mut BorrowedWindowLedger,
+            moved: &CheckedUnitStructuralArgumentPlan,
+            result: &CheckedUnitStructuralResultBindingPlan,
+            parameters: &[StructuralParameterDeclaration],
+            next_place: &mut u64,
+            operations: &mut OperationBuffer,
+        ) -> Result<PlaceId, LoweringError> {
+            let Self {
+                checked,
+                calls,
+                evaluation,
+                values,
+                next_value,
+                next_block,
+                next_edge,
+            } = self;
+            ledger.emit_move(
+                moved,
+                result,
+                parameters,
+                &structural_types(),
+                &type_ids(),
+                &mut WindowEvaluation {
+                    checked,
+                    machine: symbols::SymbolHandle::invalid(),
+                    state: symbols::SymbolHandle::invalid(),
+                    statement_index: 0,
+                    evaluation,
+                    source_value_count: 0,
+                    calls,
+                },
+                values,
+                next_place,
+                next_value,
+                next_block,
+                next_edge,
+                operations,
+            )
+        }
+
+        fn emit_store(
+            &mut self,
+            ledger: &mut BorrowedWindowLedger,
+            destination: &CheckedUnitStructuralArgumentPlan,
+            value: BorrowedWindowRepairValue,
+            parameters: &[StructuralParameterDeclaration],
+            operations: &mut OperationBuffer,
+        ) -> Result<(), LoweringError> {
+            let Self {
+                checked,
+                calls,
+                evaluation,
+                values,
+                next_value,
+                next_block,
+                next_edge,
+            } = self;
+            ledger.emit_store(
+                destination,
+                value,
+                parameters,
+                &structural_types(),
+                &type_ids(),
+                &mut WindowEvaluation {
+                    checked,
+                    machine: symbols::SymbolHandle::invalid(),
+                    state: symbols::SymbolHandle::invalid(),
+                    statement_index: 0,
+                    evaluation,
+                    source_value_count: 0,
+                    calls,
+                },
+                values,
+                next_value,
+                next_block,
+                next_edge,
+                operations,
+            )
+        }
+    }
+
     struct Emission {
         ledger: BorrowedWindowLedger,
         operations: OperationBuffer,
         next_place: u64,
+        harness: WindowHarness,
     }
 
     impl Emission {
@@ -754,6 +935,7 @@ mod tests {
                 operations: OperationBuffer::new(0),
                 // Place 1 is the parameter root; results follow it.
                 next_place: 2,
+                harness: WindowHarness::new(),
             }
         }
 
@@ -762,13 +944,11 @@ mod tests {
             parameters: &[StructuralParameterDeclaration],
             moved: &CheckedUnitStructuralArgumentPlan,
         ) -> Result<PlaceId, LoweringError> {
-            self.ledger.emit_move(
+            self.harness.emit_move(
+                &mut self.ledger,
                 moved,
                 &cell_binding(),
                 parameters,
-                &[],
-                &structural_types(),
-                &type_ids(),
                 &mut self.next_place,
                 &mut self.operations,
             )
@@ -780,13 +960,11 @@ mod tests {
             destination: &CheckedUnitStructuralArgumentPlan,
             value: BorrowedWindowRepairValue,
         ) -> Result<(), LoweringError> {
-            self.ledger.emit_store(
+            self.harness.emit_store(
+                &mut self.ledger,
                 destination,
                 value,
                 parameters,
-                &[],
-                &structural_types(),
-                &type_ids(),
                 &mut self.operations,
             )
         }
@@ -1070,16 +1248,14 @@ mod tests {
             "self.left",
             "linear custody",
         );
-        let binding_mismatch = emission.ledger.emit_move(
+        let binding_mismatch = emission.harness.emit_move(
+            &mut emission.ledger,
             &checked_place(&fields(&["left"]), CELL),
             &CheckedUnitStructuralResultBindingPlan {
                 type_identity: ENVELOPE.into(),
                 ..cell_binding()
             },
             &receiver,
-            &[],
-            &structural_types(),
-            &type_ids(),
             &mut emission.next_place,
             &mut emission.operations,
         );
@@ -1116,17 +1292,15 @@ mod tests {
             ..checked_place(&fields(&["inner"]), CELL)
         };
         let error = emission
-            .ledger
+            .harness
             .emit_move(
+                &mut emission.ledger,
                 &ancestor,
                 &CheckedUnitStructuralResultBindingPlan {
                     type_identity: ENVELOPE.into(),
                     ..cell_binding()
                 },
                 &crate_receiver,
-                &[],
-                &structural_types(),
-                &type_ids(),
                 &mut emission.next_place,
                 &mut emission.operations,
             )
@@ -1230,14 +1404,12 @@ mod tests {
         // The overlap refusal fires before the place counter is read.
         let mut next_place = 8;
         assert_unpinned(
-            extraction
+            WindowHarness::new()
                 .emit_move(
+                    &mut extraction,
                     &checked_place(&fields(&["left"]), CELL),
                     &cell_binding(),
                     &receiver,
-                    &[],
-                    &structural_types(),
-                    &type_ids(),
                     &mut next_place,
                     &mut OperationBuffer::new(0),
                 )
@@ -1245,17 +1417,16 @@ mod tests {
             "self.left",
             "already absent",
         );
-        joined
+        let moved = joined.open_windows()[0].moved;
+        WindowHarness::new()
             .emit_store(
+                &mut joined,
                 &checked_place(&fields(&["left"]), CELL),
                 BorrowedWindowRepairValue {
-                    place: joined.open_windows()[0].moved,
+                    place: moved,
                     structural_type: cell(),
                 },
                 &receiver,
-                &[],
-                &structural_types(),
-                &type_ids(),
                 &mut OperationBuffer::new(0),
             )
             .expect("the joined frontier's shared hole reseats");

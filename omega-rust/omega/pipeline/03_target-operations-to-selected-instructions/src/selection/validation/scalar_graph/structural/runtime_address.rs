@@ -96,6 +96,14 @@ pub(super) fn scale(
     Ok(address)
 }
 
+/// Replay mirror of construction `Written`; see construction
+/// `runtime_address::footprint`.
+pub(super) enum Written {
+    None,
+    Scalar(ValueId),
+    Structural,
+}
+
 pub(super) fn footprint(
     replay: &mut Replay<'_>,
     row: &LegalizedScalarInstruction,
@@ -103,19 +111,19 @@ pub(super) fn footprint(
     byte_offset: u32,
     byte_count: u32,
     indices: &[LegalizedRuntimeIndexOperand],
-    written: Option<ValueId>,
+    written: Written,
 ) -> Result<(), SelectedInstructionError> {
     if indices.is_empty() {
-        let role = if written.is_some() {
-            SelectedMemoryAccessRole::WritePlace
-        } else {
+        let role = if matches!(written, Written::None) {
             SelectedMemoryAccessRole::ReadPlace
+        } else {
+            SelectedMemoryAccessRole::WritePlace
         };
         return memory(replay, row, place, byte_offset, byte_count, role);
     }
     for index in indices {
         let role = match written {
-            Some(value) => SelectedMemoryAccessRole::WriteIndexedPrimitive {
+            Written::Scalar(value) => SelectedMemoryAccessRole::WriteIndexedPrimitive {
                 index: index.operand.value,
                 value,
                 stride: index.stride,
@@ -123,7 +131,14 @@ pub(super) fn footprint(
                 obligation: index.obligation,
                 accepted_fact: index.accepted_fact,
             },
-            None => SelectedMemoryAccessRole::ReadIndexedPrimitive {
+            Written::Structural => SelectedMemoryAccessRole::WriteIndexedStructural {
+                index: index.operand.value,
+                stride: index.stride,
+                extent: index.extent,
+                obligation: index.obligation,
+                accepted_fact: index.accepted_fact,
+            },
+            Written::None => SelectedMemoryAccessRole::ReadIndexedPrimitive {
                 index: index.operand.value,
                 stride: index.stride,
                 extent: index.extent,

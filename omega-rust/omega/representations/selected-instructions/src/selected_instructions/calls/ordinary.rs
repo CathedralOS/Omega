@@ -206,6 +206,19 @@ pub enum SelectedMemoryAccessRole {
         obligation: semantic_vocabulary::ObligationId,
         accepted_fact: optimization_core::AcceptedObligationFactIdentity,
     },
+    /// One runtime-selected element of a write through a verified structural
+    /// projection — the write counterpart of `ReadIndexedPrimitive` for a
+    /// byte copy (a borrowed window's reseat), which stores chunks of a
+    /// structural element and so names no single scalar `value`. Same
+    /// one-row-per-runtime-element address model and certificate shape as
+    /// `WriteIndexedPrimitive`.
+    WriteIndexedStructural {
+        index: semantic_vocabulary::ValueId,
+        stride: u32,
+        extent: u64,
+        obligation: semantic_vocabulary::ObligationId,
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity,
+    },
     /// One runtime-selected element of a read through a verified structural
     /// projection; the read counterpart of `WriteIndexedPrimitive`, with the
     /// same one-row-per-runtime-element address model.

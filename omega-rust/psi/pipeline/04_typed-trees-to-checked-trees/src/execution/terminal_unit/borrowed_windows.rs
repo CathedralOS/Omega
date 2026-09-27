@@ -13,29 +13,36 @@ use super::{
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
     CheckedUnitStructuralResultBindingPlan, Multiplicity, StatementNode, SymbolHandle, TypedTrees,
 };
+use crate::execution::terminal_unit::structural_scalar_store::TargetSelectors;
 use crate::execution::terminal_unit::types::ShapeCollector;
 
 use crate::execution::terminal_unit::types::terminal_field_identity;
 use crate::flow::CanonicalPlace;
+use checked_trees::CheckFacts;
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// The exact field chain beneath an exclusive borrowed structural parameter.
-/// Whole-root moves and index/referent segments open no pinned window.
+/// Whole-root moves and referent segments open no pinned window; a fixed or
+/// retained runtime element step selects the element the window pins.
 ///
 /// The place is first keyed on the resolved *storage* it names — the same
 /// rebase the checker performs: a route through a reference-typed local
 /// (`let r = &mut self; r.f`) names the same hole as the owner path
-/// (`self.f`), so both must land on one window.
+/// (`self.f`), so both must land on one window. `target` is the authored
+/// expression the place canonicalized from: its retained `AssignmentIndex`
+/// scalars resolve a runtime segment's element coordinate.
 pub(in crate::execution::terminal_unit) fn window_place(
     program: &TypedTrees,
+    facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statements: &[StatementNode],
     statement_index: usize,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     place: &CanonicalPlace,
+    target: ExpressionHandle,
 ) -> Option<(u32, Vec<CheckedUnitStructuralPathSegment>)> {
     let PlaceRoot::Symbol(root_symbol) = place.root else {
         return None;
@@ -62,7 +69,8 @@ pub(in crate::execution::terminal_unit) fn window_place(
             .state_parameters(state)
             .iter()
             .position(|parameter| parameter.symbol == symbol)
-    }?;
+    };
+    let position = position?;
     let position = u32::try_from(position).ok()?;
     let parameter = structural_parameters
         .iter()
@@ -77,11 +85,36 @@ pub(in crate::execution::terminal_unit) fn window_place(
     if segments.is_empty() {
         return None;
     }
+    let selectors = segments
+        .iter()
+        .any(|segment| {
+            matches!(
+                segment,
+                PlaceSegment::Index { .. } | PlaceSegment::FixedIndex { .. }
+            )
+        })
+        .then(|| {
+            TargetSelectors::resolve(
+                program,
+                facts,
+                machine,
+                state,
+                u32::try_from(statement_index).ok()?,
+                target,
+            )
+        })
+        .flatten();
     let path = segments
         .iter()
         .map(|segment| match segment {
             PlaceSegment::Field { symbol } => terminal_field_identity(program, *symbol)
                 .map(CheckedUnitStructuralPathSegment::Field),
+            PlaceSegment::FixedIndex { index } => Some(
+                CheckedUnitStructuralPathSegment::FixedIndex(u64::try_from(*index).ok()?),
+            ),
+            PlaceSegment::Index { expression } => selectors
+                .as_ref()
+                .and_then(|selectors| selectors.runtime_segment(*expression)),
             _ => None,
         })
         .collect::<Option<Vec<_>>>()?;
@@ -263,6 +296,7 @@ impl OpenWindows {
     pub(super) fn move_out(
         &mut self,
         program: &TypedTrees,
+        facts: &CheckFacts,
         shapes: &mut ShapeCollector<'_>,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
@@ -281,12 +315,14 @@ impl OpenWindows {
         let statements = program.statement_table.statements(state.statement_nodes);
         let (position, path) = window_place(
             program,
+            facts,
             machine,
             state,
             statements,
             index,
             structural_parameters,
             &place,
+            local.initial_value,
         )?;
         let type_identity = shapes.add_type(local.type_reference, binders, &[])?;
         let result = CheckedUnitStructuralResultBindingPlan {
@@ -320,6 +356,7 @@ impl OpenWindows {
     pub(super) fn restore(
         &mut self,
         program: &TypedTrees,
+        facts: &CheckFacts,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
         structural_parameters: &[CheckedUnitStructuralParameterPlan],
@@ -352,12 +389,14 @@ impl OpenWindows {
         )?;
         let (position, path) = window_place(
             program,
+            facts,
             machine,
             state,
             statements,
             index,
             structural_parameters,
             &destination_place,
+            assignment.target,
         )?;
         self.open.remove(&(position, path.clone()))?;
         let (binding_ordinal, value_type) = self.locals.remove(bound).1;
@@ -394,6 +433,7 @@ impl OpenWindows {
     pub(super) fn replace(
         &self,
         program: &TypedTrees,
+        facts: &CheckFacts,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
         structural_parameters: &[CheckedUnitStructuralParameterPlan],
@@ -414,12 +454,14 @@ impl OpenWindows {
         )?;
         let (position, path) = window_place(
             program,
+            facts,
             machine,
             state,
             program.statement_table.statements(state.statement_nodes),
             index,
             structural_parameters,
             &destination_place,
+            assignment.target,
         )?;
         if self.open.contains_key(&(position, path.clone())) {
             return None;

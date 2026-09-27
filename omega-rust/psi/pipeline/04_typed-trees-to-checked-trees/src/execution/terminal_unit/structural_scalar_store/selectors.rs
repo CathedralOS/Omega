@@ -82,7 +82,7 @@ impl TargetSelectors {
     }
 
     /// The checked segment of the runtime element `expression` selects.
-    pub(super) fn runtime_segment(
+    pub(in crate::execution::terminal_unit) fn runtime_segment(
         &self,
         expression: ExpressionHandle,
     ) -> Option<CheckedUnitStructuralPathSegment> {

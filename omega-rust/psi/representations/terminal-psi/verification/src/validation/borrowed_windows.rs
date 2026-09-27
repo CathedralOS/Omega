@@ -493,7 +493,39 @@ fn declared_window_field_type(
         _ => return None,
     };
     let root_type = source_signature(machine, root)?.structural_type;
-    let parent_type = super::foundation::resolve_structural_path(module, root_type, path)?;
+    if matches!(
+        path.last(),
+        Some(StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. })
+    ) {
+        // An element leaf: `field` names the array's own field declaration —
+        // the last field segment in its owner record — and the hole's type is
+        // the element the spelled path selects.
+        let field_position = path
+            .iter()
+            .rposition(|segment| matches!(segment, StructuralPathSegment::Field(_)))?;
+        let owner = super::foundation::resolve_runtime_projection(
+            module,
+            root_type,
+            &path[..field_position],
+        )?;
+        let declaration = module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == owner)?;
+        let fields = match &declaration.shape {
+            StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. } => {
+                fields
+            }
+            _ => return None,
+        };
+        fields.iter().find(|candidate| {
+            candidate.id == field
+                && !candidate.relevance.is_erased()
+                && matches!(candidate.field_type, StructuralFieldType::Structural(_))
+        })?;
+        return super::foundation::resolve_runtime_projection(module, root_type, path);
+    }
+    let parent_type = super::foundation::resolve_runtime_projection(module, root_type, path)?;
     let declaration = module
         .structural_types
         .iter()

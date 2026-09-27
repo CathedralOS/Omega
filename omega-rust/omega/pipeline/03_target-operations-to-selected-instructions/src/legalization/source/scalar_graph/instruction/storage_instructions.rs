@@ -85,14 +85,15 @@ pub(super) fn project_borrowed_window(
     node: &optimization_unit::OptimizationNode,
     optimized: &optimization_unit::PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
+    unit: &PsiOptimizationUnit,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     match &node.operation {
         AbstractOperation::MoveStructuralField {
+            psi_operation,
             result,
             source,
             path,
             field,
-            ..
         } => {
             let extent = scalar_graph_input::borrowed_windows::moved(
                 optimized, source, path, *field, result, plan,
@@ -103,15 +104,20 @@ pub(super) fn project_borrowed_window(
                 path: extent.path,
                 byte_offset: extent.byte_offset,
                 shape: extent.shape,
-                indices: Vec::new(),
+                indices: crate::legalization::runtime_indices::operands(
+                    optimized,
+                    unit,
+                    *psi_operation,
+                    &extent.elements,
+                )?,
             })
         }
         AbstractOperation::StoreStructuralField {
+            psi_operation,
             destination,
             path,
             field,
             value,
-            ..
         } => {
             let extent = scalar_graph_input::borrowed_windows::extent(
                 optimized,
@@ -130,6 +136,12 @@ pub(super) fn project_borrowed_window(
                 value: value.place,
                 byte_offset: extent.byte_offset,
                 shape: extent.shape,
+                indices: crate::legalization::runtime_indices::operands(
+                    optimized,
+                    unit,
+                    *psi_operation,
+                    &extent.elements,
+                )?,
             })
         }
         _ => unreachable!("dispatched project_borrowed_window"),

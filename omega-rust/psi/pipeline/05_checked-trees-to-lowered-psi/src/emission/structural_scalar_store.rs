@@ -231,7 +231,7 @@ pub(crate) fn lower_structural_field_path<'a>(
 /// Walk a carrier path of record fields and fixed-array elements, literal or
 /// the assignment's runtime elements, in any order, to the record that
 /// declares `field_identity`.
-fn lower_structural_field_steps<'a>(
+pub(crate) fn lower_structural_field_steps<'a>(
     root_type: StructuralTypeId,
     carrier_path: &[CheckedUnitStructuralPathSegment],
     field_identity: &str,
@@ -317,6 +317,153 @@ fn lower_structural_field_steps<'a>(
         return unsupported("structural scalar store field is absent or ambiguous");
     };
     Ok((steps, field))
+}
+
+/// A window path's leaf: the last segment is a record member (`Field`) or an
+/// element selection of a fixed array (`Element`), the latter naming the
+/// array's field declaration as the op's `field` operand.
+pub(crate) enum WindowLeaf<'a> {
+    /// The route's last segment names a record member; the hole's declared
+    /// type is that field's structural type.
+    Field(&'a terminal_psi::StructuralFieldDeclaration),
+    /// The route ends in an element selection: `field` is the innermost
+    /// record member on the route (the array the element is selected from)
+    /// and `element_type` is the hole's declared type.
+    Element {
+        field: &'a terminal_psi::StructuralFieldDeclaration,
+        element_type: StructuralTypeId,
+    },
+}
+
+/// Walk a window operation's spelled path — record fields and fixed-array
+/// elements in any order — to its leaf. The leaf's kind is decided by the
+/// last segment: a field leaf keeps the field-hole spelling Terminal already
+/// admits, and an element leaf selects the array's element type.
+pub(crate) fn lower_window_path<'a>(
+    root_type: StructuralTypeId,
+    path: &[CheckedUnitStructuralPathSegment],
+    structural_types: &'a [StructuralTypeDeclaration],
+) -> Result<(Vec<ProjectionStep>, WindowLeaf<'a>), LoweringError> {
+    let declaration = structural_types
+        .iter()
+        .find(|declaration| declaration.id == root_type)
+        .ok_or(LoweringError::Unsupported(
+            "structural window root type is absent",
+        ))?;
+    let mut field_owner = declaration;
+    let mut last_field = None;
+    let mut steps = Vec::with_capacity(path.len());
+    let mut cursor = path;
+    while let Some((segment, rest)) = cursor.split_first() {
+        cursor = rest;
+        match segment {
+            CheckedUnitStructuralPathSegment::Field(identity) if !identity.is_empty() => {
+                let (StructuralTypeShape::Record { fields }
+                | StructuralTypeShape::Mixed { fields, .. }) = &field_owner.shape
+                else {
+                    return unsupported("structural window carrier is not a record");
+                };
+                if rest.is_empty() {
+                    // The leaf resolves by identity alone: a scalar leaf is a
+                    // window the caller rejects on the leaf's declared type.
+                    let mut leafs = fields.iter().filter(|field| {
+                        field.identity == *identity && !field.relevance.is_erased()
+                    });
+                    let leaf = leafs.next();
+                    if leaf.is_none() || leafs.next().is_some() {
+                        return unsupported("structural window leaf is absent or ambiguous");
+                    }
+                    return Ok((steps, WindowLeaf::Field(leaf.expect("leaf checked above"))));
+                }
+                let mut carriers = fields.iter().filter(|field| {
+                    field.identity == *identity
+                        && !field.relevance.is_erased()
+                        && matches!(field.field_type, StructuralFieldType::Structural(_))
+                });
+                let carrier = carriers.next();
+                if carrier.is_none() || carriers.next().is_some() {
+                    return unsupported("structural window carrier is absent or ambiguous");
+                }
+                let carrier = carrier.expect("carrier presence was checked above");
+                steps.push(ProjectionStep::Static(StructuralPathSegment::Field(
+                    identity.clone(),
+                )));
+                let StructuralFieldType::Structural(nested) = carrier.field_type else {
+                    unreachable!("carrier shape was checked above")
+                };
+                last_field = Some(carrier);
+                field_owner = structural_types
+                    .iter()
+                    .find(|candidate| candidate.id == nested)
+                    .ok_or(LoweringError::Unsupported(
+                        "structural window nested carrier type is absent",
+                    ))?;
+            }
+            CheckedUnitStructuralPathSegment::FixedIndex(index) => {
+                let StructuralTypeShape::FixedArray { element, length } = &field_owner.shape else {
+                    return unsupported("structural window carrier is not a fixed array");
+                };
+                if *index >= *length {
+                    return unsupported("structural window fixed index is out of bounds");
+                }
+                steps.push(ProjectionStep::Static(StructuralPathSegment::FixedIndex(
+                    *index,
+                )));
+                field_owner = structural_types
+                    .iter()
+                    .find(|candidate| candidate.id == *element)
+                    .ok_or(LoweringError::Unsupported(
+                        "structural window element type is absent",
+                    ))?;
+                if rest.is_empty() {
+                    let Some(field) = last_field else {
+                        return unsupported(
+                            "structural window element has no enclosing field segment",
+                        );
+                    };
+                    return Ok((
+                        steps,
+                        WindowLeaf::Element {
+                            field,
+                            element_type: *element,
+                        },
+                    ));
+                }
+            }
+            CheckedUnitStructuralPathSegment::RuntimeIndex(
+                checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth },
+            ) => {
+                let StructuralTypeShape::FixedArray { element, .. } = &field_owner.shape else {
+                    return unsupported("structural window carrier is not a fixed array");
+                };
+                if !steps.contains(&ProjectionStep::AssignmentIndex { depth: *depth }) {
+                    steps.push(ProjectionStep::AssignmentIndex { depth: *depth });
+                }
+                field_owner = structural_types
+                    .iter()
+                    .find(|candidate| candidate.id == *element)
+                    .ok_or(LoweringError::Unsupported(
+                        "structural window element type is absent",
+                    ))?;
+                if rest.is_empty() {
+                    let Some(field) = last_field else {
+                        return unsupported(
+                            "structural window element has no enclosing field segment",
+                        );
+                    };
+                    return Ok((
+                        steps,
+                        WindowLeaf::Element {
+                            field,
+                            element_type: *element,
+                        },
+                    ));
+                }
+            }
+            _ => return unsupported("structural window carrier path is unsupported"),
+        }
+    }
+    unsupported("structural window path has no leaf segment")
 }
 
 fn checked_store_source_matches(
