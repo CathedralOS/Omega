@@ -182,6 +182,29 @@ fn runtime(depth: u32) -> checked_trees::CheckedUnitStructuralPathSegment {
     )
 }
 
+#[test]
+fn computed_u32_selector_retains_its_runtime_element() {
+    let stores = grid_stores(
+        r#"
+        data Grid { cells: [u16; 12]; }
+        machine Grid::update(&mut self, row: u32 [0..=2], column: u32 [0..=3], value: u16) {
+            self.cells[row * 4 + column] = value;
+        }
+    "#,
+    );
+    let [CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { path, .. }] = stores.as_slice()
+    else {
+        panic!("one computed-index store: {stores:#?}");
+    };
+    assert_eq!(
+        path.as_slice(),
+        [
+            checked_trees::CheckedUnitStructuralPathSegment::Field("cells".into()),
+            runtime(0),
+        ]
+    );
+}
+
 /// Every selector of the target is its own runtime element, numbered by its
 /// depth from the target: `self.cells[i][j]` selects `j` at depth 0 and `i`
 /// at depth 1, and its path lists them in path order.

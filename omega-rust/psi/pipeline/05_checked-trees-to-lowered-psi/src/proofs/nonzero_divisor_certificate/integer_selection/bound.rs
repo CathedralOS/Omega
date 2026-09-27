@@ -1,9 +1,11 @@
 //! Ordered atomic integer-bound proof selection.
 
 use proof_admission::ProofNode;
-use semantic_vocabulary::{Proposition, PropositionContext};
+use semantic_vocabulary::{Proposition, PropositionContext, ScalarType};
 
-use super::super::{affine_custody::DefinitionIndex, affine_selection, cast_selection};
+use super::super::{
+    affine_custody::DefinitionIndex, affine_selection, cast_custody, cast_selection,
+};
 use super::{derived, order, range, shift, substitution, wrapping};
 
 pub(super) fn prove(
@@ -55,6 +57,7 @@ fn prove_uncached(
 
     order::prove_aliased_integer_bound(context, goal, assumptions, semantic_axioms)
         .or_else(|| cast_selection::prove(context, goal, assumptions, semantic_axioms))
+        .or_else(|| prove_derived_cast_bound(context, goal, assumptions, semantic_axioms))
         .or_else(|| {
             affine_selection::prove_with_definitions(
                 context,
@@ -117,6 +120,7 @@ fn prove_candidate_endpoint_uncached(
 
     order::prove_aliased_integer_bound(context, goal, assumptions, semantic_axioms)
         .or_else(|| cast_selection::prove(context, goal, assumptions, semantic_axioms))
+        .or_else(|| prove_derived_cast_bound(context, goal, assumptions, semantic_axioms))
         .or_else(|| {
             affine_selection::prove_without_cast(
                 context,
@@ -130,4 +134,43 @@ fn prove_candidate_endpoint_uncached(
         .or_else(|| range::prove(context, goal, assumptions, semantic_axioms))
         .or_else(|| derived::prove(context, goal, assumptions, semantic_axioms))
         .or_else(|| order::prove_equal_integer_bound(context, goal, assumptions, semantic_axioms))
+}
+
+fn prove_derived_cast_bound(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> Option<ProofNode> {
+    let Proposition::LessOrEqual(left, right) = goal else {
+        return None;
+    };
+    let (target, endpoint, lower) = if left.integer_value().is_some() {
+        (right, left, true)
+    } else if right.integer_value().is_some() {
+        (left, right, false)
+    } else {
+        return None;
+    };
+    let (root, _) = cast_custody::source_root(target, semantic_axioms)?;
+    let ScalarType::Integer(integer_type) = root.scalar_type() else {
+        return None;
+    };
+    // Compute source endpoints before transporting them: the cast's carrier
+    // bound alone loses the tighter range established by source arithmetic.
+    let endpoint = cast_custody::remap_integer_literal(endpoint, integer_type)?;
+    let source_goal = if lower {
+        Proposition::LessOrEqual(endpoint, root.clone())
+    } else {
+        Proposition::LessOrEqual(root.clone(), endpoint)
+    };
+    let root_bound = derived::prove(context, &source_goal, assumptions, semantic_axioms)?;
+    cast_custody::prove_from_root(
+        context,
+        goal,
+        assumptions,
+        semantic_axioms,
+        &root,
+        root_bound,
+    )
 }
