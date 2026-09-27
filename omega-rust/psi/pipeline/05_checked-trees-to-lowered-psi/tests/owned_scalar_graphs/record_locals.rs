@@ -193,19 +193,23 @@ fn record_locals_separate_owned_parameters_and_retain_the_cycle_boundary() {
         }
     "#;
     let checked = support::check(source);
+    let cyclic = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("walk"),
+    );
     assert!(
         matches!(
-            checked_trees_to_lowered_psi::lower_machine(
-                &checked,
-                TerminalMachineSelection::Name("walk")
-            ),
+            cyclic,
             Err(
                 checked_trees_to_lowered_psi::LoweringError::InvalidTerminalModule(
-                    terminal_verifier::ModuleError::ControlCycle(_)
+                    terminal_verifier::ModuleError::ControlCycleIneligible {
+                        reason: terminal_verifier::ControlCycleIneligibility::BlockOperation { .. },
+                        ..
+                    }
                 )
             )
         ),
-        "fresh record cycle lifetime remains explicitly unadmitted"
+        "fresh record cycle lifetime remains explicitly unadmitted: {cyclic:?}"
     );
     let (_, module, bytes, proof) = support::publish(source, "finish");
     let machine = module
