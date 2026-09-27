@@ -1,3 +1,4 @@
+use omega_language_std::console;
 use omega::language::core::binding;
 // RUN CANARY (exit 70) -- BUILD-MACHINE IDENTITY IS FILE-BASED
 // (2026-07-11m, owner answer #3: build.omg is the home): a machine
@@ -5,7 +6,6 @@ use omega::language::core::binding;
 // ORDINARY machine -- called at runtime like any other, never hijacked
 // for compile-time evaluation. The build hook must be declared at a
 // build.omg root (pinned by tests/build_config_granted.rs).
-pub boundary trait Console { machine exit_process(return_code: i32); }
 data Build { flag: i32 in Wrapping; }
 data Maker { count: i32 in Wrapping; }
 machine Maker::build(&mut self, b: &mut Build) {
