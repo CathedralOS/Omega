@@ -1,0 +1,46 @@
+// A const generic parameter carrying a bracketed RANGE, on a type used in a
+// machine's attached data, makes the machine unplannable — the same phase and
+// plausibly the same limitation as
+// `tests/omega/pending/float/float_range_attached_field`.
+//
+//   data Buf<const N: u64> { items: [i32; N]; }               checks
+//   data Buf<const N: u64> { items: [i32 in Wrapping; N]; }   checks
+//   data Buf<const N: u64[1..=..]> { items: [i32; N]; }       OMITTED (this)
+//   data Buf<const N: u64[1..=..]> { items: [i32 in Wrapping; N]; }  OMITTED
+//
+// all at `state graph: state signature: parameter signature: attached data
+// shape`.
+//
+// The ELEMENT POLICY is ruled out and that is worth stating, because this
+// fixture's origin `pass/generics/runtime_const_container_methods_exit`
+// declares `items: [i32 in Wrapping; N]` and reads exactly like the
+// member-policy family pinned elsewhere. It is not: the policy element checks
+// on its own, and the plain element with a ranged const parameter omits.
+//
+// PAIRED, not merged. The other four fixtures at this phase carry a float
+// field with a bracketed range; this one carries no float at all. Both
+// triggers are a bracketed RANGE that the attached shape has to represent,
+// which is the natural hypothesis for one underlying limitation in
+// `shapes.add_attached_application` — but an INTEGER field range
+// (`value: i32 [0..=10]`) CHECKS, so "ranges in the attached shape" is too
+// broad as stated. Settle what distinguishes the admitted integer-field range
+// from these two before repairing either.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Buffer<const Capacity: u64[1..=64]> {
+    items: [i32; Capacity];
+}
+
+data Main {
+    console: Binding<Console>;
+    small: Buffer<2>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    transition { _ -> step(1) }
+
+    state step(&mut self, count: i32) {
+        self.console.exit_process(0);
+    }
+}
