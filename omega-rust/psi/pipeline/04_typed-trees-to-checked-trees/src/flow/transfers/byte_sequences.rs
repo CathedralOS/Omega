@@ -287,22 +287,24 @@ pub(super) fn append_element_replacement_predicates(
         })
         .map(<[_]>::to_vec)
         .unwrap_or_default();
+    let mut source_facts = None;
     let stored_classes: Vec<_> = crate::facts::field_domain::ByteSequencePredicate::ALL
         .into_iter()
         .map(|predicate| {
             let stored = bounds
                 .is_some_and(|(minimum, maximum)| predicate.holds_for(&[minimum, maximum]))
                 || source_place.is_some_and(|place| {
-                    carrier_proves_predicate(
-                        program,
-                        semantic,
-                        &active_facts,
-                        machine_symbol,
-                        state_symbol,
-                        place,
-                        predicate,
-                        &[],
-                    )
+                    let facts = source_facts.get_or_insert_with(|| {
+                        facts_about_place(
+                            program,
+                            semantic,
+                            &active_facts,
+                            machine_symbol,
+                            state_symbol,
+                            place,
+                        )
+                    });
+                    carrier_proves_predicate(program, facts, predicate, &[])
                 });
             (predicate, stored)
         })
@@ -352,6 +354,7 @@ pub(super) fn append_element_replacement_predicates(
             ));
         }
     }
+    let mut carrier_facts = None;
     for predicate in crate::facts::field_domain::ByteSequencePredicate::ALL {
         // Both supported per-byte classes are intervals. Their endpoints
         // establish every possible replacement byte, not just one witness.
@@ -361,32 +364,41 @@ pub(super) fn append_element_replacement_predicates(
         let byte_in_class = if predicate.is_subslice_preserving() {
             stored_in(predicate)
         } else if predicate == crate::facts::field_domain::ByteSequencePredicate::ValidUtf8 {
-            ascii_stored
-                && carrier_proves_predicate(
+            ascii_stored && {
+                let facts = carrier_facts.get_or_insert_with(|| {
+                    facts_about_place(
+                        program,
+                        semantic,
+                        &active_facts,
+                        machine_symbol,
+                        state_symbol,
+                        carrier,
+                    )
+                });
+                carrier_proves_predicate(
                     program,
-                    semantic,
-                    &active_facts,
-                    machine_symbol,
-                    state_symbol,
-                    carrier,
+                    facts,
                     crate::facts::field_domain::ByteSequencePredicate::AsciiOnly,
                     &carrier_ceiling,
                 )
+            }
         } else {
             false
         };
-        if !byte_in_class
-            || !carrier_proves_predicate(
+        if !byte_in_class {
+            continue;
+        }
+        let facts = carrier_facts.get_or_insert_with(|| {
+            facts_about_place(
                 program,
                 semantic,
                 &active_facts,
                 machine_symbol,
                 state_symbol,
                 carrier,
-                predicate,
-                &carrier_ceiling,
             )
-        {
+        });
+        if !carrier_proves_predicate(program, facts, predicate, &carrier_ceiling) {
             continue;
         }
         let fact = semantic.append_fact(Fact {
@@ -452,16 +464,50 @@ fn replacement_byte(
 /// domain whose own predicate implies it.
 fn carrier_proves_predicate(
     program: &typed_trees::TypedTrees,
+    carrier_facts: &[Fact],
+    predicate: crate::facts::field_domain::ByteSequencePredicate,
+    ceiling: &[crate::facts::field_domain::ByteSequencePredicate],
+) -> bool {
+    if ceiling.contains(&predicate) {
+        return true;
+    }
+    carrier_facts.iter().any(|fact| match fact.payload {
+        FactPayload::AssignedValue { value } => matches!(
+            program.expression_table.expression(value),
+            ExpressionNode::String(literal) if predicate.holds_for(literal)
+        ),
+        FactPayload::BytePredicate { predicate: proved } => proved.implies(predicate),
+        FactPayload::DomainMembership {
+            domain_symbol,
+            semantic_domain,
+            ..
+        }
+        | FactPayload::ContractDomainMembership {
+            domain_symbol,
+            semantic_domain,
+            ..
+        } => {
+            index_free_membership(program, domain_symbol, semantic_domain)
+                && crate::facts::field_domain::domain_byte_predicate(program, domain_symbol)
+                    .is_some_and(|proved| proved.implies(predicate))
+        }
+        _ => false,
+    })
+}
+
+/// The active facts about `carrier`'s canonical storage, resolved once per
+/// carrier so each per-predicate query reads only them instead of
+/// re-canonicalizing every active fact per predicate. State inputs use one
+/// attached storage root; authored accesses may still use the current self
+/// parameter or an inherited field root.
+fn facts_about_place(
+    program: &typed_trees::TypedTrees,
     semantic: &FactPlan,
     active: &[Fact],
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     carrier: PlaceHandle,
-    predicate: crate::facts::field_domain::ByteSequencePredicate,
-    ceiling: &[crate::facts::field_domain::ByteSequencePredicate],
-) -> bool {
-    // State inputs use one attached storage root; authored accesses may still
-    // use the current self parameter or an inherited field root.
+) -> Vec<Fact> {
     let canonical = |place| {
         let mut place =
             canonical_place_from_semantic_place(program, semantic, semantic.places.get(place))?;
@@ -469,42 +515,16 @@ fn carrier_proves_predicate(
         place.root = normalized_event_place_root(program, place.root);
         Some(place)
     };
-    if ceiling.contains(&predicate) {
-        return true;
-    }
     let Some(carrier) = canonical(carrier) else {
-        return false;
+        return Vec::new();
     };
-    active.iter().any(|fact| {
-        let FactPlace::Place(place) = fact.place else {
-            return false;
-        };
-        if canonical(place).as_ref() != Some(&carrier) {
-            return false;
-        }
-        match fact.payload {
-            FactPayload::AssignedValue { value } => matches!(
-                program.expression_table.expression(value),
-                ExpressionNode::String(literal) if predicate.holds_for(literal)
-            ),
-            FactPayload::BytePredicate { predicate: proved } => proved.implies(predicate),
-            FactPayload::DomainMembership {
-                domain_symbol,
-                semantic_domain,
-                ..
-            }
-            | FactPayload::ContractDomainMembership {
-                domain_symbol,
-                semantic_domain,
-                ..
-            } => {
-                index_free_membership(program, domain_symbol, semantic_domain)
-                    && crate::facts::field_domain::domain_byte_predicate(program, domain_symbol)
-                        .is_some_and(|proved| proved.implies(predicate))
-            }
-            _ => false,
-        }
-    })
+    active
+        .iter()
+        .filter(|fact| {
+            matches!(fact.place, FactPlace::Place(place) if canonical(place).as_ref() == Some(&carrier))
+        })
+        .copied()
+        .collect()
 }
 
 fn index_free_membership(
