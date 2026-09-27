@@ -42,6 +42,11 @@ fn owned_root_type(
     function: &AbstractFunction,
     place: PlaceId,
 ) -> Option<StructuralTypeId> {
+    // Empty affine locals have an establishment but deliberately no storage
+    // home. They still owe the same exact, edge-local root disposition.
+    if let Some((_, structural_type)) = live.trivial_affine_locals.get(&place) {
+        return Some(*structural_type);
+    }
     if let Some(home) = live.structural_homes.get(&place) {
         return (home.multiplicity() == StructuralMultiplicity::Affine
             && !home.has_claims()

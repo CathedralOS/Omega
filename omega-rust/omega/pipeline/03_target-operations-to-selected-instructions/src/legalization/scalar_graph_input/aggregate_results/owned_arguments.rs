@@ -210,7 +210,7 @@ fn precedes(
 
 /// The one `EstablishTrivialAffineLocal` minting `place`: its operation,
 /// declared empty-record type and site.
-fn trivial_affine_local(
+pub(super) fn trivial_affine_local(
     caller: &PsiOptimizationFunction,
     place: semantic_vocabulary::PlaceId,
 ) -> Option<(
@@ -228,7 +228,13 @@ fn trivial_affine_local(
                     psi_operation,
                     place: declaration,
                     structural_type,
-                } if declaration.id == place => {
+                } if declaration.id == place
+                    && matches!(declaration.kind,
+                        StructuralPlaceKind::TrivialAffineLocal {
+                            structural_type: declared, construction: None, ..
+                        } if declared == structural_type.id)
+                    && matches!(&structural_type.shape,
+                        terminal_psi::StructuralTypeShape::Record { fields } if fields.is_empty()) => {
                     Some((*psi_operation, structural_type.id, (block.id, position)))
                 }
                 _ => None,

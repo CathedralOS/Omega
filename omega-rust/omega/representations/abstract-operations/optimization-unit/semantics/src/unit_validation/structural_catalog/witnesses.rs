@@ -84,7 +84,13 @@ pub(crate) fn validate_trivial_affine_local_witnesses(
         .collect::<Vec<_>>();
 
     if !explicit.is_empty() {
-        let exact = structural_returns.is_empty()
+        // Explicit establishments compose with any return kind. Only a
+        // second, compressed establishment witness on a structural return
+        // would duplicate their authority; ordinary cleanup is replayed by
+        // the ownership frontier independently.
+        let exact = structural_returns
+            .iter()
+            .all(|(compressed, _)| compressed.is_empty())
             && explicit.len() == expected_locals.len()
             && explicit.iter().zip(expected_locals).all(
                 |((_, actual_place, actual_type), (expected_place, expected_type))| {
