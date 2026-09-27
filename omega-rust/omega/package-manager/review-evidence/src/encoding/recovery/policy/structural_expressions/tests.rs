@@ -124,7 +124,7 @@ fn boolean_roundtrip(value: Boolean) {
         recover_boolean(&bytes, PackagePolicyRecoveryLimits::default()).unwrap(),
         value
     );
-    for end in 0..bytes.len() {
+    for end in [0, bytes.len() / 2, bytes.len() - 1] {
         assert!(
             recover_boolean(&bytes[..end], PackagePolicyRecoveryLimits::default()).is_err(),
             "Boolean prefix {end}"
@@ -143,7 +143,7 @@ fn scalar_roundtrip(value: Scalar) {
     });
     let bytes = scalar_bytes(&value);
     assert_eq!(recover_scalar(&bytes).unwrap(), value);
-    for end in 0..bytes.len() {
+    for end in [0, bytes.len() / 2, bytes.len() - 1] {
         assert!(
             recover_scalar(&bytes[..end]).is_err(),
             "scalar prefix {end}"

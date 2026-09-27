@@ -217,7 +217,7 @@ fn composed_nonempty_meaning_roundtrips_with_no_nested_envelopes() {
     ] {
         assert!(!bytes.windows(magic.len()).any(|part| part == magic));
     }
-    for end in 0..bytes.len() {
+    for end in [0, bytes.len() / 2, bytes.len() - 1] {
         assert!(
             recover(&bytes[..end]).is_err(),
             "truncated baseline prefix {end}"

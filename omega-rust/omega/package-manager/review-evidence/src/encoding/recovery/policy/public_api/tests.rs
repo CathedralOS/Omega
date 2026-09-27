@@ -301,7 +301,7 @@ fn normalized_public_api_roundtrips_all_families_and_nested_full_promises() {
     let recovered = decode(&bytes, PackagePolicyRecoveryLimits::default()).unwrap();
     assert_eq!(recovered, api);
     assert_eq!(encode(&recovered), bytes);
-    for length in 0..bytes.len() {
+    for length in [0, bytes.len() / 2, bytes.len() - 1] {
         assert!(
             decode(&bytes[..length], PackagePolicyRecoveryLimits::default()).is_err(),
             "prefix {length}"

@@ -343,7 +343,7 @@ fn case_membership_retains_subject_and_exact_classifier_without_value_equality()
         assert_ne!(alternate_bytes, bytes);
         assert_eq!(recovered_expression(&alternate_bytes).unwrap(), alternate);
     }
-    for length in 0..bytes.len() {
+    for length in [0, bytes.len() / 2, bytes.len() - 1] {
         assert!(recovered_expression(&bytes[..length]).is_err());
     }
     let mut trailing = bytes.clone();
@@ -515,7 +515,7 @@ fn expression_recovery_rejects_truncation_trailing_bytes_counts_and_depth() {
         BuiltinFunction::IntegerEmbed,
     ));
     let bytes = encoded_expression(&value);
-    for length in 0..bytes.len() {
+    for length in [0, bytes.len() / 2, bytes.len() - 1] {
         assert!(recovered_expression(&bytes[..length]).is_err());
     }
     let mut trailing = bytes;

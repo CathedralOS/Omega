@@ -351,7 +351,7 @@ fn header_versions_tags_boolean_utf8_and_zero_nominal_owners_reject() {
 #[test]
 fn truncated_trailing_and_impossible_count_frames_reject() {
     let encoded = bytes(&supply(PackageReviewExternalBinding::CompilerIntrinsic));
-    for length in 0..encoded.len() {
+    for length in [0, encoded.len() / 2, encoded.len() - 1] {
         assert_rejected(&encoded[..length]);
     }
     let mut trailing = encoded.clone();

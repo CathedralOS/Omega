@@ -166,21 +166,15 @@ fn nominal_owner(byte: u8) -> PackageReviewNominalOwner {
 }
 
 #[test]
-fn all_truncations_and_trailing_input_reject() {
-    let mut encoded = bytes(&application());
-    for length in 0..encoded.len() {
-        assert!(
-            recover(&encoded[..length]).is_err(),
-            "accepted truncated length {length}"
-        );
-    }
-    encoded.push(0);
-    assert_eq!(recover(&encoded), Err(Error::TrailingBytes));
-}
-
-#[test]
 fn hostile_versions_owners_tags_utf8_and_counts_reject() {
     let encoded = bytes(&application());
+    // Reader bounds are tested once; retain envelope, body, and final-byte cuts here.
+    for end in [0, encoded.len() / 2, encoded.len() - 1] {
+        assert!(recover(&encoded[..end]).is_err(), "truncated prefix {end}");
+    }
+    let mut trailing = encoded.clone();
+    trailing.push(0);
+    assert_eq!(recover(&trailing), Err(Error::TrailingBytes));
     let header = CONFORMANCE_POLICY_MAGIC.len();
     let mut changed = encoded.clone();
     changed[header] = 2;

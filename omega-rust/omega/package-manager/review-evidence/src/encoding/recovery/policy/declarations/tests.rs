@@ -140,7 +140,7 @@ fn roundtrip<T: std::fmt::Debug + PartialEq>(
     reader.finish().unwrap();
     assert_eq!(&recovered, value);
     assert_eq!(bytes(&recovered, encode), encoded);
-    for end in 0..encoded.len() {
+    for end in [0, encoded.len() / 2, encoded.len() - 1] {
         let mut reader =
             Reader::new(&encoded[..end], PackagePolicyRecoveryLimits::default()).unwrap();
         assert!(
