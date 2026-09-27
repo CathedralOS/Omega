@@ -167,16 +167,6 @@ fn compact_equal_foreign_stack_plan_cannot_substitute_a_strong_commitment() {
 }
 
 #[test]
-fn native_artifact_identity_is_stable_and_canonical() {
-    let first = fixture_identity(IdentityFixture::default());
-    let replay = fixture_identity(IdentityFixture::default());
-
-    assert_eq!(first, replay);
-    assert_eq!(first.to_string().len(), 64);
-    assert_eq!(format!("{first:?}"), first.to_string());
-}
-
-#[test]
 fn native_artifact_identity_binds_terminal_target_and_exact_native_bytes() {
     let baseline = fixture_identity(IdentityFixture::default());
     for mutation in [

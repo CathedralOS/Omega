@@ -228,11 +228,6 @@ impl ValidatedOptimizedProgramStorageSemanticWrapperObjectManifest {
     pub const fn record(&self) -> &OptimizedProgramStorageSemanticWrapperObjectManifest {
         &self.record
     }
-
-    #[cfg(test)]
-    fn record_mut(&mut self) -> &mut OptimizedProgramStorageSemanticWrapperObjectManifest {
-        &mut self.record
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
