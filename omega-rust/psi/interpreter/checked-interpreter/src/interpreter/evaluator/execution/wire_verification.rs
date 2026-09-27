@@ -23,10 +23,13 @@
 //! A check that PASSES is recorded verbatim in `checks` as report
 //! evidence. A requirement the realization cannot exercise (for example a
 //! borrowed scalar-slice field, which has no decode-side field kind) is a
-//! named gap in `gaps`, and the row keeps `Admitted` trust -- independent
-//! verification claims `Derived` only when the whole requirement was
-//! exercised. An actual divergence is `Err` and fails the build: the
-//! generated codec then provably violates the public requirement.
+//! named gap in `gaps`. Every outcome keeps `Admitted` trust: the codec
+//! spec (wiki/spec/layouts/codecs.md, "Agreement and trust") says
+//! differential probes over selected values and malformed frames are
+//! regression checks, not a general agreement argument, so a fully
+//! exercised suite does not earn `Derived` either. An actual divergence is
+//! `Err` and fails the build: the generated codec then provably violates
+//! the public requirement.
 
 use std::collections::BTreeMap;
 
@@ -43,10 +46,11 @@ use typed_trees::wire::{
 /// The outcome of independently checking one generated codec against the
 /// public compact_binary requirement.
 pub struct WireCodecVerification {
-    /// Named checks that passed, in the order they ran.
+    /// Named checks that passed, in the order they ran. These are
+    /// finite-scope regression evidence: the codec row keeps `Admitted`
+    /// trust even when the suite covers every requirement it can reach.
     pub checks: Vec<String>,
-    /// Requirements that could not be exercised by this realization; the
-    /// codec row keeps `Admitted` trust while any remain.
+    /// Requirements that could not be exercised by this realization.
     pub gaps: Vec<String>,
 }
 

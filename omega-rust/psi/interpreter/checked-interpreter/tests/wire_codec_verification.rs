@@ -1,6 +1,7 @@
 //! GENERATED-CODEC-INDEPENDENT-VERIFICATION: a synthesized wire codec's
-//! report row may claim `Derived` trust only after its generated bodies are
-//! checked against the public compact_binary requirement. These tests drive
+//! report row names which finite probes passed, but differential checks
+//! never earn `Derived` trust -- the codec spec calls them regression
+//! checks, not a general agreement argument. These tests drive
 //! `checked_interpreter::verify_wire_schema_codec` over schemas covering
 //! every field kind the stage-2 realization serves, and pin that an
 //! encode-only field kind keeps the row's strict-decode coverage open.
@@ -22,7 +23,7 @@ fn verify(schema_source: &str, schema_name: &str) -> checked_interpreter::WireCo
 }
 
 #[test]
-fn scalar_schema_is_fully_derived() {
+fn scalar_schema_exercises_every_probe() {
     let verification = verify(
         "data Packet {
              #0 tag: u32;
@@ -61,7 +62,8 @@ fn every_stage_two_field_kind_round_trips() {
 #[test]
 fn borrowed_scalar_slice_keeps_strict_decode_open() {
     // `&[i32]` has no decode-side field kind: the encode emission is still
-    // independently verified, but the codec row must not claim Derived.
+    // independently probed, but the codec row records the unexercised
+    // strict-decode coverage as a gap.
     let verification = verify(
         "data Telemetry {
              #0 readings: &[i32];
