@@ -84,6 +84,14 @@ level down. Child manifests
 are rebound and replayed; changing a rule does not require copying its custody
 fields into parallel object, artifact, and callable schemas.
 
+[Private callback materialization](src/private_callback.rs) projects a placed
+single-function section into its compiler-private machine-code record. It
+checks the settled boundary ABI against the target plan retained by the section
+and rejects calls outside the private function's custody. The coordinator
+supplies the callback identity and boundary entry plan; it neither extracts
+machine bytes nor reconstructs their ABI metadata. This consumes the existing
+text-placement result, not an additional pipeline stage.
+
 Object/container construction, final-image validation, executable installation,
 and callable admission remain later owners. Compiler-generated source/byte
 correspondence and one physical receipt for each surviving settled boundary

@@ -1084,6 +1084,7 @@ dependencies = [
  "abstract-operations-to-target-operations",
  "calling-conventions",
  "diagnostics",
+ "function-identity",
  "isa-aarch64",
  "isa-x86_64",
  "machine-code",

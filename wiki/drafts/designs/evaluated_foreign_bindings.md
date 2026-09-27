@@ -93,7 +93,7 @@ The chain reaches the checked-assembly boundary and stops:
   and nothing constructs a `PortEffectRecord` for program functions; the
   artifact-level writer hardcodes `port_effects: Vec::new()`
   (`function_fragments/production.rs`). The private callback thunk lane
-  (`native-realization/.../callback_thunks.rs`) also writes `Vec::new()`, which
+  (`machine-emission/src/private_callback.rs`) also writes `Vec::new()`, which
   is correct by construction — `object_artifact/private_functions.rs` rejects
   any private function whose `port_effects` is nonempty.
 - Corpus: `tests/omega/pass/ports` does not exist; only

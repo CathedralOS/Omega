@@ -25,6 +25,9 @@
 //! level down: `fragment_emission::projection`, `frame_application::insertion`
 //! and `text_placement::placement`.
 //!
+//! [`private_callback`] projects placed callback text into a private function
+//! record using the target ABI retained by that route. It is not another stage.
+//!
 //! Realization joins three evidence owners, each with its own stage and
 //! independent replay: [`frame_layout`] (frame geometry and callee-save
 //! storage), [`frame_protocol`] (the frame's encoded prologue and epilogue
@@ -142,6 +145,13 @@ pub use text_placement::{
 pub use text_placement::placement::{
     TextPlacementError, TextPlacementInput, place_fragment_text_section, text_section_statistics,
     validate_fragment_text_section,
+};
+
+// Private callback records projected from placed text.
+mod private_callback;
+
+pub use private_callback::{
+    PrivateCallbackMaterializationRequest, materialize_private_callback_function,
 };
 
 // Target-owned x86-64 byte recipes outside the route.
