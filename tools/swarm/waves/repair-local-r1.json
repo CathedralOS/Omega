@@ -1,0 +1,71 @@
+{
+  "wave": "repair-local-r1",
+  "max_acu_limit": 1,
+  "bypass_approval": false,
+  "resumable": true,
+  "tags": ["omega-swarm", "repair-local-r1"],
+  "owner_label_prefix": "Jarod / repair-local-r1",
+  "exclusions": [
+    "OPERATOR-BOUNDARY-CALLS",
+    "OWNED-SELF-RECEIVER-AFFINE-DISCARD",
+    "CANARY-CORPUS",
+    "SAMPLE-CORPUS",
+    "NOMINAL-FIELD-FLOW",
+    "CANONICALIZE-SCALAR-RANGE-CONTRACTS",
+    "ALPHA-WINDOWS-DIV-TRAP"
+  ],
+  "sessions": [
+    {
+      "name": "check-closure-once",
+      "board": "TASKS.md",
+      "item": "CHECK-CLOSURE-ONCE",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/omega/compiler/src/checked",
+        "omega-rust/psi/terminal-production"
+      ],
+      "suggested_first_slice": "reproduce the 41.2 s double-check on samples/cli/basics/print_squares, then carry the checked library under its exact identity instead of rechecking",
+      "host_gates": ["which mbx || which cargo"],
+      "probe_only": false
+    },
+    {
+      "name": "c2l-blowup",
+      "board": "TASKS.md",
+      "item": "C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi",
+        "omega-rust/psi/proof"
+      ],
+      "suggested_first_slice": "reproduce the computed-selector customer with its guard lifted and add explicit aggregate proof-work accounting before bounding anything",
+      "host_gates": ["which mbx || which cargo"],
+      "probe_only": false
+    },
+    {
+      "name": "alpha-seed-verify",
+      "board": "TASKS_BOOTSTRAP.md",
+      "item": "ALPHA-SEED-MEMSIZE-NATIVE-VALIDATION",
+      "host": "local",
+      "owning_paths": [
+        "bootstrap/0_alpha",
+        "tests/alpha"
+      ],
+      "suggested_first_slice": "verify the 1a70b42afe evidence (native conformance 34/34, bounds 78/78, re-pinned identities) satisfies the item's acceptance and close it rather than re-running it",
+      "host_gates": ["sh tests/alpha/container.sh"],
+      "probe_only": false
+    },
+    {
+      "name": "rc-macos-matrix",
+      "board": "TASKS.md",
+      "item": "RC-NATIVE-MATRIX-MACOS-ARM64",
+      "host": "local",
+      "owning_paths": [
+        "tools/release",
+        "wiki/drafts/reference"
+      ],
+      "suggested_first_slice": "run the recorder procedure in tools/release/README.md on this host and capture where the matrix first diverges",
+      "host_gates": ["which mbx || which cargo"],
+      "probe_only": false
+    }
+  ]
+}
