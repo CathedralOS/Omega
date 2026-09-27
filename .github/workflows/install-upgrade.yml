@@ -23,8 +23,13 @@ jobs:
         include:
           - runner: macos-14
             manager: homebrew
+            host: aarch64-apple-darwin
           - runner: windows-2025
             manager: winget
+            host: x86_64-pc-windows-msvc
+          - runner: ubuntu-22.04
+            manager: homebrew
+            host: x86_64-unknown-linux-gnu
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 35
     # Required only to download drafts. The token is not supplied to installers.
@@ -34,6 +39,7 @@ jobs:
       PREVIOUS_TAG: ${{ inputs.previous_tag }}
       RELEASE_TAG: ${{ inputs.tag }}
       INSTALL_MANAGER: ${{ matrix.manager }}
+      INSTALL_HOST: ${{ matrix.host }}
     defaults:
       run:
         shell: bash
@@ -50,7 +56,10 @@ jobs:
       - name: Download and verify both releases
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python tools/release/install_upgrade.py download --manager "$INSTALL_MANAGER" --previous-tag "$PREVIOUS_TAG" --tag "$RELEASE_TAG"
+        run: python tools/release/install_upgrade.py download --manager "$INSTALL_MANAGER" --host "$INSTALL_HOST" --previous-tag "$PREVIOUS_TAG" --tag "$RELEASE_TAG"
+      - name: Expose the Linux runner's installed Homebrew
+        if: runner.os == 'Linux'
+        run: echo /home/linuxbrew/.linuxbrew/bin >> "$GITHUB_PATH"
       - name: Prepare WinGet on the disposable Windows host
         if: matrix.manager == 'winget'
         shell: pwsh
@@ -63,9 +72,9 @@ jobs:
           winget settings --enable LocalManifestFiles
           exit $LASTEXITCODE
       - name: Install, build, upgrade, and rebuild the same locked project
-        run: python tools/release/install_upgrade.py check --manager "$INSTALL_MANAGER" --previous-tag "$PREVIOUS_TAG" --tag "$RELEASE_TAG"
+        run: python tools/release/install_upgrade.py check --manager "$INSTALL_MANAGER" --host "$INSTALL_HOST" --previous-tag "$PREVIOUS_TAG" --tag "$RELEASE_TAG"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: install-upgrade-${{ matrix.manager }}
+          name: install-upgrade-${{ matrix.host }}
           path: build/install-upgrade/result.json
           if-no-files-found: error
