@@ -116,6 +116,11 @@ def path_findings(root, document):
     sentences = sentences_of(text)
     seen = set()
     for raw in PATH_TOKEN.findall(text):
+        # A leading slash is not a repo-relative citation. A spec writing
+        # `/source/assets/font.bin` is quoting a serialized value, and the
+        # repository has no such root to check it against.
+        if raw.startswith("/"):
+            continue
         token = raw.strip("/")
         if token in seen or "{" in token:
             continue

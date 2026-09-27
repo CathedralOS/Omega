@@ -103,7 +103,7 @@ it would need a new `Proposition` connective and a new `ProofRule`
 variant, which the exhaustive `foundation` classification forces into the
 audit before it compiles.
 
-## Obligation-side lemma library and deciders (`psi/semantics/proof`)
+## Obligation-side lemma library and deciders (`omega-rust/psi/proof`)
 
 These are obligation checkers and premise planners, not certificate rules:
 a checker decides an obligation against declared facts, and whatever it
