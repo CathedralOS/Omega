@@ -98,6 +98,7 @@ mod scalar_unit_calls;
 mod signed_wrapping_conversion_values;
 mod state_local_record_lifetimes;
 mod structural_return_source;
+mod transition_structural_return;
 mod trapping_operation_sites;
 mod unit_boolean_requirements_source;
 mod unit_plan_omissions;

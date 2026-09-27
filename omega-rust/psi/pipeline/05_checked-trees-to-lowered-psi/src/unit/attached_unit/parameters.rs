@@ -1137,7 +1137,7 @@ pub(crate) fn mint_runtime_index_selectors(
 /// from the emission context (the same counter `allocate_requirement`
 /// serves). An `AssignmentIndex` segment belongs to a store destination, not
 /// a call argument, so it is refused here.
-fn lower_argument_path(
+pub(crate) fn lower_argument_path(
     path: &[CheckedUnitStructuralPathSegment],
     caller_scalar_values: Option<&[ValueDeclaration]>,
     selector_values: &mut dyn Iterator<Item = ValueId>,
@@ -1195,10 +1195,7 @@ fn lower_argument_path(
                     "field-selector runtime index has no evaluated operand",
                 ))?;
                 calls.allocate_requirement().map(|obligation| {
-                    terminal_psi::StructuralPathSegment::RuntimeIndex {
-                        index,
-                        obligation,
-                    }
+                    terminal_psi::StructuralPathSegment::RuntimeIndex { index, obligation }
                 })
             }
             CheckedUnitStructuralPathSegment::RuntimeIndex(_) => Err(LoweringError::Unsupported(

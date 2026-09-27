@@ -4,7 +4,7 @@
 use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::calls::argument_paths::{
     byte_sequence_literal_argument, projected_argument_path, projected_argument_path_with_identity,
-    projected_borrowed_receiver_path,
+    projected_borrowed_path,
 };
 use crate::execution::terminal_unit::calls::boundary_admission::{
     boundary_argument_presentation_is_admitted, fixed_array_slice_view_is_admitted,
@@ -652,10 +652,8 @@ pub(crate) fn structural_call_arguments(
                         )
                     })
                     && target_machine.supply_mode == MachineSupplyMode::CheckedBody
-                    && (match structural_access_for_type_reference(
-                        program,
-                        target.type_reference,
-                    )? {
+                    && (match structural_access_for_type_reference(program, target.type_reference)?
+                    {
                         CheckedStructuralAccess::SharedBorrow => {
                             matches!(
                                 caller_parameters[source_index].access,
@@ -677,9 +675,8 @@ pub(crate) fn structural_call_arguments(
                         .qualifications
                         .is_empty() =>
             {
-                let (projected_type, path) = projected_borrowed_receiver_path(
+                let (projected_type, path) = projected_borrowed_path(
                     program,
-                    facts,
                     caller_machine.symbol,
                     caller_state.symbol,
                     statement_index,

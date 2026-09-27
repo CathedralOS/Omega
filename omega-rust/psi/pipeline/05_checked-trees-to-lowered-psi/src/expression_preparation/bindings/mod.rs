@@ -83,19 +83,16 @@ impl ScalarBindings {
         Ok(())
     }
 
-    /// Borrow the established referent, not a copy of its scalar field values.
-    /// Source replay checks the declaration and loan occurrence; this join binds
-    /// that source to the current activation's exact local or parameter place.
-    /// `parameters` is the authored signature list: `StructuralLocal` names a
-    /// live local or an authored parameter directly by symbol; a receiver place
-    /// (`self.member`) roots at the machine's own declared symbol and resolves
-    /// to the `is_self` parameter.
-    pub(crate) fn shared_structural_argument(
+    /// The place half of `shared_structural_argument`: the custody checks and
+    /// source-to-place resolution, without the path lower. Callers whose
+    /// checked path carries a `RuntimeIndex` lower it through
+    /// `parameters::lower_argument_path` instead of `lower_structural_path`.
+    pub(crate) fn shared_structural_place(
         &self,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
         machine: &checked_trees::machine::Machine,
         parameters: &[checked_trees::signature::StateParameter],
-    ) -> Result<StructuralArgument, LoweringError> {
+    ) -> Result<PlaceId, LoweringError> {
         if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
             return unsupported("computed shared argument changes its access");
         }
@@ -180,8 +177,24 @@ impl ScalarBindings {
             }
             _ => return unsupported("computed shared argument has no established source"),
         };
+        Ok(place)
+    }
+
+    /// Borrow the established referent, not a copy of its scalar field values.
+    /// Source replay checks the declaration and loan occurrence; this join binds
+    /// that source to the current activation's exact local or parameter place.
+    /// `parameters` is the authored signature list: `StructuralLocal` names a
+    /// live local or an authored parameter directly by symbol; a receiver place
+    /// (`self.member`) roots at the machine's own declared symbol and resolves
+    /// to the `is_self` parameter.
+    pub(crate) fn shared_structural_argument(
+        &self,
+        argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+        machine: &checked_trees::machine::Machine,
+        parameters: &[checked_trees::signature::StateParameter],
+    ) -> Result<StructuralArgument, LoweringError> {
         Ok(StructuralArgument {
-            place,
+            place: self.shared_structural_place(argument, machine, parameters)?,
             path: crate::expression_preparation::bindings::structural_paths::lower_structural_path(
                 &argument.path,
             )?,

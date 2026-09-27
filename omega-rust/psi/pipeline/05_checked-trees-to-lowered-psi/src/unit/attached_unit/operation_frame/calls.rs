@@ -454,7 +454,12 @@ impl OperationFrame<'_, '_> {
             operations,
         )?;
         results.require_next(result, "structural value result binding is not dense")?;
-        results.push(declaration, *discard_result_on_return);
+        // A call-rooted value's place was catalogued by the call emitter
+        // itself as its own call result; there is no fresh declaration to
+        // republish.
+        if let Some(declaration) = declaration {
+            results.push(declaration, *discard_result_on_return);
+        }
         Ok(())
     }
 

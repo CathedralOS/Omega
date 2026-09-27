@@ -47,7 +47,7 @@ pub(crate) fn emit(
     next_block: &mut u64,
     next_edge: &mut u64,
     operations: &mut OperationBuffer,
-) -> Result<StructuralPlaceDeclaration, LoweringError> {
+) -> Result<Option<StructuralPlaceDeclaration>, LoweringError> {
     source_custody::validate(checked, machine, state, operation)?;
     let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
         result,
@@ -257,14 +257,28 @@ pub(crate) fn emit(
     };
     // Private arm producers are not authored result ordinals. Publish exactly
     // one completed place for this binding, whether a direct producer or join.
+    // A call-rooted producer's place was catalogued by the call emitter as its
+    // own call result, so it claims no temporary row and yields no declaration
+    // for the caller to republish.
     let declaration = emission
         .temporary_places
         .iter()
         .position(|item| item.id == place)
-        .ok_or(LoweringError::Unsupported(
-            "structural value place was not declared",
-        ))?;
-    let declaration = emission.temporary_places.remove(declaration);
+        .map(|position| emission.temporary_places.remove(position));
+    if declaration.is_none()
+        && !matches!(
+            checked
+                .facts
+                .values
+                .structural_values
+                .nodes
+                .get(*value)
+                .kind,
+            CheckedStructuralValueKind::Call { .. }
+        )
+    {
+        return unsupported("structural value place was not declared");
+    }
     emission.evaluation.establish_structural_result(
         checked,
         state,
@@ -890,15 +904,51 @@ impl Emission<'_, '_, '_> {
                     self.checked,
                     self.state,
                 )?;
-                let argument =
+                let bindings =
                     crate::expression_preparation::bindings::ScalarBindings::new(self.values.len())
                         .with_structural_parameters(&self.evaluation.structural_parameters)
-                        .with_structural_locals(&self.evaluation.structural_locals)
-                        .shared_structural_argument(
-                            &source,
-                            authored.0,
-                            self.checked.state_parameters(authored.1),
-                        )?;
+                        .with_structural_locals(&self.evaluation.structural_locals);
+                let parameters = self.checked.state_parameters(authored.1);
+                // A runtime-indexed copy source (`self.nodes[position]`)
+                // carries its selector in the caller's operand frame — a
+                // `Parameter` segment indexes the dense scalar operands, a
+                // `StructuralField` selector reads the field here — and each
+                // `RuntimeIndex` segment takes its bound obligation from the
+                // call context for the terminal verifier to replay.
+                let argument = if source.path.iter().any(|segment| {
+                    matches!(
+                        segment,
+                        checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(_)
+                    )
+                }) {
+                    let place =
+                        bindings.shared_structural_place(&source, authored.0, parameters)?;
+                    let fields = crate::expression_preparation::bindings::StructuralScalarFieldBinding::collect(
+                        &self.evaluation.structural_parameters,
+                        self.structural_types,
+                    );
+                    let mut selector_values =
+                        super::super::parameters::mint_runtime_index_selectors(
+                            std::slice::from_ref(&source),
+                            &fields,
+                            self.values.as_slice(),
+                            self.next_value,
+                            self.operations,
+                        )?
+                        .into_iter();
+                    StructuralArgument {
+                        place,
+                        path: super::super::parameters::lower_argument_path(
+                            &source.path,
+                            Some(self.values.as_slice()),
+                            &mut selector_values,
+                            Some(&mut *self.calls),
+                        )?,
+                        access: StructuralAccess::SharedBorrow,
+                    }
+                } else {
+                    bindings.shared_structural_argument(&source, authored.0, parameters)?
+                };
                 self.copied_leaf_place(&argument, continuation)
             }
             CheckedStructuralValueKind::ZeroedScalarArray {
