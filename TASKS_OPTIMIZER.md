@@ -549,94 +549,99 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   and retained plans constrain the physical operations they describe.
   An isolated validator or retained-but-unused plan does not close the join.
 
-- **WORKSPACE-ROLLOUT.** Keep exact rules opt-in and Experimental in the
-  [rule inventory](omega-rust/omega/foundation/optimization-core/rules.md)
-  until the frozen-tree command
-  `CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 mbx test --workspace --no-fail-fast`
-  passes and promotion receives the separate owner decision required by the
-  [promotion contract](wiki/spec/build/optimizations.md#release-rollback-and-promotion).
-  Do not substitute `--all-targets`, which omits doctests.
-
-  The six [staged promotion records](omega-rust/omega/foundation/optimization-core/promotions)
-  contain rollback and Linux measurement evidence; Approved status and Owner
-  approval remain PENDING. Review evidence against the contract rather than
-  treating populated fields or a schema-gate pass as approval or broader host
-  coverage. Keep inventory and records consistent under
-  `exact_rule_rollout_is_complete_and_promotion_gated`.
-
-  Acceptance: the command passes from a clean checkout, and each promoted exact
-  rule has the required reviewed evidence and owner decision. No broad
-  optimization level or automatic default is introduced.
-
 ## Verification and rollout
 
-- **PER-RULE-COVERAGE.** Complete exact-selection, disabled/empty identity,
-  rollback, unsupported-composition, and downstream-replay coverage as
-  EXACT-MACHINE-SIMPLIFICATIONS and ALIAS-AWARE-MEMORY connect rules to their
-  public stage entrance. Factor duplicated rule-fixture matrices through shared
-  support without weakening positive, negative, boundary, budget, determinism,
-  fixed-point, or corruption axes.
+- **PER-RULE-COVERAGE.** Complete each executable exact rule's exact-selection, positive,
+  negative, boundary, disabled/empty identity, rollback, composition, budget,
+  determinism, fixed-point, corruption and downstream-publication coverage
+  through its public stage entrance. Follow the
+  [stage-extension matrix](omega-rust/optimization.md#validation-when-extending-a-stage)
+  as EXACT-MACHINE-SIMPLIFICATIONS and ALIAS-AWARE-MEMORY connect more rules.
+  Reuse existing stage-06 tests and stage-01 `pass_manager/tests/evidence_matrix`
+  support; their hand-built carriers establish stage behavior, not source-to-native
+  coverage. Keep [inventory](omega-rust/omega/foundation/optimization-core/rules.md)
+  entries tied to current owning catalogs and tests; the former inventory gate
+  does not certify missing axes or an unsupported native composition.
 
-  Keep [inventory rows](omega-rust/omega/foundation/optimization-core/rules.md)
-  resolving to actual optimizer tests. New exact rules land with
-  the full [stage-extension matrix](omega-rust/optimization.md#validation-when-extending-a-stage);
-  mandatory runtime recovery retains its explicit no-disabled-axis distinction.
+  Restore actual rollback-to-identity coverage. The corpus fixture
+  `optimizer/rollback_to_no_selection_empty_entry` enables ControlFlowCleanup,
+  but `corpus_runner::build_native_fixture` constructs a request with no rollback
+  overlay: running that fixture does not test its claimed disabled-rule rejoin.
+  Existing CLI negatives cover invalid names and product restrictions. Exercise
+  an authored selection with the real disable overlay, verify its requested/
+  applied/effective receipt, and compare publication with the ordinary empty
+  selection apart from explicit rollback provenance.
 
-  Acceptance: every executable rule exercises each applicable axis through its
-  public stage entrance. Fixed-point tests use the published artifact as a legal
-  second input, not repeated reconstruction. Absent axes need the gate's explicit
-  justified disposition; hand-built helper tests do not establish
-  compiler-produced execution or publication.
+  Acceptance: each applicable axis executes and independently replays through
+  the rule's public entrance and compiler-produced publication. A fixed-point
+  check feeds the published artifact back as legal input; repeated construction
+  proves only determinism. Explain non-applicable axes, including mandatory
+  recovery's lack of a disabled mode. Share fixtures without losing distinct
+  corruption or boundary cases; a green corpus observation alone is not proof
+  that a rule fired or that a rollback was exercised.
 
-- **BENCHMARKS.** Complete missing subject/selection/target measurements
-  through [tools/benchmark](tools/benchmark/README.md), using the existing
-  record schema and generated [benchmark matrix](wiki/drafts/measurements/benchmarks.md).
-  Linux native and enabled/disabled selection rows, cross-target compile rows,
-  a measured macOS ARM64 selected row, and a compile-only structural-proofs
-  row already exist; do not rebuild the harness or repeat first-row work.
+- **BENCHMARKS.** Complete trustworthy subject/selection/target measurements
+  through the existing [prepare/measure/validate/matrix workflow](tools/benchmark/README.md)
+  and [benchmark matrix](wiki/drafts/measurements/benchmarks.md). Existing records
+  include Linux x86-64 and macOS ARM64 execution, selected/disabled rows and
+  cross-target compile legs; they are evidence for their recorded revisions,
+  not a current compiler baseline. Do not rebuild the harness.
 
-  Remaining host acceptance: matching-host Linux ARM64, Windows x64 and Intel
-  macOS measurements, plus an applicable UEFI subject and QEMU/hardware route.
-  Windows job-object peak-memory collection is implemented; exercise it on
-  Windows and report unavailable metrics honestly. The harness's Intel macOS
-  `HOST_LEGS` label still says native realization is pending; reconcile that
-  stale label with **MACOS-X64-HOST-PROFILE** in [TASKS.md](TASKS.md), whose
-  remaining acceptance is matching-host execution, not a new backend.
+  Repair evidence gaps in `tools/benchmark/benchmark.py` before using new rows
+  for promotion:
 
-  macw8b landed `1faad72412` (8 records: `standalone` compile legs on all 4
-  bound targets + non-applicable `macos_x86_64`/`uefi_x86_64` rows;
-  `prime_counter` macos_arm64 matching-host run row all-exit-8 + a
-  linux_x86_64 compile leg; matrix regenerated) and `58283cc937`
-  (`structural_proofs` measured on macos_arm64/linux_arm64/windows_x86_64 +
-  non-applicable rows; `wrapping_square_sum` macos_arm64 refreshed at
-  `35842c2ab7`). Historical `Filesystem::host` failures did not reproduce —
-  prime_counter `omega update`+resume settled cleanly in ~46 min.
+  - Bind the record to the actual compiler build and effective selection.
+    `measure` records checkout HEAD and a binary path, not the binary's build
+    identity; `--enable` only augments the row label, while compiler arguments
+    carry only `--disable-optimization`. Use authored selections and reconcile
+    the compiler's receipt instead of claiming a metadata-only enable executed.
+  - Require the expected runtime result for acceptance: `measure` can publish
+    `exit_code_match: false`, and `validate_record` accepts that record. Preserve
+    failed observations as failures, not successful benchmark evidence.
+  - Settle the requested target's package review. `settle_package_review` takes
+    the first `review:` line, which may name another target's already-accepted
+    document and skip the needed resume. Reproduce dependent subjects through
+    current preparation and route its actual compiler failure to its owner;
+    old std carrier/provider diagnostics are not a standing migration task.
+  - Keep matching-host gaps visible. `matrix_rows` suppresses a target's pending
+    host row after any applicable record, even when every runtime leg is a
+    cross-compile skip. Repair that accounting, the stale Intel macOS
+    `HOST_LEGS` label, and `tools/tests/test_benchmark.py`'s target-catalog path
+    (the owner is now the [backend target catalog](omega-rust/omega/backend/target/src/target_profile.rs)).
 
-  New blocker for dependent subjects at revs including `7b9dce26d7` onward:
-  `source/library/std` fails the carrier-qualified case check (272
-  diagnostics, e.g. `calling.omg` bare `Float` -> `Type::Float`), so
-  `benchmark.py prepare` cannot settle `omega_language_std` — prime_counter's
-  remaining bound legs and every std-dependent subject are gated on that std
-  migration, not on the harness. Re-verify whether the `core/binding.omg`
-  carrier work resolves it before scheduling a migration.
+  Remaining runtime legs: Linux ARM64, Windows x64, Intel macOS and an applicable
+  UEFI subject on QEMU/hardware. Exercise Windows job-object peak-memory
+  accounting there. A subject with no bound entry is non-applicable to that
+  pairing, not proof the host leg ran. Keep `structural_proofs` compile-only;
+  `math_proofs` needs an authored entry/product choice before native measurement,
+  without inventing useful runtime work for a proof-only program.
 
-  Harness gap recorded on the wave notes: `settle_package_review` picks the
-  first `review:` line from `omega update` output; a multi-target lock emits
-  one per settled target, so a later target's prepare can pick an
-  already-accepted doc and skip `--resume`.
+  Acceptance: records bind subject/compiler revision, actual exact enabled/
+  disabled selection, admissions, target, measuring host and observed exit;
+  report compile time, peak memory, code size and runtime with explicit skipped,
+  unavailable or non-applicable reasons, and regenerate the matrix. Preserve
+  `wrapping_square_sum`'s six-rule authored selection and separate compile-only
+  evidence from matching-host execution. Schema validity alone establishes none
+  of the missing execution or promotion evidence.
 
-  `math_proofs` still needs an authored entry/product choice before native
-  measurement. Preserve compile-only proof work as such rather than inventing
-  meaningful runtime behavior for an inert entry. A dependency-free subject
-  is not inherently restricted to `--no-run`.
+- **WORKSPACE-ROLLOUT.** Complete release evidence for any exact rule proposed
+  for promotion under the [promotion contract](wiki/spec/build/optimizations.md#release-rollback-and-promotion).
+  Keep the [inventory](omega-rust/omega/foundation/optimization-core/rules.md)
+  explicit, opt-in and Experimental until the frozen-tree command
+  `CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 mbx test --workspace --no-fail-fast`
+  passes and the owner separately approves that exact rule. Preserve doctests;
+  `--all-targets` is not an equivalent command.
 
-  Acceptance: use the existing prepare/measure/validate/matrix flow; records
-  bind exact subject/compiler revision, authored enabled/disabled selection,
-  admissions, target, measuring host and observed exit behavior. Report
-  compile time, peak memory, code size and runtime with explicit skipped,
-  unavailable or non-applicable reasons, and regenerate the matrix.
-  `wrapping_square_sum` now enables six Psi rules, so its authored row is a
-  selected row, not the historical empty-default cell. A non-applicable
-  subject/target pairing must not erase the still-unmeasured host leg or
-  disguise an unrelated compile/review failure. Keep records descriptive of
-  the measurement; no per-cell task proliferation or session history.
+  The six candidates' incomplete evidence is now in the
+  [promotion draft](wiki/drafts/measurements/optimizer_promotion_evidence.md).
+  [promotions/](omega-rust/omega/foundation/optimization-core/promotions/README.md)
+  contains no completed record, and the former architecture inventory/promotion
+  gate no longer exists. Revalidate those historical pointers against current
+  tests, artifacts and measurements; PER-RULE-COVERAGE owns missing behavioral
+  evidence, BENCHMARKS owns measurement. Markdown completeness is not approval.
+
+  Acceptance: the full command passes at a recorded clean revision; every
+  promoted rule has reviewed semantic/corruption, differential/reference,
+  determinism/bounded-work, target/OS, compile-time/output-quality and rollback
+  evidence plus the explicit owner decision. Record completed reviews beside
+  the inventory. No broad optimization level or implicit default is introduced.
