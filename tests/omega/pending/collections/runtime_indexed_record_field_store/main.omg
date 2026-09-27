@@ -1,0 +1,40 @@
+// PENDING: `self.cells[self.i].hp` — a RUNTIME-indexed record element's
+// field, read as a store value — retains no scalar expression row, so the
+// entry's Unit plan is omitted at `structural field store: pure source:
+// scalar expression row` and the program is refused with the downstream
+// symptom, "selected ProgramEntry establishment rejoins 0 Terminal
+// attachment identities".
+//
+// Both halves already work; only their composition is missing. Measured as
+// a three-line control matrix over the same program:
+//
+//   self.scratch = self.plain[self.i];      scalar element, runtime index  OK
+//   self.scratch = self.cells[0].hp;        record field, literal index    OK
+//   self.scratch = self.cells[self.i].hp;   record field, runtime index    OMITTED
+//
+// So this is compositional lowering rather than a new producer family: the
+// runtime index is already planned for a scalar element, and the field
+// projection is already planned under a literal index.
+//
+// Two samples wait on it, and both write the loop form rather than the
+// literal one: `samples/cli/collections/entity_list`
+// (`self.scratch = self.monsters[self.i].hp;`) and
+// `samples/cli/rendering/bouncing_particles` (`self.a = self.ps[self.pi].x;`).
+// Promote to `pass/collections/` with an exit when it lands.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Cell { hp: i32; }
+
+data Main {
+    console: Binding<Console>;
+    cells: [Cell; 4];
+    i: u64 [0..=3];
+    scratch: i32;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.i = 0;
+    self.scratch = self.cells[self.i].hp;
+    self.console.exit_process(self.scratch);
+}
