@@ -50,11 +50,11 @@ machine Main::main(&mut self) reaches Console {
         self.o1 = self.o + 1;
         self.tens = self.d / 10;
         self.ones = self.d % 10;
-        self.oc = narrow_i32_to_u8_trapping(self.ones + 48);
+        self.oc = narrow_i32_to_u8_trapping((self.ones + 48) as i32);
         transition self.tens > 0 { true -> place_tens() _ -> place_space() }
     }
     state place_tens(&mut self) {
-        self.tc = narrow_i32_to_u8_trapping(self.tens + 48);
+        self.tc = narrow_i32_to_u8_trapping((self.tens + 48) as i32);
         transition { _ -> place_guard() }
     }
     state place_space(&mut self) {
