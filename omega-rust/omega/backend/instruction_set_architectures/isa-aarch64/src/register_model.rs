@@ -32,6 +32,7 @@ pub use constraint_catalog::{
 };
 pub use float_scalar_calls::{aarch64_float_scalar_call_keys, aarch64_float_scalar_return_keys};
 pub use indirect_results::aarch64_indirect_aggregate_call_keys;
+pub(crate) use mixed_calls::aarch64_normalized_foreign_callback_shape;
 pub use mixed_calls::{
     aarch64_aapcs64_mixed_unit_call_keys, aarch64_darwin_mixed_unit_call_keys,
     aarch64_mixed_aggregate_call_keys,

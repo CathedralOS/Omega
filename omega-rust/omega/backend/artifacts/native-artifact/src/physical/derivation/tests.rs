@@ -1288,7 +1288,7 @@ fn physical_child_identity_binds_every_retained_field() {
             machine_bytes_digest,
             object_bytes_digest,
             final_image_bytes_digest,
-            relocation,
+            &relocation,
         )
     };
     let expected = identity(
@@ -1575,7 +1575,7 @@ fn physical_child_identity_binds_the_normalized_foreign_relocation() {
             [0xA1; 32],
             [0xA2; 32],
             [0xA3; 32],
-            relocation,
+            &relocation,
         )
     };
 
@@ -1611,7 +1611,7 @@ fn physical_child_identity_binds_the_normalized_foreign_relocation() {
                 byte_width,
                 addend,
                 kind,
-                callback,
+                callback.into_iter().collect(),
                 final_image_symbol_identity,
             ),
         )
@@ -2033,7 +2033,7 @@ fn dynamic_call_occurrence_binds_its_dispatch_role_and_parent_identity() {
             [1; 32],
             [2; 32],
             [3; 32],
-            PhysicalRelocationDisposition::ResolvedInternalCall,
+            &PhysicalRelocationDisposition::ResolvedInternalCall,
         )
     };
     assert_ne!(identity([7; 32]), identity([8; 32]));

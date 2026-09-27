@@ -29,7 +29,7 @@ pub(super) fn lower_operation(
         InstalledProviderCallEvidence,
     >,
     scalar_abis: &BTreeMap<MachineId, ScalarFunctionAbi>,
-    native_callbacks: &BTreeMap<OperationId, target_operations::TargetNativeCallbackArgument>,
+    native_callbacks: &BTreeMap<OperationId, Vec<target_operations::TargetNativeCallbackArgument>>,
     prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
     live: &mut LiveDefinitions,

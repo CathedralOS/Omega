@@ -31,6 +31,8 @@ const TS_CALLS_VIEW: &str =
 const TS_RECORD: &str = "omega-rust/psi/representations/terminal-psi/semantics/src/record_field.rs";
 const TS_SCALAR_ARRAY: &str =
     "omega-rust/psi/representations/terminal-psi/semantics/src/scalar_array.rs";
+const TS_ZEROED_STRUCTURAL: &str =
+    "omega-rust/psi/representations/terminal-psi/semantics/src/zeroed_structural.rs";
 const OP_FACTS: &str = "omega-rust/psi/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts.rs";
 const OP_FACTS_POLARITY: &str = "omega-rust/psi/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/boolean_polarity.rs";
 const OP_FACTS_BYTE_EXTENT: &str = "omega-rust/psi/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/byte_extent.rs";
@@ -588,7 +590,15 @@ static OP_ESTABLISH_ZEROED_STRUCTURAL: TrustedSurfaceEntry = entry(
     "a validated zeroed structural establishment",
     "no proposition facts: the total validation judgment carries the authority",
     &["formation:operation-validation"],
-    &[VOCAB, TS_ROWS, TS_SE, OP_FACTS, VAL_OPS, VAL_UNIT_OPERATION],
+    &[
+        VOCAB,
+        TS_ROWS,
+        TS_SE,
+        TS_ZEROED_STRUCTURAL,
+        OP_FACTS,
+        VAL_OPS,
+        VAL_UNIT_OPERATION,
+    ],
 );
 static OP_ESTABLISH_TRIVIAL_AFFINE_LOCAL: TrustedSurfaceEntry = entry(
     "operation:establish-trivial-affine-local",

@@ -39,6 +39,8 @@ pub(super) fn realize(
         checked_program_entry,
         checked_boundary_operator_scope,
         boundary_application_coverage,
+        callback_placements,
+        source_call_occurrences,
     ) = prepared_terminal.into_parts();
     let terminal_module = terminal_codec::decode_module(artifact.semantic_bytes()).map_err(
         |error| {
@@ -64,6 +66,26 @@ pub(super) fn realize(
                 .map(|definition| definition.name.as_str().to_owned())
         },
     );
+    let callback_occurrences = crate::terminal::project_callback_occurrences(
+        checked,
+        profile,
+        &callback_placements,
+        &source_call_occurrences,
+    )?;
+    let native_callbacks = crate::native::retained_native_product::admitted_native_callbacks(
+        &callback_placements,
+        &callback_occurrences,
+    )?;
+    let callback_thunks = crate::native::retained_native_product::admitted_native_callback_thunks(
+        &callback_placements,
+        &callback_occurrences,
+    )?;
+    let external_binding_rows = crate::terminal::callback_closed_external_binding_rows(
+        checked,
+        &terminal_module,
+        &callback_placements,
+        &callback_occurrences,
+    )?;
     let demanded_intrinsics =
         provider_planning::compiler_intrinsics::demanded_boundary_identities(&terminal_module)?;
     let intrinsic_proposals =
@@ -153,12 +175,12 @@ pub(super) fn realize(
         program_entry,
         optimization_selections,
         selected_provider_plans: checked.selected_provider_plans(),
-        external_binding_rows: checked.external_binding_rows(),
+        external_binding_rows: &external_binding_rows,
         settlements: &import_settlements,
         compiler_builtins: &compiler_builtins,
         boundary_application_coverage: Some(&boundary_application_coverage),
-        native_callbacks: &[],
-        callback_thunks: &[],
+        native_callbacks: &native_callbacks,
+        callback_thunks: &callback_thunks,
         behavior_exclusions: &behavior_exclusions,
     };
     crate::native::realize_native_artifact(artifact, request)

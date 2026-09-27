@@ -101,6 +101,7 @@ pub use selected_form_encoding::{
     AARCH64_NORMALIZED_FOREIGN_CALL_TEMPLATE_BYTE_COUNT, AARCH64_SCALAR_CALL_OPCODE_OFFSET,
     AARCH64_SCALAR_CALL_PATCH_OFFSET, AARCH64_SCALAR_CALL_PATCH_WIDTH,
     AARCH64_SCALAR_CALL_REFERENCE_OFFSET, AARCH64_SCALAR_CALL_TEMPLATE_BYTE_COUNT,
+    Aarch64CallbackAddressMaterialization, Aarch64CallbackMaterializationDestination,
     Aarch64MovkPatch, Aarch64MovnSeed, Aarch64NormalizedForeignCallFixup,
     Aarch64NormalizedForeignCallFixupKind, Aarch64NormalizedForeignCallFixupState,
     Aarch64NormalizedForeignCallTemplateError, Aarch64ScalarCallFixup, Aarch64ScalarCallFixupKind,

@@ -158,11 +158,45 @@ pub enum NormalizedForeignCallResolutionState {
     UnresolvedImportFieldV1,
 }
 
+/// How one placed callback-address materialization names its unresolved
+/// field(s), in both function- and section-relative coordinates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlacedCallbackAddressEncoding {
+    /// `lea reg, [rip + rel32]`; the disp32 is the private-symbol field.
+    X86_64Relative32 {
+        relocation_function_offset: u64,
+        relocation_section_offset: u64,
+    },
+    /// `adrp` + `add #lo12`; both immediate fields are private-symbol fields.
+    Aarch64PageAddress {
+        page_relocation_function_offset: u64,
+        page_relocation_section_offset: u64,
+        page_offset_relocation_function_offset: u64,
+        page_offset_relocation_section_offset: u64,
+    },
+}
+
+/// Placement evidence for the private-function-address materialization
+/// emitted inside one callback-bearing normalized foreign call, ahead of the
+/// call bytes in the same instruction's span.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlacedCallbackAddressMaterialization {
+    /// Where the materialized address lands — the exact register or outgoing
+    /// stack slot the evaluated callback application names.
+    pub destination: crate::CallbackAddressDestination,
+    /// Function/section offsets where the materialization bytes begin.
+    pub code_function_offset: u64,
+    pub code_section_offset: u64,
+    /// Total bytes the materialization occupies.
+    pub code_byte_count: u64,
+    pub encoding: PlacedCallbackAddressEncoding,
+}
+
 /// Generic, ISA-tagged placement evidence for one normalized foreign call
 /// whose import field object construction still binds. The `{boundary,
 /// ordinal}` pair names the selected roster row owning the evaluated locator;
 /// the raw foreign coordinate never enters the section record.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlacedNormalizedForeignCallResolution {
     pub kind: NormalizedForeignCallResolutionKind,
     pub state: NormalizedForeignCallResolutionState,
@@ -183,4 +217,7 @@ pub struct PlacedNormalizedForeignCallResolution {
     pub next_instruction_section_offset: u64,
     pub field_byte_width: u8,
     pub addend: i64,
+    /// The callback materializations emitted inside this instruction's span,
+    /// in the selected call's roster order; empty for a plain call.
+    pub callback_materializations: Vec<PlacedCallbackAddressMaterialization>,
 }

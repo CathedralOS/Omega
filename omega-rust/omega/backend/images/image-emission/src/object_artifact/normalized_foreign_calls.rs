@@ -22,8 +22,9 @@
 //! graph retains the exact constant payload; physical replay owns its transport,
 //! entry transport and edge copies, including values on ranked backedges.
 //! No parameter is relabeled as an immediate or an operation-defined home.
-//! Callback materialization stays out of the projection; selection
-//! rejects callback-bearing calls before they reach this roster at all.
+//! Callback-bearing rows carry exact custody: the placed materialization
+//! record and the selected callback argument agree on destination, span, and
+//! relocation shape, and the plan's parameter roster accounts for the slot.
 
 mod floating_control;
 
@@ -139,6 +140,8 @@ pub fn derive_normalized_foreign_call_custody(
             call.caller,
             owner,
         )?;
+        let callback_addresses =
+            callback_address_custody(record, &call.callback_materializations, call.caller, owner)?;
         let mut abstracted = optimized
             .optimized()
             .plan()
@@ -204,7 +207,7 @@ pub fn derive_normalized_foreign_call_custody(
             caller_live_bytes,
             same_stack_contribution: record.call.binding.same_stack_contribution.clone(),
             scalar_arguments,
-            callback_address: None,
+            callback_addresses,
             scalar_result,
             x86_floating_control: controls.x86,
             aarch64_floating_control: controls.aarch64,
@@ -343,6 +346,97 @@ fn producer_instruction(
         .map(|(_, instruction)| instruction)
 }
 
+/// Callback materialization custody for one roster row: the selected call's
+/// `callback` argument, the evaluated plan's materialization roster, and the
+/// placed section record must all agree — the placed bytes carry the exact
+/// destination, span, and relocation shape the object writer rejoins.
+fn callback_address_custody(
+    record: &selected_instructions::SelectedNormalizedForeignCall,
+    placed: &[machine_code::PlacedCallbackAddressMaterialization],
+    caller: MachineId,
+    owner: CallSiteOwner,
+) -> Result<Vec<machine_code::CallbackAddressMaterialization>, ObjectError> {
+    let invalid = || ObjectError::InvalidForeignCallSite {
+        caller,
+        owner,
+        offset: 0,
+    };
+    let plan = &record.call.binding.boundary_entry_plan.call;
+    // The fixup roster preserves the selected call's callback roster order;
+    // each placed group joins its roster entry positionally, and the plan
+    // roster must hold exactly one matching nominal destination per entry.
+    if record.call.callbacks.len() != placed.len()
+        || placed.len() != plan.callback_materializations.len()
+    {
+        return Err(invalid());
+    }
+    let mut custody = Vec::with_capacity(placed.len());
+    for (callback, placed) in record.call.callbacks.iter().zip(placed.iter()) {
+        if plan
+            .callback_materializations
+            .iter()
+            .filter(|row| row.destination == callback.destination)
+            .count()
+            != 1
+        {
+            return Err(invalid());
+        }
+        let destination = match placed.destination {
+            machine_code::CallbackAddressDestination::Register(register) => {
+                machine_code::CallbackAddressDestination::Register(register)
+            }
+            machine_code::CallbackAddressDestination::OutgoingStack { byte_offset } => {
+                machine_code::CallbackAddressDestination::OutgoingStack {
+                    byte_offset: u32::try_from(byte_offset).map_err(|_| invalid())?,
+                }
+            }
+            machine_code::CallbackAddressDestination::RecordField {
+                root_register,
+                byte_offset,
+            } => {
+                if callback.field_byte_offset
+                    != Some(usize::try_from(byte_offset).map_err(|_| invalid())?)
+                {
+                    return Err(invalid());
+                }
+                machine_code::CallbackAddressDestination::RecordField {
+                    root_register,
+                    byte_offset: u32::try_from(byte_offset).map_err(|_| invalid())?,
+                }
+            }
+        };
+        let encoding = match placed.encoding {
+            machine_code::PlacedCallbackAddressEncoding::X86_64Relative32 {
+                relocation_function_offset,
+                ..
+            } => machine_code::CallbackAddressEncoding::X86_64Relative32 {
+                relocation_offset: usize::try_from(relocation_function_offset)
+                    .map_err(|_| invalid())?,
+            },
+            machine_code::PlacedCallbackAddressEncoding::Aarch64PageAddress {
+                page_relocation_function_offset,
+                page_offset_relocation_function_offset,
+                ..
+            } => machine_code::CallbackAddressEncoding::Aarch64PageAddress {
+                page_relocation_offset: usize::try_from(page_relocation_function_offset)
+                    .map_err(|_| invalid())?,
+                page_offset_relocation_offset: usize::try_from(
+                    page_offset_relocation_function_offset,
+                )
+                .map_err(|_| invalid())?,
+            },
+        };
+        custody.push(machine_code::CallbackAddressMaterialization {
+            target: callback.clone(),
+            destination,
+            code_offset: usize::try_from(placed.code_function_offset).map_err(|_| invalid())?,
+            byte_count: usize::try_from(placed.code_byte_count).map_err(|_| invalid())?,
+            encoding,
+        });
+    }
+    Ok(custody)
+}
+
 /// Scalar-argument custody for one roster row's admitted fixed scalar lane.
 ///
 /// Every argument keeps its authored plan position and the exact placement
@@ -374,9 +468,23 @@ where
 {
     let invalid = || ObjectError::InvalidForeignCallArgument { caller, owner };
     let plan = &record.call.binding.boundary_entry_plan.call;
-    if !plan.callback_materializations.is_empty()
-        || plan.parameters.len()
-            != record.call.scalar_arguments.len() + record.call.structural_arguments.len()
+    // Only a parameter-destination materialization mints a plan slot; a
+    // field destination writes through its root record parameter's own
+    // slot, which the structural argument roster already carries.
+    let parameter_slot_materializations = plan
+        .callback_materializations
+        .iter()
+        .filter(|row| {
+            matches!(
+                row.destination,
+                calling_conventions::NativePlace::Parameter(_)
+            )
+        })
+        .count();
+    if plan.parameters.len()
+        != record.call.scalar_arguments.len()
+            + record.call.structural_arguments.len()
+            + parameter_slot_materializations
     {
         return Err(invalid());
     }
@@ -410,12 +518,23 @@ where
     {
         return Err(invalid());
     }
+    // A callback materialization with a `Parameter` destination claims the
+    // parameter's register placement without occupying a call-row operand —
+    // the address bytes travel inside the call encoding — so its position is
+    // excluded from the operand roster here just as the arity check above
+    // already does.
     let mut register_positions = plan
         .parameters
         .iter()
         .enumerate()
-        .filter(|(_, placement)| {
-            matches!(
+        .filter(|(position, placement)| {
+            !record.call.callbacks.iter().any(|callback| {
+                usize::try_from(callback.application.native_ordinal) == Ok(*position)
+                    && matches!(
+                        callback.destination,
+                        calling_conventions::NativePlace::Parameter(_)
+                    )
+            }) && matches!(
                 placement.locations.as_slice(),
                 [ValueLocation::Register { .. }]
             )
@@ -742,7 +861,8 @@ where
             if source_value != argument.source.source_value() {
                 return None;
             }
-            instruction_span(fragment, materialization)
+            let r = instruction_span(fragment, materialization);
+            r
         }
         [
             ValueLocation::Stack {

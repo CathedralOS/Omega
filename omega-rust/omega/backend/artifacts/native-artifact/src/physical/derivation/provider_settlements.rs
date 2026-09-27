@@ -252,7 +252,7 @@ pub(crate) fn derive_admitted_provider_settlement_child(
         machine_bytes_digest,
         object_bytes_digest,
         final_image_bytes_digest,
-        relocation,
+        &relocation,
     );
     Ok(Some(
         NativePhysicalChildParts {

@@ -183,7 +183,6 @@ pub(super) fn function_is_exact(record: &InstallationRecord, function: &Installe
         || !function.unit_structural_scalar_field_stores.is_empty()
         || !function.unit_write_only_primitive_stores.is_empty()
         || !function.scalar_structural_scalar_field_stores.is_empty()
-        || !function.foreign_call_stacks.is_empty()
         || function.byte_count == 0
     {
         return false;
@@ -352,6 +351,13 @@ pub(super) fn function_is_exact(record: &InstallationRecord, function: &Installe
                 && site.transient_bytes == linkage
                 && stack.frame_bytes.checked_add(linkage) == Some(site.caller_live_bytes)
                 && call_attribution_is_exact(site.owner, site.text_offset)
+        })
+        // Normalized foreign call sites mint their caller-live extent from the
+        // committed frame plan, not the local peak; stack facts and provider
+        // contribution custody already join them. Here they need exact
+        // operation attribution like the ordinary call sites.
+        && function.foreign_call_stacks.iter().all(|site| {
+            call_attribution_is_exact(site.owner, site.text_offset)
         })
         && stack.local_peak_bytes
             == function

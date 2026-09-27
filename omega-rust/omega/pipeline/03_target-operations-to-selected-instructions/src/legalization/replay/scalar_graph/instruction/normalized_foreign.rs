@@ -92,15 +92,27 @@ pub(super) fn validate(
     // Each structural argument is re-derived from the boundary declaration and
     // the claimed plan position; the legalized row cannot substitute a place,
     // path, projected type, offset, or destination.
-    let callback = scalar_graph_input::normalized_foreign::native_callback_at(
+    let callbacks = scalar_graph_input::normalized_foreign::native_callbacks_at(
         native,
         operation,
         &call.binding.boundary_entry_plan,
     )?;
-    let callback_ordinal = callback
-        .map(|callback| usize::try_from(callback.application.native_ordinal))
-        .transpose()
-        .map_err(|_| invalid.clone())?;
+    // Only parameter-destination callbacks occupy private plan slots and
+    // shift authored positions; field destinations name slots inside a
+    // record an authored argument already carries.
+    let mut private_ordinals = Vec::new();
+    for callback in &callbacks {
+        if matches!(
+            callback.destination,
+            calling_conventions::NativePlace::Parameter(_)
+        ) {
+            private_ordinals.push(
+                usize::try_from(callback.application.native_ordinal)
+                    .map_err(|_| invalid.clone())?,
+            );
+        }
+    }
+    private_ordinals.sort_unstable();
     let derived_structural = structural_arguments
         .iter()
         .zip(&declaration.structural_parameters)
@@ -109,9 +121,10 @@ pub(super) fn validate(
         .map(
             |((index, (semantic, declaration_parameter)), semantic_position)| {
                 let native_position = semantic_position
-                    + usize::from(
-                        callback_ordinal.is_some_and(|ordinal| semantic_position >= ordinal),
-                    );
+                    + private_ordinals
+                        .iter()
+                        .filter(|ordinal| **ordinal <= semantic_position)
+                        .count();
                 scalar_graph_input::normalized_foreign::structural_argument_at(
                     semantic,
                     index,
@@ -179,18 +192,26 @@ pub(super) fn validate(
             .ok_or(invalid.clone())
         })
         .collect::<Result<Vec<_>, _>>()?;
-    if let Some(callback) = callback {
-        let ordinal = callback_ordinal.ok_or(invalid.clone())?;
-        if ordinal > parameters.len() {
+    for (callback, ordinal) in callbacks
+        .iter()
+        .filter(|callback| {
+            matches!(
+                callback.destination,
+                calling_conventions::NativePlace::Parameter(_)
+            )
+        })
+        .zip(&private_ordinals)
+    {
+        if *ordinal > parameters.len() {
             return Err(invalid);
         }
-        parameters.insert(ordinal, callback.application.shape);
+        parameters.insert(*ordinal, callback.application.shape);
     }
     let signature = CallSignature {
         parameters,
         result: expected_result.map(|(_, shape)| shape),
     };
-    let validated = match callback {
+    let validated = match callbacks.first() {
         Some(callback) => {
             calling_conventions::validate_boundary_entry_plan_with_callback_materializations(
                 call.binding.boundary_entry_plan.clone(),
@@ -213,7 +234,7 @@ pub(super) fn validate(
         || scalar_arguments.as_slice() != call.scalar_arguments.as_slice()
         || row_structural.as_slice() != call.structural_arguments.as_slice()
         || *result_home != call.result_home
-        || callback != call.callback.as_ref()
+        || callbacks != call.callbacks.iter().collect::<Vec<_>>()
         || !completion_claim_sources.is_empty()
         || !completion_receipts.is_empty()
         || call.binding.locator.target().native_target() != native.target
@@ -231,7 +252,7 @@ pub(super) fn validate(
         || call.binding.boundary_entry_plan.call.entry_control != EntryControl::CallReturn
         || validated.plan() != &call.binding.boundary_entry_plan
         || call.binding.boundary_entry_plan.call.parameters.len()
-            != scalar_shapes.len() + derived_structural.len() + usize::from(callback.is_some())
+            != scalar_shapes.len() + derived_structural.len() + private_ordinals.len()
         || call.structural_arguments.as_slice() != derived_structural.as_slice()
         || call.scalar_arguments.len() != arguments.len()
         || call
@@ -259,8 +280,11 @@ pub(super) fn validate(
                     ] => *byte_size,
                     _ => return true,
                 };
-                let expected_index =
-                    index + usize::from(callback_ordinal.is_some_and(|ordinal| index >= ordinal));
+                let expected_index = index
+                    + private_ordinals
+                        .iter()
+                        .filter(|ordinal| **ordinal <= index)
+                        .count();
                 argument.parameter_index != expected_index as u32
                     || call
                         .binding

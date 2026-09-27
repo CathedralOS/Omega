@@ -30,9 +30,10 @@ pub struct ForeignCallRelocation {
     /// bounded native carrier admits the target's complete register-resident
     /// fixed-integer argument bank.
     pub scalar_arguments: Vec<ForeignCallScalarArgumentRecord>,
-    /// Exact compiler-private function-address materialization occupying one
-    /// native-only callback parameter of this registrar call.
-    pub callback_address: Option<CallbackAddressMaterialization>,
+    /// Exact compiler-private function-address materializations occupying the
+    /// native-only callback destinations of this registrar call, in the call's
+    /// callback roster order.
+    pub callback_addresses: Vec<CallbackAddressMaterialization>,
     /// Optional fixed-integer result normalized from its evaluated ABI
     /// placement and stored in a durable attached-Unit scalar home.
     pub scalar_result: Option<ForeignCallScalarResultRecord>,

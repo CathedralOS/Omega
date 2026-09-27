@@ -1,4 +1,5 @@
 //! Current target catalogs, physical addresses and independent byte replay agree on narrow loads.
+use super::tests::selected_function;
 use super::{
     Architecture, NativeTarget, OptimizedSelectedFormEncodingError,
     PostAllocationMachineInstruction, SelectedFormEncodingState, SelectedInstruction,
@@ -158,7 +159,15 @@ fn narrow_loads_join_catalog_address_encoder_and_receiving_replay_on_four_target
             };
             let resolved = crate::frame_address::resolve(&function, None, &machine).unwrap();
             crate::frame_address::validate_address(&function, None, &machine, resolved).unwrap();
-            let row = encode_row(target, &selected, &machine, &physical, resolved).unwrap();
+            let row = encode_row(
+                target,
+                &selected,
+                &machine,
+                &physical,
+                &selected_function(),
+                resolved,
+            )
+            .unwrap();
             crate::validation::row::validate(target, &selected, &machine, &physical, &row).unwrap();
             assert_eq!(
                 machine.alternative.encoded.memory,
@@ -225,7 +234,14 @@ fn narrow_loads_join_catalog_address_encoder_and_receiving_replay_on_four_target
             });
             let foreign = crate::frame_address::resolve(&function, None, &foreign_machine).unwrap();
             assert!(matches!(
-                encode_row(target, &selected, &foreign_machine, &physical, foreign),
+                encode_row(
+                    target,
+                    &selected,
+                    &foreign_machine,
+                    &physical,
+                    &selected_function(),
+                    foreign
+                ),
                 Err(OptimizedSelectedFormEncodingError::ArtifactMismatch)
             ));
             let mut changed_row = row.clone();

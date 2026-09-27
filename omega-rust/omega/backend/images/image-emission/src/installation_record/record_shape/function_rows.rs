@@ -62,14 +62,23 @@ pub(super) fn validate_function_rows(record: &InstallationRecord) -> Result<(), 
             .checked_add(adapter.byte_count)
             .ok_or(InstallationError::FunctionOffsetNotRepresentable)?;
     }
-    if record.private_functions.len() > 1 {
-        return Err(InstallationError::TooManyCompilerPrivateFunctions);
-    }
+    let mut private_identities = std::collections::BTreeSet::new();
     for private in &record.private_functions {
         if private.identity.callback_thunk_placement_index().is_none()
             || !private.identity.is_valid()
             || private.byte_count == 0
             || private.text_offset != expected_text_offset
+            || !private_identities.insert({
+                let continuation = private.identity.associated_source_continuation();
+                (
+                    continuation.machine.arena_index(),
+                    continuation.machine.generation(),
+                    continuation.state.arena_index(),
+                    continuation.state.generation(),
+                    continuation.segment_index,
+                    private.identity.callback_thunk_placement_index(),
+                )
+            })
             || !installed_unit_scalar_transport::installed_scalar_abi_is_canonical(
                 &private.scalar_abi,
                 record.target,

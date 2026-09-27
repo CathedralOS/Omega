@@ -17,23 +17,35 @@ pub(crate) fn verify(checked: &CheckedTrees) -> Result<(), LoweringError> {
     let ownership = &checked.facts.flow.ownership;
     let mut events = Vec::new();
     for (_, event) in ownership.permissions.iter() {
-        let Some(machine) = checked
+        // Product pruning retains a machine's permission rows as evidence
+        // after the machine declaration leaves the surface; the row still
+        // names a declared machine symbol, so only a forged handle — which
+        // resolves to no machine declaration at all — rejects.
+        match checked
             .machines()
             .iter()
             .find(|machine| machine.symbol == event.machine_symbol)
-        else {
-            return Err(LoweringError::Unsupported(
-                "checked permission event names no declared machine",
-            ));
-        };
-        if !checked
-            .machine_states(machine)
-            .iter()
-            .any(|state| state.symbol == event.state_symbol)
         {
-            return Err(LoweringError::Unsupported(
-                "checked permission event names no declared state of its machine",
-            ));
+            Some(machine) => {
+                if !checked
+                    .machine_states(machine)
+                    .iter()
+                    .any(|state| state.symbol == event.state_symbol)
+                {
+                    return Err(LoweringError::Unsupported(
+                        "checked permission event names no declared state of its machine",
+                    ));
+                }
+            }
+            None => {
+                if checked.typed.symbols.get(event.machine_symbol).kind
+                    != symbols::SymbolKind::Machine
+                {
+                    return Err(LoweringError::Unsupported(
+                        "checked permission event names no declared machine",
+                    ));
+                }
+            }
         }
         if events.contains(&event) {
             return Err(LoweringError::Unsupported(

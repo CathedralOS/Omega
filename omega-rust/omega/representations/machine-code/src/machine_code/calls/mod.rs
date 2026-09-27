@@ -26,6 +26,7 @@ pub use dynamic::{
     StoredDynamicDescriptorMaterializationRecord,
 };
 pub use fixups::{
+    SelectedFormCallbackMaterialization, SelectedFormCallbackMaterializationEncoding,
     SelectedFormInternalMachineFixup, SelectedFormInternalMachineFixupKind,
     SelectedFormInternalMachineFixupState, SelectedFormNormalizedForeignCallFixup,
     SelectedFormNormalizedForeignCallFixupKind, SelectedFormNormalizedForeignCallFixupState,

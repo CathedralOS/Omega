@@ -39,7 +39,7 @@ fn callback_admission(operation: OperationId) -> crate::AdmittedNativeCallbackAr
             requirement,
         }],
         demands: vec![NativeCallbackDemand {
-            destination,
+            destination: destination.clone(),
             requirement,
         }],
     };
@@ -52,6 +52,8 @@ fn callback_admission(operation: OperationId) -> crate::AdmittedNativeCallbackAr
         terminal_operation: operation,
         placement_index: 0,
         callback_function: MachineFunctionIdentity::callback_thunk(continuation, 0).unwrap(),
+        destination,
+        field_byte_offset: None,
         application: NativeParameterApplication {
             parameter,
             native_ordinal: 1,
@@ -112,9 +114,9 @@ fn native_callback_admission_is_unique_exact_and_transactionally_consumed() {
         std::slice::from_ref(&admission),
     )
     .expect("one exact callback admission");
-    assert_eq!(bound[&operation].application.native_ordinal, 1);
+    assert_eq!(bound[&operation][0].application.native_ordinal, 1);
     assert_eq!(
-        bound[&operation].callback_function,
+        bound[&operation][0].callback_function,
         admission.callback_function
     );
 
@@ -129,14 +131,38 @@ fn native_callback_admission_is_unique_exact_and_transactionally_consumed() {
         )),
     );
 
-    let second = callback_admission(OperationId::new(88).unwrap());
+    // One call may register several private callbacks — the placement index
+    // keeps each row's custody exact.
+    let mut second = callback_admission(OperationId::new(88).unwrap());
+    second.terminal_operation = operation;
+    second.placement_index = 1;
+    second.callback_function = MachineFunctionIdentity::callback_thunk(
+        StateKey {
+            machine: SymbolHandle::from_parts(1, 1),
+            state: SymbolHandle::from_parts(2, 1),
+            segment_index: 0,
+        },
+        1,
+    )
+    .unwrap();
+    let bound = bind_native_callback_arguments(
+        &plan,
+        NativeTarget::linux_x64(),
+        &[admission.clone(), second],
+    )
+    .expect("a second callback slot on the same call binds");
+    assert_eq!(bound[&operation].len(), 2);
+
+    let unknown_operation = callback_admission(OperationId::new(88).unwrap());
     assert_eq!(
         bind_native_callback_arguments(
             &plan,
             NativeTarget::linux_x64(),
-            &[admission.clone(), second],
+            &[admission.clone(), unknown_operation],
         ),
-        Err(crate::LoweringError::MultipleNativeCallbackArguments),
+        Err(crate::LoweringError::UnknownNativeCallbackArgument(
+            OperationId::new(88).unwrap()
+        )),
     );
 
     let mut unknown = admission.clone();

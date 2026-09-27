@@ -95,15 +95,27 @@ pub(super) fn validate(
     // Structural transport uses the evaluated plan's ordered parameter rows.
     // The signature for plan revalidation is the computed destination shapes,
     // matching the producer's own derivation.
-    let callback = super::super::normalized_foreign::native_callback_at(
+    let callbacks = super::super::normalized_foreign::native_callbacks_at(
         native,
         *psi_operation,
         &binding.boundary_entry_plan,
     )?;
-    let callback_ordinal = callback
-        .map(|callback| usize::try_from(callback.application.native_ordinal))
-        .transpose()
-        .map_err(|_| LegalizationError::custody())?;
+    // Only parameter-destination callbacks occupy a private plan slot and
+    // shift authored positions; field destinations live inside the record a
+    // real argument already names, so they mint no plan operand.
+    let mut private_ordinals = Vec::new();
+    for callback in &callbacks {
+        if matches!(
+            callback.destination,
+            calling_conventions::NativePlace::Parameter(_)
+        ) {
+            private_ordinals.push(
+                usize::try_from(callback.application.native_ordinal)
+                    .map_err(|_| LegalizationError::custody())?,
+            );
+        }
+    }
+    private_ordinals.sort_unstable();
     let structural = expected_structural
         .iter()
         .zip(&declaration.structural_parameters)
@@ -112,9 +124,10 @@ pub(super) fn validate(
         .map(
             |((index, (semantic, declaration_parameter)), semantic_position)| {
                 let native_position = semantic_position
-                    + usize::from(
-                        callback_ordinal.is_some_and(|ordinal| semantic_position >= ordinal),
-                    );
+                    + private_ordinals
+                        .iter()
+                        .filter(|ordinal| **ordinal <= semantic_position)
+                        .count();
                 super::super::normalized_foreign::structural_argument_at(
                     semantic,
                     index,
@@ -177,18 +190,37 @@ pub(super) fn validate(
             .ok_or(LegalizationError::custody())
         })
         .collect::<Result<Vec<_>, _>>()?;
-    if let Some(callback) = callback {
-        let ordinal = callback_ordinal.ok_or(LegalizationError::custody())?;
-        if ordinal > parameters.len() {
+    // Each parameter-destination callback reinserts its private slot at the
+    // native ordinal it claims; ascending insertion keeps later ordinals
+    // addressing the plan's authored coordinates.
+    for (callback, ordinal) in callbacks
+        .iter()
+        .filter(|callback| {
+            matches!(
+                callback.destination,
+                calling_conventions::NativePlace::Parameter(_)
+            )
+        })
+        .zip(&private_ordinals)
+    {
+        if *ordinal > parameters.len() {
             return Err(LegalizationError::custody());
         }
-        parameters.insert(ordinal, callback.application.shape);
+        parameters.insert(*ordinal, callback.application.shape);
+    }
+    // Every retained callback carries the registrar's own binder/demand
+    // context; the join tolerates no divergent claim.
+    if callbacks
+        .iter()
+        .any(|callback| callback.registrar_context != callbacks[0].registrar_context)
+    {
+        return Err(LegalizationError::custody());
     }
     let signature = CallSignature {
         parameters,
         result: expected_result.map(|(_, shape)| shape),
     };
-    let validated = match callback {
+    let validated = match callbacks.first() {
         Some(callback) => {
             calling_conventions::validate_boundary_entry_plan_with_callback_materializations(
                 binding.boundary_entry_plan.clone(),
@@ -218,7 +250,7 @@ pub(super) fn validate(
         || binding.boundary_entry_plan.call.entry_control != EntryControl::CallReturn
         || validated.plan() != &binding.boundary_entry_plan
         || binding.boundary_entry_plan.call.parameters.len()
-            != scalar_shapes.len() + structural.len() + usize::from(callback.is_some())
+            != scalar_shapes.len() + structural.len() + private_ordinals.len()
         || scalar_arguments.len() != arguments.len()
         || arguments.len() != declaration.scalar_parameters.len()
         || structural_arguments.as_slice() != structural.as_slice()
@@ -246,8 +278,11 @@ pub(super) fn validate(
                     ] => *byte_size,
                     _ => return true,
                 };
-                let native_position =
-                    index + usize::from(callback_ordinal.is_some_and(|ordinal| index >= ordinal));
+                let native_position = index
+                    + private_ordinals
+                        .iter()
+                        .filter(|ordinal| **ordinal <= index)
+                        .count();
                 usize::try_from(argument.parameter_index).ok() != Some(native_position)
                     || binding
                         .boundary_entry_plan

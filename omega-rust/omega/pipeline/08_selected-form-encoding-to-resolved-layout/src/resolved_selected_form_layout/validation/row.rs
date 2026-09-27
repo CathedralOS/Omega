@@ -71,7 +71,7 @@ pub(super) fn validate(
                 || candidate.bytes != *bytes
                 || candidate.branch.is_some()
                 || candidate.internal_machine_fixup.is_some()
-                || candidate.normalized_foreign_call_fixup != Some(*fixup)
+                || candidate.normalized_foreign_call_fixup.as_ref() != Some(fixup)
             {
                 return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
             }

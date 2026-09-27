@@ -61,6 +61,7 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
                     selected_instruction,
                     machine_instruction,
                     physical,
+                    selected_function,
                     crate::frame_address::resolve(machine_function, frame, machine_instruction)?,
                 )?);
             }

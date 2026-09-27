@@ -96,7 +96,7 @@ pub(in crate::text_placement::placement) fn place(
                         &mut function_bytes,
                     )?);
                 }
-                if let Some(fixup) = instruction.normalized_foreign_call_fixup {
+                if let Some(fixup) = instruction.normalized_foreign_call_fixup.clone() {
                     let FunctionFragmentControlProvenance::NormalizedForeignCall {
                         boundary,
                         ordinal,
@@ -224,7 +224,7 @@ fn resolve(
                 || fixup.reference_function_offset != instruction_offset + 5
                 || fixup.patch_byte_width != 4
             {
-                return Err(TextPlacementError::SourceShapeMismatch);
+                return Err(TextPlacementError::SourceShapeMismatch)
             }
             let reference = function_section_offset
                 .checked_add(fixup.reference_function_offset)
@@ -248,7 +248,7 @@ fn resolve(
                 || fixup.reference_function_offset != instruction_offset
                 || fixup.patch_byte_width != 4
             {
-                return Err(TextPlacementError::SourceShapeMismatch);
+                return Err(TextPlacementError::SourceShapeMismatch)
             }
             let byte_displacement = i128::from(callee_section_offset)
                 - i128::from(call_section_offset);
@@ -336,7 +336,7 @@ fn resolve_foreign(
     function_bytes: &[u8],
 ) -> Result<PlacedNormalizedForeignCallResolution, TextPlacementError> {
     if fixup.state != FunctionFragmentNormalizedForeignCallFixupState::UnresolvedImportFieldV1
-        || fixup.opcode_function_offset != instruction_offset
+        || fixup.opcode_function_offset < instruction_offset
         || fixup.addend != 0
     {
         return Err(TextPlacementError::SourceShapeMismatch);
@@ -344,17 +344,108 @@ fn resolve_foreign(
     let call_section_offset = function_section_offset
         .checked_add(instruction_offset)
         .ok_or(TextPlacementError::OffsetOverflow)?;
+    // Every callback materialization group precedes the call word in roster
+    // order; `cursor` tracks the running offset inside the row's bytes while
+    // each group is checked against its destination's exact byte shape.
+    // `patch_offsets` are the group's byte offsets whose fields stay
+    // unresolved for object construction.
+    let mut cursor = 0_u64;
+    let mut check_group =
+        |callback: &machine_code::FunctionFragmentCallbackMaterialization,
+         expected: &[u8],
+         patch_offsets: &[u64]|
+         -> Result<(), TextPlacementError> {
+            let group_start = instruction_offset
+                .checked_add(cursor)
+                .ok_or(TextPlacementError::OffsetOverflow)?;
+            let group_end = cursor
+                .checked_add(expected.len() as u64)
+                .ok_or(TextPlacementError::OffsetOverflow)?;
+            let bytes_match = usize::try_from(group_end)
+                .ok()
+                .and_then(|end| instruction_bytes.get(cursor as usize..end));
+            if callback.code_function_offset != group_start
+                || callback.code_byte_count != expected.len() as u64
+                || bytes_match != Some(expected)
+            {
+                return Err(TextPlacementError::SourceShapeMismatch);
+            }
+            let absolute: Vec<u64> = match callback.encoding {
+            machine_code::FunctionFragmentCallbackMaterializationEncoding::X86_64Relative32 {
+                patch_function_offset,
+            } => vec![patch_function_offset],
+            machine_code::FunctionFragmentCallbackMaterializationEncoding::Aarch64PageAddress {
+                page_patch_function_offset,
+                page_offset_patch_function_offset,
+            } => vec![page_patch_function_offset, page_offset_patch_function_offset],
+        };
+            if absolute.len() != patch_offsets.len()
+                || !absolute
+                    .iter()
+                    .zip(patch_offsets)
+                    .all(|(absolute, relative)| *absolute == group_start + relative)
+            {
+                return Err(TextPlacementError::SourceShapeMismatch);
+            }
+            cursor = group_end;
+            Ok(())
+        };
     let kind = match (architecture, fixup.kind) {
         (
             Architecture::X86_64,
             FunctionFragmentNormalizedForeignCallFixupKind::X86Relative32FromNextInstructionToNormalizedForeignImportV1,
         ) => {
-            if instruction_bytes != [0xe8, 0, 0, 0, 0]
-                || fixup.patch_function_offset != instruction_offset + 1
-                || fixup.reference_function_offset != instruction_offset + 5
+            for callback in &fixup.callbacks {
+                let machine_code::FunctionFragmentCallbackMaterializationEncoding::X86_64Relative32 { .. } =
+                    callback.encoding
+                else {
+                    return Err(TextPlacementError::SourceShapeMismatch)
+                };
+                let bytes: Vec<u8> = match callback.destination {
+                    machine_code::CallbackAddressDestination::Register(register) => {
+                        if register.codec_index() >= 16 {
+                            return Err(TextPlacementError::SourceShapeMismatch)
+                        }
+                        let index = register.codec_index();
+                        if index == 4 {
+                            return Err(TextPlacementError::SourceShapeMismatch)
+                        }
+                        let rex = 0x48_u8 | u8::from(index >= 8);
+                        let modrm = 0x05_u8 | ((index & 7) << 3);
+                        vec![rex, 0x8d, modrm, 0, 0, 0, 0]
+                    }
+                    machine_code::CallbackAddressDestination::RecordField {
+                        root_register,
+                        byte_offset,
+                    } => {
+                        let root = root_register.codec_index();
+                        if root >= 16 || root == 4 || root == 11 {
+                            return Err(TextPlacementError::SourceShapeMismatch)
+                        }
+                        let off = byte_offset.to_le_bytes();
+                        let rex_store = 0x4c_u8 | u8::from(root >= 8);
+                        vec![
+                            0x4c, 0x8d, 0x1d, 0, 0, 0, 0, rex_store, 0x89,
+                            0x98 | (root & 7), off[0], off[1], off[2], off[3],
+                        ]
+                    }
+                    machine_code::CallbackAddressDestination::OutgoingStack { .. } => {
+                        return Err(TextPlacementError::SourceShapeMismatch)
+                    }
+                };
+                check_group(callback, &bytes, &[3])?;
+            }
+            let call_offset = instruction_offset
+                .checked_add(cursor)
+                .ok_or(TextPlacementError::OffsetOverflow)?;
+            if instruction_bytes.get(cursor as usize..)
+                != Some(&[0xe8_u8, 0, 0, 0, 0][..])
+                || fixup.opcode_function_offset != call_offset
+                || fixup.patch_function_offset != call_offset + 1
+                || fixup.reference_function_offset != call_offset + 5
                 || fixup.patch_byte_width != 4
             {
-                return Err(TextPlacementError::SourceShapeMismatch);
+                return Err(TextPlacementError::SourceShapeMismatch)
             }
             NormalizedForeignCallResolutionKind::X86Relative32FromNextInstructionToNormalizedForeignImportV1
         }
@@ -362,12 +453,70 @@ fn resolve_foreign(
             Architecture::Aarch64,
             FunctionFragmentNormalizedForeignCallFixupKind::Aarch64BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1,
         ) => {
-            if instruction_bytes != 0x9400_0000_u32.to_le_bytes()
-                || fixup.patch_function_offset != instruction_offset
-                || fixup.reference_function_offset != instruction_offset
+            for callback in &fixup.callbacks {
+                let machine_code::FunctionFragmentCallbackMaterializationEncoding::Aarch64PageAddress { .. } =
+                    callback.encoding
+                else {
+                    return Err(TextPlacementError::SourceShapeMismatch)
+                };
+                let bytes: Vec<u8> = match callback.destination {
+                    machine_code::CallbackAddressDestination::Register(register) => {
+                        let calling_conventions::MachineRegister::Aarch64X(index) = register
+                        else {
+                            return Err(TextPlacementError::SourceShapeMismatch)
+                        };
+                        if index > 30 {
+                            return Err(TextPlacementError::SourceShapeMismatch)
+                        }
+                        let adrp = (0x9000_0000_u32 | u32::from(index)).to_le_bytes();
+                        let add =
+                            (0x9100_0000_u32 | (u32::from(index) << 5) | u32::from(index))
+                                .to_le_bytes();
+                        vec![
+                            adrp[0], adrp[1], adrp[2], adrp[3], add[0], add[1], add[2], add[3],
+                        ]
+                    }
+                    machine_code::CallbackAddressDestination::RecordField {
+                        root_register,
+                        byte_offset,
+                    } => {
+                        let calling_conventions::MachineRegister::Aarch64X(root) = root_register
+                        else {
+                            return Err(TextPlacementError::SourceShapeMismatch)
+                        };
+                        if root > 30 || byte_offset % 8 != 0 || byte_offset / 8 >= 4096 {
+                            return Err(TextPlacementError::SourceShapeMismatch)
+                        }
+                        let scratch = 16_u32;
+                        let adrp = (0x9000_0000_u32 | scratch).to_le_bytes();
+                        let add = (0x9100_0000_u32 | (scratch << 5) | scratch).to_le_bytes();
+                        let store = (0xF900_0000_u32
+                            | ((byte_offset / 8) << 10)
+                            | (u32::from(root) << 5)
+                            | scratch)
+                            .to_le_bytes();
+                        vec![
+                            adrp[0], adrp[1], adrp[2], adrp[3], add[0], add[1], add[2], add[3],
+                            store[0], store[1], store[2], store[3],
+                        ]
+                    }
+                    machine_code::CallbackAddressDestination::OutgoingStack { .. } => {
+                        return Err(TextPlacementError::SourceShapeMismatch)
+                    }
+                };
+                check_group(callback, &bytes, &[0, 4])?;
+            }
+            let call_offset = instruction_offset
+                .checked_add(cursor)
+                .ok_or(TextPlacementError::OffsetOverflow)?;
+            if instruction_bytes.get(cursor as usize..)
+                != Some(&0x9400_0000_u32.to_le_bytes()[..])
+                || fixup.opcode_function_offset != call_offset
+                || fixup.patch_function_offset != call_offset
+                || fixup.reference_function_offset != call_offset
                 || fixup.patch_byte_width != 4
             {
-                return Err(TextPlacementError::SourceShapeMismatch);
+                return Err(TextPlacementError::SourceShapeMismatch)
             }
             NormalizedForeignCallResolutionKind::Aarch64BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1
         }
@@ -409,5 +558,43 @@ fn resolve_foreign(
             .ok_or(TextPlacementError::OffsetOverflow)?,
         field_byte_width: fixup.patch_byte_width,
         addend: fixup.addend,
+        callback_materializations: fixup
+            .callbacks
+            .iter()
+            .map(|callback| {
+                Ok(machine_code::PlacedCallbackAddressMaterialization {
+                    destination: callback.destination,
+                    code_function_offset: callback.code_function_offset,
+                    code_section_offset: function_section_offset
+                        .checked_add(callback.code_function_offset)
+                        .ok_or(TextPlacementError::OffsetOverflow)?,
+                    code_byte_count: u64::from(callback.code_byte_count),
+                    encoding: match callback.encoding {
+                        machine_code::FunctionFragmentCallbackMaterializationEncoding::X86_64Relative32 {
+                            patch_function_offset,
+                        } => machine_code::PlacedCallbackAddressEncoding::X86_64Relative32 {
+                            relocation_function_offset: patch_function_offset,
+                            relocation_section_offset: function_section_offset
+                                .checked_add(patch_function_offset)
+                                .ok_or(TextPlacementError::OffsetOverflow)?,
+                        },
+                        machine_code::FunctionFragmentCallbackMaterializationEncoding::Aarch64PageAddress {
+                            page_patch_function_offset,
+                            page_offset_patch_function_offset,
+                        } => machine_code::PlacedCallbackAddressEncoding::Aarch64PageAddress {
+                            page_relocation_function_offset: page_patch_function_offset,
+                            page_relocation_section_offset: function_section_offset
+                                .checked_add(page_patch_function_offset)
+                                .ok_or(TextPlacementError::OffsetOverflow)?,
+                            page_offset_relocation_function_offset:
+                                page_offset_patch_function_offset,
+                            page_offset_relocation_section_offset: function_section_offset
+                                .checked_add(page_offset_patch_function_offset)
+                                .ok_or(TextPlacementError::OffsetOverflow)?,
+                        },
+                    },
+                })
+            })
+            .collect::<Result<Vec<_>, TextPlacementError>>()?,
     })
 }

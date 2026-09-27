@@ -18,7 +18,7 @@ use abstract_operations::{
     AbstractStoredDynamicDescriptor, AbstractStoredDynamicDispatch, CompletionClaimSource,
 };
 use calling_conventions::{
-    CallPlan, CallSignature, CallingPolicy, EntryControl, ValueClass, ValueLocation,
+    CallPlan, CallSignature, CallingPolicy, EntryControl, NativePlace, ValueClass, ValueLocation,
     ValuePlacement, ValueShape, evaluate_call_plan,
 };
 use semantic_vocabulary::{
@@ -1159,50 +1159,59 @@ impl Replay<'_> {
         let pointer_alignment =
             u16::try_from(self.native_target.pointer_alignment).map_err(|_| psi_operation)?;
         let pointer_shape = ValueShape::integer(pointer_size, pointer_alignment);
-        // A retained callback occupies one native-only parameter slot in the
-        // registrar plan; the roster entry joins by Terminal operation and
-        // exact registrar plan. A materialized plan without one, a duplicated
-        // operation key, a substituted registrar plan, and a claimed
-        // application placement the plan does not carry all fail closed.
-        let mut matching_callbacks = self
+        // A retained callback joins the plan's `callback_materializations` row
+        // it names by `placement_index`; the roster entry joins by Terminal
+        // operation and exact registrar plan. A parameter destination occupies
+        // one native-only parameter slot while a field destination reuses its
+        // root record parameter's slot. A materialized plan without roster
+        // rows, a count mismatch, a duplicated or out-of-range placement
+        // index, a substituted registrar plan, a swapped destination row, and
+        // a claimed application placement the plan does not carry all fail
+        // closed.
+        let mut callbacks: Vec<&TargetNativeCallbackArgument> = self
             .native_callbacks
             .iter()
-            .filter(|callback| callback.terminal_operation == psi_operation);
-        let callback = match matching_callbacks.next() {
-            None => {
-                if !binding
-                    .boundary_entry_plan
-                    .call
-                    .callback_materializations
-                    .is_empty()
-                {
-                    return Err(psi_operation);
-                }
-                None
+            .filter(|callback| callback.terminal_operation == psi_operation)
+            .collect();
+        callbacks.sort_by_key(|callback| callback.placement_index);
+        let callback_materializations = &binding.boundary_entry_plan.call.callback_materializations;
+        if callbacks.is_empty() {
+            if !callback_materializations.is_empty() {
+                return Err(psi_operation);
             }
-            Some(callback) => {
-                let ordinal = usize::try_from(callback.application.native_ordinal)
-                    .map_err(|_| psi_operation)?;
-                if binding
-                    .boundary_entry_plan
-                    .call
-                    .callback_materializations
-                    .is_empty()
-                    || matching_callbacks.next().is_some()
-                    || callback.registrar_boundary_entry_plan != binding.boundary_entry_plan
-                    || !callback.callback_function.is_valid()
-                    || callback.callback_function.callback_thunk_placement_index()
-                        != Some(callback.placement_index)
-                    || callback.application.shape != callback.application.placement.shape
-                    || callback.application.shape != pointer_shape
-                    || binding.boundary_entry_plan.call.parameters.get(ordinal)
-                        != Some(&callback.application.placement)
-                {
-                    return Err(psi_operation);
-                }
-                Some((callback, ordinal))
+        } else if callbacks.len() != callback_materializations.len() {
+            return Err(psi_operation);
+        }
+        for (index, callback) in callbacks.iter().enumerate() {
+            let ordinal =
+                usize::try_from(callback.application.native_ordinal).map_err(|_| psi_operation)?;
+            let Some(materialization) = callback_materializations.get(callback.placement_index)
+            else {
+                return Err(psi_operation);
+            };
+            let expects_slot = matches!(callback.destination, NativePlace::Parameter(_));
+            if index != callback.placement_index
+                || materialization.destination != callback.destination
+                || expects_slot != callback.field_byte_offset.is_none()
+                || callback.registrar_boundary_entry_plan != binding.boundary_entry_plan
+                || !callback.callback_function.is_valid()
+                || callback.callback_function.callback_thunk_placement_index()
+                    != Some(callback.placement_index)
+                || callback.application.shape != callback.application.placement.shape
+                || callback.application.shape != pointer_shape
+                || binding.boundary_entry_plan.call.parameters.get(ordinal)
+                    != Some(&callback.application.placement)
+            {
+                return Err(psi_operation);
             }
-        };
+        }
+        let parameter_slot_callbacks = callbacks
+            .iter()
+            .filter(|callback| matches!(callback.destination, NativePlace::Parameter(_)))
+            .count();
+        let registrar_context = callbacks
+            .first()
+            .map(|callback| callback.registrar_context.clone());
         // Reconstruct both ABI lanes from the portable declaration's authored
         // runtime order, independently of the target argument rows.
         if structural_arguments.len() != declaration.structural_parameters.len()
@@ -1272,7 +1281,20 @@ impl Replay<'_> {
                 }
             })
             .collect::<Result<Vec<_>, _>>()?;
-        if let Some((_, ordinal)) = callback {
+        // Only a parameter destination contributes a slot: a field
+        // destination's retained application names the root record
+        // parameter's own placement and rides its location.
+        let mut parameter_ordinals: Vec<usize> = Vec::with_capacity(parameter_slot_callbacks);
+        for callback in &callbacks {
+            if matches!(callback.destination, NativePlace::Parameter(_)) {
+                parameter_ordinals.push(
+                    usize::try_from(callback.application.native_ordinal)
+                        .map_err(|_| psi_operation)?,
+                );
+            }
+        }
+        parameter_ordinals.sort_unstable();
+        for &ordinal in &parameter_ordinals {
             if ordinal > parameter_shapes.len() {
                 return Err(psi_operation);
             }
@@ -1282,12 +1304,12 @@ impl Replay<'_> {
             parameters: parameter_shapes,
             result: expected_result.as_ref().map(|(_, shape)| *shape),
         };
-        let validated = match callback {
-            Some((callback, _)) => {
+        let validated = match registrar_context {
+            Some(registrar_context) => {
                 calling_conventions::validate_boundary_entry_plan_with_callback_materializations(
                     binding.boundary_entry_plan.clone(),
                     &signature,
-                    &callback.registrar_context,
+                    &registrar_context,
                 )
             }
             None => calling_conventions::validate_boundary_entry_plan(
@@ -1298,9 +1320,7 @@ impl Replay<'_> {
         .map_err(|_| psi_operation)?;
         if validated.plan() != &binding.boundary_entry_plan
             || binding.boundary_entry_plan.call.parameters.len()
-                != scalar_shapes.len()
-                    + structural_arguments.len()
-                    + usize::from(callback.is_some())
+                != scalar_shapes.len() + structural_arguments.len() + parameter_slot_callbacks
             || expected_result.as_ref().map(|(home, _)| home) != result_home.as_ref()
         {
             return Err(psi_operation);
@@ -1461,12 +1481,13 @@ impl Replay<'_> {
                         || retained_scalar_homes.get(&home.defining_operation) != Some(&home)
                 }
             };
-            // When a retained callback claims a native-only slot, every
-            // semantic scalar at or after its ordinal shifts one placement
-            // position — the materialized signature is positional in the
-            // authored order, not the semantic order.
+            // Each retained parameter-destination callback claims a
+            // native-only slot: every semantic scalar at or after its
+            // ordinal shifts one placement position — the materialized
+            // signature is positional in the authored order, not the
+            // semantic order.
             let expected_index = formal_position
-                + usize::from(callback.is_some_and(|(_, ordinal)| formal_position >= ordinal));
+                + parameter_ordinals.partition_point(|&ordinal| formal_position >= ordinal);
             let destination = binding
                 .boundary_entry_plan
                 .call
@@ -1507,9 +1528,7 @@ impl Replay<'_> {
                 .parameters
                 .get(
                     formal_position
-                        + usize::from(
-                            callback.is_some_and(|(_, ordinal)| formal_position >= ordinal),
-                        ),
+                        + parameter_ordinals.partition_point(|&ordinal| formal_position >= ordinal),
                 )
                 .ok_or(psi_operation)?;
             if usize::try_from(declaration_parameter.position).ok() != Some(index)

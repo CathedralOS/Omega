@@ -438,7 +438,7 @@ impl From<DynamicCallDispatchParts> for DynamicCallDispatch {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PhysicalRelocationDisposition {
     DirectInstructionBytes,
     ResolvedInternalCall,
@@ -492,7 +492,7 @@ pub(crate) fn dynamic_call_relocation_custody(
 /// child. The parent owns the complete locator and boundary contract; their
 /// strong identities are repeated here to bind that semantic parent to this
 /// object symbol and final-image relocation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NormalizedForeignCallRelocation {
     locator_identity: [u8; 32],
     boundary_plan_identity: [u8; 32],
@@ -502,7 +502,7 @@ pub struct NormalizedForeignCallRelocation {
     byte_width: usize,
     addend: i64,
     kind: object_file::RelocationKind,
-    callback: Option<NormalizedForeignCallbackRelocations>,
+    callbacks: Vec<NormalizedForeignCallbackRelocations>,
     final_image_symbol_identity: [u8; 32],
 }
 
@@ -679,8 +679,8 @@ impl NormalizedForeignCallRelocation {
         self.kind
     }
 
-    pub const fn callback(&self) -> Option<NormalizedForeignCallbackRelocations> {
-        self.callback
+    pub fn callbacks(&self) -> &[NormalizedForeignCallbackRelocations] {
+        &self.callbacks
     }
 
     pub const fn final_image_symbol_identity(&self) -> &[u8; 32] {
@@ -756,8 +756,8 @@ impl NativePhysicalChild {
         self.final_image_span
     }
 
-    pub const fn relocation(&self) -> PhysicalRelocationDisposition {
-        self.relocation
+    pub const fn relocation(&self) -> &PhysicalRelocationDisposition {
+        &self.relocation
     }
 
     pub const fn identity(&self) -> &[u8; 32] {
@@ -1075,7 +1075,7 @@ pub(crate) fn normalized_foreign_call_relocation(
     byte_width: usize,
     addend: i64,
     kind: object_file::RelocationKind,
-    callback: Option<NormalizedForeignCallbackRelocations>,
+    callbacks: Vec<NormalizedForeignCallbackRelocations>,
     final_image_symbol_identity: [u8; 32],
 ) -> NormalizedForeignCallRelocation {
     NormalizedForeignCallRelocation {
@@ -1087,7 +1087,7 @@ pub(crate) fn normalized_foreign_call_relocation(
         byte_width,
         addend,
         kind,
-        callback,
+        callbacks,
         final_image_symbol_identity,
     }
 }

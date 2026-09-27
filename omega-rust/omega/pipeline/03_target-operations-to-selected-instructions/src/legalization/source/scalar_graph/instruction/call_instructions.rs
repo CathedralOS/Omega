@@ -138,15 +138,17 @@ pub(super) fn project_normalized_foreign_call(
     if *psi_operation != operation || *row_boundary != *boundary {
         return Err(Error::custody());
     }
-    // The retained callback roster row is the sole carrier of binder/demand
-    // custody for a private callback parameter; the exact join fails closed
-    // when a materialized call consumed no retained row.
-    let callback = scalar_graph_input::normalized_foreign::native_callback_at(
+    // The retained callback roster rows are the sole carrier of binder/demand
+    // custody for private callback materializations; the exact join fails
+    // closed when a materialized call consumed no retained row.
+    let callbacks = scalar_graph_input::normalized_foreign::native_callbacks_at(
         native,
         operation,
         &binding.boundary_entry_plan,
     )?
-    .cloned();
+    .into_iter()
+    .cloned()
+    .collect();
     Ok(LegalizedScalarInstructionKind::NormalizedForeignCall(
         legalized_operations::LegalizedNormalizedForeignCall {
             boundary: *boundary,
@@ -155,7 +157,7 @@ pub(super) fn project_normalized_foreign_call(
             scalar_arguments: scalar_arguments.clone(),
             structural_arguments: structural_arguments.clone(),
             result_home: *result_home,
-            callback,
+            callbacks,
         },
     ))
 }

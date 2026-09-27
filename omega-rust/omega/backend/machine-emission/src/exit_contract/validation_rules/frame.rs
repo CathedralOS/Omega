@@ -155,7 +155,7 @@ pub(in crate::exit_contract) fn validate_normalized_foreign_call(
         || bytes != &layout.bytes
         || layout.branch.is_some()
         || layout.internal_machine_fixup.is_some()
-        || layout.normalized_foreign_call_fixup != Some(*fixup)
+        || layout.normalized_foreign_call_fixup.as_ref() != Some(fixup)
         || footprint.encoded.control != MachineEncodedControlEffect::DirectRelativeCallV1
         || footprint.encoded.trap != MachineEncodedTrapBehavior::MayArchitecturalFaultV1
     {

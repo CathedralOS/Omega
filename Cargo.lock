@@ -1196,6 +1196,7 @@ dependencies = [
  "semantic-vocabulary",
  "sha2",
  "target",
+ "target-operations",
  "terminal-codec",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
@@ -1419,6 +1420,7 @@ dependencies = [
 name = "post-allocation-machine-to-selected-form-encoding"
 version = "0.1.0"
 dependencies = [
+ "calling-conventions",
  "isa-aarch64",
  "isa-x86_64",
  "machine-code",

@@ -59,7 +59,7 @@ pub fn function_fragment_emission_identity(
                 encode_optional_internal_machine_fixup(&mut hasher, row.internal_machine_fixup);
                 encode_optional_normalized_foreign_call_fixup(
                     &mut hasher,
-                    row.normalized_foreign_call_fixup,
+                    row.normalized_foreign_call_fixup.as_ref(),
                 );
                 encode_instruction_provenance(&mut hasher, &row.provenance);
                 encode_control(&mut hasher, &row.control);
@@ -100,7 +100,7 @@ fn encode_internal_machine_fixup(hasher: &mut Sha256, fixup: FunctionFragmentInt
 
 fn encode_optional_normalized_foreign_call_fixup(
     hasher: &mut Sha256,
-    fixup: Option<FunctionFragmentNormalizedForeignCallFixup>,
+    fixup: Option<&FunctionFragmentNormalizedForeignCallFixup>,
 ) {
     match fixup {
         None => hasher.update([0]),
@@ -120,6 +120,31 @@ fn encode_optional_normalized_foreign_call_fixup(
             hasher.update(fixup.reference_function_offset.to_le_bytes());
             hasher.update([fixup.patch_byte_width]);
             hasher.update(fixup.addend.to_le_bytes());
+            hasher.update((fixup.callbacks.len() as u64).to_le_bytes());
+            for callback in &fixup.callbacks {
+                crate::machine_code::calls::callbacks::encode_callback_destination_identity(
+                    hasher,
+                    callback.destination,
+                );
+                hasher.update(callback.code_function_offset.to_le_bytes());
+                hasher.update(callback.code_byte_count.to_le_bytes());
+                match callback.encoding {
+                    super::FunctionFragmentCallbackMaterializationEncoding::X86_64Relative32 {
+                        patch_function_offset,
+                    } => {
+                        hasher.update([0]);
+                        hasher.update(patch_function_offset.to_le_bytes());
+                    }
+                    super::FunctionFragmentCallbackMaterializationEncoding::Aarch64PageAddress {
+                        page_patch_function_offset,
+                        page_offset_patch_function_offset,
+                    } => {
+                        hasher.update([1]);
+                        hasher.update(page_patch_function_offset.to_le_bytes());
+                        hasher.update(page_offset_patch_function_offset.to_le_bytes());
+                    }
+                }
+            }
         }
     }
 }

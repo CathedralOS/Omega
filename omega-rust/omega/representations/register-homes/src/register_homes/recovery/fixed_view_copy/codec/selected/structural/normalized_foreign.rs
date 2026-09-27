@@ -78,12 +78,9 @@ pub(super) fn encode_normalized_foreign_call(
             encode_scalar_home(bytes, home);
         }
     }
-    match &call.callback {
-        None => bytes.push(0),
-        Some(callback) => {
-            bytes.push(1);
-            encode_native_callback_argument(bytes, callback);
-        }
+    length(bytes, call.callbacks.len());
+    for callback in &call.callbacks {
+        encode_native_callback_argument(bytes, callback);
     }
     encode_effect(bytes, row.effect);
     encode_ownership(bytes, &row.ownership);
@@ -116,11 +113,11 @@ pub(super) fn decode_normalized_foreign_call(
         1 => Some(decode_scalar_home(cursor)?),
         tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
     };
-    let callback = match cursor.byte()? {
-        0 => None,
-        1 => Some(decode_native_callback_argument(cursor)?),
-        tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
-    };
+    let callback_count = cursor.length()?;
+    let mut callbacks = Vec::with_capacity(callback_count.min(cursor.remaining()));
+    for _ in 0..callback_count {
+        callbacks.push(decode_native_callback_argument(cursor)?);
+    }
     Ok(SelectedNormalizedForeignCall {
         instruction,
         operation,
@@ -131,7 +128,7 @@ pub(super) fn decode_normalized_foreign_call(
             scalar_arguments,
             structural_arguments,
             result_home,
-            callback,
+            callbacks,
         },
         effect: decode_effect(cursor)?,
         ownership: decode_ownership(cursor)?,
@@ -151,6 +148,14 @@ fn encode_native_callback_argument(bytes: &mut Vec<u8>, callback: &TargetNativeC
     bytes.extend_from_slice(&callback.application.native_ordinal.to_le_bytes());
     encode_shape(bytes, callback.application.shape);
     encode_placement(bytes, &callback.application.placement);
+    encode_native_place(bytes, &callback.destination);
+    match callback.field_byte_offset {
+        Some(offset) => {
+            bytes.push(1);
+            bytes.extend_from_slice(&(offset as u64).to_le_bytes());
+        }
+        None => bytes.push(0),
+    }
     encode_call_plan(bytes, &callback.registrar_boundary_entry_plan.call);
     encode_state_plan_identity(bytes, &callback.registrar_boundary_entry_plan.state);
     length(bytes, callback.registrar_context.binders.len());
@@ -179,6 +184,14 @@ fn decode_native_callback_argument(
         shape: decode_shape(cursor)?,
         placement: decode_placement(cursor)?,
     };
+    let destination = decode_native_place(cursor)?;
+    let field_byte_offset = match cursor.byte()? {
+        0 => None,
+        1 => Some(
+            usize::try_from(cursor.u64()?).map_err(|_| FixedViewCopyDecodeError::LengthOverflow)?,
+        ),
+        tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
+    };
     let registrar_boundary_entry_plan = BoundaryEntryPlan {
         call: decode_call_plan(cursor)?,
         state: decode_state_plan(cursor)?,
@@ -205,6 +218,8 @@ fn decode_native_callback_argument(
         placement_index,
         callback_function,
         application,
+        destination,
+        field_byte_offset,
         registrar_boundary_entry_plan,
         registrar_context: CallbackMaterializationContext { binders, demands },
         registrar_application_commitment,
@@ -691,7 +706,7 @@ mod tests {
                     placement: binding.boundary_entry_plan.call.parameters[0].clone(),
                 }],
                 structural_arguments: Vec::new(),
-                callback: None,
+                callbacks: Vec::new(),
                 result_home: Some(TargetUnitScalarHomeRequirement {
                     defining_operation: OperationId::new(7).unwrap(),
                     source_value: ValueId::new(8).unwrap(),

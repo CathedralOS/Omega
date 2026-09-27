@@ -36,6 +36,7 @@ pub use calls::{
     InternalUnitCallSource, InternalUnitScalarArgumentSourceRecord,
     InternalUnitScalarCallArgumentRecord, InternalUnitScalarCallRecord,
     InternalUnitScalarCallResultRecord, InternalUnitStructuralArgumentSourceRecord,
+    SelectedFormCallbackMaterialization, SelectedFormCallbackMaterializationEncoding,
     SelectedFormInternalMachineFixup, SelectedFormInternalMachineFixupKind,
     SelectedFormInternalMachineFixupState, SelectedFormNormalizedForeignCallFixup,
     SelectedFormNormalizedForeignCallFixupKind, SelectedFormNormalizedForeignCallFixupState,
@@ -57,6 +58,7 @@ pub use encoding::{
 };
 pub use fragments::{
     FunctionFragment, FunctionFragmentBlockSpan, FunctionFragmentBranchEvidence,
+    FunctionFragmentCallbackMaterialization, FunctionFragmentCallbackMaterializationEncoding,
     FunctionFragmentConditionalBranchEvidence, FunctionFragmentConditionalBranchPredicate,
     FunctionFragmentControlProvenance, FunctionFragmentEmissionManifest,
     FunctionFragmentEmissionManifestDecodeError, FunctionFragmentEmissionPlan,
@@ -87,11 +89,11 @@ pub use layout::text_section::{
     FunctionFragmentTextSectionStage, FunctionFragmentTextSectionStatistics,
     FunctionFragmentTextSectionUnavailableData, InternalMachineCallResolutionKind,
     InternalMachineCallResolutionState, NormalizedForeignCallResolutionKind,
-    NormalizedForeignCallResolutionState, PlacedBlockSpan, PlacedFunctionFragment,
-    PlacedInstructionSpan, PlacedInternalMachineCallResolution,
-    PlacedNormalizedForeignCallResolution, RelocationFreeTextSectionPlacement,
-    TextSectionPlacementPolicy, TextSectionRelocationRequirements,
-    relocation_free_text_section_identity,
+    NormalizedForeignCallResolutionState, PlacedBlockSpan, PlacedCallbackAddressEncoding,
+    PlacedCallbackAddressMaterialization, PlacedFunctionFragment, PlacedInstructionSpan,
+    PlacedInternalMachineCallResolution, PlacedNormalizedForeignCallResolution,
+    RelocationFreeTextSectionPlacement, TextSectionPlacementPolicy,
+    TextSectionRelocationRequirements, relocation_free_text_section_identity,
 };
 pub use layout::{
     ResolvedBranchEvidence, ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate,

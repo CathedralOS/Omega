@@ -1,9 +1,11 @@
 use isa_aarch64::{
+    Aarch64CallbackAddressMaterialization, Aarch64CallbackMaterializationDestination,
     Aarch64NormalizedForeignCallFixup, Aarch64NormalizedForeignCallFixupKind,
     Aarch64NormalizedForeignCallFixupState,
     validate_aarch64_selected_normalized_foreign_call_template,
 };
 use isa_x86_64::{
+    X86_64CallbackAddressMaterialization, X86_64CallbackMaterializationDestination,
     X86_64NormalizedForeignCallFixup, X86_64NormalizedForeignCallFixupKind,
     X86_64NormalizedForeignCallFixupState,
     validate_x86_64_selected_normalized_foreign_call_template,
@@ -23,7 +25,9 @@ use machine_code::{
 /// Independently validate one unresolved normalized-foreign-call row. The
 /// validator re-derives the canonical template from the machine row and the
 /// kind's `{boundary, ordinal}` binding; a substituted boundary, ordinal,
-/// byte, fixup, or effect cannot self-certify.
+/// byte, fixup, or effect cannot self-certify. Each callback entry in the
+/// fixup replays into the destination roster the ISA validator cross-checks
+/// against the constraint row's declared shape.
 pub(super) fn validate(
     target: NativeTarget,
     instruction: SelectedInstructionId,
@@ -66,6 +70,7 @@ pub(super) fn validate(
                 }
                 _ => return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch),
             };
+            let (destinations, callbacks) = x86_64_callback_replay(fixup)?;
             let validated = validate_x86_64_selected_normalized_foreign_call_template(
                 target,
                 physical,
@@ -84,7 +89,9 @@ pub(super) fn validate(
                     patch_byte_offset: fixup.patch_row_offset,
                     reference_byte_offset: fixup.reference_row_offset,
                     patch_byte_width: fixup.patch_byte_width,
+                    callbacks,
                 },
+                &destinations,
             )
             .map_err(|_| OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
             decoded_footprint(
@@ -100,6 +107,7 @@ pub(super) fn validate(
                 }
                 _ => return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch),
             };
+            let (destinations, callbacks) = aarch64_callback_replay(fixup)?;
             let validated = validate_aarch64_selected_normalized_foreign_call_template(
                 target,
                 physical,
@@ -118,7 +126,9 @@ pub(super) fn validate(
                     patch_byte_offset: fixup.patch_row_offset,
                     reference_byte_offset: fixup.reference_row_offset,
                     patch_byte_width: fixup.patch_byte_width,
+                    callbacks,
                 },
+                &destinations,
             )
             .map_err(|_| OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
             decoded_footprint(
@@ -134,6 +144,98 @@ pub(super) fn validate(
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     }
     Ok(())
+}
+
+/// Replay every fixup callback entry into the ISA destination roster and
+/// the materialization record list the template validator expects.
+fn x86_64_callback_replay(
+    fixup: &machine_code::SelectedFormNormalizedForeignCallFixup,
+) -> Result<
+    (
+        Vec<X86_64CallbackMaterializationDestination>,
+        Vec<X86_64CallbackAddressMaterialization>,
+    ),
+    OptimizedSelectedFormEncodingError,
+> {
+    let mut destinations = Vec::with_capacity(fixup.callbacks.len());
+    let mut callbacks = Vec::with_capacity(fixup.callbacks.len());
+    for callback in &fixup.callbacks {
+        let machine_code::SelectedFormCallbackMaterializationEncoding::X86_64Relative32 {
+            patch_row_offset,
+        } = callback.encoding
+        else {
+            return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+        };
+        let destination = match callback.destination {
+            machine_code::CallbackAddressDestination::Register(register) => {
+                X86_64CallbackMaterializationDestination::Register(register)
+            }
+            machine_code::CallbackAddressDestination::RecordField {
+                root_register,
+                byte_offset,
+            } => X86_64CallbackMaterializationDestination::RecordField {
+                root_register,
+                byte_offset,
+            },
+            machine_code::CallbackAddressDestination::OutgoingStack { .. } => {
+                return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+            }
+        };
+        destinations.push(destination);
+        callbacks.push(X86_64CallbackAddressMaterialization {
+            destination,
+            materialization_byte_offset: callback.code_row_offset,
+            materialization_byte_count: callback.code_byte_count,
+            relocation_byte_offset: patch_row_offset,
+        });
+    }
+    Ok((destinations, callbacks))
+}
+
+fn aarch64_callback_replay(
+    fixup: &machine_code::SelectedFormNormalizedForeignCallFixup,
+) -> Result<
+    (
+        Vec<Aarch64CallbackMaterializationDestination>,
+        Vec<Aarch64CallbackAddressMaterialization>,
+    ),
+    OptimizedSelectedFormEncodingError,
+> {
+    let mut destinations = Vec::with_capacity(fixup.callbacks.len());
+    let mut callbacks = Vec::with_capacity(fixup.callbacks.len());
+    for callback in &fixup.callbacks {
+        let machine_code::SelectedFormCallbackMaterializationEncoding::Aarch64PageAddress {
+            page_patch_row_offset,
+            page_offset_patch_row_offset,
+        } = callback.encoding
+        else {
+            return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+        };
+        let destination = match callback.destination {
+            machine_code::CallbackAddressDestination::Register(register) => {
+                Aarch64CallbackMaterializationDestination::Register(register)
+            }
+            machine_code::CallbackAddressDestination::RecordField {
+                root_register,
+                byte_offset,
+            } => Aarch64CallbackMaterializationDestination::RecordField {
+                root_register,
+                byte_offset,
+            },
+            machine_code::CallbackAddressDestination::OutgoingStack { .. } => {
+                return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+            }
+        };
+        destinations.push(destination);
+        callbacks.push(Aarch64CallbackAddressMaterialization {
+            destination,
+            materialization_byte_offset: callback.code_row_offset,
+            materialization_byte_count: callback.code_byte_count,
+            page_relocation_byte_offset: page_patch_row_offset,
+            page_offset_relocation_byte_offset: page_offset_patch_row_offset,
+        });
+    }
+    Ok((destinations, callbacks))
 }
 
 fn views_for_effects(

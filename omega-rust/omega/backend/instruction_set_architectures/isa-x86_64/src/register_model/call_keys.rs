@@ -129,9 +129,14 @@ pub fn x86_64_microsoft_aggregate_return_keys() -> Vec<RegisterConstraintKey> {
 /// remain outgoing custody rather than register-row operands. The 4000-series
 /// variants are the private-callback-position rows: each integer-bank operand
 /// position of each input bank, again with all three result choices.
+/// Rows ordered: plain inputs first, then one family per integer-bank
+/// position carrying a private parameter slot, then field-destination rows
+/// (same inputs, scratch unit implicit), then mixed parameter+field rows.
 pub fn x86_64_system_v_normalized_foreign_call_keys() -> Vec<RegisterConstraintKey> {
     (3000..3189)
         .chain(4000..4567)
+        .chain(5000..5189)
+        .chain(5200..5767)
         .map(|variant| RegisterConstraintKey {
             family: RegisterConstraintFamily::Call,
             variant,
@@ -144,6 +149,8 @@ pub fn x86_64_system_v_normalized_foreign_call_keys() -> Vec<RegisterConstraintK
 pub fn x86_64_microsoft_normalized_foreign_call_keys() -> Vec<RegisterConstraintKey> {
     (3300..3393)
         .chain(4600..4747)
+        .chain(5800..5893)
+        .chain(5900..6047)
         .map(|variant| RegisterConstraintKey {
             family: RegisterConstraintFamily::Call,
             variant,

@@ -9,20 +9,97 @@ use typed_trees::trait_definition::TraitDefinition;
 pub fn standard_calling_traits(
     program: &TypedTrees,
 ) -> Option<(&TraitDefinition, &TraitDefinition)> {
-    let exact = |name: &str| {
-        let mut declarations = program.traits().iter().filter(|definition| {
-            definition.name.as_str() == name
-                && !definition.is_boundary
-                && has_calling_vocabulary_source(program, definition.symbol)
-        });
-        let declaration = declarations.next()?;
-        declarations.next().is_none().then_some(declaration)
+    let vocabularies = standard_calling_vocabularies(program);
+    let [vocabulary] = vocabularies.as_slice() else {
+        return None;
     };
-    let calling = exact("Calling")?;
-    let policy = exact("CallingPolicy")?;
-    (program.trait_type_parameters(calling).len() == 1
-        && program.trait_machine_signatures(calling).is_empty())
-    .then_some((calling, policy))
+    Some(*vocabulary)
+}
+
+/// Every standard calling vocabulary the program loads, paired per declaring
+/// source file. The toolchain copy and a dependency-supplied public copy are
+/// each one exact vocabulary; a second byte-identical copy under a different
+/// file is still a distinct declaration pair, so consumers that must select
+/// the vocabulary a boundary references join on the relationship symbol
+/// rather than the first match.
+pub fn standard_calling_vocabularies<'program>(
+    program: &'program TypedTrees,
+) -> Vec<(&'program TraitDefinition, &'program TraitDefinition)> {
+    let mut per_file: std::collections::BTreeMap<
+        usize,
+        (Option<&TraitDefinition>, Option<&TraitDefinition>),
+    > = std::collections::BTreeMap::new();
+    for definition in program.traits().iter() {
+        if definition.is_boundary || !has_calling_vocabulary_source(program, definition.symbol) {
+            continue;
+        }
+        let Some(file) = program
+            .symbols
+            .symbol_source_span(definition.symbol)
+            .and_then(|span| program.symbols.source_file(span))
+        else {
+            continue;
+        };
+        let entry = per_file.entry(file.source_id.0).or_default();
+        match definition.name.as_str() {
+            "Calling" => entry.0 = Some(definition),
+            "CallingPolicy" => entry.1 = Some(definition),
+            _ => {}
+        }
+    }
+    per_file
+        .into_values()
+        .filter_map(|vocabulary| match vocabulary {
+            (Some(calling), Some(policy)) => (program.trait_type_parameters(calling).len() == 1
+                && program.trait_machine_signatures(calling).is_empty())
+            .then_some((calling, policy)),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The standard calling vocabulary is a singleton per program. The same file
+/// may load into separate scopes legally, but a second byte-identical copy
+/// under a different path is a duplicate declaration of every name the
+/// vocabulary publishes; report each colliding `data` with the ordinary
+/// duplicate-declaration diagnostic.
+pub fn validate_calling_vocabulary_uniqueness(
+    program: &TypedTrees,
+    diagnostics: &mut Vec<diagnostics::Diagnostic>,
+) {
+    let mut paths = std::collections::BTreeSet::new();
+    for definition in program.traits() {
+        if definition.name.as_str() != "Calling"
+            || definition.is_boundary
+            || !has_calling_vocabulary_source(program, definition.symbol)
+        {
+            continue;
+        }
+        if let Some(source) = program
+            .symbols
+            .symbol_source_span(definition.symbol)
+            .and_then(|span| program.symbols.source_file(span))
+        {
+            paths.insert(source.path.clone());
+        }
+    }
+    let duplicate_paths: Vec<_> = paths.into_iter().skip(1).collect();
+    if duplicate_paths.is_empty() {
+        return;
+    }
+    for data_definition in program.data_definitions() {
+        let duplicate = program
+            .symbols
+            .symbol_source_span(data_definition.symbol)
+            .and_then(|span| program.symbols.source_file(span))
+            .is_some_and(|source| duplicate_paths.contains(&source.path));
+        if duplicate {
+            diagnostics.push(diagnostics::Diagnostic::error(format!(
+                "duplicate data `{}`",
+                data_definition.name
+            )));
+        }
+    }
 }
 
 fn has_calling_vocabulary_source(program: &TypedTrees, symbol: SymbolHandle) -> bool {

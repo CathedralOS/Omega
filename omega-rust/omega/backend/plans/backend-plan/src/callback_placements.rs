@@ -64,6 +64,13 @@ pub struct BoundCallbackPrivateMaterialization {
     /// parameter destination. Field destinations retain `None`: their root
     /// semantic parameter is not itself a compiler-private callback argument.
     pub direct_registrar_parameter_application: Option<NativeParameterApplication>,
+    /// For a field destination, the exact telescope row and evaluated
+    /// placement of the record parameter whose pointee receives the private
+    /// slot. Direct parameter destinations retain `None`.
+    pub root_parameter_application: Option<NativeParameterApplication>,
+    /// For a field destination, the private slot's byte offset inside the
+    /// root parameter's record. Direct parameter destinations retain `None`.
+    pub field_byte_offset: Option<usize>,
     pub context: CallbackMaterializationContext,
 }
 

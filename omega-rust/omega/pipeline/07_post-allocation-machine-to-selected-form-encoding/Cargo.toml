@@ -9,6 +9,7 @@ name = "post_allocation_machine_to_selected_form_encoding"
 path = "src/lib.rs"
 
 [dependencies]
+calling-conventions = { path = "../../backend/calling-conventions" }
 machine-code = { path = "../../representations/machine-code" }
 physical-instructions = { path = "../../representations/post-allocation-machine" }
 isa-aarch64 = { path = "../../backend/instruction_set_architectures/isa-aarch64" }

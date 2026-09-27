@@ -1,0 +1,268 @@
+
+use omega_language_std::calling;
+use omega::language::core::external_binding;
+
+pub data HookProcedurePolicy { }
+HookProcedurePolicyCallingPolicy: HookProcedurePolicy satisfies CallingPolicy;
+
+machine HookProcedurePolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
+    satisfies CallingPolicy::plan
+{
+    transition signature.parameter_count == 1 && signature.has_result {
+        true -> accept(signature, signature.parameters[0], signature.result)
+        _ -> reject()
+    }
+
+    state accept(
+        signature: BoundarySignature,
+        message: u64,
+        result: u64
+    ) -> BoundaryPlanResult {
+        transition message < 256 && result < 256 {
+            true -> build(signature, message, result)
+            _ -> reject()
+        }
+    }
+
+    state build(
+        signature: BoundarySignature,
+        message: u64,
+        result: u64
+    ) -> BoundaryPlanResult {
+        let mut output: BoundaryEntryPlan;
+        output.call.convention = CallingConvention::SystemVAMD64;
+        output.call.parameter_count = 1;
+        output.call.parameters[0].shape.class = AbiValueClass::Integer;
+        output.call.parameters[0].shape.byte_size = signature.shapes[message].byte_size;
+        output.call.parameters[0].shape.alignment = signature.shapes[message].alignment;
+        output.call.parameters[0].location_count = 1;
+        output.call.parameters[0].locations[0] = ValueLocation::Register {
+            register: MachineRegister::X86Rdi,
+            value_byte_offset: 0,
+            byte_size: signature.shapes[message].byte_size,
+        };
+        output.call.has_result = true;
+        output.call.result.shape.class = AbiValueClass::Integer;
+        output.call.result.shape.byte_size = signature.shapes[result].byte_size;
+        output.call.result.shape.alignment = signature.shapes[result].alignment;
+        output.call.result.location_count = 1;
+        output.call.result.locations[0] = ValueLocation::Register {
+            register: MachineRegister::X86Rax,
+            value_byte_offset: 0,
+            byte_size: signature.shapes[result].byte_size,
+        };
+        output.call.ordinary_clobbers.register_count = 13;
+        output.call.ordinary_clobbers.registers[0] = MachineRegister::X86Rax;
+        output.call.ordinary_clobbers.registers[1] = MachineRegister::X86Rcx;
+        output.call.ordinary_clobbers.registers[2] = MachineRegister::X86Rdx;
+        output.call.ordinary_clobbers.registers[3] = MachineRegister::X86R8;
+        output.call.ordinary_clobbers.registers[4] = MachineRegister::X86R9;
+        output.call.ordinary_clobbers.registers[5] = MachineRegister::X86R10;
+        output.call.ordinary_clobbers.registers[6] = MachineRegister::X86R11;
+        output.call.ordinary_clobbers.registers[7] = MachineRegister::X86Xmm { index: 0 };
+        output.call.ordinary_clobbers.registers[8] = MachineRegister::X86Xmm { index: 1 };
+        output.call.ordinary_clobbers.registers[9] = MachineRegister::X86Xmm { index: 2 };
+        output.call.ordinary_clobbers.registers[10] = MachineRegister::X86Xmm { index: 3 };
+        output.call.ordinary_clobbers.registers[11] = MachineRegister::X86Xmm { index: 4 };
+        output.call.ordinary_clobbers.registers[12] = MachineRegister::X86Xmm { index: 5 };
+        output.call.stack_alignment = 16;
+        output.call.shadow_bytes = 32;
+        output.call.entry_control = EntryControl::CallReturn;
+        output.state.initial_regime = MachineRegime::X86Long64;
+        output.state.permitted_transitive_use.general_registers = true;
+        output.state.permitted_transitive_use.vector_registers = true;
+        output.state.permitted_transitive_use.flags = true;
+        output.state.stack = EntryStack::ProviderSelected;
+        output.state.preemption = Preemption::NotApplicable;
+        BoundaryPlanResult::Accepted { plan: output }
+    }
+
+    state reject() -> BoundaryPlanResult {
+        BoundaryPlanResult::Rejected {
+            reason: CallingPolicyRejection { reason: "invalid callback procedure telescope" },
+        }
+    }
+}
+
+pub boundary trait HookProcedure: Calling<HookProcedurePolicy> {
+    machine call(message: u64) -> u64;
+}
+
+pub data RegistrarPolicy { }
+RegistrarPolicyCallingPolicy: RegistrarPolicy satisfies CallingPolicy;
+
+machine RegistrarPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
+    satisfies CallingPolicy::plan
+{
+    transition signature.parameter_count == 2 {
+        true -> select_native_count(signature)
+        _ -> reject()
+    }
+
+    state select_native_count(signature: BoundarySignature) -> BoundaryPlanResult {
+        transition signature.native_parameter_count == 2 {
+            true -> build_two(signature)
+            _ -> select_closed(signature)
+        }
+    }
+
+    state select_closed(signature: BoundarySignature) -> BoundaryPlanResult {
+        transition signature.native_parameter_count == 3 {
+            true -> build_three(signature)
+            _ -> reject()
+        }
+    }
+
+    state build_two(signature: BoundarySignature) -> BoundaryPlanResult {
+        let mut output: BoundaryEntryPlan;
+        output.call.convention = CallingConvention::SystemVAMD64;
+        output.call.parameter_count = 2;
+        output.call.parameters[0].shape.class = AbiValueClass::Integer;
+        output.call.parameters[0].shape.byte_size = 8;
+        output.call.parameters[0].shape.alignment = 8;
+        output.call.parameters[0].location_count = 1;
+        output.call.parameters[0].locations[0] = ValueLocation::Register {
+            register: MachineRegister::X86Rdi,
+            value_byte_offset: 0,
+            byte_size: 8,
+        };
+        output.call.parameters[1].shape.class = AbiValueClass::Integer;
+        output.call.parameters[1].shape.byte_size = 8;
+        output.call.parameters[1].shape.alignment = 8;
+        output.call.parameters[1].location_count = 1;
+        output.call.parameters[1].locations[0] = ValueLocation::Register {
+            register: MachineRegister::X86Rsi,
+            value_byte_offset: 0,
+            byte_size: 8,
+        };
+        output.call.ordinary_clobbers.register_count = 13;
+        output.call.ordinary_clobbers.registers[0] = MachineRegister::X86Rax;
+        output.call.ordinary_clobbers.registers[1] = MachineRegister::X86Rcx;
+        output.call.ordinary_clobbers.registers[2] = MachineRegister::X86Rdx;
+        output.call.ordinary_clobbers.registers[3] = MachineRegister::X86R8;
+        output.call.ordinary_clobbers.registers[4] = MachineRegister::X86R9;
+        output.call.ordinary_clobbers.registers[5] = MachineRegister::X86R10;
+        output.call.ordinary_clobbers.registers[6] = MachineRegister::X86R11;
+        output.call.ordinary_clobbers.registers[7] = MachineRegister::X86Xmm { index: 0 };
+        output.call.ordinary_clobbers.registers[8] = MachineRegister::X86Xmm { index: 1 };
+        output.call.ordinary_clobbers.registers[9] = MachineRegister::X86Xmm { index: 2 };
+        output.call.ordinary_clobbers.registers[10] = MachineRegister::X86Xmm { index: 3 };
+        output.call.ordinary_clobbers.registers[11] = MachineRegister::X86Xmm { index: 4 };
+        output.call.ordinary_clobbers.registers[12] = MachineRegister::X86Xmm { index: 5 };
+        output.call.stack_alignment = 16;
+        output.call.shadow_bytes = 32;
+        output.call.entry_control = EntryControl::CallReturn;
+        output.state.initial_regime = MachineRegime::X86Long64;
+        output.state.permitted_transitive_use.general_registers = true;
+        output.state.permitted_transitive_use.vector_registers = true;
+        output.state.permitted_transitive_use.flags = true;
+        output.state.stack = EntryStack::ProviderSelected;
+        output.state.preemption = Preemption::NotApplicable;
+        BoundaryPlanResult::Accepted { plan: output }
+    }
+
+    state build_three(signature: BoundarySignature) -> BoundaryPlanResult {
+        let mut output: BoundaryEntryPlan;
+        output.call.convention = CallingConvention::SystemVAMD64;
+        output.call.parameter_count = 3;
+        output.call.parameters[0].shape.class = AbiValueClass::Integer;
+        output.call.parameters[0].shape.byte_size = 8;
+        output.call.parameters[0].shape.alignment = 8;
+        output.call.parameters[0].location_count = 1;
+        output.call.parameters[0].locations[0] = ValueLocation::Register {
+            register: MachineRegister::X86Rdi,
+            value_byte_offset: 0,
+            byte_size: 8,
+        };
+        output.call.parameters[1].shape.class = AbiValueClass::Integer;
+        output.call.parameters[1].shape.byte_size = 8;
+        output.call.parameters[1].shape.alignment = 8;
+        output.call.parameters[1].location_count = 1;
+        output.call.parameters[1].locations[0] = ValueLocation::Register {
+            register: MachineRegister::X86Rsi,
+            value_byte_offset: 0,
+            byte_size: 8,
+        };
+        output.call.parameters[2].shape.class = AbiValueClass::Integer;
+        output.call.parameters[2].shape.byte_size = 8;
+        output.call.parameters[2].shape.alignment = 8;
+        output.call.parameters[2].location_count = 1;
+        output.call.parameters[2].locations[0] = ValueLocation::Register {
+            register: MachineRegister::X86Rdx,
+            value_byte_offset: 0,
+            byte_size: 8,
+        };
+        output.call.callback_materialization_count = 1;
+        output.call.callback_materializations[0].binder =
+            signature.callback_binders[0].binder;
+        output.call.callback_materializations[0].destination =
+            signature.callback_demands[0].destination;
+        output.call.ordinary_clobbers.register_count = 13;
+        output.call.ordinary_clobbers.registers[0] = MachineRegister::X86Rax;
+        output.call.ordinary_clobbers.registers[1] = MachineRegister::X86Rcx;
+        output.call.ordinary_clobbers.registers[2] = MachineRegister::X86Rdx;
+        output.call.ordinary_clobbers.registers[3] = MachineRegister::X86R8;
+        output.call.ordinary_clobbers.registers[4] = MachineRegister::X86R9;
+        output.call.ordinary_clobbers.registers[5] = MachineRegister::X86R10;
+        output.call.ordinary_clobbers.registers[6] = MachineRegister::X86R11;
+        output.call.ordinary_clobbers.registers[7] = MachineRegister::X86Xmm { index: 0 };
+        output.call.ordinary_clobbers.registers[8] = MachineRegister::X86Xmm { index: 1 };
+        output.call.ordinary_clobbers.registers[9] = MachineRegister::X86Xmm { index: 2 };
+        output.call.ordinary_clobbers.registers[10] = MachineRegister::X86Xmm { index: 3 };
+        output.call.ordinary_clobbers.registers[11] = MachineRegister::X86Xmm { index: 4 };
+        output.call.ordinary_clobbers.registers[12] = MachineRegister::X86Xmm { index: 5 };
+        output.call.stack_alignment = 16;
+        output.call.shadow_bytes = 32;
+        output.call.entry_control = EntryControl::CallReturn;
+        output.state.initial_regime = MachineRegime::X86Long64;
+        output.state.permitted_transitive_use.general_registers = true;
+        output.state.permitted_transitive_use.vector_registers = true;
+        output.state.permitted_transitive_use.flags = true;
+        output.state.stack = EntryStack::ProviderSelected;
+        output.state.preemption = Preemption::NotApplicable;
+        BoundaryPlanResult::Accepted { plan: output }
+    }
+
+    state reject() -> BoundaryPlanResult {
+        BoundaryPlanResult::Rejected {
+            reason: CallingPolicyRejection { reason: "invalid direct callback telescope" },
+        }
+    }
+}
+
+pub boundary trait HookRegistrar: Calling<RegistrarPolicy> {
+    machine install<machine Handler>(
+        kind: u64,
+        native callback procedure from Handler,
+        module: u64
+    )
+    where machine Handler satisfies HookProcedure::call;
+}
+
+pub data HookProvider { }
+
+pub machine HookProvider::call(message: u64) -> u64
+satisfies HookProcedure::call
+{
+    message
+}
+
+pub linux_x86_64 machine install_binding() -> ForeignBinding<9, 19, 7> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "omega_probe_install",
+            version: "OMEGA_1",
+        },
+    }
+}
+
+linux_x86_64 machine install_leaf<machine Handler>(kind: u64, module: u64)
+where machine Handler satisfies HookProcedure::call;
+satisfies HookRegistrar::install
+via install_binding();
+
+data Main { }
+machine Main::main(&mut self) reaches HookRegistrar {
+    HookRegistrar::install<HookProvider::call>(1u64, 2u64);
+}

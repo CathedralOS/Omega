@@ -66,7 +66,8 @@ pub use movn_materialization::{
 pub use normalized_foreign_call::{
     AARCH64_NORMALIZED_FOREIGN_CALL_OPCODE_OFFSET, AARCH64_NORMALIZED_FOREIGN_CALL_PATCH_OFFSET,
     AARCH64_NORMALIZED_FOREIGN_CALL_PATCH_WIDTH, AARCH64_NORMALIZED_FOREIGN_CALL_REFERENCE_OFFSET,
-    AARCH64_NORMALIZED_FOREIGN_CALL_TEMPLATE_BYTE_COUNT, Aarch64NormalizedForeignCallFixup,
+    AARCH64_NORMALIZED_FOREIGN_CALL_TEMPLATE_BYTE_COUNT, Aarch64CallbackAddressMaterialization,
+    Aarch64CallbackMaterializationDestination, Aarch64NormalizedForeignCallFixup,
     Aarch64NormalizedForeignCallFixupKind, Aarch64NormalizedForeignCallFixupState,
     Aarch64NormalizedForeignCallTemplateError,
     ValidatedAarch64SelectedNormalizedForeignCallTemplate,

@@ -114,7 +114,7 @@ pub(super) fn check(
                             callee,
                             offset: source_row.offset,
                             bytes: &source_row.bytes,
-                            fixup,
+                            fixup: fixup.clone(),
                         },
                         fragments.target.architecture,
                         offset,
@@ -123,19 +123,44 @@ pub(super) fn check(
                         candidate,
                     )?);
                 }
-                if let Some(fixup) = source_row.normalized_foreign_call_fixup {
+                if let Some(ref fixup) = source_row.normalized_foreign_call_fixup {
                     // Every foreign call row is one checked ISA call
-                    // instruction whose import field stays unresolved.
-                    if fixup.opcode_function_offset != source_row.offset
-                        || bytes(
-                            &source.bytes,
-                            source_row.offset,
-                            source_row.bytes.len() as u64,
-                        )? != source_row.bytes
+                    // instruction whose import field stays unresolved. Any
+                    // private-callback materialization groups tile the row
+                    // prefix in roster order, ahead of the call opcode.
+                    let opcode_relative = fixup
+                        .opcode_function_offset
+                        .checked_sub(source_row.offset)
+                        .ok_or(TextPlacementError::SourceShapeMismatch)?;
+                    let mut group_cursor = source_row.offset;
+                    for callback in &fixup.callbacks {
+                        if callback.code_function_offset != group_cursor {
+                            return Err(TextPlacementError::SourceShapeMismatch);
+                        }
+                        group_cursor = add(group_cursor, callback.code_byte_count)?;
+                    }
+                    if group_cursor != fixup.opcode_function_offset {
+                        return Err(TextPlacementError::SourceShapeMismatch);
+                    }
+                    let call_byte_count = source_row
+                        .bytes
+                        .len()
+                        .checked_sub(opcode_relative as usize)
+                        .map(|count| count as u64)
+                        .ok_or(TextPlacementError::SourceShapeMismatch)?;
+                    if bytes(
+                        &source.bytes,
+                        source_row.offset,
+                        source_row.bytes.len() as u64,
+                    )? != source_row.bytes
                         || (fragments.target.architecture == Architecture::X86_64
-                            && source_row.bytes != [0xe8, 0, 0, 0, 0])
+                            && (call_byte_count != 5
+                                || bytes(&source_row.bytes, opcode_relative, 5)?
+                                    != [0xe8, 0, 0, 0, 0]))
                         || (fragments.target.architecture == Architecture::Aarch64
-                            && source_row.bytes != 0x9400_0000_u32.to_le_bytes())
+                            && (call_byte_count != 4
+                                || bytes(&source_row.bytes, opcode_relative, 4)?
+                                    != 0x9400_0000_u32.to_le_bytes()))
                     {
                         return Err(TextPlacementError::SourceShapeMismatch);
                     }
@@ -164,7 +189,7 @@ pub(super) fn check(
                             operation: *operation,
                             offset: source_row.offset,
                             bytes: &source_row.bytes,
-                            fixup,
+                            fixup: fixup.clone(),
                         },
                         fragments.target.architecture,
                         offset,

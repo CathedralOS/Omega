@@ -146,6 +146,37 @@ fail/build/duplicate_program_entry_binding rejected 166ms expected
 	root slot `windows_x86_64::ProgramEntry` is already bound to `Main::main`; it cannot also bind `Main::main`
 fail/build/hosted_program_entry_visible_parameter rejected 3593ms expected
 	hosted `ProgramEntry` exposes no arrival parameters, but `launch` declares `argument`
+fail/build/package_local_calling_copy rejected 100ms expected
+	duplicate data `SystemVEightbyteClass`
+	duplicate data `ValueClass`
+	duplicate data `ValueShape`
+	duplicate data `ValueField`
+	duplicate data `CallbackBinderIdentity`
+	duplicate data `AbiValueClass`
+	duplicate data `AbiValueShape`
+	duplicate data `NativePlace`
+	duplicate data `NativeCallbackDemandIdentity`
+	duplicate data `NativeParameterOrigin`
+	duplicate data `NativeParameterShape`
+	duplicate data `NativeParameterIdentity`
+	duplicate data `BoundarySignature`
+	duplicate data `MachineRegister`
+	duplicate data `IndirectPointerLocation`
+	duplicate data `ValueLocation`
+	duplicate data `ValuePlacement`
+	duplicate data `CallingConvention`
+	duplicate data `RegisterSet`
+	duplicate data `EntryControl`
+	duplicate data `CallbackMaterialization`
+	duplicate data `CallPlan`
+	duplicate data `MachineRegime`
+	duplicate data `MachineStateSet`
+	duplicate data `EntryStack`
+	duplicate data `Preemption`
+	duplicate data `StatePlan`
+	duplicate data `BoundaryEntryPlan`
+	duplicate data `CallingPolicyRejection`
+	duplicate data `BoundaryPlanResult`
 fail/build/program_entry_binding_outside_build rejected 2553ms expected
 	root binding requires a compiler-issued &mut Build receiver
 fail/build/program_entry_receiver_not_zii rejected 1294ms expected

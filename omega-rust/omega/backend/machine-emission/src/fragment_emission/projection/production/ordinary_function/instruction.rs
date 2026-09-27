@@ -140,7 +140,7 @@ fn translate_foreign_fixup(
     row: &ResolvedSelectedFormRow,
     instruction: &SelectedInstruction,
 ) -> Result<Option<FunctionFragmentNormalizedForeignCallFixup>, ResolvedFragmentEmissionError> {
-    let Some(fixup) = row.normalized_foreign_call_fixup else {
+    let Some(fixup) = row.normalized_foreign_call_fixup.clone() else {
         if matches!(
             instruction.kind,
             SelectedInstructionKind::NormalizedForeignCall { .. }
@@ -179,6 +179,33 @@ fn translate_foreign_fixup(
         reference_function_offset: translate(fixup.reference_row_offset)?,
         patch_byte_width: fixup.patch_byte_width,
         addend: fixup.addend,
+        callbacks: fixup
+            .callbacks
+            .iter()
+            .map(|callback| {
+                Ok(machine_code::FunctionFragmentCallbackMaterialization {
+                    destination: callback.destination,
+                    code_function_offset: translate(callback.code_row_offset)?,
+                    code_byte_count: u64::from(callback.code_byte_count),
+                    encoding: match callback.encoding {
+                        machine_code::SelectedFormCallbackMaterializationEncoding::X86_64Relative32 {
+                            patch_row_offset,
+                        } => machine_code::FunctionFragmentCallbackMaterializationEncoding::X86_64Relative32 {
+                            patch_function_offset: translate(patch_row_offset)?,
+                        },
+                        machine_code::SelectedFormCallbackMaterializationEncoding::Aarch64PageAddress {
+                            page_patch_row_offset,
+                            page_offset_patch_row_offset,
+                        } => machine_code::FunctionFragmentCallbackMaterializationEncoding::Aarch64PageAddress {
+                            page_patch_function_offset: translate(page_patch_row_offset)?,
+                            page_offset_patch_function_offset: translate(
+                                page_offset_patch_row_offset,
+                            )?,
+                        },
+                    },
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?,
     }))
 }
 

@@ -362,7 +362,7 @@ pub(crate) fn derive_physical_evidence(
             span.machine_bytes_digest,
             span.object_bytes_digest,
             span.final_image_bytes_digest,
-            span.relocation,
+            &span.relocation,
         );
         children.push(
             NativePhysicalChildParts {
@@ -408,7 +408,7 @@ pub(crate) fn derive_physical_evidence(
             span.machine_bytes_digest,
             span.object_bytes_digest,
             span.final_image_bytes_digest,
-            span.relocation,
+            &span.relocation,
         );
         children.push(
             NativePhysicalChildParts {
@@ -766,7 +766,7 @@ pub(crate) fn physical_child_identity(
     machine_bytes_digest: [u8; 32],
     object_bytes_digest: [u8; 32],
     final_image_bytes_digest: [u8; 32],
-    relocation: PhysicalRelocationDisposition,
+    relocation: &PhysicalRelocationDisposition,
 ) -> [u8; 32] {
     let mut digest = Sha256::new();
     digest.update(b"omega.native-physical-child.sha256.v2\0");
@@ -782,7 +782,7 @@ pub(crate) fn physical_child_identity(
     digest.update(machine_bytes_digest);
     digest.update(object_bytes_digest);
     digest.update(final_image_bytes_digest);
-    digest.update([match relocation {
+    digest.update([match *relocation {
         PhysicalRelocationDisposition::DirectInstructionBytes => 1,
         PhysicalRelocationDisposition::ResolvedInternalCall => 2,
         PhysicalRelocationDisposition::UnresolvedNormalizedForeignCall(_) => 3,
@@ -802,25 +802,27 @@ pub(crate) fn physical_child_identity(
         digest.update(canonical_usize(relocation.byte_width()));
         digest.update(relocation.addend().to_le_bytes());
         digest.update([relocation_kind_tag(relocation.kind())]);
-        match relocation.callback() {
-            None => digest.update([0]),
-            Some(NormalizedForeignCallbackRelocations::X86_64Relative32 {
-                callback_function,
-                relocation,
-            }) => {
-                digest.update([1]);
-                hash_machine_function_identity(&mut digest, callback_function);
-                hash_callback_relocation(&mut digest, relocation);
-            }
-            Some(NormalizedForeignCallbackRelocations::Aarch64PageAddress {
-                callback_function,
-                page,
-                page_offset,
-            }) => {
-                digest.update([2]);
-                hash_machine_function_identity(&mut digest, callback_function);
-                hash_callback_relocation(&mut digest, page);
-                hash_callback_relocation(&mut digest, page_offset);
+        digest.update(canonical_usize(relocation.callbacks().len()));
+        for callback in relocation.callbacks() {
+            match callback {
+                NormalizedForeignCallbackRelocations::X86_64Relative32 {
+                    callback_function,
+                    relocation,
+                } => {
+                    digest.update([1]);
+                    hash_machine_function_identity(&mut digest, *callback_function);
+                    hash_callback_relocation(&mut digest, *relocation);
+                }
+                NormalizedForeignCallbackRelocations::Aarch64PageAddress {
+                    callback_function,
+                    page,
+                    page_offset,
+                } => {
+                    digest.update([2]);
+                    hash_machine_function_identity(&mut digest, *callback_function);
+                    hash_callback_relocation(&mut digest, *page);
+                    hash_callback_relocation(&mut digest, *page_offset);
+                }
             }
         }
         digest.update(relocation.final_image_symbol_identity());

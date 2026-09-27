@@ -287,7 +287,7 @@ pub fn realize_retained_native_artifact(
     result.map_err(|diagnostics| (recoverable_image_request, diagnostics))
 }
 
-fn admitted_native_callback_thunks<'artifact>(
+pub(crate) fn admitted_native_callback_thunks<'artifact>(
     placements: &'artifact [backend_plan::BoundNominalCallbackPlacement],
     occurrences: &'artifact [crate::report::TerminalCallbackOccurrenceProposal],
 ) -> Result<Vec<crate::native::NativeCallbackThunkSettlement<'artifact>>, Vec<Diagnostic>> {
@@ -331,21 +331,22 @@ fn admitted_native_callback_thunks<'artifact>(
     Ok(admitted)
 }
 
-fn admitted_native_callbacks(
+pub(crate) fn admitted_native_callbacks(
     placements: &[backend_plan::BoundNominalCallbackPlacement],
     occurrences: &[crate::report::TerminalCallbackOccurrenceProposal],
 ) -> Result<
     Vec<abstract_operations_to_target_operations::AdmittedNativeCallbackArgument>,
     Vec<Diagnostic>,
 > {
-    if placements.len() > 1 || occurrences.len() > 1 {
-        return Err(diagnostic(
-            "Terminal callback custody",
-            "ordinary native realization currently admits exactly one direct callback",
-        ));
-    }
     let mut admitted = Vec::with_capacity(occurrences.len());
+    let mut admitted_placements = std::collections::BTreeSet::new();
     for occurrence in occurrences {
+        if !admitted_placements.insert(occurrence.placement_index()) {
+            return Err(diagnostic(
+                "Terminal callback custody",
+                "two callback occurrences share one retained placement",
+            ));
+        }
         let placement = placements
             .get(occurrence.placement_index())
             .ok_or_else(|| {
@@ -360,29 +361,78 @@ fn admitted_native_callbacks(
                 "callback placement has no private registrar materialization",
             )
         })?;
-        let application = occurrence.direct_parameter_application().ok_or_else(|| {
-            diagnostic(
-                "Terminal callback custody",
-                "field callback materialization is outside the direct-parameter cohort",
-            )
-        })?;
-        if materialization
-            .direct_registrar_parameter_application
-            .as_ref()
-            != Some(application)
-            || materialization.destination
-                != calling_conventions::NativePlace::Parameter(application.parameter)
-        {
-            return Err(diagnostic(
-                "Terminal callback custody",
-                "direct callback application drifted from its retained registrar materialization",
-            ));
-        }
+        // A direct parameter destination applies the callback's own telescope
+        // row; a field destination applies the record parameter the private
+        // slot write flows through. Neither may coexist with the other form.
+        let application = match &materialization.destination {
+            calling_conventions::NativePlace::Parameter(parameter) => {
+                if materialization.root_parameter_application.is_some()
+                    || materialization.field_byte_offset.is_some()
+                {
+                    return Err(diagnostic(
+                        "Terminal callback custody",
+                        "direct callback destination retains field-destination custody",
+                    ));
+                }
+                let application =
+                    occurrence
+                        .destination_parameter_application()
+                        .ok_or_else(|| {
+                            diagnostic(
+                                "Terminal callback custody",
+                                "direct callback materialization lacks its parameter application",
+                            )
+                        })?;
+                if materialization
+                    .direct_registrar_parameter_application
+                    .as_ref()
+                    != Some(application)
+                    || application.parameter != *parameter
+                {
+                    return Err(diagnostic(
+                        "Terminal callback custody",
+                        "direct callback application drifted from its retained registrar materialization",
+                    ));
+                }
+                application
+            }
+            calling_conventions::NativePlace::Field { parameter, .. } => {
+                if materialization
+                    .direct_registrar_parameter_application
+                    .is_some()
+                    || materialization.field_byte_offset.is_none()
+                {
+                    return Err(diagnostic(
+                        "Terminal callback custody",
+                        "field callback destination lacks or mixes parameter-destination custody",
+                    ));
+                }
+                let application = occurrence.destination_parameter_application().ok_or_else(
+                    || {
+                        diagnostic(
+                            "Terminal callback custody",
+                            "field callback materialization lacks its root parameter application",
+                        )
+                    },
+                )?;
+                if materialization.root_parameter_application.as_ref() != Some(application)
+                    || application.parameter != *parameter
+                {
+                    return Err(diagnostic(
+                        "Terminal callback custody",
+                        "field callback root application drifted from its retained registrar materialization",
+                    ));
+                }
+                application
+            }
+        };
         admitted.push(
             abstract_operations_to_target_operations::AdmittedNativeCallbackArgument {
                 terminal_operation: occurrence.terminal_operation(),
                 placement_index: occurrence.placement_index(),
                 callback_function: occurrence.callback_thunk_identity(),
+                destination: materialization.destination.clone(),
+                field_byte_offset: materialization.field_byte_offset,
                 application: application.clone(),
                 registrar_boundary_entry_plan: materialization
                     .registrar_boundary_entry_plan

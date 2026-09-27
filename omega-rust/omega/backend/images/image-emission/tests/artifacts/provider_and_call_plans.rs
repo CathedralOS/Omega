@@ -395,7 +395,7 @@ pub(super) fn windows_foreign_call_plan(provider: &WriteExitProvider) -> Machine
                 boundary_entry_plan,
                 call_plan,
                 scalar_arguments: Vec::new(),
-                callback_address: None,
+                callback_addresses: Vec::new(),
                 scalar_result: None,
                 x86_floating_control: Some(machine_code::X86ForeignCallFloatingControlRecord {
                     target,
@@ -584,7 +584,7 @@ pub(super) fn linux_foreign_call_plan(provider: &WriteExitProvider) -> MachineCo
                 boundary_entry_plan,
                 call_plan,
                 scalar_arguments: Vec::new(),
-                callback_address: None,
+                callback_addresses: Vec::new(),
                 scalar_result: None,
                 x86_floating_control: Some(machine_code::X86ForeignCallFloatingControlRecord {
                     target,

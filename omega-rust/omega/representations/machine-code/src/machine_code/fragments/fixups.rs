@@ -40,10 +40,39 @@ pub enum FunctionFragmentNormalizedForeignCallFixupState {
     UnresolvedImportFieldV1,
 }
 
+/// How one fragment-level callback-address materialization names its
+/// unresolved field(s). Offsets are relative to the containing function.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FunctionFragmentCallbackMaterializationEncoding {
+    /// `lea reg, [rip + rel32]`; the disp32 is the private-symbol field.
+    X86_64Relative32 { patch_function_offset: u64 },
+    /// `adrp` + `add #lo12`; both immediate fields are private-symbol fields.
+    Aarch64PageAddress {
+        page_patch_function_offset: u64,
+        page_offset_patch_function_offset: u64,
+    },
+}
+
+/// Function-relative evidence for the private-function-address
+/// materialization emitted inside one callback-bearing normalized foreign
+/// call. Its fields stay unresolved for object construction, which binds them
+/// to the thunk's private symbol.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FunctionFragmentCallbackMaterialization {
+    /// Where the materialized address lands — the exact register or outgoing
+    /// stack slot the evaluated callback application names.
+    pub destination: crate::CallbackAddressDestination,
+    /// Function offset where the materialization bytes begin.
+    pub code_function_offset: u64,
+    /// Total bytes the materialization occupies.
+    pub code_byte_count: u64,
+    pub encoding: FunctionFragmentCallbackMaterializationEncoding,
+}
+
 /// Function-relative unresolved normalized-foreign-call field. The
 /// `{boundary, ordinal}` pair names the selected roster row owning the
 /// evaluated locator; no raw foreign coordinate is stored here.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionFragmentNormalizedForeignCallFixup {
     pub kind: FunctionFragmentNormalizedForeignCallFixupKind,
     pub state: FunctionFragmentNormalizedForeignCallFixupState,
@@ -56,4 +85,8 @@ pub struct FunctionFragmentNormalizedForeignCallFixup {
     pub reference_function_offset: u64,
     pub patch_byte_width: u8,
     pub addend: i64,
+    /// The private callback materializations emitted inside the same
+    /// instruction's bytes, in evaluated roster order — one entry per
+    /// callback destination the call's private schedule names.
+    pub callbacks: Vec<FunctionFragmentCallbackMaterialization>,
 }

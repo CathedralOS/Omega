@@ -856,9 +856,9 @@ impl LegalizedScalarArgument {
 /// lookup authority. `scalar_arguments` and `structural_arguments` retain the
 /// evaluated plan's exact ordered placements; `result_home` requires
 /// downstream assignment to preserve an optional fixed-integer result for
-/// later Unit operations. `callback` carries the unique retained registrar
-/// callback roster row this call consumes when its evaluated plan
-/// materializes a private callback parameter, and is `None` otherwise.
+/// later Unit operations. `callbacks` carries the retained registrar
+/// callback roster rows this call consumes — one per private materialization
+/// the evaluated plan declares, in roster order — and is empty otherwise.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedNormalizedForeignCall {
     pub boundary: BoundaryMachineId,
@@ -867,7 +867,7 @@ pub struct LegalizedNormalizedForeignCall {
     pub scalar_arguments: Vec<target_operations::NormalizedForeignScalarArgument>,
     pub structural_arguments: Vec<target_operations::NormalizedForeignStructuralArgument>,
     pub result_home: Option<target_operations::TargetUnitScalarHomeRequirement>,
-    pub callback: Option<target_operations::TargetNativeCallbackArgument>,
+    pub callbacks: Vec<target_operations::TargetNativeCallbackArgument>,
 }
 
 /// One indirect requirement invocation through the function's own borrowed

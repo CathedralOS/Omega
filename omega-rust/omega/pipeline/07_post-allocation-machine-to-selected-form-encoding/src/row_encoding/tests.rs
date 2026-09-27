@@ -83,11 +83,37 @@ pub(super) fn fixture() -> (
     (physical, selected, machine)
 }
 
+pub(super) fn selected_function() -> selected_instructions::SelectedFunction {
+    selected_instructions::SelectedFunction {
+        machine: semantic_vocabulary::MachineId::new(1).unwrap(),
+        attachment: None,
+        provenance: Default::default(),
+        structural: None,
+        local_storage_slots: Vec::new(),
+        outgoing_arguments: Vec::new(),
+        calls: Vec::new(),
+        normalized_foreign_calls: Vec::new(),
+        memory_accesses: Vec::new(),
+        boundary_settlements: Vec::new(),
+        entry_block: selected_instructions::SelectedBlockId(0),
+        virtual_registers: Vec::new(),
+        blocks: Vec::new(),
+    }
+}
+
 #[test]
 fn current_machine_encoding_preserves_ordinary_bytes_and_rejects_retired_dispositions() {
     let (physical, selected, machine) = fixture();
     let target = target::NativeTarget::linux_x64();
-    let row = encode_row(target, &selected, &machine, &physical, None).unwrap();
+    let row = encode_row(
+        target,
+        &selected,
+        &machine,
+        &physical,
+        &selected_function(),
+        None,
+    )
+    .unwrap();
     let SelectedFormEncodingState::Encoded { bytes, .. } = &row.state else {
         panic!("ordinary materialization must own bytes")
     };
@@ -125,10 +151,25 @@ fn unrouted_address_on_ordinary_kind_rejects_in_producer_and_replay() {
         displacement: 0,
     });
     assert!(matches!(
-        encode_row(target, &selected, &machine, &physical, unrouted),
+        encode_row(
+            target,
+            &selected,
+            &machine,
+            &physical,
+            &selected_function(),
+            unrouted
+        ),
         Err(crate::OptimizedSelectedFormEncodingError::ArtifactMismatch)
     ));
-    let row = encode_row(target, &selected, &machine, &physical, None).unwrap();
+    let row = encode_row(
+        target,
+        &selected,
+        &machine,
+        &physical,
+        &selected_function(),
+        None,
+    )
+    .unwrap();
     let mut changed = row;
     changed.address = unrouted;
     assert!(
@@ -151,10 +192,25 @@ fn unrouted_address_on_deferred_control_rejects_in_producer_and_replay() {
         displacement: 0,
     });
     assert!(matches!(
-        encode_row(target, &selected, &machine, &physical, unrouted),
+        encode_row(
+            target,
+            &selected,
+            &machine,
+            &physical,
+            &selected_function(),
+            unrouted
+        ),
         Err(crate::OptimizedSelectedFormEncodingError::ArtifactMismatch)
     ));
-    let row = encode_row(target, &selected, &machine, &physical, None).unwrap();
+    let row = encode_row(
+        target,
+        &selected,
+        &machine,
+        &physical,
+        &selected_function(),
+        None,
+    )
+    .unwrap();
     assert!(matches!(
         row.state,
         SelectedFormEncodingState::DeferredControl { .. }

@@ -103,6 +103,23 @@ fn widen(
                     fixup.opcode_function_offset = grow(fixup.opcode_function_offset)?;
                     fixup.patch_function_offset = grow(fixup.patch_function_offset)?;
                     fixup.reference_function_offset = grow(fixup.reference_function_offset)?;
+                    for callback in &mut fixup.callbacks {
+                        callback.code_function_offset = grow(callback.code_function_offset)?;
+                        match &mut callback.encoding {
+                            machine_code::FunctionFragmentCallbackMaterializationEncoding::X86_64Relative32 { patch_function_offset } => {
+                                *patch_function_offset = grow(*patch_function_offset)?;
+                            }
+                            machine_code::FunctionFragmentCallbackMaterializationEncoding::Aarch64PageAddress {
+                                page_patch_function_offset,
+                                page_offset_patch_function_offset,
+                            } => {
+                                *page_patch_function_offset =
+                                    grow(*page_patch_function_offset)?;
+                                *page_offset_patch_function_offset =
+                                    grow(*page_offset_patch_function_offset)?;
+                            }
+                        }
+                    }
                 }
             }
         }

@@ -95,12 +95,25 @@ fn lower_callback_thunk(
             "a private callback thunk emits exactly one function",
         ));
     };
-    if placed.machine != section.semantic_entry
-        || !section.resolved_internal_machine_calls.is_empty()
-        || !section.unresolved_normalized_foreign_calls.is_empty()
+    if placed.machine != section.semantic_entry {
+        return Err(reject("emitted thunk machine is not its section's entry"));
+    }
+    // Call-custody check, not a shape check: internal calls the section
+    // resolved are bound custody and admissible; unresolved foreign calls are
+    // not — the compiler-private channel carries no import custody, so a thunk
+    // that imports has no path to published custody and rejects here.
+    if !section.unresolved_normalized_foreign_calls.is_empty() {
+        return Err(reject(
+            "a private callback thunk cannot carry foreign-call custody",
+        ));
+    }
+    if section
+        .resolved_internal_machine_calls
+        .iter()
+        .any(|call| call.caller == placed.machine && call.callee != placed.machine)
     {
         return Err(reject(
-            "a private callback thunk is a leaf function with no call custody",
+            "a private callback thunk cannot call outside its own machine",
         ));
     }
     let targeted = target_plan

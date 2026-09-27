@@ -15,6 +15,9 @@ mod integer_comparisons;
 mod native_proposal;
 mod terminal_artifact;
 
+pub(crate) use native_proposal::{
+    callback_closed_external_binding_rows, project_callback_occurrences,
+};
 pub use terminal_artifact::{
     ProgramEntryTerminalArtifact, produce_program_entry_terminal_artifact, produce_terminal_report,
     validate_lowered_ieee_float_comparison_custody, validate_lowered_integer_comparison_custody,

@@ -186,8 +186,8 @@ pub(crate) fn validate_foreign_call_floating_control(
                 .map(|argument| argument.code_offset)
                 .into_iter()
                 .chain(
-                    call.callback_address
-                        .as_ref()
+                    call.callback_addresses
+                        .iter()
                         .map(|callback| callback.code_offset),
                 )
                 .min()
@@ -238,7 +238,7 @@ pub(crate) fn validate_callback_plan_custody(
     let pointer_alignment = u16::try_from(target.pointer_alignment).map_err(|_| invalid())?;
     let application = &callback.target.application;
     let ordinal = usize::try_from(application.native_ordinal).map_err(|_| invalid())?;
-    let nominal_destination = calling_conventions::NativePlace::Parameter(application.parameter);
+    let nominal_destination = callback.target.destination.clone();
     let expected_placement = match callback.destination {
         machine_code::CallbackAddressDestination::Register(register) => {
             calling_conventions::ValuePlacement {
@@ -261,8 +261,42 @@ pub(crate) fn validate_callback_plan_custody(
                 }],
             }
         }
+        // A field destination materializes through the root record
+        // parameter's register home; the private slot's byte offset rides on
+        // the target, not on a parameter placement.
+        machine_code::CallbackAddressDestination::RecordField {
+            root_register,
+            byte_offset,
+        } => {
+            if callback.target.field_byte_offset
+                != Some(usize::try_from(byte_offset).map_err(|_| invalid())?)
+                || !matches!(
+                    &callback.target.destination,
+                    calling_conventions::NativePlace::Field { parameter, .. }
+                        if *parameter == application.parameter
+                )
+            {
+                return Err(invalid());
+            }
+            calling_conventions::ValuePlacement {
+                shape: application.shape,
+                locations: vec![calling_conventions::ValueLocation::Register {
+                    register: root_register,
+                    value_byte_offset: 0,
+                    byte_size: application.shape.byte_size,
+                }],
+            }
+        }
     };
     let context = &callback.target.registrar_context;
+    let mut roster_rows = call
+        .call_plan
+        .callback_materializations
+        .iter()
+        .filter(|row| row.destination == nominal_destination);
+    let (Some(roster_row), None) = (roster_rows.next(), roster_rows.next()) else {
+        return Err(invalid());
+    };
     if callback.target.terminal_operation != operation
         || callback
             .target
@@ -275,11 +309,16 @@ pub(crate) fn validate_callback_plan_custody(
         || application.placement != expected_placement
         || call.call_plan.parameters.get(ordinal) != Some(&application.placement)
         || callback.target.registrar_boundary_entry_plan.call != call.call_plan
-        || call.call_plan.callback_materializations.len() != 1
-        || call.call_plan.callback_materializations[0].destination != nominal_destination
-        || context.binders.len() != 1
-        || context.demands.len() != 1
-        || context.demands[0].destination != nominal_destination
+        || !context
+            .binders
+            .iter()
+            .any(|binder| binder.binder == roster_row.binder)
+        || context
+            .demands
+            .iter()
+            .filter(|demand| demand.destination == nominal_destination)
+            .count()
+            != 1
     {
         return Err(invalid());
     }
@@ -352,6 +391,32 @@ pub(crate) fn validate_callback_address_bytes(
             );
         }
         (
+            Architecture::X86_64,
+            machine_code::CallbackAddressDestination::RecordField {
+                root_register,
+                byte_offset,
+            },
+            machine_code::CallbackAddressEncoding::X86_64Relative32 { relocation_offset },
+        ) => {
+            let root = crate::object_artifact::replay::instruction_loads::x86_terminal_register(
+                root_register,
+            )
+            .filter(|register| *register != 4 && *register != 11)
+            .ok_or_else(invalid)?;
+            expected.extend_from_slice(&[0x4c, 0x8d, 0x1d]);
+            if relocation_offset
+                != callback
+                    .code_offset
+                    .checked_add(expected.len())
+                    .ok_or_else(invalid)?
+            {
+                return Err(invalid());
+            }
+            expected.extend_from_slice(&[0; 4]);
+            expected.extend_from_slice(&[0x4c | u8::from(root >= 8), 0x89, 0x98 | (root & 7)]);
+            expected.extend_from_slice(&byte_offset.to_le_bytes());
+        }
+        (
             Architecture::Aarch64,
             machine_code::CallbackAddressDestination::Register(register),
             machine_code::CallbackAddressEncoding::Aarch64PageAddress {
@@ -394,6 +459,37 @@ pub(crate) fn validate_callback_address_bytes(
             expected.extend_from_slice(
                 &crate::object_artifact::replay::unit::scalar_call_custody::expected_aarch64_stack_store(9, byte_offset)
                     .ok_or_else(invalid)?
+                    .to_le_bytes(),
+            );
+        }
+        (
+            Architecture::Aarch64,
+            machine_code::CallbackAddressDestination::RecordField {
+                root_register,
+                byte_offset,
+            },
+            machine_code::CallbackAddressEncoding::Aarch64PageAddress {
+                page_relocation_offset,
+                page_offset_relocation_offset,
+            },
+        ) => {
+            let root =
+                crate::object_artifact::replay::instruction_loads::aarch64_terminal_register(
+                    root_register,
+                )
+                .ok_or_else(invalid)?;
+            if page_relocation_offset != callback.code_offset
+                || page_offset_relocation_offset
+                    != callback.code_offset.checked_add(4).ok_or_else(invalid)?
+                || byte_offset % 8 != 0
+                || byte_offset / 8 >= 4096
+            {
+                return Err(invalid());
+            }
+            expected.extend_from_slice(&0x9000_0010u32.to_le_bytes());
+            expected.extend_from_slice(&0x9100_0210u32.to_le_bytes());
+            expected.extend_from_slice(
+                &(0xF900_0000_u32 | ((byte_offset / 8) << 10) | (u32::from(root) << 5) | 16)
                     .to_le_bytes(),
             );
         }
@@ -475,28 +571,39 @@ pub(crate) fn validate_foreign_scalar_arguments(
             Ok(expected_shape)
         })
         .transpose()?;
-    let callback_ordinal = call
-        .callback_address
-        .as_ref()
+    // Only `Parameter`-destination callbacks occupy a native slot; a `Field`
+    // destination writes through its root parameter's existing slot.
+    let callback_ordinals = call
+        .callback_addresses
+        .iter()
+        .filter(|callback| {
+            matches!(
+                callback.target.destination,
+                calling_conventions::NativePlace::Parameter(_)
+            )
+        })
         .map(|callback| usize::try_from(callback.target.application.native_ordinal))
-        .transpose()
+        .collect::<Result<Vec<_>, _>>()
         .map_err(|_| invalid())?;
-    if callback_ordinal.is_some_and(|ordinal| ordinal > shapes.len()) {
-        return Err(invalid());
+    let native_parameter_count = shapes.len() + callback_ordinals.len();
+    for (index, ordinal) in callback_ordinals.iter().enumerate() {
+        if *ordinal >= native_parameter_count || callback_ordinals[..index].contains(ordinal) {
+            return Err(invalid());
+        }
     }
-    let native_parameter_count = shapes.len() + usize::from(callback_ordinal.is_some());
+    let callback_at = |native_index: usize| {
+        call.callback_addresses.iter().find(|callback| {
+            matches!(
+                callback.target.destination,
+                calling_conventions::NativePlace::Parameter(_)
+            ) && callback.target.application.native_ordinal as usize == native_index
+        })
+    };
     let mut native_shapes = Vec::with_capacity(native_parameter_count);
     let mut scalar_shape_index = 0usize;
     for native_index in 0..native_parameter_count {
-        if callback_ordinal == Some(native_index) {
-            native_shapes.push(
-                call.callback_address
-                    .as_ref()
-                    .expect("callback ordinal has callback custody")
-                    .target
-                    .application
-                    .shape,
-            );
+        if let Some(callback) = callback_at(native_index) {
+            native_shapes.push(callback.target.application.shape);
         } else {
             native_shapes.push(*shapes.get(scalar_shape_index).ok_or_else(invalid)?);
             scalar_shape_index += 1;
@@ -526,12 +633,11 @@ pub(crate) fn validate_foreign_scalar_arguments(
     {
         return Err(invalid());
     }
-    match &call.callback_address {
-        Some(callback) => {
-            validate_callback_plan_custody(target, caller, call, callback, &signature)?
-        }
-        None if call.call_plan.callback_materializations.is_empty() => {}
-        None => return Err(invalid()),
+    if call.callback_addresses.len() != call.call_plan.callback_materializations.len() {
+        return Err(invalid());
+    }
+    for callback in &call.callback_addresses {
+        validate_callback_plan_custody(target, caller, call, callback, &signature)?;
     }
     let expected_outbound =
         expected_foreign_scalar_outbound_bytes(expected_plan, target.architecture)
@@ -563,8 +669,8 @@ pub(crate) fn validate_foreign_scalar_arguments(
                     .map(|argument| argument.code_offset)
                     .into_iter()
                     .chain(
-                        call.callback_address
-                            .as_ref()
+                        call.callback_addresses
+                            .iter()
                             .map(|callback| callback.code_offset),
                     )
                     .min()
@@ -676,14 +782,27 @@ pub(crate) fn validate_foreign_scalar_arguments(
 
     let mut scalar_index = 0usize;
     for native_index in 0..call.call_plan.parameters.len() {
-        if callback_ordinal == Some(native_index) {
-            let callback = call.callback_address.as_ref().ok_or_else(invalid)?;
+        if let Some(callback) = callback_at(native_index) {
             if callback.code_offset != argument_cursor {
                 return Err(invalid());
             }
             argument_cursor =
                 validate_callback_address_bytes(target, caller, call.owner, function, callback)?;
             continue;
+        }
+        if let Some(callback) = call.callback_addresses.iter().find(|callback| {
+            matches!(
+                callback.target.destination,
+                calling_conventions::NativePlace::Field { .. }
+            ) && callback.target.application.native_ordinal as usize == native_index
+        }) {
+            // A field-destination callback writes through this parameter's
+            // register-resident record root before the call word.
+            if callback.code_offset != argument_cursor {
+                return Err(invalid());
+            }
+            argument_cursor =
+                validate_callback_address_bytes(target, caller, call.owner, function, callback)?;
         }
         let argument = call
             .scalar_arguments
@@ -1061,7 +1180,7 @@ mod tests {
             boundary_entry_plan,
             call_plan,
             scalar_arguments: Vec::new(),
-            callback_address: None,
+            callback_addresses: Vec::new(),
             scalar_result: None,
             x86_floating_control: None,
             aarch64_floating_control: None,

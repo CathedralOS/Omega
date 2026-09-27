@@ -80,7 +80,7 @@ pub(super) fn lower(
         InstalledProviderCallEvidence,
     >,
     scalar_abis: &BTreeMap<MachineId, ScalarFunctionAbi>,
-    native_callbacks: &BTreeMap<OperationId, target_operations::TargetNativeCallbackArgument>,
+    native_callbacks: &BTreeMap<OperationId, Vec<target_operations::TargetNativeCallbackArgument>>,
 ) -> Result<TargetFunction, LoweringError> {
     if function.block_entries.is_empty() {
         return Err(LoweringError::unsupported_control_flow(function.machine));

@@ -9,6 +9,7 @@ pub(crate) mod text_section;
 use crate::object_target_policy;
 use machine_code::{
     NormalizedForeignCallResolutionKind, NormalizedForeignCallResolutionState,
+    PlacedCallbackAddressEncoding, PlacedCallbackAddressMaterialization,
     PlacedNormalizedForeignCallResolution,
 };
 use optimization_core::{
@@ -20,6 +21,7 @@ use selected_instructions::{
 };
 use semantic_vocabulary::{BoundaryMachineId, FuelScheduleIdentity, MachineId, OperationId};
 use target::{Architecture, NativeTarget, ObjectFormat};
+use target_operations::MachineRegister;
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 const PLAN_SCHEMA: &[u8] = b"omega.terminal.relocation-free-object-plan.v2\0";
@@ -104,7 +106,7 @@ pub struct RelocationFreeObjectNormalizedImport {
 /// import symbol. `resolution` is the placement row exactly as the source text
 /// section recorded it; `symbol` is the `normalized_imports` entry declaring
 /// the roster coordinate `{resolution.boundary, resolution.ordinal}`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RelocationFreeObjectUnresolvedForeignCall {
     pub symbol: ObjectLocalSymbolId,
     pub resolution: PlacedNormalizedForeignCallResolution,
@@ -215,6 +217,10 @@ pub enum RelocationFreeObjectDecodeError {
     UnknownForeignFieldKind(u8),
     UnknownForeignFieldState(u8),
     UnknownRelocationRequirements(u8),
+    UnknownCallbackMaterialization(u8),
+    UnknownCallbackDestination(u8),
+    UnknownCallbackEncoding(u8),
+    InvalidCallbackDestination,
     LengthOverflow,
     InvalidObject(RelocationFreeObjectError),
 }
@@ -548,6 +554,85 @@ fn encode_normalized_foreign_resolution(
     output.extend_from_slice(&resolution.next_instruction_section_offset.to_le_bytes());
     output.push(resolution.field_byte_width);
     output.extend_from_slice(&resolution.addend.to_le_bytes());
+    encode_placed_callback_materializations(output, &resolution.callback_materializations);
+}
+
+fn encode_machine_register(output: &mut Vec<u8>, register: MachineRegister) {
+    let (family, index) = match register {
+        MachineRegister::X86Rax => (1, 0),
+        MachineRegister::X86Rcx => (1, 1),
+        MachineRegister::X86Rdx => (1, 2),
+        MachineRegister::X86Rbx => (1, 3),
+        MachineRegister::X86Rsp => (1, 4),
+        MachineRegister::X86Rbp => (1, 5),
+        MachineRegister::X86Rsi => (1, 6),
+        MachineRegister::X86Rdi => (1, 7),
+        MachineRegister::X86R8 => (1, 8),
+        MachineRegister::X86R9 => (1, 9),
+        MachineRegister::X86R10 => (1, 10),
+        MachineRegister::X86R11 => (1, 11),
+        MachineRegister::X86R12 => (1, 12),
+        MachineRegister::X86R13 => (1, 13),
+        MachineRegister::X86R14 => (1, 14),
+        MachineRegister::X86R15 => (1, 15),
+        MachineRegister::X86Xmm(index) => (2, index),
+        MachineRegister::Aarch64X(index) => (3, index),
+        MachineRegister::Aarch64V(index) => (4, index),
+    };
+    output.push(family);
+    output.push(index);
+}
+
+fn encode_placed_callback_materializations(
+    output: &mut Vec<u8>,
+    materializations: &[PlacedCallbackAddressMaterialization],
+) {
+    output.extend_from_slice(&(materializations.len() as u64).to_le_bytes());
+    for materialization in materializations {
+        match materialization.destination {
+            machine_code::CallbackAddressDestination::Register(register) => {
+                output.push(1);
+                encode_machine_register(output, register);
+            }
+            machine_code::CallbackAddressDestination::OutgoingStack { byte_offset } => {
+                output.push(2);
+                output.extend_from_slice(&byte_offset.to_le_bytes());
+            }
+            machine_code::CallbackAddressDestination::RecordField {
+                root_register,
+                byte_offset,
+            } => {
+                output.push(3);
+                encode_machine_register(output, root_register);
+                output.extend_from_slice(&byte_offset.to_le_bytes());
+            }
+        }
+        output.extend_from_slice(&materialization.code_function_offset.to_le_bytes());
+        output.extend_from_slice(&materialization.code_section_offset.to_le_bytes());
+        output.extend_from_slice(&materialization.code_byte_count.to_le_bytes());
+        match materialization.encoding {
+            PlacedCallbackAddressEncoding::X86_64Relative32 {
+                relocation_function_offset,
+                relocation_section_offset,
+            } => {
+                output.push(1);
+                output.extend_from_slice(&relocation_function_offset.to_le_bytes());
+                output.extend_from_slice(&relocation_section_offset.to_le_bytes());
+            }
+            PlacedCallbackAddressEncoding::Aarch64PageAddress {
+                page_relocation_function_offset,
+                page_relocation_section_offset,
+                page_offset_relocation_function_offset,
+                page_offset_relocation_section_offset,
+            } => {
+                output.push(2);
+                output.extend_from_slice(&page_relocation_function_offset.to_le_bytes());
+                output.extend_from_slice(&page_relocation_section_offset.to_le_bytes());
+                output.extend_from_slice(&page_offset_relocation_function_offset.to_le_bytes());
+                output.extend_from_slice(&page_offset_relocation_section_offset.to_le_bytes());
+            }
+        }
+    }
 }
 
 fn decode_plan_content(
@@ -714,7 +799,91 @@ fn decode_normalized_foreign_resolution(
         next_instruction_section_offset: u64::from_le_bytes(cursor.array()?),
         field_byte_width: cursor.byte()?,
         addend: i64::from_le_bytes(cursor.array()?),
+        callback_materializations: decode_placed_callback_materializations(cursor)?,
     })
+}
+
+fn decode_machine_register(
+    cursor: &mut Cursor<'_>,
+) -> Result<MachineRegister, RelocationFreeObjectDecodeError> {
+    let family = cursor.byte()?;
+    let index = cursor.byte()?;
+    Ok(match (family, index) {
+        (1, 0) => MachineRegister::X86Rax,
+        (1, 1) => MachineRegister::X86Rcx,
+        (1, 2) => MachineRegister::X86Rdx,
+        (1, 3) => MachineRegister::X86Rbx,
+        (1, 4) => MachineRegister::X86Rsp,
+        (1, 5) => MachineRegister::X86Rbp,
+        (1, 6) => MachineRegister::X86Rsi,
+        (1, 7) => MachineRegister::X86Rdi,
+        (1, 8) => MachineRegister::X86R8,
+        (1, 9) => MachineRegister::X86R9,
+        (1, 10) => MachineRegister::X86R10,
+        (1, 11) => MachineRegister::X86R11,
+        (1, 12) => MachineRegister::X86R12,
+        (1, 13) => MachineRegister::X86R13,
+        (1, 14) => MachineRegister::X86R14,
+        (1, 15) => MachineRegister::X86R15,
+        (2, index @ 0..=15) => MachineRegister::X86Xmm(index),
+        (3, index @ 0..=30) => MachineRegister::Aarch64X(index),
+        (4, index @ 0..=31) => MachineRegister::Aarch64V(index),
+        _ => return Err(RelocationFreeObjectDecodeError::InvalidCallbackDestination),
+    })
+}
+
+fn decode_placed_callback_materializations(
+    cursor: &mut Cursor<'_>,
+) -> Result<Vec<PlacedCallbackAddressMaterialization>, RelocationFreeObjectDecodeError> {
+    let count = cursor.length()?;
+    let mut materializations = Vec::with_capacity(count);
+    for _ in 0..count {
+        let destination = match cursor.byte()? {
+            1 => {
+                machine_code::CallbackAddressDestination::Register(decode_machine_register(cursor)?)
+            }
+            2 => machine_code::CallbackAddressDestination::OutgoingStack {
+                byte_offset: u32::from_le_bytes(cursor.array()?),
+            },
+            3 => machine_code::CallbackAddressDestination::RecordField {
+                root_register: decode_machine_register(cursor)?,
+                byte_offset: u32::from_le_bytes(cursor.array()?),
+            },
+            tag => {
+                return Err(RelocationFreeObjectDecodeError::UnknownCallbackDestination(
+                    tag,
+                ));
+            }
+        };
+        let code_function_offset = u64::from_le_bytes(cursor.array()?);
+        let code_section_offset = u64::from_le_bytes(cursor.array()?);
+        let code_byte_count = u64::from_le_bytes(cursor.array()?);
+        let encoding = match cursor.byte()? {
+            1 => PlacedCallbackAddressEncoding::X86_64Relative32 {
+                relocation_function_offset: u64::from_le_bytes(cursor.array()?),
+                relocation_section_offset: u64::from_le_bytes(cursor.array()?),
+            },
+            2 => PlacedCallbackAddressEncoding::Aarch64PageAddress {
+                page_relocation_function_offset: u64::from_le_bytes(cursor.array()?),
+                page_relocation_section_offset: u64::from_le_bytes(cursor.array()?),
+                page_offset_relocation_function_offset: u64::from_le_bytes(cursor.array()?),
+                page_offset_relocation_section_offset: u64::from_le_bytes(cursor.array()?),
+            },
+            tag => {
+                return Err(RelocationFreeObjectDecodeError::UnknownCallbackEncoding(
+                    tag,
+                ));
+            }
+        };
+        materializations.push(PlacedCallbackAddressMaterialization {
+            destination,
+            code_function_offset,
+            code_section_offset,
+            code_byte_count,
+            encoding,
+        });
+    }
+    Ok(materializations)
 }
 
 fn encode_target(output: &mut Vec<u8>, target: NativeTarget) {
@@ -1071,6 +1240,7 @@ mod tests {
                     next_instruction_section_offset: 4,
                     field_byte_width: 4,
                     addend: 0,
+                    callback_materializations: Vec::new(),
                 },
             }
         };

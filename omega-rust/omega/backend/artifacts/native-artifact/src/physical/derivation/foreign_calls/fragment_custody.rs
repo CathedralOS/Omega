@@ -6,6 +6,7 @@ use crate::physical::derivation::foreign_calls::{
     fixed_scalar_shape, floating_control, fragment_instruction_span,
 };
 use crate::physical::fragment_publication::FragmentPublicationBinding;
+use calling_conventions::ValueLocation;
 use semantic_vocabulary::ScalarType;
 
 /// The fragment-publication rejoin of one normalized-foreign D41 child: the
@@ -149,6 +150,70 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
 /// scalar-call `Home`, and the exact durable-home slot and normalization span
 /// for a scalar result — re-derived here from the retained text section
 /// rather than trusted.
+/// Every projected callback materialization must rejoin the roster row's
+/// selected callback argument and the plan's matching nominal destination —
+/// a substituted, dropped, or reordered callback cannot self-certify.
+fn fragment_callback_materialization_rejoin(
+    record: &selected_instructions::SelectedNormalizedForeignCall,
+    foreign: &image_emission::ObjectForeignCall,
+) -> bool {
+    let plan = &record.call.binding.boundary_entry_plan.call;
+    if record.call.callbacks.len() != foreign.callback_addresses.len()
+        || foreign.callback_addresses.len() != plan.callback_materializations.len()
+    {
+        return false;
+    }
+    record
+        .call
+        .callbacks
+        .iter()
+        .zip(foreign.callback_addresses.iter())
+        .all(|(callback, materialization)| {
+            *callback == materialization.target
+                && plan
+                    .callback_materializations
+                    .iter()
+                    .filter(|row| row.destination == callback.destination)
+                    .count()
+                    == 1
+                && match materialization.destination {
+                    machine_code::CallbackAddressDestination::Register(register) => {
+                        callback.application.placement.locations.as_slice()
+                            == [ValueLocation::Register {
+                                register,
+                                value_byte_offset: 0,
+                                byte_size: callback.application.shape.byte_size,
+                            }]
+                    }
+                    machine_code::CallbackAddressDestination::OutgoingStack { byte_offset } => {
+                        callback.application.placement.locations.as_slice()
+                            == [ValueLocation::Stack {
+                                stack_byte_offset: byte_offset,
+                                value_byte_offset: 0,
+                                byte_size: callback.application.shape.byte_size,
+                                alignment: callback.application.shape.alignment,
+                            }]
+                    }
+                    machine_code::CallbackAddressDestination::RecordField {
+                        root_register,
+                        byte_offset,
+                    } => {
+                        matches!(
+                            callback.destination,
+                            calling_conventions::NativePlace::Field { .. }
+                        ) && callback.field_byte_offset
+                            == Some(usize::try_from(byte_offset).unwrap_or(usize::MAX))
+                            && callback.application.placement.locations.as_slice()
+                                == [ValueLocation::Register {
+                                    register: root_register,
+                                    value_byte_offset: 0,
+                                    byte_size: callback.application.shape.byte_size,
+                                }]
+                    }
+                }
+        })
+}
+
 fn fragment_scalar_argument_custody_rejoin(
     publication: &FragmentPublicationBinding,
     function: &selected_instructions::SelectedFunction,
@@ -158,11 +223,28 @@ fn fragment_scalar_argument_custody_rejoin(
     foreign: &image_emission::ObjectForeignCall,
 ) -> bool {
     let plan = &record.call.binding.boundary_entry_plan.call;
-    if !plan.callback_materializations.is_empty()
-        || foreign.scalar_arguments.len() != record.call.scalar_arguments.len()
+    // Only a parameter-destination materialization mints a plan slot; field
+    // destinations write through their root record parameter's slot, which
+    // the structural argument roster already carries.
+    let parameter_slot_materializations = plan
+        .callback_materializations
+        .iter()
+        .filter(|row| {
+            matches!(
+                row.destination,
+                calling_conventions::NativePlace::Parameter(_)
+            )
+        })
+        .count();
+    if foreign.scalar_arguments.len() != record.call.scalar_arguments.len()
         || plan.parameters.len()
-            != record.call.scalar_arguments.len() + record.call.structural_arguments.len()
+            != record.call.scalar_arguments.len()
+                + record.call.structural_arguments.len()
+                + parameter_slot_materializations
     {
+        return false;
+    }
+    if !fragment_callback_materialization_rejoin(record, foreign) {
         return false;
     }
     let mut fragments = publication
@@ -218,12 +300,21 @@ fn fragment_scalar_argument_custody_rejoin(
     {
         return false;
     }
+    // `Parameter`-destination callbacks claim a register placement without
+    // occupying a call-row operand (the address bytes live inside the call
+    // encoding), matching the projection's operand roster.
     let mut register_positions = plan
         .parameters
         .iter()
         .enumerate()
-        .filter(|(_, placement)| {
-            matches!(
+        .filter(|(position, placement)| {
+            !record.call.callbacks.iter().any(|callback| {
+                usize::try_from(callback.application.native_ordinal) == Ok(*position)
+                    && matches!(
+                        callback.destination,
+                        calling_conventions::NativePlace::Parameter(_)
+                    )
+            }) && matches!(
                 placement.locations.as_slice(),
                 [calling_conventions::ValueLocation::Register { .. }]
             )
