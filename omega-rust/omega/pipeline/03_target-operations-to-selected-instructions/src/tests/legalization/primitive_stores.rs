@@ -27,6 +27,132 @@ mod runtime_elements;
 mod scalar_returns;
 
 #[test]
+fn owned_array_primitive_reads_retain_native_geometry() {
+    use terminal_psi::StructuralPathSegment;
+
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
+    ] {
+        let scalar = integer(IntegerSign::Unsigned, 64);
+        let (mut source, _, _) = fixture(native, scalar, true);
+        let mut element = source.structural_types[0].clone();
+        element.id = StructuralTypeId::new(2).unwrap();
+        element.identity = "OwnedArrayElement".into();
+        source.structural_types.make_mut()[0].shape = StructuralTypeShape::FixedArray {
+            element: element.id,
+            length: 2,
+        };
+        source.structural_types.make_mut().push(element);
+        let function = &mut source.functions[0];
+        function.structural_parameters[0].access = StructuralAccess::Owned;
+        let read = AbstractResult {
+            value: ValueId::new(7).unwrap(),
+            scalar_type: scalar,
+        };
+        let result = AbstractResult {
+            value: ValueId::new(8).unwrap(),
+            scalar_type: scalar,
+        };
+        function.result = abstract_operations::AbstractFunctionResult::Scalar(result);
+        function.operations = vec![
+            AbstractOperation::PrimitiveScalarRead {
+                psi_operation: OperationId::new(3).unwrap(),
+                result: read,
+                source: function.structural_parameters[0].place,
+                path: vec![StructuralPathSegment::FixedIndex(1)],
+            },
+            AbstractOperation::Return {
+                psi_edge: semantic_vocabulary::EdgeId::new(1).unwrap(),
+                result: result.value,
+                value: read.value,
+                scalar_type: scalar,
+                cleanup_actions: Vec::new(),
+            },
+        ];
+        let target = abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+        )
+        .unwrap();
+        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &source,
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap();
+        let legalized = legalize_target_operations(&target, &source, &unit).unwrap();
+        validate_legalized_operations(&target, &source, &unit, legalized.plan().clone()).unwrap();
+        let environment =
+            register_environment::baseline_target_register_environment(native).unwrap();
+        let constraints = crate::selection_constraints(&legalized, &environment);
+        let selected = crate::select_instructions(
+            &legalized,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .unwrap();
+        crate::validate_selected_instructions(
+            &legalized,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+            selected.plan().clone(),
+        )
+        .unwrap();
+
+        let mut changed = legalized.plan().clone();
+        let read = changed.scalar_functions[0].blocks[0]
+            .instructions
+            .iter_mut()
+            .find(|instruction| {
+                matches!(
+                    instruction.kind,
+                    LegalizedScalarInstructionKind::PrimitiveScalarRead { .. }
+                )
+            })
+            .expect("projected read");
+        let LegalizedScalarInstructionKind::PrimitiveScalarRead { path, .. } = &mut read.kind
+        else {
+            unreachable!();
+        };
+        *path = vec![StructuralPathSegment::FixedIndex(0)];
+        assert!(validate_legalized_operations(&target, &source, &unit, changed).is_err());
+
+        // The selected load must still point at element 1 after owned ABI
+        // materialization, whether the aggregate arrived in registers or memory.
+        let mut changed = selected.plan().clone();
+        let load = changed.functions[0].blocks[0]
+            .instructions
+            .iter_mut()
+            .find(|instruction| {
+                matches!(
+                    instruction.kind,
+                    selected_instructions::SelectedInstructionKind::Load64 { byte_offset: 8 }
+                )
+            })
+            .expect("owned array element load");
+        let selected_instructions::SelectedInstructionKind::Load64 { byte_offset } = &mut load.kind
+        else {
+            unreachable!();
+        };
+        *byte_offset = 0;
+        assert!(
+            crate::validate_selected_instructions(
+                &legalized,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+                changed,
+            )
+            .is_err()
+        );
+    }
+}
+
+#[test]
 fn indexed_primitive_storage_retains_root_path_footprint_and_access() {
     use terminal_psi::StructuralPathSegment as Segment;
     for native in [

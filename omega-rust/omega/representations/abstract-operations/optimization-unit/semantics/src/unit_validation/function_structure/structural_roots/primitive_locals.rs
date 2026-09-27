@@ -94,10 +94,11 @@ pub(super) fn validate(
                     )
                     .any(|parameter| {
                         parameter.place == *source
-                            && matches!(
+                            && (matches!(
                                 parameter.access,
                                 StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                            )
+                            ) || (parameter.access == StructuralAccess::Owned
+                                && !path.is_empty()))
                             && (parameter.multiplicity == StructuralMultiplicity::Unrestricted
                                 || (!path.is_empty()
                                     && parameter.multiplicity == StructuralMultiplicity::Affine))

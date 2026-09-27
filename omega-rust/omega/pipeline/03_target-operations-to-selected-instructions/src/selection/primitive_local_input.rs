@@ -92,10 +92,11 @@ pub(super) fn readable(
     source.structural.as_ref().is_some_and(|signature| {
         signature.entry_claims.is_empty()
             && borrowed_parameter(source, place).is_some_and(|parameter| {
-                matches!(
+                (matches!(
                     parameter.access,
                     StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                ) && parameter.multiplicity != StructuralMultiplicity::Linear
+                ) || (parameter.access == StructuralAccess::Owned && !path.is_empty()))
+                    && parameter.multiplicity != StructuralMultiplicity::Linear
                     && (!path.is_empty()
                         || parameter.multiplicity == StructuralMultiplicity::Unrestricted)
                     && parameter.qualifications.is_empty()
