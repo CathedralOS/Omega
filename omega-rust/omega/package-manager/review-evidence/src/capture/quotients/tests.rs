@@ -21,8 +21,7 @@ use tokens_to_syntax_trees::parse_syntax_trees_with_id;
 
 const PACKAGE: [u8; 32] = [0x51; 32];
 const FOREIGN_PACKAGE: [u8; 32] = [0x52; 32];
-const CORE_RELATION: &str =
-    include_str!("../../../../../../../source/library/core/relation.omg");
+const CORE_RELATION: &str = include_str!("../../../../../../../source/library/core/relation.omg");
 
 const TOTAL_DIRECT_DEFINE: &str = r#"
 use omega::language::core::relation;
