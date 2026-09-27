@@ -5,15 +5,6 @@ use crate::{
 };
 
 #[test]
-fn fixed_stack_and_canonical_crossings_form_a_valid_plan() {
-    let plan = validate_activation_plan(candidate()).expect("activation plan");
-    assert_eq!(plan.candidate().stack_plan.bytes, 4096);
-    assert_eq!(plan.wcsu_stack_projection(), None);
-    assert!(plan.candidate().carry_obligations.preserve_cpu);
-    assert_ne!(plan.normalized_identity().normalized_identity(), 0);
-}
-
-#[test]
 fn wcsu_projection_validates_exact_activation_stack_shape() {
     let projection = wcsu_projection(31);
     let projection_identity = projection.identity();

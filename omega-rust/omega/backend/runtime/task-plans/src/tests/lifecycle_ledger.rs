@@ -43,6 +43,9 @@ fn lifecycle_claim_pins_runtime_plan_and_storage_until_settlement() {
         .expect("cancellation preserves the claim");
     assert!(ledger.cancellation_requested(claim.identity()));
     ledger
+        .request_cancellation(&claim)
+        .expect("a repeated request preserves the same live claim");
+    ledger
         .observe_cancellation(&claim, canonical_crossing())
         .expect("the activation observes the request at a canonical safe point");
     assert!(ledger.validate_storage_reclaim(storage).is_err());
