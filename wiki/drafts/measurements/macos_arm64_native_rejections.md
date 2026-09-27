@@ -152,6 +152,58 @@ LOCAL-DATA-CLUSTER-REPAIR claim, whose owner is repairing this very cluster,
 and a claim on it was refused. This is a handoff with the site and the fix
 shape, not a deferral.
 
+## REFERENCE-LOCAL-BINDING-ROUTES, located by the same technique
+
+The phase-sequence diff generalizes, so the biggest item's shared-borrow
+trigger was located the same way, from its one-token pair:
+`let d: &mut u32 = &mut self.size;` against `let d: &u32 = &self.size;`.
+
+The working run leaves the local-data planner immediately after `statement
+sequence: local data: initializer expression` and continues to `statement
+sequence: borrowed windows closed`. The failing run instead walks `local
+data: borrowed window move`, `view subslice`, `exclusive place loan`, and
+dies at `local data: structural call binding`.
+
+So the `&mut` form is admitted by the EARLY exit in
+`control/statement_sequence/local_data.rs`:
+
+```rust
+if erased_locals.contains(&local.symbol) || is_record_pattern_marker(local) {
+    return Some(LocalPlan::Planned);
+}
+```
+
+An erased borrow carrier is a checked ALIAS rather than a storage binding —
+its declaration composes through the sequence and each use joins the
+referent's evidence. Membership comes from
+`statement_sequence.rs::erased_alias_locals`, which is
+`receiver_aliases::aliases` plus restored call aliases, and the gate is in
+`terminal_unit/receiver_aliases/mod.rs`:
+
+```rust
+let access = exclusive_access(program, local.type_reference)?;
+...
+if !matches!((&access, borrow.access),
+    (BorrowAccessKind::Mutable,   ReferenceAccess::Mutable)
+  | (BorrowAccessKind::WriteOnly, ReferenceAccess::WriteOnly)) {
+    return None;
+}
+```
+
+A SHARED borrow matches neither arm, and `exclusive_access` bails on it
+first, so it is never an alias, never takes the early exit, and falls through
+to a route that has nothing for it. That is the whole of trigger 1.
+
+CAUTION, and why this is a handoff rather than a patch. The alias machinery
+is deliberately EXCLUSIVE — the module is named for it, the predicate is
+`exclusive_access`, and a later site guards on `parent_borrow.access !=
+Mutable`. Conceptually a shared borrow is an alias too, and the same
+"declaration composes, uses join the referent" reading applies. But widening
+this match is a change to the aliasing model, not a missing branch, and the
+consumers sit inside the files LOCAL-DATA-CLUSTER-REPAIR currently holds. A
+shared borrow may want its own route rather than being admitted through the
+exclusive one. Decide that before editing the match.
+
 ## Method notes for whoever re-runs this
 
 - The phase string names the last phase ENTERED, not the operation that

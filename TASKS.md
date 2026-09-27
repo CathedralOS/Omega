@@ -136,6 +136,17 @@ backend-visible; full corpus runs only at the end of an item.
   strengthens the hypothesis above rather than the alternative: the admitted
   form is the one that lowers to a direct place.
 
+  LOCATED, for the shared-borrow trigger, in
+  [macos_arm64_native_rejections](wiki/drafts/measurements/macos_arm64_native_rejections.md):
+  the `&mut` form takes the erased-ALIAS early exit in
+  `statement_sequence/local_data.rs`, and membership is gated in
+  `terminal_unit/receiver_aliases/mod.rs` on `Mutable | WriteOnly` behind an
+  `exclusive_access` lookup, so a shared borrow is never an alias and falls
+  through to a route with nothing for it. Widening that match is a change to
+  the ALIASING MODEL rather than a missing branch -- the module, its
+  predicate and a later `parent_borrow.access != Mutable` guard are all
+  deliberately exclusive -- so settle whether a shared borrow joins that
+  route or needs its own before editing it.
   SEVEN phase labels now name this one capability, which is why it reads as
   several unrelated clusters -- `structural call binding`, `result custody
   accounting`, `call: flow call`, `operation custody: reference custody`, and
