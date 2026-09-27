@@ -4,7 +4,9 @@
 //! by its own current guard. Internal state transfers supply no hypotheses:
 //! every state's returns must qualify independently. Immutable captures retain
 //! resolved declaration identity and an uninterrupted storage interval; array
-//! initializers never supply the value of an indexed read.
+//! initializers never supply the value of an indexed read. Unrelated effects
+//! invalidate guard premises without discarding independent return bounds;
+//! any substituted capture still owes its complete definition-to-exit fence.
 
 use super::arithmetic_judgment::{Engine, Judgment, Polynomial};
 use super::{ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticValue};
@@ -54,6 +56,7 @@ pub(super) fn infer(program: &TypedTrees, machine: &Machine) -> Option<IntegerRa
             return None;
         }
         let mut guards = Vec::new();
+        let mut needs_explicit_completion = false;
         for (statement, node) in statements.iter().enumerate() {
             match node {
                 StatementNode::Expression(expression) if statement + 1 == statements.len() => {
@@ -65,10 +68,17 @@ pub(super) fn infer(program: &TypedTrees, machine: &Machine) -> Option<IntegerRa
                 StatementNode::Transition(transition) => {
                     let guard = match transition.guard {
                         TransitionGuardNode::When(expression) => {
-                            reader
-                                .stable(expression, statement, 0)
-                                .then_some(expression)?;
-                            Some(expression)
+                            if reader.stable(expression, statement, 0) {
+                                Some(expression)
+                            } else {
+                                // Evaluating an effectful/unknown predicate
+                                // may change storage observed by earlier arms.
+                                // Literal and carrier bounds need neither it
+                                // nor those earlier observations as premises.
+                                guards.clear();
+                                needs_explicit_completion = true;
+                                None
+                            }
                         }
                         TransitionGuardNode::Always => None,
                     };
@@ -91,9 +101,10 @@ pub(super) fn infer(program: &TypedTrees, machine: &Machine) -> Option<IntegerRa
                                     guards.pop();
                                 }
                             }
+                            // Argument evaluation supplies no arrival facts:
+                            // every own state's exits qualify independently.
                             TransitionTargetNode::Named {
                                 path,
-                                arguments,
                                 static_machine_parameter,
                                 evidence_arguments,
                                 ..
@@ -101,11 +112,6 @@ pub(super) fn infer(program: &TypedTrees, machine: &Machine) -> Option<IntegerRa
                                 if static_machine_parameter.is_valid()
                                     || !evidence_arguments.is_empty()
                                     || !states.iter().any(|target| target.symbol == path.symbol)
-                                    || !program
-                                        .statement_table
-                                        .expression_handles(*arguments)
-                                        .iter()
-                                        .all(|argument| reader.stable(*argument, statement, 0))
                                 {
                                     return None;
                                 }
@@ -127,18 +133,43 @@ pub(super) fn infer(program: &TypedTrees, machine: &Machine) -> Option<IntegerRa
                 }
                 StatementNode::LocalData(local) => {
                     if !reader.stable(local.initial_value, statement, 0) {
-                        return None;
+                        guards.clear();
+                        needs_explicit_completion = true;
                     }
                 }
                 StatementNode::Expression(expression) => {
                     if !reader.stable(*expression, statement, 0) {
-                        return None;
+                        guards.clear();
+                        needs_explicit_completion = true;
                     }
                 }
-                // Existing inductive/proof routes retain other body operations.
-                // A store or call cannot silently preserve a prior capture.
+                // These effects supply no proof hypotheses. Even a call
+                // reported readonly may be nondeterministic; none preserves
+                // an earlier guard here. Capture substitution separately
+                // replays the full storage interval when a return needs it.
+                StatementNode::Assignment(_) | StatementNode::Call(_) => {
+                    guards.clear();
+                    needs_explicit_completion = true;
+                }
+                // Root-binding and assembly facts have separate authority.
                 _ => return None,
             }
+        }
+        // The shared coverage query can compare complementary guards across
+        // statements. After an effect or unsupported predicate, those guards
+        // need not observe one value or retain builtin Boolean meaning. A
+        // final explicit completion covers the remaining path independently.
+        let explicit_completion = match statements.last() {
+            Some(StatementNode::Expression(_)) => true,
+            Some(StatementNode::Transition(transition)) => {
+                transition.target.is_valid()
+                    && (transition.guard == TransitionGuardNode::Always
+                        || transition.continuation.is_valid())
+            }
+            _ => false,
+        };
+        if needs_explicit_completion && !explicit_completion {
+            return None;
         }
     }
     combined
@@ -258,16 +289,48 @@ impl ReturnReader<'_, '_> {
                 maximum: value,
             });
         }
-        if integer_carrier(self.program, self.place_type(returned, before, 0)?)
-            != Some(self.primitive)
-        {
+        let (primitive, mut bounds) = self.returned_carrier_bounds(returned, before, 0)?;
+        if primitive != self.primitive {
             return None;
         }
-        let mut bounds = carrier_bounds(self.primitive)?;
         for &(guard, holds, before) in guards {
             self.refine(guard, holds, before, statement, returned, &mut bounds, 0);
         }
         (bounds.minimum <= bounds.maximum).then_some(bounds)
+    }
+
+    /// Total exact widening preserves the source value interval. The target
+    /// type supplies the exit carrier, never a stronger bound on the source.
+    /// Storage operands still resolve through the ordinary exact place query.
+    fn returned_carrier_bounds(
+        &self,
+        expression: ExpressionHandle,
+        before: usize,
+        depth: usize,
+    ) -> Option<(PrimitiveType, IntegerRange)> {
+        if depth >= 128 {
+            return None;
+        }
+        if let ExpressionNode::Cast(cast) = self.program.expression_table.expression(expression) {
+            if cast.form.is_recast()
+                || cast.domain != numerics::arithmetic::ArithmeticDomain::Exact
+                || !cast.semantic_domain.is_empty()
+                || !cast.semantic_domain_arguments.is_empty()
+                || cast.semantic_domain_symbol.is_valid()
+                || cast.semantic_domain_id.is_valid()
+                || (cast.result_type.is_valid() && cast.result_type != cast.target_type)
+            {
+                return None;
+            }
+            let (source, bounds) = self.returned_carrier_bounds(cast.value, before, depth + 1)?;
+            let target = integer_carrier(self.program, cast.target_type)?;
+            return crate::integer_widen_is_total(source, target).then_some((target, bounds));
+        }
+        let primitive = integer_carrier(
+            self.program,
+            self.place_type(expression, before, depth + 1)?,
+        )?;
+        Some((primitive, carrier_bounds(primitive)?))
     }
 
     /// Follow only exact immutable primitive captures. A decreasing definition
@@ -503,6 +566,12 @@ impl ReturnReader<'_, '_> {
             ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => true,
             ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
                 self.place_type(expression, before, depth + 1).is_some()
+                    && self.stable_place_dependencies(expression, before, depth + 1)
+            }
+            ExpressionNode::Cast(cast) => {
+                self.returned_carrier_bounds(expression, before, depth + 1)
+                    .is_some()
+                    && self.stable(cast.value, before, depth + 1)
             }
             ExpressionNode::Binary(binary) => {
                 self.stable(binary.left, before, depth + 1)
@@ -524,6 +593,54 @@ impl ReturnReader<'_, '_> {
                 .expression_write_frame(self.machine, expression)
                 .into_complete_paths()
                 .is_some_and(|paths| paths.is_empty())
+    }
+
+    /// Typing may hoist a selected operator or call into an immutable local.
+    /// A later read of that local still depends on its exact initializer; an
+    /// unrelated local does not. Do not mistake the hoisted name for builtin
+    /// storage evidence just because its declared carrier is primitive.
+    fn stable_place_dependencies(
+        &self,
+        expression: ExpressionHandle,
+        before: usize,
+        depth: usize,
+    ) -> bool {
+        if depth >= 128 {
+            return false;
+        }
+        match self.program.expression_table.expression(expression) {
+            ExpressionNode::Name(path) => {
+                let statements = self
+                    .program
+                    .statement_table
+                    .statements(self.state.statement_nodes);
+                let Some(prefix) = statements.get(..before) else {
+                    return false;
+                };
+                let mut locals = prefix
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(ordinal, statement)| {
+                        let StatementNode::LocalData(local) = statement else {
+                            return None;
+                        };
+                        (local.symbol == path.symbol).then_some((ordinal, local))
+                    });
+                let Some((ordinal, local)) = locals.next() else {
+                    return true;
+                };
+                locals.next().is_none() && self.stable(local.initial_value, ordinal, depth + 1)
+            }
+            ExpressionNode::Member(member) => {
+                exact_self_field(self.program, self.machine, expression).is_some()
+                    || self.stable(member.receiver, before, depth + 1)
+            }
+            ExpressionNode::Indexed(indexed) => {
+                self.stable(indexed.collection, before, depth + 1)
+                    && self.stable(indexed.index, before, depth + 1)
+            }
+            _ => false,
+        }
     }
 
     fn place_type(
