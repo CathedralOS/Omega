@@ -108,8 +108,8 @@ fn computed_indexes_preserve_origins_and_all_eager_writes() {
             "recursive",
             alias_body,
             "(index(audit) + recursive(other)) % 2",
-            false,
-            false,
+            true,
+            true,
             false,
         ),
         (
@@ -132,8 +132,8 @@ fn computed_indexes_preserve_origins_and_all_eager_writes() {
             "unselected_recursive",
             alias_body,
             "Pair { first: index(audit), second: recursive(other) }.first",
-            false,
-            false,
+            true,
+            true,
             false,
         ),
         (

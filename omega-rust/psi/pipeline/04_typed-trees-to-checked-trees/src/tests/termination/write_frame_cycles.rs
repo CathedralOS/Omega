@@ -990,6 +990,7 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         ("Main::call_rebound_alias", "self.value"),
         ("Main::call_escaped_alias_chain", "self.value"),
         ("Main::call_escaped_indexed_alias", "self.cells"),
+        ("Main::discarded_recursive_call_helper_result", "self.value"),
     ] {
         let machine = typed
             .machines()
@@ -1105,7 +1106,6 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         "Main::mixed_write_call_scratch_helper_result",
         "Main::discarded_reference_call_helper_result",
         "Main::discarded_aggregate_call_helper_result",
-        "Main::discarded_recursive_call_helper_result",
         "Main::effectful_recast_write_helper_result",
         "Main::opaque_call_target_write_helper_result",
         "Main::call_rebound_mutable_local_alias_helper_result",

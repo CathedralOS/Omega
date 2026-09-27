@@ -917,6 +917,23 @@ fn transparent_returned_place_accepts_complete_indexed_target_calls() {
             vec!["self.matrix", "self.other_value", "self.value"],
         ),
         ("Main::deep_index_target_result", vec!["self.cells"]),
+        ("Main::recursive_index_target_result", vec!["self.cells"]),
+        (
+            "Main::recursive_slice_view_index_target_result",
+            vec!["self.cells"],
+        ),
+        (
+            "Main::recursive_alias_slice_view_index_target_result",
+            vec!["self.cells"],
+        ),
+        (
+            "Main::recursive_member_alias_slice_view_index_target_result",
+            vec!["self.bucket.cells", "self.result"],
+        ),
+        (
+            "Main::recursive_slice_view_repeated_index_target_result",
+            vec!["self.matrix"],
+        ),
         ("Main::deep_alias_index_target_result", vec!["self.cells"]),
         (
             "Main::deep_slice_view_index_target_result",
@@ -993,18 +1010,13 @@ fn transparent_returned_place_accepts_complete_indexed_target_calls() {
 
     for name in [
         "Main::binding_reborrow_index_target_result",
-        "Main::recursive_index_target_result",
         "Main::recursive_helper_index_target_result",
-        "Main::recursive_slice_view_index_target_result",
-        "Main::recursive_alias_slice_view_index_target_result",
-        "Main::recursive_member_alias_slice_view_index_target_result",
         "Main::recursive_helper_slice_view_index_target_result",
         "Main::recursive_projected_helper_index_target_result",
         "Main::recursive_projected_helper_slice_view_index_target_result",
         "Main::recursive_slice_view_member_after_index_target_result",
         "Main::recursive_member_after_index_target_result",
         "Main::recursive_projected_repeated_index_target_result",
-        "Main::recursive_slice_view_repeated_index_target_result",
         "Main::recursive_attached_index_target_result",
         "Main::recursive_attached_slice_view_index_target_result",
     ] {

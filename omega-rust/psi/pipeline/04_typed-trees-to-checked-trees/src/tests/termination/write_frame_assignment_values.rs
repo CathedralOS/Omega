@@ -985,6 +985,24 @@ fn transparent_returned_place_accepts_complete_indexed_statement_arguments() {
             "Main::indexed_statement_result",
             vec!["self.cells", "self.result"],
         ),
+        // A recursive scalar index has a signature-bounded write frame;
+        // recursive helpers returning the collection still owe its origin.
+        (
+            "Main::recursive_indexed_statement_result",
+            vec!["self.cells", "self.result"],
+        ),
+        (
+            "Main::recursive_slice_view_indexed_statement_result",
+            vec!["self.cells", "self.result"],
+        ),
+        (
+            "Main::recursive_alias_slice_view_indexed_statement_result",
+            vec!["self.cells", "self.result"],
+        ),
+        (
+            "Main::recursive_member_alias_slice_view_indexed_statement_result",
+            vec!["self.bucket.cells", "self.result"],
+        ),
         (
             "Main::nested_indexed_statement_result",
             vec!["self.cells", "self.index_write", "self.result"],
@@ -1134,10 +1152,6 @@ fn transparent_returned_place_accepts_complete_indexed_statement_arguments() {
 
     for name in [
         "Main::reborrow_indexed_statement_result",
-        "Main::recursive_indexed_statement_result",
-        "Main::recursive_slice_view_indexed_statement_result",
-        "Main::recursive_alias_slice_view_indexed_statement_result",
-        "Main::recursive_member_alias_slice_view_indexed_statement_result",
         "Main::recursive_helper_slice_view_indexed_statement_result",
         "Main::recursive_helper_indexed_statement_result",
         "Main::recursive_attached_indexed_statement_result",
@@ -1365,7 +1379,7 @@ fn transparent_returned_place_accepts_finite_isolated_scratch_values() {
         (
             "case_recursive",
             "let scratch: ScratchChoice = ScratchChoice::Filled { record: Scratch { value: write_scratch(&mut prior) + 1, audit: recursive_scratch() + 1 } };",
-            false,
+            true,
         ),
         (
             "array_reborrow",
@@ -1397,6 +1411,7 @@ fn transparent_returned_place_accepts_finite_isolated_scratch_values() {
         "Main::deep_write_scratch_result",
         "Main::sibling_scratch_result",
         "Main::computed_scratch_result",
+        "Main::recursive_scratch_result",
     ]
     .into_iter()
     .map(str::to_owned)
@@ -1426,7 +1441,6 @@ fn transparent_returned_place_accepts_finite_isolated_scratch_values() {
 
     for name in [
         "Main::external_write_scratch_result",
-        "Main::recursive_scratch_result",
         "Main::mixed_sibling_scratch_result",
         "Main::escaped_local_scratch_result",
     ]

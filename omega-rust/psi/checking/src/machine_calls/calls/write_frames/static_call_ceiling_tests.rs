@@ -16,11 +16,17 @@ fn inspection_frame(source: &str) -> NormalizedWriteFrame {
 // These queries test the caller-storage ceiling, independently of executable
 // recursion admission. An incomplete recursive body is not an empty frame;
 // the selected signature must account for every route back to caller storage.
+// Bind each recursive result before returning it so resolution keeps a call:
+// a direct self-tail expression becomes a state backedge whose body frame can
+// be inferred normally, and would no longer exercise the opaque-call ceiling.
 #[test]
 fn static_recursive_scalar_call_does_not_invent_namespace_storage() {
     let frame = inspection_frame(
         "data Arithmetic {} data Counter { count: u64; }
-         machine Arithmetic::walk(value: u64) -> u64 { Arithmetic::walk(value) }
+         machine Arithmetic::walk(value: u64) -> u64 {
+             let result: u64 = Arithmetic::walk(value);
+             result
+         }
          machine Counter::inspect(&mut self) {
              self.count = 1;
              let result: u64 = Arithmetic::walk(0);
@@ -38,7 +44,8 @@ fn static_recursive_exclusive_argument_keeps_its_actual_storage_ceiling() {
         "data Arithmetic {} data Counter { count: u64; }
          machine Arithmetic::walk(value: &mut u64) -> u64 {
              value = 2;
-             Arithmetic::walk(value)
+             let result: u64 = Arithmetic::walk(value);
+             result
          }
          machine Counter::inspect(&mut self) {
              let result: u64 = Arithmetic::walk(&mut self.count);
@@ -55,7 +62,10 @@ fn static_recursive_ceiling_does_not_erase_operand_evaluation_writes() {
     let frame = inspection_frame(
         "data Arithmetic {} data Counter { count: u64; }
          machine bump(value: &mut u64) -> u64 { value = 2; 0 }
-         machine Arithmetic::walk(value: u64) -> u64 { Arithmetic::walk(value) }
+         machine Arithmetic::walk(value: u64) -> u64 {
+             let result: u64 = Arithmetic::walk(value);
+             result
+         }
          machine Counter::inspect(&mut self) {
              let result: u64 = Arithmetic::walk(bump(&mut self.count));
          }",
@@ -71,13 +81,19 @@ fn static_recursive_carried_references_do_not_acquire_an_empty_ceiling() {
     for (source, expected) in [
         (
             "data Arithmetic {} data Carrier { slot: &mut u64; }
-         machine Arithmetic::walk(carrier: Carrier) -> u64 { Arithmetic::walk(carrier) }
+         machine Arithmetic::walk(carrier: Carrier) -> u64 {
+             let result: u64 = Arithmetic::walk(carrier);
+             result
+         }
          machine inspect(carrier: Carrier) { let result: u64 = Arithmetic::walk(carrier); }",
             None,
         ),
         (
             "data Carrier { slot: &mut u64; }
-         machine Carrier::walk(self) -> u64 { self.walk() }
+         machine Carrier::walk(self) -> u64 {
+             let result: u64 = self.walk();
+             result
+         }
          machine inspect(carrier: Carrier) { let result: u64 = carrier.walk(); }",
             Some(vec!["$P0".to_owned()]),
         ),
@@ -97,7 +113,8 @@ fn static_recursive_transitive_service_reach_remains_opaque() {
          machine effect() reaches Device { Device::touch(); }
          machine Arithmetic::walk(value: u64) -> u64 {
              effect();
-             Arithmetic::walk(value)
+             let result: u64 = Arithmetic::walk(value);
+             result
          }
          machine inspect() { let result: u64 = Arithmetic::walk(0); }",
     );

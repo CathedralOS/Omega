@@ -300,11 +300,26 @@ fn transparent_returned_place_composes_direct_array_literal_index_frames() {
         "finite nested array projections preserve their complete frame"
     );
 
-    for (name, reason) in [
-        (
-            "Main::opaque_nested",
-            "an opaque recursive element call must fence the nested array literal",
+    // Recursive evaluation is not a termination proof, but this selected
+    // scalar helper can write only its argument. Keep that ceiling alongside
+    // the assignment and the independently proven returned-place origin.
+    let recursive = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::opaque_nested")
+        .expect("recursive element caller");
+    assert_eq!(
+        resolver
+            .inferred_state_write_frame(recursive, &typed.machine_states(recursive)[0])
+            .complete_paths(),
+        Some(
+            ["self.cells", "self.first", "self.target"]
+                .map(str::to_owned)
+                .as_slice()
         ),
+    );
+
+    for (name, reason) in [
         (
             "Main::reference_element",
             "a reference-valued array element call must remain a returned-place fence",
