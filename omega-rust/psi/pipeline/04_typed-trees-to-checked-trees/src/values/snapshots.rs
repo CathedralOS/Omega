@@ -198,6 +198,7 @@ fn payloads_at_place<'a>(
     {
         return vec![FactPayload::AssignedValue { value: expression }];
     }
+    let subject_root = normalized_event_place_root(program, subject.root);
     contexts
         .into_iter()
         .flat_map(|context| {
@@ -213,6 +214,16 @@ fn payloads_at_place<'a>(
                 let FactPlace::Place(place) = fact.place else {
                     return None;
                 };
+                let candidate = canonical_place_from_semantic_place(
+                    program,
+                    semantic,
+                    semantic.places.get(place),
+                )?;
+                if normalized_event_place_root(program, candidate.root) != subject_root
+                    || candidate.segments != subject.segments
+                {
+                    return None;
+                }
                 // Call provenance and its completed scalar snapshot share one
                 // transfer context and point. Keep unknown calls at other
                 // points as blockers; never let one path's snapshot mask them.
@@ -242,15 +253,7 @@ fn payloads_at_place<'a>(
                 {
                     return None;
                 }
-                let candidate = canonical_place_from_semantic_place(
-                    program,
-                    semantic,
-                    semantic.places.get(place),
-                )?;
-                (normalized_event_place_root(program, candidate.root)
-                    == normalized_event_place_root(program, subject.root)
-                    && candidate.segments == subject.segments)
-                    .then_some(fact.payload)
+                Some(fact.payload)
             })
         })
         .collect()
