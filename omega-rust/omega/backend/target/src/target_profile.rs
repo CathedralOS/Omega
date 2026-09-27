@@ -164,10 +164,9 @@ impl ProgramEntryPhysicalContractPackage {
 /// `from_target_name`, so widening this enum is the product decision.
 ///
 /// Two bundles exist under `source/library/std/targets/` but are not
-/// admitted. `windows_x86_64` records in its own `process_exit_impl.omg`
-/// that the hosted exit catalog does not yet close a native lowering for
-/// Windows, so realization stays an explicit unsupported-target diagnostic;
-/// the `Process-exit contract` on TASKS.md owns that realization.
+/// admitted to this hosted-syscall catalog. Windows process exit uses
+/// kernel32 `ExitProcess` through `DllImport`; that foreign realization does
+/// not admit Windows to the hosted read, write, and exit syscall mechanisms.
 /// `macos_x86_64` is authored in the inferred `boundary machine` form, but
 /// `image-emission` has no x86-64 Darwin syscall encoder and the profile's
 /// host run is still tracked under MACOS-X64-HOST-PROFILE. Source paths
@@ -220,6 +219,16 @@ impl HostedIntrinsicBundle {
         Self::ALL
             .into_iter()
             .find(|bundle| bundle.target_name() == target_name)
+    }
+
+    /// The admitted hosted-syscall bundle for this complete native target.
+    /// Architecture, object format, pointer size, and pointer alignment must
+    /// all match the bundle's canonical profile; a partial match grants no
+    /// hosted mechanism support.
+    pub fn from_native_target(target: NativeTarget) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|bundle| bundle.target_profile().native_realization() == Some(target))
     }
 }
 

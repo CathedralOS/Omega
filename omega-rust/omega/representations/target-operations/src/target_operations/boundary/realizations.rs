@@ -28,12 +28,7 @@ pub struct HostedExitProcessI32Realization;
 impl HostedExitProcessI32Realization {
     /// Only complete canonical target profiles select this closed realization.
     pub fn supports_target(target: target::NativeTarget) -> bool {
-        [
-            target::NativeTarget::linux_x64(),
-            target::NativeTarget::linux_arm64(),
-            target::NativeTarget::macos_arm64(),
-        ]
-        .contains(&target)
+        target::HostedIntrinsicBundle::from_native_target(target).is_some()
     }
 }
 
@@ -47,12 +42,7 @@ pub struct HostedReadByteRealization;
 impl HostedReadByteRealization {
     /// Only complete canonical target profiles select this closed realization.
     pub fn supports_target(target: target::NativeTarget) -> bool {
-        [
-            target::NativeTarget::linux_x64(),
-            target::NativeTarget::linux_arm64(),
-            target::NativeTarget::macos_arm64(),
-        ]
-        .contains(&target)
+        target::HostedIntrinsicBundle::from_native_target(target).is_some()
     }
 }
 
@@ -64,12 +54,7 @@ pub struct HostedWriteByteI32Realization;
 impl HostedWriteByteI32Realization {
     /// Only complete canonical target profiles select this closed realization.
     pub fn supports_target(target: target::NativeTarget) -> bool {
-        [
-            target::NativeTarget::linux_x64(),
-            target::NativeTarget::linux_arm64(),
-            target::NativeTarget::macos_arm64(),
-        ]
-        .contains(&target)
+        target::HostedIntrinsicBundle::from_native_target(target).is_some()
     }
 }
 
