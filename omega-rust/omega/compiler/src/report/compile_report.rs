@@ -2,11 +2,6 @@
 //! the payload slots each kind may occupy, and the publication of retained
 //! native artifacts into exact executable bytes with their custody receipts.
 
-use crate::report::executable_publication::{
-    ExecutablePublicationReceipt, executable_container_digest,
-    executable_installation_evidence_digest, native_publication_certificate_digest,
-    native_publication_evidence_digest, validate_native_pair,
-};
 use crate::report::package;
 use crate::report::publication::{
     PreparedPsiProofPair, appended_file_name_path, install_staged_products, remove_stale_companion,
@@ -19,6 +14,9 @@ use crate::report::{
 };
 use artifacts::compile_timings::PhaseTiming;
 use native_artifact::build_native_proof_sidecar;
+use native_artifact::{
+    ExecutablePublicationReceipt, PreparedExecutablePublication, validate_native_pair,
+};
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -303,26 +301,8 @@ impl CompileReport {
         {
             return Err("native publication manifest disagrees with retained artifact".to_owned());
         }
-        let native_artifact_identity = *artifact.identity().as_bytes();
-
+        let publication = PreparedExecutablePublication::new(artifact)?;
         let output = artifact.image().output();
-        if std::path::Path::new(&output.file_name).components().count() != 1 {
-            return Err("native artifact supplied a non-local output filename".to_owned());
-        }
-        let text_validation_digest = output
-            .compiler_text_validation
-            .map(|validation| validation.derivation_digest)
-            .ok_or_else(|| {
-                "native publication requires strong compiler-text validation evidence".to_owned()
-            })?;
-        let function_validation = output.compiler_function_validation.ok_or_else(|| {
-            "native publication requires compiler-function validation evidence".to_owned()
-        })?;
-        let function_validation_digest = function_validation.evidence_digest();
-        let function_validation_report_fingerprint =
-            function_validation.evidence_report_fingerprint();
-        let boundary_contract_report_fingerprint =
-            function_validation.boundary_contract_report_fingerprint;
 
         // A requested native pair is built and self-checked before any byte
         // is installed: the placed-image evidence must decode canonically and
@@ -360,7 +340,7 @@ impl CompileReport {
                 self.application_intent,
                 Some(build_evaluation::HostedApplicationIntent::Gui)
             );
-        let container_digest = executable_container_digest(&output.bytes);
+        let container_digest = publication.container_digest();
         let mut pcc_publications = Vec::new();
         let mut package_publication = None;
         let output_path = if package {
@@ -473,57 +453,7 @@ impl CompileReport {
             output_path
         };
 
-        let certificate_digest = native_publication_certificate_digest(
-            &native_artifact_identity,
-            artifact.semantic_bytes(),
-            artifact.proof_bytes(),
-            artifact.target(),
-            artifact.image().final_image_symbol_digest(),
-            boundary_contract_report_fingerprint,
-            text_validation_digest,
-            function_validation_digest,
-            function_validation_report_fingerprint,
-            output.executable_regions.inventory_digest,
-            output.executable_regions.inventory_report_fingerprint,
-        );
-        let publication_evidence_digest = native_publication_evidence_digest(
-            &native_artifact_identity,
-            certificate_digest,
-            output.callback_placement_identity_report_fingerprint,
-            output.executable_regions.inventory_digest,
-            output.executable_regions.inventory_report_fingerprint,
-            text_validation_digest,
-            function_validation_digest,
-            function_validation_report_fingerprint,
-            output.bytes.len(),
-            container_digest,
-        );
-        let installation_evidence_digest = executable_installation_evidence_digest(
-            publication_evidence_digest,
-            output.callback_placement_identity_report_fingerprint,
-            &output_path,
-            output.bytes.len(),
-            container_digest,
-        );
-        let receipt = ExecutablePublicationReceipt::new(
-            output_path,
-            native_artifact_identity,
-            certificate_digest,
-            output.callback_placement_identity_report_fingerprint,
-            boundary_contract_report_fingerprint,
-            output.executable_regions.inventory_digest,
-            output.executable_regions.inventory_report_fingerprint,
-            text_validation_digest,
-            function_validation_digest,
-            function_validation_report_fingerprint,
-            publication_evidence_digest,
-            output.bytes.len(),
-            container_digest,
-            installation_evidence_digest,
-        );
-        if !receipt.has_consistent_installation_identity() {
-            return Err("native publication produced an inconsistent installation receipt".into());
-        }
+        let receipt = publication.into_receipt(output_path)?;
 
         let report = Self {
             build_outputs: self.build_outputs,

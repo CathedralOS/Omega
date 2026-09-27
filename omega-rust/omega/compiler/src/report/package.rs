@@ -35,9 +35,7 @@ use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 
 use super::ExecutableContainerDigest;
-
-publication_digest!(PackageComponentDigest);
-publication_digest!(NativePackageEvidenceDigest);
+use native_artifact::{NativePackageEvidenceDigest, PackageComponentDigest};
 
 /// Digest one installed package member's exact bytes under its own domain.
 /// Crate-visible for report-custody tests minting honest member digests.
