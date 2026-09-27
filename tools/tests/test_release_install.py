@@ -29,7 +29,8 @@ class InstallationTests(unittest.TestCase):
                  patch.object(installation, "rebuild_existing_project", return_value="digest"):
                 self.assertEqual(installation.winget_upgrade(*inputs, "http://127.0.0.1:1234", workspace), "digest")
             self.assertEqual(run.call_args.args[0][:4],
-                             ["winget", "uninstall", "--manifest", workspace / "upgrade.yaml"])
+                             ["winget", "uninstall", "--manifest", workspace / "upgrade"])
+            self.assertEqual(len(list((workspace / "upgrade").glob("*.yaml"))), 3)
 
     def test_installer_mutation_rejects_non_ci_hosts(self):
         arguments = ["install_upgrade", "check", "--manager", "winget",

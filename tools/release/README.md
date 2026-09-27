@@ -106,7 +106,10 @@ python3 tools/release/channels.py --assets build/release-assets \
 
 PowerShell uses the same arguments on one line with `python`. Generation verifies
 all bundle identities and checksums before producing `Formula/omega.rb` for a
-Cathedral-owned Homebrew tap and `winget/CathedralOS.Omega.yaml` for WinGet.
+Cathedral-owned Homebrew tap and a three-file manifest set under `winget/`
+for WinGet's community catalog. Validate the whole directory with
+`winget validate --manifest <output>/winget`; singleton manifests are not
+accepted by that catalog.
 The output directory must not exist. These are preparation artifacts: their
 download URLs become usable only after the matching GitHub release is public.
 
