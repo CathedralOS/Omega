@@ -1,29 +1,45 @@
-// An established owned input is partitioned through an invoked boundary
-// requirement: `forward` hands `whole` to the authored `separate` theorem, and
-// the caller retains both residual claims in `SplitResult`.
-
+// An established owned input is partitioned through an INVOKED boundary
+// requirement, and `Main::main` runs it: `split` hands `whole` to the
+// authored `separate` theorem and both residual claims leave through a
+// custody-exit boundary. Until this fixture gained an entry it declared the
+// contract and never called it, so owned-content custody had no executed
+// coverage anywhere in the corpus.
+//
+// The partition primitive is called DIRECTLY. Routing it through a checked
+// wrapper machine instead -- `forward(partition, whole)` calling
+// `partition.split(whole)` -- is what the earlier shape did, and it does not
+// check: the partition composition is recorded against the wrapper that
+// calls the boundary, so the wrapper's own caller sees a linear result with
+// no conserved claim mapping. That is the transitive derivation chain
+// `ContentPartitionCompositionFact::source_derivation_depth` documents
+// Terminal cannot yet replay. A wrapper-composed exit is still owed.
+//
+// `main` sinks both residuals because a program entry returns nothing, so
+// the "caller retains the rest" half is not expressible here; that half
+// wants a non-entry customer.
 use omega::language::core::content;
+use omega::language::core::binding;
 
-data ByteUnit {}
+pub data ByteUnit {}
 
-data Region [linear] {
+pub data Region [linear] {
     remaining: u64;
 }
 
-domain Region::Owned;
+pub domain Region::Owned;
 
-machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
+pub machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
 satisfies Content<CountedQuantity<ByteUnit>>::project
 {
     CountedQuantity { magnitude: embed(region.remaining) as Nat }
 }
 
-data SplitResult {
+pub data SplitResult {
     left: Region in Owned;
     right: Region in Owned;
 }
 
-boundary trait RegionSplit {
+pub boundary trait RegionSplit {
     machine split(whole: Region in Owned) -> SplitResult
     ensures
         Owned::content(old(&whole))
@@ -33,12 +49,21 @@ boundary trait RegionSplit {
         );
 }
 
-machine forward(partition: &RegionSplit, whole: Region in Owned) -> SplitResult
-reaches RegionSplit
-{
-    partition.split(whole)
+// The custody exit: a selected boundary accepts a residual outright. It
+// admits acceptance of custody, never the partition arithmetic.
+pub boundary trait RegionSink {
+    machine accept(piece: Region in Owned);
 }
 
-data Main {}
+data Main {
+    partition: Binding<RegionSplit>;
+    sink: Binding<RegionSink>;
+}
 
-machine Main::main(&mut self) {}
+machine Main::main(&mut self) reaches RegionSplit, RegionSink {
+    let whole: Region in Owned = Region { remaining: 8 };
+    let split: SplitResult = self.partition.split(whole);
+    let { left, right } = split;
+    self.sink.accept(left);
+    self.sink.accept(right);
+}
