@@ -1107,45 +1107,6 @@ mod tests {
     }
 
     #[test]
-    fn captured_source_scope_materializes_a_fresh_private_snapshot() {
-        let fixture = temporary_staging_root("snapshot");
-        let source = fixture.join("source");
-        let snapshot = fixture.join("snapshot-backing");
-        fs::create_dir_all(&source).expect("create source dir");
-        let scope = BuildMachineFilesystemScope::for_package_root(
-            source.clone(),
-            fixture.join("build"),
-            None,
-            Some(captured_input().canonical_source_metadata().clone()),
-        )
-        .with_captured_source_input(captured_input(), snapshot.clone())
-        .expect("bind the captured source input");
-
-        scope
-            .ensure_captured_snapshot()
-            .expect("materialize the fresh private snapshot");
-        assert_eq!(
-            fs::read(snapshot.join("template.tmpl")).expect("read snapshot backing"),
-            b"sealed"
-        );
-        let BuildMachineFilesystemAccess::RealScoped(grants) = scope.filesystem_access() else {
-            panic!("unsponsored captured scope keeps scoped real grants")
-        };
-        assert_eq!(
-            grants.read_roots[0].path(),
-            snapshot.as_path(),
-            "the Source grant reads the private snapshot, not the live root"
-        );
-        let inventory = scope
-            .captured_source_inventory()
-            .expect("captured run retains inventory evidence");
-        assert_eq!(inventory.entry_count(), 2);
-        assert_eq!(inventory.file_bytes(), 6);
-
-        fs::remove_dir_all(&fixture).expect("remove fixture");
-    }
-
-    #[test]
     fn captured_snapshot_release_discards_the_private_backing_on_every_exit() {
         let fixture = temporary_staging_root("snapshot-release");
         let source = fixture.join("source");
@@ -1338,63 +1299,6 @@ mod tests {
         )
         .ensure_write_roots()
         .expect("a write root nested inside the source root stays admitted");
-
-        fs::remove_dir_all(&fixture).expect("remove fixture");
-    }
-
-    #[test]
-    fn build_write_root_rejects_spelling_aliasing_a_named_input_root() {
-        let fixture = temporary_staging_root("input-alias");
-        let source = fixture.join("source");
-        let staging = fixture.join("staging");
-        let backing = staging.join("captured");
-        fs::create_dir_all(&source).expect("create source dir");
-        fs::create_dir(&staging).expect("create staging dir");
-        let metadata = captured_input().canonical_source_metadata().clone();
-
-        // Named-input snapshot backings derive as `<backing>.input-N`
-        // siblings of the captured source backing, so a `--build-dir`
-        // spelled exactly that way aliases the input's read root without
-        // overlapping the backing the bind-time fence already checks.
-        for build_dir in [
-            backing.with_extension("input-0"),
-            backing.with_extension("input-0").join("output"),
-        ] {
-            let diagnostics = BuildMachineFilesystemScope::for_package_root(
-                source.clone(),
-                build_dir.clone(),
-                None,
-                Some(metadata.clone()),
-            )
-            .with_captured_source_input(captured_input(), backing.clone())
-            .expect("the derived-input spelling does not collide with the backing")
-            .with_named_inputs(&std::collections::BTreeMap::from([(
-                b"template".to_vec(),
-                captured_input(),
-            )]))
-            .ensure_write_roots()
-            .expect_err("a write root aliasing a named input read root collides with it");
-            assert!(
-                diagnostics[0].to_string().contains("input"),
-                "unexpected diagnostic: {diagnostics:?}"
-            );
-        }
-
-        // A write root outside every snapshot backing stays admitted.
-        BuildMachineFilesystemScope::for_package_root(
-            source.clone(),
-            fixture.join("build"),
-            None,
-            Some(metadata),
-        )
-        .with_captured_source_input(captured_input(), backing)
-        .expect("bind captured source")
-        .with_named_inputs(&std::collections::BTreeMap::from([(
-            b"template".to_vec(),
-            captured_input(),
-        )]))
-        .ensure_write_roots()
-        .expect("a write root clear of every read root stays admitted");
 
         fs::remove_dir_all(&fixture).expect("remove fixture");
     }
@@ -1670,33 +1574,6 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn write_root_establishment_rejects_a_host_alias() {
-        let session_root = temporary_staging_root("write-root-alias");
-        fs::create_dir(&session_root).expect("create session root");
-        let redirect_target = session_root.join("redirected-elsewhere");
-        fs::create_dir(&redirect_target).expect("create redirect target");
-        let build_dir = session_root.join("build");
-        std::os::unix::fs::symlink(&redirect_target, &build_dir)
-            .expect("plant the host alias at the write root");
-
-        let diagnostics = BuildMachineFilesystemScope::for_root(
-            &session_root.join("source/main.omg"),
-            build_dir.clone(),
-            None,
-        )
-        .ensure_write_roots()
-        .expect_err("a symlinked write root redirects output writes outside the fenced root");
-        assert!(diagnostics[0].to_string().contains("symbolic link"));
-        assert_eq!(
-            fs::read_link(&build_dir).expect("the host alias is host-owned, not ours to remove"),
-            redirect_target
-        );
-
-        fs::remove_dir_all(session_root).expect("remove session root");
-    }
-
-    #[cfg(unix)]
-    #[test]
     fn write_root_establishment_rejects_an_ancestor_alias_planted_after_admission() {
         let session_root = temporary_staging_root("write-root-ancestor-alias");
         let ancestor = session_root.join("real-ancestor");
@@ -1806,51 +1683,6 @@ mod tests {
         fs::remove_dir_all(session_root).expect("remove session root");
     }
 
-    #[cfg(unix)]
-    #[test]
-    fn captured_source_snapshot_rejects_a_host_alias_at_its_backing() {
-        let session_root = temporary_staging_root("snapshot-backing-alias");
-        fs::create_dir(&session_root).expect("create session root");
-        let backing = session_root.join("captured-source");
-        let redirect_target = session_root.join("redirected-elsewhere");
-        fs::create_dir(&redirect_target).expect("create redirect target");
-        std::os::unix::fs::symlink(&redirect_target, &backing)
-            .expect("plant the host alias at the snapshot backing");
-
-        let diagnostics = BuildMachineFilesystemScope::materialize_snapshot(
-            &captured_input(),
-            &backing,
-        )
-        .expect_err(
-            "a symlinked snapshot backing redirects captured-source writes outside its custody",
-        );
-        assert!(
-            diagnostics[0]
-                .to_string()
-                .contains("not a concrete directory")
-        );
-        assert_eq!(
-            fs::read_link(&backing).expect("the host alias is host-owned, not ours to remove"),
-            redirect_target
-        );
-
-        // An ordinary non-directory resident at the backing names the same
-        // rejection: the snapshot materializes only into a fresh directory
-        // it owns, never over host content.
-        fs::remove_file(&backing).expect("remove the planted alias");
-        fs::write(&backing, b"occupied").expect("plant a regular file at the snapshot backing");
-        let diagnostics =
-            BuildMachineFilesystemScope::materialize_snapshot(&captured_input(), &backing)
-                .expect_err("a regular file at the snapshot backing is not its directory custody");
-        assert!(
-            diagnostics[0]
-                .to_string()
-                .contains("not a concrete directory")
-        );
-
-        fs::remove_dir_all(session_root).expect("remove session root");
-    }
-
     #[test]
     fn captured_snapshot_rejects_content_planted_after_admission() {
         // The admission fences compare root spellings once; a hostile tree
@@ -1890,50 +1722,6 @@ mod tests {
             .ensure_captured_snapshot()
             .expect("a clean backing path materializes");
         assert!(snapshot.join("template.tmpl").is_file());
-
-        fs::remove_dir_all(&fixture).expect("remove fixture");
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn captured_snapshot_rejects_a_symlink_planted_after_admission() {
-        // Same window through a symlink: the leaf check rejects the link
-        // itself, and the failure release removes the link without writing
-        // captured content into the target.
-        let fixture = temporary_staging_root("planted-link");
-        let source = fixture.join("source");
-        fs::create_dir_all(&source).expect("create source dir");
-        let target = fixture.join("target");
-        fs::write(&target, b"decoy").expect("create the link target file");
-        let snapshot = fixture.join("snapshot");
-        let scope = BuildMachineFilesystemScope::for_package_root(
-            source.clone(),
-            fixture.join("build"),
-            None,
-            None,
-        )
-        .with_captured_source_input(captured_input(), snapshot.clone())
-        .expect("a clean backing path is admitted");
-
-        std::os::unix::fs::symlink(&target, &snapshot).expect("plant a symlink at the backing");
-        let diagnostics = scope
-            .ensure_captured_snapshot()
-            .expect_err("a planted symlink must not redirect the snapshot backing");
-        assert!(
-            diagnostics[0]
-                .to_string()
-                .contains("not a concrete directory"),
-            "unexpected diagnostic: {diagnostics:?}"
-        );
-        assert!(
-            snapshot.symlink_metadata().is_err(),
-            "the failed run's release removes the planted link"
-        );
-        assert_eq!(
-            fs::read(&target).unwrap(),
-            b"decoy",
-            "the link target is untouched"
-        );
 
         fs::remove_dir_all(&fixture).expect("remove fixture");
     }

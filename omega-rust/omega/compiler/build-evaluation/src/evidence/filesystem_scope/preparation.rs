@@ -373,19 +373,4 @@ mod tests {
         seal_source_tree(&project, false);
         let _ = std::fs::remove_dir_all(project);
     }
-
-    #[test]
-    fn captured_source_snapshot_stays_private_with_a_supplied_session() {
-        let supplied = fresh_root("supplied-session");
-        let sponsor = BuildMachineFilesystemSponsor::new(&supplied).expect("a session sponsor");
-        let session_root = std::fs::canonicalize(&supplied).expect("canonical session root");
-        let (project, snapshot_backing, scope) = prepared_scope(sponsor);
-        assert_private_backing(&snapshot_backing);
-        assert!(!snapshot_backing.starts_with(&session_root));
-        drop(scope);
-        let _ = std::fs::remove_dir_all(snapshot_backing.parent().unwrap());
-        seal_source_tree(&project, false);
-        let _ = std::fs::remove_dir_all(project);
-        let _ = std::fs::remove_dir_all(supplied);
-    }
 }

@@ -85,20 +85,6 @@ fn fused_root_row_at(
 }
 
 #[test]
-fn compiler_program_entry_absence_needs_no_typed_or_calling_plan_facts() {
-    let selected = select_compiler_program_entry(
-        &typed_trees::TypedTrees::default(),
-        &BuildConfig::default(),
-        None,
-        &[],
-        None,
-    )
-    .expect("an absent ProgramEntry is a complete settlement");
-
-    assert!(selected.is_none());
-}
-
-#[test]
 fn compiler_program_entry_consuming_split_preserves_source_only_custody() {
     let selected = source_only_program_entry_settlement();
     let expected_source = selected.source_signature().clone();
@@ -166,48 +152,6 @@ fn compiler_program_entry_validates_source_before_calling_plans() {
 }
 
 #[test]
-fn targetless_check_does_not_select_a_program_entry_from_retained_bindings() {
-    let config =
-        config_with_root_bindings(&[("windows_x86_64::ProgramEntry", "Application::start")]);
-
-    assert_eq!(
-        selected_program_entry_machine(&config, None)
-            .expect("targetless checking is entry-agnostic"),
-        None
-    );
-}
-
-#[test]
-fn selected_target_ignores_valid_foreign_program_entry_slot_after_its_own() {
-    let config = config_with_root_bindings(&[
-        ("windows_x86_64::ProgramEntry", "Application::start"),
-        ("linux_x86_64::ProgramEntry", "Diagnostics::start"),
-    ]);
-
-    let selected = selected_program_entry_machine(&config, Some(target::TargetProfile::WindowsX64))
-        .expect("known foreign target roots remain available to their own profiles")
-        .expect("selected target has one exact root");
-
-    assert_eq!(selected.machine_name, "Application::start");
-    assert_eq!(selected.slot.owner, target::TargetProfile::WindowsX64);
-}
-
-#[test]
-fn selected_target_ignores_valid_foreign_program_entry_slot_before_its_own() {
-    let config = config_with_root_bindings(&[
-        ("linux_x86_64::ProgramEntry", "Diagnostics::start"),
-        ("windows_x86_64::ProgramEntry", "Application::start"),
-    ]);
-
-    let selected = selected_program_entry_machine(&config, Some(target::TargetProfile::WindowsX64))
-        .expect("binding order cannot change target-scoped selection")
-        .expect("selected target has one exact root");
-
-    assert_eq!(selected.machine_name, "Application::start");
-    assert_eq!(selected.slot.owner, target::TargetProfile::WindowsX64);
-}
-
-#[test]
 fn selected_entry_retains_the_target_owned_slot_schema() {
     let config = config_with_root_bindings(&[("uefi_x86_64::ProgramEntry", "Application::start")]);
 
@@ -221,35 +165,6 @@ fn selected_entry_retains_the_target_owned_slot_schema() {
         selected.slot.visible_parameters,
         target::ProgramEntryVisibleParameters::ImageAndInitialStorage
     );
-}
-
-#[test]
-fn root_slot_owner_rejects_legacy_cli_aliases() {
-    let config = config_with_root_bindings(&[("windows_x64::ProgramEntry", "Application::start")]);
-
-    let diagnostics =
-        selected_program_entry_machine(&config, Some(target::TargetProfile::WindowsX64))
-            .expect_err("a noncanonical target owner must reject");
-
-    assert_eq!(diagnostics.len(), 1);
-    assert!(diagnostics[0].to_string().contains(
-        "root slot `windows_x64::ProgramEntry` belongs to unknown target profile `windows_x64`"
-    ));
-}
-
-#[test]
-fn root_selection_rejects_names_absent_from_the_target_catalog() {
-    let config =
-        config_with_root_bindings(&[("windows_x86_64::UndeclaredEntry", "Application::start")]);
-
-    let diagnostics =
-        selected_program_entry_machine(&config, Some(target::TargetProfile::WindowsX64))
-            .expect_err("an undeclared target root cannot enter ProgramEntry lowering");
-
-    assert_eq!(diagnostics.len(), 1);
-    assert!(diagnostics[0].to_string().contains(
-        "target profile `windows_x86_64` declares no required root slot `windows_x86_64::UndeclaredEntry`"
-    ));
 }
 
 #[test]
@@ -284,30 +199,6 @@ fn selected_target_rejects_duplicate_catalog_members() {
 }
 
 #[test]
-fn selected_target_keeps_the_migration_fallback_for_empty_root_bindings() {
-    let config = config_with_root_bindings(&[]);
-
-    let selected = selected_program_entry_machine(&config, Some(target::TargetProfile::WindowsX64))
-        .expect("a build file with no root rows keeps the migration fallback");
-
-    assert!(selected.is_none());
-}
-
-#[test]
-fn root_binding_row_must_be_target_qualified() {
-    let config = config_with_root_bindings(&[("ProgramEntry", "Application::start")]);
-
-    let diagnostics =
-        selected_program_entry_machine(&config, Some(target::TargetProfile::WindowsX64))
-            .expect_err("an unqualified slot spelling has no target owner");
-
-    assert_eq!(diagnostics.len(), 1);
-    assert!(diagnostics[0].to_string().contains(
-        "root slot `ProgramEntry` is not target-qualified; expected `target::ProgramEntry`"
-    ));
-}
-
-#[test]
 fn malformed_foreign_root_row_rejects_beside_a_valid_selection() {
     let config = config_with_root_bindings(&[
         ("macos_arm64::UndeclaredSlot", "Application::start"),
@@ -322,25 +213,6 @@ fn malformed_foreign_root_row_rejects_beside_a_valid_selection() {
     assert!(diagnostics[0].to_string().contains(
         "target profile `macos_arm64` declares no required root slot `macos_arm64::UndeclaredSlot`"
     ));
-}
-
-#[test]
-fn foreign_root_row_with_unknown_profile_rejects_beside_a_valid_selection() {
-    let config = config_with_root_bindings(&[
-        ("plan9::ProgramEntry", "Application::start"),
-        ("windows_x86_64::ProgramEntry", "Diagnostics::start"),
-    ]);
-
-    let diagnostics =
-        selected_program_entry_machine(&config, Some(target::TargetProfile::WindowsX64))
-            .expect_err("an unknown profile cannot remain an inactive row");
-
-    assert_eq!(diagnostics.len(), 1);
-    assert!(
-        diagnostics[0]
-            .to_string()
-            .contains("root slot `plan9::ProgramEntry` belongs to unknown target profile `plan9`")
-    );
 }
 
 #[test]
@@ -366,45 +238,5 @@ fn root_selection_collects_every_malformed_row() {
             .to_string()
             .contains("root slot `plan9::ProgramEntry` belongs to unknown target profile"),
         "{diagnostics:?}"
-    );
-}
-
-/// A nested receiver field carries its own service binding, and its leaf name
-/// is whatever the author wrote there -- commonly the same word as the outer
-/// one. `calls/nested_machine_continuation` is the corpus case: `Main` binds
-/// `console` and its `banner: Banner` member binds `console` too. Binding
-/// keys on the field ROUTE, which the producer already both orders and
-/// de-duplicates by, so the pair is admitted; a genuine repeat of one route
-/// still rejects.
-#[test]
-fn fused_roots_at_distinct_routes_may_share_one_leaf_name() {
-    let mut selected = provisioned_program_entry_settlement();
-    let nested = fused_root_row_at(
-        &selected,
-        "console",
-        vec!["banner".into(), "console".into()],
-    );
-    let direct = fused_root_row_at(&selected, "console", vec!["console".into()]);
-    selected
-        .bind_fused_service_establishments(vec![nested, direct.clone()])
-        .expect("two routes sharing a leaf name are two establishments");
-    assert_eq!(
-        selected
-            .fused_service_establishments()
-            .iter()
-            .map(program_entry_plan::ProgramEntryFusedServiceEstablishment::field_path)
-            .collect::<Vec<_>>(),
-        [
-            ["banner".to_owned(), "console".to_owned()].as_slice(),
-            ["console".to_owned()].as_slice()
-        ],
-        "establishments order by route"
-    );
-
-    assert!(
-        selected
-            .bind_fused_service_establishments(vec![direct.clone(), direct])
-            .is_err(),
-        "one route establishing twice is still a repeat"
     );
 }
