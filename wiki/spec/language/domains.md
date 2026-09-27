@@ -66,9 +66,21 @@ its predicates are proved. A predicate-free domain with establishment routes
 still requires that provenance. A declaration with neither predicates nor routes
 adds no membership obligation: a valid bare `i32` may be explicitly qualified as
 `Km` without an owner grant. Predicate-free does not mean uninhabited.
-Whether a linear carrier is an exception -- its qualification being custody
-state that `as` may not mint, rather than a value tag -- is undetermined; see
-[`linear-carrier-vacuous-qualification`](../../../OWNER_QUESTIONS.md).
+
+This rule also applies to affine and linear carriers
+(`linear-carrier-vacuous-qualification`). Multiplicity governs use of the carrier,
+not authority to introduce a qualification. A predicate-free, route-free tag on
+a linear value may be introduced by `as`; the same value is transferred, not
+copied, and its ownership obligations remain. Carrier validity and inherited
+domain obligations still apply. Omitting `established by` imposes no issuer
+restriction; it does not mean that nobody can establish membership.
+
+Establishment restrictions belong to the selected domain's normalized theory,
+including inherited routes and alias constituents. Neither the carrier's
+multiplicity nor predicates or routes on unrelated domains can add a restriction.
+Adding another domain over a carrier cannot change an existing domain's minting
+rules. No carrier-wide custody marker or sibling-domain scan substitutes for
+declared establishment routes.
 
 [Authority establishment](../resources/authority.md#establishment-routes) owns
 exact route resolution, result and installed-parameter subjects, checked
@@ -213,7 +225,7 @@ explicitly selected operators, never ambient conversion discovery.
 | Use | Obligation |
 | --- | --- |
 | Predicate qualification | Prove the target predicates. |
-| Predicate-free, route-free qualification | None beyond carrier compatibility, except on a linear carrier (undetermined). |
+| Predicate-free, route-free qualification | None beyond carrier compatibility; ordinary validity and ownership rules still apply. |
 | Routed qualification | Retain exact existing or authorized evidence; `as` cannot mint it. |
 | Exact carrier conversion | Prove representability and unchanged denotation. |
 | Explicit semantic erasure | Name a target omitting the non-owning meaning. |
@@ -321,7 +333,7 @@ they do not enumerate combinations of unit, policy, and predicate refinements.
 Their guarantees establish surviving predicate facts.
 
 Families may bind a generic carrier or a fixed carrier with invariant indices:
-`domain<P, T> Extent::Resident<P, T>;` keeps `Extent` as its exact runtime carrier.
+`domain<Frame> Point::Coordinates<Frame>;` keeps `Point` as its exact runtime carrier.
 Type indices use normalized type identity and substitute structurally at generic
 calls; different applications have no implicit variance relationship. Const
 indices use canonical value identity, not authored record-field order.

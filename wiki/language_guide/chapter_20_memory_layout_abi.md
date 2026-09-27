@@ -423,6 +423,12 @@ zero. `Resident<P, T>` owns one complete value under that exact placement. Openi
 and retiring a resident view transfers or borrows the same claim, never a fresh
 one. Extent split/merge cannot cut or combine resident objects by geometry alone.
 
+Their protection comes from declared establishment routes and checked custody,
+not from `Extent` being linear. Writing an empty `domain Extent::Vacant;` would
+declare a freely introducible tag, not certify vacancy. Initialization,
+retirement and admitted transfer must establish or forward the actual claim
+under [domain establishment rules](chapter_8_domains.md#establishing-and-qualifying-domains).
+
 Non-runtime Type fields still need custody. An authored record and explicit named
 conformance account for them without hidden representation bytes:
 

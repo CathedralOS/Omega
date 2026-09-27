@@ -3454,6 +3454,10 @@ syntax and other terminal services are not prerequisites.
   - Replace fixture-local `ResidentStorage` with PLAN-LAID-VIEWS' evaluated
     layout/access, establishment, element transfer and retirement. A resident
     marker is not establishment; live residents cannot merge as vacant.
+    Complete core's `Vacant`/`Resident` establishment-route declarations alongside
+    these operations, using DOMAIN-ISSUER-ROUTES' ordinary enforcement. Empty
+    declarations are unrestricted tags, not protected custody. Keep cast-forgery
+    refusals against explicitly routed declarations, not linearity heuristics.
   - Implement temporary exclusive strategy borrowing through
     BORROWED-STORAGE-RESTORATION, ending at allocation return so allocations
     coexist without a permanently borrowed compiler arena.
@@ -4529,6 +4533,18 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   Structural route catalogs, result bindings, codec and present-binding validation
   exist; scalar catalogs and issuer checks on qualification introduction exist too.
   Do not rebuild them or treat package-row recovery as artifact acceptance.
+
+  Apply the settled [qualification rule](wiki/spec/language/domains.md#declaration-and-membership)
+  uniformly to copyable, affine and linear carriers. Remove
+  `domain_target_is_custody_marked`'s sibling-domain inference: an unrelated
+  predicate or issuer route cannot restrict an otherwise route-free tag.
+  BUMP-ALLOCATOR-CANARY owns completing `source/library/core/extent.omg`'s
+  `Vacant`/`Resident` routes with the actual custody operations; reconcile that
+  declaration work with the checker change rather than admitting forged custody
+  or retaining a carrier-wide exception. Keep the `Region::Left`/`Right` move
+  control, and verify that adding unrelated predicate/routed domains changes
+  neither it nor `i32::Km`. Both authority cast-forgery controls must use the
+  protected declarations and reject without the heuristic.
 
   The remaining ordinary-call producer gap is in
   `05_checked-trees-to-lowered-psi/src/unit/attached_unit.rs` and its `catalog.rs`:
