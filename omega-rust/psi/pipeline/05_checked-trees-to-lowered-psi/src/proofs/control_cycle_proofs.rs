@@ -1,7 +1,7 @@
 //! Produce certificates for the verifier's exact runtime ranking questions.
 use super::{
     CertificateEnvelope, EvidenceIdentity, EvidenceRoute, LoweredPsi, LoweringError, ProofNode,
-    ProofRule, ProofSystemMarker,
+    ProofRule, ProofSearchDeclines, ProofSystemMarker,
 };
 use proof_admission::{
     CertificateObligation, RecursiveComponentCertificate, RecursiveEdgeCertificate,
@@ -9,7 +9,14 @@ use proof_admission::{
 use std::collections::btree_map::{BTreeMap, Entry};
 use terminal_psi::ControlCycleEvidence;
 
-pub(crate) fn finalize(lowered: &mut LoweredPsi) -> Result<(), LoweringError> {
+/// Produce the cycle certificates. `declines` carries this finalization's
+/// recorded proof-search declines so an unmet ranking obligation names the
+/// capacity that stopped optional inference rather than reading as a
+/// disproof of the module.
+pub(crate) fn finalize(
+    lowered: &mut LoweredPsi,
+    declines: &ProofSearchDeclines,
+) -> Result<(), LoweringError> {
     let started = std::time::Instant::now();
     let questions =
         terminal_verifier::reconstruct_control_cycle_obligations(&lowered.semantic_module)
@@ -67,9 +74,7 @@ pub(crate) fn finalize(lowered: &mut LoweredPsi) -> Result<(), LoweringError> {
                     &parameters,
                 )
             }
-            .ok_or(LoweringError::OperationProofUnavailable(
-                obligation.obligation.id,
-            ))?;
+            .ok_or_else(|| declines.unproved_obligation_error(obligation.obligation.id))?;
             Ok(EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: EvidenceIdentity::new(obligation.obligation.id.get())
                     .expect("nonzero obligation"),

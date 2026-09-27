@@ -99,7 +99,11 @@ fn uncached_reference(lowered: &mut LoweredPsi) -> usize {
         .proof_bundle
         .evidence
         .sort_by_key(|evidence| evidence.obligation);
-    crate::proofs::control_cycle_proofs::finalize(lowered).unwrap();
+    crate::proofs::control_cycle_proofs::finalize(
+        lowered,
+        &crate::proofs::ProofSearchDeclines::default(),
+    )
+    .unwrap();
     preparations
 }
 
@@ -108,7 +112,12 @@ fn retained_evidence_needs_no_preparation_and_mutated_proof_still_rejects() {
     let mut lowered = fixture(17);
     uncached_reference(&mut lowered);
     let original = lowered.clone();
-    finalize_operation_proofs_inner(&mut lowered, &|_| panic!("no pending evidence")).unwrap();
+    finalize_operation_proofs_inner(
+        &mut lowered,
+        crate::proofs::scalar_block_invariants::MAX_ROSTER_ROUNDS,
+        &|_| panic!("no pending evidence"),
+    )
+    .unwrap();
     assert_eq!(lowered, original);
 
     let EvidenceRoute::CertificateDerived(certificate) =
@@ -118,9 +127,11 @@ fn retained_evidence_needs_no_preparation_and_mutated_proof_still_rejects() {
     };
     certificate.proof.conclusion = Proposition::Falsehood;
     let corrupted = lowered.proof_bundle.clone();
-    finalize_operation_proofs_inner(&mut lowered, &|_| {
-        panic!("retained evidence is not regenerated")
-    })
+    finalize_operation_proofs_inner(
+        &mut lowered,
+        crate::proofs::scalar_block_invariants::MAX_ROSTER_ROUNDS,
+        &|_| panic!("retained evidence is not regenerated"),
+    )
     .unwrap();
     assert_eq!(lowered.proof_bundle, corrupted);
     assert!(
@@ -138,7 +149,11 @@ fn invalid_module_rejects_before_preparation() {
     let mut lowered = fixture(17);
     lowered.semantic_module.machines[0].entry = block_id(u64::MAX);
     assert!(matches!(
-        finalize_operation_proofs_inner(&mut lowered, &|_| panic!("invalid module")),
+        finalize_operation_proofs_inner(
+            &mut lowered,
+            crate::proofs::scalar_block_invariants::MAX_ROSTER_ROUNDS,
+            &|_| panic!("invalid module")
+        ),
         Err(LoweringError::InvalidTerminalModule(_))
     ));
 }
@@ -241,4 +256,65 @@ fn parallel_failures_keep_the_first_pending_obligation_and_publish_nothing() {
         matches!(finalize_operation_proofs(&mut lowered), Err(LoweringError::OperationProofUnavailable(obligation)) if obligation == first)
     );
     assert_eq!(lowered.proof_bundle, original);
+}
+
+/// A field read inside a loop whose index bound only a header invariant
+/// carries: with the roster-round capacity declined, the index obligation
+/// stays unmet and the refusal names the capacity that stopped — the
+/// publication contract's `Incomplete` outcome — instead of reporting the
+/// module as rejected. The same module under the production budget proves
+/// the site and verifies, so the exhaustion was never a disproof.
+#[test]
+fn a_declined_roster_capacity_reports_incomplete_not_unavailable() {
+    let source = "
+        data Poly { coeffs: [i32; 5] in Wrapping; i: i32; r: i32 in Wrapping; }
+        machine Poly::run(&mut self) {
+            self.i = 2;
+            transition { _ -> eval() }
+            state eval(&mut self) {
+                transition self.i < 5 { true -> step() _ -> done() }
+            }
+            state step(&mut self) {
+                self.r = self.r + self.coeffs[self.i];
+                self.i = self.i + 1;
+                transition { _ -> eval() }
+            }
+            state done(&mut self) { }
+        }";
+    let checked = crate::front_end::checked_program(source);
+    let mut lowered = lower_machine(&checked, TerminalMachineSelection::Name("Poly::run"))
+        .expect("the field counter lowers");
+    assert!(!lowered.semantic_module.scalar_block_invariants.is_empty());
+    // Restart the pass against an empty roster with no rounds to spend: the
+    // header invariant that carries the index bound cannot be rebuilt, so
+    // the read obligation is left unproved through a named decline.
+    lowered.semantic_module.scalar_block_invariants.clear();
+    lowered.proof_bundle = terminal_verifier::ProofBundle::default();
+    let error = finalize_operation_proofs_inner(&mut lowered, 0, &|_| {})
+        .expect_err("the declined roster leaves the index obligation unmet");
+    assert!(
+        matches!(
+            error,
+            LoweringError::ProofSearchCapacityExhausted {
+                capacity: crate::lowering_error::ProofSearchCapacity::ScalarInvariantRosterRounds,
+                ..
+            }
+        ),
+        "the refusal names the roster-round capacity, got {error:?}"
+    );
+    // Nothing about the module is invalid: ordinary finalization re-runs
+    // inference under the production budget and the finished module
+    // verifies.
+    let mut lowered = lower_machine(&checked, TerminalMachineSelection::Name("Poly::run"))
+        .expect("the field counter lowers");
+    lowered.semantic_module.scalar_block_invariants.clear();
+    lowered.proof_bundle = terminal_verifier::ProofBundle::default();
+    finalize_operation_proofs(&mut lowered)
+        .expect("the same module finalizes under the production budget");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("the finished module verifies");
 }

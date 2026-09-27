@@ -23,6 +23,7 @@ pub(super) fn candidates(
     module: &TerminalModule,
     questions: &ReconstructedTerminalObligationSet,
     remaining: &mut usize,
+    declines: &mut crate::proofs::ProofSearchDeclines,
 ) -> Vec<ScalarBlockInvariant> {
     let mut candidates = Vec::new();
     let mut proposed = BTreeSet::new();
@@ -64,7 +65,9 @@ pub(super) fn candidates(
             )
         }) {
             let Some(next) = remaining.checked_sub(1) else {
-                crate::proofs::proof_timing::count_budget_exhaustion();
+                declines.record(
+                    crate::lowering_error::ProofSearchCapacity::ScalarInvariantCandidateWork,
+                );
                 return candidates;
             };
             *remaining = next;
@@ -147,7 +150,8 @@ pub(super) fn candidates(
                         continue;
                     }
                     let Some(next) = remaining.checked_sub(1) else {
-                        crate::proofs::proof_timing::count_budget_exhaustion();
+                        declines
+                            .record(crate::lowering_error::ProofSearchCapacity::ScalarInvariantCandidateWork);
                         return candidates;
                     };
                     *remaining = next;
