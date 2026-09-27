@@ -20,7 +20,7 @@ Neither implementation may claim a complete interoperable V1 boundary yet.
 
 | Section | Contents |
 | --- | --- |
-| `OmegaCompilationSubject` | Resolved package graph, explicit selected root and role, requester-local aliases/edges, stable package keys with separate immutable resolutions, and complete build-visible snapshots. |
+| `OmegaCompilationSubject` | Resolved source graph, explicit selected root and role, requester-local aliases/edges, declaration owners with separate immutable resolutions, and complete build-visible snapshots. Owners may be named packages or content-identified anonymous roots. |
 | `OmegaInvocation` | Explicit requested product, canonical target profile, canonical external admissions, and exact subject commitment. |
 
 Bootstrap Alpha tape is an ordinary explicit product, never inferred from a
@@ -32,17 +32,34 @@ resolution do not certify compiler artifacts. V1 accepts resolved source, not
 preaccepted compiled dependency instances; adding the latter requires a new
 request version, not a zero or omitted row interpreted as acceptance.
 
+[Default builds and anonymous owners](declarations.md#default-builds-and-anonymous-owner-identity)
+are part of this logical contract. Source preparation closes and deduplicates
+the graph and supplies default configuration for a root without a build file;
+the compiler validates the supplied identity inputs, not a catalog of past
+compilations. Missing build source must remain distinguishable from a malformed
+authored build declaration. Default configuration cannot add ambient dependencies,
+authority or executable-entry discovery.
+
+The physical OCREQ v1 package rows below encode only named name/lineage owners;
+they do not yet encode the anonymous-owner record and default-build provenance.
+Supporting that logical input requires a versioned request extension shared by
+D and C, not fake names, host-path lineages, or reinterpreting existing tags.
+This wire limitation does not revoke anonymous compilation or require an authored
+build file in the language. Its implementation is tracked with
+MODULE-NAMESPACE-RESOLUTION and OMEGA-D/OMEGA-C.
+
 External admissions cover the assumptions and authority required by the requested
 compilation, including actual build execution. Ordinary artifact production does
 not require ecosystem receiving-policy input or claim permission to execute the
 result. Explicit receiver admission remains a separate operation under
 [service permission](permissions.md#artifact-production-versus-receiver-admission).
 
-Discovery, retrieval, ambient traversal, and host defaults are outside the
+Discovery, retrieval, ambient traversal, and ambient host defaults are outside the
 standalone compiler. Compiler-injected build vocabulary belongs to compiler
 identity, not host-supplied source. The compiler derives providers, roots,
 generated source, subsystem, and optimization choices by admitted build
-execution; the request cannot supply those conclusions. See
+execution, or the specified default configuration when no build file is selected;
+the request cannot supply unvalidated conclusions in their place. See
 [build execution](execution.md) for checkpoint, authority, and dependency handoff.
 Completed dependencies contribute durable bundles and evidence, not a graph-wide
 collection of live half-compiled checkpoints.
@@ -67,8 +84,8 @@ report fingerprints, and private re-encodings cannot define wire bytes.
 
 ## Canonical subject
 
-Package rows are strictly ordered by recomputed `PackageKeyIdentity`. A row
-contains structural name/lineage, separate exact revision/tree/content
+In OCREQ v1, package rows are strictly ordered by recomputed
+`PackageKeyIdentity`. A row contains structural name/lineage, separate exact revision/tree/content
 resolution, role, and snapshot. Recompute key identities from structural fields;
 a supplied digest does not establish them. Graph references index the validated
 table. Dependency rows are ordered by requester index and local alias.

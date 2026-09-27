@@ -6,12 +6,11 @@ and deliberately deferred research live in `TASKS.md`. Questions are numbered
 consecutively; pruning or adding one requires updating every repository
 reference in the same change.
 
-Five owner-level decisions remain. Only the affected behavior below awaits a
+Four owner-level decisions remain. Only the affected behavior below awaits a
 ruling; other work on the same task may proceed under existing contracts.
 
 | Named decision | Affected work |
 | --- | --- |
-| `unmanaged-root-package-identity` | Portable publication in MODULE-NAMESPACE-RESOLUTION |
 | `borrowed-service-suspension-carrier` | Suspension/transfer semantics in RC-BUILD-AND-PACKAGES; refresh the witness first |
 | `linear-carrier-vacuous-qualification` | Qualification/custody boundary for BUMP-ALLOCATOR-CANARY and placed access |
 | `mixed-integer-comparison` | Mixed typed-integer guards in the five text samples named below |
@@ -76,34 +75,7 @@ Proposed solutions below are recommendations, not owner rulings. Remove an
 entry when the contract answers it; retain any unfinished implementation on
 its owning task.
 
-### Q1 - What portable identity should a root without a package declaration have?
-
-Named decision: `unmanaged-root-package-identity`.
-
-**Context:** [Package identity](wiki/spec/build/declarations.md) uses declared
-name and source lineage. Neither it nor [package sources](wiki/spec/packages/sources.md)
-defines an undeclared root's identity. [Domain collision rules](wiki/spec/language/domains.md)
-assume distinct declaration owners already have identities.
-
-**Problem:** An unpackaged root and injected standard-library declarations can
-both carry `package_identity: None`, collapsing separate owners onto keys such
-as `[u8; N]::Utf8`. **MODULE-NAMESPACE-RESOLUTION** must not erase independent
-collision checking to work around this. Separating local and toolchain declaration
-owners is already required and is not blocked here; this decision concerns the
-portable identity of exports from an unpackaged root.
-
-**Proposed solution:** Require an explicit portable owner key when an unpackaged
-root needs exported nominal identity; a package declaration supplies the existing
-route. Keep ordinary local compilation separate from portable publication.
-
-**Alternatives:**
-- Derive identity from canonical content. This avoids an authored key but changes
-  owner identity on edits and needs exact canonicalization and dependency rules.
-- Keep such declarations forbidden without a package. Simpler, but less convenient.
-- Tempting but wrong: use host paths or import order, exempt toolchain declarations,
-  or assume distinct owner identities make competing visible names unambiguous.
-
-### Q2 - How does a state machine holding service borrows perform a suspending operation?
+### Q1 - How does a state machine holding service borrows perform a suspending operation?
 
 Named decision: `borrowed-service-suspension-carrier`.
 
@@ -151,7 +123,7 @@ only if ordinary carry and preservation contracts cannot express the requirement
   saying what keeps a live borrow sound across a park. The rejection is the only
   thing currently preventing a borrow from crossing a suspension.
 
-### Q3 - Does a vacuous qualification on a linear carrier need establishment?
+### Q2 - Does a vacuous qualification on a linear carrier need establishment?
 
 Named decision: `linear-carrier-vacuous-qualification`.
 
@@ -210,7 +182,7 @@ declare. `Extent` would be marked; `Region` would not.
   legality of one module's `as` depend on an unrelated declaration in another,
   which no other qualification rule does.
 
-### Q4 - How does a comparison order two integer operands of different types?
+### Q3 - How does a comparison order two integer operands of different types?
 
 Named decision: `mixed-integer-comparison`.
 
@@ -245,7 +217,7 @@ its unsigned promotion.
 - Adopt the interpreter's promotion to unsigned. This is C's rule and silently
   answers wrongly for negative operands.
 
-### Q5 - May an assumed runtime binding override a checker-refutable claim?
+### Q4 - May an assumed runtime binding override a checker-refutable claim?
 
 Named decision: `assumed-binding-refutable-claim`.
 

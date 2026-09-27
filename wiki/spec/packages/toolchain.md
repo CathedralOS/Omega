@@ -11,6 +11,13 @@ Freestanding programs need no std, and the compiler-owned Build protocol works
 without it. Package-aware compilation admits only core's magic toolchain mount;
 ordinary libraries use declared dependency edges and package-local imports.
 
+Ownership comes from that resolved graph, not from executing a library's build
+file. Repeated selection of the same std instance preserves one ordinary package
+owner; core preserves its exact toolchain owner. Neither may collapse onto an
+anonymous root's owner or acquire authority merely because a default build
+supplied it. [Default builds](../build/declarations.md#default-builds-and-anonymous-owner-identity)
+preserve supplied provenance and use content identity only when none exists.
+
 Core is available in both checked build and product contexts. Std use in build
 code requires a build dependency; product use requires an ordinary dependency;
 both uses require both edges. Neither edge grants ambient host services or makes

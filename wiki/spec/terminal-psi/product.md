@@ -67,6 +67,16 @@ information have distinct identities. The manifest is reconstructed from the
 sections, not accepted as redundant authoritative input. Proof improvement
 does not change program identity.
 
+Nominal declarations retain their original owner and owner-local identity,
+including [content-identified anonymous roots](../build/declarations.md#default-builds-and-anonymous-owner-identity).
+Dependency references preserve those identities across separate consumption;
+importing a product does not re-own its declarations. This provenance is distinct
+from the exact product's semantic digest and its later native realization.
+Reloading or moving a product, or clearing a compiler cache, cannot rename its
+declarations. No global catalog of previous compilations establishes identity
+or acceptance. Products missing required provenance must reject the affected
+nominal import rather than guess it from a path or same-spelled declaration.
+
 Optimization validation retains the exact Psi-local selection and input/output
 semantic identities. Internal proof identities remain validation provenance;
 when portable evidence is requested, its sidecar binds the relevant proof and

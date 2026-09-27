@@ -42,7 +42,7 @@ queue numbers.
 
 | Row | Decision reference |
 | --- | --- |
-| MODULE-NAMESPACE-RESOLUTION | `unmanaged-root-package-identity` |
+| MODULE-NAMESPACE-RESOLUTION | Now implementation under [default builds and anonymous owner identity](../../spec/build/declarations.md#default-builds-and-anonymous-owner-identity), not owner-blocked |
 | NOMINAL-FIELD-FLOW | [mutable-self-receiver-declared-field-rows](../../spec/language/dependent_values.md#mutable-receivers-and-declared-field-domains), settled |
 | NATIVE-WRAPPER-ENCODING-AARCH64 | Now implementation reconciliation against [target-authored entry contracts](../../spec/build/entry_roots.md), not owner-blocked |
 | OWNED-SELF-RECEIVER-AFFINE-DISCARD | Now implementation repair under [ordinary parameter ownership](../../spec/language/ownership.md#consumers-and-cleanup), not owner-blocked |
