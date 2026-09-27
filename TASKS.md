@@ -1023,7 +1023,7 @@ the complete product bar; focused successes below do not establish that baseline
   | `basics/text_greeting`, `systems/status_report`, `text/string_catalog` | **BYTE-CARRIER-STORE-LITERAL-ONLY** owns carrier copies and concatenation into bounded `Utf8` storage. The producer admits only String literals; a plain copy also fails, as pinned by `pending/text/byte_carrier_store_literal_only`. Preserve `self.t = "a" + self.s + "b"` and the alias case through Terminal verification, interpretation and lowering. Existing prefix replacement and live-byte stores do not supply append semantics; unrolling by capacity is not the general operation. Keep corpus customers `text/runtime_bounded_carrier{,_alias}_concat_exit`. |
   | `gui/{image_viewer,window_app,window_demo}` | **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER** owns the authored by-value primitive-array boundary arguments/results. Changing every parameter to a domain carrier or reference evades that acceptance. Exact fixture/sample provider selection remains required. |
   | `systems/file_journal`, `systems/note_vault`, `interpreters/calculator_rpn` | **STATE-LOCAL-VALUE-FRONTIER**: result custody, library callee composition, and indexed nested-field initialization. Follow `Filesystem::create_dir_all` in `note_vault`; for `calculator_rpn`, retain the Console-bearing receiver and `let a: i32 in Saturating = self.stack.slots[0]`. Its std-free reduction does not reproduce the full program. |
-  | Integer type/policy store migrations | **IMPLICIT-STORE-CONVERSION**: spell required casts without changing arithmetic policy or algorithms. Customers include `longest_run`, `maze_flood`, `collatz_sequence`, `prime_sieve`, `multiplication_table`, `heat_grid`, `dice_histogram`, `dungeon_crawler_cli`, `rpn_calculator`, `stack_calculator`, `self_mutation_between_calls`, `histogram`, `game_of_life`, `rule_30`, `luhn_checksum`, `substring_search`, and `windowed_calculator`. Re-measure the current set instead of treating an old refusal count as a baseline. |
+  | Integer type/policy migration verification | **IMPLICIT-STORE-CONVERSION**: the rejection rule and many explicit casts are implemented. Recheck the previously affected cohort without changing arithmetic policy or algorithms: `longest_run`, `maze_flood`, `collatz_sequence`, `prime_sieve`, `multiplication_table`, `heat_grid`, `dice_histogram`, `dungeon_crawler_cli`, `rpn_calculator`, `stack_calculator`, `self_mutation_between_calls`, `histogram`, `game_of_life`, `rule_30`, `luhn_checksum`, `substring_search`, and `windowed_calculator`. Re-measure the current set instead of treating an old refusal count as a baseline. |
   | Clock-bearing samples | Complete declared-host provider wiring for `binary_search_viz`, `sort_visualizer`, `bouncing_console`, `ripple_field`, `tick_marquee`, `cellular_automaton`, `game_of_life_glider`, `langtons_ant`, and `random_walk`. Existing macOS wiring is in `samples/gui/window_app` and `source/library/std/macos_gui.omg`: exact Clock selection and sleep through `darwin_poll`. Missing host selection is distinct from a lowering failure. |
   | `basics/print_number`, `rendering/dungeon_render` and other text/index/match programs | **NOMINAL-FIELD-FLOW**, **WRITE-ONLY-BORROW**, **STATE-LOCAL-VALUE-FRONTIER**, **MATCH-SELECTIVE-LOWERING**, **CML4** and **OPERATOR-MACHINE-SUPPLY** own their missing operations/facts. Retain `Utf8` and ordinary domain evidence; recognized function names or weakened invariants cannot replace it. |
 
@@ -3689,83 +3689,52 @@ syntax and other terminal services are not prerequisites.
 
 ## Parallel language and compiler lanes
 
-- **IMPLICIT-STORE-CONVERSION.** (new-scope) Validation admits a store whose
-  value has another integer type or arithmetic policy than its destination
-  when the value's range fits (`self.output = self.state & 255` with
-  `output: i32`, `state: u32 in Wrapping`;
-  `arithmetic_domains::assignments::check_narrowing_assignment`). The
-  [numeric values](wiki/spec/language/numeric_values.md) and
-  [domains](wiki/spec/language/domains.md#exact-coercion-and-erasure) specs
-  keep typed values at their types, make policy erasure explicit, and route
-  representable narrowing through `as`. Checked lowering then has no
-  `AssignmentValue` row (`scalar_lowering::lower_return_expression` requires
-  equal types), so native compilation stops at local construction
-  `structural field store: pure source: scalar expression row` with no
-  source diagnostic. Reject the store in validation with a diagnostic naming
-  the explicit `as`, and migrate the fixtures and samples that relied on it.
-  Acceptance: such a store fails checking with that diagnostic, and every pass
-  canary and sample that stores across integer types or policies spells the
-  cast.
+- **IMPLICIT-STORE-CONVERSION.** Finish diagnostic cleanup and migration
+  verification under [numeric carrier rules](wiki/spec/language/numeric_values.md)
+  and [explicit coercion/erasure](wiki/spec/language/domains.md#exact-coercion-and-erasure).
+  `omega-rust/psi/checking/src/proof_contracts/arithmetic_domains/assignments.rs`'s
+  `check_narrowing_assignment` already rejects typed carrier/policy changes and
+  names `as`, even when the source range fits. Preserve integer widening,
+  signedness, float-format and policy-add/drop rejection; anonymous literal
+  landing remains distinct. Exact `as` requires representability and unchanged
+  denotation; diagnostics must not recommend it as unchecked truncation.
 
-  This rejection broke 16 tests outside the item's claimed paths, all in
-  `typed-trees-to-checked-trees`; that migration is finished and the crate is
-  green.
+  Coordinate `src/program_validation/statements/`, `src/machine_calls/calls/argument_bounds.rs`
+  and `src/proof_contracts/domain_weakening.rs` within that checking crate to avoid
+  duplicate conversion/weakening reports and cascades after a primary type,
+  suffix or unresolved-name error. Current corpus records retain those extra
+  reports in **CANARY-CORPUS**'s diagnostic cases. Preserve their actual primary
+  subjects and independent errors; do not blanket-suppress domain obligations.
 
-  Two kinds needed different answers, and both are settled. Adding or
-  dropping an arithmetic policy is the spelling the rule asks for, and those
-  fixtures took an `as`. The width widenings -- `u8` to `u16`, `u8` to `u64`,
-  `f32` to `f64` -- do belong to the rule: the carrier contract has no
-  implicit widening at all ("use an explicit exact conversion to request a
-  wider carrier"), so a typed value keeps its TYPE across a store, not merely
-  its arithmetic policy. A value-preserving widening is the face that makes
-  admitting it tempting, so it is pinned on its own as
-  `fail/arithmetic/implicit_store_widening_rejected` beside the same-width
-  signedness face in `implicit_store_conversion_rejected`.
+  Recheck the migration through current source/package inputs: the sample
+  cohort in **SAMPLE-CORPUS**, corpus fixtures, bundled libraries and
+  `source/omega/main.omg` with `source/psi/{lex,parse,source}`. Many casts,
+  including dungeon return/transition arguments, are already present; old
+  refusal counts and masked downstream failures are not a remaining-work list.
+  Use focused `tools/corpus_gate.py` / `tools/sample_gate.py` runs and the
+  product/parser-gate CLI coverage in `omega-rust/omega/omega/tests/command_line.rs`.
+  Preserve the algorithms and the policy of each operation when inserting casts.
+  **SAMPLE-CORPUS** and **RC-BUILD-AND-PACKAGES** retain complete program acceptance.
 
-  `call_bounds::tests::widening::argument_widening_does_not_reinterpret_saved\
-_wrapping_computations` is repaired as the worked example: it asserts rejection
-  carrying "cannot prove requires" and was being refused earlier for the
-  conversion instead, so its own subject went unexercised. Spelling
-  `input as u8 in Wrapping` restores it. The other fifteen took the same
-  judgement -- incidental conversion, or a subject the new rule refuses
-  earlier -- and are migrated.
+  Keep the float-policy customers with **OPERATOR-BOUNDARY-CALLS** /
+  **FLOAT-PROVIDERS**: `tests/omega/pass/float/{float_saturating_arithmetic_exit,float_trapping_overflow_traps,float_trapping_propagated_nan_traps,named_provider_multiply_then_add_exit}`.
+  Their recorded argument-conversion refusals overlap named-operator admission;
+  its weakening checker retains arithmetic policy while its numeric argument
+  checker compares the bare parameter policy. Reconcile ordinary selected
+  contracts and realization without erasing Saturating/Trapping to silence the
+  diagnostic. Preserve two-rounding multiply-then-add, saturation and trap oracles.
 
-  The Omega-written product compiler was an unrecorded customer and is now
-  migrated: `source/omega/main.omg` failed real package resolution with 33
-  diagnostics, all the policy add/drop kind, and `source/psi/{lex,parse,source}`
-  plus that entry now spell them. Clearing them uncovered 8 crash-route
-  refusals the conversion errors had masked, since checking never reached that
-  validation -- `Parser::skip_trivia` derives a Trap route from
-  `input.tokens[...]` on a `[Token; 16384] in Trapping` array -- so
-  `Parser::parse` and `Lexer::tokenize` publish `crashes Trap`. One diagnostic
-  remains and belongs to the unit-plan omission roster, not here: the entry's
-  plan is omitted at `call operation: projected operand support`.
-  `omega`'s `routed_production_entry_roots_pass_real_package_resolution` and
-  `acquired_generator_publishes_occurrence_local_files_for_artifact_and_native_products`
-  do stay red, but no longer for that reason and no longer for this item's:
-  both now stop at `Float::subtract` retaining 0 authored selection
-  occurrences while reviewing `std`, which is **OPERATOR-BOUNDARY-CALLS**.
-  Whether the unit-plan omission also cleared is masked behind it.
+  Acceptance: fail fixtures `tests/omega/fail/arithmetic/implicit_store_{conversion,widening}_rejected`
+  retain actionable checking errors; explicit exact casts, Wrapping whole-array
+  literals and `tests/omega/pass/slices/runtime_saturating_array_element_guard_exit`
+  retain their valid behavior. Migrated negative fixtures
+  must still reach the intended obligation, as in
+  `argument_widening_does_not_reinterpret_saved_wrapping_computations` under
+  `omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/call_bounds/tests/widening.rs`.
+  Every ordinary cross-carrier/policy store in maintained pass fixtures and samples
+  must spell its required conversion. Complete diagnostic and migration evidence
+  without treating checked admission or a later lowering refusal as native success.
 
-  The corpus migration landed in c6e04262f5: 34 of the 40 corpus fixtures the
-  rule rejected now check or reject as their golden records say. Two of them
-  needed `as` inside `std`'s UEFI handoff and `core`'s float order keys. One
-  pass fixture stays rejected because the right spelling is a compiler
-  decision, not a fixture repair:
-  - `float/named_provider_multiply_then_add_exit`: its saturating case needs
-    `f32 in Saturating` arguments to `F32::multiply_then_add(f32, ...)`, and
-    core declares no Saturating overload. It is behind
-    **OPERATOR-BOUNDARY-CALLS** in the meantime: every float boundary in
-    `core/float_operations.omg` is a token-bearing `boundary machine`.
-
-  `slices/runtime_saturating_array_element_guard_exit` no longer belongs on
-  that list. It checks. The hoist still re-applies a collection's arithmetic
-  domain to the element deliberately (`hoist_temp_type.rs`: arithmetic
-  domains are element-applicable where an encoding `Domain` is not), so the
-  validation side is what reconciled. Its second claim does not reproduce
-  either -- a `[i32 in Wrapping; 3]` field taking a whole-array literal store
-  checks and produces its unit plan -- and native execution cannot be the
-  evidence on a host with no recorded native golden.
 - **FILTERED-CALLEE-CALL-SITES.** Finish command-level acceptance for calls
   whose target-scoped callee is unavailable to a realization. Current code has
   `reject_inert_sibling_callers` in compiler build-evaluation's
