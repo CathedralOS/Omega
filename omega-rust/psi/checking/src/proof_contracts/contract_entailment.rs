@@ -7,6 +7,12 @@
 //! rejects anything it cannot prove, so a false theorem can no longer pass
 //! `--check` silently (see this crate's README.md#source-proof-automation).
 //!
+//! Ordinary checked bodies first use `result_bounds` to collect fixed-integer
+//! return bounds across every state. Exact current guards can narrow a returned
+//! read, but internal transfers contribute no assumptions. Only result-only
+//! goals proved by those complete bounds are discharged; remaining goals retain
+//! the inductive judgment and its existing fail-closed stand-down behavior.
+//!
 //! Ladder rung L7 extends the same judgment to INDUCTIVE theorems: a machine
 //! whose body is a chain of guarded value/tail-recursion transitions (the
 //! shape `transition n > 0 { true -> self.f(n - 1, ...) false -> base }`).
@@ -87,6 +93,7 @@ mod proof_view_tests;
 mod quotient_congruence;
 mod ranking_range;
 mod refuted_requires;
+mod result_bounds;
 mod scoped_arithmetic;
 mod self_induction;
 mod specification_calls;
@@ -721,7 +728,7 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
         }
         verdict
     };
-    let ensures: Vec<ExpressionHandle> = ensures
+    let mut ensures: Vec<ExpressionHandle> = ensures
         .into_iter()
         .filter(|fact| {
             let zero_value_mention = fact_mentions_zero_value(program, *fact);
@@ -887,6 +894,19 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
             .is_empty()
     });
     if !body_is_empty {
+        if let Some(bounds) = result_bounds::infer(program, machine) {
+            ensures.retain(|fact| {
+                if result_bounds::proves(program, machine, *fact, &bounds) {
+                    proven.push(*fact);
+                    false
+                } else {
+                    true
+                }
+            });
+        }
+        if ensures.is_empty() {
+            return;
+        }
         inductive_transition_entailment(
             program,
             machine,
