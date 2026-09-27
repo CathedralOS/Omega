@@ -29,7 +29,7 @@ use terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit;
 /// internal edges — so `s + s` is the relocated computation this family adds
 /// over the entry-target-only discovery, and `step` dominating every exit
 /// keeps the relocation inside the non-speculative gate.
-pub(super) const TRANSITIVE_MEMBER_SOURCE: &str = r#"
+pub(crate) const TRANSITIVE_MEMBER_SOURCE: &str = r#"
     data Root {}
 
     machine Root::scan(scale: u32 in Wrapping, remaining: u32 [0..=5])
@@ -206,7 +206,7 @@ pub(super) fn lowered_session_entry(
     lowered_session_entry_with_module_edit(source, label, entry, |_| {})
 }
 
-pub(super) fn lowered_unit(source: &str, label: &str) -> VerifiedPsiOptimizationUnit {
+pub(crate) fn lowered_unit(source: &str, label: &str) -> VerifiedPsiOptimizationUnit {
     lowered_unit_entry_with_module_edit(source, label, "Root::scan", |_| {})
 }
 
