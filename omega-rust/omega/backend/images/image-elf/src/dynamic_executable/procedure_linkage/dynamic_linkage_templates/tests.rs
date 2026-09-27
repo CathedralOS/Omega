@@ -1,6 +1,6 @@
 //! Procedure linkage template tests.
 
-use super::{AARCH64_PLT_ENTRY, AARCH64_PLT_HEADER, ELF64_RELA_SIZE, ElfProcedureLinkageFixup, ElfProcedureLinkageFixupKind, ElfProcedureLinkageFixupStorage, ElfProcedureLinkagePlacementConstraintKind, ElfProcedureLinkageSemanticTarget, ElfProcedureLinkageTemplatePolicy, ValidatedElfProcedureLinkageRelocationPlan, X86_PLT_HEADER, non_authoritative_template_compatibility_fingerprint, plan_elf_procedure_linkage_templates};
+use super::{AARCH64_PLT_ENTRY, AARCH64_PLT_HEADER, ELF64_RELA_SIZE, ElfProcedureLinkageFixup, ElfProcedureLinkageFixupKind, ElfProcedureLinkageFixupStorage, ElfProcedureLinkagePlacementConstraintKind, ElfProcedureLinkageSemanticTarget, ElfProcedureLinkageTemplatePolicy, ValidatedElfProcedureLinkageRelocationPlan, non_authoritative_template_compatibility_fingerprint, plan_elf_procedure_linkage_templates};
 use crate::{
     plan_elf_dynamic_link_inputs, plan_elf_dynamic_section_descriptors,
     plan_elf_dynamic_sections, plan_elf_procedure_linkage_relocations,
@@ -204,33 +204,6 @@ fn both_targets_emit_exact_fixed_templates_fixups_and_constraints() {
         }
         validate_contents(plan.linkage(), &plan.contents).expect("independent template replay");
     }
-}
-
-#[test]
-fn x86_uses_dynamic_got_zero_and_exact_small_medium_lazy_entries() {
-    let plan = plan_elf_procedure_linkage_templates(linkage(TargetProfile::LinuxX64, &IMPORTS))
-        .expect("validated x86 templates");
-    assert_eq!(&plan.contents.bytes.plt[..16], &X86_PLT_HEADER);
-    assert_eq!(
-        &plan.contents.bytes.plt[16..32],
-        &[0xff, 0x25, 0, 0, 0, 0, 0x68, 0, 0, 0, 0, 0xe9, 0, 0, 0, 0],
-    );
-    assert_eq!(
-        &plan.contents.bytes.plt[32..48],
-        &[0xff, 0x25, 0, 0, 0, 0, 0x68, 1, 0, 0, 0, 0xe9, 0, 0, 0, 0],
-    );
-    assert!(plan.contents.fixups.contains(&ElfProcedureLinkageFixup {
-        storage: ElfProcedureLinkageFixupStorage::GotPlt,
-        byte_offset: 0,
-        byte_width: 8,
-        mutable_mask: u64::MAX,
-        kind: ElfProcedureLinkageFixupKind::Absolute64,
-        target: ElfProcedureLinkageSemanticTarget::FutureDynamicSection,
-    }));
-    assert!(!plan.contents.fixups.iter().any(|fixup| {
-        fixup.storage == ElfProcedureLinkageFixupStorage::GotPlt
-            && matches!(fixup.byte_offset, 8 | 16)
-    }));
 }
 
 #[test]

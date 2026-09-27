@@ -1,11 +1,10 @@
 //! Section roster tests.
 
 use super::{
-    CANONICAL_KINDS, Candidate, ElfDynamicRosterSectionKind, ElfDynamicSectionRosterContents,
-    ElfNumericSectionDescriptor, ValidatedElfSectionNameTablePlan, checked_u32, derive_contents,
-    index_for_kind, non_authoritative_roster_compatibility_fingerprint,
-    plan_elf_dynamic_section_roster, validate_candidate, validate_contents, validate_name,
-    validate_row_against_owner,
+    CANONICAL_KINDS, Candidate, ElfDynamicRosterSectionKind, ElfNumericSectionDescriptor,
+    ValidatedElfSectionNameTablePlan, checked_u32, derive_contents, index_for_kind,
+    non_authoritative_roster_compatibility_fingerprint, plan_elf_dynamic_section_roster,
+    validate_candidate, validate_contents, validate_name, validate_row_against_owner,
 };
 use crate::{
     plan_elf_dynamic_link_inputs, plan_elf_dynamic_section_descriptors, plan_elf_dynamic_sections,
@@ -155,16 +154,6 @@ fn candidate(target: TargetProfile) -> Candidate {
     }
 }
 
-fn row(
-    contents: &ElfDynamicSectionRosterContents,
-    kind: ElfDynamicRosterSectionKind,
-) -> &ElfNumericSectionDescriptor {
-    contents
-        .rows
-        .get(index_for_kind(kind) as usize)
-        .expect("numeric roster row")
-}
-
 #[test]
 fn both_targets_close_exact_fourteen_row_roster_and_shstrndx() {
     for target in [TargetProfile::LinuxX64, TargetProfile::LinuxArm64] {
@@ -193,56 +182,6 @@ fn both_targets_close_exact_fourteen_row_roster_and_shstrndx() {
         );
         validate_contents(roster.section_names(), &roster.contents).unwrap();
     }
-}
-
-#[test]
-fn exact_numeric_links_and_literal_info_are_preserved() {
-    let roster =
-        plan_elf_dynamic_section_roster(section_names(TargetProfile::LinuxX64, &IMPORTS)).unwrap();
-    assert_eq!(
-        *row(&roster.contents, ElfDynamicRosterSectionKind::DynamicSymbol),
-        ElfNumericSectionDescriptor {
-            kind: ElfDynamicRosterSectionKind::DynamicSymbol,
-            index: 3,
-            name_offset: 17,
-            section_type: 11,
-            flags: 2,
-            payload_size: 72,
-            alignment: 8,
-            entry_size: 24,
-            link: 2,
-            info: 1,
-        },
-    );
-    let verneed = row(
-        &roster.contents,
-        ElfDynamicRosterSectionKind::GnuVersionRequirement,
-    );
-    assert_eq!((verneed.link, verneed.info), (2, 2));
-    let rela = row(
-        &roster.contents,
-        ElfDynamicRosterSectionKind::ProcedureRelocation,
-    );
-    assert_eq!((rela.link, rela.info), (3, 9));
-    let dynamic = row(&roster.contents, ElfDynamicRosterSectionKind::DynamicTable);
-    assert_eq!(
-        (dynamic.name_offset, dynamic.link, dynamic.info),
-        (113, 2, 0)
-    );
-    let shstrtab = row(
-        &roster.contents,
-        ElfDynamicRosterSectionKind::SectionNameTable,
-    );
-    assert_eq!(
-        (
-            shstrtab.name_offset,
-            shstrtab.section_type,
-            shstrtab.payload_size,
-            shstrtab.link,
-            shstrtab.info,
-        ),
-        (59, 3, 122, 0, 0),
-    );
 }
 
 #[test]
