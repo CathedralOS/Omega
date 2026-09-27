@@ -129,10 +129,13 @@ changing machine identity or invocation mode.
 
 ## States and identity
 
-A state is an internal node. A transition jumps within the current machine and
-creates neither a new machine identity nor a call frame. A call enters another
-machine contract. [State contracts](state_contracts.md) govern arrivals and facts;
-[termination](termination.md) governs ranked versus productive cycles.
+A state is an internal node. A jump to it stays within the current machine and
+creates neither a new machine identity nor a call frame. A transition dispatch
+may instead select a terminal machine call: an ordinary invocation followed by
+enclosing-machine completion, not an internal jump or task start.
+[State contracts](state_contracts.md#terminal-calls-in-transition-arms) govern this
+distinction, arrivals and facts; [termination](termination.md) governs ranked
+versus productive cycles.
 
 The normalized semantic contract is independent of syntax and lowering.
 Published identity includes the substitutable contract, supply, and observable

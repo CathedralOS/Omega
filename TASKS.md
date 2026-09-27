@@ -6261,7 +6261,7 @@ but report the missing runtime leg explicitly; it does not close that host row.
   | 6 | `build_target_activation` | ProgramEntry/Terminal attachment |
   | 3 | `private_joint_progress` | undeclared premise retention (below) |
   | 3 | `subslice_runtime_end_bounds` | claimed elsewhere |
-  | 2 | `service_operational_contracts` (recorded, module since removed) | `borrowed-service-suspension-carrier`; recover a source witness |
+  | 2 | `service_operational_contracts` (recorded, module since removed) | Implementation under [borrow carry](wiki/spec/resources/carry.md#borrows-across-suspension) and [terminal arm calls](wiki/spec/language/state_contracts.md#terminal-calls-in-transition-arms); recover a source witness |
   | 2 | `source_evaluated_native_realization` | demanded-import custody no longer refuses |
   | 2 | `callback_terminal_custody` | calling plans, fragment import custody |
   | 2 | `optimizer_opt_in` | claimed elsewhere |
@@ -6420,15 +6420,28 @@ but report the missing runtime leg explicitly; it does not close that host row.
   domain path's routing, not the recast spelling. The test's other half, which
   rejects exchanging two DIFFERENT packages' domains, still passes.
 
-  Recover the source witness formerly held by `service_operational_contracts`;
-  that module is absent from the current tree, so its two historical failures
-  are not current test commands. The remaining owner question is
-  [`borrowed-service-suspension-carrier`](OWNER_QUESTIONS.md). Separate named
-  transition-transfer acknowledgement from loan preservation: a `suspends; blocks;`
-  ceiling does not establish suspension-safe carry. Check ordinary carry facts,
-  provenance and runtime preservation first. Only an unresolved source-contract
-  choice blocks this slice; reproducing and repairing settled carry behavior
-  does not await the owner.
+  Finish [borrowed suspension](wiki/spec/resources/carry.md#borrows-across-suspension)
+  and [terminal arm calls](wiki/spec/language/state_contracts.md#terminal-calls-in-transition-arms).
+  Recover or replace the removed `service_operational_contracts` source witness;
+  its old diagnostics are not current test commands. Owners: transition parsing
+  and resolution, checked loan/carry frontiers, Terminal emission/verification,
+  interpreter and runtime preservation. A machine-target arm accepts exact
+  `suspend`/`block` markers and forwards its normal result through enclosing
+  completion; a local-state target remains a marker-free jump. Use ordinary call
+  representation, not another asynchronous transfer or callback mechanism.
+  Retain argument and aggregate-carried loans through parked nested calls;
+  borrowed/service types neither categorically reject nor bypass carry evidence.
+  Acceptance: statement, terminal-expression and terminal-arm calls agree on
+  values/Unit, mutation, postconditions, cleanup and parked/resumed behavior in
+  checked execution, reloaded verified Terminal and admitted native execution.
+  A caller-local buffer survives a final borrowed call; shared/mutable reborrows
+  and service receiver loans retain exact parents and close only when permitted.
+  Cover repeated park/resume without repeated effects or cleanup, and checked
+  cancellation outcomes. Reject early parent access/backing release, missing
+  carry/affinity evidence, forbidden live resources, inconsistent result/return
+  contracts, and missing/redundant markers or markers on local-state jumps.
+  Preserve tail-recursion/WCSU rules and reject underreported loan frontiers;
+  do not hide a missing native suspension runtime behind a helper-only pass.
 
   `native_filesystem_canaries` is half the total and fails UNIFORMLY -- 89 of
   89, none passing -- so it is one cause, not eighty-nine. PEELED, by fixing

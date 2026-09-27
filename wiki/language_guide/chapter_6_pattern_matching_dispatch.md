@@ -33,7 +33,7 @@ owned results.
 
 ## Transition Dispatch
 
-A transition chooses the next state:
+A transition can choose the next state:
 
 ```omega
 transition navigation.choice {
@@ -103,10 +103,13 @@ An arm's facts do not leak into other arms or survive invalidating mutation.
 
 ## Tail Dispatch
 
-A transition ends the current straight-line segment. Its target is a state in
-the same machine, not a machine call disguised by call-shaped arguments.
-[Chapter 4](chapter_4_states_transitions.md) explains entry transitions,
-state frontiers, and terminal values.
+A transition ends the current straight-line segment. Resolve its arm target:
+a local state is an internal jump; a machine is an ordinary final call whose
+result completes the enclosing machine. A value arm completes directly.
+Suspending/blocking machine calls retain their exact acknowledgement markers;
+state jumps acquire no markers or suspension merely from what their destination
+later does. [Chapter 4](chapter_4_states_transitions.md#final-calls-including-suspension)
+explains result forwarding and the retained loan/cleanup obligations.
 
 ## Domain Patterns
 

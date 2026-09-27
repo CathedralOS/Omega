@@ -10,8 +10,9 @@ independently checks the emitted product.
 A machine enters its ordinary top-level body. If named states follow, setup
 ends in an explicit tail transition; there is no separately authored entry
 member. State targets belong to that machine. Ordinary calls invoke machines,
-not internal states. A transition adds no call frame or return address and never
-resumes the departed state by returning.
+not internal states. An internal state jump adds no call frame or return address
+and never resumes the departed state by returning. A transition dispatch may
+instead select a terminal value or a terminal machine call as specified below.
 
 A target state's declared receiver retains the machine attachment and is not
 repeated among ordinary jump arguments. This does not permit receiver rebinding.
@@ -36,6 +37,42 @@ from later arguments. A same-named formal cannot alias an unrelated caller value
 Every reachable predecessor participates in a join. Unknown input cannot be
 omitted to preserve a convenient invariant. A minimum collection length is not
 an exact extent, and declaration initializers are not recurring state invariants.
+
+## Terminal calls in transition arms
+
+Classify an arm by its resolved target, not its call-shaped spelling. A local
+state target is an internal jump. A machine target is an ordinary invocation
+whose normal result completes the enclosing machine, including Unit completion.
+Argument admission, result compatibility, machine postconditions, cleanup,
+crash and no-normal-return behavior are the ordinary call-and-completion rules.
+Only the selected arm executes, with ordinary once-only operand evaluation.
+
+Terminal machine calls accept the same exact operational acknowledgements as
+other calls:
+
+```omega
+// Assuming Storage::read permits both suspension and blocking:
+transition {
+    _ -> suspend block Storage::read(storage)
+}
+```
+
+This invokes `Storage::read` in the current activation and forwards its normal
+result; it does not start or detach a task. If the call parks, completion of the
+enclosing machine remains pending. No return, cleanup or storage reclamation
+occurs merely because the call is syntactically final or becomes suspended.
+Ordinary cleanup-bearing completion edges still discharge their obligations.
+Tail-call lowering may remove unnecessary control state only while preserving
+all live backing, loans, custody and completion obligations. Recursive runtime
+calls still obey the no-accumulated-frames rule.
+
+An internal state jump takes no `suspend` or `block` prefix, even if the
+destination later calls a suspending machine; the actual call carries its own
+acknowledgement. Markers neither redirect name resolution nor turn a state into
+a machine. Missing, partial or redundant call markers reject under
+[effects](effects.md#call-site-acknowledgements). The same
+[borrow/carry requirements](../resources/carry.md#borrows-across-suspension)
+apply in a terminal arm as at any other suspending call.
 
 ## Mutation and subject identity
 

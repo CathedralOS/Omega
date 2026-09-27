@@ -287,6 +287,9 @@ suspend block may_do_either();
 These prefixes match the statically known envelope exactly. They do not force
 a pause or change the ABI. A suspending call needs a continuation boundary and
 cannot nest inside an argument or operator; a blocking-only call may nest.
+Final machine calls in transition arms use these same markers and forward the
+eventual result. Borrowed services may cross suspension under ordinary loan/carry
+preservation; boundary-trait identity neither grants nor forbids that permission.
 [Concurrency](chapter_18_concurrency.md) explains the call-site restrictions.
 
 ## Service Identities And Inference

@@ -108,8 +108,10 @@ refinement can narrow it.
 
 Suspension parks the activation while retaining its fixed stack. The call must
 be a complete statement, simple `let` right-hand side, transition subject, or
-terminal expression. A blocking-only call may nest because it retains ordinary
-call execution. A call permitting both uses the order `suspend block` and the
+terminal expression, including a final machine call in a transition arm. That
+arm invokes and forwards the eventual result; it does not start a task. Internal
+state jumps have no acknowledgement prefix. A blocking-only call may nest because
+it retains ordinary call execution. A call permitting both uses `suspend block` and the
 suspension position rule:
 
 ```omega
@@ -202,11 +204,30 @@ preservation when the activation may retain restricted values. Checked providers
 derive it; opaque providers supply exact admitted evidence. A receipt does not
 change the host's actual behavior.
 
-Stack residents have stable addresses because their stack lease is nonmoving,
-not because a runtime supplies an arbitrary promise. A live reference carrier
-alone also does not justify crossing suspension: lifetime, pinning, aliasing,
-cancellation outcomes, and address stability all need evidence. See
-[carry](../spec/resources/carry.md) and [task loans](../spec/build/task_runtime.md#carry-and-loans).
+### Borrows across suspension
+
+Ordinary borrows, including service borrows, may survive a suspending call.
+Assuming a suspending `read` contract and established carry requirements:
+
+```omega
+let count = suspend storage.read(&mut buffer);
+consume(buffer, count);
+```
+
+The exclusive loan of `buffer` remains outstanding while `read` is incomplete.
+`consume` has not run, and neither the owner nor another alias regains conflicting
+access during the pause. Loans carried through fields, reborrows and helper
+calls keep the same provenance and lifetime requirements. A final arm call does
+not make those requirements disappear merely because the caller has no later use.
+
+Existing loan/carry evidence must establish backing lifetime, access restrictions,
+address/CPU/thread preservation and permitted cancellation outcomes. Stack
+residents derive address stability from their fixed stack lease. A guard whose
+carry policy forbids suspension still rejects; a service type or `suspends`
+clause does not grant an exemption. No special async-borrow type or mandatory
+`Binding<T>` wrapper is needed. This proves preservation, not eventual completion.
+See [carry](../spec/resources/carry.md) and
+[task loans](../spec/build/task_runtime.md#carry-and-loans).
 
 ## Task Storage: Accountable, Provider-Planned
 

@@ -81,7 +81,10 @@ reject. Imports and requirements use their pinned envelopes, not a narrower
 implementation guessed by the caller.
 
 A suspending call must be a complete statement, simple `let` right-hand side,
-transition subject, or terminal expression. Bind its result before combining it:
+transition subject, or terminal expression. The last category includes a
+[final machine call in a transition arm](chapter_4_states_transitions.md#final-calls-including-suspension),
+with ordinary call markers, result forwarding and cleanup. Bind its result
+before combining it:
 
 ```omega
 // Rejected: a partial expression would become hidden continuation state.
@@ -569,4 +572,7 @@ state shutdown(&mut self) {
 }
 ```
 
-A call-shaped transition target instead transfers within the machine.
+A call-shaped arm resolving to a local state instead transfers within the
+machine. One resolving to a machine is an ordinary final call whose eventual
+result completes the invocation; its suspension markers and loan/cleanup checks
+remain in force.

@@ -1,7 +1,8 @@
 # Chapter 4: States And Transitions
 
-A state is an internal control label. A transition transfers values to another
-state in the same machine without adding a call frame.
+A state is an internal control label. A transition arm targeting a local state
+transfers values there without adding a call frame. An arm can alternatively
+complete the machine with a value or an ordinary final call's result.
 
 ```omega
 machine countdown(remaining: u32) -> u32 {
@@ -32,8 +33,9 @@ mutation, and return obligations.
 
 Calling a machine enters its top-level body. When internal states follow, setup
 ends in an explicit tail `transition`; there is no separately authored entry
-member. Ordinary calls target machines; transition targets are states in the
-current machine.
+member. Ordinary calls target machines; internal jumps target states in the
+current machine. A machine call written as the final arm operation remains a
+call, not a state jump.
 
 A jump has no return address and does not resume its source state later.
 Completion ends the invocation and must satisfy its result and postconditions.
@@ -117,6 +119,33 @@ machine answer() -> i32 {
 The jump is internal transfer; `42` is a returned value. Return postconditions
 are checked against the live facts on that exact edge, not assumed from the
 machine's entry contract after mutation.
+
+### Final calls, including suspension
+
+Assume `Storage::read(storage)` returns `u32`, permits suspension but not blocking,
+and the borrowed storage satisfies its loan/carry requirements:
+
+```omega
+machine finish_read(storage: &mut Storage) -> u32
+suspends;
+{
+    transition {
+        _ -> suspend Storage::read(storage)
+    }
+}
+```
+
+This is an ordinary call followed by completion with its result. If it parks,
+`finish_read` has not returned; when it completes normally, the returned value
+must satisfy `finish_read`'s result contract and ordinary cleanup still applies.
+Unit-returning calls work the same way. No task is launched or detached, and
+syntactic tail position cannot release storage still borrowed by the callee.
+
+Use `block` or `suspend block` when the selected call's contract requires them.
+A local state jump takes neither marker: any suspending call in the destination
+state is acknowledged where it is invoked. See
+[terminal arm calls](../spec/language/state_contracts.md#terminal-calls-in-transition-arms)
+and [borrows across suspension](chapter_18_concurrency.md#borrows-across-suspension).
 
 ## Lowered Graphs
 
