@@ -27,7 +27,8 @@ fn assert_invalid(bytes: &[u8]) {
 }
 
 #[test]
-fn lock_presence_round_trips_and_has_distinct_canonical_bytes() {
+fn canonical_journals_bind_lock_presence_framing_and_aggregate_limits() {
+    assert_invalid(&[]);
     let mut encodings = Vec::new();
     for before_lock in [None, Some(Vec::new()), Some(b"old lock".to_vec())] {
         let original = journal(before_lock);
@@ -35,8 +36,52 @@ fn lock_presence_round_trips_and_has_distinct_canonical_bytes() {
         let recovered = PackageFileJournal::recover(&bytes, limits()).unwrap();
         assert_eq!(recovered, original);
         assert_eq!(recovered.encode(limits()).unwrap(), bytes);
+        // Each line boundary exercises a missing framing terminator. Payload
+        // length errors have their own controls below, without every-byte sweeps.
+        for (end, byte) in bytes.iter().enumerate() {
+            if *byte == b'\n' {
+                assert_invalid(&bytes[..end]);
+            }
+        }
+        for maximum_journal_bytes in [0, bytes.len() - 1, bytes.len(), bytes.len() + 1] {
+            let budget = PackagePublicationLimits {
+                maximum_journal_bytes,
+                ..limits()
+            };
+            if maximum_journal_bytes < bytes.len() {
+                assert!(matches!(
+                    original.encode(budget),
+                    Err(PackagePublicationError::ByteLimitExceeded)
+                ));
+                assert!(matches!(
+                    PackageFileJournal::recover(&bytes, budget),
+                    Err(PackagePublicationError::ByteLimitExceeded)
+                ));
+            } else {
+                assert_eq!(original.encode(budget).unwrap(), bytes);
+                assert_eq!(
+                    PackageFileJournal::recover(&bytes, budget).unwrap(),
+                    original
+                );
+            }
+        }
         encodings.push(bytes);
     }
+    for suffix in [b"\n".as_slice(), b"\0", b"after-lock 0\n\n", b"other 0\n\n"] {
+        let mut bytes = encodings[0].clone();
+        bytes.extend_from_slice(suffix);
+        assert_invalid(&bytes);
+    }
+    assert!(matches!(
+        PackageFileJournal::recover(
+            b"invalid",
+            PackagePublicationLimits {
+                maximum_journal_bytes: 0,
+                ..limits()
+            }
+        ),
+        Err(PackagePublicationError::ByteLimitExceeded)
+    ));
     assert_ne!(encodings[0], encodings[1]);
     assert_ne!(encodings[1], encodings[2]);
     assert_eq!(encodings[0], b"omega-package-transaction 1\nbefore-build 9\nold build\nafter-build 9\nnew build\nbefore-lock absent\nafter-lock 8\nnew lock\n");
@@ -59,27 +104,6 @@ fn arbitrary_binary_and_marker_like_payloads_round_trip() {
 }
 
 #[test]
-fn empty_files_obey_zero_file_limit() {
-    for before_lock in [None, Some(Vec::new())] {
-        let original = PackageFileJournal {
-            before_build: Vec::new(),
-            after_build: Vec::new(),
-            before_lock,
-            after_lock: Vec::new(),
-        };
-        let mut budget = limits();
-        budget.maximum_file_bytes = 0;
-        let bytes = original.encode(budget).unwrap();
-        let mut budget = limits();
-        budget.maximum_file_bytes = 0;
-        assert_eq!(
-            PackageFileJournal::recover(&bytes, budget).unwrap(),
-            original
-        );
-    }
-}
-
-#[test]
 fn header_and_version_are_exact() {
     for header in [
         "",
@@ -97,9 +121,9 @@ fn header_and_version_are_exact() {
 }
 
 #[test]
-fn all_present_rows_require_canonical_decimal_lengths() {
+fn shared_decimal_grammar_and_each_field_route_reject_noncanonical_lengths() {
     for row in 0..4 {
-        for length in [
+        let invalid_lengths = [
             "",
             "00",
             "01",
@@ -114,7 +138,15 @@ fn all_present_rows_require_canonical_decimal_lengths() {
             "absent",
             "１",
             "999999999999999999999999999999999999999",
-        ] {
+        ];
+        // All fields share read_payload; check its grammar once, then each
+        // remaining route with one noncanonical length.
+        let lengths = if row == 0 {
+            &invalid_lengths[..]
+        } else {
+            &["01"]
+        };
+        for length in lengths {
             let mut rows = [
                 "before-build 0\n\n".to_owned(),
                 "after-build 0\n\n".to_owned(),
@@ -125,16 +157,6 @@ fn all_present_rows_require_canonical_decimal_lengths() {
             rows[row] = format!("{} {length}\n\n", names[row]);
             let bytes = format!("omega-package-transaction 1\n{}", rows.concat());
             assert_invalid(bytes.as_bytes());
-        }
-    }
-}
-
-#[test]
-fn every_truncation_rejects() {
-    for before_lock in [None, Some(Vec::new()), Some(b"old lock".to_vec())] {
-        let bytes = journal(before_lock).encode(limits()).unwrap();
-        for end in 0..bytes.len() {
-            assert_invalid(&bytes[..end]);
         }
     }
 }
@@ -182,16 +204,24 @@ fn row_order_names_and_cardinality_are_fixed() {
 }
 
 #[test]
-fn no_bytes_may_follow_the_last_payload_terminator() {
-    for suffix in [b"\n".as_slice(), b"\0", b"after-lock 0\n\n", b"other 0\n\n"] {
-        let mut bytes = journal(None).encode(limits()).unwrap();
-        bytes.extend_from_slice(suffix);
-        assert_invalid(&bytes);
-    }
-}
-
-#[test]
 fn each_field_uses_the_same_encode_and_recovery_limit() {
+    for before_lock in [None, Some(Vec::new())] {
+        let original = PackageFileJournal {
+            before_build: Vec::new(),
+            after_build: Vec::new(),
+            before_lock,
+            after_lock: Vec::new(),
+        };
+        let budget = PackagePublicationLimits {
+            maximum_file_bytes: 0,
+            ..limits()
+        };
+        let bytes = original.encode(budget).unwrap();
+        assert_eq!(
+            PackageFileJournal::recover(&bytes, budget).unwrap(),
+            original
+        );
+    }
     for index in 0..4 {
         let mut original = journal(Some(Vec::new()));
         let fields = [
@@ -229,52 +259,6 @@ fn each_field_uses_the_same_encode_and_recovery_limit() {
             }
         }
     }
-}
-
-#[test]
-fn aggregate_limit_includes_header_rows_and_all_payloads() {
-    for before_lock in [None, Some(Vec::new()), Some(b"old lock".to_vec())] {
-        let original = journal(before_lock);
-        let bytes = original.encode(limits()).unwrap();
-        for maximum_journal_bytes in [0, bytes.len() - 1, bytes.len(), bytes.len() + 1] {
-            let encode_budget = PackagePublicationLimits {
-                maximum_journal_bytes,
-                ..limits()
-            };
-            let recover_budget = PackagePublicationLimits {
-                maximum_journal_bytes,
-                ..limits()
-            };
-            if maximum_journal_bytes < bytes.len() {
-                assert!(matches!(
-                    original.encode(encode_budget),
-                    Err(PackagePublicationError::ByteLimitExceeded)
-                ));
-                assert!(matches!(
-                    PackageFileJournal::recover(&bytes, recover_budget),
-                    Err(PackagePublicationError::ByteLimitExceeded)
-                ));
-            } else {
-                assert_eq!(original.encode(encode_budget).unwrap(), bytes);
-                assert_eq!(
-                    PackageFileJournal::recover(&bytes, recover_budget).unwrap(),
-                    original
-                );
-            }
-        }
-    }
-}
-
-#[test]
-fn aggregate_limit_is_checked_before_parsing() {
-    let budget = PackagePublicationLimits {
-        maximum_journal_bytes: 0,
-        ..limits()
-    };
-    assert!(matches!(
-        PackageFileJournal::recover(b"invalid", budget),
-        Err(PackagePublicationError::ByteLimitExceeded)
-    ));
 }
 
 #[test]
