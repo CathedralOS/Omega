@@ -19,7 +19,31 @@ pub(crate) fn written_linear_targets(
     let (target, value) = match statement {
         StatementNode::LocalData(local) => {
             if !local.initial_value.is_valid() {
-                return Vec::new();
+                // A mutable zero-constructible local is established by its
+                // declaration alone — there is no value expression to read,
+                // so the root place gets a plain establishment target.
+                if !local.is_mutable
+                    || !validation::zeroed_structural_parts(program, local.type_reference)
+                {
+                    return Vec::new();
+                }
+                return places
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, tracked)| {
+                        tracked.symbol == local.symbol
+                            && tracked.multiplicity == Multiplicity::Affine
+                            && tracked.path.is_empty()
+                    })
+                    .map(|(place_index, _)| WrittenLinearTarget {
+                        root: facts::PlaceRoot::Symbol(local.symbol),
+                        destination_path: Vec::new(),
+                        place_index,
+                        obligation_live: false,
+                        claim_identity: None,
+                        provenance: None,
+                    })
+                    .collect();
             }
             (
                 crate::flow::CanonicalPlace {
