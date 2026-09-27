@@ -93,11 +93,11 @@ pub(crate) fn match_children(
 }
 
 /// Append first visits in recursive preorder, sharing the caller's occurrence roster.
-pub(crate) fn collect_expression_nodes(
+pub(crate) fn collect_expression_nodes<Hashing: std::hash::BuildHasher>(
     program: &TypedTrees,
     expression: ExpressionHandle,
     nodes: &mut Vec<ExpressionHandle>,
-    seen: &mut HashSet<ExpressionHandle>,
+    seen: &mut HashSet<ExpressionHandle, Hashing>,
 ) {
     if !expression.is_valid() || !seen.insert(expression) {
         return;

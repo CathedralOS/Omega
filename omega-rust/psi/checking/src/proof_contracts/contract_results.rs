@@ -214,9 +214,9 @@ fn callable_contracts(
 fn contract_nodes(
     program: &TypedTrees,
     contract: &SignatureContract,
-) -> std::collections::HashSet<ExpressionHandle> {
+) -> std::collections::HashSet<ExpressionHandle, symbols::BuildSymbolHasher> {
     let mut nodes = Vec::new();
-    let mut seen = std::collections::HashSet::new();
+    let mut seen = std::collections::HashSet::default();
     for fact in program.proof_facts.span_or_empty(contract.facts) {
         match fact {
             ProofFact::Expression(root) => {
@@ -272,13 +272,13 @@ fn owns_result(
 /// reach it.
 pub(crate) struct ContractOccurrenceIndex {
     contracts: Vec<(symbols::SymbolHandle, TypeReferenceHandle, bool)>,
-    containing: std::collections::HashMap<ExpressionHandle, Vec<u32>>,
+    containing: symbols::SymbolKeyMap<ExpressionHandle, Vec<u32>>,
 }
 
 impl ContractOccurrenceIndex {
     fn of(program: &TypedTrees) -> Self {
         let mut contracts = Vec::new();
-        let mut containing = std::collections::HashMap::<ExpressionHandle, Vec<u32>>::new();
+        let mut containing = symbols::SymbolKeyMap::<ExpressionHandle, Vec<u32>>::default();
         for (callable, return_type, parameters, contract) in callable_contracts(program) {
             let position =
                 u32::try_from(contracts.len()).expect("callable contract position overflow");
