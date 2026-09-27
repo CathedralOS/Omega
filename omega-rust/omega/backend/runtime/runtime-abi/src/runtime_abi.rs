@@ -274,33 +274,40 @@ mod tests {
     }
 
     #[test]
-    fn fat_descriptor_offsets_are_canonical() {
-        let abi = plan(8).slice_descriptor();
-        assert_eq!(abi.ptr_offset(), 0);
-        assert_eq!(abi.len_offset(), 8);
-        assert_eq!(abi.len_size(), 8);
-        assert_eq!(abi.total_size(), 16);
-        assert_eq!(abi.align(), 8);
+    fn fat_descriptors_share_canonical_layout_but_keep_distinct_kinds() {
+        let plan = plan(8);
+        for (descriptor, kind, shim_size) in [
+            (
+                plan.slice_descriptor(),
+                FatDescriptorKind::Slice,
+                plan.slice_descriptor_size(),
+            ),
+            (
+                plan.text_descriptor(),
+                FatDescriptorKind::TextWindow,
+                plan.string_descriptor_size(),
+            ),
+        ] {
+            assert_eq!(descriptor.kind(), kind);
+            assert_eq!(descriptor.ptr_offset(), 0);
+            assert_eq!(descriptor.len_offset(), 8);
+            assert_eq!(descriptor.len_size(), 8);
+            assert_eq!(descriptor.total_size(), 16);
+            assert_eq!(descriptor.align(), 8);
+            assert_eq!(shim_size, descriptor.total_size());
+        }
     }
 
     #[test]
-    fn shims_match_total_size() {
-        let p = plan(8);
-        assert_eq!(p.slice_descriptor_size(), p.slice_descriptor().total_size());
-        assert_eq!(p.string_descriptor_size(), p.text_descriptor().total_size());
-        assert_eq!(p.slice_descriptor_size(), p.string_descriptor_size());
-    }
-
-    #[test]
-    fn kinds_share_layout_differ_by_tag() {
-        let p = plan(8);
-        let slice = p.slice_descriptor();
-        let text = p.text_descriptor();
-        assert_eq!(slice.total_size(), text.total_size());
-        assert_eq!(slice.len_offset(), text.len_offset());
-        assert_eq!(slice.kind(), FatDescriptorKind::Slice);
-        assert_eq!(text.kind(), FatDescriptorKind::TextWindow);
-        assert_ne!(slice.kind(), text.kind());
+    fn subslice_offsets_pointer_shortens_length_and_rejects_inverted_bounds() {
+        let descriptor = plan(8).slice_descriptor();
+        let resolved = descriptor.subslice(16, 4, 1, 3).expect("valid subslice");
+        assert_eq!(resolved.ptr_delta, 20);
+        assert_eq!(resolved.len, 2);
+        let full = descriptor.subslice(0, 4, 0, 4).expect("full range");
+        assert_eq!(full.ptr_delta, 0);
+        assert_eq!(full.len, 4);
+        assert_eq!(descriptor.subslice(0, 4, 3, 1), None);
     }
 
     #[test]
@@ -313,28 +320,5 @@ mod tests {
         assert_eq!(dynamic.total_size(), 16);
         assert_eq!(dynamic.align(), 8);
         assert_eq!(dynamic.total_size(), p.slice_descriptor().total_size());
-    }
-
-    #[test]
-    fn subslice_offsets_pointer_and_shortens_length() {
-        let abi = plan(8).slice_descriptor();
-        // base at offset 16, 4-byte elements, [1, 3)
-        let resolved = abi.subslice(16, 4, 1, 3).expect("valid subslice");
-        assert_eq!(resolved.ptr_delta, 16 + 4);
-        assert_eq!(resolved.len, 2);
-    }
-
-    #[test]
-    fn subslice_full_range_is_identity_length() {
-        let abi = plan(8).slice_descriptor();
-        let resolved = abi.subslice(0, 4, 0, 4).expect("valid subslice");
-        assert_eq!(resolved.ptr_delta, 0);
-        assert_eq!(resolved.len, 4);
-    }
-
-    #[test]
-    fn subslice_rejects_inverted_bounds() {
-        let abi = plan(8).slice_descriptor();
-        assert_eq!(abi.subslice(0, 4, 3, 1), None);
     }
 }

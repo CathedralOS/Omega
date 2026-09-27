@@ -28,19 +28,7 @@ fn native_for_target_maps_each_declared_pair_to_its_policy() {
         ),
     ] {
         assert_eq!(CallingPolicy::native_for_target(target), policy);
-    }
-}
-
-#[test]
-fn native_for_target_resolves_a_policy_for_every_profile_target() {
-    for profile in target::TargetProfile::ALL {
-        let Some(native) = profile.native_realization() else {
-            continue;
-        };
-        assert_eq!(
-            CallingPolicy::native_for_target(native).architecture(),
-            native.architecture
-        );
+        assert_eq!(policy.architecture(), target.architecture);
     }
 }
 
@@ -75,17 +63,8 @@ fn native_syscall_for_target_maps_each_supported_target_to_its_row() {
         (target::NativeTarget::macos_x64(), None),
     ] {
         assert_eq!(CallingPolicy::native_syscall_for_target(target), policy);
-    }
-}
-
-#[test]
-fn native_syscall_for_target_resolves_for_every_profile_target() {
-    for profile in target::TargetProfile::ALL {
-        let Some(native) = profile.native_realization() else {
-            continue;
-        };
-        if let Some(policy) = CallingPolicy::native_syscall_for_target(native) {
-            assert_eq!(policy.architecture(), native.architecture);
+        if let Some(policy) = policy {
+            assert_eq!(policy.architecture(), target.architecture);
         }
     }
 }

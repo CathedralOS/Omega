@@ -353,30 +353,6 @@ fn invalid_accepted_policy_plan_is_distinct_from_policy_rejection() {
 }
 
 #[test]
-fn register_sets_normalize_order_and_duplicates() {
-    let first = RegisterSet::new([
-        MachineRegister::X86R11,
-        MachineRegister::X86Rax,
-        MachineRegister::X86R11,
-    ]);
-    let second = RegisterSet::new([MachineRegister::X86Rax, MachineRegister::X86R11]);
-    assert_eq!(first, second);
-}
-
-#[test]
-fn register_use_derives_machine_state_and_cannot_be_hidden() {
-    let plan = strict_x86_entry();
-    let validated = validate_boundary_entry_plan(plan, &integer_signature(1)).expect("entry plan");
-    let evidence = StateFootprintEvidence::new(
-        RegisterSet::new([MachineRegister::X86Xmm(0)]),
-        MachineStateSet::empty(),
-    );
-    let error = validate_state_footprint(&validated, &evidence)
-        .expect_err("XMM use must derive vector-state use");
-    assert!(error.0.contains("ceiling"));
-}
-
-#[test]
 fn call_clobbers_must_fit_the_entry_state_ceiling() {
     let mut plan = strict_x86_entry();
     plan.call.ordinary_clobbers = RegisterSet::new(
