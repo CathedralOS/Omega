@@ -47,7 +47,6 @@
 //! tab, with backslash, newline, carriage return and tab escaped as `\\`,
 //! `\n`, `\r` and `\t`.
 
-use checked_interpreter;
 use compiler::{
     CheckedCompileRequest, CompileOptions, CompileRequest, RequestedCompileProduct,
     compile_to_checked,
