@@ -5,7 +5,6 @@
 use crate::checked::CheckedCompilation;
 use crate::terminal::application_coverage::project_terminal_boundary_application_coverage;
 use crate::terminal::terminal_artifact::verification::verify_terminal_artifact;
-use crate::terminal::{float_comparisons, integer_comparisons};
 use diagnostics::Diagnostic;
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
@@ -68,20 +67,22 @@ pub(crate) fn project_terminal_native_realization_proposal(
         callback_placements,
         source_call_occurrences,
     )?;
-    let ieee_float_comparison_occurrences = float_comparisons::associate(
-        checked,
-        &terminal_module,
-        checked.selected_provider_plans(),
-        checked.selected_provider_provenance(),
-        selected_ieee_float_comparison_occurrences,
-    )?;
-    let integer_comparison_occurrences = integer_comparisons::associate(
-        checked,
-        &terminal_module,
-        checked.selected_provider_plans(),
-        checked.selected_provider_provenance(),
-        selected_integer_comparison_occurrences,
-    )?;
+    let ieee_float_comparison_occurrences =
+        terminal_psi_to_abstract_operations::settle_ieee_float_comparison_occurrences(
+            checked,
+            &terminal_module,
+            checked.selected_provider_plans(),
+            checked.selected_provider_provenance(),
+            selected_ieee_float_comparison_occurrences,
+        )?;
+    let integer_comparison_occurrences =
+        terminal_psi_to_abstract_operations::settle_integer_comparison_occurrences(
+            checked,
+            &terminal_module,
+            checked.selected_provider_plans(),
+            checked.selected_provider_provenance(),
+            selected_integer_comparison_occurrences,
+        )?;
     let boundary_application_coverage = project_terminal_boundary_application_coverage(
         checked,
         artifact,

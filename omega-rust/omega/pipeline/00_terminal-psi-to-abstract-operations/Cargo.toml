@@ -10,6 +10,11 @@ name = "terminal_psi_to_abstract_operations"
 path = "src/lib.rs"
 
 [dependencies]
+boundary-applications = { path = "../../backend/artifacts/boundary-applications" }
+checked-trees = { path = "../../../psi/representations/checked-trees" }
+diagnostics = { path = "../../../psi/foundation/diagnostics" }
+lowered-psi = { path = "../../../psi/representations/lowered-psi" }
+selected-dispatch = { path = "../../compiler/selected-dispatch" }
 optimization-unit = { path = "../../representations/abstract-operations/optimization-unit" }
 abstract-operations = { path = "../../representations/abstract-operations" }
 installation-evidence = { path = "../../backend/runtime/installation-evidence" }
@@ -29,7 +34,6 @@ target = { path = "../../backend/target" }
 
 [dev-dependencies]
 abstract-operations-to-target-operations = { path = "../02_abstract-operations-to-target-operations" }
-checked-trees = { path = "../../../psi/representations/checked-trees" }
 target = { path = "../../backend/target" }
 optimization-unit-semantics = { path = "../../representations/abstract-operations/optimization-unit/semantics" }
 checked-trees-to-lowered-psi = { path = "../../../psi/pipeline/05_checked-trees-to-lowered-psi" }

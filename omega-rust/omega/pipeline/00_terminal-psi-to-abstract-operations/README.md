@@ -23,6 +23,13 @@ The entry map is [lib.rs](src/lib.rs). Responsibilities are separate modules:
   plan and selected import row. The retained-Terminal and direct-native routes
   share this operation; exact operation multiplicity and check-only absence of
   an import remain explicit.
+- [comparison_settlement.rs](src/comparison_settlement.rs): join emitted IEEE
+  and integer comparisons to their exact authored application, selected plan,
+  retained provenance and rederived intrinsic execution. Retained output, direct
+  native compilation and inspection consume this same operation. The existing
+  checked-build route still supplies source-side selection evidence; these
+  source-free sidecars grant no native authority and do not bypass canonical
+  admission. Integer emission order/negation and diagnostic ordering are retained.
 - `lowering`: one operation-by-operation walk for scalar, Unit, and structural
   results. Optimization selection does not change this projection.
 

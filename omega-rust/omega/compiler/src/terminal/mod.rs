@@ -5,13 +5,10 @@
 //! its callback custody and native-realization proposal, or the program-entry
 //! artifact the direct native route realizes. `native_proposal` projects what
 //! a later native realization may consume, `application_coverage` rejoins
-//! boundary applications to their checked realizations,
-//! `float_comparisons` rejoins IEEE comparisons to their selected meanings,
-//! `integer_comparisons` rejoins integer comparisons the same way, and
+//! boundary applications to their checked realizations. Omega stage 00 owns
+//! comparison settlement from authored occurrences to selected provider evidence.
 
 mod application_coverage;
-mod float_comparisons;
-mod integer_comparisons;
 mod native_proposal;
 mod terminal_artifact;
 

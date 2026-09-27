@@ -7,9 +7,7 @@
 //! under the request admission profile before anything downstream sees them.
 
 use crate::checked::{CheckedCompilation, OptimizationRollback};
-use crate::terminal::{
-    application_coverage, float_comparisons, integer_comparisons, native_proposal,
-};
+use crate::terminal::{application_coverage, native_proposal};
 use artifacts::allocations::AllocationDelta;
 use artifacts::compile_timings::{CompileTimings, StageMeta, TimingCategory};
 use diagnostics::Diagnostic;
@@ -232,7 +230,7 @@ pub fn validate_lowered_ieee_float_comparison_custody(
     checked: &CheckedCompilation,
     lowered: &lowered_psi::LoweredPsi,
 ) -> Result<(), Vec<Diagnostic>> {
-    float_comparisons::associate(
+    terminal_psi_to_abstract_operations::settle_ieee_float_comparison_occurrences(
         checked,
         &lowered.semantic_module,
         checked.selected_provider_plans(),
@@ -252,7 +250,7 @@ pub fn validate_lowered_integer_comparison_custody(
     checked: &CheckedCompilation,
     lowered: &lowered_psi::LoweredPsi,
 ) -> Result<(), Vec<Diagnostic>> {
-    integer_comparisons::associate(
+    terminal_psi_to_abstract_operations::settle_integer_comparison_occurrences(
         checked,
         &lowered.semantic_module,
         checked.selected_provider_plans(),
@@ -439,14 +437,14 @@ pub fn produce_program_entry_terminal_artifact(
     // Terminal re-entry. Portable numeric semantics alone do not select a provider.
     // Realization below retains the exact checked application coverage; ordinary
     // graph lowering carries each surviving operation into its physical child.
-    float_comparisons::associate(
+    terminal_psi_to_abstract_operations::settle_ieee_float_comparison_occurrences(
         checked,
         &module,
         checked.selected_provider_plans(),
         checked.selected_provider_provenance(),
         &selected_ieee_float_comparison_occurrences,
     )?;
-    integer_comparisons::associate(
+    terminal_psi_to_abstract_operations::settle_integer_comparison_occurrences(
         checked,
         &module,
         checked.selected_provider_plans(),
