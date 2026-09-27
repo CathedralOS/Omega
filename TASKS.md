@@ -5297,102 +5297,58 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   **COMPONENT-SUBSTRATE** owns component closure; this row owns generic
   executable custody.
 
-- **FLOAT-IDENTITY-LITERAL-CARRIER.** Complete admitted floating constant
-  evaluation/materialization under [constants](wiki/spec/language/constants.md#materialization).
-  Four arithmetic operators, six comparisons and public/imported constant
-  identity already have a connected route. Reuse it, preserving exact
-  declaration/import identity and one-time format landing.
+- **FLOAT-IDENTITY-LITERAL-CARRIER.** Complete named floating constant calls
+  and payloadless-NaN evaluation under [constant materialization](wiki/spec/language/constants.md#materialization)
+  and [invocation admission](wiki/spec/language/evaluation.md#invocation-admission).
+  Reuse the existing arithmetic/comparison, public/imported identity and
+  ordinary-machine result paths; preserve one-time format landing.
 
-  Separate payloadless NaN meaning, usable in proof and compile-time
-  computation, from runtime bytes requiring canonicalization, explicit bits
-  or an exact selected realization. `const_generic_expressions/value.rs`
-  and `const_initializers/materialize.rs` still reject computed NaNs at
-  their current boundaries. Complete that distinction without choosing an
-  arbitrary payload or inventing new literal syntax.
+  Connect `pub const ROOT: f32 = F32::square_root(4.0f32);` and classification,
+  conversion, directed-rounding and fused-operation customers to exact selected
+  execution and replay. Current gates span `symbols/targets/calls.rs`'s
+  Data-receiver lookup, which only tries attached machines;
+  `constant/initializer_dependencies.rs` and
+  `const_generic_expressions/call_custody.rs`, which require Machine/State
+  targets; and `const_initializers/invocations.rs::selected`, which requires
+  a closed ordinary entry. Reconcile initializer dependency discovery with
+  the existing typed/checked call selection rather than inventing a second
+  resolver. One family symbol is not an exact overload: keep
+  `ambiguous_named_operator_call_does_not_manufacture_early_identity` and the
+  authored occurrence/declaration join.
 
-  Complete classification, conversion, directed-rounding and fused-operation
-  const customers. Connect exact selected-call admission to the existing
-  `FloatSemantics` dispatch in the checked interpreter; do not add a float engine.
-  Reuse `machine_execution/admission.rs::closure_needs_operator_selection`.
-  Bodyless catalog contract discharge remains **FLOAT-PROVIDERS**' responsibility.
+  Reuse `closure_needs_operator_selection` and the checked interpreter's
+  `FloatSemantics` execution, including selected intrinsic rewrites. A catalog
+  identity or matching spelling alone does not admit a boundary provider;
+  preserve selected-body, argument, contract and package authority before
+  execution. `const_lengths/tests.rs` already checks named provider-body
+  evaluation/replay and rejects unselected fallback. Extend this machinery to
+  initializer calls without another float engine or name-dispatch table.
+  **FLOAT-PROVIDERS** owns bodyless contract discharge;
+  **PROVIDER-SELECTION-AFTER-TERMINAL** owns agreement of const selections
+  across realized targets.
 
-  `pub const ROOT: f32 = F32::square_root(4.0f32);` is the reduced customer.
-  Four stages reject it in order, each reached only once the previous admits:
+  Carry undetermined NaN meaning through admitted proof/compile-time uses
+  without demanding runtime bits. `const_generic_expressions/value.rs`,
+  `const_initializers/invocations.rs` and `materialize.rs` currently reject it
+  at their value boundaries. Materialization still requires canonicalization,
+  explicit bits or an exact selected realization; never publish the evaluator's
+  arbitrary payload or add literal syntax to evade that requirement.
 
-  1. `symbols/targets/calls.rs` leaves the call's target unbound. `data F32 {}`
-     is a namespace carrier owning no attached machine, and `F32::square_root`
-     is one top-level operator whose DECLARED name is that whole path; the
-     Data-receiver route only tries `attached_call_target`. A body reaches the
-     declaration later through typed named-call selection, which a constant
-     initializer's dependency walk runs before.
-  2. `constant/initializer_dependencies.rs::Collector::call` accepts only
-     Machine/State kinds.
-  3. `const_generic_expressions/call_custody.rs::call` accepts only
-     Machine/State kinds, then pushes an executable machine to walk.
-  4. `const_initializers/invocations.rs::selected` requires a closed ordinary
-     machine entry: parameters, a checked probe body, premise discharge and
-     `evaluate_const_evaluable_machine_symbol_for_invocation`. An operator has
-     none of these, and this is where the design work is.
+  Acceptance: source-authored f32/f64 customers evaluate and independently
+  replay, then publish determined bits matching runtime behavior. Preserve
+  signed zero, format, imported-alias and aggregate/call-result custody;
+  `noncall_float_replay.rs` and `tests/floating_aggregates.rs` reject altered
+  results, encodings, formats and erased computation, including coordinated
+  forged NaN receipts. Proof-only NaN use must succeed while undetermined
+  runtime representation and forged selection still reject. Existing
+  `float/build_runtime_semantics_twins_*` exercise array-length calls, not the
+  direct named initializer; retain parity without treating them as its acceptance.
 
-  Stages 2 and 3 are each a few lines and provably inert on the corpus
-  (measured 751741736c (revision not on main): widening both gates to `SymbolKind::Operator`, with an
-  operator contributing a dependency and nothing to walk, leaves
-  `tools/corpus_gate.py --baseline` clean on 3303 fixtures). Stage 1 is NOT a
-  few lines, and stage 4 needs the route decided.
-
-  Stage 1 measured: binding `F32::square_root` in
-  `symbols/targets/calls.rs`'s Data-receiver branch does reach the operator and
-  advances the customer two stages, but it breaks
-  `build-time-evaluation .. ambiguous_named_operator_call_does_not_manufacture_early_identity`.
-  Two operators sharing one name collapse to ONE family symbol, so
-  `find_top_level_by_name_and_kinds_from_source` answers `Unique` and cannot
-  report the ambiguity; `resolve_call_target_symbol` receives only a
-  `SymbolTable` and a `MachineScope`, neither of which carries the operator
-  definitions that would separate a one-signature name from a family. Resolving
-  in the constant walk instead does not carry: `call_custody.rs` reads
-  `call.target_symbol` from the typed trees and rejects with "constant call
-  lost its exact authored target selection" because no authored selection
-  resolves to it.
-
-  So stage 1 is a choice between threading operator signature data into
-  `symbols/targets`, or running the constant initializer's dependency walk
-  after typed named-call selection, which already binds these names correctly
-  for bodies -- the ordering this row already identifies as the cause. Prefer
-  the second and measure it before widening stages 2 and 3, which are dead
-  without it. The interpreter already evaluates these operations
-  inside a machine body, but keyed on the REWRITTEN intrinsic name
-  (`float#fused_multiply_add_f32`) that provider dispatch installs, through
-  `checked-interpreter .. execution/scalar_operations.rs`
-  (`named_float_operation_name`, `eval_rewritten_ternary_float`). Decide
-  whether the const initializer evaluates after that rewrite, or dispatches
-  from the operator's own contract identity
-  (`numerics::float_semantics_catalog::FloatSemanticOperation::for_contract_identity`,
-  which checking derives in `proof/float_meaning.rs`). Do not add a second
-  name-keyed dispatch table beside the interpreter's.
-
-  A std-importing fixture cannot be the customer: a constant initializer with
-  ANY call -- machine or operator -- reaches a whole-closure value-call
-  validation that rejects `ConsoleNativeProvider::read_line`'s
-  `block ConsoleNativeProvider::read_byte()`, because `read_byte` is
-  `macos_arm64 machine` and the corpus gate compiles targetless
-  (**FILTERED-CALLEE-CALL-SITES**). Author the customer without `std`.
-
-  `float_semantic_twins` and `build_runtime_float_semantics_twins_agree` no
-  longer stop in checking or in build-time evaluation: the twin binds 56
-  compiler intrinsics, evaluates, and interprets to exit 70. Both now stop
-  only at native production, with the other two twins, on
-  `float_semantics_twin_code has no admitted body (local construction stopped
-  at statement sequence: local data: scalar local: pure initializer,
-  statement 4)`. That belongs to unit admission, not to this row.
-
-  Acceptance: those source-authored constant customers evaluate and replay
-  with exact selected custody; determined runtime results publish stable bits,
-  while undetermined representations and forged receipts reject. A
-  payloadless NaN may participate in admitted compile-time/proof reasoning
-  without materializing. Retain signed-zero, format and imported-alias controls.
-  Owners: build-time evaluation's constant expression, materialization and
-  replay paths, with shared FloatSemantics rather than a separate arithmetic
-  definition.
+  Recheck the std-importing constant-call customer through current canonical
+  target-family selection. Its historical whole-closure refusal at
+  `ConsoleNativeProvider::read_line`/`read_byte` is a lead for
+  **FILTERED-CALLEE-CALL-SITES**, not a permanent no-std restriction. Use a
+  reduced fixture to isolate admission, then close the imported customer.
 
 - **X86-FMA-PROVIDER-TRANSPORT.** Carry checked/legalized scalar FMA
   occurrences through ordinary selected-instruction transformation,
