@@ -1,11 +1,14 @@
-//! Narrow native filesystem-custody observations used by privileged tooling.
+//! Host filesystem custody and exact-byte output publication.
 //!
 //! This crate owns the platform FFI required to inspect metadata that Rust's
 //! standard library does not expose. Callers receive closed facts, never native
 //! handles or attacker-controlled principal names.
+//! `file_publication` stages and installs replaceable outputs with byte replay;
+//! `record_file` separately owns capability-relative, custody-checked records.
 
 #![deny(unsafe_op_in_unsafe_fn)]
 
+pub mod file_publication;
 pub mod record_file;
 
 use std::fs::File;
