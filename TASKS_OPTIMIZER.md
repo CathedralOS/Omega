@@ -160,54 +160,59 @@ rewrites and promotion are not prerequisites for the first useful compiler.
   control (`python3 tools/corpus_gate.py --native --filter borrow/write_only`)
   and do not introduce source crash routes for private spill operations.
 
-- **ALLOCATION-REFINEMENT.** Add allocation-chosen live-range splits inside
-  pressure regions, beyond existing fixed-use and shared-source-exit copies.
-  Owners: `selected-instructions-to-register-homes`'s
+- **ALLOCATION-REFINEMENT.** Add pressure-chosen live-range splits that
+  connect independently homed segments before private storage when a copy can
+  free a home. Stage 04 owns
   `analyses/fixed_precolored_split_requirements/{compute,replay}/` and
-  `assignment/runtime_spill/recovery.rs`, plus selected-instruction
-  `rewrites/allocation_recovery/fixed_view_copy/`.
+  `rewrites/allocation_recovery/fixed_view_copy/`; stage 05's
+  [allocation recovery](omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/src/assignment/runtime_spill/recovery.rs)
+  owns the pressure decision and subsequent assignment.
 
-  Choose split points, connect independently homed segments, and recompute
-  liveness, ranges and legality. Place splitting in recovery before private
-  storage when it can free a home. Extend tied-register, early-clobber,
-  multiple-incoming-connector and cyclic topology restrictions while preserving
-  exact register-unit aliases and target custody.
+  Existing cuts authenticate fixed uses; fixed-view copies already cover
+  shared source exits. `split_domain_pressure` and its candidate tests score
+  pressure across existing tied/edge-transfer domains, without inserting new
+  split copies. Runtime recovery tries rematerialization and spilling; it
+  does not implement arbitrary pressure-chosen splits. Recompute liveness,
+  ranges and legality after changing the selected graph. Extend the fixed-split
+  path's tied-register, early-clobber, multiple-incoming-connector and cyclic
+  restrictions while preserving exact register-unit aliases and target custody.
 
-  Acceptance: pressure-driven split points, copies and segment homes replay
+  Acceptance: a compiler-produced pressure customer demonstrates useful splits
+  and copies before unnecessary storage. Split points and segment homes replay
   independently through callable publication on each admitted target.
   Moved/omitted splits, incompatible fixed-use crossings, live-unit aliasing and
   stale analyses reject. SPILL-REALIZATION owns storage; this item adds no slot.
 
-- **FRAME-LAYOUT.** Realize bounded activation claims under
-  [activation storage](wiki/spec/resources/activation_storage.md).
-  The contract is ratified. TASKS.md's **RUNTIME-SIZED-ACTIVATION-CONTRACT**
-  owns the missing source/Terminal claim route; ordinary general-call frames
-  do not depend on runtime-sized claims. Existing red-zone, probing, unwind,
-  callee-save and call-alignment plans are not missing mechanisms.
+- **FRAME-LAYOUT.** Realize bounded activation claims under the ratified
+  [activation storage contract](wiki/spec/resources/activation_storage.md).
+  TASKS.md's **RUNTIME-SIZED-ACTIVATION-CONTRACT** owns source checking and
+  Terminal claim production. Ordinary general-call frames do not wait for
+  this feature; red-zone, probing, unwind, callee-save and call-alignment
+  mechanisms already have owners.
 
-  No claim roster reaches native lowering: no `ActivationClaim`/
-  claim-site field exists on `PostAllocationMachineFunction`, which is
-  wire-versioned, so the durable roster shape is upstream's decision. The
-  realization model is also unpinned: co-live claims must pack disjointly
-  while exclusive claims share storage, a tree-packing the spec does not
-  define, and whether committed extent equals the composed charge or a
-  larger physical extent is unspecified. `extents::activation_claims::
-  compose_claim_bounds` already implements the aligned-sum/maximum
-  composition rule and is directly reusable once the contract pins the
-  roster transport, coordinate assignment and extent semantics.
+  No claim roster reaches `PostAllocationMachineFunction`. Coordinate its
+  durable transport with the upstream producer, then join claim sites to
+  [native frame realization](omega-rust/omega/backend/machine-emission/src/function_realization/frame.rs).
+  `extents::activation_claims::compose_claim_bounds` computes aligned sums and
+  branch maxima over supplied rows; its ledger tests do not establish compiler
+  transport, physical coordinates or probe coverage. Implement placement and
+  padding with disjoint co-live claims and reuse for mutually exclusive claims.
+  Bind demand to the final validated physical extent under
+  [stack demand and backing](wiki/spec/resources/storage.md#stack-demand-and-backing);
+  a numeric composition alone is not a layout proof. These are implementation
+  obligations under the existing contract, not pending language decisions.
 
-  Once exact claims reach native lowering, compose simultaneously live bounds
-  with alignment and mutually exclusive bounds by maximum. Retain committed
-  extent computation, activation provenance, release order and suspension
-  custody, joined to the final frame/probe/unwind plans. Reuse permitted eager
-  frame commitment or lazy claim-site commitment; neither grants unbounded
-  stack allocation.
+  Charge authored bounds, never runtime committed values. Retain each site's
+  committed-extent computation, activation provenance, stable addresses,
+  reverse release order and suspension custody in the final frame/probe/unwind
+  plans. The contract permits eager frame commitment or lazy claim-site
+  commitment with per-granule probing; neither permits unbounded allocation.
 
-  Acceptance: per-site replay checks committed extent within its bound and
-  provisioned activation, site/plan bijection, release and suspension custody.
-  Missing/duplicate/invented claims, suppressed bounds and incorrect ordering
-  reject. Establishment failure remains checked, not a trap or clamp; run
-  native claim access/release on each admitted matching target.
+  Acceptance: independent per-site replay checks committed extent within its
+  bound and provisioned activation, site/plan bijection, release and suspension
+  custody. Missing/duplicate/invented claims, suppressed bounds and incorrect
+  ordering reject. Establishment failure remains checked, not a trap or clamp;
+  run native claim access/release on each admitted matching target.
 
 ## Psi optimization and loops
 
@@ -263,52 +268,46 @@ rewrites and promotion are not prerequisites for the first useful compiler.
   rejection of forged context changes; changing arm constants to avoid the
   invariant does not test the missing behavior.
 
-- **GENERAL-LICM.** Extend invariant motion beyond the authenticated
-  shared-source preheader in
-  `01_abstract-operations-to-abstract-operations/src/ranked_rewrites/loop_invariant_scalar_motion/`.
-  Keep independent admission/replay in `src/validation/`, including invariant
-  operand substitution and the existing topology-based non-speculation gate.
-  `132e9894d2` (macw9) added `StructuralByteSequenceFieldRead` relocation:
-  its `index`/`length` operands are **proposition-pinned** — the accepted
-  `index < length` obligation fact is re-derived from the moved op's current
-  operand identities and pinned to the terminal recording, so substituting a
-  member-parameter operand invalidates it even when the operand resolves to
-  an invariant representative (member-op results in the same relocation run
-  still qualify), and admission couples the read to a same-root
-  `StructuralByteSequenceFieldLength`. Admission in
-  `validation/place_observations.rs` + `invariant_operations.rs`, replay in
+- **GENERAL-LICM.** Extend invariant motion beyond the current operation
+  and custody restrictions and authenticated shared-source preheader. Owner:
+  `01_abstract-operations-to-abstract-operations/src/ranked_rewrites/loop_invariant_scalar_motion/`,
+  with admission in `src/validation/invariant_calls.rs`,
+  `place_observations.rs` and `invariant_operations.rs`, and replay in
   `context/ranked_cycles/freeze/relocated_scalars.rs`.
-  The boundary now schedules as `PsiOptimization::LoopInvariantScalarMotion`:
-  selection resolves a session-level `PsiPassStep` that proposes, validates,
-  and applies relocation candidates through `optimize_abstract_operations`,
-  retaining declaration, decision, commit, and manifest rows under
-  independent publication replay. The countdown-invariant-constant
-  relocation boundary and the snapshot validators still compile only for
-  tests and the crate's `test-support` feature.
+
+  `PsiOptimization::LoopInvariantScalarMotion` already schedules proposal,
+  validation, application and publication through `optimize_abstract_operations`.
+  `tests/scheduled_step.rs` verifies retained commits, manifests and ledger
+  replay; it stops at optimizer publication, not native execution. Extend this
+  production route and carry PER-RULE-COVERAGE with each new transformation.
 
   Remaining boundaries:
-  - Establishment/custody families not covered by current relocation.
-    Crash-continuation scalar calls already relocate
-    through the authenticated shared-source preheader with the roster
-    re-derived from the callee's verifier-owned contract via
-    `substitute_crash_routes`. Still open:
-    copyable unrestricted whole-root Owned arguments are already supported;
-    affine/linear argument transfers need custody the boundary cannot currently
-    re-express. Plain unrestricted claim-free structural results already admit;
-    call motion carrying claim transfers, requirement obligations or selected
-    evidence still lacks reconstruction of those
-    relationships. Missing cyclic source operations must first pass ordinary
-    Psi verification, not synthetic bypasses.
-  - Profitability beyond the current execution-guarantee gate, keeping logical
-    fuel distinct from optimization cost under
+  - Remaining establishment/custody families, including affine/linear Owned
+    argument transfers, claim transfers, and structural-result calls carrying
+    requirement obligations or selected evidence. Copyable unrestricted
+    whole-root arguments and admitted claim-free affine/unrestricted results
+    already move. `Call`, `CallUnit` and `CallStructuralScalar` already carry
+    discharged requirement obligations; do not treat all obligated calls as
+    unsupported. New cyclic source operations must pass ordinary Psi verification.
+  - Structural predicates in crash-continuation rosters. All four call forms
+    already re-derive supported rosters from verifier-owned callee contracts;
+    structural-signature calls still require scalar-only predicates because
+    canonical structural-path substitution is missing. Preserve
+    `tests/calls.rs::structural_predicate_crash_roster_stays_inside` until that
+    evidence can be reconstructed, along with pure-callee, argument-invariance
+    and non-speculation controls.
+  - Profitability beyond the current negative relocated-node-count estimate
+    and baseline selector. Keep semantic non-speculation, logical fuel and
+    optimization cost distinct under
     [optimization semantics](wiki/spec/build/optimizations.md).
-  - Motion needing new blocks or run duplication rather than the existing
-    shared-source preheader, with corresponding block/occurrence evidence.
+  - Motion needing new blocks or run duplication, with corresponding
+    block/occurrence evidence, rather than only the existing preheader.
 
-  Parked WIP: `swarm/macw6-general-licm` (one unvalidated commit 46a232ec0a,
-  call-invariance test scaffolding) — review before resuming.
-
-  Acceptance: each transformation independently reconstructs components,
+  Preserve invariant operand substitution and topology-based non-speculation.
+  `StructuralByteSequenceFieldRead` additionally requires same-root/path/field
+  length evidence and proposition-pinned index/length identities: substituting
+  invariant member parameters is insufficient, though producers in the same
+  relocation run can qualify. Acceptance independently reconstructs components,
   loop-carried custody, ranking, provenance, effects and fuel. Forged operands,
   retained internal discards, missing exit disposals and stale frontiers reject.
   Rebuild ownership membership after transformation and preserve Terminal-derived
