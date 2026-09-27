@@ -70,8 +70,8 @@ machine Main::main(&mut self) reaches Console {
         }
     }
     state compare(&mut self) {
-        self.tb = self.text[self.k];
-        self.pb = self.pat[self.j];
+        self.tb = self.text[self.k] as u8 in Wrapping;
+        self.pb = self.pat[self.j] as u8 in Wrapping;
         transition self.tb == self.pb {
             true -> adv_inner()
             false -> mismatch()
