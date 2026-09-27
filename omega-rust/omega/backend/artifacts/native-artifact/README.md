@@ -4,7 +4,16 @@ Start at [native_artifact.rs](src/native_artifact.rs). `NativeArtifact` keeps
 the canonical Terminal artifact, target object, executable image, selected
 provider projections, and replay evidence together.
 
-Its lifecycle is visible there: `from_emitted_parts` derives physical evidence,
+Its [requested-image construction](src/native_artifact/emission.rs) consumes
+`NativeArtifactEmissionParts<ExecutableImageEmissionRequest>`, emits the image,
+and dispatches to the authority-distinct Direct or Dynamic-ELF constructor.
+`RequestedNativeArtifact::emit` accepts only source-free custody and writes no
+files. The compiler supplies selected-plan projections, not source plans.
+Both image products share the emission-parts shape without sharing their
+result type or independent replay.
+
+The remaining lifecycle is visible in `native_artifact.rs`:
+`from_emitted_parts` derives physical evidence,
 `from_replayed_parts` reconstructs retained custody, and `validate` replays the
 joins before the artifact can be returned. Receiving-policy checks belong to
 explicit ecosystem admission, not a default deny-all gate on emission. Structural
@@ -43,9 +52,9 @@ and codec live under `callable_entry/`.
 durable records of the optimized ProgramStorage semantic-wrapper object: plan,
 container, manifest, and custody receipt. Its composition, shape and template
 validation, manifest replay, and codec live under `semantic_wrapper_object/`.
-The native-realization stage that binds these records to settlement and
-encoding custody stays in
-[native-realization](../../../compiler/src/native/optimized_semantic_wrapper_object/mod.rs). Follow
+The native realization that binds these records to settlement and encoding
+custody lives in [optimized_semantic_wrapper_object](src/optimized_semantic_wrapper_object/mod.rs).
+Follow
 [physical/derivation.rs](src/physical/derivation.rs) for independent physical
 evidence reconstruction and [physical/mod.rs](src/physical/mod.rs) for its
 retained carriers. The derivation coordinator in

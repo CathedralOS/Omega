@@ -4,7 +4,6 @@
 //! program, including the retained behavior-exclusion union; selected
 //! optimizations do not choose a different publication route.
 
-mod artifact_assembly;
 mod boundary_applications;
 mod callback_thunks;
 mod input_preparation;
@@ -45,13 +44,16 @@ pub use realization_request::{
 use diagnostics::Diagnostic;
 
 use self::{
-    artifact_assembly::assemble_requested_native_artifact,
     boundary_applications::retain_boundary_application_coverage,
     input_preparation::lower_realization_input, object_emission::emit_realization_object,
     realization_diagnostics::realization_error,
 };
 use abstract_operations_to_target_operations::provider_admission::{
     AdmittedNativeProviders, ProviderAdmissionRequest, admit_native_providers,
+};
+use native_artifact::{
+    NativeArtifactEmissionParts, NativeSelectedProviderClosureDigest, NativeSelectedProviderPlan,
+    NativeSelectedProviderPlanDigest,
 };
 
 /// Realize one Terminal artifact using explicit image, custody, reuse, and
@@ -155,16 +157,41 @@ fn realize_image(
         &artifact,
         request,
     )?;
-    assemble_requested_native_artifact(
-        artifact,
-        emitted.object,
-        executions,
+    // Project selected source plans into the backend's source-free custody.
+    // Image dispatch, physical evidence and artifact replay belong to that owner.
+    let mut selected_provider_plans = request
+        .selected_provider_plans
+        .plans()
+        .iter()
+        .map(|plan| {
+            NativeSelectedProviderPlan::new(
+                plan.report_fingerprint(),
+                NativeSelectedProviderPlanDigest::from_digest(*plan.identity_digest().as_bytes()),
+                plan.rows
+                    .iter()
+                    .map(|row| row.requirement_identity.clone())
+                    .collect(),
+            )
+        })
+        .collect::<Vec<_>>();
+    selected_provider_plans.sort_by_key(NativeSelectedProviderPlan::report_identity);
+    RequestedNativeArtifact::emit(NativeArtifactEmissionParts {
+        target: request.target,
+        psi_artifact: artifact,
+        object: emitted.object,
+        image: request.image_request.clone(),
+        selected_provider_closure_report_identity: request
+            .selected_provider_plans
+            .compatibility_report_identity(),
+        selected_provider_closure_digest: NativeSelectedProviderClosureDigest::from_digest(
+            *request.selected_provider_plans.identity_digest().as_bytes(),
+        ),
+        selected_provider_plans,
+        provider_executions: executions,
         terminal_authority_policy_identity,
         terminal_authority_permission_policy_identity,
         terminal_authority_closure_review,
         boundary_application_coverage,
-        emitted.physical_evidence_scope,
-        request.image_request.clone(),
-        request,
-    )
+        physical_evidence_scope: emitted.physical_evidence_scope,
+    })
 }
