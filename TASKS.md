@@ -1006,974 +1006,228 @@ the complete product bar; focused successes below do not establish that baseline
   closes. Resources and `image_viewer` bundle-relative lookup are outside v1;
   do not silently change working directories.
 
-- **SAMPLE-CORPUS.** Close maintained `samples/cli|gui|uefi` through the
-  [Rust product gates](wiki/drafts/reference/rust_compiler_completion.md#release-matrix):
-  checked semantics, native products for authored targets, and documented
-  exit/output on matching hosts. `compiler/tests/samples_compile.rs`, sample
-  commands and the actual failing stage own integration; application submodules
-  remain **SQUALR-HEADLESS** and language fixtures **CANARY-CORPUS**. The
-  harness repeats package preparation and std checking in
-  `compile_sample_to_checked`. Reuse unchanged checked inputs under their exact
-  identities and measure the complete sweep before reporting sample coverage.
+- **SAMPLE-CORPUS.** Close every maintained `samples/cli|gui|uefi` project
+  through checked semantics, native publication for its authored targets, and
+  documented exit/output on matching hosts under the
+  [release matrix](wiki/drafts/reference/rust_compiler_completion.md#release-matrix).
+  **SQUALR-HEADLESS** owns the separate application checkout;
+  **CANARY-CORPUS** owns language fixtures. This item retains sample integration
+  until each full program works, even when a capability repair has another owner.
 
-  `compiler --test samples_compile` no longer exists; it went with the
-  deleted per-feature `compiler --test` targets, so the sweep below cannot be
-  refreshed by its own route and the command at the end of this item names a
-  target that is gone. Its cohort was also 33 of the 148 sample projects that
-  carry a `build.omg`, so it never measured the tree.
+  Use `python3 tools/sample_gate.py` for the complete checked sweep. It discovers
+  projects with `build.omg` and `main.omg`, excludes `samples/apps/squalr`, builds
+  the current CLI unless `--cli` is supplied, and checks in scratch directories.
+  `--filter` narrows investigation; `--write-results` retains the actual results.
+  The deleted `compiler --test samples_compile` cohort is no longer acceptance.
+  `mbx run -p omega -- refresh-samples` follows ordinary package review and native
+  publication on the host, but does not execute documented runtime oracles.
+  Connect those oracles to maintained coverage; a successful refresh is only
+  the build half. Preserve exact output, stderr, input consumption and timing
+  requirements where the sample documents them. Review each checkout/target's
+  package inputs rather than borrowing another checkout's accepted lock.
 
-  **The complete sweep exists now, and so does a route to refresh it.**
-  `tools/sample_gate.py` replaces the deleted test target: it runs
-  `omega --check` over every `samples/**` project carrying a `build.omg`
-  except `apps/squalr`, in parallel, into a scratch build directory, and
-  groups the first diagnostic per sample. About twelve minutes on eight
-  workers, no native build and no writes to the tree.
+  Prioritize shared operations that unblock full programs. Reproduce with the
+  current CLI and the sample's package/entry inputs: a stale binary, an earlier
+  dependency-review refusal, or an effect-free reduction does not exercise the
+  same route. Follow the reported state/statement and unavailable callee into
+  `04_typed-trees-to-checked-trees/src/execution/terminal_unit/`; a trace phase
+  records the last route entered and can misidentify the declining operation.
+  Keep the algorithm, storage and observable behavior when migrating syntax.
 
-  RE-MEASURED on macOS arm64 at `de525cf687d` (2026-09-27), 131 commits after
-  the first reading: **148 projects, 85 check, 63 refuse**. The headline did
-  not move, and the composition did -- so read the phase lists below as of
-  this commit and rebuild the CLI before trusting any of them. Causes now:
-  unit-plan omission 25, implicit store conversion 17, provider absent on this
-  host 10, nested value call 4, boundary provider route unimplemented 3, other
-  2, non-tail self recursion 1, default-domain field requirement 1.
-
-  What moved since `cf9d37120c6`: omissions 27 -> 25 and TWELVE phases -> TEN;
-  `structural field store: pure source: scalar expression row` 5 -> 4, and
-  now 3 with `text_padding` repaired;
-  `structural field store: scalar field type` 1 -> 2 (`dungeon_render` joined
-  `matrix_multiply`); two phases appeared that the old list does not name,
-  `structural field store: byte sequence carrier` (3:
-  `cli/{basics/text_greeting, systems/status_report, text/string_catalog}`)
-  and `call operation: boundary arguments` (3: `gui/{image_viewer, window_app,
-  window_demo}`). The byte-sequence group is now diagnosed as
-  BYTE-CARRIER-STORE-LITERAL-ONLY; the boundary-arguments group as
-  BOUNDARY-PRIMITIVE-ARRAY-PARAMETER. Every omission phase in the tree is now
-  attributed to an item. The two `other` rows were
-  `cli/simulation/cellular_automaton` and `cli/systems/file_permissions`, both
-  taking the anonymous-bitwise diagnostic rather than omitting -- the check
-  added earlier the same day doing its job. Both are now REPAIRED by typing
-  the operand each diagnostic named: `file_permissions` checks clean, and
-  `cellular_automaton` advances to `Main::clock requires a selected Fused
-  provider`, joining the Clock-provider group (which is therefore 11, not 10).
-  That cluster is empty.
-
-  - **unit-plan omission, 27 -- and TWELVE distinct phases.** The shared
-    "rejoins 0 Terminal attachment identities" line is the symptom; each
-    sample's own `omitted at local construction at ...` names the operation
-    that declined, and the gate now ranks them. Ordered:
-    - 6 `state graph: terminator: conditional successors: guard expression`
-      -- `cli/{arithmetic/dual_float, basics/unit_converter,
-      simulation/particle_sim, text/{parse_int,roman_numeral,string_hash}}`,
-      and this is TWO causes three-and-three, both already owned:
-      the three FLOAT samples guard on a float comparison, and no float
-      COMPUTATION routes anywhere -- a float copy checks, float arithmetic
-      and float comparison omit in every position (guard, bare guard arm,
-      local, field store), each reporting a different phase and none naming
-      a float. Import `core::float_operations` and the same comparison omits
-      at `a missing boundary target (\`Float::equal\`)`, which names
-      OPERATOR-BOUNDARY-CALLS as the owner -- it already records that
-      compiler-known float realizations are absent. Reproduction pinned at
-      `tests/omega/pending/arithmetic/float_computation_no_route`; no new
-      item, the repair belongs to that one. The three TEXT samples guard on
-      `self.i < self.text.len` with `i: i32` against a `u64` length, which is
-      exactly
-      `tests/omega/pending/expressions/mixed_integer_guard_comparison`,
-      already pinned. So this cluster needs no new diagnosis -- it needs
-      those two repairs.
-    - `structural field store: pure source: scalar expression row` --
-      `cli/collections/entity_list` and `cli/rendering/bouncing_particles`
-      read a runtime-indexed record element's field. The reproduction is
-      `tests/omega/pending/collections/runtime_indexed_record_field_store`.
-      Runtime-indexed case dispatch is the same missing selection of a
-      non-scalar element; carry both uses through the shared Terminal route.
-    - 3 `statement sequence: local data: structural call binding` --
-      `cli/{algorithms/dutch_flag, systems/{descriptor_walk,wire_protocol}}`,
-      of which `wire_protocol` is now pinned as RECORD-LITERAL-ARRAY-FIELD
-      below -- and it is a THIRD label for a cause the label does not name,
-      after `dutch_flag`'s,
-      and this is the phase label to DISTRUST. `dutch_flag` carries no
-      `let` at all: its statement is
-      `transition self.items[self.w] { Color::Red -> ... }`, a case
-      dispatch on a RUNTIME-indexed element. `trace.phase` records the last
-      phase entered rather than the operation that declined, so a label can
-      name a site the program never reaches. Isolated in eighteen lines at
-      `tests/omega/pending/control_flow/runtime_indexed_case_dispatch`:
-      `self.items[0]` dispatches and `self.items[self.w]` omits.
-      `descriptor_walk`'s own statement is
-      `let d: &Desc = &self.buf[off] as &Desc;`, and the recast is only ONE of
-      three independently sufficient triggers on that line -- see
-      REFERENCE-LOCAL-BINDING-ROUTES below --
-      a local, and a third shape again
-    - 3 `structural field store: byte sequence carrier` --
-      `cli/{basics/text_greeting, systems/status_report,
-      text/string_catalog}`, and the phase name misleads: the carrier IS
-      recognized (these declare `[u8; N] in Utf8`, unlike the gui samples),
-      the VALUE has no plan. Isolated over one program by changing only the
-      assigned expression -- `self.greeting = "Hello";` checks, and
-      `"Hello, " + self.name`, `self.name + "!"` and
-      `"Hello, " + self.name + "!"` all omit.
-      CORRECTED: that reads as CONCATENATION and it is not. A plain
-      carrier-to-carrier copy with no `+` at all, `self.greeting =
-      self.name`, omits identically, and so does `"Hello, " + "Ada!"` --
-      two adjacent LITERALS, no runtime operand, because `"a" + "b"` is not
-      folded into a String node. The store admits an `ExpressionNode::String`
-      and nothing else; concatenation is merely the commonest way to not be
-      one. Pinned with the full matrix and the decline site at
-      `tests/omega/pending/text/byte_carrier_store_literal_only`
-      (BYTE-CARRIER-STORE-LITERAL-ONLY). The narrower
-      `byte_carrier_concatenation_store` fixture is deleted as a duplicate
-      that encoded the disproved framing.
-    - 3 `call operation: boundary arguments` -- all three of
-      `gui/{image_viewer,window_app,window_demo}`, and the cause is one
-      token. Their `Gui::window_create(class_name: [u8; 7], title:
-      [u8; 11], ...)` declares BARE fixed byte arrays, and
-      `byte_sequence_carrier` recognizes an owned `[u8; N]` only when it
-      carries a DOMAIN; without one the formal is a closed primitive array
-      and `trait_boundary_call.rs` returns None outright. Measured on a
-      twenty-line pair: a bare `[u8; 7]` boundary parameter omits the plan
-      at this phase, and the same program with
-      `pub domain [u8; 7]::CName requires self[6] == 0;` and
-      `[u8; 7] in CName` instead reports "cannot prove requires contract
-      for call take ... self.buf in `[u8; N]::CName`" -- an honest,
-      actionable refusal. So the samples want a carrier domain on their
-      boundary byte parameters, which is `samples/gui`'s owner to spell.
-      The bare form deserves a diagnostic rather than an omission, but
-      that refusal cannot live in the planner: a `return None` there means
-      "this machine has no unit plan", and a machine whose plan nobody
-      needs must stay silent
-    - one each: `state graph: terminator: unsupported tail: transition
-      chain` (`basics/brightness_control` -- now
-      REPAIRED 2026-09-27 -- the sample and its reduction both check; the
-      pass-tier guard is still owed, see below), `structural field store: scalar
-      field type` (`collections/matrix_multiply` -- now
-      MEMBER-POLICY-REMOVES-COMPOSITE-ROWS), `state graph: prefix
-      initializers: bound expression` (`probes/value_call_in_expr` -- now
-      VALUE-CALL-SUBEXPRESSION),
-      `call operation: projected operand support`
-      (`systems/elapsed_timer`), `state graph: result custody accounting`
-      (`systems/file_journal`), `call operation: structural arguments:
-      source symbol` (`systems/note_vault`), and `state graph: terminator:
-      conditional successors: parameter transfer`
-      (`systems/vending_machine`, the case this row already maps in full).
-
-      `note_vault` has MOVED and this row is stale for it. Its record literal
-      in call-argument position was repaired upstream on 2026-09-27 -- a
-      fixture reduced against a nine-hour-old binary checked against a fresh
-      one, which is the reason to rebuild before believing any of these rows.
-      It now omits at an unavailable callee, `Filesystem::create_dir_all`,
-      itself omitted at `statement sequence: unsupported statement kind`, so
-      the remaining blocker is inside the bundled filesystem library rather
-      than in the sample. Unattributed; re-measure before picking it up.
-
-    Two of those singletons are already worth more than one customer.
-    `systems/elapsed_timer` omits at the SAME arm as both Omega-written
-    compiler roots -- the `[copy]` projection out of a borrowed receiver
-    pinned at
-    `tests/omega/pending/calls/copy_projection_from_borrowed_receiver` --
-    so that one arm has three customers. And the guard-expression phase at
-    the top of the list is six samples for one capability, which is the
-    largest single win in the tree.
-  - **implicit store conversion, 17** -- **IMPLICIT-STORE-CONVERSION**'s
-    acceptance says every sample storing across integer types or policies
-    spells the cast, and these do not: `cli/{algorithms/{longest_run,
-    maze_flood}, arithmetic/{collatz_sequence,prime_sieve},
-    basics/multiplication_table, collections/heat_grid,
-    games/{dice_histogram,dungeon_crawler_cli},
-    interpreters/{rpn_calculator,stack_calculator},
-    probes/self_mutation_between_calls, rendering/histogram,
-    simulation/{game_of_life,rule_30}, text/{luhn_checksum,
-    substring_search}}` and `gui/windowed_calculator`. Mechanical repair;
-    `samples/cli` and `samples/gui` are **RC-NATIVE-MATRIX-MACOS-ARM64**'s
-    right now.
-  - **provider absent on this host, 9** -- every one is
-    `Main::clock` wanting a Fused `Clock`: `cli/{algorithms/
-    {binary_search_viz,sort_visualizer}, rendering/{bouncing_console,
-    ripple_field,tick_marquee}, simulation/{cellular_automaton,
-    game_of_life_glider,langtons_ant,random_walk}}`. These are WIRING, not a
-    capability gap, and the pattern is already written three times in
-    `samples/gui/{window_app,window_demo,windowed_calculator}`: each declares
-    a provider data, a `macos_arm64 ... provider_defaults` calling
-    `select_provider<Clock, ...>`, and a `satisfies Clock::sleep` machine
-    over `darwin_poll(0, 0, timeout)`. `MacosClock` in
-    `source/library/std/macos_gui.omg` already carries the same body. The
-    nine CLI samples bind `windows_x86_64`, `linux_x86_64`, `linux_arm64`
-    and `macos_arm64` roots but select a `Clock` provider for the first
-    three only.
-  - **nested value call, 4** -- the `operator` to `machine` migration
-    reaching authored arithmetic:
-    `cli/{basics/temperature_convert, rendering/{bouncing_ball_2d,
-    mandelbrot,mandelbrot_zoom}}`. **OPERATOR-BOUNDARY-CALLS**.
-  - **boundary provider route unimplemented, 3** --
-    `cli/arithmetic/{fibonacci_golden,sensor_min_max,vector_distance}` on
-    `F64::{from_i32,minimum,maximum}`. **OPERATOR-BOUNDARY-CALLS**.
-  - **default-domain field requirement, 2** -- `cli/basics/print_number`
-    ("return from `Main::main`: `self.out` requires `[u8; N]::Utf8`") and
-    `cli/rendering/dungeon_render`.
-
-    One sample has moved off this list since it was taken.
-    `cli/systems/file_permissions` omitted at `structural field store: pure
-    source: scalar expression row` because `self.mode = 4 | 2;` has NO
-    CARRIER: measured over all ten binary operators, `+ - * /` land, `%`
-    already had its own refusal, and all five of `| & ^ << >>` silently
-    omitted the plan. [numeric values](wiki/spec/language/numeric_values.md)
-    says bitwise operations "preserve their signed/unsigned carrier and are
-    total at its width" and a shift count is proven against that carrier's
-    `value_width`, so an anonymous operand has no defined result -- exactly
-    the `%` situation. It now reports "builtin `|` requires an
-    integer-typed operand", and the sample wants `4i32 | 2`, which is
-    `samples/cli`'s owner to spell.
-  - **non-tail self recursion, 1** -- `cli/arithmetic/stats_compute`.
-
-  `cli/simulation/game_of_life_glider` alone took over two minutes to check,
-  which belongs with `windowed_calculator`'s stall below rather than with
-  its own refusal.
-
-  MEASURED SWEEP 2026-09-24: `compiler --test samples_compile` ran 33 and
-  passed 16 in 1116 s. Sixteen of the seventeen failures are one cause, the
-  frontier this file names at the top -- "selected ProgramEntry establishment
-  rejoins 0 Terminal attachment identities; the machine's unit plan was
-  omitted at local construction" -- reached by the `basics`, `gui`,
-  `algorithm` and `game` cohort entries and by the named
-  `temperature_sample_retains_exact_float_operator_evidence`,
-  `fletcher_checksum_checks_its_slice_iteration`,
-  `named_integer_conversion_samples_reach_checked_trees` and
-  `text_padding_accepts_its_projected_text_argument`. Its owner is
-  `04_typed-trees-to-checked-trees/src/execution/terminal_unit/`. Report
-  sample coverage against that number, not against a single customer.
-
-  Preserve each algorithm, storage and observable behavior during legitimate
-  surface migration. Migrate remaining bare or authored-`Bound` service fields
-  under **ENTRY-CONTENT-ROOTS**, without relaxing provider/occurrence checks.
-  The harness already follows checked published executable paths and no longer
-  invents receiving permissions; its test-owned package acceptance still does
-  not complete ordinary CLI review.
-
-  | Customer | Remaining acceptance and routing |
+  | Customer group | Capability owner and remaining acceptance |
   | --- | --- |
-  | `cli_mvp`, `euclid_gcd`, `generic_counters`, `number_guess` | Complete ordinary review and native CLI execution on Windows x86-64 and both Linux hosts; the recorded macOS ARM64 routes passed. Preserve documented exact output, EOF/Enter and prompt timing where applicable, empty stderr, and exits 0/12/16/70 respectively. Review each checkout/target rather than reusing another checkout's local-source lock. |
-  | `print_squares` | Publish and execute the unchanged byte-storage/cyclic program, nine computed rows ending in `081`, exit 0. **NOMINAL-FIELD-FLOW**, **CRASH-CONTRACT** and **GENERAL-CYCLIC-EXECUTION** own facts, envelopes and plans. Wrapping multiplication legalization/selection already exists: rerun the customer, not the obsolete missing-multiply diagnosis. |
-  | `recursive_sum`, `framed_payload` | Complete ordinary review, native products and execution on Windows x86-64 and both Linux hosts. Unchanged macOS ARM64 programs now exit 70/60 with exact 144/165-byte output through ordinary CLI review. Preserve saved reads, untouched siblings and shared payload loans on the remaining hosts. |
-  | `dutch_flag` | Native Color-array construction, reads, swaps and case dispatch, Console interaction and exit 70. Its field is already intrinsic `Binding<Console>`. **STATE-LOCAL-VALUE-FRONTIER** and **WRITE-ONLY-BORROW** own composition; replacing nominal enum storage with integers is not acceptance. |
-  | `calendar` | Publish unchanged trapping conversions through **ARITHMETIC-POLICY-REALIZATION**, finish ordinary package review, and verify all five grid rows plus the live 20-byte header in capacity-21 buffers. A `contains: 30` banner match is not a rendered calendar. `compiler --test byte_index_carriers` is the arithmetic/bounds/write control, not application acceptance. |
-  | `longest_run`, `parse_int`, `roman_numeral`, `string_hash`, `substring_search` | Complete mixed `i32` cursor / `u64` length comparisons under **ARITHMETIC-POLICY-REALIZATION**, then execute the unchanged algorithms and documented outputs through ordinary package review. Do not change cursor types or add casts to avoid the settled comparison semantics; indexing still needs a nonnegative cursor. |
-  | `windowed_calculator` | Reproduce and locate the checked-compilation stall: at `50559da3ab9` on Linux x86-64 it exceeded 25 minutes of CPU without a diagnostic while the other 146 maintained mains checked. The cause was not established; do not label it a provider-selection or proof-search defect without evidence. Native GUI acceptance remains **MACOS-APPLICATION-PUBLICATION**. |
-  | Other text/index/match samples | Close `binary_search_viz`, `maze_flood`, `prime_sieve`, `multiplication_table`, `dice_histogram`, `dungeon_render`, `mandelbrot{,_zoom}`, `wire_protocol` and `dungeon_crawler_cli` through **NOMINAL-FIELD-FLOW**, **WRITE-ONLY-BORROW**, **STATE-LOCAL-VALUE-FRONTIER**, **MATCH-SELECTIVE-LOWERING** or **CML4**, not one task per source permutation. Encoding facts use ordinary domains, not recognized function names. |
-  | `text_greeting`, `status_report`, `string_catalog` | Carrier concatenation `self.t = "a" + self.s + "b"` into a bounded `Utf8` field. Checking and the checked interpreter accept it, but Terminal Psi has no operation that appends a view at a bounded field's live length: `StructuralByteSequenceFieldStore` replaces the whole prefix and `StructuralByteSequenceFieldByteStore` keeps the length. 04 declines at `structural field store: byte sequence carrier`, and the active run tests `runtime_bounded_carrier_concat_exit_canary_runs` and `runtime_bounded_carrier_alias_concat_exit_canary_runs` fail the same way (the alias variant stops earlier, at `call operation: projected operand support`). Add one append operation through Terminal encoding, verifier, interpreter and Omega lowering; an unrolled per-capacity byte sequence is not acceptance. |
-  | `cli/proofs/math_proofs` | Ordinary multiset data/slice extraction, selected laws and checked proof terms; keep the false twin rejecting. Equal lengths are not equal contents and `core/seq.omg` is not a Bag implementation. |
-  | `calculator_rpn` | Reproduce `Main::add`'s indexed nested-field initialization failure with the actual Console-bearing receiver; the recorded std-free reduction passes. **STATE-LOCAL-VALUE-FRONTIER** owns ordinary indexed reads/local construction. Follow the callee's recorded omission, not just the caller's `UnavailableCallee` label, and preserve the full sample's storage and arithmetic. |
-  | Bounded Console input | Finish selected-dispatch/provider/call transport under [bounded input](wiki/spec/resources/bounded_input.md): exact prefix/destination, once-only effects, cleanup, blocking/crash contracts, zero-capacity non-consumption, LF/EOF/Full, untouched tails, alias rejection, caller continuation, failure and invalid-result controls. Keep prefix guards until count-to-extent evidence exists. |
+  | `arithmetic/dual_float`, `basics/unit_converter`, `simulation/particle_sim`; `arithmetic/{sensor_min_max,vector_distance,fibonacci_golden}`; `basics/temperature_convert`, `rendering/{bouncing_ball_2d,mandelbrot,mandelbrot_zoom}` | **OPERATOR-BOUNDARY-CALLS**: executable float comparisons/arithmetic, nested value calls, and selected `F64::{minimum,maximum,from_i32}` respectively. Conversion is a separate operation from binary arithmetic. Retain `pending/arithmetic/float_computation_no_route`; adding `core::float_operations` only changes where the missing route is exposed. |
+  | `collections/entity_list`, `rendering/bouncing_particles`, `algorithms/dutch_flag` | **STATE-LOCAL-VALUE-FRONTIER** and **MATCH-SELECTIVE-LOWERING**: runtime-indexed record-field reads and case selection, pinned by `pending/collections/runtime_indexed_record_field_store` and `pending/control_flow/runtime_indexed_case_dispatch`. `dutch_flag` must construct, read and swap the actual Color array, interact with Console and exit 70; integer substitutes are not acceptance. |
+  | `systems/descriptor_walk`, `systems/elapsed_timer` | **REFERENCE-LOCAL-BINDING-ROUTES** / **RECAST-SOURCE-POSITIONS** for the borrowed local recast; **PASS-TIER-GUARDS-OWED** for the copy projection from a borrowed receiver, also a product-compiler customer. Rerun complete samples after the focused operation is repaired. |
+  | `collections/matrix_multiply`, `rendering/dungeon_render`, `systems/wire_protocol`, `probes/value_call_in_expr`, `systems/vending_machine` | **MEMBER-POLICY-REMOVES-COMPOSITE-ROWS**, **RECORD-LITERAL-ARRAY-FIELD**, **VALUE-CALL-SUBEXPRESSION**, and both **COMPOSITE-TRANSITION-ARGUMENT** / **VALUE-CALL-TRANSITION-ARGUMENT** own the respective operations. `dungeon_render` also needs **NOMINAL-FIELD-FLOW**'s domain provenance. |
+  | `basics/text_greeting`, `systems/status_report`, `text/string_catalog` | **BYTE-CARRIER-STORE-LITERAL-ONLY** owns carrier copies and concatenation into bounded `Utf8` storage. The producer admits only String literals; a plain copy also fails, as pinned by `pending/text/byte_carrier_store_literal_only`. Preserve `self.t = "a" + self.s + "b"` and the alias case through Terminal verification, interpretation and lowering. Existing prefix replacement and live-byte stores do not supply append semantics; unrolling by capacity is not the general operation. Keep corpus customers `text/runtime_bounded_carrier{,_alias}_concat_exit`. |
+  | `gui/{image_viewer,window_app,window_demo}` | **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER** owns the authored by-value primitive-array boundary arguments/results. Changing every parameter to a domain carrier or reference evades that acceptance. Exact fixture/sample provider selection remains required. |
+  | `systems/file_journal`, `systems/note_vault`, `interpreters/calculator_rpn` | **STATE-LOCAL-VALUE-FRONTIER**: result custody, library callee composition, and indexed nested-field initialization. Follow `Filesystem::create_dir_all` in `note_vault`; for `calculator_rpn`, retain the Console-bearing receiver and `let a: i32 in Saturating = self.stack.slots[0]`. Its std-free reduction does not reproduce the full program. |
+  | Integer type/policy store migrations | **IMPLICIT-STORE-CONVERSION**: spell required casts without changing arithmetic policy or algorithms. Customers include `longest_run`, `maze_flood`, `collatz_sequence`, `prime_sieve`, `multiplication_table`, `heat_grid`, `dice_histogram`, `dungeon_crawler_cli`, `rpn_calculator`, `stack_calculator`, `self_mutation_between_calls`, `histogram`, `game_of_life`, `rule_30`, `luhn_checksum`, `substring_search`, and `windowed_calculator`. Re-measure the current set instead of treating an old refusal count as a baseline. |
+  | Clock-bearing samples | Complete declared-host provider wiring for `binary_search_viz`, `sort_visualizer`, `bouncing_console`, `ripple_field`, `tick_marquee`, `cellular_automaton`, `game_of_life_glider`, `langtons_ant`, and `random_walk`. Existing macOS wiring is in `samples/gui/window_app` and `source/library/std/macos_gui.omg`: exact Clock selection and sleep through `darwin_poll`. Missing host selection is distinct from a lowering failure. |
+  | `basics/print_number`, `rendering/dungeon_render` and other text/index/match programs | **NOMINAL-FIELD-FLOW**, **WRITE-ONLY-BORROW**, **STATE-LOCAL-VALUE-FRONTIER**, **MATCH-SELECTIVE-LOWERING**, **CML4** and **OPERATOR-MACHINE-SUPPLY** own their missing operations/facts. Retain `Utf8` and ordinary domain evidence; recognized function names or weakened invariants cannot replace it. |
 
-  The [sample reductions](wiki/drafts/measurements/checking_contract_exit_fact_cost.md#the-unavailablecallee-chain-and-why-it-misleads)
-  locate the `calculator_rpn` failure at
-  `let a: i32 in Saturating = self.stack.slots[0]`. Reproduce comparisons on
-  one binary with equivalent package/entry inputs; a dependency-review failure
-  does not exercise the root program. The algorithm cohort also reports
-  unresolved operator selection and `render_col`'s default-domain requirement:
-  route those to **OPERATOR-MACHINE-SUPPLY** and **NOMINAL-FIELD-FLOW** after
-  attribution, not one task per phase label. Do not weaken `Utf8` to pass.
+  Sample paths in the table are relative to `samples/cli` unless prefixed `gui/`;
+  pending reproductions are under `tests/omega`. Repaired fixture-level cases
+  such as the brightness-control dispatch chain still need their permanent
+  pass guard and full sample outcome under **PASS-TIER-GUARDS-OWED**.
 
-  Use `mbx nextest run -p compiler --test samples_compile --no-fail-fast --no-tests fail -E 'test(=samples_with_documented_exit_run_correctly)'`.
-  PowerShell: `$env:OMEGA_SAMPLE_RUNTIME_FILTER = 'print_squares'`; macOS:
-  prefix with `OMEGA_SAMPLE_RUNTIME_FILTER=print_squares`. This filter affects
-  only that oracle; unset it for complete coverage, and empty selection fails.
-  `cli_mvp_preserves_both_lines_with_eof_and_enter` pins exact input/output;
-  `all_samples_reach_checked_trees` covers the checked cohort.
+  Preserve these distinct product oracles alongside the shared capability work:
 
-  Scope pause: resume `print_squares` only with a plan from its full source
-  closure to native execution, not another isolated helper milestone.
-  Independent operation work remains actionable; use the
-  [Terminal production map](omega-rust/psi/terminal-production/README.md)
-  and **TRANSLATION-VALIDATION** in `TASKS_OPTIMIZER.md`.
-  Acceptance requires every maintained sample to check and applicable runtime
-  oracles to pass on the required hosted matrix. Record unavailable hosts;
-  scoped reruns are not a complete baseline.
+  | Customer | Required product behavior |
+  | --- | --- |
+  | `cli_mvp`, `euclid_gcd`, `generic_counters`, `number_guess` | Ordinary reviewed native execution across Windows x86-64 and both Linux hosts, retaining macOS ARM64 coverage; documented exact output and exits 0/12/16/70 respectively. For interactive input, keep EOF/Enter behavior, both lines and prompt timing, with empty stderr. |
+  | `print_squares` | Unchanged byte-storage/cyclic program prints nine computed rows ending in `081`, exit 0. **NOMINAL-FIELD-FLOW**, **CRASH-CONTRACT** and **GENERAL-CYCLIC-EXECUTION** own facts, envelopes and plans. Resume this customer with a path from its full source closure to native execution; wrapping multiplication already has legalization/selection. |
+  | `recursive_sum`, `framed_payload` | Complete the same hosted matrix through ordinary review; exact 144/165-byte output and exits 70/60 respectively. Preserve saved reads, untouched siblings and shared payload loans. |
+  | `calendar` | **ARITHMETIC-POLICY-REALIZATION**: unchanged trapping conversions and native rendering of all five grid rows plus the live 20-byte header in capacity-21 buffers. Matching a banner containing `30` is insufficient. |
+  | `longest_run`, `parse_int`, `roman_numeral`, `string_hash`, `substring_search` | Mixed `i32` cursor / `u64` length comparisons under **ARITHMETIC-POLICY-REALIZATION**, then documented runtime outputs. Do not change cursor types or cast away the settled comparison semantics; indexing still needs a nonnegative cursor. |
+  | `cli/proofs/math_proofs` | Ordinary multiset data/slice extraction, selected laws and checked proof terms, with the false twin rejecting. Equal lengths do not prove equal contents; `core/seq.omg` is not a Bag implementation. |
+  | Bounded Console input | Under [bounded input](wiki/spec/resources/bounded_input.md), preserve exact prefix/destination, once-only effects, cleanup, blocking/crash contracts, zero-capacity non-consumption, LF/EOF/Full, untouched tails, alias rejection, continuation, failure and invalid-result controls. Keep prefix guards until count-to-extent evidence exists; service receipt migration belongs to **ENTRY-CONTENT-ROOTS**. |
 
-- **CANARY-CORPUS.** Bring `tests/omega/{pass,fail,run}` and
-  `compiler/tests/canary_suite/` to their promised checked/native stages.
-  Use the [focused selectors](tools/testing.md#running-one-test); full closure is
-  `mbx nextest run -p compiler --test canary_suite --no-fail-fast` on one
-  revision with filters unset. Keep detailed logs outside the board; do not
-  migrate fixtures during a measured run.
+  Reproduce the reported long checks for `gui/windowed_calculator` and
+  `cli/simulation/game_of_life_glider` on a current binary and locate the cost;
+  the historical stall did not establish a provider-selection or proof-search
+  cause. Reuse unchanged compilation inputs under **CHECK-CLOSURE-ONCE**, and
+  measure the complete sweep. Non-tail self recursion in `arithmetic/stats_compute`
+  remains a separate execution customer. GUI product acceptance remains
+  **MACOS-APPLICATION-PUBLICATION**.
 
-  Prioritize the actual operation named by `omitted at local construction`,
-  not the downstream `rejoins 0 Terminal attachment identities` symptom.
+  Acceptance: every maintained sample checks, every applicable native product
+  builds, and documented runtime oracles pass on the required matching hosts.
+  Record unavailable hosts explicitly; filtered successes and diagnostic
+  attribution do not establish complete coverage.
 
-  The fail tier is measured, not estimated: 438 fixtures, every one rejects,
-  every one carries an `expected.txt`, and three reject without their own
-  fragment. The earlier counts on this row -- 435 fixtures, 41 without an
-  expected file, 25 moves against the golden -- are retired. Re-measure with
-  `python3 tools/corpus_gate.py --filter fail/`; it is roughly five minutes
-  once the runner is built.
+- **CANARY-CORPUS.** Close `tests/omega/{pass,fail,run}` at each fixture's
+  promised stage under the
+  [release matrix](wiki/drafts/reference/rust_compiler_completion.md#release-matrix).
+  Use `python3 tools/corpus_gate.py`, `--filter fail/` for diagnostic attribution,
+  and `--native` on each required matching host. `--both` adds the checked
+  interpreter where supported. The maintained harness is
+  `omega-rust/omega/compiler/tests/corpus_runner.rs`; `canary_suite` was deleted.
+  **SAMPLE-CORPUS** owns full sample integration; non-corpus/package gates remain
+  in [release closure](#rust-compiler-release-closure).
 
-  Ten rows had moved, all attributed, and nine are re-pinned. The tenth is
-  held back deliberately, and the list is what it is worth knowing:
-  - **Redundant conversion messages.** `calls/terminal_return_type_mismatch\
-_rejected` and `expressions/bool_numeric_operand_mixing_rejected` each gained
-    "implicitly converts `bool` to `i32`" beside the boolean-store rule that
-    already refused them. The advice is not wrong -- boolean-to-integer
-    conversion is a landed leg, so `b as i32` really does compile -- it is
-    the same duplication **IMPLICIT-STORE-CONVERSION** produces against the
-    suffix rule and against domain weakening. Four fixtures now report one
-    authored mistake twice.
-  - **Arena indices printed to authors.**
-    `expressions/token_bound_machine_duplicate_shape_rejected` moved only
-    `Wrapped#124` to `Wrapped#130`, and the two `proofs/quotient_*_rejected`
-    rows moved only `F#196`/`machine#130:state#196`/`theorem#128:state#189`
-    to `F#599`/`machine#187:state#599`/`theorem#185:state#592`. Nothing about
-    those programs changed. These messages print raw arena indices, which
-    carry no meaning to an author and move whenever anything upstream
-    allocates differently, so they will churn this golden again. Worth
-    replacing with stable identity.
-  - **A prover gain.** `termination/rank_range_call_component_prefix_write`
-    LOST its second diagnostic: `self.scan_b(index + 1, limit)` is now proven
-    within `[0..=4]` from `index < limit` and `limit <= 4`. Its own subject
-    still leads.
-  - **A related message gained.**
-    `range/indexed_field_range_runtime_write_rejected` also reports the
-    `where`-facts store, which is its own subject restated.
-  - **The token migration reached the crash lane.**
-    `operators/selected_crash_invocation` moved from
-    `checked_operators()` to `checked_calls()` in
-    `04_/src/checks/crashes.rs`, so "selected operator `Float::equal` in
-    `compare`" became "call from `compare` to `Float::equal` at statement 0
-    call 0". It still carries its fragment, but the call lane's message
-    spells an internal coordinate where the operator lane named the subject.
-    **OPERATOR-BOUNDARY-CALLS** owns the routing; the message is this row's.
-  - **`modules/ambiguous_imported_data` was the tenth, and it is fixed.** It
-    had gained FIVE diagnostics from bundled library code -- one per target
-    -- each saying `extent_shape`'s `first_field` is not provably within
-    `[0..=254]`, which reads as std failing its own obligation. It was not
-    std. `CallFrameResolver::new` refuses WHOLE-PROGRAM when
-    `TopLevelSymbols::build` reports anything, and
-    `cross_expression_effects` read "no resolver" as "an unresolved call",
-    clearing the value environment at every transition in the program. One
-    duplicate `data` anywhere therefore erased every guard-narrowed fact. A
-    call-free expression writes nothing whether or not a resolver exists --
-    that is the answer the resolver itself gives for one -- so its facts now
-    survive, and `fail/modules/duplicate_data_keeps_guard_facts` pins the
-    whole chain in fifteen lines. With that, `--filter fail/` is CLEAN: 438
-    fixtures, zero moves.
+  The check leg already realizes a pass/run fixture that declares an entry
+  root, using its bound host target or first declared target. Reopening that
+  harness repair would duplicate existing work. A rootless fixture still only
+  checks declarations; `checked` is never proof of execution. Native execution
+  requires a matching bound host and a run-tier fixture, `_exit` suffix or
+  `expected_native_exit.txt`. Explicit exit/trap oracles are enforced before
+  recording; `input.txt` and `expected_stdout.txt` supply input/output evidence.
+  See [test workflow](tools/testing.md#attributing-a-move) for attribution.
 
-    The veto has a second face, unfixed and worth a separate look: it also
-    SUPPRESSES checks. `let x: u64 = 7; transition { _ -> narrow(x) }` into a
-    `[0..=254]` parameter rejects with "cannot prove transition argument `x`
-    satisfies bounded parameter `x`", and adding an unrelated duplicate
-    `data` makes that rejection disappear. Only already-failing programs are
-    affected either way, so no accepted program is at stake -- but the
-    statement-level site (`program_validation.rs`'s `value_written`, which
-    clears on `call_frames == None` exactly as the transition site did)
-    is the same coarse veto and has not been narrowed.
+  Finish coverage and roster accounting here; the old
+  `CANARY-CORPUS-ROSTER-ACCOUNTING` name has no separate assignment:
 
-  THREE fail fixtures reject for a reason other than their own subject, so
-  they pin nothing: `build/uefi_program_entry_wrong_calling_policy` (its own
-  paragraph below has the measurement),
-  `calls/value_call_param_effect_arm_rejected` and
-  `providers/checked_boundary_operator_const_application_unselected`. The
-  other three this row used to list --
-  `operators/operand_requires_invalidated`,
-  `slices/index_operator_contract_unproven` and
-  `slices/subslice_range_operator_contract_unproven` -- now reject carrying
-  their own fragments and are gone from the list; the phase-order reading
-  below stays only for the one that remains.
-  `fail/calls/value_call_param_effect_arm_rejected` expects "composed scalar
-  call structural actual lost its authored position" from checking and is
-  instead refused at realization by Terminal validation
-  (`InvalidBlockStructuralParameter`). Both the fixture's header and that
-  expectation name the wrong cause, measured at the raise site: the refused
-  machine is the *callee* `Picker::pick`, whose parameters are
-  `(SharedBorrow Picker, MutableBorrow Tally)`, not the composed caller
-  `Main::main`; no rule spelled "composed scalar call structural actual lost
-  its authored position" exists anywhere (the nearest strings, "ordinary
-  structural source lost its authored position" and "scalar wrapper parameter
-  lost its authored position", are stage-05 lowering guards neither of which
-  is reached). The real gap is that a state declaring `&mut` of a record --
-  `state hi(&self, tally: &mut Tally)` -- lowers to a block structural
-  parameter Terminal verification does not admit. Widening it is the mutable
-  analogue of 9e5948024d's shared-borrow record joins and is at least three
-  gates deep, each confirmed by advancing past the one before it:
-  1. `block_views::validate_declarations`' structural-type clause admits
-     `Owned`, borrowed-view and element-view shapes, or `SharedBorrow` of a
-     primitive or plain record -- never `MutableBorrow` of a record. This is
-     where the fixture dies today.
-  2. with that clause widened, `block_views::validate_successor` refuses:
-     a `MutableBorrow` target parameter requires its argument place in
-     `available` and unique, and `available` is empty at the entry
-     terminator, so the machine's own `&mut Tally` parameter place is never
-     offered to its arm states.
-  3. past those, the frontier still owes exclusive loans what
-     `SharedStructuralLoanDisturbed` gives shared ones, and the interpreter
-     and native lanes owe operand support.
-  So this is a producer/verifier gap in the borrowed-argument lane, not a
-  missing checked-stage rejection. Re-pinning stays wrong, but so does
-  repairing the caller: fix the fixture's stated cause when the gap closes.
+  - Reconcile added/removed fixtures with the check and per-host native goldens
+    after attributing their actual outcomes. The removed
+    `fail/calls/value_call_param_effect_arm_rejected` still has a check-golden
+    row; its accepted replacement and the mutable-record transfer fixtures
+    have explicit exits 1/70/70 and recorded macOS native results. Preserve
+    `fail/borrows/mutable_record_state_alias` as the rejection control and
+    finish other-host coverage; do not reopen the old three-gate repair.
+  - Preserve one portable check golden without hiding semantic differences.
+    Target-name/fingerprint normalization already exists, but host-selected
+    providers can still change the actual refusal. Attribute those changes
+    rather than repinning one host over another. Keep missing/removed rows,
+    wrong-reason negatives, crashes and timeouts visible.
+  - Restore runtime promises lost with deleted per-feature tests as maintained
+    fixture/harness oracles. Many named customers below have no input or stdout
+    file. `host/runtime_console_bounded_line_exit` binds only `Main::main` and
+    currently records an empty-input exit; that does not exercise `Main::repeat`
+    or the LF/Full/window cases. `filesystem/native_wrapper_write_all_result`
+    has neither a run suffix nor an explicit exit file, so the native leg only
+    builds it. Supply execution and output assertions before claiming closure.
+  - Distinguish honest proof/declaration fixtures from executable customers.
+    `terminal_psi/content_custody_exit` now invokes `Root::enter`, but still has
+    no `build.omg` or executable oracle. Finish its promised custody execution.
+    `core/content_{conservation_contract,retained_custody_round_trip}` need an
+    invoking customer for runtime conservation; routed establishment belongs
+    to **BOUNDARY-ISSUANCE**. Keep `proofs/quotient_*_managed_compile` proof-only
+    and add the separate witness owed by **QUOTIENT-RUNTIME-REALIZATION**.
 
-  The other four are one root, and they are regressions rather than
-  long-standing: `fail/operators/operand_requires_invalidated`,
-  `fail/slices/index_operator_contract_unproven`,
-  `fail/slices/subslice_range_operator_contract_unproven` and
-  `fail/providers/checked_boundary_operator_const_application_unselected`
-  were each `expected` in the golden until the `operator` introducer's
-  retirement reached their declarations. The cause is PHASE ORDER, not a
-  missing fact: a token-bearing spelled use routes as an ordinary call, the
-  call-contract rung rejects it, and checking stops before the phases that
-  own the other diagnostics run. Measured on
-  `slices/index_operator_contract_unproven`: the bounds walker
-  (`checks/ranges/indexes/validation.rs::is_builtin_scalar_index`) is
-  entered 1124 times for that compilation and not once for `Main::main`,
-  while the same walker does visit user machines throughout `pass/slices`,
-  whose programs reach that phase. Operator-use rows DO exist -- an earlier
-  reading of this that claimed `facts.operators.uses` was empty was wrong,
-  and only holds for a NOMINAL collection, where indexing resolves no
-  spelled declaration at all. `checked_boundary_operator_const_application_unselected`
-  is the same shape one stage over: const-generic `call_custody` answers
-  before the binary-operator selection authority the fixture targets, whose
-  message still exists in
-  `machine_execution/admission/selection_authority.rs`.
-  Each program still rejects, so this is lost attribution rather than a
-  soundness hole -- what the fixtures lose is the array-bounds phrasing and
-  the clause-by-name form, both owned by phases the rejection preempts.
-  So the question is whether a call-contract rejection should preempt the
-  bounds and clause-by-name phases or run beside them, and if it should,
-  whether that single message is the settled post-migration shape and these
-  four repin. That belongs with **OPERATOR-BOUNDARY-CALLS**; the
-  ranges-seam bounds diagnostic has no other customer either way.
+  Remaining diagnostic acceptance:
 
-  All three are visible in the golden rather than hidden -- two pinned
-  `unexpected`, and `value_call_param_effect_arm_rejected` newly so: the
-  golden used to record it `checked`, because realization was not reached.
-  It now records "native-artifact Terminal production failed:
-  Lowering(InvalidTerminalModule(InvalidBlockStructuralParameter { block:
-  BlockId(6), place: PlaceId(7) }))", which is the gate named above.
+  - **IMPLICIT-STORE-CONVERSION** owns duplicate conversion/domain-weakening
+    reports. Preserve the primary subject in
+    `calls/terminal_return_type_mismatch_rejected`,
+    `expressions/bool_numeric_operand_mixing_rejected`, and
+    `arithmetic/{suffix_type_disagrees,undeclared_bare_name}_rejected`.
+    `range/indexed_field_range_runtime_write_rejected` also repeats its
+    where-fact failure. Emit stable source subjects instead of arena IDs in
+    `expressions/token_bound_machine_duplicate_shape_rejected` and quotient
+    rejections; attribute `operators/selected_crash_invocation` to the authored
+    operator invocation rather than only statement/call coordinates.
+  - `build/uefi_program_entry_wrong_calling_policy` must reach the physical
+    MicrosoftX64 policy mismatch. Admission currently selects boundary schemas
+    by bare name in `compiler/build-evaluation/src/admission/selection.rs`, so
+    the local `UefiApplication` collides with the bundled schema first. Resolve
+    exact schema identity under **UEFI-PHYSICAL-SEMANTIC-ENTRY** and retain the
+    intended negative; repinning it onto the duplicate-schema error would
+    leave the policy check untested.
+  - `providers/checked_boundary_operator_const_application_unselected` must
+    reject for missing exact authored selection, alongside the selected
+    positive. Its recorded diagnostic and `expected.txt` disagree; inspect
+    the actual selection failure under **OPERATOR-BOUNDARY-CALLS**, rather than
+    treating any rejection as the intended evidence.
+  - Keep independent narrowing coverage in
+    `arithmetic/narrowing_anonymous_expression_unproven`: an anonymous array
+    element reaches the range obligation, while `narrowing_signedness_rejected`
+    tests carrier mismatch. The duplicate-data guard-fact cascade is already
+    repaired at both transition and statement sites and covered by
+    `modules/duplicate_data_keeps_guard_facts`; retain that control.
 
-  **The golden is now host-dependent, measured on macOS arm64 at
-  c52f1d9b11d.** Realizing entry-binding fixtures on the check leg
-  (`0fec837bcf7`) is the right accounting, but it made fourteen rows record
-  something only the recording host produces. Twelve `pass/filesystem/*`
-  rows plus `pass/text/zii_default_string_equality_exit` hold a unit-plan
-  omission in the golden and report "selected ProgramEntry Binding field
-  `Main::fs` requires a selected Fused provider for boundary
-  `FilesystemHost`" on a host with no filesystem provider;
-  `pass/filesystem/native_close` records `target: LinuxX64` outright, and
-  `pass/providers/external_boundary_requirement_via_exit` names a host too.
-  `corpus_outcomes.txt` is one file for every developer, so re-recording
-  here would simply move the same rows for whoever recorded it -- the gate
-  cannot be clean on both hosts as things stand. Either keep those fixtures
-  on a route that selects no provider, or give them a per-host golden like
-  the native leg has. Four more rows (`arithmetic/saturating_signed_divide\
-_min_by_neg_one`, `blockexec/blocking_executor_custody_claims_compile`,
-  `expressions/runtime_flat_boolean_logic_exit`,
-  `traits/equatable_record_equality_exit`) simply IMPROVED after the
-  re-record and want re-pinning, and
-  `pass/structs/{copied_array_field_shared_record,nested_unused_provider_fields}`
-  are unrecorded additions. That is the whole 20-move report; the
-  seventeen pass-tier regressions below were folded into the re-record and
-  are no longer what the gate prints. **CANARY-CORPUS-ROSTER-ACCOUNTING**
-  owns both files.
+  Close shared capability failures through their existing owners, rerunning the
+  unchanged outer fixture after each repair:
 
-  **Measured again at 9f3882a40c: 33 moves, and THIRTEEN of them are pure
-  recording debt** -- six fixtures added without a golden row
-  (`pass/{calls/value_call_param_effect_arm,
-  ownership/linear_self_receiver_disposition,
-  structs/{copied_array_field_shared_record,
-  mutable_array_record_state_transfer,mutable_record_state_transfer,
-  nested_unused_provider_fields}}`), one added fail fixture
-  (`fail/borrows/mutable_record_state_alias`), one REMOVED fixture whose
-  golden row is still there
-  (`fail/calls/value_call_param_effect_arm_rejected`, promoted to the pass
-  tier beside it), and five rows that simply IMPROVED
-  (`pass/{arithmetic/saturating_signed_divide_min_by_neg_one,
-  blockexec/blocking_executor_custody_claims_compile,
-  capabilities/uses_caller_folder,
-  expressions/runtime_flat_boolean_logic_exit,
-  traits/equatable_record_equality_exit}`). The other twenty are the
-  host-dependent rows below. Every developer's gate prints all 33, and the
-  count is growing -- it was 27 a few hours earlier. `corpus_gate.py` now
-  prints the breakdown by class under its summary, so a reader can see at
-  a glance whether a run says anything about their own change.
-  **CANARY-CORPUS-ROSTER-ACCOUNTING** owns the golden.
-
-  The PASS tier is where the red moved to, and it is now attributed. Measured
-  unfiltered at 63c72b29128: 1144 fixtures, 22 moves, every one of them in
-  the pass tier. Five were fixtures other lanes added without a golden row,
-  which exits the gate 1 for everyone; they are recorded. The remaining
-  seventeen are status regressions -- `checked` to `rejected` -- and all
-  seventeen reproduce on a base without the guard-facts fix, so none of them
-  is that work. THIRTEEN of the seventeen are the `operator` to `machine`
-  token migration arriving in four different places:
-
-  - **Nested value-call arguments, six rows.**
-    `float/{x86_fma_plan_association,build_runtime_semantics_twins_x86_baseline,
+  - **OPERATOR-BOUNDARY-CALLS** owns nested named/token arithmetic, selected
+    const applications, float match body supply and policy-preserving float
+    providers. Keep `float/{x86_fma_plan_association,
+    build_runtime_semantics_twins_x86_baseline,
     build_runtime_semantics_twins_windows_x64,named_provider_directed_divide_exit,
-    named_provider_fused_multiply_add_exit,named_provider_multiply_then_add_exit}`
-    all stop at "a value-call argument cannot itself be a machine call yet
-    (`subtract(..)` nested in `multiply_then_add(..)` would read a garbage
-    result) -- bind the inner call to a local". This is the migration's
-    largest consequence and it is not float-specific: once a spelled
-    arithmetic operator routes as an ordinary call, `a * b + c` IS a nested
-    value call, and the value-call lane does not support one. Either the lane
-    learns nested calls or every authored arithmetic composition over
-    token-bearing machines needs a temporary.
-  - **Implicit domain weakening at a provider argument, three rows.**
+    named_provider_fused_multiply_add_exit,named_provider_multiply_then_add_exit}`;
+    `expressions/match_float_{interpretation,patterns,subjects}`; and
+    `providers/checked_boundary_operator_const_application_alternate_exit`.
     `float/{float_saturating_arithmetic_exit,float_trapping_overflow_traps,
-    float_trapping_propagated_nan_traps}` pass an `f32 in Saturating` or
-    `in Trapping` value to a `f32` parameter and are refused by
-    **IMPLICIT-STORE-CONVERSION** plus the older domain-weakening rule.
-    Spelling `as f32` is NOT the repair here: it erases the very policy each
-    canary exists to exercise. They want the Saturating/Trapping overloads
-    `core/float_operations.omg` does not declare -- the same block this row
-    already records for `named_provider_multiply_then_add_exit`.
-  - **No body supply outside binary and indexed uses, three rows.**
-    `expressions/match_float_{interpretation,patterns,subjects}` report
-    "`Float::equal` was selected for its fixed operator token `==` in a
-    position whose body supply is not implemented; only binary and indexed
-    expression uses bind the declaration's own body". A match subject or
-    pattern is neither.
-  - **A lost authored target selection, one row.**
-    `providers/checked_boundary_operator_const_application_alternate_exit`:
-    "const-generic application evaluation failed: constant call lost its
-    exact authored target selection".
+    float_trapping_propagated_nan_traps}` require their authored policies;
+    `as f32` erases the subject. Exact-cast guards in
+    `float/float_to_int_exact_proofs_exit` need one authoritative comparison
+    recognizer for both Binary expressions and token-bearing calls, shared by
+    float fact readers. Keep operator-contract negatives for invalidated
+    operands and unproven indexing/subslicing rejecting for their own reasons.
+  - Float field/index store admission already includes structural reads in
+    `structural_scalar_store/value.rs::admits`. Verify the full
+    `sensor_min_max` route, including independent storage-read replay and native
+    float comparison emission; another checked guard fact alone is insufficient.
+    **SAMPLE-CORPUS** retains this customer and the `F64::minimum` dependency.
+  - **ENTRY-CONTENT-ROOTS** owns `control_flow/guarded_leaf_branch_expansion`
+    and `capabilities/uses_caller_folder`: owned-array/capability custody at a
+    boundary is distinct from shared-reference copies and from deliberate
+    move-and-restore under **BORROWED-STORAGE-RESTORATION**. Preserve nested
+    service nomination and exact authored Gui/Input/Console providers; a
+    bundled provider for a same-named requirement is insufficient.
+  - `capabilities/windows_provides_import_exit` must preserve the producing
+    statement of `self.m = self.beeper.beep(self.v)` and execute on Windows.
+    Follow `statement_continuations` in the attached Unit state-graph lowering,
+    retaining the ordinary-call control and actual Binding/ForeignBinding
+    package inputs. A macOS PeByName refusal cannot measure that execution.
+    `providers/external_leaf_dllimport_compile` needs its checked per-call
+    authority carried into native `NormalizedForeign`, not a fixture permission
+    or hardcoded provider cohort. Preserve
+    `filesystem/runtime_local_host_result_dispatch_exit` as the Linux
+    source-effect ordering customer; missing host providers are separate work
+    from lowering the selected calls.
+  - `proofs/cauchy_predicates_compile` needs both capabilities documented in
+    `source/library/core/cauchy.omg`: positivity from the static-call projection
+    `(Middle(middle_index)).den`, and an entailment tier for machine-parameterized
+    `converges_together_at` guarantees. **PROOF-CONTRACT-MIGRATION** owns that
+    proof work; inlining a local does not supply either capability. Keep exact
+    intermediate arithmetic bounds in `proof_inductive_climbing_sum` and its
+    unbounded-accumulator negative even when a theorem uses `embed`.
 
-  FOURTEEN, once `float/float_to_int_exact_proofs_exit` is measured: it
-  belongs with them too, and it names the shape the migration still owes.
-  A fifteen-line std-free reduction reproduces it under `omega --check` --
-  a guard proving `x == x && x >= 0.0 && x <= 100.0` stops discharging
-  `x as i32` in the successor state. The float guard walker
-  (`omega-rust/psi/checking/src/value_custody/expression_types/float_cast_proofs.rs`'s
-  `float_guard_fact`) is BINARY-ONLY, and instrumented it sees `node=CALL`
-  with display `equal(self.unbounded, self.unbounded)`,
-  `greater_or_equal(self.unbounded, 0.0)` and
-  `less_or_equal(self.unbounded, 100.0)`. It goes blind and silently
-  returns no fact. `narrow_environment_by_condition` has the same shape, and
-  the authority both would need --
-  `proof_contracts/bound_expression_meaning.rs`'s
-  `sealed_float_comparison` -- is Binary-only AND already blind one level
-  down: it requires exactly one candidate from
-  `resolve_spelling_for_operands`, and `has_builtin_spelled_expression_meaning`
-  probes `spelled_exists=false` for `f64 <`, because a token-bearing
-  boundary machine lives in `machine_token_bindings()`, not `operators()`.
-  So this wants ONE shared recognizer -- read a comparison whether it
-  arrives as a `Binary` node or as a token-bearing call -- rather than a
-  second authority per walker.
+  Preserve these distinct native customers and oracles (paths relative to
+  `tests/omega/pass`):
 
-  All fourteen belong with **OPERATOR-BOUNDARY-CALLS**. Of the other three,
-  `generics/runtime_const_data_where_fact_exit` and
-  `generics/declared_range_endpoint_inference` are fixed and one remains:
-  `capabilities/windows_provides_import_exit` (host-gated:
-  "foreign locator PeByName is not applicable to selected target
-  `macos_arm64`").
-
-  The const-data one was the assignment window re-proving a fact that has
-  nothing to do with the write. `FixedBuffer<const N: u64> where N > 0 &&
-  N <= 8, N in BufferSize, used <= N` names three facts; only the third
-  mentions a field. Writing `self.buffer.used = 4` folded all three against
-  a FIELD valuation, and the two const-only ones answered "unknown", opening
-  an invariant window no store could ever close. They were decided once,
-  when the specialization substituted 4. A type-wide fact naming no field of
-  the data is now skipped at a field write. CASE facts are deliberately not
-  filtered that way -- their names are the variant's payload bindings, which
-  are not members of the data, and filtering them broke
-  `fail/dependent/case_where_payload_write_exit_open` before that exemption
-  went in.
-
-  **`generics/declared_range_endpoint_inference` is fixed; the diagnosis is
-  kept because the shape recurs.** It reduced to nine lines whose message
-  named the wrong file. It reports "quoted byte literal cannot
-  initialize owned fixed byte array `[u8; ObjectLength]`", which is std's
-  `process_exit_binding` storing `"kernel32.dll"` into
-  `DllImport<12, 11, 0>`. The fixture contains no byte literal. The
-  reduction, measured by deleting from the fixture down:
-
-  ```omega
-  use omega_language_std::console;
-  use omega::language::core::binding;
-  data RangeValue<T [copy]> [copy] { value: T; }
-  machine ranged() -> u64 {
-      let bounded: RangeValue<u64[0..=256]> = RangeValue { value: 0 };
-      bounded.value
-  }
-  data Main { console: Binding<Console>; }
-  machine Main::main(&mut self) reaches Console { self.console.exit_process(70); }
-  ```
-
-  Change the one type argument to `RangeValue<u64>` and it checks. What the
-  RANGE-CONSTRAINED argument does is suppress monomorphization of an
-  UNRELATED generic. Instrumented at the landing site
-  (`omega-rust/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/src/expressions/fixed_byte_array_literals.rs`),
-  alternating the two versions four times so no run's result stands alone:
-
-  | type argument | what the landing site sees |
+  | Customer | Required behavior and owner |
   | --- | --- |
-  | `u64[0..=256]` | `definition=DllImport candidates=["DllImport"]` |
-  | `u64` | `definition=DllImport<12, 11, 0> candidates=["DllImport", "DllImport<12, 11, 0>"]` |
+  | `text/runtime_local_struct_string_field_concat_exit`, `text/runtime_string_stored_suffix_exit` | Exits 188/193 with unchanged shared-view Room records. **NOMINAL-FIELD-FLOW** and **STATE-LOCAL-VALUE-FRONTIER** must carry UTF-8 field provenance across state/call boundaries and lower borrowed-view stores. Copy permission cannot establish qualification or extend a loan. |
+  | `text/runtime_stdin_command_branch_exit` | Preserve the reader and owned Command result-to-field storage, then execute its input/branch oracle. **STATE-LOCAL-VALUE-FRONTIER** owns composition; reattribute the current omission instead of inheriting a historical phase label. |
+  | `host/runtime_console_bounded_line_exit` | Matching-host result and mutable-window execution: LF, EOF, Full, repeated middle-window reads, zero-capacity non-consumption, exact count/reason exits and output, next unread byte and untouched tails. Restore coverage for the alternate `repeat` entry; discard-result execution is insufficient. |
+  | `text/runtime_stdin_line_buffering_exit` | Both blocking `echo_line` calls, caller CRLF normalization and exact completed prefixes. **ENTRY-CONTENT-ROOTS** owns borrowed intrinsic-service receipt transport through `write_prefix`, calls and state edges; preserve the two-read/helper flow. |
+  | `filesystem/native_wrapper_write_all_result` | On macOS ARM64, store and dispatch the write result: nonexistent parent gives Error, `/tmp` gives Ok, stdout contains PASS and no FAIL. Exit zero alone is insufficient. This is distinct from **FILESYSTEM-RELEASE-CONTRACT** proof closure. |
+  | `host/runtime_gui_foreground_window_exit` | Windows, exact authored Gui provider: create, query/store foreground result, destroy, exit 70. An invisible window need not become foreground. |
+  | `control_flow/runtime_{integer,string}_literal_dispatch_exit` | Exits 22 and 11 for `"look"`, with authored selection order and ordinary result/field storage. Integer dispatch has recorded native results; retain it as the control while completing string dispatch and the host matrix. **MATCH-SELECTIVE-LOWERING** / **STATE-LOCAL-VALUE-FRONTIER**. |
+  | `wire/runtime_wire_exact_array_without_count_exit` | Generated `[u32; 4]` encoding without a synthetic count sibling: seven bytes `00 00 04 01 02 03 04`, exit 70, and checked-interpreter agreement. **WIRE-RUNTIME-AND-INSTALLATION** owns the generated operation; native execution remains part of this integration gate. |
 
-  The instance was never MINTED, and the reason is an ORDERING that is
-  deliberate. `range_arguments::evaluate` -- which does work only when a
-  generic argument carries a range -- clones the syntax, resolves it and
-  TYPES it to canonicalize endpoints, and that clone is taken BEFORE
-  generic-data synthesis on purpose: the synthesis is itself a customer of
-  the canonical ranges this pass produces, so it cannot run first. Every
-  generic data application is therefore unsubstituted inside the probe, and
-  `land_exact_fixed_byte_array_literals` refused std's `"kernel32.dll"`
-  against `DllImport`'s const-parameter width. The probe's error propagated
-  as the program's, which is how a fixture with no byte literal came to
-  report one -- in every program pairing a range-constrained generic
-  argument with a library, `omega --check` included, not just the corpus.
-
-  A still-generic TEMPLATE is now skipped at that landing site. Its member
-  width is a const parameter, never a literal, and its constructions are
-  rewritten onto the synthesized instance whose width IS one -- that copy
-  lands normally. Making the probe itself bail on a typing failure was tried
-  first and is worse: it clears the message but drops the canonical ranges
-  the pass exists to retain, and the fixture then fails on its own subject
-  instead.
-
-
-  The attribution recipe and its two measurement hazards now live where
-  they belong, in
-  [tools/testing.md](tools/testing.md#attributing-a-move).
-
-  When an item's acceptance names a pass fixture, check that the fixture's
-  entry runs the thing. 103 of 704 pass fixtures end in an empty
-  `machine X::main(&mut self) {}`. Only one is named `_exit`, so the naming
-  is mostly honest, but the count understates the problem: among those 103
-  are the acceptance customers of executable features.
-
-  Sixteen of the 103 are named somewhere in this board, so an item believes
-  it has coverage from them: `core/{content_conservation_contract,
-  content_retained_custody_round_trip,extent_root_provider_adapter}`,
-  `generics/omitted_data_binder_range_equation`,
-  `memory/{address_translation,bump_allocator,interrupt_table}_canary`,
-  `modules/{module_array_constant_indices,qualified_constants,
-  qualified_declarations}`, `proofs/{cauchy_predicates_compile,
-  quotient_define_managed_compile,quotient_lift_managed_compile}`,
-  `providers/specialized_structural_fixed_operator_terminal_custody`, and
-  `terminal_psi/{content_custody_exit,structural_content_passthrough}`. Most
-  read as honest compile canaries once their headers are consulted -- a
-  `where` type equation binding before layout, or a module's declaration
-  surface, has no executable half to invoke.
-
-  Five of the sixteen carried no stated subject, so the distinction this item
-  draws could not be applied to them: the two `terminal_psi` rows and
-  `modules/{module_array_constant_indices,qualified_constants,
-  qualified_declarations}`. All five now state one. The three `modules` rows
-  are honest compile canaries -- module resolution, qualified constants and
-  qualified declarations are checking properties with no executable half --
-  and say so. `content_custody_exit` is the anomaly: it takes the
-  `_exit` run-canary suffix while having no `build.omg`, no console binding
-  and an empty `Root::main`, so `Root::enter` -- which holds its subject --
-  is never invoked. Its execution is owed, by an invoking entry or a rename.
-  **CONSERVATION-CONTRACT**'s `core/content_conservation_contract` and
-  `core/content_retained_custody_round_trip` declare the contract and never
-  invoke it. **QUOTIENT-RUNTIME-REALIZATION**'s
-  `proofs/quotient_*_managed_compile` never call the machine holding the
-  operation either, but that pair is deliberately proof-only and says so in
-  its header, which is the distinction to draw: an empty entry may be an
-  honest compile canary or a missing customer, and only the fixture's own
-  stated subject separates them. Either way an executable item needs an
-  invoking customer that the corpus may not contain.
-
-  `corpus_runner`'s pass route requests the Check product targetless and
-  establishes no program entry, so a `_exit` fixture whose unit plan is
-  omitted still records `checked`. Every `pass/recast/*_exit` row is green on
-  that route and refuses under `omega --check`. Realize the fixtures that
-  declare a program-entry root, as `realize_fail_fixture` already does for the
-  fail tier, before reading a pass row as executable.
-  Tight starting groups are structural-call bindings in `recast`, pure-source
-  field stores in `float`, and conditional guards/call operations in
-  `filesystem`. Their shared owner is
-  `04_typed-trees-to-checked-trees/src/execution/terminal_unit/`; keep each
-  repair attached to its unchanged source-to-native customer.
-
-  `samples/cli/algorithms/binary_search_viz` no longer stops at a unit-plan
-  omission. Its `mid_calc` store needed a builtin `min`/`max` selection to
-  compose as an operand of arithmetic, which `integer_operand` declined because
-  a builtin has no entry state for the ordinary call route to find. It now
-  reaches provider selection instead: "selected ProgramEntry Binding field
-  `Main::clock` requires a selected Fused provider for boundary `Clock`". That
-  is the sample's next frontier and belongs to boundary provider selection, not
-  to terminal unit construction.
-
-  `samples/cli/arithmetic/sensor_min_max` measures the float source policy in
-  `structural_scalar_store/value.rs::admits`. A float store admits only an IEEE
-  literal, a parameter or a local, so `self.lo = self.nums[0]` and
-  `self.cur = self.nums[self.i]` are refused although neither read is a floating
-  operation and both are already admitted at an integer carrier. Widening it to
-  `StructuralParameterField` and `StructuralParameterIndexedRead` clears both
-  stores, and the sample then stops on "unimplemented: `Main::main` applies
-  boundary operator `F64::minimum`, whose selected provider has no
-  requirement-level Terminal route for Omega to install" -- the diagnostic
-  **OPERATOR-BOUNDARY-CALLS** exists to remove. The widening is a prerequisite
-  for that item's customer, not an independent repair: land it with that work,
-  where the sample's own `omega --check` is the acceptance.
-
-  Two measurements for whoever lands it. The widening is clean over 1120
-  corpus fixtures and moves none of them, because the store admission only
-  decides unit-plan construction and no corpus fixture reaches it: a
-  float-store program checks targetless either way, and only a bound program
-  entry exposes the omission. Second, the widening is not sufficient for
-  realization. A machine binding an entry whose body is
-  `self.lo = self.readings[0]; self.hi = self.lo;` has its unit plan omitted
-  without the widening and builds a plan with it, then stops in
-  `expression_preparation/source_custody/storage_reads` at "scalar read
-  differs from its authored binding or mutable place": the independent replay
-  there does not reconstruct either read form, and it is a verification
-  check, not a gate to relax. Keep an exit that is not a float guard when
-  writing the acceptance -- `transition self.lo == 1.5` omits at
-  `state graph: terminator: conditional successors: guard expression` on its
-  own, with no float store involved.
-
-  That float guard is not a producer gap, and the obvious repair is a dead
-  end. `boolean_lowering.rs` mentions no floating type at all, so
-  `lower_boolean_guard` records no `Guard` fact and `retained_guard` finds
-  nothing; the omission is deliberate. `CheckedBooleanExpression` does spell
-  `ScalarIeeeFloatComparison` and every consumer in `04_` handles it, so
-  building one there makes `self.lo == 1.5` check -- and realization then
-  refuses it in `expression_preparation/prepare_expression` as "structural
-  equality is contract-only terminal vocabulary", because
-  `LoweredBooleanReturnExpression` has no floating form. Minting it for a
-  guard trades an omission for a program that passes `omega --check` and
-  cannot be built. The executable lowered form and its Terminal and backend
-  emission come first; `CheckedIeeeFloatComparisonKind` also spells only
-  `Equal` and `NotEqual`, so ordering guards need a representation decision
-  beyond that.
-
-  No corpus fixture sees that diagnostic at all -- a full record carries zero
-  occurrences -- because the pass tier compiles targetless through Check and
-  never installs a provider. The sample is the only witness either half has.
-
-  No corpus fixture can pin that policy, and the reason is the route, not the
-  program. The sample reduces to a console call, a literal `[f64; 6]` fill,
-  `self.lo = self.nums[0]` and a `done` state -- no loop, no fold, no float
-  arithmetic -- and still stops there under `omega --check`. That
-  byte-identical source placed under `tests/omega/pass/float/` with the same
-  `build.omg` root bindings checks clean, so the corpus runner's compile route
-  never reaches `admits`. Use the sample command as this policy's acceptance
-  check; a corpus fixture passes with the policy reverted and pins nothing.
-
-  One UEFI fail fixture is left of the two this row used to name.
-  `uefi_program_entry_local_physical_contract` is gone;
-  `uefi_program_entry_missing_storage_roots` reaches
-  "exposes exactly image and initial-storage roots" and is green.
-  `uefi_program_entry_wrong_calling_policy` still pins
-  "requires MicrosoftX64" while stopping on "target root slot
-  `uefi_x86_64::ProgramEntry` requires exactly one loaded `UefiApplication`
-  boundary schema, but found 2".
-
-  The prescription this row used to carry -- rewrite onto the library surface
-  and vary only the calling policy -- is refuted, and the fixture's header
-  now carries the measurement. The slot resolves its schema by BARE NAME over
-  every loaded boundary trait, and the bundled std declares an application
-  schema for all six targets that name one, so a package declaring its own
-  always makes two. The duplicate is not this file's imports: dropping
-  `use omega::language::std::calling;` leaves the count at 2, because the
-  library's target entry loads with the TARGET rather than with the import.
-  And the policy cannot be varied from the library surface either --
-  `CallingPolicy` lives only in `std/calling.omg`, and the library's schema is
-  bound to `Calling<UefiX86_64>`, which plans MicrosoftX64 on every route. A
-  package can supply a wrong policy only by declaring its own schema, and
-  declaring its own schema is exactly what stops it.
-
-  So the physical/semantic convention check in
-  `build-evaluation/src/admission/selection.rs` has NO customer: not in the
-  corpus, and not in Rust either, since `BoundaryCallingPlanRealization` seals
-  `exact_boundary_entry_plan` and `materialized_signature` to
-  `provider-planning` and a `build-evaluation` unit test cannot build one.
-  Giving it one means deciding what a locally declared schema means against
-  the target's own -- shadow, or conflict -- and resolving the slot by owning
-  package or requirement identity rather than by bare name. That is the
-  entry-slot owner's call, so the fixture stays pinned `unexpected` rather
-  than repinned onto the duplicate, which would cement one answer to it.
-
-  Pinning the tier is finished: all 438 fail fixtures carry an
-  `expected.txt`, so the gate can say for every one of them whether the
-  reason is its own. What that exposed, when the `fail/arithmetic` group was
-  read rather than pinned blind, is below -- three of its fixtures were
-  refused for something other than their subject, and pinning them blind
-  would have cemented it.
-
-  All three are repaired. `exact_overflow_value_call_hint` and
-  `wrong_struct_type_argument_rejected` reach their own refusals, and
-  `unknown_field_write_rejected` now reports "assignment: data `Main` has no
-  field `cont`" rather than the read verb. Every one of the 33
-  `fail/arithmetic` fixtures rejects carrying its own expected fragment.
-
-  Re-pinning that group cost one subject, and the replacement is the finding.
-  `narrowing_signedness_rejected` was the corpus's ONLY customer of decision
-  17's narrowing-store obligation, and **IMPLICIT-STORE-CONVERSION** preempts
-  it: `i8 = <u8>` is a carrier difference before it is a range question. The
-  obligation is now reachable from ONE value form -- an anonymous value, which
-  has no carrier of its own -- because a carrier that differs answers earlier
-  and a carrier that agrees is intersected with its own type's range first, so
-  a same-type store can never escape. Among anonymous positions only the array
-  element survives: a scalar store answers at the landing site instead
-  (`self.r = 3000000000 / 2 * 2` reports "anonymous integer value
-  `3000000000` does not fit destination `i32`").
-  `fail/arithmetic/narrowing_anonymous_expression_unproven` pins what is left,
-  and `narrowing_signedness_rejected` keeps the 8-bit carrier face with a
-  header that no longer claims the range one. The Rust-side customer,
-  `04_`'s `anonymous_array_landing::array_elements_reject_final_i32_overflow`,
-  agrees: it too reaches the obligation only through an array element.
-
-  Two fixtures now carry the same authored mistake twice, which is
-  **IMPLICIT-STORE-CONVERSION** duplicating rules that already existed.
-  `suffix_type_disagrees_rejected` reports the suffix disagreement AND
-  "implicitly converts `i8` to `u32`"; `undeclared_bare_name_rejected`
-  reports "implicitly converts `i32 in Wrapping` to `i32`" beside the older
-  "implicit domain weakening ... drops `Wrapping`", which names the same
-  store and prescribes the same `as`. Both fixtures' own subjects still lead,
-  so this is message redundancy rather than lost attribution, but the
-  domain-weakening rule is now a strict subset of the conversion rule and one
-  of the two should own the policy-drop case.
-
-  Do not try to reproduce one of these by writing a small program. Measured
-  three times: `sensor_min_max`'s float field store, a byte-domain field store
-  under a boundary call, and `dutch_flag`'s `self.items[0] = Color::White`
-  each check clean when written on their own -- `data Color { case Red; case
-  White; case Blue; }` with `self.items[0] = Color::White` is accepted, and so
-  is the same store to a plain `Color` field -- while the sample containing the
-  identical statement is refused. Adding the surrounding features one at a time
-  does not find it either: a console call, an index guard, a loop body, a
-  second fold and a `build.omg` with the same root bindings were each tried
-  against one of them and none reproduced. Copy the sample and delete from it
-  instead; that isolated the byte-domain case to a console call plus a literal
-  array fill in four steps.
-
-  Method that works, and one cause closed by it (cab36531c8f). The phase the
-  message carries is the only pointer: grep it verbatim under
-  `execution/terminal_unit/` -- it is a unique `trace.phase(..)` or `arm(..)`
-  -- then replace the `?` exits marked after it with `let .. else` probes that
-  name the machine, since most hits are unrelated machines legitimately
-  declining. `attached data shape` led to `add_data_shape` rejecting a field,
-  and outward to `UInt`/`Int`: the builtin UNBOUNDED integers have no width and
-  so no layout, and a relevant field naming one killed its whole declaration
-  silently. Nine authored files did that. The declaration now refuses instead.
-  Re-measure after each such fix rather than assuming one cause covers the
-  cohort: the dungeon sample advanced to a different phase, `call operation:
-  structural arguments: parameter path`, and `samples/cli/basics/cli_mvp`
-  now checks clean.
-
-  Distinct remaining probes, with the cause each now reports (measured
-  2026-09-24 through `tools/corpus_gate.py`, so targetless -- a probe whose
-  promise is native execution is not closed by checking here):
-  `control_flow/guarded_leaf_branch_expansion` and
-  `capabilities/uses_caller_folder` reject on borrowed storage absent at a
-  boundary call. These are owned-array and owned-capability cases, respectively,
-  not shared-reference copy declarations. Deliberate move-and-restore remains
-  **BORROWED-STORAGE-RESTORATION**'s separate work.
-  `text/runtime_local_struct_string_field_concat_exit` and
-  `text/runtime_string_stored_suffix_exit` explicitly copy their shared-view
-  `Room` records, but `checks/contracts/nominal_inputs.rs` cannot establish
-  `self.source.label`'s UTF-8 field requirement at the `render` state's calls
-  to `good` and `bad`. Preserve the actual state-entry/domain provenance;
-  [copy permission](wiki/spec/language/ownership.md) cannot manufacture
-  qualification or extend a loan. Carry these unchanged text operations through
-  checked and native execution (exits 188 and 193); borrowed-view field-store
-  lowering must also support the resulting program, not only property admission.
-  `proofs/cauchy_predicates_compile` rejects on the two checker
-  capabilities `source/library/core/cauchy.omg` names above
-  `doubled_nat_max_modulus`, both reported at once and both inside
-  `converges_together_at_triangle_split`: `rat_close_triangle_split`'s
-  positivity requires cannot be discharged from a static-machine call's field
-  projection `(Middle(middle_index)).den` -- inlining the `let` does not help,
-  so it is the projection and not the local that the site cannot match -- and
-  its `ensures` names a machine-parameterized `converges_together_at`
-  application that "no entailment tier judges yet". Advancing this probe means
-  owning both; the second is a tier question, not a matching defect;   `text/runtime_alias_string_write` (`[u8; N]::Utf8` identity sharing),
-  `providers/external_leaf_dllimport_compile`,
-  `domains/explicit_domain_erasure`, `core/extent_root_provider_adapter`, and
-  `control_flow/runtime_branching_helper_string` check and leave this list.
-  Reproduce a selected customer on the working base, repair its owning
-  capability, and rerun the same outer command.
-
-  Concrete repair routes:
-  - `capabilities/windows_provides_import_exit`: preserve the producing
-    statement for `self.m = self.beeper.beep(self.v)`. The packaged Windows
-    fixture reaches `05_checked-trees-to-lowered-psi/src/unit/attached_unit/composed_control/state_graph/body.rs::statement_continuations`,
-    which excludes call-result stores from its plain-field-store exception.
-    Keep the ordinary-machine assignment as a control and the actual
-    `Binding<R>`/`ForeignBinding` package inputs in the reproduction.
-  - `providers/external_leaf_dllimport_compile`: connect the checked per-call
-    authority derivation to ordinary native production. `NormalizedForeign`
-    needs an explicit policy row, while the ordinary policy has none outside
-    the settled Console/filesystem/time cohorts. Rejoin the program's own
-    checked-flow evidence before classification; adding a fixture permission
-    or another cohort without that derivation is not acceptance.
-
-  Provider absence on macOS/Windows remains distinct from lowering:
-  `toolchain_filesystem_leaves` and `toolchain_time_host_leaves` map only
-  linux_x86_64 (darwin rows need an import with an injected argument, e.g.
-  `clock_gettime_nsec_np(8)`, and a constant binding kind), and the
-  fixture-local `Gui`/`Input`/`Console` boundaries in `host/*` and
-  `traits/boundary_trait_effects_host_call` need their own exact providers.
-  Preserve nested service nomination through
-  `selected_dispatch::program_entry_service_requirements`; targetless checking
-  has no selected entry and cannot exercise that nomination. Keep
-  `filesystem/runtime_local_host_result_dispatch_exit` as the Linux
-  source-effect ordering probe. Borrowed binding parameters and
-  `capabilities/uses_caller_folder` are owned by **ENTRY-CONTENT-ROOTS**.
-
-  Follow `CheckedUnitEffectPlans::omissions`,
-  `InvalidUnitMachinePlan::omission` and `LocalConstructionTrace` to the
-  actual missing operation/facts, not just its phase label. The diagnostic route
-  is covered by `05_checked-trees-to-lowered-psi/tests/unit_plan_omissions.rs`;
-  another diagnostic-only change does not close corpus behavior.
-
-  Current integration targets:
-  - `text/runtime_stdin_command_branch_exit`: owned `Command` result-to-field
-    assignment in `parsed_input`; `execution/terminal_unit/control/statement_sequence.rs`
-    still limits that call-result path to primitives. **STATE-LOCAL-VALUE-FRONTIER**
-    owns structural result storage and independent lowering. Keep the reader's
-    algorithm and run `runtime_stdin_command_branch_exit_canary_runs`.
-  - `host/runtime_console_bounded_line_exit`: finish other-host native coverage
-    of the full result and mutable field windows, including zero capacity.
-    `providers_float_and_console/console_reader.rs::bounded_line_window_results\
-_run_natively_with_zero_extent_nonconsumption` was the coverage claimed here,
-    and both the test and its file are gone with `c60792d7bd`, so macOS
-    ARM64/Linux are not in fact exercised by it. Run the Linux hosts and connect the Windows witness
-    through the supported-host realization work. Require exact exits/output,
-    non-consumption and untouched-tail behavior, not discard-result execution.
-  - `text/runtime_stdin_line_buffering_exit`: both `echo_line` calls already
-    carry `block`; finish borrowed intrinsic-service parameters through
-    `write_prefix` and state edges, which still use bare `&mut Console`.
-    **ENTRY-CONTENT-ROOTS** owns exact receipt/borrow transport through
-    declaration checks, Unit forwarding, lowered states and selected
-    `service_custody/parameters.rs`. Do not replace the two-read/helper flow
-    with a single-hop owned-Service recognizer.
-
-  - `filesystem/native_wrapper_write_all_result`: on macOS ARM64, store the
-    `Filesystem::write_all` result in a field; bad path yields Error and
-    the `/tmp` path yields Ok. The native harness requires PASS and no FAIL
-    on stdout, not merely exit zero. Keep this customer distinct from
-    filesystem release-proof closure.
-  - `host/runtime_gui_foreground_window_exit`: select the fixture's exact
-    authored Gui requirement/provider, then execute create -> foreground
-    query/result store -> destroy -> exit 70 on Windows. The invisible window
-    need not become foreground.
-  - Integer/string literal dispatch: emitted programs exit 22 for integer
-    dispatch and 11 for `"look"`, preserving authored selection order and
-    ordinary result/field storage. Reproduce the current omission before
-    carrying forward historical phase diagnoses.
-  - `wire/runtime_wire_exact_array_without_count_exit`: execute generated
-    encoding of `[u32; 4]` without a synthetic count sibling. Require seven
-    bytes `00 00 04 01 02 03 04` and exit 70; retain the checked-interpreter
-    oracle. Its dedicated native witness remains unwritten.
-  Route other failures to **STATE-LOCAL-VALUE-FRONTIER**,
+  Route additional omissions to **STATE-LOCAL-VALUE-FRONTIER**,
   **MATCH-SELECTIVE-LOWERING**, **GENERAL-CYCLIC-EXECUTION**,
   **NOMINAL-FIELD-FLOW**, **BORROW-PROOF-CONVERGENCE**,
-  **OPERATOR-MACHINE-SUPPLY**, **MODULE-NAMESPACE-RESOLUTION**, or
-  **ARITHMETIC-POLICY-REALIZATION** as appropriate.
-  Audit fixtures against the spec before weakening checks:
-  `proof_inductive_climbing_sum` and its unbounded-accumulator negative still
-  owe [exact intermediate arithmetic](wiki/spec/language/numeric_values.md)
-  bounds even when a theorem uses `embed`.
-
-  Non-corpus integration and package-fixture failures remain in
-  [release closure](#rust-compiler-release-closure), under their actual gates.
-
-  Acceptance: complete corpus reaches declared stages, negatives fail for their
-  intended reasons, runtime oracles pass on matching hosts, and roster/coverage
-  guards remain intact. Do not demote valid accepted-language programs to
-  checked-only to turn the suite green; assigning every failure is not closure.
+  **OPERATOR-MACHINE-SUPPLY**, **MODULE-NAMESPACE-RESOLUTION** or
+  **ARITHMETIC-POLICY-REALIZATION** by the missing operation and evidence.
+  Acceptance: complete roster reaches promised stages, negatives reject for
+  their intended reasons, and exact runtime oracles pass on matching hosts.
+  Preserve coverage guards and valid accepted-language programs; attribution,
+  repinned refusals and checked-only substitutions do not close execution work.
 
 - **TERMINATION-RANKING-CHECKS.** Finish exact rank-range transport under the
   [termination contract](wiki/spec/language/termination.md). Owners:
