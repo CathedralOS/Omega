@@ -892,15 +892,34 @@ _rejected` and `expressions/bool_numeric_operand_mixing_rejected` each gained
     "const-generic application evaluation failed: constant call lost its
     exact authored target selection".
 
-  All thirteen belong with **OPERATOR-BOUNDARY-CALLS**. Of the other four,
-  `generics/runtime_const_data_where_fact_exit` is fixed and three remain:
-  `float/float_to_int_exact_proofs_exit` ("cannot prove Exact float-to-`i32`
-  cast operand `self.unbounded` is finite and in range" -- its guard proves
-  non-NaN and both bounds, so read it beside the float comparisons' own
-  migration), `capabilities/windows_provides_import_exit` (host-gated:
+  FOURTEEN, once `float/float_to_int_exact_proofs_exit` is measured: it
+  belongs with them too, and it names the shape the migration still owes.
+  A fifteen-line std-free reduction reproduces it under `omega --check` --
+  a guard proving `x == x && x >= 0.0 && x <= 100.0` stops discharging
+  `x as i32` in the successor state. The float guard walker
+  (`omega-rust/psi/checking/src/value_custody/expression_types/float_cast_proofs.rs`'s
+  `float_guard_fact`) is BINARY-ONLY, and instrumented it sees `node=CALL`
+  with display `equal(self.unbounded, self.unbounded)`,
+  `greater_or_equal(self.unbounded, 0.0)` and
+  `less_or_equal(self.unbounded, 100.0)`. It goes blind and silently
+  returns no fact. `narrow_environment_by_condition` has the same shape, and
+  the authority both would need --
+  `proof_contracts/bound_expression_meaning.rs`'s
+  `sealed_float_comparison` -- is Binary-only AND already blind one level
+  down: it requires exactly one candidate from
+  `resolve_spelling_for_operands`, and `has_builtin_spelled_expression_meaning`
+  probes `spelled_exists=false` for `f64 <`, because a token-bearing
+  boundary machine lives in `machine_token_bindings()`, not `operators()`.
+  So this wants ONE shared recognizer -- read a comparison whether it
+  arrives as a `Binary` node or as a token-bearing call -- rather than a
+  second authority per walker.
+
+  All fourteen belong with **OPERATOR-BOUNDARY-CALLS**. Of the other three,
+  `generics/runtime_const_data_where_fact_exit` and
+  `generics/declared_range_endpoint_inference` are fixed and one remains:
+  `capabilities/windows_provides_import_exit` (host-gated:
   "foreign locator PeByName is not applicable to selected target
-  `macos_arm64`"), and `generics/declared_range_endpoint_inference`, which is
-  diagnosed below.
+  `macos_arm64`").
 
   The const-data one was the assignment window re-proving a fact that has
   nothing to do with the write. `FixedBuffer<const N: u64> where N > 0 &&
@@ -967,20 +986,10 @@ _rejected` and `expressions/bool_numeric_operand_mixing_rejected` each gained
   the pass exists to retain, and the fixture then fails on its own subject
   instead.
 
-  One hazard, because it cost a false mechanism here: the compiler caches
-  resolved package snapshots under
-  `~/Library/Caches/CathedralOS/Omega`, so a probe counting how many times a
-  02 pass RUNS answers about the cache, not about the program -- measured
-  once as "entered in the control, never in the failing run", which did not
-  survive alternating the pair. Probe what a later stage OBSERVES instead,
-  and alternate.
 
-  Attribution recipe, so nobody repeats the full pass: run the unfiltered
-  gate once with `--write-moves <path>`, which dumps every moved fixture's
-  before and after records as JSON, untruncated -- the printed summary cuts
-  each field at 300 columns and hides the diagnostic that actually moved.
-  Then rerun ONLY the moved names with `--filter <comma list>` on the base
-  you suspect, and compare.
+  The attribution recipe and its two measurement hazards now live where
+  they belong, in
+  [tools/testing.md](tools/testing.md#attributing-a-move).
 
   When an item's acceptance names a pass fixture, check that the fixture's
   entry runs the thing. 103 of 704 pass fixtures end in an empty
