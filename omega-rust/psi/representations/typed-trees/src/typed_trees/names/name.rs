@@ -33,6 +33,7 @@ impl Identifier {
         }
     }
 
+    #[inline]
     pub fn as_str(&self) -> &str {
         match &self.text {
             IdentifierText::Missing => "",
@@ -75,6 +76,7 @@ impl fmt::Debug for Identifier {
 }
 
 impl PartialEq for Identifier {
+    #[inline]
     fn eq(&self, other: &Self) -> bool {
         self.as_str() == other.as_str()
     }

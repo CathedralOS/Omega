@@ -128,6 +128,7 @@ impl TypeReferenceTable {
         self.constraints.append_to_span(span, constraint);
     }
 
+    #[inline]
     pub fn type_reference(&self, handle: TypeReferenceHandle) -> &TypeReferenceNode {
         self.type_references.get(handle)
     }
@@ -400,6 +401,7 @@ impl TypeReferenceTable {
             .display_name_with_constraints(self, expressions)
     }
 
+    #[inline]
     pub fn primitive_type(&self, handle: TypeReferenceHandle) -> Option<PrimitiveType> {
         self.type_reference(handle).primitive_type(self)
     }
