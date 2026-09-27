@@ -73,6 +73,93 @@ fn cross_block_observation_is_current_only_without_intervening_replacement() {
 }
 
 #[test]
+fn sibling_primitive_array_stores_preserve_exact_byte_field_length() {
+    use terminal_psi::{
+        BindingRelevance, StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
+        StructuralTypeDeclaration, StructuralTypeShape,
+    };
+
+    for runtime_index in [false, true] {
+        for after_observation in [false, true] {
+            let (mut module, _) = indexed_fixture(StructuralAccess::MutableBorrow);
+            let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape
+            else {
+                unreachable!()
+            };
+            fields.push(StructuralFieldDeclaration {
+                id: id(2),
+                identity: "marked".into(),
+                relevance: BindingRelevance::Relevant,
+                field_type: StructuralFieldType::Structural(id(4)),
+            });
+            module.structural_types.extend([
+                StructuralTypeDeclaration {
+                    id: id(3),
+                    identity: "test::Counter".into(),
+                    shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer())),
+                },
+                StructuralTypeDeclaration {
+                    id: id(4),
+                    identity: "test::Marks".into(),
+                    shape: StructuralTypeShape::FixedArray {
+                        element: id(3),
+                        length: 3,
+                    },
+                },
+            ]);
+            let index = if runtime_index {
+                StructuralPathSegment::RuntimeIndex {
+                    index: id(2),
+                    obligation: id(3),
+                }
+            } else {
+                StructuralPathSegment::FixedIndex(0)
+            };
+            module.machines[0].blocks[0].operations.insert(
+                if after_observation { 5 } else { 4 },
+                Operation {
+                    static_reach_binding: None,
+                    suspension_crossing: None,
+                    id: id(8),
+                    result: OperationResult::Unit,
+                    kind: OperationKind::WriteOnlyPrimitiveStore {
+                        destination: id(1),
+                        path: vec![StructuralPathSegment::Field("marked".into()), index],
+                        value: id(2),
+                    },
+                },
+            );
+            validate_module(&module).unwrap();
+            let questions = reconstruct_operation_obligations(&module).unwrap();
+            let byte_store = questions
+                .iter()
+                .find(|question| question.obligation.id == id(2))
+                .unwrap();
+            assert!(byte_store.semantic_axioms.contains(&Proposition::Equal(
+                ScalarTerm::value(id(3), ScalarType::Integer(integer())),
+                count(3),
+            )));
+
+            // A real replacement of the observed field still invalidates the
+            // saved observation, even with the disjoint primitive write present.
+            let replacement = repeated_replacement(&module);
+            let mut replacement = replacement;
+            replacement.id = id(9);
+            if let OperationKind::StructuralByteSequenceFieldStore { obligation, .. } =
+                &mut replacement.kind
+            {
+                *obligation = id(4);
+            }
+            let store_position = module.machines[0].blocks[0].operations.len() - 1;
+            module.machines[0].blocks[0]
+                .operations
+                .insert(store_position, replacement);
+            assert!(validate_module(&module).is_err());
+        }
+    }
+}
+
+#[test]
 fn any_mutating_predecessor_invalidates_the_joined_length() {
     let (mut module, _) = indexed_fixture(StructuralAccess::MutableBorrow);
     split_after_length(&mut module);

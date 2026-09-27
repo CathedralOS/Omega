@@ -1184,7 +1184,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/representations/terminal-psi/verification/src/validation/structural/byte_sequence_fields/freshness.rs",
-        sha256: Some("f6261f98c82ced63bc0c498b9f1e0f4f8bc0b280b11563634e429fcce7c9009f"),
+        sha256: Some("47007f01a5c4a15082c2665c42876667629919970047ea8672610f1e9678d533"),
         inventory_machinery: false,
     },
     ImplementationSite {
