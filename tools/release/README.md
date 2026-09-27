@@ -12,7 +12,10 @@ after all four pass does the publication job verify the complete asset set,
 create the tag if needed, and create a **draft prerelease**. Four fresh runners
 then download its actual GitHub assets, verify hashes and exact identities, and
 repeat the installed-product smoke with no toolchain on PATH or preexisting
-package cache. A final job records successful verification in the draft notes.
+package cache. A separate fresh-cache leg uses host Git to acquire the public
+repository's `omega_language_std` package at the release commit, approve the
+fixed fixture's audit, then compile and run offline without changing its lock.
+A final job records successful verification in the draft notes.
 The release stays draft for human review; the workflow never publishes it publicly.
 
 ```sh
@@ -32,8 +35,8 @@ Action dependencies are pinned by commit. These jobs do not implement installers
 or change `omega update`, which remains the package-update command.
 
 The hosted matrix is an installation test, not the compiler-completion matrix.
-Release notes identify its tested hosts and known Windows Git-cache limitation.
-Broader OS compatibility, code signing, dependency-license review and installer
+Release notes identify its tested hosts and verified source-acquisition paths.
+Broader OS compatibility, code signing, final license review and installer
 channels remain release-distribution work, not claims made by the smoke tests.
 
 ## Build a relocatable bundle
@@ -60,6 +63,15 @@ and each bundled file's SHA-256. The archive has a sibling `.sha256` file.
 Hashes identify content; neither they nor this packaging smoke test certify
 compiler completeness or authenticate a publisher.
 
+`licenses/third-party/` contains an inventory and license/notice files from the
+host-filtered Cargo dependency closure of `omega` (including build tools, excluding
+dev-only edges), plus the pinned Rust standard library's copyright inventory and
+license texts. Nested vendored notices are retained. This is conservative input
+coverage, not a claim that every listed crate contributes bytes to the executable.
+Missing text or an unreviewed license expression stops packaging; the only
+supplemental upstream text is version-pinned under `tools/release/licenses/`.
+The inventory supports distribution review; it does not replace legal review.
+
 Before publishing its local output, the command unpacks the archive into a new
 directory containing spaces, checks the manifest and `--version`, checks source
 using the bundled library, and compiles/runs a native program that exits 42.
@@ -73,11 +85,44 @@ reject rather than use the build checkout. POSIX runs also exercise an executabl
 symlink. The output is a ZIP on Windows and a tar.gz elsewhere. Existing archive
 names are not overwritten. A failed smoke test produces no final archive.
 
+Add `--git-smoke` to run the network-dependent Git acquisition leg locally.
+The GitHub fresh-download gate always runs it. The ordinary packager remains
+usable without contacting a source remote after its Cargo dependencies are present.
+
 `--allow-dirty` is for developing the packager, not publishing a release: it
 marks both the version and manifest dirty. Normal packaging requires a clean
 checkout. The smoke suite is installed-product coverage, not the eight-gate
 compiler-completion matrix below. Run the same command on each supported host;
 a Windows result does not establish a macOS/Linux pass.
+
+## Prepare installation channels
+
+After downloading all four bundles and their checksums for one release:
+
+```sh
+python3 tools/release/channels.py --assets build/release-assets \
+  --output build/release-channels --tag v0.1.0-alpha.3 --commit FULL_SOURCE_COMMIT
+```
+
+PowerShell uses the same arguments on one line with `python`. Generation verifies
+all bundle identities and checksums before producing `Formula/omega.rb` for a
+Cathedral-owned Homebrew tap and `winget/CathedralOS.Omega.yaml` for WinGet.
+The output directory must not exist. These are preparation artifacts: their
+download URLs become usable only after the matching GitHub release is public.
+
+Homebrew installs the complete bundle under `libexec` and symlinks only its
+command; WinGet's ZIP/portable manifest retains the archive layout and registers
+the nested executable. Both declare Git as a dependency. Neither runs Rust or
+builds Omega on the user's machine. Upgrades belong to those package managers;
+`omega update` remains project dependency review/update.
+
+Before advertising a channel, validate its generated manifest with the actual
+manager, install it, run the source/native smoke through its registered command,
+upgrade from a prior version, and repeat. WinGet community publication additionally
+requires its normal manifest review; generating YAML is not catalog acceptance.
+The Homebrew tap is for experimental releases, not a submission to Homebrew/core.
+Code-signing/notarization require publisher credentials and are not implied by
+manifest validation or archive checksums.
 
 ### Runtime library discovery
 

@@ -86,7 +86,8 @@ def checked_assets(directory, version, commit):
 def notes(commit, verified):
     run = f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
     state = ("All four freshly downloaded bundles passed source checking, local package review, "
-             "native compilation and execution with an empty PATH and fresh user cache."
+             "native compilation and execution with an empty PATH and fresh user cache. "
+             "A separate cold-cache Git dependency test passed acquisition, review, and offline native execution using host Git."
              if verified else "Download validation is pending. Do not publish this draft until the linked workflow succeeds.")
     return (f"Experimental Omega compiler prerelease from `{commit}`.\n\n{state}\n\n"
             f"[Release workflow]({run}). This smoke coverage is not a compiler-completeness claim.\n\n"
@@ -94,8 +95,7 @@ def notes(commit, verified):
             "and `lib/omega/library` together. Rust is not required for local compilation; Git-source "
             "acquisition requires Git. `omega update` updates project packages, not this installation.\n\n"
             "Test hosts: Windows Server 2022 x64, macOS 14 ARM64, Ubuntu 22.04 x64/ARM64. "
-            "No broader minimum-OS compatibility or platform code signing is claimed. "
-            "Windows Git-cache acquisition has known failing tests; local/bundled-source use is the verified path.\n")
+            "No broader minimum-OS compatibility or platform code signing is claimed.\n")
 
 
 def write_release_notes(commit, verified):
@@ -135,7 +135,7 @@ def verify_download(tag, commit, host, directory):
         name = archive_name(version, row)
         bundle = package.verify_archive(directory / name, workspace,
                                         version=version, commit=commit, host=host)
-        package.smoke_test(bundle, workspace)
+        package.smoke_test(bundle, workspace, git_sources=True)
         package.verify_manifest(bundle)
 
 

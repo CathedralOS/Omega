@@ -12,6 +12,7 @@ import zipfile
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "release"))
 import github_release as release
 import package
+import channels
 
 
 class ReleaseWorkflowTests(unittest.TestCase):
@@ -29,6 +30,25 @@ class ReleaseWorkflowTests(unittest.TestCase):
     def test_matrix_matches_packager_hosts(self):
         self.assertEqual({row["host"] for row in release.MATRIX}, set(package.HOST_TARGETS))
         self.assertEqual(len(release.MATRIX), 4)
+
+    def test_channel_manifests_preserve_bundle_layout_and_pin_assets(self):
+        archives = {row["host"]: (release.archive_name("0.1.0-alpha.3", row), "a" * 64)
+                    for row in release.MATRIX}
+        formula = channels.homebrew_formula("0.1.0-alpha.3", archives)
+        self.assertIn('libexec.install Dir["*"]', formula)
+        self.assertIn('bin.install_symlink libexec/"bin/omega"', formula)
+        self.assertEqual(formula.count('sha256 "' + "a" * 64 + '"'), 3)
+        manifest = channels.winget_manifest("0.1.0-alpha.3", archives)
+        self.assertIn('omega-0.1.0-alpha.3-x86_64-pc-windows-msvc/bin/omega.exe', manifest)
+        self.assertIn('NestedInstallerType: portable', manifest)
+        self.assertIn('InstallerSha256: ' + "A" * 64, manifest)
+
+    def test_channel_generation_verifies_assets_before_creating_output(self):
+        destination = self.root / "channels"
+        with patch.object(release, "checked_assets", side_effect=ValueError("wrong bundle")):
+            with self.assertRaisesRegex(ValueError, "wrong bundle"):
+                channels.generate(self.root, destination, "v0.1.0-alpha.3", "a" * 40)
+        self.assertFalse(destination.exists())
 
     def test_zip_rejects_escape_and_symlink(self):
         for member in ("../outside", "/outside", "bundle/../outside", "bundle/./file", "bundle/C:file", "bundle\\outside", "bundle/file\0hidden"):
