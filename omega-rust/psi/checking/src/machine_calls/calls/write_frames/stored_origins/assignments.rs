@@ -58,10 +58,15 @@ pub(in crate::machine_calls::calls::write_frames) fn assigned_stored_origins(
         assignment.target,
     )?;
     // A reference-typed bare name is a local rebinding that stays with the
-    // alias paths; a member path replaces an exclusive stored leaf's slot
-    // in place, while a shared leaf rebind retires its record unproven.
-    if super::super::type_reference_is_reference(program, target_type)
-        && (source.segments.is_empty() || !super::super::type_may_carry_write(program, target_type))
+    // alias paths. A member path instead writes inside its root's storage:
+    // an exclusive stored leaf's slot is replaced in place, while a shared
+    // leaf's rebind retires only that leaf's frozen origin — its spliced
+    // provenance is the unknown marker, never the value's claimed subject —
+    // and the rest of the record survives instead of going opaque.
+    let shared_leaf_rebind = super::super::type_reference_is_reference(program, target_type)
+        && !source.segments.is_empty()
+        && !super::super::type_may_carry_write(program, target_type);
+    if super::super::type_reference_is_reference(program, target_type) && source.segments.is_empty()
     {
         return None;
     }
@@ -96,7 +101,10 @@ pub(in crate::machine_calls::calls::write_frames) fn assigned_stored_origins(
         inference,
         include_shared,
         &|expression, reference, implicit_borrow, inference| {
-            if include_shared {
+            if shared_leaf_rebind {
+                reference_subjects::unknown_readonly_origin(program, reference, "")
+                    .map(|origin| vec![origin])
+            } else if include_shared {
                 reference_subjects::value_origin(
                     program,
                     machine,
