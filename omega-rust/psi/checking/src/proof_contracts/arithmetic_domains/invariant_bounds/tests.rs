@@ -408,3 +408,56 @@ fn mutable_values_initializers_policies_and_oversize_divisors_stay_unknown() {
         assert_eq!(query(source), None, "{source}");
     }
 }
+
+#[test]
+fn total_exact_widening_preserves_source_interval() {
+    for (source, target, value, expected) in [
+        ("u8", "u64", "input as u64", (0, 255)),
+        ("u8", "u64", "(input as u16) as u64", (0, 255)),
+        ("u8", "i64", "input as i64", (0, 255)),
+        ("i8", "i64", "input as i64", (-128, 127)),
+    ] {
+        let program = crate::front_end::typed_program(&format!(
+            "machine widen(input: {source}) -> {target} {{ {value} }}"
+        ));
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(machine)[0];
+        let StatementNode::Expression(expression) =
+            program.statement_table.statements(state.statement_nodes)[0]
+        else {
+            panic!("cast expression");
+        };
+        assert_eq!(
+            immutable_integer_expression_bounds(&program, machine, state, expression),
+            Some(expected),
+            "{source}: {value}"
+        );
+    }
+}
+
+#[test]
+fn widening_bounds_do_not_admit_narrowing_signedness_or_policy_erasure() {
+    for (source, target, value) in [
+        ("u64", "u8", "input as u8"),
+        ("i8", "u64", "input as u64"),
+        ("u8", "i8", "input as i8"),
+        ("u8", "u64 in Wrapping", "input as u64 in Wrapping"),
+        ("u8 in Wrapping", "u64", "(input + 1) as u64"),
+    ] {
+        let program = crate::front_end::typed_program(&format!(
+            "machine convert(input: {source}) -> {target} {{ {value} }}"
+        ));
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(machine)[0];
+        let StatementNode::Expression(expression) =
+            program.statement_table.statements(state.statement_nodes)[0]
+        else {
+            panic!("cast expression");
+        };
+        assert_eq!(
+            immutable_integer_expression_bounds(&program, machine, state, expression),
+            None,
+            "{source}: {value}"
+        );
+    }
+}

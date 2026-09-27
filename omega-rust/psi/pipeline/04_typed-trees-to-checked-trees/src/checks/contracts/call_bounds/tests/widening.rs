@@ -87,3 +87,35 @@ fn widening_preserves_capture_order_across_later_operand_effects() {
         }
     }
 }
+
+#[test]
+fn byte_widening_supplies_named_transition_table_bounds() {
+    for guard in ["true", "(current_byte as u64) < 256"] {
+        let source = format!(
+            "machine scan(current_values: &[u64], inverse_index: u64, current_byte: u8) -> u64 {{
+                transition {guard} {{
+                    true -> shift_bad_load(current_values, inverse_index, current_byte as u64)
+                    false -> (0)
+                }}
+                state shift_bad_load(current_values: &[u64], inverse_index: u64, byte_index: u64) -> u64
+                requires 0 <= byte_index && byte_index < 256
+                {{ byte_index }}
+            }}"
+        );
+        checked(&source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+    }
+}
+
+#[test]
+fn widened_carrier_bounds_do_not_invent_narrower_or_unsigned_ranges() {
+    for (source_type, target_type, requirement) in [
+        ("u16", "u64", "0 <= value && value < 256"),
+        ("i8", "i64", "0 <= value && value < 256"),
+        ("u8", "u64", "0 <= value && value < 255"),
+    ] {
+        assert_call_requirement_rejected(&format!(
+            "machine demand(value: {target_type}) -> {target_type} requires {requirement} {{ value }}
+             machine caller(input: {source_type}) -> {target_type} {{ demand(input as {target_type}) }}"
+        ));
+    }
+}
