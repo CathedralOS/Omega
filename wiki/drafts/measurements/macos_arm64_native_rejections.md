@@ -204,6 +204,38 @@ consumers sit inside the files LOCAL-DATA-CLUSTER-REPAIR currently holds. A
 shared borrow may want its own route rather than being admitted through the
 exclusive one. Decide that before editing the match.
 
+## MEMBER-POLICY-REMOVES-COMPOSITE-ROWS, array half, located
+
+One-token pair again: `self.row = [1, 2, 3]` into `[i32; 3]` against
+`[i32 in Wrapping; 3]`.
+
+The plain array is planned by the SCALAR field store sequence — its phases
+run `scalar field store sequence: assignment store` and then straight on to
+`statement sequence: assignment`. The policy element pushes the store out of
+that route and into the structural one, which walks `structural field store:
+target place`, `carrier path`, `field owner record`, `byte sequence
+carrier`, `borrowed view field` and dies at `scalar field type`. The
+structural route has no row for a whole-array store; the scalar route did,
+and the element type is what decides which one is taken.
+
+The gate is `primitive::array_literal_stores`, reached from
+`structural_scalar_store/mod.rs`, and the predicate is
+`is_closed_primitive_array_type` in
+`checking/src/value_custody/literals/constant_arrays.rs`. It walks
+`FixedArray` to its element and accepts only a `Named` node that is a bare
+`Bool | I8..I64 | U8..U64 | F32 | F64`. An element spelled `i32 in Wrapping`
+is a `Constrained` node, hits the `_ => return false` arm, and the array is
+no longer a "closed primitive array". The same arm explains the RECORD
+element case measured beside it: a record element is `Named` but not
+primitive.
+
+**HAZARD — do not widen that predicate.** It has 55 use sites across both
+pipelines, and it means "array of BARE primitives" to every one of them.
+Unwrap the element's shells at the `array_literal_stores` call site instead,
+or give that route its own predicate; `value_custody/places.rs::
+unwrapped_type_reference` is the existing helper for stripping the shell.
+Changing the shared predicate would silently re-route 54 other decisions.
+
 ## Method notes for whoever re-runs this
 
 - The phase string names the last phase ENTERED, not the operation that

@@ -99,6 +99,23 @@ backend-visible; full corpus runs only at the end of an item.
   **LOCAL-DATA-CLUSTER-REPAIR**. Acceptance: the pending fixture checks and
   both unchanged samples execute their documented native outcomes.
 
+  LOCATED, 2026-09-27, in
+  [macos_arm64_native_rejections](wiki/drafts/measurements/macos_arm64_native_rejections.md).
+  A plain array is planned by the SCALAR field store sequence through
+  `primitive::array_literal_stores`; the policy element pushes the store out
+  of that route into the structural one, which has no whole-array row. The
+  deciding predicate is `is_closed_primitive_array_type` in
+  `checking/src/value_custody/literals/constant_arrays.rs`: it walks
+  `FixedArray` to its element and accepts only a `Named` BARE primitive, so a
+  `Constrained` element (`i32 in Wrapping`) hits its `_ => return false` --
+  and so does a record element, which is why both halves of this item are one
+  arm of one predicate.
+  HAZARD: that predicate has 55 use sites across both pipelines and means
+  "array of bare primitives" to all of them. Unwrap the element's shells at
+  the `array_literal_stores` call site, or give that route its own predicate
+  (`unwrapped_type_reference` is the existing helper). Widening the shared
+  one silently re-routes 54 unrelated decisions.
+
 - **REFERENCE-LOCAL-BINDING-ROUTES.** (new-scope) Binding a REFERENCE into a
   `let` local is routed for one narrow shape only: a `&mut` of a self-rooted
   place named directly. `&mut self.size`, `&mut self.inner.a`, `&mut self.buf`
