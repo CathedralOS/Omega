@@ -26,13 +26,20 @@ fn checked_occurrences(typed: &TypedTrees) -> checked_trees::CheckedTrees {
 fn final_fold_replay_requires_retained_checked_occurrences() {
     let (float, operators) = fixture("Float");
     let (spelled, spelled_bodies) = provider_fixture();
-    let (named, named_bodies) = named_provider_fixture();
+    let (named, named_bodies) = named_provider_fixture("operator %");
     let (token, token_bodies) = provider_fixture_with_introducer("machine");
+    let (requirement, requirement_bodies) = named_provider_fixture("requirement");
     for (name, mut typed, operators, bodies) in [
         ("float", float, operators, Vec::new()),
         ("spelled body", spelled, Vec::new(), spelled_bodies),
         ("named body", named, Vec::new(), named_bodies),
         ("normalized token body", token, Vec::new(), token_bodies),
+        (
+            "named requirement body",
+            requirement,
+            Vec::new(),
+            requirement_bodies,
+        ),
     ] {
         let folds = evaluate_selected_array_lengths(
             &mut typed,
@@ -486,7 +493,7 @@ data Main { bytes:[u8;length()]; }
 /// The same selected provider-body execution, invoked through a uniquely
 /// resolved named call rather than the spelled token. The provider's body
 /// still computes `left | right` = 7 where builtin `%` would fold 1.
-fn named_provider_fixture() -> (TypedTrees, Vec<SelectedBuildTimeProviderBody>) {
+fn named_provider_fixture(introducer: &str) -> (TypedTrees, Vec<SelectedBuildTimeProviderBody>) {
     let source = r#"
 data Math {}
 boundary operator % Math::remainder(left: u64, right: u64) -> u64;
@@ -495,40 +502,33 @@ machine Provider::remainder(left: u64, right: u64) -> u64 satisfies Math::remain
 machine length() -> u64 { let left:u64 = 7; let right:u64 = 2; transition { _ -> (Math::remainder(left, right)) } }
 data Main { bytes:[u8;length()]; }
 "#;
-    let typed = crate::front_end::typed_program(source);
+    let source = source.replace("operator %", introducer);
+    let typed = crate::front_end::typed_program(&source);
     let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(&typed);
     let rows = facts
         .named_uses()
-        .filter(|fact| {
-            typed.operators().iter().any(|operator| {
-                operator.symbol == fact.selected_operator_symbol && operator.is_boundary
-            })
-        })
-        .map(|fact| {
-            let typed_trees::expression::ExpressionNode::Call(call) =
-                typed.expression_table.expression(fact.expression)
-            else {
-                panic!("a named operator use is an expression call");
-            };
+        .map(|fact| (fact.expression, fact.origin, fact.selected_operator_symbol))
+        .chain(
+            facts
+                .named_requirement_uses()
+                .map(|fact| (fact.expression, fact.origin, fact.requirement_symbol)),
+        )
+        .map(|(expression, origin, requirement)| {
             let provider = typed
                 .machines()
                 .iter()
                 .find(|machine| machine.name.as_str() == "Provider::remainder")
                 .unwrap();
-            let entry = typed.machine_states(provider).first().unwrap();
-            SelectedBuildTimeProviderBody {
-                expression: fact.expression,
-                origin: fact.origin,
-                requirement: fact.selected_operator_symbol,
-                operands: typed
-                    .expression_table
-                    .expression_handles(call.arguments)
-                    .to_vec(),
-                provider_machine: provider.symbol,
-                provider_state: entry.symbol,
-                provider_type: provider.attached_data.as_ref().unwrap().as_str().to_owned(),
-                provider: checked_trees::CheckedProviderPlanCommitment::from_digest([7; 32]),
-            }
+            SelectedBuildTimeProviderBody::prepare(
+                &typed,
+                expression,
+                origin,
+                requirement,
+                provider,
+                provider.attached_data.as_ref().unwrap().as_str().to_owned(),
+                checked_trees::CheckedProviderPlanCommitment::from_digest([7; 32]),
+            )
+            .unwrap()
         })
         .collect();
     (typed, rows)
@@ -562,75 +562,98 @@ fn token_machine_provider_body_executes_and_replays() {
     assert_eq!(checked.facts.operators.named_requirement_uses().count(), 1);
     validate_folded_array_lengths(&checked, &folds, &[], &rows, None)
         .expect("normalizing a token machine to a requirement call preserves the original fold");
-}
-
-#[test]
-fn token_machine_provider_body_rechecks_the_actual_requirement() {
-    let (mut typed, rows) = provider_fixture_with_introducer("machine");
-    crate::validate_selected_provider_bodies(&typed, &rows).unwrap();
-    let mut substituted = typed.clone();
-    let provider = substituted
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == rows[0].provider_machine)
-        .unwrap();
-    let conformances = provider.satisfies;
-    substituted
-        .machine_trait_conformances
-        .span_mut_or_empty(conformances)[0]
-        .symbol = rows[0].provider_machine;
-    assert!(
-        crate::validate_selected_provider_bodies(&substituted, &rows)
-            .unwrap_err()
-            .contains("exactly one checked conformance"),
-        "matching names and signatures cannot replace the exact satisfaction target"
-    );
-    let mut stale_binding = typed.clone();
-    stale_binding
+    let mut stale = checked.typed;
+    stale
         .machines_mut()
         .iter_mut()
         .find(|machine| machine.symbol == rows[0].requirement)
         .unwrap()
         .spelling = None;
     assert!(
-        crate::validate_selected_provider_bodies(&stale_binding, &rows).is_err(),
-        "the signature view must retain the actual machine's token binding"
-    );
-    // The signature view alone must not authorize a different supply mode.
-    // Leave it and the use untouched while replacing the actual requirement.
-    let requirement = typed
-        .machines_mut()
-        .iter_mut()
-        .find(|machine| machine.symbol == rows[0].requirement)
-        .unwrap();
-    requirement.supply_mode = language_semantics::MachineSupplyMode::CheckedBody;
-    assert!(
-        crate::validate_selected_provider_bodies(&typed, &rows)
-            .unwrap_err()
-            .contains("exactly one checked conformance")
+        crate::validate_selected_provider_bodies(&stale, &rows).is_err(),
+        "normalization must not hide a stale token view of the actual requirement"
     );
 }
 
 #[test]
+fn machine_provider_body_rechecks_the_actual_requirement() {
+    for (mut typed, rows) in [
+        provider_fixture_with_introducer("machine"),
+        named_provider_fixture("requirement"),
+    ] {
+        crate::validate_selected_provider_bodies(&typed, &rows).unwrap();
+        let mut substituted = typed.clone();
+        let provider = substituted
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == rows[0].provider_machine)
+            .unwrap();
+        let conformances = provider.satisfies;
+        substituted
+            .machine_trait_conformances
+            .span_mut_or_empty(conformances)[0]
+            .symbol = rows[0].provider_machine;
+        assert!(
+            crate::validate_selected_provider_bodies(&substituted, &rows)
+                .unwrap_err()
+                .contains("exactly one checked conformance"),
+            "matching names and signatures cannot replace the exact satisfaction target"
+        );
+        if !typed.machine_token_bindings().is_empty() {
+            let mut stale_binding = typed.clone();
+            stale_binding
+                .machines_mut()
+                .iter_mut()
+                .find(|machine| machine.symbol == rows[0].requirement)
+                .unwrap()
+                .spelling = None;
+            assert!(
+                crate::validate_selected_provider_bodies(&stale_binding, &rows).is_err(),
+                "the signature view must retain the actual machine's token binding"
+            );
+        }
+        // Leave the use untouched while replacing the actual requirement's supply.
+        // A plain named call loses its requirement fact immediately; a token
+        // view retains the occurrence but fails actual conformance replay.
+        let expected_rejection = if typed.machine_token_bindings().is_empty() {
+            "distinct current origins"
+        } else {
+            "exactly one checked conformance"
+        };
+        let requirement = typed
+            .machines_mut()
+            .iter_mut()
+            .find(|machine| machine.symbol == rows[0].requirement)
+            .unwrap();
+        requirement.supply_mode = language_semantics::MachineSupplyMode::CheckedBody;
+        let rejection = crate::validate_selected_provider_bodies(&typed, &rows).unwrap_err();
+        assert!(rejection.contains(expected_rejection), "{rejection}");
+    }
+}
+
+#[test]
 fn named_provider_body_executes_its_ordinary_machine_and_replays() {
-    let (mut typed, rows) = named_provider_fixture();
-    assert_eq!(rows.len(), 1);
-    crate::validate_selected_provider_bodies(&typed, &rows).unwrap();
-    let folds = evaluate_selected_array_lengths(
-        &mut typed,
-        None,
-        SelectedBuildTimeOperators {
-            operators: &[],
-            provider_bodies: &rows,
-        },
-    )
-    .unwrap();
-    assert_eq!(folds.len(), 1);
-    assert_eq!(
-        folds[0].value, 7,
-        "the provider's `left | right` body must run; builtin `%` would fold 1"
-    );
-    validate_folded_array_lengths(&checked_occurrences(&typed), &folds, &[], &rows, None).unwrap();
+    for introducer in ["operator %", "requirement"] {
+        let (mut typed, rows) = named_provider_fixture(introducer);
+        assert_eq!(rows.len(), 1);
+        crate::validate_selected_provider_bodies(&typed, &rows).unwrap();
+        let folds = evaluate_selected_array_lengths(
+            &mut typed,
+            None,
+            SelectedBuildTimeOperators {
+                operators: &[],
+                provider_bodies: &rows,
+            },
+        )
+        .unwrap();
+        assert_eq!(folds.len(), 1);
+        assert_eq!(
+            folds[0].value, 7,
+            "the provider's `left | right` body must run; builtin `%` would fold 1"
+        );
+        validate_folded_array_lengths(&checked_occurrences(&typed), &folds, &[], &rows, None)
+            .unwrap();
+    }
 }
 
 #[test]
@@ -655,13 +678,19 @@ fn unselected_boundary_use_cannot_fall_back_to_host_semantics() {
 
 #[test]
 fn provider_body_row_rejects_stale_and_substituted_custody() {
-    for introducer in ["operator", "machine"] {
-        assert_provider_body_row_rejects_stale_and_substituted_custody(introducer);
+    for (typed, rows) in [
+        provider_fixture(),
+        provider_fixture_with_introducer("machine"),
+        named_provider_fixture("requirement"),
+    ] {
+        assert_provider_body_row_rejects_stale_and_substituted_custody(typed, rows);
     }
 }
 
-fn assert_provider_body_row_rejects_stale_and_substituted_custody(introducer: &str) {
-    let (typed, rows) = provider_fixture_with_introducer(introducer);
+fn assert_provider_body_row_rejects_stale_and_substituted_custody(
+    typed: TypedTrees,
+    rows: Vec<SelectedBuildTimeProviderBody>,
+) {
     let mut invalid_entry = rows.clone();
     invalid_entry[0].provider_state = symbols::SymbolHandle::invalid();
     assert!(

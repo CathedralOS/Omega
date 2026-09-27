@@ -250,6 +250,14 @@ ordered operands, format, and arithmetic policy before using the shared Float
 semantics kernel. A matching spelling or scalar signature cannot authorize an
 unrelated provider body. Ordinary helper calls retain the same closure admission.
 
+Checked provider bodies use the same route for spelled operators, named operator
+calls, and plain named boundary requirements. Omega resolves the exact adapter
+and plan commitment; `SelectedBuildTimeProviderBody::prepare` derives the
+source operands and executable entry. Its independent validator rejoins the
+authored use and actual requirement, including checked conformance, before
+rebinding a private evaluation copy. A bodyless requirement defers evaluation
+until that selected body is available, regardless of token spelling.
+
 Private fold receipts retain the exact invoked machine, receiving declaration
 and type-child path, selected operations, and provider-plan commitment. Omega
 rechecks the selected plans, then passes the final checked program to

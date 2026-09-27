@@ -24,11 +24,16 @@ ensures result == input + 0 && input == input
     transition { _ -> (input + 0) }
 }
 
-data Main { console: Binding<Console>; }
+machine length() -> i32 { CheckedMath::offset_zero(9) }
+
+data Main { console: Binding<Console>; bytes: [u8; length()]; }
 
 machine Main::main(&mut self)
 reaches Console
 {
+    // The same named requirement executes its checked provider during type
+    // evaluation. Index 8 requires the computed length, not a placeholder.
+    self.bytes[8] = 1;
     // The result is the installed adapter's, read at runtime: native code
     // passes it straight to the host exit rather than a value computed from
     // it, which normalized foreign-call custody does not yet admit.

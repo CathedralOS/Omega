@@ -9,7 +9,6 @@ use checked_trees::{CheckedOperatorResolutionStatus, CheckedProviderPlanCommitme
 use diagnostics::Diagnostic;
 use effects::SelectedProviderPlanFacts;
 use typed_trees::TypedTrees;
-use typed_trees::expression::ExpressionNode;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(super) struct SelectedConstEvaluation {
@@ -87,140 +86,78 @@ pub(super) fn selected_operators(
     Ok(selected)
 }
 
-/// Derive one exact provider-body row per retained spelled-operator use whose
-/// settled ProviderPlan binds an ordinary checked adapter. Omega keeps
-/// provider-selection authority: each row names the exact provider machine and
-/// entry state resolved from the plan, while Psi independently rejoins the
-/// authored use, requirement, conformance, and executable entry before the
-/// semantic evaluation owner rebinds it to an ordinary call.
+/// Resolve provider authority for retained source uses. Psi prepares and
+/// independently checks each selected body's source signature and operands;
+/// Omega supplies only the exact checked adapter and its plan commitment.
 pub(super) fn selected_provider_bodies(
     typed: &TypedTrees,
     plans: &SelectedProviderPlanFacts,
 ) -> Result<Vec<SelectedBuildTimeProviderBody>, Vec<Diagnostic>> {
     let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(typed);
-    let mut selected = Vec::new();
-    for fact in facts.uses_with_status(CheckedOperatorResolutionStatus::Resolved) {
-        if fact.occurrence != checked_trees::CheckedOperatorOccurrence::Expression {
-            continue;
-        }
-        let Some(operator) = typed
-            .operators()
-            .iter()
-            .chain(typed.machine_token_bindings())
-            .find(|operator| operator.symbol == fact.selected_operator_symbol)
-        else {
-            continue;
-        };
-        if !operator.is_boundary {
-            continue;
-        }
-        let Some((_, plan)) =
-            provider_planning::selected_requirement_plan(typed, plans.plans(), operator.symbol)
-        else {
-            continue;
-        };
-        let Some(row) =
-            selected_provider_body_row(typed, plan, operator, SelectedOperatorUse::Spelled(fact))
-                .map_err(|diagnostic| vec![diagnostic])?
-        else {
-            continue;
-        };
-        selected.push(row);
-    }
-    // A uniquely resolved named call to a boundary operator carries the same
-    // execution obligation as its spelled twin: the name already selected the
-    // requirement, so the settled plan's checked adapter owns the body.
-    let named_uses = facts
-        .named_uses()
+    let uses = facts
+        .uses_with_status(CheckedOperatorResolutionStatus::Resolved)
+        .filter(|fact| fact.occurrence == checked_trees::CheckedOperatorOccurrence::Expression)
         .map(|fact| (fact.expression, fact.origin, fact.selected_operator_symbol))
+        .chain(
+            facts
+                .named_uses()
+                .map(|fact| (fact.expression, fact.origin, fact.selected_operator_symbol)),
+        )
         .chain(
             facts
                 .named_requirement_uses()
                 .map(|fact| (fact.expression, fact.origin, fact.requirement_symbol)),
         );
-    for (expression, origin, requirement) in named_uses {
-        let Some(operator) = typed
-            .operators()
-            .iter()
-            .chain(typed.machine_token_bindings())
-            .find(|operator| operator.symbol == requirement)
-        else {
-            continue;
-        };
-        if !operator.is_boundary {
-            continue;
-        }
+    let mut selected = Vec::new();
+    for (expression, origin, requirement) in uses {
         let Some((_, plan)) =
-            provider_planning::selected_requirement_plan(typed, plans.plans(), operator.symbol)
+            provider_planning::selected_requirement_plan(typed, plans.plans(), requirement)
         else {
             continue;
         };
-        let Some(row) = selected_provider_body_row(
-            typed,
-            plan,
-            operator,
-            SelectedOperatorUse::Named { expression, origin },
-        )
-        .map_err(|diagnostic| vec![diagnostic])?
-        else {
-            continue;
-        };
-        selected.push(row);
+        if let Some(row) = selected_provider_body_row(typed, plan, requirement, expression, origin)
+            .map_err(|diagnostic| vec![diagnostic])?
+        {
+            selected.push(row);
+        }
     }
     build_time_evaluation::validate_selected_provider_bodies(typed, &selected)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     Ok(selected)
 }
 
-/// A token binding is a signature view, not a legacy `operator` declaration.
-/// Its actual machine owns the requirement identity and schema method; inventing
-/// an `operator::...`/`realize` identity for that view cannot rejoin the selected
-/// machine ProviderPlan. Both forms reuse the schema owner's canonical mapping.
+/// Actual machines own top-level requirement schemas, whether or not they
+/// also declare a token spelling. Legacy operators retain their own schema.
 fn provider_body_requirement_schema(
     typed: &TypedTrees,
-    operator: &typed_trees::operator::OperatorDefinition,
+    requirement: symbols::SymbolHandle,
 ) -> Option<effects::provider_plan::ServiceSchema> {
-    if let Some(requirement) = typed
+    if let Some(machine) = typed
         .machines()
         .iter()
-        .find(|machine| machine.symbol == operator.symbol)
+        .find(|machine| machine.symbol == requirement)
     {
-        provider_planning::service_schema::from_typed_boundary_requirement(typed, requirement)
+        provider_planning::service_schema::from_typed_boundary_requirement(typed, machine)
     } else {
+        let operator = typed
+            .operators()
+            .iter()
+            .find(|operator| operator.symbol == requirement)?;
         provider_planning::service_schema::from_typed_operator(typed, operator)
     }
 }
 
-/// One retained boundary-operator use whose settled plan may execute at build
-/// time. A spelled use selects through its token spelling; a named use
-/// already carries the exact requirement its call path resolved, so it has no
-/// spelling to rejoin.
-enum SelectedOperatorUse<'a> {
-    Spelled(&'a checked_trees::CheckedOperatorUseFact),
-    Named {
-        expression: typed_trees::expression::ExpressionHandle,
-        origin: checked_trees::CheckedValueOrigin,
-    },
-}
-
-/// Resolve one settled ProviderPlan row to its exact checked adapter body.
-/// Mirrors the checked-side settlement's adapter resolution: the plan must
-/// bind the requirement's canonical overload identity through its single
-/// schema method, the binding must be a checked adapter owned by the
-/// nominal provider type, and the machine must be a concrete checked body with
-/// an executable entry state. Specializing applications stay rejected here --
-/// their closed substitution belongs to the artifact-qualified path.
+/// Resolve the selected plan's canonical overload to its exact checked
+/// adapter. Interpretation owns the source shape and executable entry, not
+/// this join between the requirement schema and provider authority.
 fn selected_provider_body_row(
     typed: &TypedTrees,
     plan: &effects::provider_plan::ProviderPlan,
-    operator: &typed_trees::operator::OperatorDefinition,
-    selected_use: SelectedOperatorUse<'_>,
+    requirement: symbols::SymbolHandle,
+    expression: typed_trees::expression::ExpressionHandle,
+    origin: checked_trees::CheckedValueOrigin,
 ) -> Result<Option<SelectedBuildTimeProviderBody>, Diagnostic> {
-    let (expression, origin) = match selected_use {
-        SelectedOperatorUse::Spelled(fact) => (fact.expression, fact.origin),
-        SelectedOperatorUse::Named { expression, origin } => (expression, origin),
-    };
-    let Some(schema) = provider_body_requirement_schema(typed, operator) else {
+    let Some(schema) = provider_body_requirement_schema(typed, requirement) else {
         return Ok(None);
     };
     let [required_method] = schema.methods.as_slice() else {
@@ -263,105 +200,17 @@ fn selected_provider_body_row(
         )));
     }
     let provider = provider_planning::exact_checked_adapter(typed, plan, row)?;
-    if typed.attached_data_path(provider).as_deref() != Some(plan.provider_type.as_str()) {
-        return Err(Diagnostic::error(format!(
-            "selected build-time provider `{}` does not belong to nominal provider `{}`",
-            provider.name, plan.provider_type,
-        )));
-    }
-    if provider.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
-        return Err(Diagnostic::error(format!(
-            "selected build-time provider `{}` is not a checked body",
-            provider.name,
-        )));
-    }
-    if !typed.machine_type_parameters(provider).is_empty()
-        || !typed.operator_type_parameters(operator).is_empty()
-    {
-        return Err(Diagnostic::error(format!(
-            "selected build-time operator `{}` at expression {:?} requires a specialized realization; symbolic application coverage is not part of this execution",
-            operator_name(typed, operator),
-            expression,
-        )));
-    }
-    let operands = match selected_use {
-        SelectedOperatorUse::Spelled(fact) => {
-            if operator.spelling != Some(fact.spelling) {
-                return Err(Diagnostic::error(format!(
-                    "selected build-time operator at expression {:?} no longer owns its exact spelling",
-                    expression,
-                )));
-            }
-            let Some(operands) = fact.operands(typed) else {
-                return Err(Diagnostic::error(format!(
-                    "selected build-time operator expression {:?} lost its exact operand shape",
-                    expression,
-                )));
-            };
-            if let ExpressionNode::Indexed(indexed) = typed.expression_table.expression(expression)
-                && matches!(
-                    typed.expression_table.expression(indexed.index),
-                    ExpressionNode::Range(_)
-                )
-            {
-                return Err(Diagnostic::error(format!(
-                    "selected range operator at expression {:?} has no fixed-token checked-adapter dispatch",
-                    expression,
-                )));
-            }
-            operands
-        }
-        // A named call's argument list is its authored operand tuple; the
-        // requirement's exact path already selected it.
-        SelectedOperatorUse::Named { .. } => {
-            let ExpressionNode::Call(call) = typed.expression_table.expression(expression) else {
-                return Err(Diagnostic::error(format!(
-                    "selected build-time named operator expression {:?} lost its exact operand shape",
-                    expression,
-                )));
-            };
-            typed
-                .expression_table
-                .expression_handles(call.arguments)
-                .to_vec()
-        }
-    };
-    if typed.operator_parameters(operator).len() != operands.len() {
-        return Err(Diagnostic::error(format!(
-            "selected build-time operator at expression {:?} has {} requirement parameter(s), but its expression retains {} operand(s)",
-            expression,
-            typed.operator_parameters(operator).len(),
-            operands.len(),
-        )));
-    }
-    let Some(entry) = typed.machine_states(provider).first() else {
-        return Err(Diagnostic::error(format!(
-            "selected build-time provider `{}` has no executable entry state",
-            provider.name,
-        )));
-    };
-    Ok(Some(SelectedBuildTimeProviderBody {
+    SelectedBuildTimeProviderBody::prepare(
+        typed,
         expression,
         origin,
-        requirement: operator.symbol,
-        operands,
-        provider_machine: provider.symbol,
-        provider_state: entry.symbol,
-        provider_type: plan.provider_type.clone(),
-        provider: CheckedProviderPlanCommitment::from_digest(*plan.identity_digest().as_bytes()),
-    }))
-}
-
-fn operator_name(
-    typed: &TypedTrees,
-    operator: &typed_trees::operator::OperatorDefinition,
-) -> String {
-    typed
-        .operator_path_members(operator.name)
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join("::")
+        requirement,
+        provider,
+        plan.provider_type.clone(),
+        CheckedProviderPlanCommitment::from_digest(*plan.identity_digest().as_bytes()),
+    )
+    .map(Some)
+    .map_err(Diagnostic::error)
 }
 
 impl SelectedConstEvaluation {

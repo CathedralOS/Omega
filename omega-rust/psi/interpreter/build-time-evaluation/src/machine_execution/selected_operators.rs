@@ -7,9 +7,9 @@ use typed_trees::{
     expression::{ExpressionHandle, ExpressionNode},
 };
 
-/// One selected boundary-operator use whose meaning is the selected provider's
-/// ordinary checked machine body. Omega derives the row from the retained
-/// selection fact and the settled ProviderPlan; this service independently
+/// One selected boundary-requirement use whose meaning is the selected provider's
+/// ordinary checked machine body. Omega supplies the exact provider from its
+/// settled ProviderPlan; Psi prepares the execution row and independently
 /// rechecks the exact authored selection, operand custody, provider ownership,
 /// and executable entry before binding it. Execution never fabricates a
 /// result: [`apply_selected_provider_bodies`] rebinds the authored expression
@@ -23,7 +23,7 @@ pub struct SelectedBuildTimeProviderBody {
     pub expression: ExpressionHandle,
     /// The checked value origin that owned the selection when it was derived.
     pub origin: checked_trees::CheckedValueOrigin,
-    /// The selected boundary operator requirement symbol.
+    /// The selected boundary requirement symbol.
     pub requirement: symbols::SymbolHandle,
     /// The authored operand expressions forwarded to the provider entry state
     /// in their authored order.
@@ -36,6 +36,50 @@ pub struct SelectedBuildTimeProviderBody {
     pub provider_type: String,
     /// The settled ProviderPlan commitment; never a name or fingerprint alone.
     pub provider: checked_trees::CheckedProviderPlanCommitment,
+}
+
+impl SelectedBuildTimeProviderBody {
+    /// Prepare a candidate execution row from the exact provider selected by
+    /// Omega. This derives source operands and the provider entry, never a
+    /// provider choice. The independent validator below must still rejoin the
+    /// source use, signature, conformance, and supplied plan commitment before
+    /// this row can execute.
+    pub fn prepare(
+        program: &TypedTrees,
+        expression: ExpressionHandle,
+        origin: checked_trees::CheckedValueOrigin,
+        requirement: symbols::SymbolHandle,
+        provider: &typed_trees::machine::Machine,
+        provider_type: String,
+        commitment: checked_trees::CheckedProviderPlanCommitment,
+    ) -> Result<Self, String> {
+        let operands = match program.expression_table.expression(expression) {
+            ExpressionNode::Binary(binary) => vec![binary.left, binary.right],
+            ExpressionNode::Indexed(indexed) => vec![indexed.collection, indexed.index],
+            ExpressionNode::Call(call) => program
+                .expression_table
+                .expression_handles(call.arguments)
+                .to_vec(),
+            _ => {
+                return Err(
+                    "selected build-time provider expression has no callable operands".into(),
+                );
+            }
+        };
+        let Some(entry) = program.machine_states(provider).first() else {
+            return Err("selected build-time provider has no executable entry state".into());
+        };
+        Ok(Self {
+            expression,
+            origin,
+            requirement,
+            operands,
+            provider_machine: provider.symbol,
+            provider_state: entry.symbol,
+            provider_type,
+            provider: commitment,
+        })
+    }
 }
 
 /// Rebind each retained provider-body occurrence to its exact selected entry
@@ -205,6 +249,149 @@ pub fn validate_selected_provider_bodies(
                     .into(),
             );
         }
+        let providers: Vec<_> = program
+            .machines()
+            .iter()
+            .filter(|machine| machine.symbol == row.provider_machine)
+            .collect();
+        let [provider] = providers.as_slice() else {
+            return Err("selected build-time provider machine is not unique".into());
+        };
+        if provider.attached_data.as_ref().map(|owner| owner.as_str())
+            != Some(row.provider_type.as_str())
+            || program.attached_data_path(provider).as_deref() != Some(row.provider_type.as_str())
+        {
+            return Err(
+                "selected build-time provider does not belong to its nominal provider type".into(),
+            );
+        }
+        if provider.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
+            return Err("selected build-time provider is not a checked body".into());
+        }
+        if !program.machine_type_parameters(provider).is_empty() {
+            return Err(
+                "selected build-time provider is generic; closed substitution must settle the realization first"
+                    .into(),
+            );
+        }
+        let Some(entry) = program.machine_states(provider).first() else {
+            return Err("selected build-time provider has no executable entry state".into());
+        };
+        if entry.symbol != row.provider_state {
+            return Err(
+                "selected build-time provider state is not the provider's executable entry".into(),
+            );
+        }
+        if program
+            .machine_contracts(provider)
+            .iter()
+            .chain(program.state_contracts(entry).iter())
+            .any(|contract| {
+                matches!(
+                    contract.kind,
+                    typed_trees::signature::SignatureContractKind::Crashes { .. }
+                )
+            })
+        {
+            return Err(
+                "selected build-time provider body crash contracts have no build-time execution support"
+                    .into(),
+            );
+        }
+        let mut requirements = program
+            .machines()
+            .iter()
+            .filter(|machine| machine.symbol == row.requirement);
+        let machine_requirement = requirements.next();
+        if let Some(requirement) = machine_requirement {
+            if requirements.next().is_some() {
+                return Err("selected build-time requirement is not unique".into());
+            }
+            if spelled_spelling.is_some_and(|spelling| requirement.spelling != Some(spelling)) {
+                return Err(
+                    "selected build-time provider requirement lost its boundary spelling".into(),
+                );
+            }
+            if !program.machine_type_parameters(requirement).is_empty() {
+                return Err("selected build-time provider requirement is generic; symbolic application coverage is not part of this execution".into());
+            }
+            let [required_entry] = program.machine_states(requirement) else {
+                return Err("selected build-time requirement has no unique entry signature".into());
+            };
+            let parameters = program.state_parameters(required_entry);
+            if parameters.iter().any(|parameter| parameter.is_self)
+                || parameters.len() != row.operands.len()
+            {
+                return Err(
+                    "selected build-time provider requirement arity differs from retained operands"
+                        .into(),
+                );
+            }
+            if program
+                .machine_contracts(requirement)
+                .iter()
+                .chain(program.state_contracts(required_entry))
+                .any(|contract| {
+                    matches!(
+                        contract.kind,
+                        typed_trees::signature::SignatureContractKind::Crashes { .. }
+                    )
+                })
+            {
+                return Err(
+                    "selected operator crash invocations have no build-time execution support"
+                        .into(),
+                );
+            }
+            // Token views and plain named requirements have one source owner.
+            // Rejoin the exact satisfaction target and independently check its
+            // signature, contracts, and operational ceiling on the actual machine.
+            let conformances = program
+                .machine_trait_conformances(provider)
+                .iter()
+                .filter(|conformance| {
+                    if conformance.external_binding.is_some() {
+                        return false;
+                    }
+                    let Some(typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(
+                        required,
+                    )) = typed_trees::machine::resolve_satisfied_declaration(
+                        program,
+                        provider,
+                        conformance,
+                    )
+                    else {
+                        return false;
+                    };
+                    required.symbol == requirement.symbol
+                        && validation::revalidate_top_level_requirement_realization(
+                            program,
+                            provider,
+                            required,
+                            conformance,
+                        )
+                        .is_ok()
+                })
+                .count();
+            if conformances != 1 {
+                return Err("selected build-time provider does not bind its requirement through exactly one checked conformance".into());
+            }
+            let mut bindings = program
+                .machine_token_bindings()
+                .iter()
+                .filter(|binding| binding.symbol == requirement.symbol);
+            match (bindings.next(), bindings.next()) {
+                (None, None) if requirement.spelling.is_none() => continue,
+                (Some(binding), None) if binding.spelling == requirement.spelling => {}
+                _ => {
+                    return Err(
+                        "selected build-time token view differs from its actual requirement".into(),
+                    );
+                }
+            }
+            // A normalized named call still owes its token-view signature
+            // checks. Only a genuinely untokened requirement has no such view.
+        }
         let matching: Vec<_> = program
             .operators()
             .iter()
@@ -248,38 +435,6 @@ pub fn validate_selected_provider_bodies(
                     .into(),
             );
         }
-        let providers: Vec<_> = program
-            .machines()
-            .iter()
-            .filter(|machine| machine.symbol == row.provider_machine)
-            .collect();
-        let [provider] = providers.as_slice() else {
-            return Err("selected build-time provider machine is not unique".into());
-        };
-        if provider.attached_data.as_ref().map(|owner| owner.as_str())
-            != Some(row.provider_type.as_str())
-        {
-            return Err(
-                "selected build-time provider does not belong to its nominal provider type".into(),
-            );
-        }
-        if provider.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
-            return Err("selected build-time provider is not a checked body".into());
-        }
-        if !program.machine_type_parameters(provider).is_empty() {
-            return Err(
-                "selected build-time provider is generic; closed substitution must settle the realization first"
-                    .into(),
-            );
-        }
-        let Some(entry) = program.machine_states(provider).first() else {
-            return Err("selected build-time provider has no executable entry state".into());
-        };
-        if entry.symbol != row.provider_state {
-            return Err(
-                "selected build-time provider state is not the provider's executable entry".into(),
-            );
-        }
         let entry_parameters: Vec<_> = program
             .state_parameters(entry)
             .iter()
@@ -301,81 +456,32 @@ pub fn validate_selected_provider_bodies(
                 "selected build-time provider entry signature differs from its requirement".into(),
             );
         }
-        if program
-            .machine_contracts(provider)
-            .iter()
-            .chain(program.state_contracts(entry).iter())
-            .any(|contract| {
-                matches!(
-                    contract.kind,
-                    typed_trees::signature::SignatureContractKind::Crashes { .. }
-                )
-            })
-        {
-            return Err(
-                "selected build-time provider body crash contracts have no build-time execution support"
-                    .into(),
-            );
+        if machine_requirement.is_some() {
+            continue;
         }
         let [namespace, requirement] = program.operator_path_members(operator.name) else {
             return Err(
                 "selected build-time provider requirement has no exact namespace path".into(),
             );
         };
-        let is_machine_requirement = program
-            .machine_token_bindings()
-            .iter()
-            .any(|binding| binding.symbol == row.requirement);
         let conformances =
             program
                 .machine_trait_conformances(provider)
                 .iter()
                 .filter(|conformance| {
-                    if conformance.external_binding.is_some()
-                        || conformance.name.as_str() != namespace.as_str()
-                        || conformance.requirement.as_ref().map(|name| name.as_str())
-                            != Some(requirement.as_str())
-                    {
-                        return false;
-                    }
-                    if is_machine_requirement {
-                        // A token binding is only a signature view. The actual
-                        // machine requirement and its exact conformance still
-                        // own supply, contracts, and the operational ceiling.
-                        // Reuse their independent checker before executing the
-                        // selected provider through the ordinary call path.
-                        let Some(typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(
-                            required,
-                        )) = typed_trees::machine::resolve_satisfied_declaration(
-                            program,
-                            provider,
-                            conformance,
-                        )
-                        else {
-                            return false;
-                        };
-                        required.symbol == row.requirement
-                            && required.spelling == operator.spelling
-                            && validation::revalidate_top_level_requirement_realization(
-                                program,
-                                provider,
-                                required,
-                                conformance,
-                            )
-                            .is_ok()
-                    } else {
-                        typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(
+                    conformance.external_binding.is_none()
+                    && conformance.name.as_str() == namespace.as_str()
+                    && conformance.requirement.as_ref().map(|name| name.as_str())
+                        == Some(requirement.as_str())
+                    && (typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(
                         program, provider, conformance,
-                    )
-                    .is_some_and(|resolved| resolved.symbol == operator.symbol)
+                    ).is_some_and(|resolved| resolved.symbol == operator.symbol)
                         || typed_trees::operator::resolve_specialized_checked_operator_application(
                             program,
                             provider,
                             namespace.as_str(),
                             requirement.as_str(),
-                        )
-                        .is_some_and(|(resolved, _)| resolved.symbol == operator.symbol)
-                    }
+                        ).is_some_and(|(resolved, _)| resolved.symbol == operator.symbol))
                 })
                 .count();
         if conformances != 1 {
