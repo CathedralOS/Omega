@@ -790,6 +790,7 @@ impl SymbolTable {
         self.root
     }
 
+    #[inline]
     pub fn child_handles(&self, parent: SymbolHandle) -> Option<SymbolChildHandles<'_>> {
         if self.get(parent).kind == SymbolKind::Module {
             return Some(SymbolChildHandles {
@@ -1472,6 +1473,7 @@ pub struct SymbolChildHandles<'table> {
 impl Iterator for SymbolChildHandles<'_> {
     type Item = SymbolHandle;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         self.contiguous
             .as_mut()

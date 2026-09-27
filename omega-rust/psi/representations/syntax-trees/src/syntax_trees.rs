@@ -96,6 +96,7 @@ impl SyntaxTrees {
         self.roots.items.storage_slice()
     }
 
+    #[inline]
     pub fn root_item(&self, handle: ItemHandle) -> &Item {
         self.items.item(handle)
     }

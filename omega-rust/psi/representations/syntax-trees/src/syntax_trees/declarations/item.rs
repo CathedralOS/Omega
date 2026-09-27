@@ -996,6 +996,7 @@ impl ItemTable {
         self.state_storage.parameters.get(handle)
     }
 
+    #[inline]
     pub fn item(&self, handle: ItemHandle) -> &Item {
         self.items.get(handle)
     }

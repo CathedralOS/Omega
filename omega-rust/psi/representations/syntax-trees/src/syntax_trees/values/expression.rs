@@ -112,6 +112,7 @@ impl ExpressionTable {
         self.expressions.is_valid(handle)
     }
 
+    #[inline]
     pub fn expression(&self, handle: ExpressionHandle) -> &ExpressionNode {
         self.expressions.get(handle)
     }

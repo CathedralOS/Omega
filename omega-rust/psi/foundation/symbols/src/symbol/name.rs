@@ -132,6 +132,7 @@ impl SymbolName {
         Self::from_ref(name)
     }
 
+    #[inline]
     pub fn as_str<'source>(&'source self, sources: Option<&'source SourceMap>) -> &'source str {
         match &self.storage {
             SymbolNameStorage::Missing => "",
