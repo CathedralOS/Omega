@@ -4,8 +4,8 @@
 use crate::proof_contracts::default_domains::data_reads::range_gates_hold;
 use crate::proof_contracts::default_domains::place_queries::{
     data_definition_for_expression, data_has_case_where_facts, domain_definition_by_name,
-    fact_span_mentions_field, field_is_where_mentioned, is_self_rooted, is_subplace,
-    membership_field_name, place_spelling_covers, write_place_spelling,
+    fact_mentions_any_field, fact_span_mentions_field, field_is_where_mentioned, is_self_rooted,
+    is_subplace, membership_field_name, place_spelling_covers, write_place_spelling,
 };
 use crate::proof_contracts::default_domains::state_flow::PlaceValuation;
 use crate::proof_contracts::default_domains::symbolic_values::{
@@ -282,10 +282,24 @@ pub(crate) fn handle_assignment<'program>(
     // Interval-only facts each bound one field, and every store to that field
     // is range-checked against it, so they hold after any accepted store.
     let store_checked = super::data_where_field_intervals(program, place.definition).is_some();
-    let fact_spans = std::iter::once(place.definition.where_facts)
+    // A TYPE-WIDE fact naming no field constrains the declaration's CONST
+    // PARAMETERS alone, and the specialization decided it once:
+    // `FixedBuffer<const N: u64> where N > 0 && N <= 8` is settled when 4 is
+    // substituted, not re-proved at every write to `used`. The valuation
+    // below carries field values, so folding such a fact can only answer
+    // "unknown" -- which would open an invariant window no later store could
+    // close. A CASE fact is not filtered this way: its names are the
+    // variant's payload bindings, which are not members of the data.
+    let definition = place.definition;
+    let type_facts = std::iter::once(definition.where_facts)
         .filter(|_| !store_checked)
-        .chain(case_fact_spans.iter().copied());
-    for fact in fact_spans.flat_map(|span| program.proof_facts.span_or_empty(span)) {
+        .flat_map(|span| program.proof_facts.span_or_empty(span))
+        .filter(|fact| fact_mentions_any_field(program, definition, fact));
+    let case_facts = case_fact_spans
+        .iter()
+        .copied()
+        .flat_map(|span| program.proof_facts.span_or_empty(span));
+    for fact in type_facts.chain(case_facts) {
         match fact {
             typed_trees::domain::ProofFact::Expression(expression) => {
                 match fold_with_valuation(

@@ -305,6 +305,35 @@ pub(super) fn fact_span_mentions_field(
         })
 }
 
+/// Whether a single fact names any FIELD of `definition`. A `where` fact that
+/// names none is a constraint over the declaration's const parameters alone:
+/// `FixedBuffer<const N: u64> where N > 0 && N <= 8` is decided once, when the
+/// specialization substitutes 4, and it is not a runtime invariant the
+/// synthesized record's field writes re-prove. Folding such a fact against a
+/// FIELD valuation can only answer "unknown".
+pub(super) fn fact_mentions_any_field(
+    program: &TypedTrees,
+    definition: &DataDefinition,
+    fact: &typed_trees::domain::ProofFact,
+) -> bool {
+    program
+        .data_members(definition)
+        .iter()
+        .filter_map(|member| match member {
+            typed_trees::data::DataMember::Field(field) => Some(field.name.as_str()),
+            _ => None,
+        })
+        .any(|field| match fact {
+            typed_trees::domain::ProofFact::Expression(expression) => {
+                expression_mentions_name(program, *expression, field)
+            }
+            typed_trees::domain::ProofFact::Membership(membership) => {
+                membership_field_name(program, membership.value) == Some(field)
+            }
+            typed_trees::domain::ProofFact::Proposition(_) => false,
+        })
+}
+
 pub(super) fn membership_field_name(program: &TypedTrees, value: ExpressionHandle) -> Option<&str> {
     let ExpressionNode::Name(path) = program.expression_table.expression(value) else {
         return None;
