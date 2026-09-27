@@ -1303,8 +1303,7 @@ pass/generics/runtime_const_data_machine_call_exit checked 273ms
 pass/generics/runtime_const_data_multiple_instances_exit checked 179ms
 pass/generics/runtime_const_data_symbolic_expression_exit checked 175ms
 pass/generics/runtime_const_data_where_fact_exit checked 189ms
-pass/generics/runtime_container_setter_matrix_exit rejected 97ms
-	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `Cell::get`, state `get` (statement 0)
+pass/generics/runtime_container_setter_matrix_exit checked 525ms
 pass/generics/runtime_generic_multiple_specializations_exit checked 184ms
 pass/generics/runtime_mixed_generic_erased_sum_exit checked 184ms
 pass/generics/runtime_nested_generic_instantiations_exit checked 178ms
