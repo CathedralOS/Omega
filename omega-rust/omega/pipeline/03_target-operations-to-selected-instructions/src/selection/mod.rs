@@ -66,21 +66,22 @@ type EnvironmentKey = (
 /// validated physical model and constraint catalog, which their content
 /// identities name. Selection, scalar-graph construction and selection
 /// validation each cloned both and re-validated the join for every function;
-/// each distinct environment is now joined once per process. A failed join is
-/// not remembered, so it fails again on every request.
+/// each distinct environment is now joined once per process and shared, not
+/// copied, with each request. A failed join is not remembered, so it fails
+/// again on every request.
 pub(crate) fn target_register_environment(
     target: target::NativeTarget,
     physical: &ValidatedPhysicalRegisterModel,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<
-    register_environment::ValidatedTargetRegisterEnvironment,
+    std::sync::Arc<register_environment::ValidatedTargetRegisterEnvironment>,
     register_environment::TargetRegisterEnvironmentValidationError,
 > {
     static ENVIRONMENTS: std::sync::OnceLock<
         std::sync::Mutex<
             Vec<(
                 EnvironmentKey,
-                register_environment::ValidatedTargetRegisterEnvironment,
+                std::sync::Arc<register_environment::ValidatedTargetRegisterEnvironment>,
             )>,
         >,
     > = std::sync::OnceLock::new();
@@ -91,11 +92,12 @@ pub(crate) fn target_register_environment(
     {
         return Ok(environment.clone());
     }
-    let environment = register_environment::validate_target_register_environment(
-        target,
-        physical.model().clone(),
-        catalog.catalog().clone(),
-    )?;
+    let environment =
+        std::sync::Arc::new(register_environment::validate_target_register_environment(
+            target,
+            physical.model().clone(),
+            catalog.catalog().clone(),
+        )?);
     if let Ok(mut environments) = environments.lock()
         && !environments.iter().any(|(candidate, _)| *candidate == key)
     {
