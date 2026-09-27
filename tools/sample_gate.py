@@ -62,6 +62,32 @@ CLUSTERS: list[tuple[str, str]] = [
      "default-domain field requirement"),
 ]
 
+# What a reader should do with each cluster. A count alone sends people to
+# the wrong owner; the shared symptom is rarely the shared cause.
+CLUSTER_NOTES: dict[str, str] = {
+    "unit-plan omission":
+        "the downstream symptom — route each by the operation its "
+        "`omitted at local construction at ...` phase names, not by this "
+        "shared line (STATE-LOCAL-VALUE-FRONTIER)",
+    "implicit store conversion":
+        "the sample stores across an integer type or policy without "
+        "spelling the cast; the repair is the `as` the diagnostic names "
+        "(IMPLICIT-STORE-CONVERSION)",
+    "provider absent on this host":
+        "the sample declares a boundary it selects a provider for on some "
+        "targets only — not a sample defect on the others. A `Clock` row "
+        "here wants the wiring `samples/gui/window_app` already carries: a "
+        "provider data, a `macos_arm64 ... provider_defaults` that calls "
+        "`select_provider<Clock, ...>`, and a `satisfies Clock::sleep` "
+        "machine over `darwin_poll`",
+    "boundary provider route unimplemented":
+        "a selected provider has no requirement-level Terminal route "
+        "(OPERATOR-BOUNDARY-CALLS)",
+    "nested value call":
+        "authored arithmetic over token-bearing machines is a nested value "
+        "call once a spelled operator routes as one (OPERATOR-BOUNDARY-CALLS)",
+}
+
 NOISE = re.compile(r"linker stderr|warn\(linker|^\s*\|\s*$|^\s*=\s*note:|^$")
 
 
@@ -196,6 +222,9 @@ def main() -> int:
     for name, members in sorted(clusters.items(),
                                 key=lambda item: (-len(item[1]), item[0])):
         print(f"\n== {name}: {len(members)}")
+        note = CLUSTER_NOTES.get(name)
+        if note:
+            print(f"   ({note})")
         for record in members:
             print(f"   {record['sample']}\n       {record['diagnostic'][:160]}")
     checked = len(records) - len(failures)
