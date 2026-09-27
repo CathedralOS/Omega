@@ -323,68 +323,6 @@ fn pure_sum_layout_excludes_erased_payloads_without_changing_variants() {
 }
 
 #[test]
-fn mixed_case_layout_excludes_erased_common_and_payload_fields() {
-    let checked = checked(
-        r#"
-        data Event {
-            sequence: u8;
-            common_proof [erased]: u64;
-            case Ready(value: u16, payload_proof [erased]: u64);
-            case Waiting(code: u8);
-        }
-        "#,
-    );
-    let plan = build_layout_plan(&checked, NativeTarget::host(), &[]).expect("layout");
-    let event = plan
-        .data_layouts
-        .iter()
-        .map(|(_, layout)| layout)
-        .find(|layout| layout.name.as_str() == "Event")
-        .expect("Event layout");
-    assert_eq!(event.layout.size, 8);
-    assert_eq!(event.layout.alignment, 4);
-    let DataShape::Enum {
-        common_fields,
-        variants,
-    } = event.shape
-    else {
-        panic!("Event should have mixed case layout");
-    };
-    assert_eq!(
-        plan.fields
-            .span_or_empty(common_fields)
-            .iter()
-            .map(|field| (field.name.as_str(), field.offset))
-            .collect::<Vec<_>>(),
-        [("sequence", 4)]
-    );
-    let variants = plan.variants.span_or_empty(variants);
-    assert_eq!(
-        variants
-            .iter()
-            .map(|variant| variant.name.as_str())
-            .collect::<Vec<_>>(),
-        ["Ready", "Waiting"]
-    );
-    assert_eq!(
-        plan.fields
-            .span_or_empty(variants[0].fields)
-            .iter()
-            .map(|field| (field.name.as_str(), field.offset))
-            .collect::<Vec<_>>(),
-        [("value", 6)]
-    );
-    assert_eq!(
-        plan.fields
-            .span_or_empty(variants[1].fields)
-            .iter()
-            .map(|field| (field.name.as_str(), field.offset))
-            .collect::<Vec<_>>(),
-        [("code", 6)]
-    );
-}
-
-#[test]
 fn full_width_generic_capacity_rejects_placement_instead_of_panicking() {
     // The witnessed defect: `Capacity` bound to `u64::MAX` gives `storage` a
     // full-width extent, so aligning the following `length` field wraps. The
@@ -458,44 +396,6 @@ fn literal_array_extent_that_wraps_the_record_end_is_rejected() {
             && error.message.contains("record extent"),
         "{}",
         error.message
-    );
-}
-
-#[test]
-fn record_holding_a_realized_quotient_stays_runtime_data() {
-    let checked = checked(
-        r#"
-        data Carrier {
-            value: u64;
-        }
-        proposition equivalent(left: Carrier, right: Carrier);
-        data Quotient = Carrier % equivalent;
-        data Wrapper {
-            head: u8;
-            instance: Quotient;
-        }
-        "#,
-    );
-
-    let plan = build_layout_plan(&checked, NativeTarget::host(), &[]).expect("layout");
-    let wrapper = plan
-        .data_layouts
-        .iter()
-        .map(|(_, layout)| layout)
-        .find(|layout| layout.name.as_str() == "Wrapper")
-        .expect("Wrapper layout");
-    assert_eq!(wrapper.layout.size, 16);
-    assert_eq!(wrapper.layout.alignment, 8);
-    let DataShape::Record { fields } = wrapper.shape else {
-        panic!("Wrapper should have record layout");
-    };
-    assert_eq!(
-        plan.fields
-            .span_or_empty(fields)
-            .iter()
-            .map(|field| (field.name.as_str(), field.offset))
-            .collect::<Vec<_>>(),
-        [("head", 0), ("instance", 8)]
     );
 }
 

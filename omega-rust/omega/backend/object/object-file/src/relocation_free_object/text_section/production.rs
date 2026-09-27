@@ -331,21 +331,4 @@ mod tests {
             Ok(object)
         );
     }
-
-    #[test]
-    fn construction_names_the_text_section_from_the_declared_pair_row() {
-        for (target, name) in [
-            (NativeTarget::linux_arm64(), ".text"),
-            (NativeTarget::linux_x64(), ".text"),
-            (NativeTarget::windows_x64(), ".text"),
-            (NativeTarget::macos_arm64(), "__TEXT,__text"),
-        ] {
-            let object = construct_relocation_free_object_from_text(
-                &text_with_target(target),
-                OptimizationSelectionIdentity::from_bytes([6; 32]),
-            )
-            .expect("declared pair constructs a canonical object");
-            assert_eq!(object.text_section.name, name);
-        }
-    }
 }

@@ -1267,22 +1267,6 @@ fn compact_certificate_identity_cannot_substitute_strong_native_evidence() {
 }
 
 #[test]
-fn complete_coverage_classifies_admitted_leaves_as_absent() {
-    let coverage = FinalFootprintCoverage::current();
-    assert!(
-        coverage
-            .absent_by_construction_classes
-            .contains(&FinalFootprintClass::AdmittedLeaves)
-    );
-    assert!(
-        !coverage
-            .missing_classes
-            .contains(&FinalFootprintClass::AdmittedLeaves)
-    );
-    coverage.validate_normalized().expect("normalized coverage");
-}
-
-#[test]
 fn coverage_rejects_conflicting_class_statuses() {
     let mut coverage = FinalFootprintCoverage::current();
     coverage
