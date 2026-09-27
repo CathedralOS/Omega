@@ -136,7 +136,14 @@ pub(crate) fn lower_selected_machine(
         ));
     }
     if graph.is_none() {
-        return unsupported("machine has no source-independent checked scalar control plan");
+        return unsupported(
+            checked
+                .facts
+                .flow
+                .terminal_scalar_graphs
+                .declined_reason(selection.machine)
+                .unwrap_or("machine has no source-independent checked scalar control plan"),
+        );
     }
     if crate::scalar_graph::scalar_call_closure::requires_shared_catalog(
         checked,

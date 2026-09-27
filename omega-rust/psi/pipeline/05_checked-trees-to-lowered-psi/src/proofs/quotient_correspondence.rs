@@ -541,11 +541,12 @@ machine unsupported(value: EquivalenceClass) -> EquivalenceClass {
         // Terminal module exists, while the rows still reach every other
         // lowered machine of the program (see the test above).
         let checked = managed_checked_program();
-        assert_eq!(
+        assert!(matches!(
             lower_machine(&checked, TerminalMachineSelection::Name("admitted")).unwrap_err(),
-            LoweringError::Unsupported(
-                "machine has no source-independent checked scalar control plan"
-            )
-        );
+            LoweringError::Unsupported(message)
+                if message.starts_with(
+                    "machine has no source-independent checked scalar control plan"
+                )
+        ));
     }
 }

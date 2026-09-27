@@ -140,11 +140,13 @@ pub(crate) fn build_checked_scalar_graph_plans_with_call_frames(
     let (guarded_exits, guarded_tails) = guarded_exits::build(program, expressions);
     let mut parameter_storage = arena::Arena::default();
     let mut structural_types = std::collections::BTreeMap::new();
+    let mut declined = Vec::new();
     let mut machines: Vec<_> = program
         .machines()
         .iter()
         .filter_map(|machine| {
-            build_machine_graph(
+            let mut reason = "machine has no source-independent checked scalar control plan";
+            match build_machine_graph(
                 program,
                 machine,
                 expressions,
@@ -152,7 +154,14 @@ pub(crate) fn build_checked_scalar_graph_plans_with_call_frames(
                 structural_values,
                 &mut parameter_storage,
                 &mut structural_types,
-            )
+                &mut reason,
+            ) {
+                Some(graph) => Some(graph),
+                None => {
+                    declined.push((machine.symbol, reason));
+                    None
+                }
+            }
         })
         .collect();
     let mut structural_transfers = arena::Arena::default();
@@ -160,11 +169,19 @@ pub(crate) fn build_checked_scalar_graph_plans_with_call_frames(
     let mut erased_proof_arguments = arena::Arena::default();
     machines.retain_mut(|graph| {
         let Some(ranked_scc) = ranking::plan(program, graph, call_frames) else {
+            declined.push((
+                graph.machine,
+                "machine has no source-independent checked scalar control plan (ranked graph)",
+            ));
             return false;
         };
         graph.ranked_scc = ranked_scc;
         let Some(rows) = successors::resolve_arguments(program, expressions, proof_terms, graph)
         else {
+            declined.push((
+                graph.machine,
+                "machine has no source-independent checked scalar control plan (successor arguments)",
+            ));
             return false;
         };
         successors::commit_arguments(
@@ -185,6 +202,7 @@ pub(crate) fn build_checked_scalar_graph_plans_with_call_frames(
         structural_types: structural_types.into_values().collect(),
         guarded_exits,
         guarded_tails,
+        declined,
     }
 }
 
@@ -218,29 +236,49 @@ pub(crate) fn finalize_checked_scalar_graph_plans_with_call_frames(
     proof_terms: &checked_trees::CheckedProofTerms,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) {
+    let declined = &mut plans.declined;
     plans.machines.retain(|graph| {
-        if ranking::plan(program, graph, call_frames) != Some(graph.ranked_scc.clone())
-            || crate::lookup::machine_by_symbol(program, graph.machine).is_none()
-            || successors::validate(
-                program,
-                expressions,
-                graph,
-                &plans.structural_transfers,
-                &plans.scalar_arguments,
-                &plans.erased_proof_arguments,
-                proof_terms,
-            )
-            .is_none()
-        {
+        if ranking::plan(program, graph, call_frames) != Some(graph.ranked_scc.clone()) {
+            declined.push((
+                graph.machine,
+                "machine has no source-independent checked scalar control plan (finalized ranking)",
+            ));
             return false;
         }
-        graph.states.iter().all(|retained| {
+        if crate::lookup::machine_by_symbol(program, graph.machine).is_none() {
+            declined.push((
+                graph.machine,
+                "machine has no source-independent checked scalar control plan (machine symbol)",
+            ));
+            return false;
+        }
+        if successors::validate(
+            program,
+            expressions,
+            graph,
+            &plans.structural_transfers,
+            &plans.scalar_arguments,
+            &plans.erased_proof_arguments,
+            proof_terms,
+        )
+        .is_none()
+        {
+            declined.push((
+                graph.machine,
+                "machine has no source-independent checked scalar control plan (finalized successors)",
+            ));
+            return false;
+        }
+        let mut stage =
+            "machine has no source-independent checked scalar control plan (owned parameters)";
+        let admitted = graph.states.iter().all(|retained| {
             // A fused graph may retain a state authored under a sibling
             // machine — custody predicates keep answering through the
             // state's own owner, not the dispatch machine.
             let Some((owner, state)) =
                 crate::semantic::calls::find_state_with_machine(program, retained.state)
             else {
+                stage = "machine has no source-independent checked scalar control plan (fused state owner)";
                 return false;
             };
             let Some(transfers) = successors::owned_transfers(
@@ -250,6 +288,7 @@ pub(crate) fn finalize_checked_scalar_graph_plans_with_call_frames(
                 retained,
                 &plans.structural_transfers,
             ) else {
+                stage = "machine has no source-independent checked scalar control plan (owned transfers)";
                 return false;
             };
             owned_parameters::validate(
@@ -262,7 +301,11 @@ pub(crate) fn finalize_checked_scalar_graph_plans_with_call_frames(
                 &transfers,
             )
             .is_some()
-        })
+        });
+        if !admitted {
+            declined.push((graph.machine, stage));
+        }
+        admitted
     });
 }
 
@@ -277,9 +320,11 @@ fn build_machine_graph(
         String,
         checked_trees::CheckedUnitStructuralTypePlan,
     >,
+    reason: &mut &'static str,
 ) -> Option<CheckedScalarMachineGraph> {
     let source_states = program.machine_states(machine);
     if source_states.is_empty() {
+        *reason = "machine has no source-independent checked scalar control plan (machine declares no states)";
         return None;
     }
     // A tail arm spelling another machine's entry (`-> self.pong`) stays inside
@@ -310,6 +355,7 @@ fn build_machine_graph(
             expressions,
             computations,
             structural_values,
+            reason,
         )?;
         for successor in successors::iter(&built.0.terminator) {
             if pending
@@ -348,6 +394,7 @@ fn build_machine_graph(
             .iter()
             .any(|(state, _, _)| !state.structural_parameters.is_empty())
     {
+        *reason = "machine has no source-independent checked scalar control plan (multi-state structural formals)";
         return None;
     }
     // A borrowed `self` is retained as the receiver operand only by a machine
@@ -367,9 +414,11 @@ fn build_machine_graph(
         let parameters = program.state_parameters(state);
         if let Some(position) = parameters.iter().position(|parameter| parameter.is_self) {
             let Ok(position) = u32::try_from(position) else {
+                *reason = "machine has no source-independent checked scalar control plan (receiver position)";
                 return None;
             };
             if state_reads_ambient_position(expressions, computations, state.symbol, position) {
+                *reason = "machine has no source-independent checked scalar control plan (ambient receiver read)";
                 return None;
             }
         }
@@ -399,14 +448,17 @@ fn checked_state_graph(
     expressions: &checked_trees::CheckedScalarExpressionPlans,
     computations: &checked_trees::CheckedScalarComputationPlans,
     structural_values: &checked_trees::CheckedStructuralValuePlans,
+    reason: &mut &'static str,
 ) -> Option<(
     CheckedScalarStateGraph,
     Vec<CheckedScalarParameterStorage>,
     Vec<checked_trees::CheckedUnitStructuralTypePlan>,
 )> {
+    *reason = "machine has no source-independent checked scalar control plan (state admission)";
     {
         {
             if !validation::scalar_state_contracts_are_qualifications(program, state) {
+                *reason = "machine has no source-independent checked scalar control plan (state contract kind)";
                 return None;
             }
             let parameters = program.state_parameters(state);
@@ -433,6 +485,7 @@ fn checked_state_graph(
                         && crate::values::mutable_scalar_parameter_type(program, parameter)
                             .is_none())
             }) {
+                *reason = "machine has no source-independent checked scalar control plan (parameter admission)";
                 return None;
             }
             // An erased parameter (a plain immutable binding after the
@@ -467,22 +520,41 @@ fn checked_state_graph(
                 if !crate::execution::terminal_unit::structural_scalar_graph_parameter_admission(
                     program, state,
                 ) {
+                    *reason = "machine has no source-independent checked scalar control plan (structural parameter the graph cannot carry)";
                     return None;
                 }
-                crate::execution::terminal_unit::calls::ambient_self_scalar_graph_signature(
-                    program, machine, state,
-                )?
+                let Some(signature) =
+                    crate::execution::terminal_unit::calls::ambient_self_scalar_graph_signature(
+                        program, machine, state,
+                    )
+                else {
+                    *reason = "machine has no source-independent checked scalar control plan (ambient-self signature)";
+                    return None;
+                };
+                signature
             } else if mixed {
                 // A free machine, or an attached one whose receiver stays
                 // ambient, carries its ordinary free signature; each re-entry
                 // edge forwards the structural formals back onto it.
-                super::terminal_unit::structural_scalar_graph_signature(program, state)?
+                let Some(signature) =
+                    super::terminal_unit::structural_scalar_graph_signature(program, state)
+                else {
+                    *reason = "machine has no source-independent checked scalar control plan (mixed signature)";
+                    return None;
+                };
+                signature
             } else if retains_receiver {
                 // The state's roster is the machine's structural namespace,
                 // so the borrowed receiver lands there once.
-                crate::execution::terminal_unit::calls::ambient_self_scalar_graph_signature(
-                    program, machine, state,
-                )?
+                let Some(signature) =
+                    crate::execution::terminal_unit::calls::ambient_self_scalar_graph_signature(
+                        program, machine, state,
+                    )
+                else {
+                    *reason = "machine has no source-independent checked scalar control plan (ambient-self signature)";
+                    return None;
+                };
+                signature
             } else {
                 (
                     Vec::new(),
@@ -506,26 +578,43 @@ fn checked_state_graph(
             // Proof-only erased formals leave the scalar roster and index the
             // contract term lane instead; scalar erased ordinals stay dense
             // over scalar carriers only.
-            let erased_scalar_parameters =
+            let Some(erased_scalar_parameters) =
                 crate::execution::terminal_unit::types::erased_scalar_parameter_plans(
                     program, state,
-                )?;
-            let erased_proof_parameters =
+                )
+            else {
+                *reason = "machine has no source-independent checked scalar control plan (erased parameter plans)";
+                return None;
+            };
+            let Some(erased_proof_parameters) =
                 crate::execution::terminal_unit::types::erased_proof_parameter_plans(
                     program, state,
-                )?;
+                )
+            else {
+                *reason = "machine has no source-independent checked scalar control plan (erased parameter plans)";
+                return None;
+            };
             let parameter_types = scalar_parameters
                 .iter()
                 .map(|parameter| parameter.primitive_type)
                 .collect();
-            constructions::retain_shapes(program, computations, state.symbol, &mut shapes)?;
-            constructions::retain_record_locals(
+            let Some(()) =
+                constructions::retain_shapes(program, computations, state.symbol, &mut shapes)
+            else {
+                *reason = "machine has no source-independent checked scalar control plan (construction shapes)";
+                return None;
+            };
+            let Some(()) = constructions::retain_record_locals(
                 program,
                 structural_values,
                 machine,
                 state,
                 &mut shapes,
-            )?;
+            ) else {
+                *reason =
+                    "machine has no source-independent checked scalar control plan (record locals)";
+                return None;
+            };
             let storage = parameters
                 .iter()
                 .enumerate()
@@ -548,9 +637,16 @@ fn checked_state_graph(
                     })
                 })
                 .collect::<Option<Vec<_>>>()?;
-            let result_type = program.primitive_type_reference(state.return_type)?;
+            let Some(result_type) = program.primitive_type_reference(state.return_type) else {
+                *reason = "machine has no source-independent checked scalar control plan (non-primitive result type)";
+                return None;
+            };
             let statements = program.statement_table.statements(state.statement_nodes);
-            let bindings = checked_statement_bindings(program, state, computations, true)?;
+            let Some(bindings) = checked_statement_bindings(program, state, computations, true)
+            else {
+                *reason = "machine has no source-independent checked scalar control plan (statement bindings)";
+                return None;
+            };
             // Call-free primitive-reference leaves retain their existing
             // structural scalar-return owner, including its admission fences.
             if mixed
@@ -563,19 +659,24 @@ fn checked_state_graph(
                     .iter()
                     .any(|(_, root)| root.state == state.symbol)
             {
+                *reason = "machine has no source-independent checked scalar control plan (structural scalar-return owner)";
                 return None;
             }
-            let primitive_locals = primitive_locals::collect(
+            let Some(primitive_locals) = primitive_locals::collect(
                 program,
                 machine,
                 state,
                 expressions,
                 computations,
                 &bindings,
-            )?;
+            ) else {
+                *reason = "machine has no source-independent checked scalar control plan (primitive locals)";
+                return None;
+            };
             if !primitive_locals.is_empty()
                 && (owner_state_count != 1 || machine.attached_data.is_some())
             {
+                *reason = "machine has no source-independent checked scalar control plan (multi-state or attached primitive locals)";
                 return None;
             }
             for local in &primitive_locals {
@@ -588,6 +689,7 @@ fn checked_state_graph(
                 if let Some(existing) = shapes.iter().find(|entry| entry.identity == shape.identity)
                 {
                     if existing != &shape {
+                        *reason = "machine has no source-independent checked scalar control plan (structural shape conflict)";
                         return None;
                     }
                 } else {
@@ -605,8 +707,13 @@ fn checked_state_graph(
                     )
                 })
                 .count();
-            let terminator =
-                checked_terminator(program, machine, state, expressions, binding_count)?;
+            let Some(terminator) =
+                checked_terminator(program, machine, state, expressions, binding_count)
+            else {
+                *reason =
+                    "machine has no source-independent checked scalar control plan (terminator)";
+                return None;
+            };
             // Call syntax at a return is not a scalar-graph value producer.
             // Calls owned by the operation sequence (including boundaries)
             // must not acquire a competing graph with an unbound return.
@@ -630,6 +737,7 @@ fn checked_state_graph(
                     )
                     .is_none()
             {
+                *reason = "machine has no source-independent checked scalar control plan (call at return)";
                 return None;
             }
             Some((

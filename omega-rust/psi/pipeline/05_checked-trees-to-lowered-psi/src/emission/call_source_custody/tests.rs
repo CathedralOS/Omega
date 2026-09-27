@@ -163,7 +163,10 @@ fn dynamic_indexed_shared_receiver_lane_pends_on_upstream_legs() {
         let checked = crate::front_end::checked_program(&source);
         match lower_machine(&checked, TerminalMachineSelection::Name("run")) {
             Err(crate::LoweringError::Unsupported(message)) => {
-                assert_eq!(message, expected, "{index_decl} {requires}");
+                assert!(
+                    message.starts_with(expected),
+                    "{index_decl} {requires}: {message}"
+                );
             }
             other => panic!(
                 "{index_decl} {requires}: expected the pinned upstream rejection, \
@@ -185,10 +188,10 @@ fn dynamic_indexed_shared_receiver_lane_pends_on_upstream_legs() {
                 // dependency edge, so this test cannot name the variant —
                 // compare the rendered `Unsupported("…")` instead.
                 terminal_production::TerminalArtifactProductionError::Lowering(inner) => {
-                    assert_eq!(
-                        format!("{inner}"),
-                        format!("Unsupported({expected:?})"),
-                        "{index_decl} {requires}"
+                    let rendered = format!("{inner}");
+                    assert!(
+                        rendered.starts_with("Unsupported(\"") && rendered.contains(expected),
+                        "{index_decl} {requires}: {rendered}"
                     );
                 }
                 other => panic!(
