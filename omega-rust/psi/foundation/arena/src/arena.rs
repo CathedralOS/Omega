@@ -20,6 +20,13 @@ pub struct Arena<T> {
     /// row's occupancy and generation. Derived from the metadata above, so it
     /// takes no part in equality.
     fresh: bool,
+    /// Advances on every call that can change the arena's contents — inserts,
+    /// frees, truncations, wholesale replacement, and every mutable-slice or
+    /// mutable-element escape. Caches that outlive one borrow key freshness on
+    /// this counter instead of sampling lengths and boundary rows: a
+    /// same-length in-place rewrite moves it exactly like an append does.
+    /// Mutation metadata like `fresh`, so it takes no part in equality.
+    revision: u64,
 }
 
 impl<T: PartialEq> PartialEq for Arena<T> {
@@ -45,10 +52,12 @@ impl<T: Clone> Clone for Arena<T> {
             free_indices: self.free_indices.clone(),
             active_count: self.active_count,
             fresh: self.fresh,
+            revision: self.revision,
         }
     }
 
     fn clone_from(&mut self, source: &Self) {
+        self.bump_revision();
         self.dummy.clone_from(&source.dummy);
         self.generations.clone_from(&source.generations);
         self.occupied.clone_from(&source.occupied);
@@ -98,6 +107,25 @@ pub struct ArenaSpanInserter<'arena, T> {
     count: u32,
 }
 
+impl<T> Arena<T> {
+    /// The owned freshness counter, bumped by every mutation-capable call.
+    /// A consumer comparing revisions across borrows sees any change to the
+    /// arena's contents, including in-place rewrites that keep the length
+    /// fixed — the case a length fingerprint cannot distinguish.
+    #[inline]
+    pub fn revision(&self) -> u64 {
+        self.revision
+    }
+
+    #[inline]
+    fn bump_revision(&mut self) {
+        self.revision = self
+            .revision
+            .checked_add(1)
+            .expect("arena revision overflow");
+    }
+}
+
 impl<T: Default> Arena<T> {
     pub fn new() -> Self {
         Self {
@@ -108,6 +136,7 @@ impl<T: Default> Arena<T> {
             free_indices: Vec::new(),
             active_count: 0,
             fresh: true,
+            revision: 0,
         }
     }
 
@@ -120,6 +149,7 @@ impl<T: Default> Arena<T> {
             free_indices: Vec::new(),
             active_count: 0,
             fresh: true,
+            revision: 0,
         }
     }
 
@@ -130,6 +160,7 @@ impl<T: Default> Arena<T> {
     }
 
     pub fn insert(&mut self, item: T) -> Handle<T> {
+        self.bump_revision();
         if let Some(arena_index) = self.free_indices.pop() {
             let index = storage_index_from_arena_index(arena_index);
 
@@ -157,6 +188,7 @@ impl<T: Default> Arena<T> {
     }
 
     pub fn append(&mut self, item: T) -> Handle<T> {
+        self.bump_revision();
         let arena_index = next_arena_index(self.items.len());
 
         self.items.push(item);
@@ -182,6 +214,7 @@ impl<T: Default> Arena<T> {
     where
         T: Clone,
     {
+        self.bump_revision();
         if !span.is_empty()
             && (span.start().generation() != 1
                 || span
@@ -213,6 +246,7 @@ impl<T: Default> Arena<T> {
     }
 
     pub fn pop_last_appended(&mut self, handle: Handle<T>) -> Option<T> {
+        self.bump_revision();
         let index = self.index_from_valid_handle(handle);
         if index == invalid_index() || index.checked_add(1)? != self.items.len() {
             return None;
@@ -233,6 +267,7 @@ impl<T: Default> Arena<T> {
     pub fn insert_many(&mut self, items: impl IntoIterator<Item = T>) -> HandleSpan<T> {
         // Spans promise contiguous storage, so bulk insert appends instead of
         // consuming arbitrary free-list slots.
+        self.bump_revision();
         let start_index = next_arena_index(self.items.len());
         let mut count = 0u32;
 
@@ -261,6 +296,7 @@ impl<T: Default> Arena<T> {
     ) -> HandleSpan<T> {
         // Spans promise contiguous storage. This variant lets recursive
         // producers emit directly into the arena without staging a Vec.
+        self.bump_revision();
         let start_index = next_arena_index(self.items.len());
         let mut inserter = ArenaSpanInserter {
             arena: self,
@@ -282,6 +318,7 @@ impl<T: Default> Arena<T> {
     ) -> Result<HandleSpan<T>, E> {
         // Spans promise contiguous storage. This fallible variant lets
         // producers emit directly into the arena while preserving rollback.
+        self.bump_revision();
         let start_len = self.items.len();
         let start_active_count = self.active_count;
         let start_index = next_arena_index(start_len);
@@ -315,6 +352,7 @@ impl<T: Default> Arena<T> {
         // Spans promise contiguous storage, so bulk insert appends instead of
         // consuming arbitrary free-list slots. On failure, discard the partial
         // append so callers do not leave unreachable arena payloads behind.
+        self.bump_revision();
         let start_len = self.items.len();
         let start_index = next_arena_index(start_len);
         let mut count = 0u32;
@@ -367,6 +405,7 @@ impl<T: Default> Arena<T> {
         if count == 0 {
             return HandleSpan::empty();
         }
+        self.bump_revision();
 
         let start_index = next_arena_index(self.items.len());
 
@@ -405,6 +444,7 @@ impl<T: Default> Arena<T> {
     }
 
     pub fn get_mut(&mut self, handle: Handle<T>) -> &mut T {
+        self.bump_revision();
         let index = self.index_from_valid_handle(handle);
 
         if index < self.items.len() {
@@ -420,6 +460,7 @@ impl<T: Default> Arena<T> {
         if index == invalid_index() {
             return false;
         }
+        self.bump_revision();
 
         self.items[index] = T::default();
         self.occupied[index] = false;
@@ -454,6 +495,7 @@ impl<T: Default> Arena<T> {
 
     #[inline]
     pub fn span_mut(&mut self, span: HandleSpan<T>) -> Option<&mut [T]> {
+        self.bump_revision();
         if span.is_empty() {
             return Some(&mut []);
         }
@@ -465,6 +507,7 @@ impl<T: Default> Arena<T> {
 
     #[inline]
     pub fn span_mut_or_empty(&mut self, span: HandleSpan<T>) -> &mut [T] {
+        self.bump_revision();
         if let Some(range) = self.valid_span_range(span) {
             &mut self.items[range]
         } else {
@@ -524,6 +567,7 @@ impl<T: Default> Arena<T> {
     }
 
     pub fn clear(&mut self) {
+        self.bump_revision();
         for index in 0..self.items.len() {
             self.items[index] = T::default();
             self.generations[index] = next_generation(self.generations[index]);
@@ -538,6 +582,7 @@ impl<T: Default> Arena<T> {
     }
 
     pub fn reset_retain_capacity(&mut self) {
+        self.bump_revision();
         self.items.clear();
         self.generations.clear();
         self.occupied.clear();
@@ -558,6 +603,7 @@ impl<T: Default> Arena<T> {
             free_indices: self.free_indices,
             active_count: self.active_count,
             fresh: self.fresh,
+            revision: self.revision,
         }
     }
 
@@ -594,6 +640,7 @@ impl<T: Default> Arena<T> {
     }
 
     pub fn for_each_mut(&mut self, mut visit: impl FnMut(Handle<T>, &mut T)) {
+        self.bump_revision();
         for index in 0..self.items.len() {
             if !self.occupied[index] {
                 continue;

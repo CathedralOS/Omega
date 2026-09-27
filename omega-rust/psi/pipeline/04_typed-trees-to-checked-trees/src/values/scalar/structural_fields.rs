@@ -60,49 +60,27 @@ fn parameter_symbols_fingerprint(parameters: &[StateParameter]) -> usize {
     fingerprint
 }
 
-fn structural_rosters_fingerprint(
-    program: &TypedTrees,
-    machines: &[typed_trees::machine::Machine],
-) -> usize {
-    // The slice base stays in the fingerprint. With the owner an identity it
-    // can no longer produce a false hit, and it still separates two states of
-    // one program -- including a clone, which shares its source's tag -- that
-    // the lengths alone do not.
-    let mut fingerprint = (machines.as_ptr() as usize)
-        ^ machines.len().rotate_left(7)
-        ^ program.tables.machine_states.len().rotate_left(13)
-        ^ program.tables.state_parameters.len().rotate_left(19)
-        ^ program.statement_table.statement_count().rotate_left(23)
-        ^ program.data_definitions().len().rotate_left(29)
-        ^ program.tables.data_members.len().rotate_left(37)
-        ^ program.tables.data_payload_fields.len().rotate_left(41);
-    for position in [0usize, machines.len() / 2, machines.len().saturating_sub(1)] {
-        if let Some(machine) = machines.get(position) {
-            fingerprint ^= (machine.symbol.arena_index() as usize).rotate_left(position as u32)
-                ^ (machine.name.as_str().as_ptr() as usize);
-        }
-    }
-    // States' member spans can be repointed while arena lengths stay fixed,
-    // so span starts and counts enter the fingerprint beside element samples.
-    let states_len = program.tables.machine_states.len();
-    for position in [0usize, states_len / 2, states_len.saturating_sub(1)] {
-        let state = program
-            .tables
-            .machine_states
-            .get(arena::Handle::from_arena_index(position as u32));
-        fingerprint ^= (state.parameters.start().arena_index() as usize)
-            .rotate_left(position as u32 + 1)
-            ^ (state.parameters.count() as usize).rotate_left(position as u32 + 2)
-            ^ (state.statement_nodes.start().arena_index() as usize)
-                .rotate_left(position as u32 + 3)
-            ^ (state.statement_nodes.count() as usize).rotate_left(position as u32 + 4);
-    }
-    fingerprint
+fn structural_rosters_revision(program: &TypedTrees) -> u64 {
+    // Freshness is the sum of the revisions of every arena the rosters read.
+    // Each arena's revision only ever moves forward — appends, frees, and
+    // in-place rewrites alike — so the sum moves exactly when a read table
+    // changes; a same-length mutation or a clone mutated after cloning can
+    // never be served the stale map.
+    program
+        .tables
+        .machines
+        .revision()
+        .wrapping_add(program.tables.machine_states.revision())
+        .wrapping_add(program.tables.state_parameters.revision())
+        .wrapping_add(program.statement_table.revision())
+        .wrapping_add(program.tables.data_definitions.revision())
+        .wrapping_add(program.tables.data_members.revision())
+        .wrapping_add(program.tables.data_payload_fields.revision())
 }
 
 thread_local! {
     static STRUCTURAL_ROSTERS: std::cell::RefCell<
-        Option<(typed_trees::ProgramIdentity, usize, StructuralRosters)>,
+        Option<(typed_trees::ProgramIdentity, u64, StructuralRosters)>,
     > = const { std::cell::RefCell::new(None) };
 }
 
@@ -113,9 +91,9 @@ fn with_structural_rosters<R>(
     STRUCTURAL_ROSTERS.with(|slot| {
         let mut slot = slot.borrow_mut();
         let machines = program.machines();
-        let fingerprint = structural_rosters_fingerprint(program, machines);
+        let revision = structural_rosters_revision(program);
         let fresh = slot.as_ref().is_some_and(|(owner, seen, _)| {
-            owner.get() == program.identity.get() && *seen == fingerprint
+            owner.get() == program.identity.get() && *seen == revision
         });
         if !fresh {
             let mut rosters = StructuralRosters {
@@ -209,7 +187,7 @@ fn with_structural_rosters<R>(
                     }
                 }
             }
-            *slot = Some((program.identity, fingerprint, rosters));
+            *slot = Some((program.identity, revision, rosters));
         }
         reader(&slot.as_ref().expect("rosters just populated").2)
     })

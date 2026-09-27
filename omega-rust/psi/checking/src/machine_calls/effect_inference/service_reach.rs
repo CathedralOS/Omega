@@ -69,33 +69,31 @@ struct CallTargetIndex {
 
 thread_local! {
     static CALL_TARGET_INDEX: std::cell::RefCell<
-        Option<(typed_trees::ProgramIdentity, usize, CallTargetIndex)>,
+        Option<(typed_trees::ProgramIdentity, u64, CallTargetIndex)>,
     > = const { std::cell::RefCell::new(None) };
 }
 
-fn call_target_index_fingerprint(program: &TypedTrees) -> usize {
-    let machines = program.machines();
-    let sample = |index: usize| -> usize {
-        if index < machines.len() {
-            machines[index].symbol.arena_index() as usize
-                ^ machines[index].name.as_str().as_ptr() as usize
-        } else {
-            0
-        }
-    };
-    machines.len().rotate_left(11)
-        ^ program.traits().len().rotate_left(23)
-        ^ sample(0).rotate_left(31)
-        ^ sample(machines.len() / 2).rotate_left(41)
-        ^ sample(machines.len().saturating_sub(1))
+fn call_target_index_revision(program: &TypedTrees) -> u64 {
+    // Freshness is the summed revision of every arena the index reads. Each
+    // arena revision only ever moves forward, so the sum moves exactly when
+    // one of the tables changes — an append or a same-length in-place rewrite
+    // alike — and never otherwise.
+    program
+        .tables
+        .machines
+        .revision()
+        .wrapping_add(program.tables.machine_states.revision())
+        .wrapping_add(program.tables.data_type_parameters.revision())
+        .wrapping_add(program.tables.traits.revision())
+        .wrapping_add(program.tables.trait_machine_signatures.revision())
 }
 
 fn with_call_target_index<R>(program: &TypedTrees, run: impl FnOnce(&CallTargetIndex) -> R) -> R {
     CALL_TARGET_INDEX.with(|cell| {
         let mut slot = cell.borrow_mut();
-        let fingerprint = call_target_index_fingerprint(program);
+        let revision = call_target_index_revision(program);
         let fresh = matches!(&*slot, Some((owner, seen, _))
-            if owner.get() == program.identity.get() && *seen == fingerprint);
+            if owner.get() == program.identity.get() && *seen == revision);
         if !fresh {
             let mut index = CallTargetIndex {
                 boundary_machine_by_state: symbols::SymbolKeyMap::default(),
@@ -154,7 +152,7 @@ fn with_call_target_index<R>(program: &TypedTrees, run: impl FnOnce(&CallTargetI
                         .or_insert(handle);
                 }
             }
-            *slot = Some((program.identity, fingerprint, index));
+            *slot = Some((program.identity, revision, index));
         }
         run(&slot.as_ref().expect("index slot is populated").2)
     })

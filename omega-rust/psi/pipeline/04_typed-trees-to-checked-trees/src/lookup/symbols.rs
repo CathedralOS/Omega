@@ -12,19 +12,15 @@ pub(crate) fn machine_state_count(program: &typed_trees::TypedTrees) -> usize {
 
 // The machine table is queried once per expression through this module, so
 // each program's first query indexes every machine symbol by its first
-// position and later queries, hit or miss, probe that index. Monomorphization
-// appends machines mid-compile, so freshness is the owner's `ProgramIdentity`
-// AND the current machine count and boundary symbols. A hit is still
-// validated against the machine's own symbol, so a stale index can only ever
-// trigger a rebuild; a miss has no such validation, which is why the owner has
-// to be an identity and not an address. A dropped program's address is
-// reused, and a replacement that happens to match the count and the anchor
-// symbols would otherwise be told a machine it does own is absent.
+// position and later queries, hit or miss, probe that index. Freshness is the
+// owner's `ProgramIdentity` AND the machine arena's own revision: the counter
+// moves on every mutation-capable call, including same-length in-place
+// rewrites, so a stale index — hit or miss — can never outlive the table it
+// describes. Monomorphization appends machines mid-compile; each append
+// rebuilds the index on the next query.
 struct MachineIndex {
     owner: typed_trees::ProgramIdentity,
-    len: usize,
-    first: Option<SymbolHandle>,
-    last: Option<SymbolHandle>,
+    revision: u64,
     positions: ::symbols::SymbolMap<usize>,
 }
 
@@ -38,19 +34,14 @@ impl MachineIndex {
         }
         Self {
             owner: program.identity,
-            len: machines.len(),
-            first: machines.first().map(|machine| machine.symbol),
-            last: machines.last().map(|machine| machine.symbol),
+            revision: program.tables.machines.revision(),
             positions,
         }
     }
 
     fn is_fresh_for(&self, program: &typed_trees::TypedTrees) -> bool {
-        let machines = program.machines();
         self.owner.get() == program.identity.get()
-            && self.len == machines.len()
-            && self.first == machines.first().map(|machine| machine.symbol)
-            && self.last == machines.last().map(|machine| machine.symbol)
+            && self.revision == program.tables.machines.revision()
     }
 }
 
@@ -73,17 +64,6 @@ fn machine_index_by_symbol(
         {
             *slot = Some(MachineIndex::of(program));
         }
-        let machines = program.machines();
-        let verified = |index: &MachineIndex| {
-            index.positions.get(&symbol).map(|position| {
-                machines
-                    .get(*position)
-                    .is_some_and(|machine| machine.symbol == symbol)
-            })
-        };
-        if verified(slot.as_ref()?) == Some(false) {
-            *slot = Some(MachineIndex::of(program));
-        }
         slot.as_ref()?.positions.get(&symbol).copied()
     })
 }
@@ -97,20 +77,20 @@ pub(crate) fn machine_by_symbol(
 
 // State tables are queried once per crash-entry operand through the facts
 // builders: a per-machine `.find` rescans every state of that machine per
-// query. Cache each (machine, state) query's exact scan verdict per program;
-// monomorphization may append states mid-compile, so a miss verdict also
-// records the state count it was taken under — a machine that grew states
-// since forces a rescan. Hit verdicts still verify the state's own symbol.
+// query. Cache each (machine, state) query's exact scan verdict per program.
+// Freshness is the owner's `ProgramIdentity` plus the machines and
+// machine_states arena revisions — the counters move on every mutation,
+// appends and in-place rewrites alike, so verdicts rebuild only when the
+// tables they describe actually changed.
 thread_local! {
     static STATE_INDEX: RefCell<
         Option<(
             typed_trees::ProgramIdentity,
-            usize,
-            Option<SymbolHandle>,
-            Option<SymbolHandle>,
+            u64,
+            u64,
             std::collections::HashMap<
                 (SymbolHandle, SymbolHandle),
-                (usize, Option<usize>),
+                Option<usize>,
             >,
         )>,
     > = const { RefCell::new(None) };
@@ -127,70 +107,44 @@ pub(crate) fn state_index_by_symbol(
     let states = program.machine_states(machine);
     STATE_INDEX.with(|cell| {
         let mut slot = cell.borrow_mut();
-        let machines = program.machines();
-        let first = machines.first().map(|machine| machine.symbol);
-        let last = machines.last().map(|machine| machine.symbol);
+        let machines_revision = program.tables.machines.revision();
+        let states_revision = program.tables.machine_states.revision();
         let stale = match &*slot {
-            Some((owner, len, first_anchor, last_anchor, _)) => {
+            Some((owner, seen_machines, seen_states, _)) => {
                 owner.get() != program.identity.get()
-                    || *len != machines.len()
-                    || *first_anchor != first
-                    || *last_anchor != last
+                    || *seen_machines != machines_revision
+                    || *seen_states != states_revision
             }
             None => true,
         };
         if stale {
             *slot = Some((
                 program.identity,
-                machines.len(),
-                first,
-                last,
+                machines_revision,
+                states_revision,
                 std::collections::HashMap::new(),
             ));
         }
-        let Some((_, _, _, _, verdicts)) = &mut *slot else {
+        let Some((_, _, _, verdicts)) = &mut *slot else {
             return None;
         };
-        let key = (machine.symbol, symbol);
-        match verdicts.get(&key) {
-            Some((states_len, Some(index))) if *states_len == states.len() => {
-                if states
-                    .get(*index)
-                    .is_some_and(|state| state.symbol == symbol)
-                {
-                    Some(*index)
-                } else {
-                    let found = states.iter().position(|state| state.symbol == symbol);
-                    verdicts.insert(key, (states.len(), found));
-                    found
-                }
-            }
-            Some((states_len, None)) if *states_len == states.len() => None,
-            _ => {
-                let found = states.iter().position(|state| state.symbol == symbol);
-                verdicts.insert(key, (states.len(), found));
-                found
-            }
-        }
+        *verdicts
+            .entry((machine.symbol, symbol))
+            .or_insert_with(|| states.iter().position(|state| state.symbol == symbol))
     })
 }
 
 // Member resolution looks up a data declaration by its symbol once per
 // member hop: a whole-table `.find` rescans every data definition per hop.
 // Cache each query's exact scan verdict per program under the same law as
-// the machine index — the data-definition table's own freshness anchors.
-// The anchors also include the backing-store pointer and the middle element:
-// a recycled `TypedTrees` at the same owner address with the same length and
-// boundary symbols but a different interior otherwise reuses stale verdicts.
+// the machine index — freshness is the owner's identity plus the
+// data-definition arena's own revision, so a recycled `TypedTrees` or a
+// same-length rewrite can never be served stale verdicts.
 thread_local! {
     static DATA_DEF_INDEX: RefCell<
         Option<(
             typed_trees::ProgramIdentity,
-            *const typed_trees::data::DataDefinition,
-            usize,
-            Option<SymbolHandle>,
-            Option<SymbolHandle>,
-            Option<SymbolHandle>,
+            u64,
             std::collections::HashMap<SymbolHandle, Option<usize>>,
         )>,
     > = const { RefCell::new(None) };
@@ -205,62 +159,23 @@ fn data_definition_index_by_symbol(
     }
     DATA_DEF_INDEX.with(|cell| {
         let mut slot = cell.borrow_mut();
-        let definitions = program.data_definitions();
-        let first = definitions.first().map(|definition| definition.symbol);
-        let middle = definitions
-            .get(definitions.len() / 2)
-            .map(|definition| definition.symbol);
-        let last = definitions.last().map(|definition| definition.symbol);
+        let revision = program.tables.data_definitions.revision();
         let stale = match &*slot {
-            Some((owner, storage, len, first_anchor, middle_anchor, last_anchor, _)) => {
-                owner.get() != program.identity.get()
-                    || *storage != definitions.as_ptr()
-                    || *len != definitions.len()
-                    || *first_anchor != first
-                    || *middle_anchor != middle
-                    || *last_anchor != last
-            }
+            Some((owner, seen, _)) => owner.get() != program.identity.get() || *seen != revision,
             None => true,
         };
         if stale {
-            *slot = Some((
-                program.identity,
-                definitions.as_ptr(),
-                definitions.len(),
-                first,
-                middle,
-                last,
-                std::collections::HashMap::new(),
-            ));
+            *slot = Some((program.identity, revision, std::collections::HashMap::new()));
         }
-        let Some((_, _, _, _, _, _, verdicts)) = &mut *slot else {
+        let Some((_, _, verdicts)) = &mut *slot else {
             return None;
         };
-        match verdicts.get(&symbol) {
-            Some(Some(index)) => {
-                if definitions
-                    .get(*index)
-                    .is_some_and(|definition| definition.symbol == symbol)
-                {
-                    Some(*index)
-                } else {
-                    verdicts.remove(&symbol);
-                    let found = definitions
-                        .iter()
-                        .position(|definition| definition.symbol == symbol);
-                    verdicts.insert(symbol, found);
-                    found
-                }
-            }
-            Some(None) => None,
-            None => {
-                let found = definitions
-                    .iter()
-                    .position(|definition| definition.symbol == symbol);
-                verdicts.insert(symbol, found);
-                found
-            }
-        }
+        *verdicts.entry(symbol).or_insert_with(|| {
+            program
+                .data_definitions()
+                .iter()
+                .position(|definition| definition.symbol == symbol)
+        })
     })
 }
 
@@ -274,14 +189,13 @@ pub(crate) fn data_definition_by_symbol(
 // Whether a data declaration owns an attached `::drop` machine is queried
 // per field visit through the contents classifier: a whole-machine `.any`
 // per query rescans every machine. Cache each data symbol's verdict per
-// program; the machines-table freshness anchors match the machine index.
+// program; freshness is the owner identity plus the machines arena's own
+// revision, matching the machine index's law.
 thread_local! {
     static DROP_HOOK_INDEX: RefCell<
         Option<(
             typed_trees::ProgramIdentity,
-            usize,
-            Option<SymbolHandle>,
-            Option<SymbolHandle>,
+            u64,
             std::collections::HashMap<SymbolHandle, bool>,
         )>,
     > = const { RefCell::new(None) };
@@ -296,32 +210,19 @@ pub(crate) fn attached_drop_machine_exists(
     }
     DROP_HOOK_INDEX.with(|cell| {
         let mut slot = cell.borrow_mut();
-        let machines = program.machines();
-        let first = machines.first().map(|machine| machine.symbol);
-        let last = machines.last().map(|machine| machine.symbol);
+        let revision = program.tables.machines.revision();
         let stale = match &*slot {
-            Some((owner, len, first_anchor, last_anchor, _)) => {
-                owner.get() != program.identity.get()
-                    || *len != machines.len()
-                    || *first_anchor != first
-                    || *last_anchor != last
-            }
+            Some((owner, seen, _)) => owner.get() != program.identity.get() || *seen != revision,
             None => true,
         };
         if stale {
-            *slot = Some((
-                program.identity,
-                machines.len(),
-                first,
-                last,
-                std::collections::HashMap::new(),
-            ));
+            *slot = Some((program.identity, revision, std::collections::HashMap::new()));
         }
-        let Some((_, _, _, _, verdicts)) = &mut *slot else {
+        let Some((_, _, verdicts)) = &mut *slot else {
             return false;
         };
         *verdicts.entry(data_symbol).or_insert_with(|| {
-            machines.iter().any(|candidate| {
+            program.machines().iter().any(|candidate| {
                 candidate.attached_data_symbol == data_symbol
                     && candidate.name.as_str().ends_with("::drop")
             })

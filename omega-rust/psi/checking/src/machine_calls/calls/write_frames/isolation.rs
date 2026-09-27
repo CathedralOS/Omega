@@ -59,60 +59,35 @@ pub(super) struct IsolationCache {
 
 thread_local! {
     static ISOLATION_CACHE: RefCell<
-        Option<(typed_trees::ProgramIdentity, usize, IsolationCache)>,
+        Option<(typed_trees::ProgramIdentity, u64, usize, IsolationCache)>,
     > = const { RefCell::new(None) };
 }
 
 /// Cheap per-call staleness check over the tables these verdicts read.
 ///
-/// This answers "has this program grown since the entry was built", not "is
-/// this the same program": `TypedTrees::identity` answers that, and it is the
-/// cache's key. The fingerprint mixed arena base pointers before, to tell
-/// fixture programs apart when forged handles made their symbol endpoints
-/// collide; those blocks are recycled with the program, so a dropped program
-/// and its replacement could present the same address and the same
-/// fingerprint, and the replacement was then served the dropped program's
-/// verdicts. Measured on `-p typed-trees-to-checked-trees --lib -E
-/// 'test(/range_/)'`: 2 of 6 multi-threaded runs failed, with different tests
-/// failing each time, while 4 of 4 single-threaded runs and 6 of 6 runs with
-/// this cache disabled passed.
-fn program_fingerprint(program: &TypedTrees) -> usize {
-    let definitions = program.data_definitions();
-    let machines = program.machines();
-    let definition_sample = |index: usize| -> usize {
-        definitions
-            .get(index)
-            .map(|definition| {
-                definition.symbol.arena_index() as usize
-                    ^ definition.name.as_str().len().rotate_left(7)
-                    ^ program.data_members(definition).len().rotate_left(13)
-                    ^ program
-                        .data_type_parameters(definition)
-                        .len()
-                        .rotate_left(19)
-            })
-            .unwrap_or(0)
-    };
-    let machine_sample = |index: usize| -> usize {
-        machines
-            .get(index)
-            .map(|machine| {
-                machine.symbol.arena_index() as usize
-                    ^ program.machine_states(machine).len().rotate_left(5)
-            })
-            .unwrap_or(0)
-    };
-    let mut fingerprint = definitions.len().rotate_left(17)
-        ^ machines.len().rotate_left(31)
-        ^ program.plan_laid_layouts.len().rotate_left(9)
-        ^ program.placed_view_plans.len().rotate_left(23)
-        ^ program.authored_service_reach_rows.len().rotate_left(41);
-    fingerprint = fingerprint.rotate_left(11) ^ definition_sample(0);
-    fingerprint = fingerprint.rotate_left(11) ^ definition_sample(definitions.len() / 2);
-    fingerprint =
-        fingerprint.rotate_left(11) ^ definition_sample(definitions.len().saturating_sub(1));
-    fingerprint = fingerprint.rotate_left(11) ^ machine_sample(0);
-    fingerprint.rotate_left(11) ^ machine_sample(machines.len().saturating_sub(1))
+/// `TypedTrees::identity` answers "is this the same program"; the revision
+/// answers "did a table change since the entry was built" — exactly, not by
+/// sampling. Each arena's revision only moves forward, so their sum moves
+/// precisely when a read table does: an append, a free, or a same-length
+/// in-place rewrite all count identically. The three `Vec` planning tables
+/// have no arena revision of their own, so their lengths still join the
+/// check; they are populated before checking opens the cache and no caller
+/// rewrites one in place mid-pass.
+fn program_fingerprint(program: &TypedTrees) -> (u64, usize) {
+    let revision = program
+        .tables
+        .data_definitions
+        .revision()
+        .wrapping_add(program.tables.data_members.revision())
+        .wrapping_add(program.tables.data_type_parameters.revision())
+        .wrapping_add(program.tables.machines.revision())
+        .wrapping_add(program.tables.machine_states.revision());
+    let vector_lengths = program
+        .plan_laid_layouts
+        .len()
+        .wrapping_add(program.placed_view_plans.len())
+        .wrapping_add(program.authored_service_reach_rows.len());
+    (revision, vector_lengths)
 }
 
 pub(super) fn with_isolation_cache<R>(
@@ -121,9 +96,11 @@ pub(super) fn with_isolation_cache<R>(
 ) -> R {
     ISOLATION_CACHE.with(|cell| {
         let mut slot = cell.borrow_mut();
-        let fingerprint = program_fingerprint(program);
-        let fresh = matches!(&*slot, Some((owner, seen, _))
-            if owner.get() == program.identity.get() && *seen == fingerprint);
+        let (revision, vector_lengths) = program_fingerprint(program);
+        let fresh = matches!(&*slot, Some((owner, seen, seen_lengths, _))
+            if owner.get() == program.identity.get()
+                && *seen == revision
+                && *seen_lengths == vector_lengths);
         if !fresh {
             let mut by_symbol: HashMap<SymbolHandle, Vec<u32>> = HashMap::new();
             let mut by_name: HashMap<String, Vec<u32>> = HashMap::new();
@@ -141,7 +118,8 @@ pub(super) fn with_isolation_cache<R>(
             }
             *slot = Some((
                 program.identity,
-                fingerprint,
+                revision,
+                vector_lengths,
                 IsolationCache {
                     isolation: HashMap::new(),
                     storage_match: HashMap::new(),
@@ -153,7 +131,7 @@ pub(super) fn with_isolation_cache<R>(
                 },
             ));
         }
-        run(&mut slot.as_mut().unwrap().2)
+        run(&mut slot.as_mut().unwrap().3)
     })
 }
 

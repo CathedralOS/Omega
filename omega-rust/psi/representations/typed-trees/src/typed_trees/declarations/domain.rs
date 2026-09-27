@@ -161,25 +161,13 @@ struct DomainSymbolIndex {
     by_symbol: std::collections::HashMap<SymbolHandle, usize>,
 }
 
-fn domain_index_fingerprint(definitions: &[DomainDefinition]) -> usize {
-    let len = definitions.len();
-    let mut fingerprint = definitions.as_ptr() as usize ^ len;
-    for position in [0usize, len / 2, len.saturating_sub(1)] {
-        if let Some(domain) = definitions.get(position) {
-            fingerprint ^= (domain.symbol.arena_index() as usize).rotate_left(position as u32)
-                ^ (domain.name.as_str().as_ptr() as usize);
-        }
-    }
-    fingerprint
-}
-
 thread_local! {
-    // Owned by the program's instance tag rather than the slice's address: a
-    // later program can place an equally long domain table at the same
-    // address once an earlier one is freed. The fingerprint still catches
-    // mutation of the same instance.
+    // Owned by the program's instance tag plus the domain arena's own
+    // revision: the counter moves on every mutation — appends and same-length
+    // in-place rewrites alike — so a recycled program or a mutated table can
+    // never be served the stale index.
     static DOMAIN_SYMBOL_INDEX: std::cell::RefCell<
-        Option<(u64, usize, DomainSymbolIndex)>,
+        Option<(u64, u64, DomainSymbolIndex)>,
     > = const { std::cell::RefCell::new(None) };
 }
 
@@ -190,11 +178,11 @@ fn with_domain_symbol_index<R>(
 ) -> R {
     DOMAIN_SYMBOL_INDEX.with(|slot| {
         let mut slot = slot.borrow_mut();
-        let fingerprint = domain_index_fingerprint(definitions);
+        let revision = program.tables.domain_definitions.revision();
         let owner = program.identity.get();
         let fresh = slot
             .as_ref()
-            .is_some_and(|(seen_owner, seen, _)| *seen_owner == owner && *seen == fingerprint);
+            .is_some_and(|(seen_owner, seen, _)| *seen_owner == owner && *seen == revision);
         if !fresh {
             let mut index = DomainSymbolIndex {
                 by_symbol: std::collections::HashMap::with_capacity(definitions.len()),
@@ -202,7 +190,7 @@ fn with_domain_symbol_index<R>(
             for (position, domain) in definitions.iter().enumerate() {
                 index.by_symbol.entry(domain.symbol).or_insert(position);
             }
-            *slot = Some((owner, fingerprint, index));
+            *slot = Some((owner, revision, index));
         }
         reader(&slot.as_ref().expect("index just populated").2)
     })
