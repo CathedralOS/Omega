@@ -22,9 +22,8 @@ machine Librarian::archive(&self, folder: Binding<Folder>) reaches Folder {
 
 data Main {
     librarian: Librarian;
-    folder: Binding<Folder>;
 }
 
-machine Main::main(&mut self) {
-    self.librarian.archive(self.folder);
+machine Main::main(&mut self, folder: Binding<Folder>) {
+    self.librarian.archive(folder);
 }
