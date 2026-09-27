@@ -180,7 +180,7 @@ where count in u32::Small,
 
 #[test]
 fn public_data_invariant_review_rejects_checked_ownership_spoofs() {
-    let compile = || {
+    let original = {
         let package = TempPackage::new();
         package.write(
             "main.omg",
@@ -213,7 +213,7 @@ where count <= len,
         );
     };
 
-    let mut missing_owner = compile();
+    let mut missing_owner = original.clone();
     let owner = missing_owner
         .facts
         .semantic
@@ -231,7 +231,7 @@ where count <= len,
     );
     assert_rejects(&missing_owner, "data invariant evidence");
 
-    let mut duplicate_owner = compile();
+    let mut duplicate_owner = original.clone();
     let owner = duplicate_owner
         .facts
         .semantic
@@ -247,7 +247,7 @@ where count <= len,
         .append(owner);
     assert_rejects(&duplicate_owner, "data invariant evidence");
 
-    let mut unrelated_extra_owner = compile();
+    let mut unrelated_extra_owner = original.clone();
     let mut owner = unrelated_extra_owner
         .facts
         .semantic
@@ -264,7 +264,7 @@ where count <= len,
         .append(owner);
     assert_rejects(&unrelated_extra_owner, "data invariant evidence");
 
-    let mut wrong_origin = compile();
+    let mut wrong_origin = original.clone();
     let semantic_fact = wrong_origin
         .facts
         .semantic
@@ -281,7 +281,7 @@ where count <= len,
         .origin = facts::FactOrigin::Unknown;
     assert_rejects(&wrong_origin, "data invariant evidence");
 
-    let mut missing_dependency = compile();
+    let mut missing_dependency = original.clone();
     let owner = missing_dependency
         .facts
         .semantic
@@ -299,7 +299,7 @@ where count <= len,
         .clear();
     assert_rejects(&missing_dependency, "data invariant evidence");
 
-    let mut extra_dependency = compile();
+    let mut extra_dependency = original.clone();
     let owner = extra_dependency
         .facts
         .semantic
@@ -323,7 +323,7 @@ where count <= len,
         .push(dependency);
     assert_rejects(&extra_dependency, "data invariant evidence");
 
-    let mut orphan_semantic_fact = compile();
+    let mut orphan_semantic_fact = original.clone();
     let semantic_fact = orphan_semantic_fact
         .facts
         .semantic
@@ -336,7 +336,7 @@ where count <= len,
     orphan_semantic_fact.facts.semantic.facts.append(fact);
     assert_rejects(&orphan_semantic_fact, "data invariant evidence");
 
-    let mut orphan_ref = compile();
+    let mut orphan_ref = original.clone();
     let semantic_fact = orphan_ref
         .facts
         .semantic
@@ -350,13 +350,13 @@ where count <= len,
     });
     assert_rejects(&orphan_ref, "data invariant evidence");
 
-    let mut dangling_ref = compile();
+    let mut dangling_ref = original.clone();
     dangling_ref.facts.semantic.refs.append(facts::FactRef {
         fact: arena::Handle::from_parts(u32::MAX, 1),
     });
     assert_rejects(&dangling_ref, "data invariant evidence");
 
-    let mut malformed_extra_context = compile();
+    let mut malformed_extra_context = original.clone();
     malformed_extra_context
         .facts
         .semantic
@@ -367,7 +367,7 @@ where count <= len,
         });
     assert_rejects(&malformed_extra_context, "data invariant evidence");
 
-    let mut missing_context = compile();
+    let mut missing_context = original.clone();
     let data_symbol = missing_context
         .facts
         .semantic
@@ -416,7 +416,7 @@ where count <= len,
     assert!(missing_context.facts.semantic.contexts.free(context));
     assert_rejects(&missing_context, "data invariant evidence");
 
-    let mut missing_symbol_set = compile();
+    let mut missing_symbol_set = original.clone();
     let data_symbol = missing_symbol_set
         .facts
         .semantic

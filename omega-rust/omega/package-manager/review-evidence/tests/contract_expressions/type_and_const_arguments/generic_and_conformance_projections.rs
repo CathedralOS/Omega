@@ -744,7 +744,7 @@ ensures result == tag<Card, FieldOrder<Card>>();
         r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
-    let compile = || {
+    let original = {
         compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
@@ -752,7 +752,7 @@ ensures result == tag<Card, FieldOrder<Card>>();
         .expect("closed generic conformance occurrence fixture should check")
     };
 
-    let mut missing = compile();
+    let mut missing = original.clone();
     missing
         .facts
         .proof
@@ -766,7 +766,7 @@ ensures result == tag<Card, FieldOrder<Card>>();
             .contains("with 0 exact checked occurrence rows; expected one")
     }));
 
-    let mut duplicate = compile();
+    let mut duplicate = original.clone();
     let copied = duplicate
         .facts
         .proof
@@ -785,7 +785,7 @@ ensures result == tag<Card, FieldOrder<Card>>();
             .contains("with 2 exact checked occurrence rows; expected one")
     }));
 
-    let mut redirected = compile();
+    let mut redirected = original.clone();
     redirected
         .facts
         .proof
@@ -799,7 +799,7 @@ ensures result == tag<Card, FieldOrder<Card>>();
             .contains("with 0 exact checked occurrence rows; expected one")
     }));
 
-    let mut substituted = compile();
+    let mut substituted = original.clone();
     substituted
         .facts
         .proof
@@ -814,7 +814,7 @@ ensures result == tag<Card, FieldOrder<Card>>();
             .contains("retained checked occurrence disagrees with the authored application")
     }));
 
-    let mut selection_drift = compile();
+    let mut selection_drift = original.clone();
     let alternate = selection_drift
         .conformances()
         .iter()
