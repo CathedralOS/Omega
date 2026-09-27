@@ -19,6 +19,77 @@ use crate::lower_machine;
 use terminal_psi::{OperationKind, OperationResult, StructuralPathSegment, TerminalModule};
 
 #[test]
+fn boundary_record_result_can_replace_a_field() {
+    let checked = crate::front_end::checked_program(
+        r#"
+            data Triple { first: u64; second: u64; third: u64; }
+            boundary trait Host { machine receive(seed: u64) -> Triple reaches Host; }
+            data Main { result: Triple; seed: u64; }
+            machine Main::main(&mut self) reaches Host {
+                self.seed = 7;
+                self.result = Host::receive(self.seed);
+                self.seed = 9;
+                self.result = Host::receive(self.seed);
+                transition { _ -> done() }
+                state done(&mut self) { }
+            }
+        "#,
+    );
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
+        .expect("a boundary record result replaces the declared field");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("the boundary call and destination retain independent verification");
+
+    for mutation in [
+        "result type",
+        "result multiplicity",
+        "call target",
+        "statement",
+    ] {
+        let mut changed = checked.clone();
+        let operation = changed
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.states)
+            .flat_map(|state| &mut state.operations)
+            .find(|operation| {
+                matches!(
+                    operation,
+                    checked_trees::CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
+                )
+            })
+            .expect("boundary call in the assignment's ordered effects");
+        let checked_trees::CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+            coordinate,
+            result,
+            target_state,
+            ..
+        } = operation
+        else {
+            unreachable!();
+        };
+        match mutation {
+            "result type" => result.type_identity = "wrong record".to_owned(),
+            "result multiplicity" => result.multiplicity = language_semantics::Multiplicity::Linear,
+            "call target" => *target_state = symbols::SymbolHandle::invalid(),
+            "statement" => coordinate.statement_index += 1,
+            _ => unreachable!(),
+        }
+        assert!(
+            lower_machine(&changed, TerminalMachineSelection::Name("Main::main")).is_err(),
+            "forged {mutation} must not pass result custody"
+        );
+    }
+}
+
+#[test]
 fn explicit_owned_self_call_rejoins_only_its_authored_receiver() {
     let mut checked = crate::front_end::checked_program(
         "data Token [linear] { code: i32; }

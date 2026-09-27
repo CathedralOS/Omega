@@ -375,9 +375,17 @@ pub(super) fn validate(
             // storage: the call, the displaced value's move-out, the store of
             // the call result into the opened hole and the displaced value's
             // cleanup all belong to the one assignment. Each rejoins the
-            // complete statement roster, so no member stands alone.
+            // complete statement roster, so no member stands alone. Boundary
+            // and ordinary calls produce the same replacement window; the
+            // call owner separately checks their distinct authority contracts.
             (
                 CheckedUnitEffectOperationPlan::StructuralCall {
+                    coordinate,
+                    result,
+                    discard_result_on_return: false,
+                    ..
+                }
+                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
                     coordinate,
                     result,
                     discard_result_on_return: false,
@@ -386,7 +394,10 @@ pub(super) fn validate(
                 StatementNode::Assignment(assignment),
             ) if coordinate.statement_index as usize == ordinal
                 && coordinate.call_ordinal == 0
-                && result.statement_index as usize == ordinal =>
+                && result.statement_index as usize == ordinal
+                && !matches!(operation,
+                    CheckedUnitEffectOperationPlan::BoundaryStructuralCall { completion_receipts, .. }
+                        if !completion_receipts.is_empty()) =>
             {
                 validate_displaced_field_replacement(
                     checked, machine, source, state, ordinal, assignment,
@@ -1077,6 +1088,12 @@ fn validate_displaced_field_replacement(
     ) {
         (
             CheckedUnitEffectOperationPlan::StructuralCall {
+                coordinate,
+                result,
+                discard_result_on_return: false,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
                 coordinate,
                 result,
                 discard_result_on_return: false,

@@ -5,7 +5,10 @@
 // as the statement's producer so the store continuation pairs (regression:
 // "Unit graph continuation lost its producing statement" from the Squalr
 // native probe, machine probe_control).
+// Record results use that same authored assignment, with a move/store/cleanup
+// window. Replace a record twice and observe its fields to check both forms.
 
+use omega_language_std::console;
 use omega::language::core::binding;
 
 pub boundary trait Echo {
@@ -18,19 +21,43 @@ machine EchoProvider::echo(value: i32) -> i32 satisfies Echo::echo {
     transition { _ -> (41) }
 }
 
-data Main {
-    echoer: Binding<Echo>;
-    stored: i32;
+pub data Triple { first: u64; second: u64; third: u64; }
+pub boundary trait RecordSource {
+    machine receive(seed: u64) -> Triple;
+}
+data RecordProvider {}
+machine RecordProvider::receive(seed: u64) -> Triple satisfies RecordSource::receive {
+    Triple { first: seed, second: 23, third: 27 }
 }
 
-machine Main::main(&mut self) reaches Echo {
+data Main {
+    echoer: Binding<Echo>;
+    console: Binding<Console>;
+    source: Binding<RecordSource>;
+    stored: i32;
+    seed: u64;
+    earlier: u64;
+    result: Triple;
+}
+
+machine Main::main(&mut self) reaches Echo, Console, RecordSource {
     transition { _ -> store() }
     state store(&mut self) {
         self.stored = self.echoer.echo(41);
-        transition self.stored == 41 { true -> done() _ -> fail() }
+        self.seed = 19;
+        self.result = self.source.receive(self.seed);
+        self.earlier = self.result.first;
+        self.seed = 20;
+        self.result = self.source.receive(self.seed);
+        transition self.stored == 41 && self.earlier == 19 && self.result.first == 20 && self.result.second == 23 && self.result.third == 27 {
+            true -> done()
+            _ -> fail()
+        }
     }
     state done(&mut self) {
+        self.console.exit_process(70);
     }
     state fail(&mut self) {
+        self.console.exit_process(71);
     }
 }
