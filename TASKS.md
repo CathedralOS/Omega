@@ -4029,58 +4029,52 @@ syntax and other terminal services are not prerequisites.
 - **RUNTIME-VALUE-GENERICS.** Complete
   [runtime-capable value binders](wiki/spec/language/generics.md#value-binders-and-const-requirements)
   and [captured index identity](wiki/spec/language/generics.md#runtime-index-identity-and-storage)
-  for result and stored qualifications. Machine value binders already share
-  one dynamic body with ordinary arguments and captured-subject/guard transport.
-  Data headers parse value binders, and a checked descriptor-field slice
-  enforces construction/default-domain and later write obligations.
+  for data applications, result and stored qualifications. Machine value binders
+  already pass each captured subject as an ordinary argument to a shared body.
+  Begin with fixed-representation data; **FINITE-GENERIC-DISPATCH** separately
+  owns finite families.
 
-  Remaining work:
-
-  - Preserve exact runtime application subjects through data construction,
-    parameters/results, stored qualifications and artifact publication.
-    `runtime_value_generics::data_value_binder_arguments_carry_no_static_identity`
-    currently expects `Index<9>` to assign into `Index<7>` without relating
-    those arguments. Shared layout/code does not prove captured indices agree.
-
-    Preserve the reported invalid-control reproduction: with
+  - Complete runtime data-argument admission and construction binding in stage
+    02's `preparation/generic_data/` and `lowering/data.rs`, then transport exact
+    subjects through stage 04's `monomorphization/` and checking's
+    `value_custody/type_references/`. Data value arguments still use
+    `validate_const_data_argument`; lowering synthesizes descriptor fields
+    unconditionally. Retain executable indices as ordinary data, arguments or
+    descriptors; erase proof-only uses only after discharging their obligations.
+  - Preserve captured value versions through parameters/results, fields and
+    artifact publication. Normalized type identity already retains generic
+    arguments; shared layout/code does not establish application compatibility.
+    Verify that, for
     `data Index<Limit: u32> [copy] where value < Limit, { value: u32; }`,
-    an `Index<9>` holding 8 must not pass as an `Index<7>` argument or field.
-    Literal-subject applications need distinct identity; runtime subjects need
-    a checked compatibility relationship. Repair type identity, not merely the
-    expectation, and coordinate adjacent `monomorphization`/`values/` work
-    with **FINITE-GENERIC-DISPATCH**.
-    Correct application compatibility, bind construction arguments to their
-    actual subjects, and retain executable indices as ordinary data, arguments
-    or descriptors. Erase proof-only uses only after checking their obligations;
-    `lowering/data.rs` currently synthesizes ordinary fields unconditionally.
-  - Complete domain/index qualification transport with exact value versions and
-    static-only gates. Migrate legacy range-shell fixtures through
-    **CANONICALIZE-SCALAR-RANGE-CONTRACTS**, without extending the suffix syntax or
-    counting those tests as general domain-index support. Preserve forwarding,
-    reassignment and live/stale guard/equality controls. Runtime inline-array
-    extents and const positions remain rejected.
-  - Carry module-owned forms through exact lexical/package selection with
-    **MODULE-NAMESPACE-RESOLUTION**. Runtime values are never static cache keys.
-  - Execute the value-indexed data/storage customer through verified Terminal,
-    interpretation and native ordinary call/storage routes. Coordinate
-    record-local/provider composition with **STATE-LOCAL-VALUE-FRONTIER** and
-    binding establishment with **ENTRY-CONTENT-ROOTS**. Their native test
-    module runs only on macOS ARM64; report unavailable hosts separately.
+    an `Index<9>` holding 8 cannot pass as an `Index<7>` argument or field.
+    Preserve distinct literal indices and require checked relationships between
+    runtime subjects. Reassignment cannot retag stored values; equality admits
+    only the relationship it proves. Retain construction/default-domain and
+    later write obligations.
+  - Complete domain/index qualification forwarding with live/stale guard
+    controls. Migrate legacy range-shell fixtures through
+    **CANONICALIZE-SCALAR-RANGE-CONTRACTS**, without extending suffix syntax or
+    treating those fixtures as general domain-index support. Runtime inline-array
+    extents and const positions remain rejected. Carry module-owned forms through
+    **MODULE-NAMESPACE-RESOLUTION**; runtime values are never static cache keys.
+  - Execute actual value-indexed data/storage through verified Terminal,
+    interpretation and native ordinary call/storage routes, integrating
+    **STATE-LOCAL-VALUE-FRONTIER** and **ENTRY-CONTENT-ROOTS**.
 
   Acceptance: `<Count: u32>` accepts static/runtime arguments under proved
-  obligations, while `<const Count: u32>` remains static. One dynamic machine
-  body handles distinct counts. Parameter/result qualifications and an actual
-  value-indexed data field retain the captured subject after source reassignment;
-  equality permits only the relationships it proves. Invalid construction,
-  bounds, stale/mismatched indices, unsupported static-only uses and duplicated/
-  lost linear custody reject in source checking and independent artifact replay.
-  Preserve `runtime_value_generics`' shared-body, domain-index forwarding and
-  guard/equality controls; its descriptor-field tests currently check source,
-  not execution, and literal array-index tests are not value-indexed types.
-  Exercise interpreter and native behavior for each supported slice. No hidden
-  boxing, maximum-range stack reservation, runtime per-value code generation or
-  specialization inferred from integer finiteness. Begin with fixed
-  representation; **FINITE-GENERIC-DISPATCH** separately owns finite families.
+  obligations; `<const Count: u32>` remains static. One dynamic body handles
+  distinct counts, and parameter/result/field qualifications survive source
+  reassignment. Invalid construction, bounds, stale/mismatched indices,
+  static-only uses and duplicated/lost linear custody reject in source checking
+  and independent artifact replay. Preserve stage 04's
+  `monomorphization/{runtime_value_tests,membership_tests}.rs`, checked-interpreter's
+  `tests/runtime_value_generics.rs` and
+  `tests/omega/pass/generics/runtime_value_generic_subject_exit/`: these cover
+  narrower scalar calls, indexed access and generic checking, not full data-index
+  execution. The corpus canary binds four hosted targets; verify each host's
+  native outcome separately. No hidden boxing, maximum-range stack reservation,
+  runtime per-value code generation or specialization inferred from integer
+  finiteness.
 
 - **STRUCTURAL-GENERIC-MATCHING.** Complete
   [static type equality](wiki/spec/language/generics.md#static-type-equality),
