@@ -49,6 +49,152 @@ const WRITER: &str = r#"
     }
 "#;
 
+const INDEXED_WRITER: &str = r#"
+    boundary trait Output { machine write(byte: u8) reaches Output; }
+    data Root {}
+    machine Root::relay(&mut self, bytes: &[u8], other: &[u8], index: u64)
+    terminates by (index, bytes.len) -> Nat::BoundedDistance;
+    reaches Output {
+        Output::write((index as u8 in Wrapping) as u8);
+        transition index < bytes.len {
+            true -> relay(bytes, other, index + 1)
+            false -> done()
+        }
+        state done(&mut self) {}
+    }
+    machine Root::enter(&mut self) reaches Output {
+        self.relay("ABC", "decoy", 0);
+        self.relay("", "decoy", 0);
+        self.relay("A", "decoy", 5);
+    }
+"#;
+
+#[test]
+fn collection_distance_rank_executes_empty_and_already_crossed_bounds() {
+    assert_indexed_writer_execution(INDEXED_WRITER);
+}
+
+#[test]
+fn increasing_to_collection_length_retains_the_same_rank() {
+    assert_indexed_writer_execution(&INDEXED_WRITER.replace(
+        "(index, bytes.len) -> Nat::BoundedDistance",
+        "index -> Nat::IncreasingTo(bytes.len)",
+    ));
+}
+
+fn assert_indexed_writer_execution(source: &str) {
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &crate::front_end::checked_program(source),
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("collection distance retains an independently checked natural rank");
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .unwrap();
+    let receiver = terminal_interpreter::TerminalStructuralValue {
+        opaque_identity: 1,
+        structural_type: entry.structural_parameters[0].structural_type,
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    };
+    let executed = interpret_terminal_artifact_measured(
+        &encode_module(&lowered.semantic_module).unwrap(),
+        &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs {
+            arguments: &[receiver],
+            ..Default::default()
+        },
+        &mut AcceptTerminalEffects,
+    )
+    .expect("serialized replay verifies the original rank before execution");
+    let values = executed
+        .effects()
+        .iter()
+        .map(|effect| {
+            let TerminalEffect::BoundaryCall { arguments, .. } = effect else {
+                panic!("ordinary output");
+            };
+            let [
+                terminal_interpreter::TerminalScalarValue::Integer {
+                    value: semantic_vocabulary::IntegerValue::Unsigned(value),
+                    ..
+                },
+            ] = arguments.as_slice()
+            else {
+                panic!("one unsigned index");
+            };
+            *value
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(values, [0, 1, 2, 3, 0, 5]);
+    let mut missing_proof = lowered.proof_bundle.clone();
+    missing_proof.control_cycles.clear();
+    assert!(
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &missing_proof,
+            &AdmissionProfile::default(),
+        )
+        .is_err(),
+        "the producer's retained measure is not termination evidence"
+    );
+}
+
+#[test]
+fn collection_distance_rank_rejects_a_nonadvancing_cursor() {
+    let source = INDEXED_WRITER.replace("index + 1", "index");
+    let diagnostics = crate::front_end::checked_program_result(&source)
+        .expect_err("an unchanged cursor cannot establish strict descent");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("terminat")
+                || diagnostic.message.contains("decreas")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn collection_distance_rank_cannot_substitute_another_collection_or_scalar() {
+    for replacement in [2, 3] {
+        let mut checked = crate::front_end::checked_program(INDEXED_WRITER);
+        let plan = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_machines
+            .iter_mut()
+            .find(|plan| !plan.natural_ranks.is_empty())
+            .unwrap();
+        let rank = &mut plan.natural_ranks[0];
+        let state = checked
+            .typed
+            .machines()
+            .iter()
+            .flat_map(|machine| checked.typed.machine_states(machine))
+            .find(|state| state.symbol == rank.state)
+            .unwrap();
+        let parameter = &checked.typed.state_parameters(state)[replacement];
+        rank.measure = checked_trees::CheckedNaturalRankMeasure::CollectionLengthDistance {
+            collection: parameter.symbol,
+            collection_position: u32::try_from(replacement).unwrap(),
+        };
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(
+                &checked,
+                TerminalMachineSelection::Name("Root::enter"),
+            )
+            .is_err(),
+            "substituted distance bound {replacement}"
+        );
+    }
+}
+
 #[test]
 fn slice_ranked_writer_retains_its_witness_through_serialized_execution() {
     let lowered = lower_writer();

@@ -21,6 +21,9 @@
 //! edge comparison over it certifies; ranking only after a published
 //! `lower <= upper` requirement would invent a precondition callers never
 //! promised. Revisit if the checker proves a distance whose bound also moves.
+//! A collection-length bound uses that same arithmetic: the retained source
+//! join names the collection's structural lane, while only its `u64` cursor
+//! enters the rank. No synthetic length parameter or new proof rule is needed.
 use super::super::super::super::{BlockId, IntegerType, PrimitiveType, TerminalRankedScc, ValueId};
 use super::super::super::{OperationResult, ScalarType, TerminalMachine, Terminator, unsupported};
 use super::super::{CheckedTrees, LoweringError};
@@ -28,6 +31,7 @@ use super::{CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlSta
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use checked_trees::CheckedNaturalRankMeasure;
 use language_semantics::RankingViewId;
+use language_semantics::declaration_selection::CollectionMeasure;
 use std::collections::BTreeMap;
 use terminal_psi::{
     OperationKind, TerminalBlockNaturalRank, TerminalNaturalCycle, TerminalNaturalRankComparison,
@@ -74,8 +78,8 @@ pub(super) fn validate_witness(
         .machine_states(machine)
         .first()
         .ok_or(LoweringError::Unsupported("Unit graph has no rank entry"))?;
-    // The measured subject, and a distance's bound, as entry parameters:
-    // every ranked state names parameters of these names.
+    // The measured subject, and a distance's bound or bound collection, as
+    // entry parameters: every ranked state names parameters of these names.
     let entry_parameter = |expression| {
         let checked_trees::expression::ExpressionNode::Name(subject) =
             checked.expression_table.expression(expression)
@@ -90,16 +94,34 @@ pub(super) fn validate_witness(
                 "Unit graph rank subject is not an entry parameter",
             ))
     };
+    let entry_bound = |expression| {
+        if let checked_trees::expression::ExpressionNode::Member(member) =
+            checked.expression_table.expression(expression)
+        {
+            let parameter = entry_parameter(member.receiver)?;
+            if member.case_variant.is_some()
+                || member.member_symbol.is_valid()
+                || CollectionMeasure::from_authored_spelling(member.member.as_str())
+                    != Some(CollectionMeasure::Length)
+                || !is_collection(checked, parameter.type_reference)
+            {
+                return unsupported("Unit graph distance bound is not a collection length");
+            }
+            Ok((parameter, true))
+        } else {
+            entry_parameter(expression).map(|parameter| (parameter, false))
+        }
+    };
     let (subject, bound) = match (
         witness.ranking_view,
         custody.subjects.as_slice(),
         custody.view_arguments.as_slice(),
     ) {
         (RankingViewId::NAT_BOUNDED_DISTANCE, [lower, upper], []) => {
-            (entry_parameter(*lower)?, Some(entry_parameter(*upper)?))
+            (entry_parameter(*lower)?, Some(entry_bound(*upper)?))
         }
         (RankingViewId::NAT_INCREASING_TO, [cursor], [limit]) => {
-            (entry_parameter(*cursor)?, Some(entry_parameter(*limit)?))
+            (entry_parameter(*cursor)?, Some(entry_bound(*limit)?))
         }
         (RankingViewId::SLICE_LENGTH | RankingViewId::NAT_DESCENDING, [subject], []) => {
             (entry_parameter(*subject)?, None)
@@ -171,10 +193,33 @@ pub(super) fn validate_witness(
                 ) && unsigned_integer(primitive_type)
                     && upper_parameter.symbol == upper
                     && !upper_parameter.is_self
-                    && bound.is_some_and(|bound| upper_parameter.name == bound.name)
+                    && bound.is_some_and(|(bound, length)| {
+                        !length && upper_parameter.name == bound.name
+                    })
                     && upper_position != rank.parameter_position
                     && scalar_lane(rank.parameter_position, primitive_type)
                     && scalar_lane(upper_position, primitive_type)
+            }
+            CheckedNaturalRankMeasure::CollectionLengthDistance {
+                collection,
+                collection_position,
+            } => {
+                let collection_parameter = parameter_at(collection_position)?;
+                matches!(
+                    witness.ranking_view,
+                    RankingViewId::NAT_BOUNDED_DISTANCE | RankingViewId::NAT_INCREASING_TO
+                ) && collection_parameter.symbol == collection
+                    && !collection_parameter.is_self
+                    && bound.is_some_and(|(bound, length)| {
+                        length && collection_parameter.name == bound.name
+                    })
+                    && is_collection(checked, collection_parameter.type_reference)
+                    && collection_position != rank.parameter_position
+                    && scalar_lane(rank.parameter_position, PrimitiveType::U64)
+                    && state_plan
+                        .structural_parameters
+                        .iter()
+                        .any(|parameter| parameter.position == collection_position)
             }
         };
         if parameter.symbol != rank.parameter
@@ -186,6 +231,21 @@ pub(super) fn validate_witness(
         }
     }
     Ok(())
+}
+
+fn is_collection(
+    checked: &CheckedTrees,
+    mut reference: checked_trees::types::TypeReferenceHandle,
+) -> bool {
+    use checked_trees::types::TypeReferenceNode;
+    loop {
+        match checked.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Reference { referee, .. } => reference = *referee,
+            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+            TypeReferenceNode::FixedArray { .. } | TypeReferenceNode::Slice { .. } => return true,
+            _ => return false,
+        }
+    }
 }
 
 fn unsigned_integer(primitive_type: PrimitiveType) -> bool {
@@ -256,6 +316,19 @@ pub(super) fn scalar_rank(
             Some(ScalarRank::CeilingDistance {
                 lower: lane(rank.parameter_position, primitive_type)?,
                 primitive_type,
+            })
+        }
+        CheckedNaturalRankMeasure::CollectionLengthDistance {
+            collection_position,
+            ..
+        } => {
+            state
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.position == collection_position)?;
+            Some(ScalarRank::CeilingDistance {
+                lower: lane(rank.parameter_position, PrimitiveType::U64)?,
+                primitive_type: PrimitiveType::U64,
             })
         }
     }

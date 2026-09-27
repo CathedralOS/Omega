@@ -43,9 +43,9 @@ pub(super) fn direct_countdown_edge(
 
 /// The measure `edge_decrease_proven` reads, stated over one state's own
 /// parameters: the countdown subject itself (signed or unsigned), or the
-/// distance's two plain unsigned parameters of one type. Edge proofs locate a
-/// target's subjects by name, so every state of a cyclic component carries
-/// parameters of these names.
+/// distance's unsigned parameters or unsigned cursor and collection length.
+/// Edge proofs locate a target's subjects by name, so every state of a cyclic
+/// component carries parameters of these names.
 pub(super) fn state_rank(
     program: &typed_trees::TypedTrees,
     state: &typed_trees::state::State,
@@ -85,6 +85,32 @@ pub(super) fn state_rank(
         }
         DecreaseMeasure::Distance { lower, upper } => {
             let (lower_position, lower) = plain(lower)?;
+            if matches!(
+                program.expression_table.expression(upper),
+                ExpressionNode::Member(_)
+            ) {
+                // This is the same semantic collection-length selection the
+                // edge prover uses, not a record field merely named `len`.
+                let collection = patterns::parameter_matched_by_expression(program, state, upper)?;
+                if program.primitive_type_reference(lower.type_reference)
+                    != Some(PrimitiveType::U64)
+                {
+                    return None;
+                }
+                let collection_position = program
+                    .state_parameters(state)
+                    .iter()
+                    .position(|parameter| parameter.symbol == collection.symbol)?;
+                return Some(checked_trees::CheckedStateNaturalRank {
+                    state: state.symbol,
+                    parameter: lower.symbol,
+                    parameter_position: lower_position,
+                    measure: CheckedNaturalRankMeasure::CollectionLengthDistance {
+                        collection: collection.symbol,
+                        collection_position: u32::try_from(collection_position).ok()?,
+                    },
+                });
+            }
             let (upper_position, upper) = plain(upper)?;
             let primitive_type = program.primitive_type_reference(lower.type_reference)?;
             if lower.symbol == upper.symbol

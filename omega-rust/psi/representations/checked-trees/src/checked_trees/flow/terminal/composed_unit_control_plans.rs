@@ -98,6 +98,13 @@ pub enum CheckedNaturalRankMeasure {
         upper: SymbolHandle,
         upper_position: u32,
     },
+    /// The same distance with a `u64` cursor and a collection's live length
+    /// as its bound. The upper subject is the collection parameter, not a
+    /// fabricated scalar parameter for its length. Cyclic edges preserve it.
+    CollectionLengthDistance {
+        collection: SymbolHandle,
+        collection_position: u32,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
