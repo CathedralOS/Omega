@@ -21,6 +21,16 @@ state machines. This repository holds the language, its Rust reference
 compiler, its Omega-written product compiler, and the Alpha-to-Omega bootstrap
 chain.
 
+**The goal is a usable, checkable compiler.** The straight line — a real
+Omega program checks, lowers, and executes end-to-end on a supported host —
+is the measure, and today that line is not yet usable end-to-end. Prefer
+work that puts more of it on the board (a valid program that previously
+omitted or rejected now compiling and running correctly) over coverage
+matrices, custody sweeps, audit completeness, or hygiene. Validation and
+evidence keep the line honest; they are not the goal. Given a choice between
+repairing a red compiling path and widening a test matrix, fix the path. A
+slot that cannot claim such work idles; do not fill it with churn.
+
 - `omega-rust/` — the Rust reference producer: the working development
   compiler and differential comparator. Not canonical, not a language rung.
 - `source/psi/` + `source/omega/` — the Omega-written product compiler, split
