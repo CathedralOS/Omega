@@ -1252,7 +1252,8 @@ fn transition_guard_proves_boolean_requirement(
     expression: typed_trees::expression::ExpressionHandle,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    let Some((call_site, _, _, guard)) = selected_transition_call(program, state_flow, call_flow)
+    let Some((call_site, machine, _, guard)) =
+        selected_transition_call(program, state_flow, call_flow)
     else {
         return false;
     };
@@ -1269,6 +1270,9 @@ fn transition_guard_proves_boolean_requirement(
         target_parameters,
         expression,
     );
+    if !guard_preserves_values(machine, guard, call_frames) {
+        return false;
+    }
     (guard_conjunct_matches(program, guard, &required_label)
         || super::call_bounds::proves(
             program,
@@ -1310,6 +1314,9 @@ fn transition_guard_proves_requires(
     else {
         return false;
     };
+    if !guard_preserves_values(machine, guard, call_frames) {
+        return false;
+    }
     let Some(target_parameters) =
         crate::semantic::calls::call_target_parameters(program, call_flow.target_symbol)
     else {
@@ -1382,6 +1389,22 @@ fn transition_guard_proves_requires(
         &super::guard_operands::fact_requirement_mentions(program, facts, fact),
         call_frames,
     )
+}
+
+// A later guard conjunct can overwrite an earlier premise. Operand write
+// checks begin after the complete guard, so guard-derived proofs additionally
+// require this complete, known-empty expression frame.
+fn guard_preserves_values<'program>(
+    machine: &'program typed_trees::machine::Machine,
+    guard: typed_trees::expression::ExpressionHandle,
+    call_frames: Option<&validation::CallFrameResolver<'program>>,
+) -> bool {
+    call_frames.is_some_and(|frames| {
+        frames
+            .expression_write_frame(machine, guard)
+            .into_complete_paths()
+            .is_some_and(|writes| writes.is_empty())
+    })
 }
 
 pub(super) fn guard_conjunct_matches(

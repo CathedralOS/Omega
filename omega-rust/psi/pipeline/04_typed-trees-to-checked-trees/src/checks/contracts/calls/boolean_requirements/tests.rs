@@ -200,3 +200,123 @@ fn an_open_u64_guard_does_not_gain_a_signed_ceiling() {
     "#,
     );
 }
+
+#[test]
+fn strict_selected_guard_proves_nonstrict_substituted_length() {
+    for (guard, requirement) in [
+        ("index < values.len", "0 <= at && at <= items.len"),
+        ("values.len > index", "items.len >= at && 0 <= at"),
+        ("index < values.len && index >= 0", "at <= items.len"),
+    ] {
+        accepts(
+            &r#"
+            machine lookup(values: &[u8], index: u64) -> u64 {
+                transition GUARD {
+                    true -> read(values, index)
+                    false -> (0)
+                }
+                state read(items: &[u8], at: u64) -> u64
+                requires REQUIREMENT
+                { at }
+            }
+        "#
+            .replace("GUARD", guard)
+            .replace("REQUIREMENT", requirement),
+        );
+    }
+}
+
+#[test]
+fn strict_length_implication_preserves_operand_identity_and_selected_arm() {
+    for (guard, actual, index, arm) in [
+        ("index < values.len", "other", "index", "true"),
+        ("index < values.len", "values", "different", "true"),
+        ("index < values.len", "values", "index", "false"),
+        (
+            "index < values.len || index == different",
+            "values",
+            "index",
+            "true",
+        ),
+    ] {
+        let other_arm = if arm == "true" { "false" } else { "true" };
+        rejects_requirement(
+            &r#"
+            machine lookup(values: &[u8], other: &[u8], index: u64, different: u64) -> u64 {
+                transition GUARD {
+                    ARM -> read(ACTUAL, INDEX)
+                    OTHER_ARM -> (0)
+                }
+                state read(items: &[u8], at: u64) -> u64
+                requires at <= items.len
+                { at }
+            }
+        "#
+            .replace("GUARD", guard)
+            .replace("OTHER_ARM", other_arm)
+            .replace("ARM", arm)
+            .replace("ACTUAL", actual)
+            .replace("INDEX", index),
+        );
+    }
+}
+
+#[test]
+fn nonstrict_selected_guard_does_not_prove_strict_requirement() {
+    rejects_requirement(
+        r#"
+        machine lookup(values: &[u8], index: u64) -> u64 {
+            transition index <= values.len {
+                true -> read(values, index)
+                false -> (0)
+            }
+            state read(items: &[u8], at: u64) -> u64
+            requires at < items.len
+            { at }
+        }
+    "#,
+    );
+}
+
+#[test]
+fn strict_implication_keeps_earlier_operand_mutation_fence() {
+    let source = r#"
+        data Store { value: u64; ceiling: u64; }
+        machine Store::clear(&mut self) -> u64 { self.value = 99; 0 }
+        machine Store::noop(&mut self) -> u64 { 0 }
+        machine Store::done(&mut self, ignored: u64, value: u64, ceiling: u64) -> u64
+        requires value <= ceiling
+        { value }
+        machine Store::scan(&mut self) -> u64 {
+            transition self.value < self.ceiling {
+                true -> (self.done(self.OPERATION(), self.value, self.ceiling))
+                false -> (0)
+            }
+        }
+    "#;
+    accepts(&source.replace("OPERATION", "noop"));
+    rejects_requirement(&source.replace("OPERATION", "clear"));
+}
+
+#[test]
+fn strict_implication_rejects_a_guard_that_overwrites_its_own_premise() {
+    let source = r#"
+        data Store { value: u64; ceiling: u64; }
+        machine Store::clear(&mut self) -> bool { self.value = 99; true }
+        machine Store::noop(&mut self) -> bool { true }
+        machine Store::done(&mut self, value: u64, ceiling: u64) -> u64
+        requires REQUIREMENT
+        { value }
+        machine Store::scan(&mut self) -> u64 {
+            transition self.value < self.ceiling && self.OPERATION() {
+                true -> (self.done(self.value, self.ceiling))
+                false -> (0)
+            }
+        }
+    "#;
+    for requirement in ["value <= ceiling", "value < ceiling"] {
+        let source = source.replace("REQUIREMENT", requirement);
+        accepts(&source.replace("OPERATION", "noop"));
+        rejects_requirement(&source.replace("OPERATION", "clear"));
+    }
+}
