@@ -596,6 +596,30 @@ pub(crate) fn build_checked_value_computation_plans(
                             primitive_type,
                         );
                     }
+                    if let ExpressionNode::Call(call) =
+                        program.expression_table.expression(assignment.value)
+                        && builder
+                            .plans
+                            .root_at(
+                                state.symbol,
+                                statement_ordinal,
+                                CheckedScalarExpressionRole::AssignmentValue,
+                            )
+                            .is_none()
+                    {
+                        // A whole RHS computation already owns its nested calls.
+                        // Otherwise the statement call owns the result store and
+                        // needs the same argument roots as an initializer, including
+                        // copied records that cannot live in scalar computations.
+                        builder.record_call_arguments(
+                            pure,
+                            &mut structural_values,
+                            statement_ordinal,
+                            0,
+                            call.target_symbol,
+                            program.expression_table.expression_handles(call.arguments),
+                        );
+                    }
                     continue;
                 }
                 if let StatementNode::Expression(expression) = statement

@@ -204,6 +204,21 @@ pub(super) fn validate(
             (
                 CheckedUnitEffectOperationPlan::EstablishStructuralValue {
                     result,
+                    operand_source: Some(checked_trees::CheckedArrayConstructionSource::CallArgument { .. }),
+                    ..
+                },
+                _,
+            ) if result.statement_index as usize == ordinal => {
+                crate::expression_preparation::source_custody::structural::validate(
+                    checked,
+                    machine,
+                    state.state,
+                    operation,
+                )?;
+            }
+            (
+                CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                    result,
                     discard_result_on_return: false,
                     ..
                 },
@@ -1030,7 +1045,15 @@ fn validate_displaced_field_replacement(
             authored_statement(operation).map(|index| index as usize) == Some(ordinal)
         })
         .collect::<Vec<_>>();
-    let (producer, moved, place, destination, value, cleanup) = match roster.as_slice() {
+    // Argument values precede the call that replaces the field. Each has
+    // already rejoined its own exact call/formal above; it is not the field's
+    // replacing producer and must not shift the producer/window relationship.
+    let operand_count = roster
+        .iter()
+        .take_while(|operation| argument_construction(operation))
+        .count();
+    let roster = &roster[operand_count..];
+    let (producer, moved, place, destination, value, cleanup) = match roster {
         [
             producer,
             CheckedUnitEffectOperationPlan::MoveStructuralField {

@@ -71,11 +71,11 @@ pub(super) fn registered_structural_graph_target<'facts>(
     let (structural, scalar, shapes) = if retained
         .structural_parameters
         .iter()
-        .all(|parameter| parameter.is_self)
+        .any(|parameter| parameter.is_self)
     {
-        // An ambient borrowed receiver lives only on the entry roster, so the
-        // rejoin uses the retained-self signature rather than the forwarded
-        // structural form the ordinary graph signature reconstructs.
+        // A retained borrowed receiver needs the attached signature even when
+        // the graph also carries explicit structural arguments. The free
+        // signature would drop self and shift every following formal.
         ambient_self_scalar_graph_signature(program, machine, state)?
     } else {
         structural_scalar_graph_signature(program, state)?
@@ -490,23 +490,45 @@ pub(super) fn available_target(
                 && u32::try_from(call.call_ordinal).ok() == Some(coordinate.call_ordinal)
         });
     let call = calls.next()?;
-    // Rebuild the caller's result-binding roots the way statement sequencing
-    // recorded them: each whole-move argument source is the local its
-    // producing statement bound. Anonymous expression-rooted results never
-    // source a whole owned move, so only `LocalData` bindings belong here.
+    // Rebuild the same roots statement sequencing gave its call arguments:
+    // named locals retain their symbols, while inline constructed or copied
+    // operands retain their exact authored expressions, not the destination
+    // of the enclosing call-result assignment.
     let caller_state = crate::semantic::calls::find_state(program, caller.state)?;
     let caller_structural_results = caller
         .operations
         .iter()
         .copied()
         .filter_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                result,
+                value,
+                operand_source:
+                    Some(checked_trees::CheckedArrayConstructionSource::CallArgument { .. }),
+                ..
+            } => facts
+                .values
+                .structural_values
+                .nodes
+                .is_valid(*value)
+                .then(|| {
+                    (
+                        result,
+                        Some(facts.values.structural_values.nodes.get(*value).expression),
+                    )
+                }),
             CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
             | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
-            | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } => Some(result),
+            | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } => {
+                Some((result, None))
+            }
             _ => None,
         })
-        .filter_map(|result| {
+        .filter_map(|(result, expression)| {
+            if let Some(expression) = expression {
+                return Some((result.clone(), facts::PlaceRoot::Expression(expression)));
+            }
             let crate::execution::terminal_unit::StatementNode::LocalData(local) = program
                 .statement_table
                 .statements(caller_state.statement_nodes)

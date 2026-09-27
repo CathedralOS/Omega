@@ -83,119 +83,98 @@ pub(crate) fn validate(
         return unsupported("structural construction has a stale value root");
     }
     let retained_expression = plans.nodes.get(*value).expression;
-    let (expression, reference) = match checked
-        .statement_table
-        .statements(source.statement_nodes)
-        .get(result.statement_index as usize)
-    {
-        // A `let mut` declaration without an initializer keys its
-        // zeroed establishment on the invalid handle; the destination
-        // type is the local's own declared type either way.
-        Some(StatementNode::LocalData(local)) => (local.initial_value, local.type_reference),
-        Some(StatementNode::Expression(expression)) => (*expression, source.return_type),
-        // `place = <construction>` establishes the value that replaces a
-        // structural field; its destination type is the authored place's own
-        // declared type, reconstructed here rather than read from the root.
-        Some(StatementNode::Assignment(assignment)) => (
-            assignment.value,
-            validation::declared_place_type_raw(
-                &checked.typed,
-                owner,
-                Some(source),
-                assignment.target,
-            )
-            .and_then(|reference| validation::unwrapped_type_reference(&checked.typed, reference))
-            .ok_or(LoweringError::Unsupported(
-                "structural construction lost its authored destination",
-            ))?,
-        ),
-        Some(StatementNode::Transition(transition))
-            if transition.exit == checked_trees::statement::TransitionExit::Ordinary =>
+    // The operand coordinate owns an argument regardless of whether the
+    // surrounding call is a statement, initializer, return or assignment.
+    // Reconstruct its exact authored call and formal instead of treating the
+    // enclosing destination as the copied argument's destination.
+    let (expression, reference) =
+        if let Some(checked_trees::CheckedArrayConstructionSource::CallArgument {
+            call_ordinal,
+            parameter_position,
+        }) = operand_position
         {
-            let mut selected = [transition.target, transition.continuation]
-                .into_iter()
-                .filter(|target| target.is_valid())
-                .filter_map(
-                    |target| match checked.statement_table.transition_target(target) {
-                        checked_trees::statement::TransitionTargetNode::Value(expression)
-                            if *expression == retained_expression =>
-                        {
-                            Some(*expression)
-                        }
-                        _ => None,
-                    },
-                );
-            let expression = selected.next().ok_or(LoweringError::Unsupported(
-                "structural return exchanged its authored destination",
-            ))?;
-            if selected.next().is_some() {
-                return unsupported("structural return has ambiguous source destinations");
-            }
-            (expression, source.return_type)
-        }
-        Some(StatementNode::Call(call)) => {
-            // A construction nested in the statement's call is an argument
-            // operand: its authored destination is the argument expression at
-            // the recorded formal position, not the whole call.
-            let Some(checked_trees::CheckedArrayConstructionSource::CallArgument {
-                parameter_position,
-                ..
-            }) = operand_position
-            else {
-                return unsupported("structural construction lost its authored destination");
-            };
-            let arguments = checked.statement_table.expression_handles(call.arguments);
-            let parameters = crate::emission::call_source_custody::authored::target_signature(
+            let call = crate::emission::call_source_custody::authored::locate_source(
+                checked,
+                state,
+                checked_trees::CheckedUnitCallCoordinate {
+                    statement_index: result.statement_index,
+                    call_ordinal: *call_ordinal,
+                },
+            )?;
+            let signature = crate::emission::call_source_custody::authored::target_signature(
                 checked,
                 machine,
-                call.target_symbol,
-            )?
-            .parameters;
-            // The receiver has its own span unless it is authored as an
-            // explicit argument, so the formal position maps into the
-            // argument span only after implicit-self formals are skipped.
-            let explicit_self = arguments.len()
-                > parameters
-                    .iter()
-                    .filter(|parameter| !parameter.is_self)
-                    .count();
-            let Some(index) = usize::try_from(*parameter_position)
-                .ok()
-                .filter(|position| {
-                    parameters
-                        .get(*position)
-                        .is_some_and(|parameter| !parameter.is_self || explicit_self)
-                })
-                .and_then(|position| {
-                    position.checked_sub(if explicit_self {
-                        0
-                    } else {
-                        parameters
-                            .iter()
-                            .take(position)
-                            .filter(|parameter| parameter.is_self)
-                            .count()
-                    })
-                })
-            else {
-                return unsupported("structural construction lost its authored destination");
-            };
-            let argument = arguments
-                .get(index)
-                .copied()
-                .filter(|argument| *argument == retained_expression);
-            let Some(argument) = argument else {
-                return unsupported("structural construction lost its authored destination");
-            };
-            let root = plans
-                .root_for_expression(state, result.statement_index, argument)
+                call.source_target,
+            )?;
+            let parameter = signature
+                .parameters
+                .get(*parameter_position as usize)
+                .ok_or(LoweringError::Unsupported(
+                    "structural construction lost its authored formal",
+                ))?;
+            let argument = call
+                .structural_argument(checked, *parameter_position, parameter.is_self)
+                .filter(|argument| *argument == retained_expression)
                 .ok_or(LoweringError::Unsupported(
                     "structural construction lost its authored destination",
                 ))?;
-            (argument, root.type_reference)
-        }
-        _ => return unsupported("structural construction lost its authored destination"),
-    };
+            (argument, parameter.type_reference)
+        } else {
+            match checked
+                .statement_table
+                .statements(source.statement_nodes)
+                .get(result.statement_index as usize)
+            {
+                // A `let mut` declaration without an initializer keys its
+                // zeroed establishment on the invalid handle; the destination
+                // type is the local's own declared type either way.
+                Some(StatementNode::LocalData(local)) => {
+                    (local.initial_value, local.type_reference)
+                }
+                Some(StatementNode::Expression(expression)) => (*expression, source.return_type),
+                // `place = <construction>` establishes the value that replaces a
+                // structural field; its destination type is the authored place's own
+                // declared type, reconstructed here rather than read from the root.
+                Some(StatementNode::Assignment(assignment)) => (
+                    assignment.value,
+                    validation::declared_place_type_raw(
+                        &checked.typed,
+                        owner,
+                        Some(source),
+                        assignment.target,
+                    )
+                    .and_then(|reference| {
+                        validation::unwrapped_type_reference(&checked.typed, reference)
+                    })
+                    .ok_or(LoweringError::Unsupported(
+                        "structural construction lost its authored destination",
+                    ))?,
+                ),
+                Some(StatementNode::Transition(transition))
+                    if transition.exit == checked_trees::statement::TransitionExit::Ordinary =>
+                {
+                    let mut selected = [transition.target, transition.continuation]
+                        .into_iter()
+                        .filter(|target| target.is_valid())
+                        .filter_map(|target| {
+                            match checked.statement_table.transition_target(target) {
+                                checked_trees::statement::TransitionTargetNode::Value(
+                                    expression,
+                                ) if *expression == retained_expression => Some(*expression),
+                                _ => None,
+                            }
+                        });
+                    let expression = selected.next().ok_or(LoweringError::Unsupported(
+                        "structural return exchanged its authored destination",
+                    ))?;
+                    if selected.next().is_some() {
+                        return unsupported("structural return has ambiguous source destinations");
+                    }
+                    (expression, source.return_type)
+                }
+                _ => return unsupported("structural construction lost its authored destination"),
+            }
+        };
     // Absence and ambiguity are different: a duplicate key must not turn a
     // selected owner into a fresh construction with fabricated provenance.
     if checked
