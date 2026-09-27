@@ -5,7 +5,7 @@ use target::{Architecture, NativeTarget};
 use target_operations::CallSiteOwner;
 use terminal_psi::OperationKind;
 
-mod fragment_call;
+pub(super) mod fragment_call;
 mod fragment_comparison;
 
 use super::derivation::hashing::{

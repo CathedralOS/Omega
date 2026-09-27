@@ -24,7 +24,8 @@
 //!   custody, then builds the same scope and binds the publication to it.
 //! - `derive_physical_evidence` (`derivation`) derives the evidence for an
 //!   emitted artifact within its scope: one child per boundary occurrence,
-//!   from its installed settlement or normalized foreign call; a check that
+//!   from its installed settlement, its normalized foreign call, or an
+//!   installed provider realized as a resolved internal call; a check that
 //!   every retained privileged port effect was consumed by a settlement; then
 //!   one child per operator occurrence and per dynamic call occurrence, whose
 //!   spans `operator_applications` derives. It returns `Complete` evidence,
@@ -303,20 +304,62 @@ pub enum BoundaryTraitSettlementRole {
         /// settlement; `None` for every other admitted realization.
         port_effect: Option<machine_code::PortEffectRecord>,
     },
+    /// One installed provider boundary call realized as an ordinary resolved
+    /// internal call into its selected checked-machine candidate. The
+    /// retained object call-stack row names the owner operation and the
+    /// callee machine; the selected Terminal conformance row rejoins the
+    /// exact provider and candidate identities. An in-module provider call
+    /// crosses no external boundary and carries no external execution
+    /// binding, so this role retains none.
+    InstalledProviderInternalCall {
+        boundary: BoundaryMachineId,
+        provider_identity: String,
+        candidate_identity: String,
+        call: InstalledProviderInternalCallCustody,
+    },
+}
+
+/// Retained call custody for an installed-provider boundary call realized as
+/// an ordinary internal call. The variants mirror the caller's retained
+/// object call-stack record family: an aggregate-frame Unit caller keeps its
+/// frame terms, a scalar caller keeps caller-live bytes only.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InstalledProviderInternalCallCustody {
+    /// Call-site custody of the `ObjectUnitCallStack` family.
+    Unit {
+        owner: CallSiteOwner,
+        target: MachineId,
+        /// Absolute object `.text` offset of the call's mutable field: the
+        /// x86-64 rel32 displacement or the Aarch64 BL immediate bits.
+        call_field_offset: usize,
+        active_frame_bytes: u32,
+        transient_bytes: u32,
+        caller_live_bytes: u32,
+    },
+    /// Call-site custody of the `ObjectScalarCallStack` family.
+    Scalar {
+        owner: CallSiteOwner,
+        target: MachineId,
+        /// Absolute object `.text` offset of the call's mutable field.
+        call_field_offset: usize,
+        caller_live_bytes: u32,
+    },
 }
 
 impl BoundaryTraitSettlementRole {
-    pub const fn execution(&self) -> BoundaryExecutionBinding {
+    /// The external execution binding this role carries, when it carries
+    /// one. An installed-provider internal call binds none: its provider is
+    /// a checked machine inside this same artifact.
+    pub const fn execution(&self) -> Option<BoundaryExecutionBinding> {
         match self {
             Self::CompilerBuiltin { execution, .. } => {
-                BoundaryExecutionBinding::CompilerBuiltin(*execution)
+                Some(BoundaryExecutionBinding::CompilerBuiltin(*execution))
             }
-            Self::AdmittedProvider { execution, .. } => {
-                BoundaryExecutionBinding::AdmittedProvider(*execution)
+            Self::AdmittedProvider { execution, .. }
+            | Self::AdmittedProviderSettlement { execution, .. } => {
+                Some(BoundaryExecutionBinding::AdmittedProvider(*execution))
             }
-            Self::AdmittedProviderSettlement { execution, .. } => {
-                BoundaryExecutionBinding::AdmittedProvider(*execution)
-            }
+            Self::InstalledProviderInternalCall { .. } => None,
         }
     }
 }
@@ -338,7 +381,9 @@ impl BoundaryTraitSettlement {
         self.target
     }
 
-    pub const fn execution(&self) -> BoundaryExecutionBinding {
+    /// The external execution binding this settlement carries, when it
+    /// carries one (`InstalledProviderInternalCall` carries none).
+    pub const fn execution(&self) -> Option<BoundaryExecutionBinding> {
         self.role.execution()
     }
 
@@ -893,8 +938,9 @@ pub enum NativePhysicalEvidenceGapSubject {
     UnsupportedNormalizedForeignCall {
         occurrence: OptimizedBoundaryOccurrence,
     },
-    /// A surviving boundary occurrence retained neither an installed
-    /// settlement nor a normalized foreign call.
+    /// A surviving boundary occurrence retained no supported realization:
+    /// no installed settlement, no normalized foreign call, and no internal
+    /// call custody a supported arm can bind.
     UnrealizedBoundaryOccurrence {
         occurrence: OptimizedBoundaryOccurrence,
     },
@@ -1002,7 +1048,7 @@ impl std::fmt::Display for NativePhysicalEvidenceGap {
             NativePhysicalEvidenceGapSubject::UnrealizedBoundaryOccurrence { occurrence } => {
                 write!(
                     formatter,
-                    "boundary occurrence on machine {} operation {} boundary {} ordinal {} retained neither an installed settlement nor a normalized foreign call",
+                    "boundary occurrence on machine {} operation {} boundary {} ordinal {} retained no supported boundary realization",
                     occurrence.machine(),
                     occurrence.operation(),
                     occurrence.boundary(),

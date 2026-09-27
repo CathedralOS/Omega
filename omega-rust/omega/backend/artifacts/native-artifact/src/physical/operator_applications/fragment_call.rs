@@ -108,7 +108,11 @@ pub(super) fn derive(
     .map(Some)
 }
 
-fn validate_destination(
+/// A resolved internal call's own bytes must decode to the exact callee
+/// offset: one x86-64 `E8 rel32` or one aligned Aarch64 `BL` whose
+/// displacement names `callee`. Both the D29 fragment-call arm and the D41
+/// installed-provider internal-call arm share this check.
+pub(crate) fn validate_destination(
     architecture: Architecture,
     opcode: usize,
     bytes: &[u8],
@@ -117,7 +121,7 @@ fn validate_destination(
     let destination = match architecture {
         Architecture::X86_64 => {
             let [0xe8, first, second, third, fourth] = bytes else {
-                return Err("D29 fragment call is not an x86 relative call");
+                return Err("resolved internal call is not an x86 relative call");
             };
             opcode as i128 + 5 + i128::from(i32::from_le_bytes([*first, *second, *third, *fourth]))
         }
@@ -125,17 +129,17 @@ fn validate_destination(
             let word = u32::from_le_bytes(
                 bytes
                     .try_into()
-                    .map_err(|_| "D29 fragment call width changed")?,
+                    .map_err(|_| "resolved internal call width changed")?,
             );
             if word & 0xfc00_0000 != 0x9400_0000 || !opcode.is_multiple_of(4) {
-                return Err("D29 fragment call is not an aligned Arm64 BL");
+                return Err("resolved internal call is not an aligned Arm64 BL");
             }
             let displacement = ((word << 6) as i32 >> 6) as i64 * 4;
             opcode as i128 + i128::from(displacement)
         }
     };
     if destination != callee as i128 {
-        return Err("D29 fragment call displacement names a different callee");
+        return Err("resolved internal call displacement names a different callee");
     }
     Ok(())
 }

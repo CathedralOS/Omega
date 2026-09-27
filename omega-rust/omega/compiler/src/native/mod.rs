@@ -31,11 +31,12 @@ pub use native_artifact::optimized_semantic_wrapper_object::{
 pub use native_artifact::{
     BoundaryExecutionRecord, BoundaryTraitSettlement, BoundaryTraitSettlementParts,
     BoundaryTraitSettlementRole, CompilerBuiltinResult, CompilerBuiltinScalarArgument,
-    DynamicElfNativeArtifact, DynamicElfNativeArtifactParts, NativeArtifact, NativeArtifactParts,
-    NativeByteSpan, NativePhysicalChild, NativePhysicalChildParts, NativePhysicalEvidence,
-    NativePhysicalEvidenceGap, NativePhysicalEvidenceGapSubject, NativePhysicalEvidenceParts,
-    NativePhysicalEvidenceScope, NativePhysicalOccurrence, NativeProviderExecution,
-    NativeSelectedProviderPlan, NativeSelectedProviderPlanDigest, NormalizedForeignCallRelocation,
+    DynamicElfNativeArtifact, DynamicElfNativeArtifactParts, InstalledProviderInternalCallCustody,
+    NativeArtifact, NativeArtifactParts, NativeByteSpan, NativePhysicalChild,
+    NativePhysicalChildParts, NativePhysicalEvidence, NativePhysicalEvidenceGap,
+    NativePhysicalEvidenceGapSubject, NativePhysicalEvidenceParts, NativePhysicalEvidenceScope,
+    NativePhysicalOccurrence, NativeProviderExecution, NativeSelectedProviderPlan,
+    NativeSelectedProviderPlanDigest, NormalizedForeignCallRelocation,
     NormalizedForeignCallbackRelocation, NormalizedForeignCallbackRelocations, PhysicalChildParent,
     PhysicalRelocationDisposition,
 };

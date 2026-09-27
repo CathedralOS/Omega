@@ -8,12 +8,15 @@ use crate::physical::derivation::hashing::{
     hash_structural_argument, hash_structural_parameter_declaration, hash_structural_path,
     hash_sum_layout, hash_target,
 };
-use crate::{CompilerBuiltinResult, CompilerBuiltinScalarArgument};
+use crate::{
+    CompilerBuiltinResult, CompilerBuiltinScalarArgument, InstalledProviderInternalCallCustody,
+};
 use machine_code::PortEffectRecord;
+use semantic_vocabulary::BoundaryMachineId;
 use sha2::Digest;
 use sha2::Sha256;
 use target::NativeTarget;
-use target_operations::ProviderExecutionBinding;
+use target_operations::{CallSiteOwner, ProviderExecutionBinding};
 
 /// Strong identity for one hosted builtin settlement. The derivation binds
 /// the builtin's catalog row — `identity_tags` name its closed execution and
@@ -314,4 +317,93 @@ pub(crate) fn admitted_provider_settlement_identity(
         }
     }
     Ok(digest.finalize().into())
+}
+
+/// Strong identity for one installed provider boundary call realized as a
+/// resolved internal call into its selected checked-machine candidate. The
+/// hash binds the boundary coordinate, the conformance row's provider and
+/// candidate identities, and the complete retained call-stack custody —
+/// owner, callee machine, call-field offset, and the frame or caller-live
+/// bytes its record family carries — so no coordinate can be substituted
+/// underneath this parent identity.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn installed_provider_internal_call_identity(
+    occurrence: &OptimizedBoundaryOccurrence,
+    requirement_identity: &str,
+    selected_plan_digest: NativeSelectedProviderPlanDigest,
+    target: NativeTarget,
+    boundary: BoundaryMachineId,
+    provider_identity: &str,
+    candidate_identity: &str,
+    call: &InstalledProviderInternalCallCustody,
+) -> [u8; 32] {
+    let mut digest = Sha256::new();
+    digest.update(b"omega.d41-boundary-trait-settlement.sha256.v5\0");
+    digest.update(occurrence.identity().bytes());
+    hash_bytes(&mut digest, requirement_identity.as_bytes());
+    digest.update(selected_plan_digest.as_bytes());
+    hash_target(&mut digest, target);
+    digest.update([4]); // InstalledProviderInternalCall role.
+    digest.update(boundary.get().to_le_bytes());
+    hash_bytes(&mut digest, provider_identity.as_bytes());
+    hash_bytes(&mut digest, candidate_identity.as_bytes());
+    let (family_tag, owner, call_target, call_field_offset, frame_terms, caller_live_bytes) =
+        match call {
+            InstalledProviderInternalCallCustody::Unit {
+                owner,
+                target,
+                call_field_offset,
+                active_frame_bytes,
+                transient_bytes,
+                caller_live_bytes,
+            } => (
+                1u8,
+                owner,
+                *target,
+                *call_field_offset,
+                Some((*active_frame_bytes, *transient_bytes)),
+                *caller_live_bytes,
+            ),
+            InstalledProviderInternalCallCustody::Scalar {
+                owner,
+                target,
+                call_field_offset,
+                caller_live_bytes,
+            } => (
+                2u8,
+                owner,
+                *target,
+                *call_field_offset,
+                None,
+                *caller_live_bytes,
+            ),
+        };
+    digest.update([family_tag]);
+    match owner {
+        CallSiteOwner::Operation(operation) => {
+            digest.update([1]);
+            digest.update(operation.get().to_le_bytes());
+            digest.update(0_u32.to_le_bytes());
+        }
+        CallSiteOwner::CleanupAction {
+            edge,
+            action_ordinal,
+        } => {
+            digest.update([2]);
+            digest.update(edge.get().to_le_bytes());
+            digest.update(action_ordinal.to_le_bytes());
+        }
+    }
+    digest.update(call_target.get().to_le_bytes());
+    digest.update(canonical_usize(call_field_offset));
+    match frame_terms {
+        None => digest.update([0]),
+        Some((active_frame_bytes, transient_bytes)) => {
+            digest.update([1]);
+            digest.update(active_frame_bytes.to_le_bytes());
+            digest.update(transient_bytes.to_le_bytes());
+        }
+    }
+    digest.update(caller_live_bytes.to_le_bytes());
+    digest.finalize().into()
 }
