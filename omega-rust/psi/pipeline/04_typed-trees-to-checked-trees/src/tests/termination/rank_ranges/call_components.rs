@@ -7,6 +7,17 @@ const QUOTIENT_PAIR: &str = include_str!(concat!(
     "/../../../../tests/omega/pass/termination/quotient_endpoint_call_component/main.omg"
 ));
 
+// These cases transform a corpus fixture. A missing anchor must fail here,
+// rather than silently leaving a positive or negative case unchanged.
+fn rewrite_fixture(source: &str, replacements: &[(&str, &str)]) -> String {
+    replacements
+        .iter()
+        .fold(source.to_owned(), |source, (before, after)| {
+            assert!(source.contains(before), "missing fixture anchor: {before}");
+            source.replace(before, after)
+        })
+}
+
 #[test]
 fn recursive_quotient_endpoints_preserve_selection_and_formation() {
     for operation in ["/", "%"] {
@@ -16,36 +27,42 @@ fn recursive_quotient_endpoints_preserve_selection_and_formation() {
         reject(&format!(
             "operator {operation} u64::selected(left: u64, right: u64) -> u64; {source}"
         ));
-        let signed_minimum = source
-            .replace("cap: u64 [0..=20]", "cap: i8 [-128..=-128]")
-            .replace("limit: u64 [0..=20]", "limit: i8 [-128..=-128]")
-            .replace(
-                &format!("cap {operation} 5 + 6"),
-                &format!("(cap {operation} -1) / 2 + 6"),
-            )
-            .replace(
-                &format!("limit {operation} 5 + 6"),
-                &format!("(limit {operation} -1) / 2 + 6"),
-            );
+        let signed_minimum = rewrite_fixture(
+            &source,
+            &[
+                ("cap: u64", "cap: i8"),
+                ("limit: u64", "limit: i8"),
+                ("0 <= cap && cap <= 20", "-128 <= cap && cap <= -128"),
+                (
+                    "0 <= limit && limit <= 20",
+                    "-128 <= limit && limit <= -128",
+                ),
+                (
+                    &format!("cap {operation} 5 + 6"),
+                    &format!("(cap {operation} -1) / 2 + 6"),
+                ),
+                (
+                    &format!("limit {operation} 5 + 6"),
+                    &format!("(limit {operation} -1) / 2 + 6"),
+                ),
+            ],
+        );
         reject(&signed_minimum);
-        prove(&signed_minimum.replace("[-128..=-128]", "[-127..=-127]"));
+        prove(&rewrite_fixture(&signed_minimum, &[("-128", "-127")]));
     }
     reject(&QUOTIENT_PAIR.replace("/ 5", "/ 5u8"));
-    let bounded = QUOTIENT_PAIR
-        .replace("cap: u64 [0..=20]", "cap: u64")
-        .replace("limit: u64 [0..=20]", "limit: u64")
-        .replace(
-            "terminates by remaining",
-            "requires cap <= 20; terminates by remaining",
-        )
-        .replace(
-            "terminates by pending",
-            "requires limit <= 20; terminates by pending",
-        )
-        .replace("cap / 5", "(cap + 1) / 5")
-        .replace("limit / 5", "(limit + 1) / 5");
+    let bounded = rewrite_fixture(
+        QUOTIENT_PAIR,
+        &[
+            ("cap / 5", "(cap + 1) / 5"),
+            ("limit / 5", "(limit + 1) / 5"),
+        ],
+    );
     prove(&bounded);
-    reject(&bounded.replace("requires cap <= 20;", ""));
+    reject(&rewrite_fixture(
+        &bounded,
+        &[(" && 0 <= cap && cap <= 20", "")],
+    ));
 }
 
 #[test]
@@ -57,15 +74,24 @@ fn recursive_quotient_endpoints_follow_nested_terms_and_record_coordinates() {
     );
     let source = format!(
         "data Limits {{ bound: u64 [0..=20]; other: u64 [0..=20]; }} {}",
-        QUOTIENT_PAIR
-            .replace("cap: u64 [0..=20]", "cap: Limits")
-            .replace("limit: u64 [0..=20]", "limit: Limits")
-            .replace("cap / 5", "cap.bound / 5")
-            .replace("limit / 5", "limit.bound / 5")
-            .replace(
-                "self.second(cap, remaining)",
-                "self.second(Limits { bound: cap.bound, other: 0 }, remaining)",
-            )
+        rewrite_fixture(
+            QUOTIENT_PAIR,
+            &[
+                ("cap: u64", "cap: Limits"),
+                ("limit: u64", "limit: Limits"),
+                ("0 <= cap && cap <= 20", "0 <= cap.bound && cap.bound <= 20"),
+                (
+                    "0 <= limit && limit <= 20",
+                    "0 <= limit.bound && limit.bound <= 20"
+                ),
+                ("cap / 5", "cap.bound / 5"),
+                ("limit / 5", "limit.bound / 5"),
+                (
+                    "self.second(cap, remaining)",
+                    "self.second(Limits { bound: cap.bound, other: 0 }, remaining)"
+                ),
+            ]
+        )
     );
     prove(&source);
     prove(&source.replace(" in 0..(limit.bound / 5 + 6)", ""));
@@ -73,15 +99,27 @@ fn recursive_quotient_endpoints_follow_nested_terms_and_record_coordinates() {
     let partial = format!(
         "data Limits {{ bound: u64 [0..=20]; other: u64 [0..=20]; }}
          data Envelope {{ inner: Limits; sibling: Limits; }} {}",
-        QUOTIENT_PAIR
-            .replace("cap: u64 [0..=20]", "cap: Envelope")
-            .replace("limit: u64 [0..=20]", "limit: Envelope")
-            .replace("cap / 5", "cap.inner.bound / 5")
-            .replace("limit / 5", "limit.inner.bound / 5")
-            .replace(
-                "self.second(cap, remaining)",
-                "self.second(Envelope { inner: cap.inner, sibling: cap.sibling }, remaining)",
-            )
+        rewrite_fixture(
+            QUOTIENT_PAIR,
+            &[
+                ("cap: u64", "cap: Envelope"),
+                ("limit: u64", "limit: Envelope"),
+                (
+                    "0 <= cap && cap <= 20",
+                    "0 <= cap.inner.bound && cap.inner.bound <= 20"
+                ),
+                (
+                    "0 <= limit && limit <= 20",
+                    "0 <= limit.inner.bound && limit.inner.bound <= 20"
+                ),
+                ("cap / 5", "cap.inner.bound / 5"),
+                ("limit / 5", "limit.inner.bound / 5"),
+                (
+                    "self.second(cap, remaining)",
+                    "self.second(Envelope { inner: cap.inner, sibling: cap.sibling }, remaining)"
+                ),
+            ]
+        )
     );
     for omitted in [
         " in 0..(cap.inner.bound / 5 + 6)",
@@ -510,25 +548,25 @@ terminates by pending in lower..=upper;
 
 #[test]
 fn symbolic_division_endpoints_cross_recursive_components() {
-    let source = QUOTIENT_PAIR
-        .replace(
-            "cap: u64 [0..=20])",
-            "cap: u64 [0..=20], divisor: u64 [1..=5])",
-        )
-        .replace(
-            "pending: u64 [0..=5])",
-            "pending: u64 [0..=5], width: u64 [1..=5])",
-        )
-        .replace("cap / 5", "cap / divisor")
-        .replace("limit / 5", "limit / width")
-        .replace(
-            "self.second(cap, remaining)",
-            "self.second(cap, remaining, divisor)",
-        )
-        .replace(
-            "self.first(pending - 1, limit)",
-            "self.first(pending - 1, limit, width)",
-        );
+    let source = rewrite_fixture(
+        QUOTIENT_PAIR,
+        &[
+            ("cap: u64)", "cap: u64, divisor: u64)"),
+            ("pending: u64)", "pending: u64, width: u64)"),
+            ("cap <= 20", "cap <= 20 && 1 <= divisor && divisor <= 5"),
+            ("pending <= 5", "pending <= 5 && 1 <= width && width <= 5"),
+            ("cap / 5", "cap / divisor"),
+            ("limit / 5", "limit / width"),
+            (
+                "self.second(cap, remaining)",
+                "self.second(cap, remaining, divisor)",
+            ),
+            (
+                "self.first(pending - 1, limit)",
+                "self.first(pending - 1, limit, width)",
+            ),
+        ],
+    );
     for operator in ["/", "%"] {
         let source = source.replace(" / ", &format!(" {operator} "));
         for omitted in [
@@ -546,7 +584,13 @@ fn symbolic_division_endpoints_cross_recursive_components() {
             reject(&source.replace("limit, width)", "limit, 1)"));
             reject(&source.replace("pending - 1", "pending"));
         }
-        reject(&source.replace("[1..=5]", "[0..=5]"));
+        reject(&rewrite_fixture(
+            &source,
+            &[
+                ("1 <= divisor", "0 <= divisor"),
+                ("1 <= width", "0 <= width"),
+            ],
+        ));
     }
 }
 

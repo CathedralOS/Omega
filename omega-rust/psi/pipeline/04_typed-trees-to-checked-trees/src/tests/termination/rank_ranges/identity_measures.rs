@@ -144,6 +144,10 @@ fn constrained_measure_signature_is_discharged_against_the_subject() {
     // including an exclusive end normalized to the same `0..=5` extent.
     prove(&constrained.replace("value: u64 [0..=5])", "value: u64 [0..=6])"));
     prove(&constrained.replace("value: u64 [0..=5])", "value: u64 [0..6])"));
+    // The corpus fixture carries the subject bound in a requires clause,
+    // not a parameter refinement. Ensure removing it really changes the case.
+    let subject_requirement = "requires 0 <= remaining && remaining <= 5";
+    assert!(constrained.contains(subject_requirement));
     for source in [
         // The subject `0..=5` does not satisfy a `1..=5` domain or result.
         constrained.replace("value: u64 [0..=5])", "value: u64 [1..=5])"),
@@ -153,7 +157,7 @@ fn constrained_measure_signature_is_discharged_against_the_subject() {
         // A non-range refinement cannot be discharged by bounds.
         constrained.replace("value: u64 [0..=5])", "value: u64 in Saturating)"),
         // An unrestricted subject cannot promise the declared domain.
-        constrained.replace("remaining: u64 [0..=5]", "remaining: u64"),
+        constrained.replace(subject_requirement, ""),
     ] {
         reject(&source);
     }
