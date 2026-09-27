@@ -1,0 +1,4 @@
+boundary data Token [copy];
+
+data Main {}
+machine Main::main(&mut self) {}
