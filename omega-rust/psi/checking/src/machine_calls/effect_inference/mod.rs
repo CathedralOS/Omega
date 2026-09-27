@@ -5,15 +5,13 @@
 //! opaque requirements and operational may-ceilings retain their fixed contracts.
 
 mod invocations;
-mod operational;
-pub(crate) mod plan_scope;
-mod service_reach;
+pub(crate) mod operational;
+pub(crate) mod service_reach;
 
 pub use invocations::{
     declared_machine_invocations, declared_signature_invocations,
     has_self_forwarded_boundary_parameter, infer_synchronous_invocations, invocation_target_label,
 };
 pub use operational::infer_operational_may;
-pub use plan_scope::{ProgramPlanScopeGuard, enter_program_plan_scope};
 pub(crate) use service_reach::required_boundary_services;
 pub use service_reach::{fixed_installation_boundary_service_reach, infer_service_reaches};

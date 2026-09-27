@@ -389,7 +389,7 @@ fn expression_depends_on_any(
 ) -> Result<bool, RelationPlanError> {
     let depends = |expression| expression_depends_on_any(program, expression, parameters);
     match program.expression_table.expression(expression) {
-        ExpressionNode::Match(dispatch) => crate::value_custody::expression_types::match_children(
+        ExpressionNode::Match(dispatch) => crate::expression_traversal::match_children(
             program, *dispatch,
         )
         .try_fold(false, |found, child| {

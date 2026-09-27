@@ -90,10 +90,9 @@ fn operand_type(
             if !symbol.is_valid() {
                 return None;
             }
-            let data =
-                crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-                    program, *symbol,
-                )?;
+            let data = crate::program_scope::data_definitions::data_definition_by_symbol(
+                program, *symbol,
+            )?;
             super::super::exact_data_member_field(
                 program,
                 data,

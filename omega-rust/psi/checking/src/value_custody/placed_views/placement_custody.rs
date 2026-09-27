@@ -45,20 +45,16 @@ pub(super) fn validate_agreements(program: &TypedTrees, diagnostics: &mut Vec<Di
             // `Placed<P, T>` producer has evaluated this exact P/T pair.
             continue;
         };
-        let Some(schema) =
-            crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-                program,
-                schema_symbol,
-            )
-        else {
+        let Some(schema) = crate::program_scope::data_definitions::data_definition_by_symbol(
+            program,
+            schema_symbol,
+        ) else {
             continue;
         };
-        let Some(custody) =
-            crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-                program,
-                conformance.carrier_symbol,
-            )
-        else {
+        let Some(custody) = crate::program_scope::data_definitions::data_definition_by_symbol(
+            program,
+            conformance.carrier_symbol,
+        ) else {
             continue;
         };
         let plan_name = program
@@ -524,9 +520,7 @@ fn type_contains_erased_descendant_bounded(
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Named { symbol, .. } => {
             let Some(record) =
-                crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-                    program, *symbol,
-                )
+                crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)
             else {
                 return false;
             };
@@ -606,9 +600,8 @@ fn plain_record_for_type(
     else {
         return None;
     };
-    let record = crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-        program, *symbol,
-    )?;
+    let record =
+        crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)?;
     (record.supply_mode == language_semantics::DataSupplyMode::CheckedShape
         && record.generic_instance.is_none()
         && record.type_parameters.is_empty()

@@ -517,7 +517,7 @@ fn abstract_trait_self_member_in_expression(
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
-            crate::value_custody::expression_types::match_children(program, *dispatch)
+            crate::expression_traversal::match_children(program, *dispatch)
                 .find_map(|child| abstract_trait_self_member_in_expression(program, child, visited))
         }
         ExpressionNode::ArrayLiteral(values) => program

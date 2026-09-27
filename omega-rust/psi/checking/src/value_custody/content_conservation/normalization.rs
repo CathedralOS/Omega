@@ -385,19 +385,19 @@ fn structural_place_type(
                 if active_variant.is_some() {
                     return Err("a sum-case path must select a payload field".to_owned());
                 }
-                let data =
-                    crate::value_custody::places::data_definition_for_type(program, unwrapped)
-                        .or_else(|| {
-                            (at_root && self_data.is_valid())
-                                .then(|| {
-
-                                        crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(program, self_data)
-                                })
-                                .flatten()
+                let data = crate::value_custody::places::data_definition_for_type(
+                    program, unwrapped,
+                )
+                .or_else(|| {
+                    (at_root && self_data.is_valid())
+                        .then(|| {
+                            crate::program_scope::data_definitions::data_definition_by_symbol(
+                                program, self_data,
+                            )
                         })
-                        .ok_or_else(|| {
-                            format!("`{}` is selected from a non-sum carrier", case.name)
-                        })?;
+                        .flatten()
+                })
+                .ok_or_else(|| format!("`{}` is selected from a non-sum carrier", case.name))?;
                 let variant = program
                     .data_members(data)
                     .iter()
@@ -429,8 +429,9 @@ fn structural_place_type(
                 let data = direct_data
                     .or_else(|| {
                         through_attached_self.then_some(()).and_then(|()| {
-
-                                crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(program, self_data)
+                            crate::program_scope::data_definitions::data_definition_by_symbol(
+                                program, self_data,
+                            )
                         })
                     })
                     .ok_or_else(|| {

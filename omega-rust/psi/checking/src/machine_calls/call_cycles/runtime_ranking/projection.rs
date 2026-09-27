@@ -345,9 +345,7 @@ impl RankProjection {
             return None;
         }
         let definition =
-            crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-                program, *data,
-            )?;
+            crate::program_scope::data_definitions::data_definition_by_symbol(program, *data)?;
 
         // The normalized view path is the existing measure-selection carrier.
         // Resolve it once, reject ambiguity, then use only this occurrence and
@@ -476,9 +474,7 @@ impl RankProjection {
             return false;
         }
         let Some(data) =
-            crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-                program, owner,
-            )
+            crate::program_scope::data_definitions::data_definition_by_symbol(program, owner)
         else {
             return false;
         };

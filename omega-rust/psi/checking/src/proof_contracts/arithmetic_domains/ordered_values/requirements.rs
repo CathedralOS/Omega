@@ -57,9 +57,7 @@ pub fn validate_ordered_requirement_call_totality(
         visited.push(expression);
         match program.expression_table.expression(expression) {
             ExpressionNode::Match(dispatch) => {
-                for child in
-                    crate::value_custody::expression_types::match_children(program, *dispatch)
-                {
+                for child in crate::expression_traversal::match_children(program, *dispatch) {
                     pending.push(child);
                 }
             }

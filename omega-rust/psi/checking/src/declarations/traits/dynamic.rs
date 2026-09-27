@@ -320,12 +320,10 @@ pub fn collect_dynamic_descriptor_storages(
                 if literal.case_symbol.is_some() {
                     continue;
                 }
-                let Some(data) =
-                    crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-                        program,
-                        literal.type_symbol,
-                    )
-                else {
+                let Some(data) = crate::program_scope::data_definitions::data_definition_by_symbol(
+                    program,
+                    literal.type_symbol,
+                ) else {
                     continue;
                 };
                 for field in program.expression_table.struct_fields(literal.fields) {
@@ -1421,10 +1419,8 @@ fn nominal_data_type(
         TypeReferenceNode::Reference { referee, .. } => nominal_data_type(program, *referee),
         TypeReferenceNode::Constrained { base_type, .. } => nominal_data_type(program, *base_type),
         TypeReferenceNode::Named { symbol, name } => {
-            crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-                program, *symbol,
-            )
-            .map(|definition| (definition.symbol, name.as_str()))
+            crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)
+                .map(|definition| (definition.symbol, name.as_str()))
         }
         _ => None,
     }

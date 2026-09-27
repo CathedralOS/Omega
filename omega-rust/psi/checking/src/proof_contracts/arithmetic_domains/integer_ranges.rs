@@ -187,8 +187,7 @@ pub(crate) fn collect_exact_integer_cast_facts(
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
-            for child in crate::value_custody::expression_types::match_children(program, *dispatch)
-            {
+            for child in crate::expression_traversal::match_children(program, *dispatch) {
                 collect_exact_integer_cast_facts(
                     program,
                     machine,

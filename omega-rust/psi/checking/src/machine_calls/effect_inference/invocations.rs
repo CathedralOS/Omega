@@ -439,8 +439,7 @@ fn collect_expression_calls(
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
-            for child in crate::value_custody::expression_types::match_children(program, *dispatch)
-            {
+            for child in crate::expression_traversal::match_children(program, *dispatch) {
                 collect_expression_calls(
                     program,
                     machine,
@@ -745,7 +744,7 @@ fn data_definition_by_symbol(
     program: &TypedTrees,
     symbol: SymbolHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
-    crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(program, symbol)
+    crate::program_scope::data_definitions::data_definition_by_symbol(program, symbol)
 }
 
 fn collect_expression_call(
@@ -962,7 +961,7 @@ fn origin_for_symbol(
         return boundary_service_for_type(program, owned.type_reference)
             .map(InvocationTarget::Service);
     }
-    let attached = crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+    let attached = crate::program_scope::data_definitions::data_definition_by_symbol(
         program,
         machine.attached_data_symbol,
     );

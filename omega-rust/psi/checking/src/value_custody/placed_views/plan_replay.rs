@@ -77,36 +77,30 @@ fn expected_accessor_operations(access: &FieldAccess) -> Vec<&'static str> {
 /// before any placed accessor is accepted as an ordinary typed operation.
 pub(crate) fn validate_plans(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
     for view in &program.placed_view_plans {
-        let Some(view_data) =
-            crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-                program,
-                view.data_symbol,
-            )
-        else {
+        let Some(view_data) = crate::program_scope::data_definitions::data_definition_by_symbol(
+            program,
+            view.data_symbol,
+        ) else {
             diagnostics.push(Diagnostic::error(format!(
                 "placed view `{}` no longer names its exact synthesized data identity",
                 view.data_name
             )));
             continue;
         };
-        let Some(schema) =
-            crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-                program,
-                view.schema_symbol,
-            )
-        else {
+        let Some(schema) = crate::program_scope::data_definitions::data_definition_by_symbol(
+            program,
+            view.schema_symbol,
+        ) else {
             diagnostics.push(Diagnostic::error(format!(
                 "placed view `{}` no longer names its exact source schema identity",
                 view.data_name
             )));
             continue;
         };
-        let Some(policy) =
-            crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-                program,
-                view.policy_symbol,
-            )
-        else {
+        let Some(policy) = crate::program_scope::data_definitions::data_definition_by_symbol(
+            program,
+            view.policy_symbol,
+        ) else {
             diagnostics.push(Diagnostic::error(format!(
                 "placed view `{}` no longer names its exact placement-policy identity",
                 view.data_name
@@ -295,7 +289,7 @@ pub(crate) fn validate_plans(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
             }
 
             let has_accessor_data =
-                crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+                crate::program_scope::data_definitions::data_definition_by_symbol(
                     program,
                     field.accessor_data_symbol,
                 )

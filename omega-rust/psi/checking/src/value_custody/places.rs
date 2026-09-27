@@ -210,12 +210,10 @@ fn data_definition_by_symbol(
     if !symbol.is_valid() || program.symbols.get(symbol).kind != symbols::SymbolKind::Data {
         return None;
     }
-    match crate::machine_calls::effect_inference::plan_scope::memoized_data_definition_lookup(
-        program, symbol,
-    ) {
-        crate::machine_calls::effect_inference::plan_scope::DataDefinitionLookup::Unique(
-            position,
-        ) => program.data_definitions().get(position as usize),
+    match crate::program_scope::data_definitions::memoized_data_definition_lookup(program, symbol) {
+        crate::program_scope::data_definitions::DataDefinitionLookup::Unique(position) => {
+            program.data_definitions().get(position as usize)
+        }
         _ => None,
     }
 }

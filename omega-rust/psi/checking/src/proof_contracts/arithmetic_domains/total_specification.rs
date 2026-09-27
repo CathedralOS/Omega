@@ -200,9 +200,7 @@ fn validate_total_specification_arithmetic_with_domain_lookup(
         };
         match program.expression_table.expression(expression) {
             ExpressionNode::Match(dispatch) => {
-                for child in
-                    crate::value_custody::expression_types::match_children(program, *dispatch)
-                {
+                for child in crate::expression_traversal::match_children(program, *dispatch) {
                     recurse(child, diagnostics, visited);
                 }
             }
@@ -516,7 +514,7 @@ pub(super) fn abstract_specification_place_type(
             }
         };
         if symbol.is_valid() {
-            return crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+            return crate::program_scope::data_definitions::data_definition_by_symbol(
                 program, symbol,
             );
         }
@@ -671,9 +669,7 @@ fn validate_abstract_exact_policy_erasure_formation(
         };
         match program.expression_table.expression(expression) {
             ExpressionNode::Match(dispatch) => {
-                for child in
-                    crate::value_custody::expression_types::match_children(program, *dispatch)
-                {
+                for child in crate::expression_traversal::match_children(program, *dispatch) {
                     recurse(child, diagnostics, visited);
                 }
             }

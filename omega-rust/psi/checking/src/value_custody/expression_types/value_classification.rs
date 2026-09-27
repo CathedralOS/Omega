@@ -265,7 +265,7 @@ fn data_definition_by_symbol(
     program: &TypedTrees,
     symbol: symbols::SymbolHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
-    crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(program, symbol)
+    crate::program_scope::data_definitions::data_definition_by_symbol(program, symbol)
 }
 
 pub(super) fn concrete_data_type_name(

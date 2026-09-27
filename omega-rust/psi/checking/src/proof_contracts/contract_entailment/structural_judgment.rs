@@ -1178,8 +1178,10 @@ impl<'program> StructuralJudge<'program> {
                         }
                         _ => return None,
                     };
-                    let data =
-                        crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(program, data_symbol)?;
+                    let data = crate::program_scope::data_definitions::data_definition_by_symbol(
+                        program,
+                        data_symbol,
+                    )?;
                     let field = program.data_members(data).iter().find_map(|candidate| {
                         let typed_trees::data::DataMember::Field(field) = candidate else {
                             return None;
@@ -2333,9 +2335,7 @@ pub(crate) struct LicenseCandidates {
 impl LicenseCandidates {
     pub(crate) fn of(program: &TypedTrees) -> Self {
         let slot_carriers =
-            crate::machine_calls::effect_inference::plan_scope::memoized_conformance_slot_carriers(
-                program,
-            );
+            crate::program_scope::call_targets::memoized_conformance_slot_carriers(program);
         Self {
             ring: ring_license_candidates(&slot_carriers, program),
             semiring: semiring_license_candidates(&slot_carriers, program),

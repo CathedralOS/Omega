@@ -72,7 +72,7 @@ struct DirectCallOperational {
 }
 
 pub fn infer_operational_may(program: &TypedTrees) -> OperationalPlan {
-    super::plan_scope::memoized_operational_plan(program)
+    crate::program_scope::effects::memoized_operational_plan(program)
 }
 
 pub(crate) fn infer_operational_may_uncached(program: &TypedTrees) -> OperationalPlan {
@@ -339,8 +339,7 @@ fn collect_expression_calls(
 
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
-            for child in crate::value_custody::expression_types::match_children(program, *dispatch)
-            {
+            for child in crate::expression_traversal::match_children(program, *dispatch) {
                 collect_expression_calls(program, child, statement_index, call_ordinal, calls);
             }
         }

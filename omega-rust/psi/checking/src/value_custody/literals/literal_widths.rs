@@ -100,7 +100,7 @@ pub(crate) fn validate_literal_widths(program: &TypedTrees, diagnostics: &mut Ve
             }
             continue;
         }
-        super::expression_children::children(program, node, |child| pending.push(child));
+        crate::expression_traversal::children(program, node, |child| pending.push(child));
         if let ExpressionNode::Integer(literal) = node
             && literal.value_i64().is_none()
             && !blessed.contains(&handle)

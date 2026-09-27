@@ -284,9 +284,8 @@ fn private_record_carrier(
     if !symbol.is_valid() || visiting.contains(&symbol) {
         return None;
     }
-    let definition = crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-        program, symbol,
-    )?;
+    let definition =
+        crate::program_scope::data_definitions::data_definition_by_symbol(program, symbol)?;
     visiting.push(symbol);
     let carrier = program.data_members(definition).iter().find_map(|member| {
         let DataMember::Field(field) = member else {

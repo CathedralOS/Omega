@@ -407,7 +407,7 @@ fn indexed_carrier_parameter_matches(
     else {
         return None;
     };
-    let carrier = crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+    let carrier = crate::program_scope::data_definitions::data_definition_by_symbol(
         program,
         *carrier_symbol,
     )?;

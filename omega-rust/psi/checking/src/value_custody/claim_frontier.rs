@@ -30,10 +30,7 @@ pub fn linear_claim_frontier(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Vec<ClaimFrontierClaim> {
-    crate::machine_calls::effect_inference::plan_scope::memoized_claim_frontier(
-        program,
-        type_reference,
-    )
+    crate::program_scope::value_properties::memoized_claim_frontier(program, type_reference)
 }
 
 /// The uncached whole-table walk; the memoized entry routes here on a miss or
@@ -47,16 +44,12 @@ pub(crate) fn linear_claim_frontier_uncached(
     // the walk; the build-scope index shares the table so each missed type
     // reference does not rebuild it.
     let data_definitions_by_symbol =
-        crate::machine_calls::effect_inference::plan_scope::memoized_data_definition_positions(
-            program,
-        );
+        crate::program_scope::data_definitions::memoized_data_definition_positions(program);
     // Multiplicity answers below look up the same declaration and parameter
     // identities; `type_multiplicity` rescans both tables per named type, so
     // index the parameter table once the same way.
     let parameters_by_symbol =
-        crate::machine_calls::effect_inference::plan_scope::memoized_type_parameter_multiplicities(
-            program,
-        );
+        crate::program_scope::data_definitions::memoized_type_parameter_multiplicities(program);
     append_linear_claim_frontier(
         program,
         type_reference,

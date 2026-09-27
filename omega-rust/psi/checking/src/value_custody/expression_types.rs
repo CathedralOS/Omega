@@ -29,10 +29,9 @@
 //!   the value classes the other checks compare.
 //! - `result_type` (an expression's result type, independent of its
 //!   destination), `reference_values` (reference type matching and mutable
-//!   reference forwarding), `walk` (`collect_expression_nodes`) and the
-//!   `match_dispatch` queries `match_children` and `match_case_dispatch` are
-//!   read by other validators, and the result and dispatch queries also by
-//!   checking and lowering.
+//!   reference forwarding), and `match_dispatch` (`match_case_dispatch`) are
+//!   read by other validators, checking and lowering. Structural edge traversal
+//!   and occurrence collection belong to `crate::expression_traversal`.
 
 use diagnostics::Diagnostic;
 use std::fmt;
@@ -57,15 +56,10 @@ mod float_destinations;
 mod shape_validation;
 mod value_classification;
 
-// Shared vocabulary: result types, reference type matching and expression
-// traversal.
+// Shared vocabulary: result types and reference type matching.
 mod reference_values;
 mod result_type;
-mod walk;
 
-pub(crate) use walk::collect_expression_nodes;
-
-pub(crate) use match_dispatch::match_children;
 pub use match_dispatch::match_subject_primitive_type;
 pub use match_dispatch::validate_match_dispatch;
 pub use match_dispatch::{

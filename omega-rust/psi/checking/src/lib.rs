@@ -122,10 +122,10 @@ pub use declarations::traits::{
     resolve_dynamic_call_targets, revalidate_top_level_requirement_realization,
 };
 pub use machine_calls::effect_inference::{
-    ProgramPlanScopeGuard, declared_machine_invocations, declared_signature_invocations,
-    enter_program_plan_scope, fixed_installation_boundary_service_reach,
-    has_self_forwarded_boundary_parameter, infer_operational_may, infer_service_reaches,
-    infer_synchronous_invocations, invocation_target_label,
+    declared_machine_invocations, declared_signature_invocations,
+    fixed_installation_boundary_service_reach, has_self_forwarded_boundary_parameter,
+    infer_operational_may, infer_service_reaches, infer_synchronous_invocations,
+    invocation_target_label,
 };
 pub use machine_calls::effects::{
     AsmAuthorityAdmission, validate_asm_discharge, validate_behavior_plan,
@@ -270,8 +270,10 @@ pub use proof_contracts::proof_embeddings::{
 };
 
 mod declarations;
+mod expression_traversal;
 mod frozen_program;
 mod machine_calls;
+mod program_scope;
 mod program_validation;
 mod proof_contracts;
 mod value_custody;
@@ -285,6 +287,7 @@ pub use frozen_program::{
     FrozenProgramScope, enter_frozen_program_scope, proof_only_classification,
 };
 pub use machine_calls::reference_result_custody;
+pub use program_scope::{ProgramPlanScopeGuard, enter_program_plan_scope};
 pub use program_validation::{
     ContractEntailmentStandDown, ContractEntailmentStandDownReason, ExactIntegerCastFact,
     OpaquePropertyValidation, ProgramValidation, ProgramValidationFacts,

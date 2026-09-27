@@ -484,11 +484,10 @@ pub fn structural_claim_path(
                 facts::PlaceSegment::Field { symbol },
                 TypeReferenceNode::Named { symbol: owner, .. },
             ) => {
-                let definition =
-                    crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-                        program, *owner,
-                    )
-                    .ok_or("structural claim field has no exact data owner")?;
+                let definition = crate::program_scope::data_definitions::data_definition_by_symbol(
+                    program, *owner,
+                )
+                .ok_or("structural claim field has no exact data owner")?;
                 let field = program
                     .data_members(definition)
                     .iter()

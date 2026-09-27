@@ -97,9 +97,8 @@ pub fn scalar_case_value_source(
     else {
         return None;
     };
-    let owner = crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-        program, *symbol,
-    )?;
+    let owner =
+        crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)?;
     let members = program.data_members(owner);
     if members.is_empty()
         || members.iter().any(|member| match member {
@@ -133,7 +132,7 @@ fn case_constructor_parts(
     }
     let (owner, selected, fields) = match program.expression_table.expression(expression) {
         ExpressionNode::StructLiteral(literal) => (
-            crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+            crate::program_scope::data_definitions::data_definition_by_symbol(
                 program,
                 literal.type_symbol,
             )?,

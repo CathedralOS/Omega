@@ -329,8 +329,7 @@ fn collect_result_comparison_pairs(
     };
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
-            for child in crate::value_custody::expression_types::match_children(program, *dispatch)
-            {
+            for child in crate::expression_traversal::match_children(program, *dispatch) {
                 recurse(child, pairs);
             }
         }

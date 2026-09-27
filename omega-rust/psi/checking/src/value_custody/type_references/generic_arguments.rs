@@ -442,13 +442,11 @@ pub fn validate_exact_const_value_encoding(
 fn canonical_carrier_label(program: &TypedTrees, reference: TypeReferenceHandle) -> String {
     match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Named { symbol, .. } => {
-            crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-                program, *symbol,
-            )
-            .map_or_else(
-                || type_reference_label(program, reference),
-                |definition| definition.name.as_str().to_owned(),
-            )
+            crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)
+                .map_or_else(
+                    || type_reference_label(program, reference),
+                    |definition| definition.name.as_str().to_owned(),
+                )
         }
         TypeReferenceNode::FixedArray {
             element_type,
@@ -471,10 +469,8 @@ fn exact_structured_const_data_carrier_is_eligible(
         return false;
     };
     symbol.is_valid()
-        && crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-            program, *symbol,
-        )
-        .is_some()
+        && crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)
+            .is_some()
         && exact_structured_const_carrier_is_eligible(program, type_reference, &mut Vec::new())
 }
 
@@ -497,40 +493,25 @@ fn exact_structured_const_carrier_is_eligible(
             }
             visiting.push(*symbol);
             let eligible =
-                crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-                    program, *symbol,
-                )
-                .is_some_and(|definition| {
-                    let members = program.data_members(definition);
-                    definition.supply_mode == language_semantics::DataSupplyMode::CheckedShape
-                        && definition.name.as_str() != "Rat"
-                        && definition.lifetime_parameters.is_empty()
-                        && program.data_type_parameters(definition).is_empty()
-                        && definition.generic_instance.is_none()
-                        && definition.quotient.is_none()
-                        && definition.where_facts.is_empty()
-                        && !definition.zero_gated
-                        && match typed_trees::data::DataDefinition::shape_kind_from_members(members)
-                        {
-                            typed_trees::data::DataShapeKind::Record => {
-                                members.iter().all(|member| {
-                                    let DataMember::Field(field) = member else {
-                                        return false;
-                                    };
-                                    !field.relevance.is_erased()
-                                        && exact_structured_const_carrier_is_eligible(
-                                            program,
-                                            field.type_reference,
-                                            visiting,
-                                        )
-                                })
-                            }
-                            typed_trees::data::DataShapeKind::Enum => {
-                                members.iter().all(|member| {
-                                    let DataMember::Variant(variant) = member else {
-                                        return false;
-                                    };
-                                    program.data_payload_fields(variant).iter().all(|field| {
+                crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)
+                    .is_some_and(|definition| {
+                        let members = program.data_members(definition);
+                        definition.supply_mode == language_semantics::DataSupplyMode::CheckedShape
+                            && definition.name.as_str() != "Rat"
+                            && definition.lifetime_parameters.is_empty()
+                            && program.data_type_parameters(definition).is_empty()
+                            && definition.generic_instance.is_none()
+                            && definition.quotient.is_none()
+                            && definition.where_facts.is_empty()
+                            && !definition.zero_gated
+                            && match typed_trees::data::DataDefinition::shape_kind_from_members(
+                                members,
+                            ) {
+                                typed_trees::data::DataShapeKind::Record => {
+                                    members.iter().all(|member| {
+                                        let DataMember::Field(field) = member else {
+                                            return false;
+                                        };
                                         !field.relevance.is_erased()
                                             && exact_structured_const_carrier_is_eligible(
                                                 program,
@@ -538,12 +519,26 @@ fn exact_structured_const_carrier_is_eligible(
                                                 visiting,
                                             )
                                     })
-                                })
+                                }
+                                typed_trees::data::DataShapeKind::Enum => {
+                                    members.iter().all(|member| {
+                                        let DataMember::Variant(variant) = member else {
+                                            return false;
+                                        };
+                                        program.data_payload_fields(variant).iter().all(|field| {
+                                            !field.relevance.is_erased()
+                                                && exact_structured_const_carrier_is_eligible(
+                                                    program,
+                                                    field.type_reference,
+                                                    visiting,
+                                                )
+                                        })
+                                    })
+                                }
+                                typed_trees::data::DataShapeKind::Empty
+                                | typed_trees::data::DataShapeKind::Mixed => false,
                             }
-                            typed_trees::data::DataShapeKind::Empty
-                            | typed_trees::data::DataShapeKind::Mixed => false,
-                        }
-                });
+                    });
             visiting.pop();
             eligible
         }
@@ -619,12 +614,10 @@ fn validate_decoded_structured_const(
                 return Err("structured const carrier is unresolved or recursive".to_owned());
             }
             let definition =
-                crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-                    program, *symbol,
-                )
-                .ok_or_else(|| {
-                    "structured const carrier symbol has no data definition".to_owned()
-                })?;
+                crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)
+                    .ok_or_else(|| {
+                        "structured const carrier symbol has no data definition".to_owned()
+                    })?;
             if type_name.as_str() != definition.name.as_str() {
                 return Err(format!(
                     "record node names `{type_name}`, expected `{}`",
@@ -679,12 +672,10 @@ fn validate_decoded_structured_const(
                 return Err("structured const carrier is unresolved or recursive".to_owned());
             }
             let definition =
-                crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-                    program, *symbol,
-                )
-                .ok_or_else(|| {
-                    "structured const carrier symbol has no data definition".to_owned()
-                })?;
+                crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)
+                    .ok_or_else(|| {
+                        "structured const carrier symbol has no data definition".to_owned()
+                    })?;
             if type_name.as_str() != definition.name.as_str() {
                 return Err(format!(
                     "variant node names `{type_name}`, expected `{}`",

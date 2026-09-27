@@ -816,10 +816,8 @@ pub(super) fn record_referent(
         return None;
     };
     (symbol.is_valid()
-        && crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-            program, *symbol,
-        )
-        .is_some())
+        && crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)
+            .is_some())
     .then_some((*symbol, borrowed))
 }
 
@@ -976,9 +974,7 @@ pub(super) fn collect_record_paths(
             return;
         }
         let Some(declaration) =
-            crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-                program, owner,
-            )
+            crate::program_scope::data_definitions::data_definition_by_symbol(program, owner)
         else {
             return;
         };
@@ -1052,9 +1048,7 @@ pub(super) fn collect_leaf_paths(
             return;
         }
         let Some(declaration) =
-            crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-                program, owner,
-            )
+            crate::program_scope::data_definitions::data_definition_by_symbol(program, owner)
         else {
             return;
         };
@@ -1069,10 +1063,8 @@ pub(super) fn collect_leaf_paths(
             } else if let TypeReferenceNode::Named { symbol: next, .. } = program
                 .type_reference_table
                 .type_reference(unwrap_constraint_shells(program, field.type_reference))
-                && crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-                    program, *next,
-                )
-                .is_some()
+                && crate::program_scope::data_definitions::data_definition_by_symbol(program, *next)
+                    .is_some()
                 && !visiting.contains(next)
             {
                 // A reference boundary or a scalar leaf ends the descent,

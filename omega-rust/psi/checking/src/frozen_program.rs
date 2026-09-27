@@ -8,7 +8,7 @@
 
 use crate::declarations::symbols::CallerSiteCaches;
 use crate::machine_calls::calls::CallFrameCaches;
-use crate::machine_calls::effect_inference::plan_scope::DataDefinitionIndex;
+use crate::program_scope::data_definitions::DataDefinitionIndex;
 use crate::proof_contracts::contract_entailment::structural_judgment::{
     EntryMachines, LicenseCandidates,
 };

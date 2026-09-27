@@ -826,7 +826,7 @@ fn scan_expression_calls_at_position(
             );
             // Recurse into the receiver and arguments (nested calls).
             if call.receiver.is_valid()
-                && !crate::value_custody::locals::expression_call_has_operator_namespace(program, &call)
+                && !crate::declarations::operators::namespaces::expression_call_has_operator_namespace(program, &call)
                 && !crate::machine_calls::calls::generic_requirement::expression_conformance_receiver(
                     program,
                     machine,

@@ -66,8 +66,7 @@ pub(crate) fn fact_mentions_proof_only_data(
     };
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
-            crate::value_custody::expression_types::match_children(program, *dispatch)
-                .find_map(recurse)
+            crate::expression_traversal::match_children(program, *dispatch).find_map(recurse)
         }
         ExpressionNode::Atomic(atomic) => recurse(atomic.value),
         ExpressionNode::Name(path) => {
@@ -176,8 +175,7 @@ pub(crate) fn fact_mentions_zero_value(
     let recurse = |handle: ExpressionHandle| fact_mentions_zero_value(program, handle);
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
-            crate::value_custody::expression_types::match_children(program, *dispatch)
-                .find_map(recurse)
+            crate::expression_traversal::match_children(program, *dispatch).find_map(recurse)
         }
         ExpressionNode::Atomic(atomic) => recurse(atomic.value),
         ExpressionNode::Binary(binary) => recurse(binary.left).or_else(|| recurse(binary.right)),

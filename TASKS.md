@@ -331,7 +331,7 @@ the complete product bar; focused successes below do not establish that baseline
   run — not pointer-key iteration order (the `HashMap<*const
   DataDefinition, bool>` is only get/insert). Remaining pointer-keyed
   caches in the range path (`flow/fact_rows.rs`, `reads.rs`'s root-currency
-  index, `plan_scope.rs`) are scope-guarded against recycling. Measured on
+  index, `program_scope.rs`) are scope-guarded against recycling. Measured on
   main after the fix chain: 8x673 `--test-threads=1` range_ runs, 2x4887
   single-threaded and 2x4887 multi-threaded full-suite runs, and a 234-test
   nextest pass — zero failures. A latent non-flaky hole remains: a clone

@@ -239,11 +239,9 @@ pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagn
                             );
                         }
                     }
-                    crate::value_custody::literals::expression_children::children(
-                        program,
-                        node,
-                        |child| pending.push((child, enclosing_borrow)),
-                    );
+                    crate::expression_traversal::children(program, node, |child| {
+                        pending.push((child, enclosing_borrow))
+                    });
                 }
             }
         }

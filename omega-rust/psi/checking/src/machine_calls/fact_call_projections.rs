@@ -151,8 +151,7 @@ fn append_substituted_projection_requests(
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
-            for child in crate::value_custody::expression_types::match_children(program, *dispatch)
-            {
+            for child in crate::expression_traversal::match_children(program, *dispatch) {
                 append_substituted_projection_requests(program, child, bindings, requests);
             }
         }
@@ -284,8 +283,7 @@ fn validate_expression(
             recurse!(member.receiver, diagnostics, visited);
         }
         ExpressionNode::Match(dispatch) => {
-            for child in crate::value_custody::expression_types::match_children(program, *dispatch)
-            {
+            for child in crate::expression_traversal::match_children(program, *dispatch) {
                 recurse!(child, diagnostics, visited);
             }
         }
@@ -390,10 +388,9 @@ fn validate_direct_projection(
         );
         return None;
     }
-    let Some(data) = crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-        program,
-        data_symbol,
-    ) else {
+    let Some(data) =
+        crate::program_scope::data_definitions::data_definition_by_symbol(program, data_symbol)
+    else {
         reject("the result is not one nominal plain record", diagnostics);
         return None;
     };
