@@ -1980,6 +1980,33 @@ syntax and other terminal services are not prerequisites.
   so owned-content custody has never executed anywhere: this is a domain
   without runtime coverage, not one fixture that forgot its entry.
 
+  `core/content_conservation_contract` now has that invoked route, on a stock
+  compiler: `Main::main` establishes an owned `Region`, partitions it through
+  the authored theorem, and both residuals leave through a custody-exit
+  boundary. Three things were needed and none was a compiler change. The
+  boundary traits and everything their signatures select must be `pub`, since
+  `Binding<T>` requires a public boundary trait as its slot contract. The
+  entry reaches them through `Binding` fields like any other service. And the
+  partition primitive must be called DIRECTLY.
+
+  That last one was the actual blocker, not the provider. Routing the call
+  through the checked wrapper the old shape used -- `forward(partition,
+  whole)` calling `partition.split(whole)` -- does not check: instrumenting
+  `compose_partition_wrappers` shows the composition is recorded against the
+  wrapper that calls the boundary, so the wrapper's own caller sees a linear
+  result with no conserved claim mapping. That is exactly the transitive
+  derivation chain `ContentPartitionCompositionFact::source_derivation_depth`
+  documents Terminal cannot yet replay. Two pipeline reorders were measured
+  and both fail: hoisting the content passes above the linear check drops
+  reshuffle inference from 1 to 0, and deferring the whole linear check below
+  them breaks the same three content tests, because recording the permission
+  ledger and validating it sit on opposite sides of content.
+
+  Still owed: a wrapper-composed exit, the "caller retains the rest" half (a
+  program entry returns nothing, so it wants a non-entry customer), and the
+  same treatment for `core/content_retained_custody_round_trip` and the two
+  `terminal_psi` fixtures.
+
   Writing the invocation with a bodied provider is refused on four separate
   grounds, and all four look correct. A provider returning fresh
   `Region { remaining: 4 }` halves cannot prove
