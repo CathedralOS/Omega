@@ -1,0 +1,56 @@
+// A transition whose target TAIL-CALLS ANOTHER MACHINE has no route. Reduced
+// from the corpus fixtures at `scalar field store sequence: write frame
+// agreement`, found by attributing the macOS arm64 native roster.
+//
+//   transition { _ -> self.pick(1) }   (another machine)   OMITTED
+//   transition { _ -> done() }         (a state here)      checks
+//   self.pick(1); transition { _ -> done() }               checks
+//
+// So it is neither calling another machine nor transitioning -- it is the two
+// together, a cross-machine call in TARGET position. Parameters are
+// irrelevant: the bare no-argument form omits too.
+//
+// THE LABEL FLIPS WITH AN UNRELATED STATEMENT, which is the sharpest
+// demonstration of the phase-label hazard this corpus has produced. The same
+// program reports:
+//
+//   with `self.n = 1;` before the transition
+//                  -> `scalar field store sequence: write frame agreement`
+//   without it     -> `statement sequence: call count agreement`
+//
+// Adding a field store that the transition does not touch renames the
+// failure. Those two phases are ONE gap, and anyone triaging by string will
+// file them as two. That also means the `write frame agreement` group in the
+// native roster is not about write frames.
+//
+// NOT ALL of that group is this, though. Three of its six fixtures carry a
+// cross-machine transition target -- `collections/runtime_frame_indexed_param_read_exit`,
+// `slices/domained_runtime_end_subslice_exit`,
+// `termination/runtime_shrinking_slice_recursion_exit` -- and three do not:
+// `wire/runtime_wire_decode_byte_slice_exit`,
+// `wire/runtime_wire_utf8_edge_verdicts_exit`,
+// `filesystem/dir_walk_wrappers_exit`. Those three are UNATTRIBUTED; do not
+// assume this fixture covers them.
+//
+// One caution for the repair: `runtime_frame_indexed_param_read_exit` also
+// passes a fixed array BY VALUE to the called machine, which looks like
+// BOUNDARY-PRIMITIVE-ARRAY-PARAMETER. It is not -- the array is not what
+// carries this. The identical program with no array parameter at all omits
+// just the same, which is the control that separates them.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    count: i32;
+}
+
+machine Main::main(&mut self) {
+    self.count = 1;
+    transition { _ -> self.finish() }
+}
+
+machine Main::finish(&mut self) reaches Console {
+    transition { _ -> done() }
+    state done(&mut self) { self.console.exit_process(0); }
+}
