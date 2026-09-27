@@ -194,15 +194,31 @@ A SHARED borrow matches neither arm, and `exclusive_access` bails on it
 first, so it is never an alias, never takes the early exit, and falls through
 to a route that has nothing for it. That is the whole of trigger 1.
 
-CAUTION, and why this is a handoff rather than a patch. The alias machinery
-is deliberately EXCLUSIVE — the module is named for it, the predicate is
-`exclusive_access`, and a later site guards on `parent_borrow.access !=
-Mutable`. Conceptually a shared borrow is an alias too, and the same
-"declaration composes, uses join the referent" reading applies. But widening
-this match is a change to the aliasing model, not a missing branch, and the
-consumers sit inside the files LOCAL-DATA-CLUSTER-REPAIR currently holds. A
-shared borrow may want its own route rather than being admitted through the
-exclusive one. Decide that before editing the match.
+NOT DESIGN-BLOCKED, and NOT a one-line widening. Both halves measured.
+
+The spec settles the design half. `wiki/spec/language/ownership.md` gives
+`&T` as "shared observation under its loan contract", says a by-value
+reference "transfers or copies its loan carrier, not ownership of its
+referent", that borrowed arguments "continue to denote the original storage,
+not a caller-side snapshot", and that shared loans "may duplicate or
+reborrow" — a weaker constraint than the exclusive case, not a stronger one.
+That is exactly the "checked alias, not a storage binding" reading the
+erased-alias machinery implements, so admitting shared borrows to it is
+implementation, not an open language question.
+
+The implementation half is bigger than the match. Measured by adding
+`CheckedStructuralAccess::SharedBorrow => BorrowAccessKind::Read` to
+`exclusive_access` and `(Read, ReferenceAccess::Shared)` to the admitting
+match, then rebuilding: **nothing changed**. `let p: &Pair = &self.pair;`
+and `let d: &u32 = &self.size;` both still omit at the same phase, while
+their `&mut` twins still check. So the access match is not the only place
+exclusivity is assumed — the rest of the alias formation (`formation_place`,
+the loan-fact lookup, the parent-borrow guard) carries the assumption too,
+and widening the match alone is inert.
+
+Whoever takes this should expect to work through the alias formation path,
+not flip a predicate. The module name and `exclusive_access` are honest
+about what it currently is.
 
 ## MEMBER-POLICY-REMOVES-COMPOSITE-ROWS, array half, located
 
