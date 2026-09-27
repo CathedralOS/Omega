@@ -110,10 +110,47 @@ difference is FEWER declines in it (920 against 922, 2202 against 2204),
 which is a run doing less work, not a distinctive decline. So the explicit
 exits there are not the site either.
 
-What remains unsearched is the `?` operator, which is how most of this
-codebase exits an Option and which none of the three rounds instrumented.
-Next step: cover `?` exits, and find what plans `x = 1` for an INITIALIZED
-`mut` scalar local — that route is the one missing the declared-zeroed case.
+None of those rounds covered the `?` operator, which is how most of this
+codebase exits an Option. A fourth round found the site without marking a
+single `?`: the existing `trace.phase` calls already sit at every meaningful
+route point, so one edit to `control/construction_trace.rs::phase` prints the
+whole phase SEQUENCE, and diffing the two programs' sequences shows exactly
+where they part. Use that before reaching for `?` instrumentation.
+
+**The site.** The working run reaches `statement sequence: local data:
+mutable primitive local: storage initializer` and goes on to `statement
+sequence: assignment`. The failing run never reaches that phase and drops
+straight to `structural field store: target place`. That phase is set in
+`control/statement_sequence/local_data.rs`, in the branch for a `mut`
+primitive local, and the very next statement is the exit:
+
+```rust
+let (binding, value) = facts.values.scalar_expressions.bound_expression_at(
+    state.symbol, statement_index, CheckedScalarExpressionRole::StorageInitializer,
+)?;
+```
+
+A declared-zeroed local has no initializer expression, so that lookup finds
+nothing and the `?` bails. The local never emits `EstablishPrimitiveLocal`,
+so every later assignment to it has no destination. That is the bug, and it
+is why the failure surfaces at a *store* phase far from its cause.
+
+**The fix shape.** The same function already computes `uninit_zeroed` at its
+top — `is_mutable && !expression_is_valid(initial_value) &&
+zeroed_structural_parts(..)` — and deliberately lets the case through, so
+only this branch is missing it. When the initializer is absent, establish
+with the carrier's landed zero rather than demanding a binding:
+`IntegerLiteral::zero().with_landing(IntegerLanding { landed_type, domain })`,
+`landed_type` from the existing `PrimitiveType -> LandedIntegerType` match in
+`const_initializers/invocations.rs`, and `domain` from
+`arithmetic_domain_for_type_reference` so an `in Wrapping` local keeps its
+policy. The structural arm already does the equivalent for records, which is
+why `let mut p: Plain;` works and `let mut x: i32;` does not.
+
+NOT IMPLEMENTED HERE. `local_data.rs` is held by the active
+LOCAL-DATA-CLUSTER-REPAIR claim, whose owner is repairing this very cluster,
+and a claim on it was refused. This is a handoff with the site and the fix
+shape, not a deferral.
 
 ## Method notes for whoever re-runs this
 
