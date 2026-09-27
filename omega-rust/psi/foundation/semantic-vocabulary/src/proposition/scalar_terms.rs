@@ -1,9 +1,8 @@
 //! Scalar terms: scalar and float types, structural path segments, the
 //! structural fields a term can name, and the term forms themselves.
+//! Constructors and validation share the operand rules owned here; proposition
+//! validation consumes these terms before applying proposition-specific rules.
 
-use crate::proposition::propositions::{
-    validate_integer_operands, validate_integer_shift_operands,
-};
 use crate::proposition::{IntegerType, IntegerValue, PropositionError};
 use crate::{PlaceId, StructuralCaseId, StructuralFieldId, ValueId};
 
@@ -1688,4 +1687,39 @@ impl ScalarTerm {
             }
         }
     }
+}
+
+fn validate_integer_operands(
+    integer_type: IntegerType,
+    left: &ScalarTerm,
+    right: &ScalarTerm,
+) -> Result<(), PropositionError> {
+    let expected = ScalarType::Integer(integer_type);
+    if left.scalar_type() != expected || right.scalar_type() != expected {
+        return Err(PropositionError::IntegerOperandTypeMismatch {
+            expected,
+            left: left.scalar_type(),
+            right: right.scalar_type(),
+        });
+    }
+    Ok(())
+}
+
+fn validate_integer_shift_operands(
+    value_type: IntegerType,
+    count_type: IntegerType,
+    value: &ScalarTerm,
+    count: &ScalarTerm,
+) -> Result<(), PropositionError> {
+    let expected_value = ScalarType::Integer(value_type);
+    let expected_count = ScalarType::Integer(count_type);
+    if value.scalar_type() != expected_value || count.scalar_type() != expected_count {
+        return Err(PropositionError::IntegerShiftOperandTypeMismatch {
+            expected_value,
+            actual_value: value.scalar_type(),
+            expected_count,
+            actual_count: count.scalar_type(),
+        });
+    }
+    Ok(())
 }

@@ -243,8 +243,13 @@ pub static TEST_ONLY_SOURCES: &[TestOnlySource] = &[
 
 pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     ImplementationSite {
+        path: "omega-rust/psi/foundation/semantic-vocabulary/src/structural_places.rs",
+        sha256: Some("70755eae021773d15b051e13332253ff46ccdda55c0db48383a8e2ddd66ec9b2"),
+        inventory_machinery: false,
+    },
+    ImplementationSite {
         path: "omega-rust/psi/foundation/semantic-vocabulary/src/content.rs",
-        sha256: Some("75ecc9dc5a2f553888617d36540bde58910028bbfbfa21287e420f0be4d7102f"),
+        sha256: Some("1ff23d325829ae6246308a404c051308813352caa6e902b2f4089ecffe52928b"),
         inventory_machinery: false,
     },
     ImplementationSite {
