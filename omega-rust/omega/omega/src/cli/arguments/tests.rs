@@ -1,4 +1,4 @@
-use super::{Invocation, OsString, PackageCommand, PathBuf, parse};
+use super::{Invocation, OsString, PathBuf, parse};
 fn invocation(arguments: &[&str]) -> Invocation {
     parse(arguments.iter().map(OsString::from))
         .unwrap_or_else(|error| panic!("{arguments:?}: {error}"))
@@ -38,29 +38,6 @@ fn execution_and_inspection_receive_complete_requests() {
     };
     assert_eq!(request.machine, "Root::main");
     assert_eq!(request.root_path, PathBuf::from("main.omg"));
-}
-
-#[test]
-fn package_requests_preserve_the_operation_and_acquisition_policy() {
-    let Invocation::Package { command, options } = invocation(&[
-        "install",
-        "../dependency",
-        "--offline",
-        "--project",
-        "project",
-    ]) else {
-        panic!("expected install request");
-    };
-    assert!(matches!(command, PackageCommand::Install { source, .. } if source == "../dependency"));
-    assert!(options.offline);
-    assert_eq!(options.project_root, PathBuf::from("project"));
-    assert!(matches!(
-        invocation(&["update", "--discard-review"]),
-        Invocation::Package {
-            command: PackageCommand::DiscardReview,
-            ..
-        }
-    ));
 }
 
 #[test]

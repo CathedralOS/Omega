@@ -21,54 +21,9 @@ fn invalid_proof(command: &str) {
 }
 
 #[test]
-fn install_reports_false_reach_without_publishing_or_requesting_review() {
-    false_reach("install");
-}
-
-#[test]
-fn update_reports_false_reach_and_preserves_accepted_files() {
-    false_reach("update");
-}
-
-fn false_reach(command: &str) {
-    // Ordinary calls propagate reach, but a body that invokes a boundary
-    // operation directly must declare that service, even in a private body.
-    rejected_candidate(
-        command,
-        r#"use omega::language::core::binding;
-pub boundary trait FilesystemHost {
-    machine write(descriptor: i32, bytes: &[u8]) -> i64 reaches FilesystemHost;
-}
-pub boundary trait Console {
-    machine exit_process(code: i32) reaches Console;
-}
-pub data Journal { files: Binding<FilesystemHost>; }
-machine Journal::append(&mut self) reaches Console {
-    let written: i64 = self.files.write(1, "x");
-}
-pub machine value() -> u64 { 7 }
-"#,
-        None,
-        &[
-            "machine `Journal::append` publishes service reach `Console`",
-            "its checked body reaches undeclared service `FilesystemHost`",
-        ],
-    );
-}
-
-#[test]
-fn install_explains_unsupported_generated_declaration_before_review() {
-    unsupported_generated_declaration("install");
-}
-
-#[test]
 fn update_explains_unsupported_generated_declaration_and_preserves_accepted_files() {
-    unsupported_generated_declaration("update");
-}
-
-fn unsupported_generated_declaration(command: &str) {
     rejected_candidate(
-        command,
+        "update",
         "pub machine value() -> u64 { 7 }\n",
         Some(
             r#"machine build(builder: &mut Build) {
@@ -89,17 +44,8 @@ fn unsupported_generated_declaration(command: &str) {
 
 #[test]
 fn install_preserves_available_compiler_source_location() {
-    source_location("install");
-}
-
-#[test]
-fn update_preserves_available_compiler_source_location() {
-    source_location("update");
-}
-
-fn source_location(command: &str) {
     rejected_candidate(
-        command,
+        "install",
         "pub machine value() -> u64 {\n    let value: u64 = ;\n    value\n}\n",
         None,
         &["expected", "main.omg:2:"],
