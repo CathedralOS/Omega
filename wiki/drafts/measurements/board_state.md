@@ -97,10 +97,32 @@ unmeasured.
 `ProgramEntry establishment rejoins 0 Terminal attachment identities` family
 is 533 of 750 failures in the macOS direct-execution observation and ~549 of
 770 in the Linux record -- host-independent, and the dominant blocker on
-both. It is one recognizer, not many gaps:
-`typed-trees-to-checked-trees` `execution/terminal_unit/control/statement_sequence.rs`
-omits a machine's Unit plan when a structural local's initializer is not a
-`Call`. The corpus census in
+both. It was recorded here as "one recognizer, not many gaps" --
+`typed-trees-to-checked-trees`
+`execution/terminal_unit/control/statement_sequence.rs` omitting a Unit plan
+when a structural local's initializer is not a `Call`.
+
+**That framing is wrong, measured 2026-09-27 against the macOS arm64 native
+roster at `a9478e720fc`** (`tests/omega/corpus_native_macos_arm64.txt`):
+the 144 omissions in it spread across **48 distinct phases**, the largest
+holding 26 rows, and only **41 of 144** sit under `statement sequence:` at
+all. The other 103 decline in `state_graph/`, `structural_scalar_store/`,
+`calls/` and `types/` -- different files, different capabilities.
+
+It matters because "one recognizer" reads as one fix clearing 533 failures,
+and a worker who takes the row on that basis will find a dozen unrelated
+capabilities behind it. Reduced to one-token controls so far, each with its
+own pending fixture: reference bindings into locals (which alone wears SEVEN
+phase labels), record literals supplying array or reference fields, composite
+and value-call transition arguments, value calls as non-root subexpressions,
+domained byte-carrier stores, arithmetic-policy and record array elements,
+predicate-domained case payloads, float computation, ranged const parameters
+and float-range attached fields. Three are located to an exact line; see
+[macos_arm64_native_rejections](macos_arm64_native_rejections.md).
+
+The shared `rejoins 0 Terminal attachment identities` line is the SYMPTOM
+every one of them prints. Counting it as a population is what makes the row
+look like a single lever. The corpus census in
 [compiler progress](compiler_progress.md) breaks the family down by omission
 site; the largest is 21 fixtures at `local data: structural call binding`.
 
