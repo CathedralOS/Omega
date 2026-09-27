@@ -219,7 +219,7 @@ pub(super) fn reconstruct(
                 .find(|(value, _)| *value == element.index)
                 .ok_or(LegalizationError::custody())?;
             indices.push(target_operations::TargetStructuralRuntimeIndex {
-                operand: operand.clone(),
+                operand: *operand,
                 stride: element.stride,
             });
         }
