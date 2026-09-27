@@ -230,13 +230,11 @@ impl BuildTimeAdmissionPlan {
                 continue;
             }
             visited.push(machine);
-            // Checking binds token-bearing machines as ordinary calls. Their
-            // bodyless requirements therefore appear in the reachable call
-            // closure, not just in the legacy operator-use facts below. Keep
-            // the application deferred until Omega supplies its selected body.
+            // Named and normalized token requirements appear as ordinary
+            // calls. Their bodies are supplied by selected providers, not by
+            // the requirement declarations in this closure.
             if program.machines().iter().any(|declaration| {
                 declaration.symbol == machine
-                    && declaration.spelling.is_some()
                     && declaration.supply_mode
                         == language_semantics::MachineSupplyMode::TopLevelRequirement
             }) {
