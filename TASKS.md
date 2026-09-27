@@ -67,36 +67,36 @@ deletes the side doors it replaces. Validate with `tools/corpus_gate.py
 --filter` over the affected groups plus `--native --filter` for anything
 backend-visible; full corpus runs only at the end of an item.
 
-- **MEMBER-POLICY-REMOVES-COMPOSITE-ROWS.** (new-scope) Whole-array stores
-  omit when the element carries an arithmetic policy or is itself a record.
-  `samples/cli/collections/matrix_multiply` stores a nested array of
-  `i32 in Wrapping`; `samples/cli/rendering/dungeon_render` stores `[Cell; 24]`.
-  Both stop at `structural field store: scalar field type`, whose label does
-  not identify the rejected aggregate operation. The reduced fixture is
-  `tests/omega/pending/collections/element_policy_array_literal_store`.
-  `[i32; 3] in Wrapping` accepts a literal while `[i32 in Wrapping; 3]` does
-  not; an array of records also omits. Element stores work, but whole-array
-  and row stores need their composite value route. The stage 04 owner is
-  `execution/terminal_unit/structural_scalar_store`, currently assigned to
-  **LOCAL-DATA-CLUSTER-REPAIR**. Acceptance: the pending fixture checks and
-  both unchanged samples execute their documented native outcomes.
+- **MEMBER-POLICY-REMOVES-COMPOSITE-ROWS.** Complete whole-array and indexed-row
+  assignment for arithmetic-policy elements and structural elements. Customers:
+  `samples/cli/collections/matrix_multiply` assigns nested Wrapping arrays;
+  `samples/cli/rendering/dungeon_render` assigns an array of payload-free
+  `Cell` cases. Preserve plain-record arrays too. The reduced fixture,
+  `tests/omega/pending/collections/element_policy_array_literal_store`, contains
+  only the flat Wrapping case; its other policy, record and row controls are
+  comments, not executable coverage.
 
-  LOCATED, 2026-09-27, in
-  [macos_arm64_native_rejections](wiki/drafts/measurements/macos_arm64_native_rejections.md).
-  A plain array is planned by the SCALAR field store sequence through
-  `primitive::array_literal_stores`; the policy element pushes the store out
-  of that route into the structural one, which has no whole-array row. The
-  deciding predicate is `is_closed_primitive_array_type` in
-  `checking/src/value_custody/literals/constant_arrays.rs`: it walks
-  `FixedArray` to its element and accepts only a `Named` BARE primitive, so a
-  `Constrained` element (`i32 in Wrapping`) hits its `_ => return false` --
-  and so does a record element, which is why both halves of this item are one
-  arm of one predicate.
-  HAZARD: that predicate has 55 use sites across both pipelines and means
-  "array of bare primitives" to all of them. Unwrap the element's shells at
-  the `array_literal_stores` call site, or give that route its own predicate
-  (`unwrapped_type_reference` is the existing helper). Widening the shared
-  one silently re-routes 54 unrelated decisions.
+  In stage 04 `execution/terminal_unit/structural_scalar_store/primitive.rs`,
+  `array_literal_stores` uses `closed_array_store_type` and requires a field
+  destination, excluding indexed rows separately. The shared
+  `checking/src/value_custody/literals/constant_arrays.rs` predicate accepts
+  bare primitive leaves; `closed_array_store_type` peels whole-array policies
+  only. Keep that shared contract. The statement sequence already has constructed
+  structural-value replacement through `borrowed_windows.rs`, and the shape
+  collector admits policy-bearing array storage. Trace the failing assignment
+  through those owners; neither globally widening the primitive predicate nor
+  adding another aggregate representation is the repair.
+  `types/arithmetic_policy_array_tests.rs` checks shape, not assignment execution.
+
+  Acceptance: executable controls for bare/whole-array-policy/element-policy
+  arrays, Wrapping and Saturating, nested arrays, records and cases, whole and
+  indexed-row stores, alongside working element stores. Retain exact source
+  types, bounds, qualifications, custody and RHS evaluation before replacement.
+  Promote the reduced fixture into the ordinary corpus with its Build entry and
+  exit-0 oracle. Both unchanged samples must execute: matrix exit 189; dungeon
+  renders `######`, `#.+..#`, `#.~..#`, `######` and exits 0 after input.
+  `tools/sample_gate.py --filter matrix_multiply,dungeon_render` checks only;
+  native execution and the rendered rows are the acceptance.
 
 - **REFERENCE-LOCAL-BINDING-ROUTES.** (new-scope) Establish reference-valued
   locals from every admitted producer, then preserve their loan identity,
@@ -146,70 +146,72 @@ backend-visible; full corpus runs only at the end of an item.
   normalized type equality must not erase the original storage's obligations.
   **STATE-LOCAL-VALUE-FRONTIER** owns integration with the composed caller.
 
-- **DEFERRED-LOCAL-INITIALIZATION.** (new-scope) A local declared without an
-  initializer and completed afterwards. Four combinations, two of them broken,
-  and neither axis explains it alone:
+- **DEFERRED-LOCAL-INITIALIZATION.** Carry storage declared without an
+  initializer through later establishment and observation. Complete non-`mut`
+  record member-fill and mutable scalar assignment; retain mutable-record and
+  initialized controls, and the diagnostic for non-`mut` whole-scalar assignment.
+  `checking/src/value_custody/places.rs` deliberately distinguishes whole-local
+  rebinding from member/index fill; removing the mutability diagnostic is not
+  the missing capability. The pending fixture
+  `tests/omega/pending/control_flow/deferred_local_initialization` contains only
+  `let mut total: i32; total = 1;` (exit 1); materialize the other controls.
 
-  |            | scalar | record |
-  | --- | --- | --- |
-  | no `mut`   | DIAGNOSTIC (not mutable) | OMITTED `statement sequence: unsupported statement kind` |
-  | `mut`      | OMITTED `structural field store: destination parameter` | checks |
+  Stage 04 `control/statement_sequence/local_data.rs` and
+  `values/scalar/computations.rs` admit initializer-free storage only through
+  mutable zero-constructible declarations. Store destination discovery carries
+  the same restriction. The primitive-local branch additionally demands an
+  actual `StorageInitializer`, and `structural_scalar_store/primitive.rs`
+  requires a valid initializer to rediscover the local. Repair establishment,
+  its exact declaration identity and subsequent reads/writes together; preserve
+  existing source-custody and borrow-event rejection checks.
 
-  Both initialized controls check. Pinned at
-  `tests/omega/pending/control_flow/deferred_local_initialization`, reduced
-  from `pass/wire/runtime_wire_utf8_edge_verdicts_exit` (`let decoded:
-  LabelSample;` then field assignments).
-  (1) CORRECTED from the version first filed, which called the non-`mut` row
-  one mistake reported two ways and asked for a diagnostic. It is not.
-  `value_custody/places.rs` gates only a BARE whole-local reassignment on
-  `let mut` and deliberately leaves MEMBER and INDEX writes ungated --
-  `contains_for_write` returns true for `!bare_reassignment` regardless of
-  mutability, for "the ZII construction-by-fill idiom". So `let x: i32; x = 1;`
-  is a real mutability error whose diagnostic is CORRECT and owes nothing,
-  while `let p: Plain; p.n = 1;` is a LEGAL fill whose omission is a MISSING
-  CAPABILITY. Both broken cells are missing capabilities; neither is a
-  wrong-error bug.
-  (2) WITH `mut` the RECORD works and the SCALAR does not, which inverts every
-  other gap in this corpus, where composites are the unsupported side. That is
-  what the fixture pins. Its phase names a `structural field store:
-  destination parameter` for a local that is neither field nor parameter --
-  another route-name, not a cause.
-  Acceptance: both omitting cells clear -- the non-`mut` record fill and the
-  `mut` scalar deferred assignment both plan -- and
-  `runtime_wire_utf8_edge_verdicts_exit` moves.
+  The real customer `pass/wire/runtime_wire_utf8_edge_verdicts_exit` fills
+  `LabelSample { count, label: &[u8] in Utf8 }` before borrowing it for decode.
+  Its reference field cannot be fabricated by zeroing: support partial storage
+  and exact field establishment, including stored-loan custody. Follow
+  [default-domain gating](wiki/spec/language/dependent_values.md#default-domains-and-zero-initialization)
+  and [ownership establishment](wiki/spec/language/ownership.md#establishment-and-erasure);
+  reject premature observation and do not mint linear obligations from zero.
+  Acceptance uses the actual Build entries and ordinary corpus execution:
+  promote the pending fixture with exit 1, retain `uninit_record_member_store`
+  exit 77, and execute the wire customer with interpreter/native exit 70.
+  Euro must decode successfully; overlong, surrogate, out-of-range and truncated
+  UTF-8 must fail. Clearing an omission phase alone does not close the task.
 
-- **TRANSITION-TAIL-CALL-TO-MACHINE.** (new-scope) A transition whose target
-  TAIL-CALLS ANOTHER MACHINE has no route. `transition { _ -> self.pick(1) }`
-  omits; `transition { _ -> done() }` to a state here checks; and
-  `self.pick(1);` as an ordinary statement followed by a plain transition
-  checks. So it is the two together -- a cross-machine call in TARGET
-  position -- and parameters are irrelevant, the bare no-argument form omits
-  too. Pinned at `tests/omega/pending/calls/transition_tail_call_to_machine`.
-  THE LABEL FLIPS WITH AN UNRELATED STATEMENT, the sharpest instance of the
-  phase hazard this corpus has produced: the same program reports `scalar
-  field store sequence: write frame agreement` with a `self.n = 1;` before
-  the transition and `statement sequence: call count agreement` without it.
-  Adding a field store the transition does not touch renames the failure, so
-  those two phases are ONE gap and the `write frame agreement` group is not
-  about write frames.
-  Three of that group's six fixtures carry this shape
-  (`collections/runtime_frame_indexed_param_read_exit`,
-  `slices/domained_runtime_end_subslice_exit`,
-  `termination/runtime_shrinking_slice_recursion_exit`); the other three --
-  `wire/runtime_wire_decode_byte_slice_exit`,
-  `wire/runtime_wire_utf8_edge_verdicts_exit`,
-  `filesystem/dir_walk_wrappers_exit` -- are now attributed elsewhere and none
-  of them is this gap: `decode_byte_slice` builds a record literal with a
-  SLICE field and separately binds a subslice to a local (RECORD-LITERAL-ARRAY-FIELD
-  widened to slices, and REFERENCE-LOCAL-BINDING-ROUTES), `utf8_edge_verdicts`
-  is DEFERRED-LOCAL-INITIALIZATION, and `dir_walk_wrappers` is not a
-  write-frame row at all -- it omits at an unavailable
-  `Filesystem::create_dir_all`, the same bundled-library blocker
-  `systems/note_vault` moved onto. `runtime_frame_indexed_param_read_exit` also passes a fixed
-  array by value and looks like BOUNDARY-PRIMITIVE-ARRAY-PARAMETER; it is
-  not, since the same program with no array parameter omits identically.
-  Acceptance: the pending fixture checks, both phase spellings clear, and the
-  three attributed corpus rows move.
+- **TRANSITION-TAIL-CALL-TO-MACHINE.** Complete terminal machine calls in
+  attached Unit transition arms, including `transition { _ -> self.finish() }`.
+  [State contracts](wiki/spec/language/state_contracts.md#terminal-calls-in-transition-arms)
+  define an ordinary invocation whose normal result completes the caller;
+  an internal state target remains a jump. Preserve selected-arm-only execution,
+  once-only operands, result/return contracts, cleanup, crash and suspension
+  behavior, live backing and loans, and recursive calls without accumulated frames.
+
+  Stage 04 `execution/terminal_unit/state_graph/mod.rs` excludes transition
+  calls from the ordinary operation window; its successor builder resolves
+  internal states. `state_graph/terminator.rs` already handles non-Unit value
+  arms, and `tests/flow/terminal_unit/outer_calls.rs` checks nested structural
+  calls in those arms. Extend the missing call-and-completion route with exact
+  occurrence accounting; do not bypass call-count or write-frame checks.
+  `structural_scalar_store/frame.rs` now replays the complete state frame, so
+  the old alternating omission labels are reproduction clues, not the cause.
+
+  Acceptance: promote `pending/calls/transition_tail_call_to_machine` with its
+  Build entry and exit-0 oracle. Materialize its comment-only controls: with
+  and without a preceding store, no arguments and ordinary arguments, an
+  internal-state jump, and an ordinary call followed by a jump. Run the three
+  actual customers through checked, interpreted and native corpus legs:
+  `collections/runtime_frame_indexed_param_read_exit` exits 1;
+  `slices/domained_runtime_end_subslice_exit` exits 70 with its Path-qualified
+  runtime-end slice; `termination/runtime_shrinking_slice_recursion_exit` exits
+  70 from 10+20+15+25. The recursive case must snapshot the subslice and head
+  read before overwriting argument slots. Preserve the fixed-array argument;
+  a no-array control separates this gap from boundary ABI transport.
+  `wire/runtime_wire_decode_byte_slice_exit` stays with
+  **RECORD-LITERAL-ARRAY-FIELD** and **REFERENCE-LOCAL-BINDING-ROUTES**;
+  `wire/runtime_wire_utf8_edge_verdicts_exit` stays with
+  **DEFERRED-LOCAL-INITIALIZATION**.
+  `filesystem/dir_walk_wrappers_exit` and `systems/note_vault` retain their
+  `Filesystem::create_dir_all` dependency. Shared phase labels do not merge them.
 
 - **CASE-FIELD-TYPE-STORE-SHAPES.** (new-scope) `structural field store: case
   field type` is THREE distinct causes, not one. Six corpus fixtures sit
