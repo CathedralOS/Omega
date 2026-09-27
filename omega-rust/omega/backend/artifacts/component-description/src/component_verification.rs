@@ -32,8 +32,8 @@ use crate::component_description::{
     DescriptionDecodeRejection, DescriptionFrontier, EntryEvidence, ExportContract, ExportSurface,
     ImportSlot, InstallationObligation, InstallationServiceBound, MAX_COMPONENT_DESCRIPTION_BYTES,
     ObligationKind, OutgoingAuthority, OutgoingAuthorityClass, OutgoingEvidence, RetainedProvider,
-    component_description_identity, decode_component_description, derive_component_inventory, hex,
-    requirement_contract_identity, requirement_export_identity,
+    component_description_identity, decode_component_description_with_artifact,
+    derive_component_inventory, hex, requirement_contract_identity, requirement_export_identity,
 };
 
 const VERIFIED_COMPONENT_CLOSURE_DOMAIN: &[u8] = b"omega-verified-component-closure-v1";
@@ -636,16 +636,13 @@ pub fn verify_component(
             DescriptionDecodeRejection::RosterBoundExceeded("description byte length"),
         ));
     }
-    let description = decode_component_description(description_bytes)
+    let (description, artifact) = decode_component_description_with_artifact(description_bytes)
         .map_err(ComponentVerificationRejection::Corrupt)?;
     if !request.accepted_schemas.contains(&description.schema) {
         return Err(ComponentVerificationRejection::IncompatibleSchema {
             schema: description.schema,
         });
     }
-    let artifact =
-        terminal_codec::CanonicalTerminalArtifact::from_bytes(&description.artifact_bytes)
-            .map_err(|error| ComponentVerificationRejection::ArtifactInvalid(error.to_string()))?;
     let module = terminal_codec::decode_module(artifact.semantic_bytes())
         .map_err(|error| ComponentVerificationRejection::ArtifactInvalid(error.to_string()))?;
     let reconstructed = terminal_codec::terminal_psi_identity(&module)
