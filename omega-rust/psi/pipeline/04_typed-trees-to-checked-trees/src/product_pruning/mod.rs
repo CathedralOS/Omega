@@ -249,6 +249,7 @@ pub fn prune_checked_tree_product(
         .collect();
 
     apply_pruning(&mut checked, &retained, &pruned, &index);
+    retain_live_family_members(&mut checked.typed);
 
     if let Err(failures) = validate_pruned_product(&checked, &retained, &pruned, plan.roots()) {
         return Err(failures
@@ -333,6 +334,7 @@ pub fn prune_target_siblings(mut checked: CheckedTrees) -> Result<CheckedTrees, 
         .collect();
     let retained: HashSet<SymbolHandle> = retained_in_order.iter().copied().collect();
     apply_pruning(&mut checked, &retained, &pruned, &index);
+    retain_live_family_members(&mut checked.typed);
     let roots =
         CheckedTreeProductRoots::new(retained_in_order.iter().copied()).map_err(|error| {
             vec![Diagnostic::error(format!(
@@ -378,7 +380,32 @@ pub fn prune_target_siblings_typed(
         .filter(|symbol| !pruned.contains(symbol))
         .collect();
     apply_typed_pruning(typed, &retained, &pruned);
+    retain_live_family_members(typed);
     dead_occurrences
+}
+
+/// Keep the target-machine family roster consistent with the pruned machine
+/// table: `members` names only bodies this product still carries, and a
+/// family whose members all left keeps no row. `canonical` is retained
+/// regardless — it is the family's contract-head identity, a symbol that
+/// survives machine pruning even when its own body did not.
+fn retain_live_family_members(typed: &mut TypedTrees) {
+    if typed.target_machine_families.is_empty() {
+        return;
+    }
+    let live: HashSet<SymbolHandle> = typed
+        .machines()
+        .iter()
+        .map(|machine| machine.symbol)
+        .collect();
+    for family in &mut typed.target_machine_families {
+        family
+            .members
+            .retain(|member| live.contains(&member.machine));
+    }
+    typed
+        .target_machine_families
+        .retain(|family| !family.members.is_empty());
 }
 
 /// The authored declaration selections recorded inside every target sibling,
@@ -774,6 +801,68 @@ mod tests {
             failures
                 .iter()
                 .any(|failure| failure.contains("product root symbol"))
+        );
+    }
+
+    /// The family roster tracks the pruned machine table: members whose
+    /// machines left are dropped and a family with no surviving member keeps
+    /// no row, while `canonical` keeps the contract-head symbol even when its
+    /// own body was pruned.
+    #[test]
+    fn target_sibling_pruning_retains_only_live_family_members() {
+        let mut program = checked(
+            r#"
+            demo_target machine helper() -> u64 { 2u64 }
+            machine main() -> u64 { 1u64 }
+            "#,
+        );
+        let sibling = program
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| machine.target.is_some())
+            .expect("the demo_target machine is a sibling")
+            .symbol;
+        let main = machine_named(&program.typed, "main").symbol;
+        program.typed.target_machine_families = vec![
+            typed_trees::machine::TargetMachineFamily {
+                name: typed_trees::name::Identifier::generated("helper"),
+                canonical: sibling,
+                members: vec![
+                    typed_trees::machine::TargetMachineFamilyMember {
+                        target: typed_trees::name::Identifier::generated("demo_target"),
+                        machine: sibling,
+                    },
+                    typed_trees::machine::TargetMachineFamilyMember {
+                        target: typed_trees::name::Identifier::generated("linux_x86_64"),
+                        machine: main,
+                    },
+                ],
+            },
+            typed_trees::machine::TargetMachineFamily {
+                name: typed_trees::name::Identifier::generated("gone"),
+                canonical: sibling,
+                members: vec![typed_trees::machine::TargetMachineFamilyMember {
+                    target: typed_trees::name::Identifier::generated("demo_target"),
+                    machine: sibling,
+                }],
+            },
+        ];
+
+        let pruned = super::prune_target_siblings(program).expect("prune");
+
+        let [family] = pruned.typed.target_machine_families.as_slice() else {
+            panic!("the family with a live member survives; the all-pruned family drops")
+        };
+        assert_eq!(family.name.as_str(), "helper");
+        assert_eq!(family.canonical, sibling);
+        assert_eq!(
+            family
+                .members
+                .iter()
+                .map(|member| member.machine)
+                .collect::<Vec<_>>(),
+            vec![main]
         );
     }
 }

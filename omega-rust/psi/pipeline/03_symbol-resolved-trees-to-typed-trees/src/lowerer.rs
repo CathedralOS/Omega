@@ -404,6 +404,9 @@ impl Lowerer<'_> {
             wire_encode_obligations: _,
             wire_schema_plans: _,
             machine_specializations: _,
+            // The family roster is a coordinator-installed record filled
+            // after typing, so this stage's output always carries it empty.
+            target_machine_families: _,
             boundary_calling_plans: _,
             fused_service_erasures: _,
             open_index_normalizations: _,

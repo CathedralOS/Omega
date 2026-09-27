@@ -37,7 +37,7 @@
 //! host that executes it.
 
 use diagnostics::Diagnostic;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::Item;
 use target::NativeTarget;
@@ -272,6 +272,76 @@ impl SelectedTargetMachineDeclarations {
         Ok(())
     }
 
+    /// Product-scope target-scoped declarations grouped by their authored
+    /// contract name: one entry per family, in name order.
+    fn product_families(&self) -> BTreeMap<&str, Vec<&TargetMachineOrigin>> {
+        let mut families: BTreeMap<&str, Vec<&TargetMachineOrigin>> = BTreeMap::new();
+        for origin in &self.all_machine_origins {
+            if origin.scope == source::DependencyScope::Product {
+                families
+                    .entry(origin.full_name.as_str())
+                    .or_default()
+                    .push(origin);
+            }
+        }
+        families
+    }
+
+    /// Install the family record `typed` carries to lowering and Terminal
+    /// Psi: one row per product-scope contract name, its canonical machine
+    /// and every authored body keyed by target. The canonical member is the
+    /// origin this roster still selects (the first recognized target in name
+    /// order); a member whose body never reached typing is left out, and a
+    /// family whose canonical body never reached typing keeps no row,
+    /// matching the swap's tolerance for declarations like provider defaults.
+    pub fn install_target_machine_families(&self, typed: &mut TypedTrees) {
+        let machine_symbol = |typed: &TypedTrees, name: &str, sibling: Option<&str>, source| {
+            typed
+                .machines()
+                .iter()
+                .find(|machine| {
+                    machine.name.as_str() == name
+                        && machine.target.as_ref().map(|target| target.as_str()) == sibling
+                        && typed
+                            .symbols
+                            .symbol_provenance_source_span(machine.symbol)
+                            .is_some_and(|span| span.source_id == source)
+                })
+                .map(|machine| machine.symbol)
+        };
+        let mut families = Vec::new();
+        for (name, origins) in self.product_families() {
+            let Some(canonical) = origins.iter().find(|origin| origin.selected) else {
+                continue;
+            };
+            let Some(canonical_symbol) = machine_symbol(typed, name, None, canonical.source) else {
+                continue;
+            };
+            let mut members = Vec::with_capacity(origins.len());
+            for origin in origins {
+                let marker = if origin.selected {
+                    None
+                } else {
+                    Some(origin.target.as_str())
+                };
+                let Some(machine) = machine_symbol(typed, name, marker, origin.source) else {
+                    continue;
+                };
+                members.push(typed_trees::machine::TargetMachineFamilyMember {
+                    target: typed_trees::name::Identifier::generated(origin.target.clone()),
+                    machine,
+                });
+            }
+            members.sort_by(|left, right| left.target.as_str().cmp(right.target.as_str()));
+            families.push(typed_trees::machine::TargetMachineFamily {
+                name: typed_trees::name::Identifier::generated(name.to_owned()),
+                canonical: canonical_symbol,
+                members,
+            });
+        }
+        typed.target_machine_families = families;
+    }
+
     /// Replace each product-scope family's canonical body with `target`'s own
     /// body before checking: calls that resolved to the canonical body move to
     /// the target's sibling, which loses its sibling marker and so brings its
@@ -284,24 +354,25 @@ impl SelectedTargetMachineDeclarations {
         typed: &mut TypedTrees,
         target: NativeTarget,
     ) -> Result<(), Vec<Diagnostic>> {
-        let mut families: BTreeMap<&str, Vec<&TargetMachineOrigin>> = BTreeMap::new();
-        for origin in &self.all_machine_origins {
-            if origin.scope == source::DependencyScope::Product {
-                families
-                    .entry(origin.full_name.as_str())
-                    .or_default()
-                    .push(origin);
-            }
-        }
-        let machine_index = |typed: &TypedTrees, name: &str, sibling: Option<&str>, source| {
-            typed.machines().iter().position(|machine| {
-                machine.name.as_str() == name
-                    && machine.target.as_ref().map(|target| target.as_str()) == sibling
-                    && typed
-                        .symbols
-                        .symbol_provenance_source_span(machine.symbol)
-                        .is_some_and(|span| span.source_id == source)
-            })
+        // Install the durable family record first: the swaps below re-mark
+        // machine roles and rename symbols, so the roster must capture the
+        // authored layout while the canonical member still sits at the
+        // family path.
+        self.install_target_machine_families(typed);
+        let families = self.product_families();
+        // The roster — not another name/marker/source scan — is the family
+        // record the swap consults: members are unique per authored target
+        // (admission rejects a duplicate target row).
+        let roster: HashMap<&str, &typed_trees::machine::TargetMachineFamily> = typed
+            .target_machine_families
+            .iter()
+            .map(|family| (family.name.as_str(), family))
+            .collect();
+        let machine_index = |typed: &TypedTrees, symbol: symbols::SymbolHandle| {
+            typed
+                .machines()
+                .iter()
+                .position(|machine| machine.symbol == symbol)
         };
         let mut diagnostics = Vec::new();
         let mut replacements = Vec::new();
@@ -319,7 +390,10 @@ impl SelectedTargetMachineDeclarations {
                 NativeTarget::from_omega_target_name(Some(origin.target.as_str()))
                     .is_ok_and(|resolved| resolved == target)
             });
-            let Some(canonical_index) = machine_index(typed, name, None, canonical.source) else {
+            let Some(canonical_index) = roster
+                .get(*name)
+                .and_then(|family| machine_index(typed, family.canonical))
+            else {
                 // Provider defaults and other declarations that never reach
                 // typing keep no typed body to swap.
                 continue;
@@ -342,8 +416,11 @@ impl SelectedTargetMachineDeclarations {
                 swaps.push((canonical_index, None, (*canonical).clone(), None));
                 continue;
             };
-            let Some(wanted_index) =
-                machine_index(typed, name, Some(wanted.target.as_str()), wanted.source)
+            let Some(wanted_index) = roster[*name]
+                .members
+                .iter()
+                .find(|member| member.target.as_str() == wanted.target.as_str())
+                .and_then(|member| machine_index(typed, member.machine))
             else {
                 diagnostics.push(Diagnostic::error(format!(
                     "target `{}` body of machine `{name}` did not survive typing",
@@ -1111,6 +1188,102 @@ mod tests {
                 ),
             ]
         );
+    }
+
+    /// The typed-tree family roster is installed from the admission selection
+    /// before the per-target swap: one row keys every authored body by
+    /// target, the canonical member is the body whose target head the filter
+    /// stripped, and the swap then consumes the roster to re-mark roles for
+    /// the realized target. A family whose names resolve to no real target
+    /// keeps no row.
+    #[test]
+    fn family_roster_keys_every_body_and_the_swap_consumes_it() {
+        // Provenance joins origins to typed machines by source span, so the
+        // fixture registers its source in a real map the way admission does.
+        let text = "demo_target machine inert_helper() -> u64 { 3u64 }\nlinux_x86_64 machine family_value() -> u64 { 1u64 }\nwindows_x86_64 machine family_value() -> u64 { 2u64 }\n";
+        let mut sources = source::SourceMap::default();
+        let source_id = sources
+            .add(
+                std::path::PathBuf::from("tests/family.omg"),
+                text.to_owned(),
+            )
+            .source_id;
+        let tokens = source_files_to_tokens::Lexer::new(text)
+            .tokenize()
+            .expect("tokenize target-machine fixture");
+        let mut syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens)
+            .expect("parse target-machine fixture");
+        let mut declarations =
+            filter_target_machines(&mut syntax, Some("linux_x86_64")).expect("cohort selects");
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                syntax: &syntax,
+                sources: Some(std::sync::Arc::new(sources)),
+                top_level_bindings: Vec::new(),
+            },
+        )
+        .expect("siblings resolve");
+        let mut typed =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+                .expect("siblings type");
+
+        declarations.install_target_machine_families(&mut typed);
+
+        let [family] = typed.target_machine_families.as_slice() else {
+            panic!("the recognized family is the only roster row");
+        };
+        assert_eq!(family.name.as_str(), "family_value");
+        assert_eq!(
+            family
+                .members
+                .iter()
+                .map(|member| member.target.as_str())
+                .collect::<Vec<_>>(),
+            vec!["linux_x86_64", "windows_x86_64"]
+        );
+        let canonical = family.canonical;
+        let windows_member = family.members[1].machine;
+        fn machine_of(
+            typed: &typed_trees::TypedTrees,
+            symbol: symbols::SymbolHandle,
+        ) -> &typed_trees::machine::Machine {
+            typed
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == symbol)
+                .expect("a roster member names a typed machine")
+        }
+        assert!(
+            machine_of(&typed, canonical).target.is_none(),
+            "the canonical body sits at the family path"
+        );
+        assert_eq!(family.members[0].machine, canonical);
+
+        declarations
+            .select_product_target(
+                &mut typed,
+                target::NativeTarget::from_omega_target_name(Some("windows_x86_64"))
+                    .expect("windows_x86_64 is a real target"),
+            )
+            .expect("the swap consumes the roster");
+
+        assert_eq!(
+            machine_of(&typed, canonical)
+                .target
+                .as_ref()
+                .map(|target| target.as_str()),
+            Some("linux_x86_64"),
+            "the demoted canonical body takes its authored target marker"
+        );
+        assert!(
+            machine_of(&typed, windows_member).target.is_none(),
+            "the realized target's body moves to the family path"
+        );
+        // The roster itself is the durable record: the swap's renames do not
+        // disturb which symbol keys which authored target.
+        let family = &typed.target_machine_families[0];
+        assert_eq!(family.canonical, canonical);
+        assert_eq!(family.members[1].machine, windows_member);
     }
 
     #[test]
