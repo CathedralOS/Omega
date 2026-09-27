@@ -80,7 +80,7 @@ fn literal_array_scalar_graph_rejects_result_drift_without_closure_fallback() {
             .unwrap()
             .states[0];
         match mutation {
-            "type" => state.result_type = PrimitiveType::Bool,
+            "type" => state.result_type = Some(PrimitiveType::Bool),
             "binding" => state.bindings[0].statement_ordinal = u32::MAX,
             "statement" => {
                 state.terminator = checked_trees::CheckedScalarStateTerminator::Return {
