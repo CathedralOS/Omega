@@ -77,7 +77,10 @@ fn sum_borrow_fixture(native: target::NativeTarget) -> LegalizedScalarFunction {
         },
     )
     .unwrap();
-    let LegalizedScalarArgument::Structural { semantic, target } = &mut call.arguments[0] else {
+    let LegalizedScalarArgument::Structural {
+        semantic, target, ..
+    } = &mut call.arguments[0]
+    else {
         panic!("argument");
     };
     target.shape = call.call_plan.parameters[0].shape;
@@ -101,88 +104,6 @@ fn shared_sum_call_replays_original_home_layout_and_consumed_scalar_result() {
         target::NativeTarget::macos_arm64(),
     ] {
         let source = sum_borrow_fixture(native);
-||||||| parent of 81ff2d3e9c (omega: carry runtime indices on borrowed structural call arguments)
-        let mut source = local_fixture(native, false);
-        let field = semantic_vocabulary::StructuralFieldId::new(1).unwrap();
-        let scalar = source.blocks[0].instructions[0].result.unwrap().scalar_type;
-        let case = semantic_vocabulary::StructuralCaseId::new(1).unwrap();
-        let layout = calling_conventions::evaluate_conventional_sum_layout(
-            &[],
-            &[vec![ValueShape::integer(8, 8)], Vec::new()],
-        )
-        .unwrap();
-        source
-            .structural
-            .as_mut()
-            .unwrap()
-            .structural_types
-            .make_mut()[0]
-            .shape = StructuralTypeShape::Sum {
-            cases: vec![
-                terminal_psi::StructuralCaseDeclaration {
-                    id: case,
-                    identity: "Present".into(),
-                    fields: vec![terminal_psi::StructuralFieldDeclaration {
-                        id: field,
-                        identity: "value".into(),
-                        relevance: terminal_psi::BindingRelevance::Relevant,
-                        field_type: terminal_psi::StructuralFieldType::Scalar(scalar),
-                    }],
-                },
-                terminal_psi::StructuralCaseDeclaration {
-                    id: semantic_vocabulary::StructuralCaseId::new(2).unwrap(),
-                    identity: "Absent".into(),
-                    fields: Vec::new(),
-                },
-            ],
-        };
-        let LegalizedScalarInstructionKind::EstablishPrimitiveLocal { result, value, .. } =
-            source.blocks[0].instructions[1].kind.clone()
-        else {
-            panic!("local");
-        };
-        source.blocks[0].instructions[1].kind =
-            LegalizedScalarInstructionKind::EstablishScalarCase {
-                result,
-                result_case: case,
-                layout: layout.clone(),
-                fields: vec![terminal_psi::ScalarCaseField {
-                    field,
-                    value: value.value,
-                    range_obligation: None,
-                }],
-            };
-        let LegalizedScalarInstructionKind::Call(call) = &mut source.blocks[0].instructions[2].kind
-        else {
-            panic!("call");
-        };
-        call.call_plan = evaluate_call_plan(
-            CallingPolicy::native_for_target(native),
-            &CallSignature {
-                parameters: vec![ValueShape::borrowed_reference(
-                    layout.shape.byte_size,
-                    layout.shape.alignment,
-                )],
-                result: call
-                    .result_placement
-                    .as_ref()
-                    .map(|placement| placement.shape),
-            },
-        )
-        .unwrap();
-        let LegalizedScalarArgument::Structural { semantic, target } = &mut call.arguments[0]
-        else {
-            panic!("argument");
-        };
-        target.shape = call.call_plan.parameters[0].shape;
-        target.destination = call.call_plan.parameters[0].clone();
-        semantic.access = StructuralAccess::SharedBorrow;
-        target.access = StructuralAccess::SharedBorrow;
-        target.source = target_operations::TargetStructuralArgumentSource::StructuralHome {
-            psi_operation: OperationId::new(2).unwrap(),
-        };
-        // The following scalar call consumes the getter result, not its input field.
-        source.blocks[0].instructions[3] = fixture(native, 0).blocks[0].instructions[3].clone();
         let environment =
             register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = SelectedSelectionConstraints {
@@ -380,7 +301,10 @@ fn nested_sum_borrow_fixture(native: target::NativeTarget) -> LegalizedScalarFun
         },
     )
     .unwrap();
-    let LegalizedScalarArgument::Structural { semantic, target } = &mut call.arguments[0] else {
+    let LegalizedScalarArgument::Structural {
+        semantic, target, ..
+    } = &mut call.arguments[0]
+    else {
         panic!("outer argument");
     };
     semantic.place = outer;
