@@ -12,7 +12,8 @@
 //! establish native behavior or receiving authority.
 //!
 //! `build_outputs.rs` selects completed files from sealed build staging.
-//! `publication.rs` stages exact bytes, installs in order and replays them.
+//! `publication.rs` prepares proof pairs and their companion paths;
+//! `platform_custody::file_publication` stages, installs and replays exact bytes.
 //! A failure removes newly installed members, reports cleanup failures, and
 //! preserves untouched destinations; replaced files are not restored.
 //!

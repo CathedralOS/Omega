@@ -464,6 +464,7 @@ dependencies = [
  "optimization-core",
  "optimization-unit",
  "package-compilation",
+ "platform-custody",
  "program-entry-plan",
  "proof-admission",
  "provider-planning",

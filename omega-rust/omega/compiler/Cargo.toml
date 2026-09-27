@@ -13,6 +13,7 @@ name = "compiler"
 path = "src/lib.rs"
 
 [dependencies]
+platform-custody = { path = "../foundation/platform-custody" }
 lowered-psi = { path = "../../psi/representations/lowered-psi" }
 lowered-psi-to-lowered-psi = { path = "../../psi/pipeline/06_lowered-psi-to-lowered-psi" }
 lowered-psi-to-terminal-psi = { path = "../../psi/pipeline/07_lowered-psi-to-terminal-psi" }

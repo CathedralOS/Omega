@@ -7,8 +7,9 @@
 
 use std::path::Path;
 
-use super::{StagedProduct, appended_file_name_path, stage_exact_bytes};
+use super::appended_file_name_path;
 use crate::report::PccPublicationReceipt;
+use platform_custody::file_publication::{StagedFile, stage_exact_bytes};
 
 pub(crate) struct PreparedPsiProofPair {
     artifact_bytes: Vec<u8>,
@@ -58,7 +59,7 @@ impl PreparedPsiProofPair {
     pub(crate) fn stage(
         &self,
         artifact_path: &Path,
-        staged_products: &mut Vec<StagedProduct>,
+        staged_products: &mut Vec<StagedFile>,
     ) -> Result<PccPublicationReceipt, String> {
         let receipt = self.receipt(artifact_path);
         staged_products.push(stage_exact_bytes(

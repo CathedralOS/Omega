@@ -4,8 +4,7 @@
 
 use crate::report::package;
 use crate::report::publication::{
-    PreparedPsiProofPair, appended_file_name_path, install_staged_products, remove_stale_companion,
-    stage_exact_bytes,
+    PreparedPsiProofPair, appended_file_name_path, remove_stale_companion,
 };
 use crate::report::{
     FinalRealizationEvidenceError, OptimizationRollbackReceipt, PccPublicationReceipt,
@@ -17,6 +16,7 @@ use native_artifact::build_native_proof_sidecar;
 use native_artifact::{
     ExecutablePublicationReceipt, PreparedExecutablePublication, validate_native_pair,
 };
+use platform_custody::file_publication::{install_staged_files, stage_exact_bytes};
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -449,7 +449,7 @@ impl CompileReport {
             // The executable joins the same staged set. Only after every member
             // stages successfully does sequential installation begin.
             staged_products.push(stage_exact_bytes(&output_path, &output.bytes, true)?);
-            install_staged_products(&staged_products)?;
+            install_staged_files(&staged_products)?;
             output_path
         };
 
@@ -549,7 +549,7 @@ impl CompileReport {
             remove_stale_companion(&appended_file_name_path(&psi_path, ".proof"))?;
             staged_products.push(stage_exact_bytes(&psi_path, &psi_bytes, false)?);
         }
-        install_staged_products(&staged_products)?;
+        install_staged_files(&staged_products)?;
         Ok(Self {
             build_outputs: self.build_outputs,
             build_observation: self.build_observation,
