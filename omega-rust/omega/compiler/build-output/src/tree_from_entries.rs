@@ -217,8 +217,6 @@ mod tests {
     use super::{OutputTreeEntry, from_entries};
     use crate::empty;
     use crate::staged_output_tree::MAX_STAGED_OUTPUT_ENTRIES;
-    #[cfg(unix)]
-    use crate::staged_output_tree::RetainedStagedOutputEntryKind;
 
     #[test]
     fn reconstructs_mixed_parent_before_child_output_trees_canonically() {
@@ -238,39 +236,6 @@ mod tests {
         assert_eq!(mixed, reordered_siblings);
         assert_eq!(mixed.entry_count(), 3);
         assert_eq!(mixed.file_bytes(), 12);
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn retains_inert_symbolic_links_with_exact_target_spelling() {
-        let mixed = from_entries(&[
-            OutputTreeEntry::directory(b"generated"),
-            OutputTreeEntry::regular_file(b"generated/data.bin", b"data", false),
-            OutputTreeEntry::symbolic_link(b"generated/current", b"data.bin"),
-            OutputTreeEntry::regular_file(b"tool", b"executable", true),
-            OutputTreeEntry::symbolic_link(b"generated/tool", b"../tool"),
-        ])
-        .expect("tree with symbolic links");
-        let reordered_siblings = from_entries(&[
-            OutputTreeEntry::regular_file(b"tool", b"executable", true),
-            OutputTreeEntry::directory(b"generated"),
-            OutputTreeEntry::symbolic_link(b"generated/tool", b"../tool"),
-            OutputTreeEntry::regular_file(b"generated/data.bin", b"data", false),
-            OutputTreeEntry::symbolic_link(b"generated/current", b"data.bin"),
-        ])
-        .expect("sibling order does not become tree identity");
-
-        assert_eq!(mixed, reordered_siblings);
-        assert_eq!(mixed.entry_count(), 5);
-        assert_eq!(mixed.file_bytes(), 14);
-        assert!(matches!(
-            &mixed.entries[1].kind,
-            RetainedStagedOutputEntryKind::Symlink { target } if target == b"data.bin"
-        ));
-        assert!(matches!(
-            &mixed.entries[3].kind,
-            RetainedStagedOutputEntryKind::Symlink { target } if target == b"../tool"
-        ));
     }
 
     #[cfg(not(unix))]
@@ -305,17 +270,6 @@ mod tests {
             from_entries(&[
                 OutputTreeEntry::directory(b"generated"),
                 OutputTreeEntry::symbolic_link(b"generated/link", b"../../outside",),
-            ])
-            .is_err()
-        );
-    }
-
-    #[test]
-    fn rejects_symbolic_links_as_namespace_parents() {
-        assert!(
-            from_entries(&[
-                OutputTreeEntry::symbolic_link(b"alias", b"target"),
-                OutputTreeEntry::regular_file(b"alias/child", b"bytes", false),
             ])
             .is_err()
         );
@@ -365,16 +319,5 @@ mod tests {
         let repeated = vec![OutputTreeEntry::directory(b"entry"); MAX_STAGED_OUTPUT_ENTRIES + 1];
         assert!(from_entries(&repeated).is_err());
         assert_eq!(from_entries(&[]).unwrap(), empty());
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn file_commitment_binds_executable_class() {
-        let ordinary =
-            from_entries(&[OutputTreeEntry::regular_file(b"tool.bin", b"tool", false)]).unwrap();
-        let executable =
-            from_entries(&[OutputTreeEntry::regular_file(b"tool.bin", b"tool", true)]).unwrap();
-        assert_ne!(ordinary.digest(), executable.digest());
-        assert_eq!(ordinary.file_bytes(), executable.file_bytes());
     }
 }

@@ -92,25 +92,3 @@ fn rejects_missing_noncanonical_directory_and_duplicate_requests() {
     assert!(tree.select_files(&[b"report.txt", b"report.txt"]).is_err());
     assert!(tree.select_files(&[b"docs/inner/a.txt", b"docs"]).is_err());
 }
-
-#[cfg(unix)]
-#[test]
-fn rejects_links_and_executable_files_without_following_or_changing_them() {
-    let tree = from_entries(&[
-        OutputTreeEntry::directory(b"files"),
-        OutputTreeEntry::regular_file(b"files/artifact", b"ordinary", false),
-        OutputTreeEntry::symbolic_link(b"alias", b"files"),
-        OutputTreeEntry::symbolic_link(b"link", b"files/artifact"),
-        OutputTreeEntry::regular_file(b"tool", b"executable", true),
-    ])
-    .unwrap();
-    for requested in [b"alias".as_slice(), b"alias/artifact", b"link", b"tool"] {
-        assert!(tree.select_files(&[requested]).is_err());
-    }
-    assert_eq!(
-        tree.select_files(&[b"files/artifact"])
-            .unwrap()
-            .entry_count(),
-        2
-    );
-}

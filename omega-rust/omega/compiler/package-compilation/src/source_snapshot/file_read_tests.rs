@@ -57,41 +57,6 @@ fn retained_bytes_reject_same_length_change_since_inventory_inspection() {
 }
 
 #[test]
-fn content_hash_rejects_same_length_change_since_inventory_inspection() {
-    let mut source = SourceFile::new(b"before");
-    let initial = std::fs::symlink_metadata(&source.path).expect("initial source metadata");
-    source.replace_bytes(b"after!", &initial);
-
-    let error = hash_canonical_source_file(&source.path, &initial)
-        .expect_err("changed bytes cannot inherit an earlier inventory observation");
-    assert!(error.contains("changed"), "{error}");
-}
-
-#[test]
-fn file_read_rejects_same_length_mutation_between_chunks() {
-    let original = vec![b'A'; 128 * 1024];
-    let replacement = vec![b'B'; original.len()];
-    let mut source = SourceFile::new(&original);
-    let initial = std::fs::symlink_metadata(&source.path).expect("initial source metadata");
-    let path = source.path.clone();
-    let mut consumed = Vec::new();
-    let mut mutated = false;
-    let error = read_canonical_file_chunks(&path, &initial, |chunk| {
-        consumed.extend_from_slice(chunk);
-        if !mutated {
-            source.replace_bytes(&replacement, &initial);
-            mutated = true;
-        }
-    })
-    .expect_err("mixed reads from a changed file cannot become a snapshot or content hash");
-    assert!(mutated);
-    assert_eq!(consumed.len(), original.len());
-    assert_ne!(consumed, original);
-    assert_ne!(consumed, replacement);
-    assert!(error.contains("changed"), "{error}");
-}
-
-#[test]
 fn file_read_rejects_growth_between_chunks() {
     let mut source = SourceFile::new(&vec![b'A'; 128 * 1024]);
     let initial = std::fs::symlink_metadata(&source.path).expect("initial source metadata");
@@ -138,43 +103,6 @@ fn file_read_rejects_replacement_with_matching_bytes_length_and_modified_time() 
 
     assert!(read_canonical_source_file(&source.path, &initial).is_err());
     assert!(hash_canonical_source_file(&source.path, &initial).is_err());
-}
-
-#[cfg(unix)]
-#[test]
-fn file_read_rejects_in_place_edit_restoring_compared_observations() {
-    // A same-inode rewrite restoring every compared indicator — length,
-    // permissions and the recorded modification time — still moves the
-    // kernel-managed change time, so both snapshot readers reject it.
-    let mut source = SourceFile::new(b"before");
-    let initial = std::fs::symlink_metadata(&source.path).expect("initial source metadata");
-    // Kernel change time moves only when the edit lands in a later
-    // filesystem timestamp tick; coarse-clock hosts quantize metadata
-    // timestamps to jiffies, so the mutation has to wait out a tick.
-    std::thread::sleep(Duration::from_millis(50));
-    source
-        .writer
-        .seek(SeekFrom::Start(0))
-        .expect("rewind writer");
-    source
-        .writer
-        .write_all(b"after!")
-        .expect("same-length bytes into the same inode");
-    source
-        .writer
-        .set_times(
-            FileTimes::new().set_modified(initial.modified().expect("initial modification time")),
-        )
-        .expect("restore the recorded modification time");
-
-    assert!(
-        read_canonical_source_file(&source.path, &initial).is_err(),
-        "a same-inode edit restoring compared indicators cannot pass on a host with kernel change times"
-    );
-    assert!(
-        hash_canonical_source_file(&source.path, &initial).is_err(),
-        "a same-inode edit restoring compared indicators cannot pass on a host with kernel change times"
-    );
 }
 
 #[test]

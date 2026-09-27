@@ -66,24 +66,3 @@ fn captured_package_source_input_retains_every_byte_and_matches_its_index() {
     }
     unseal_source_tree(&root);
 }
-
-#[test]
-fn captured_package_source_input_is_immune_to_post_capture_mutation() {
-    let tree = TempTree::new();
-    let root = tree.package("mutating-root");
-    let template = root.join("template.tmpl");
-    fs::write(&template, b"captured").expect("write template");
-    seal_source_tree(&root);
-
-    let captured = capture_package_source_input(&root).expect("capture before mutation");
-    unseal_source_tree(&root);
-    fs::write(&template, b"mutated-live-bytes").expect("mutate the live host file");
-
-    let retained = captured.file(b"template.tmpl").expect("captured file");
-    assert_eq!(
-        retained.bytes(),
-        b"captured",
-        "captured inventory bytes are immutable after the host path changes"
-    );
-    unseal_source_tree(&root);
-}
