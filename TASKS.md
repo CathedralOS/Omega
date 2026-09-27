@@ -687,7 +687,23 @@ the complete product bar; focused successes below do not establish that baseline
       `cli/{basics/text_greeting, systems/status_report,
       text/string_catalog}`
     - 3 `call operation: boundary arguments` -- all three of
-      `gui/{image_viewer,window_app,window_demo}`
+      `gui/{image_viewer,window_app,window_demo}`, and the cause is one
+      token. Their `Gui::window_create(class_name: [u8; 7], title:
+      [u8; 11], ...)` declares BARE fixed byte arrays, and
+      `byte_sequence_carrier` recognizes an owned `[u8; N]` only when it
+      carries a DOMAIN; without one the formal is a closed primitive array
+      and `trait_boundary_call.rs` returns None outright. Measured on a
+      twenty-line pair: a bare `[u8; 7]` boundary parameter omits the plan
+      at this phase, and the same program with
+      `pub domain [u8; 7]::CName requires self[6] == 0;` and
+      `[u8; 7] in CName` instead reports "cannot prove requires contract
+      for call take ... self.buf in `[u8; N]::CName`" -- an honest,
+      actionable refusal. So the samples want a carrier domain on their
+      boundary byte parameters, which is `samples/gui`'s owner to spell.
+      The bare form deserves a diagnostic rather than an omission, but
+      that refusal cannot live in the planner: a `return None` there means
+      "this machine has no unit plan", and a machine whose plan nobody
+      needs must stay silent
     - one each: `state graph: terminator: unsupported tail: transition
       chain` (`basics/brightness_control`), `structural field store: scalar
       field type` (`collections/matrix_multiply`), `state graph: prefix
