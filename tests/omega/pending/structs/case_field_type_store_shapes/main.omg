@@ -1,0 +1,56 @@
+// `structural field store: case field type` is THREE distinct causes, not one.
+// Six corpus fixtures sit there; each of the three below omits on its own
+// against its own checking control, and a bare payload-bearing case literal
+// checks, so the phase groups unrelated things exactly as its neighbours do.
+//
+// The baseline that CHECKS, so none of this is about sums or payloads:
+//
+//   data Cmd { case Dim(amount: i32); case Off; }
+//   self.c = Cmd::Dim { amount: 7 };                     checks
+//   self.c = Cmd::Off;                                   checks
+//   let v: Cmd = Cmd::Dim { amount: 7 }; self.c = v;     checks
+//   two scalar payload fields                            checks
+//   a payload field whose type is a RECORD               checks
+//
+// Cause 1 — a PREDICATE DOMAIN on a payload field.
+//   `case Dim(amount: i32 in Ten)` omits; `i32` checks; and `i32 in Wrapping`
+//   CHECKS, so an arithmetic policy is not it -- this is the predicate domain
+//   specifically. `pass/ranges/sum_payload_range_arith_narrowed_exit`.
+//   Wider than sums: the same domained member in a plain RECORD literal omits
+//   at `structural field store: record literal source`, and reaching the field
+//   through a LOCAL omits at `statement sequence: local data: structural call
+//   binding`. A domained SCALAR field stored directly checks. So the rule is
+//   that a domain-refined MEMBER cannot be supplied through a composite
+//   literal, and the three phases are three construction sites for one gap.
+//
+// Cause 2 — an `[erased]` payload field.
+//   `case Dim(amount: i32, proof [erased]: Evidence)` omits while the same
+//   case with a plain `proof: Evidence` CHECKS. One token.
+//   `pass/relevance/erased_case_payload_field_exit`.
+//
+// Cause 3 — a COMMON field declared beside the case payloads (this fixture).
+//   `data Event { consumed: bool; case Treasure(gold: i32); case Nothing; }`
+//   omits; drop the common field and the same store checks.
+//   `pass/data/runtime_mixed_shape_exit`, whose own comment calls this
+//   "a named common field next to the payload field".
+//
+// So a repair must confirm all three. Clearing any one leaves the phase
+// populated, and the label will not say which cause remains.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Event {
+    consumed: bool;
+    case Treasure(gold: i32);
+    case Nothing;
+}
+
+data Main {
+    console: Binding<Console>;
+    event: Event;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.event = Event::Treasure { consumed: true, gold: 50 };
+    self.console.exit_process(0);
+}

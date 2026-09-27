@@ -156,6 +156,32 @@ backend-visible; full corpus runs only at the end of an item.
   pin no repair on any of the strings. Extended acceptance: both pending
   fixtures check and the four `flow call` corpus rows move.
 
+- **CASE-FIELD-TYPE-STORE-SHAPES.** (new-scope) `structural field store: case
+  field type` is THREE distinct causes, not one. Six corpus fixtures sit
+  there, found by attributing the macOS arm64 native roster, and a bare
+  payload-bearing case literal CHECKS -- as do a payload-free case, two scalar
+  payload fields, a RECORD-typed payload field, and the same literal reached
+  through a local. Pinned at
+  `tests/omega/pending/structs/case_field_type_store_shapes` with the whole
+  matrix.
+  (1) A PREDICATE DOMAIN on a payload field: `case Dim(amount: i32 in Ten)`
+  omits, `i32` checks, and `i32 in Wrapping` CHECKS -- an arithmetic policy is
+  not it, so this is NOT the MEMBER-POLICY family despite the resemblance.
+  Wider than sums: the same domained member in a plain RECORD literal omits at
+  `structural field store: record literal source`, through a LOCAL at
+  `statement sequence: local data: structural call binding`, while a domained
+  SCALAR field stored directly checks -- one gap, three construction sites.
+  `pass/ranges/sum_payload_range_arith_narrowed_exit`.
+  (2) An `[erased]` payload field: omits where the same case with a plain
+  `proof: Evidence` checks, one token apart.
+  `pass/relevance/erased_case_payload_field_exit`.
+  (3) A COMMON field declared beside the case payloads: drop it and the
+  identical store checks. `pass/data/runtime_mixed_shape_exit`, whose own
+  comment names it.
+  Acceptance: the pending fixture checks and all three causes check
+  independently -- clearing one leaves the phase populated and the label will
+  not say which remains.
+
 - **RECORD-LITERAL-ARRAY-FIELD.** (new-scope) Constructing a record literal
   that supplies a value for an ARRAY-typed field has no route.
   `samples/cli/systems/wire_protocol` spells it
