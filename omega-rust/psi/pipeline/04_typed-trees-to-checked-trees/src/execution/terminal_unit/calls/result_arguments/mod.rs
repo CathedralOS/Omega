@@ -26,6 +26,9 @@ use crate::execution::terminal_unit::calls::structural_arguments::exact_structur
 
 mod anonymous_shared;
 
+#[cfg(test)]
+mod tests;
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn argument(
     program: &TypedTrees,
@@ -466,10 +469,11 @@ pub(super) fn argument(
                 else {
                     return None;
                 };
-                // An exclusive subloan needs mutable owned storage behind
-                // the binding; every other lane reads or moves immutable
-                // owned storage.
-                if local.is_mutable != projected_borrow
+                // An exclusive subloan needs mutable owned storage. A
+                // captured shared loan observes either binding mode without
+                // moving its owner; owned moves retain the immutable fence.
+                if (access != CheckedStructuralAccess::SharedBorrow
+                    && local.is_mutable != projected_borrow)
                     || local.symbol != symbol
                     || (!unrestricted
                         && !linear
