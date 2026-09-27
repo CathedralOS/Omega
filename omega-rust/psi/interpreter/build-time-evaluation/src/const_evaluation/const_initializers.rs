@@ -347,7 +347,8 @@ pub(crate) fn evaluate(
                         symbols.push(machine.symbol);
                     }
                 }
-                invocations::CheckedInitializers::prepare(&typed, authority.clone(), &symbols)
+                let prepared = crate::PreparedBuildMachineProgram::prepare(&typed)?;
+                invocations::CheckedInitializers::prepare(&prepared, authority.clone(), &symbols)
             })
             .transpose()?;
         let typed = checked

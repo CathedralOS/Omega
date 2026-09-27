@@ -130,12 +130,20 @@ pub(super) fn selected_provider_bodies(
     // A uniquely resolved named call to a boundary operator carries the same
     // execution obligation as its spelled twin: the name already selected the
     // requirement, so the settled plan's checked adapter owns the body.
-    for fact in facts.named_uses() {
+    let named_uses = facts
+        .named_uses()
+        .map(|fact| (fact.expression, fact.origin, fact.selected_operator_symbol))
+        .chain(
+            facts
+                .named_requirement_uses()
+                .map(|fact| (fact.expression, fact.origin, fact.requirement_symbol)),
+        );
+    for (expression, origin, requirement) in named_uses {
         let Some(operator) = typed
             .operators()
             .iter()
             .chain(typed.machine_token_bindings())
-            .find(|operator| operator.symbol == fact.selected_operator_symbol)
+            .find(|operator| operator.symbol == requirement)
         else {
             continue;
         };
@@ -147,9 +155,13 @@ pub(super) fn selected_provider_bodies(
         else {
             continue;
         };
-        let Some(row) =
-            selected_provider_body_row(typed, plan, operator, SelectedOperatorUse::Named(fact))
-                .map_err(|diagnostic| vec![diagnostic])?
+        let Some(row) = selected_provider_body_row(
+            typed,
+            plan,
+            operator,
+            SelectedOperatorUse::Named { expression, origin },
+        )
+        .map_err(|diagnostic| vec![diagnostic])?
         else {
             continue;
         };
@@ -185,7 +197,10 @@ fn provider_body_requirement_schema(
 /// spelling to rejoin.
 enum SelectedOperatorUse<'a> {
     Spelled(&'a checked_trees::CheckedOperatorUseFact),
-    Named(&'a checked_trees::CheckedNamedOperatorUseFact),
+    Named {
+        expression: typed_trees::expression::ExpressionHandle,
+        origin: checked_trees::CheckedValueOrigin,
+    },
 }
 
 /// Resolve one settled ProviderPlan row to its exact checked adapter body.
@@ -203,7 +218,7 @@ fn selected_provider_body_row(
 ) -> Result<Option<SelectedBuildTimeProviderBody>, Diagnostic> {
     let (expression, origin) = match selected_use {
         SelectedOperatorUse::Spelled(fact) => (fact.expression, fact.origin),
-        SelectedOperatorUse::Named(fact) => (fact.expression, fact.origin),
+        SelectedOperatorUse::Named { expression, origin } => (expression, origin),
     };
     let Some(schema) = provider_body_requirement_schema(typed, operator) else {
         return Ok(None);
@@ -298,7 +313,7 @@ fn selected_provider_body_row(
         }
         // A named call's argument list is its authored operand tuple; the
         // requirement's exact path already selected it.
-        SelectedOperatorUse::Named(_) => {
+        SelectedOperatorUse::Named { .. } => {
             let ExpressionNode::Call(call) = typed.expression_table.expression(expression) else {
                 return Err(Diagnostic::error(format!(
                     "selected build-time named operator expression {:?} lost its exact operand shape",
@@ -366,29 +381,8 @@ impl SelectedConstEvaluation {
                     "folded operator differs from current selected provider execution",
                 )]);
             }
-            let matching: Vec<_> = checked
-                .facts
-                .operators
-                .uses_with_status(CheckedOperatorResolutionStatus::Resolved)
-                .filter(|fact| {
-                    fact.expression == selected.expression
-                        && fact.origin == selected.origin
-                        && fact.occurrence == checked_trees::CheckedOperatorOccurrence::Expression
-                })
-                .collect();
-            let [fact] = matching.as_slice() else {
-                return Err(vec![Diagnostic::error(
-                    "folded operator has no unique final checked occurrence",
-                )]);
-            };
-            if fact.selected_operator_symbol != selected.requirement
-                || fact.policy_adapter != selected.policy
-                || joined_plan_commitment(
-                    checked,
-                    plans,
-                    fact.selected_operator_symbol,
-                    fact.origin,
-                ) != Some(selected.provider)
+            if joined_plan_commitment(checked, plans, selected.requirement, selected.origin)
+                != Some(selected.provider)
             {
                 return Err(vec![Diagnostic::error(
                     "folded operator lost its exact final provider custody",
@@ -402,37 +396,8 @@ impl SelectedConstEvaluation {
                     "folded provider body differs from current selected provider execution",
                 )]);
             }
-            // The fold's checked occurrence is whichever of the two use
-            // arenas retains this expression and origin: a spelled use or a
-            // uniquely resolved named call. Exactly one must exist.
-            let spelled: Vec<_> = checked
-                .facts
-                .operators
-                .uses_with_status(CheckedOperatorResolutionStatus::Resolved)
-                .filter(|fact| {
-                    fact.expression == body.expression
-                        && fact.origin == body.origin
-                        && fact.occurrence == checked_trees::CheckedOperatorOccurrence::Expression
-                })
-                .collect();
-            let named: Vec<_> = checked
-                .facts
-                .operators
-                .named_uses()
-                .filter(|fact| fact.expression == body.expression && fact.origin == body.origin)
-                .collect();
-            let (requirement, origin) = match (spelled.as_slice(), named.as_slice()) {
-                ([fact], []) => (fact.selected_operator_symbol, fact.origin),
-                ([], [fact]) => (fact.selected_operator_symbol, fact.origin),
-                _ => {
-                    return Err(vec![Diagnostic::error(
-                        "folded provider body has no unique final checked occurrence",
-                    )]);
-                }
-            };
-            if requirement != body.requirement
-                || joined_plan_commitment(checked, plans, requirement, origin)
-                    != Some(body.provider)
+            if joined_plan_commitment(checked, plans, body.requirement, body.origin)
+                != Some(body.provider)
             {
                 return Err(vec![Diagnostic::error(
                     "folded provider body lost its exact final provider custody",
@@ -444,7 +409,7 @@ impl SelectedConstEvaluation {
                 as std::sync::Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
         });
         build_time_evaluation::validate_folded_array_lengths(
-            &checked.typed,
+            checked,
             &self.folds,
             &self.operators,
             &self.provider_bodies,

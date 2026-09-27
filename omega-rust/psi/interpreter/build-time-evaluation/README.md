@@ -251,16 +251,21 @@ semantics kernel. A matching spelling or scalar signature cannot authorize an
 unrelated provider body. Ordinary helper calls retain the same closure admission.
 
 Private fold receipts retain the exact invoked machine, receiving declaration
-and type-child path, selected operations, and provider-plan commitment. Final
-checking rejoins independently derived operator facts and evaluates the retained
-invocation again before accepting its literal length. This establishes custody
-within checked source compilation; the portable target capsule and application
-closure described below remain separate obligations. Closed scalar calls in
-const-generic arguments evaluate through the application probe above. Unlike
-fixed-array lengths, these pre-resolution probes do not yet retain a continuation
-for Omega's provider plan. Provider-dependent const arguments therefore reject;
+and type-child path, selected operations, and provider-plan commitment. Omega
+rechecks the selected plans, then passes the final checked program to
+`validate_folded_array_lengths`. This replay entrance requires unique retained
+operator occurrences with the same requirements and primitive arithmetic policy;
+token machines may normalize to requirement calls while retaining that exact
+identity. Reexecuting typed source cannot replace missing checked facts. It evaluates the
+retained invocation again before accepting its literal length. This establishes
+custody within checked source compilation; the portable target capsule and
+application closure described below remain separate obligations. Closed scalar
+calls in const-generic arguments evaluate through the application probe above.
+Provider-dependent applications defer before demanding settled body checking,
+so a pending fixed-array length does not prevent them from reaching the typed
+continuation. Independent applications still require checked bodies before
+execution. Deferred applications use Omega's exact selected execution;
 neither a unique visible satisfier nor package admission selects a provider.
-Connect those arguments to exact selected execution before admitting them.
 The remaining const-generic normalization forms also need connected paths.
 
 The [semantic-evaluation contract](../../../../wiki/spec/language/evaluation.md)

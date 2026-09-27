@@ -19,7 +19,7 @@ use typed_trees::{
 /// installed only after the provider returns.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedBuildTimeProviderBody {
-    /// The authored spelled-operator expression retaining the selected use.
+    /// The authored operator expression or its normalized requirement call.
     pub expression: ExpressionHandle,
     /// The checked value origin that owned the selection when it was derived.
     pub origin: checked_trees::CheckedValueOrigin,
@@ -107,10 +107,9 @@ pub fn validate_selected_provider_bodies(
                 "selected build-time provider body lacks unique exact provider custody".into(),
             );
         }
-        // A provider body retains exactly one current use: either a spelled
-        // occurrence or a uniquely resolved named call at this expression and
-        // owning machine. The two arenas are disjoint by node kind, so their
-        // counts sum rather than compete.
+        // A provider body retains exactly one current use: a spelled
+        // occurrence, named operator call or normalized requirement call.
+        // The fact arenas are disjoint; duplicates across them still reject.
         let spelled_occurrences = facts
             .uses
             .iter()
@@ -128,7 +127,14 @@ pub fn validate_selected_provider_bodies(
                     && fact.origin.machine_symbol() == row.origin.machine_symbol()
             })
             .count();
-        if spelled_occurrences + named_occurrences != 1 {
+        let requirement_occurrences = facts
+            .named_requirement_uses()
+            .filter(|fact| {
+                fact.expression == row.expression
+                    && fact.origin.machine_symbol() == row.origin.machine_symbol()
+            })
+            .count();
+        if spelled_occurrences + named_occurrences + requirement_occurrences != 1 {
             return Err(
                 "selected build-time expression is shared by distinct current origins".into(),
             );
@@ -143,7 +149,16 @@ pub fn validate_selected_provider_bodies(
             .collect();
         let resolved_named: Vec<_> = facts
             .named_uses()
-            .filter(|fact| fact.expression == row.expression && fact.origin == row.origin)
+            .map(|fact| (fact.expression, fact.origin, fact.selected_operator_symbol))
+            .chain(
+                facts
+                    .named_requirement_uses()
+                    .map(|fact| (fact.expression, fact.origin, fact.requirement_symbol)),
+            )
+            .filter(|(expression, origin, _)| {
+                *expression == row.expression && *origin == row.origin
+            })
+            .map(|(_, _, requirement)| requirement)
             .collect();
         // The spelled use additionally binds the authored token spelling; a
         // named call selected its requirement by exact path and arity, so it
@@ -151,7 +166,7 @@ pub fn validate_selected_provider_bodies(
         let (selected_symbol, spelled_spelling) =
             match (resolved_spelled.as_slice(), resolved_named.as_slice()) {
                 ([fact], []) => (fact.selected_operator_symbol, Some(fact.spelling)),
-                ([], [fact]) => (fact.selected_operator_symbol, None),
+                ([], [requirement]) => (*requirement, None),
                 _ => {
                     return Err(
                         "selected build-time provider body has no unique current use".into(),

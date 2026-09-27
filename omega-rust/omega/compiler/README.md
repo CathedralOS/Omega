@@ -197,6 +197,11 @@ classifications, and contract-entailment stand-downs. `TypedToCheckedSettlementI
 closes callback and provider receipts transactionally before checked ownership
 is shared. A compact identifier is not a replacement for these retained inputs.
 
+Deferred constant folds keep provider-plan rederivation in Omega. Their final
+source-occurrence checks and invocation replay belong to Psi's
+`build-time-evaluation::validate_folded_array_lengths`, which consumes the final
+checked program directly; the coordinator does not reconstruct those judgments.
+
 Selected execution then produces `SelectedExecutionSettlementSurface`. Its
 ordered work closes component-entry progress, selected-dispatch settlement,
 provenance, boundary-adapter associations, and task activations. Preserve that order and
