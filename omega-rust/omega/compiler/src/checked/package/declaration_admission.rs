@@ -37,6 +37,15 @@ pub(crate) fn validate_authored_declaration_selections_before_build(
     // handoff.
     // The other targets' sibling bodies are checked once, in the settled
     // pass; this provisional pass admits declarations only.
+    // Its result deliberately cannot feed that settled check: the settled
+    // program differs (the build may append generated source, target
+    // selection swaps canonical bodies, provider settlement records erasure
+    // authorizations, and const folds land the endpoints only the
+    // preliminary mode tolerates pending), and the settled request closes
+    // those tolerances and carries the specialization rosters this request
+    // leaves empty. Only the exact-input check memo deduplicates it — for a
+    // later pass that arrives at this same frozen graph under this same
+    // request.
     let mut provisional = typed.clone();
     let pruned_occurrences =
         typed_trees_to_checked_trees::prune_target_siblings_typed(&mut provisional);

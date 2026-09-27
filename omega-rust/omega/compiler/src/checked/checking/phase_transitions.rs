@@ -1,7 +1,7 @@
 use artifacts::compile_timings::CompileTimings;
 use artifacts::compile_timings::{
     SYMBOL_RESOLVED_TREES_TO_TYPED_TREES, SYNTAX_TREES_TO_SYMBOL_RESOLVED_TREES,
-    TYPED_TREES_TO_CHECKED_TREES,
+    TYPED_TREES_TO_CHECKED_TREES, TYPED_TREES_TO_PRELIMINARY_CHECKED_TREES,
 };
 use build_evaluation::sources::AssembledSyntax;
 use checked_trees::CheckedTrees as CheckedProgram;
@@ -206,7 +206,12 @@ pub(crate) fn typed_trees_to_checked_trees(
             .with_selected_generic_operator_providers(&selected_generic_operator_providers)
             .with_selected_boundary_families(&selected_boundary_families)
             .with_opaque_property_receipts(&opaque_property_receipts);
-        let mut program = typed_trees_to_checked_trees::lower_typed_trees(typed, &request)?;
+        // The elapsed accounting wraps the fallible call rather than its
+        // `?`: a rejected program still paid the check's cost.
+        let check_started = std::time::Instant::now();
+        let check_result = typed_trees_to_checked_trees::lower_typed_trees(typed, &request);
+        super::record_settled_check(check_started.elapsed());
+        let mut program = check_result?;
         provider_planning::approval::check_boundary_provider_approval(&program)?;
         if let Some(package_inputs) = settlement.package_inputs {
             crate::checked::package::declaration_admission::validate_authored_declaration_selections(
@@ -415,15 +420,30 @@ pub(crate) fn settle_selected_execution(
 /// Preliminary package-selection validation needs ordinary checked Psi but no
 /// target/provider settlement. Keep that intentionally incomplete observation
 /// separate from [`CheckedProgramSurface`], which is final-path complete.
+///
+/// Its result cannot serve the settled check's input either. Between this
+/// checkpoint and [`typed_trees_to_checked_trees`] the admitted build may
+/// append generated source, target selection replaces canonical bodies with
+/// the selected target's own, provider settlement records its erasure
+/// authorizations, and pre-check const folds land the endpoints and opaque
+/// receipts only this preliminary mode tolerates pending. The settled
+/// request also carries the specialization rosters this checkpoint leaves
+/// empty and checks the target siblings this pass prunes first — different
+/// program, different request — so each compile pays for both checkpoints
+/// and only the exact-input memo serves the repeats a later review pass
+/// issues for an identical frozen graph.
 pub(crate) fn typed_trees_to_preliminary_checked_trees(
     typed: TypedTrees,
     timings: &mut CompileTimings,
 ) -> Result<Arc<CheckedProgram>, Vec<Diagnostic>> {
-    timings.record(TYPED_TREES_TO_CHECKED_TREES, || {
-        let program = typed_trees_to_checked_trees::lower_typed_trees(
+    timings.record(TYPED_TREES_TO_PRELIMINARY_CHECKED_TREES, || {
+        let check_started = std::time::Instant::now();
+        let check_result = typed_trees_to_checked_trees::lower_typed_trees(
             typed,
             &typed_trees_to_checked_trees::CheckingRequest::preliminary(),
-        )?;
+        );
+        super::record_preliminary_check(check_started.elapsed());
+        let program = check_result?;
         let program = typed_trees_to_checked_trees::prune_target_siblings(program)?;
         provider_planning::approval::check_boundary_provider_approval(&program)?;
         Ok(Arc::new(program))

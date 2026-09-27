@@ -69,9 +69,23 @@ pub const TYPED_TREES_TO_CHECKED_TREES: StageMeta = StageMeta::new(
     TimingCategory::Pipeline,
 );
 
+/// The package declaration-authority check of the frozen ordinary source
+/// graph, run inside the build step before the admitted build executes. Its
+/// cost is the residual this ladder names: the pass deliberately observes a
+/// program the settled Stage-05 check never sees — target siblings pruned,
+/// canonical bodies still in place, pending settled evidence tolerated — and
+/// build execution plus provider settlement mutate that graph before the
+/// settled pass runs, so its result cannot be carried forward.
+pub const TYPED_TREES_TO_PRELIMINARY_CHECKED_TREES: StageMeta = StageMeta::new(
+    "Step: pre-build check",
+    "TypedTrees",
+    "CheckedTrees (declaration admission)",
+    TimingCategory::Pipeline,
+);
+
 /// Build evaluation and the checked continuation it drives; this step
-/// contains Stage 01 through Stage 05, so its row is their sum plus the
-/// build's own evaluation.
+/// contains Stage 01 through Stage 05 and the pre-build check, so its row is
+/// their sum plus the build's own evaluation.
 pub const BUILD_AND_CHECKED_CONTINUATION: StageMeta = StageMeta::new(
     "Step: build",
     "AssembledSyntax",
