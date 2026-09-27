@@ -3453,81 +3453,62 @@ syntax and other terminal services are not prerequisites.
   Registration-specific lease custody remains REGISTERED-CALLBACK-LIFETIME.
 
 - **TERMINAL-SLICE-VIEW-VOCABULARY.** (split-of:SLICE-VIEW-LOCAL-ENTRY-ESTABLISHMENT)
-  Complete portable lowering and native realization of borrowed non-byte
-  `&[T]` views: runtime length, element access and subslices with exact
-  backing, extent, element identity and loan custody. Reuse
-  `StructuralTypeShape::ElementView`, `EstablishElementView`, `ElementViewLength`,
-  `ElementViewRead`, `ElementViewSubslice`, the catalog's `BorrowedSliceView`
-  mapping, and `terminal-interpreter/src/element_views.rs`.
+  Complete consuming non-byte `&[T]` calls and state transfers through Terminal
+  production and native execution under
+  [view custody](wiki/spec/terminal-psi/byte_views.md#element-typed-slice-views).
+  Preserve exact backing, element identity, extent and loans through length,
+  indexing and subslicing. `slices/callee_non_byte_view_len_index_subslice`
+  exercises all three in source but has no build entry: bind an executable
+  customer and verify its result rather than treating its `checked` corpus row
+  as realization. An empty forwarding callee is insufficient.
 
-  A view local (`as_slice` loan or `let tail = view[a..b]`) is an established
-  view place: `CheckedStorageRoot` roots its ranges, lengths and scalar-element
-  reads, every narrowing site shares `CheckedSubsliceSite`, and lowering
-  replays and emits each range through `view_ranges`/`view_subslice`. The
-  remaining routes are:
-  - `slices/callee_non_byte_view_len_index_subslice` consumes length, elements,
-    and subslices but reports `unsupported statement kind` at local construction.
-    Repair its checked producer and continue through native execution.
-  - A record element is read at one scalar leaf through `ElementViewRead`'s
-    static element path (`entry_view[index].value`). Omega's abstract element
-    read has no leaf yet, so `runtime_slice_index_read_dispatch_exit` stops at
-    native `Lowering(UnsupportedElementViewFieldRead)` in
-    terminal-psi-to-abstract-operations routing. Next: carry the path through
-    the abstract, target and legalized element reads as the leaf's byte offset
-    inside the element (a2t layout) and load the leaf's width.
-  - `runtime_subslice_dynamic_index_exit` and its end/bounded/nested siblings
-    now plan their guard read, then call the callee state as a statement
-    (`choose(tail, 1);`), and `Main::main` is omitted as an unavailable callee
-    of itself (dependency cycle).
-  - `runtime_slice_fixed_index_guard_exit` reads `entries[0].value` in a state
-    whose view arrives as a block parameter; the read's `0 < length` has no
-    proof (`OperationProofUnavailable`), as for the scalar
-    `runtime_slice_element_runtime_index_read_exit` below.
-  - A whole `[copy]` record element copies through one element read per
-    scalar field plus `EstablishRecord` (verified in c2l
-    `view_locals::a_copied_record_element_selects_a_successor`).
-    `runtime_subslice_range_pointer_exit`, `runtime_slice_index_copy_exit`,
-    `runtime_slice_index_copy_dispatch_exit`,
-    `runtime_nested_subslice_fixed_index_exit`,
+  Reuse stage 04's `execution/terminal_unit/calls/view_subslice.rs` and stage
+  05's `unit/attached_unit/view_ranges.rs`, `emission/operation_emission/view_subslice.rs`
+  and `tests/view_locals.rs`. They share `CheckedSubsliceSite` and established
+  view roots. Element-read paths now reach Omega's target/legalized operations;
+  `runtime_slice_index_read_dispatch_exit` and `runtime_slice_record_field_offset_exit`
+  record macOS ARM64 exits 43/61. Preserve whole-element stride, leaf offset/width
+  and independent replay. Signed indices already use `exact_u64_index`'s
+  proof-checked conversion; `runtime_slice_indexed_read_exit` records exit 70.
+
+  Remaining joins:
+  - Carry same-view bounds through state arrivals and guarded successors.
+    `runtime_slice_fixed_index_guard_exit` and
+    `runtime_slice_element_runtime_index_read_exit` record `OperationProofUnavailable`;
+    the latter must retain the predecessor's `i < s.len`, not substitute
+    `i <= 3` for a view-length proof.
+  - Complete whole-record copies under
+    [ownership](wiki/spec/language/ownership.md). Stage 04's
+    `values/scalar/computations/structural_values.rs::view_element_copy` admits
+    plain scalar fields of `[copy]` records; stage 05's `view_locals` verifies
+    their per-field reads and `EstablishRecord`. Bounded, erased and structural
+    fields need their own evidence. Confirm rejection of affine moves from
+    shared views, then give the positive `runtime_slice_index_copy{,_dispatch}_exit`,
+    `runtime_subslice_range_pointer_exit`, `runtime_nested_subslice_fixed_index_exit`,
     `runtime_slice_index_transition_exit` and `runtime_slice_iteration_exit`
-    copy a `data Entry` declared without `[copy]`, so they still stop at
-    `statement sequence: local data: structural call binding`. By-value
-    access through a shared view requires `[copy]` (ownership.md,
-    byte_views.md), yet checking accepts this affine move out of the view:
-    the move check must reject it, and the fixtures then declare
-    `Entry [copy]`. Records with bounded, erased or structural fields have no
-    copy yet: their leaves need evidence a plain read does not carry.
-  - An element read whose bound is only a caller's guard
-    (`runtime_slice_element_runtime_index_read_exit`: `s[i]` under
-    `requires i <= 3`) lowers but has no read proof
-    (`OperationProofUnavailable`); a non-`u64` index
-    (`runtime_slice_indexed_read_exit`: `s[self.i]` with `i32`) is refused by
-    lowering's exact-`u64` index requirement.
-  - A view local's range over a fixed-array field of non-byte elements
-    (`self.arr[1..self.hi]`) views the whole field and narrows it; a byte
-    field range (`self.source[0..2]` in `runtime_subslice_len_exit`, the
-    `BlobSample { bytes: self.source[0..2] }` field in
-    `runtime_wire_encode_byte_slice_exit`) has no Terminal establishment of a
-    byte view over fixed byte storage and still stops at `statement
-    sequence: local data: structural call binding`.
-  - State forwarding passes Unit-graph admission but reports
-    `InvalidStructuralSuccessorArgument`: the forwarded mutable view creates
-    a reborrow place missing from the successor frontier. Complete that custody
-    join and retain `05_checked-trees-to-lowered-psi/tests/non_byte_borrowed_view_admission.rs`
-    and byte-view forwarding as controls. An empty callee does not exercise it.
+    fixtures the required `[copy]` declaration and execute them.
+  - Establish byte views over fixed byte fields for `runtime_subslice_len_exit`
+    and `wire/runtime_wire_encode_byte_slice_exit`; `field_collection` currently
+    admits only non-byte element views. Preserve the wire fixture's five exact
+    bytes and count, not merely its descriptor shape.
+  - Preserve dynamic, bounded, end-only and nested subslices through ordinary
+    control sequencing. `runtime_subslice_dynamic_index_exit` calls its named
+    state as `choose(tail, 1);`: migrate that call to the explicit transition
+    required by [state contracts](wiki/spec/language/state_contracts.md), then
+    verify the view route. Its recorded dependency cycle does not justify
+    callable internal states.
+  - Verify consuming mutable-view forwarding on the Unit-graph route with exact
+    reborrow places available at successors. Reuse `tests/unit_state_graph/bindings.rs`
+    for byte-view controls.
 
-  Core `Slice::index<T [copy]>` settles shared by-value access. Keep
-  `entry/service_borrowed_slice_call` distinct from the consuming non-byte case;
-  reproduce subsequent failures on the actual Unit-graph route rather than
-  inferring them from scalar-graph rejection arms.
-
-  Acceptance: a non-byte-view callee consumes `.len`, indexing and subslicing
-  through Terminal production and native realization; bounds, element-type,
-  alias and access violations reject. `fletcher_checksum` executes its real
-  entry and exits 56; `recursive_sum` establishes sum 50/count 4 and exits 70
-  on Linux x86-64, with **SAMPLE-CORPUS** retaining their complete sample
-  obligations. Reuse byte-view custody where applicable and keep general
-  cyclic/value sequencing with its existing owners.
+  Acceptance: independently verify emitted artifacts, execute consuming views
+  natively and reject bounds, element-type, alias and access violations.
+  Terminal interpretation in `terminal-interpreter/src/element_views.rs` still
+  stores scalar elements and rejects record paths; checked-interpreter agreement
+  does not cover that route. Preserve `fletcher_checksum` exit 56 and
+  `recursive_sum` sum 50/count 4, exit 70 on Linux x86-64; **SAMPLE-CORPUS** owns
+  their complete sample obligations. **GENERAL-CYCLIC-EXECUTION** and
+  **STATE-LOCAL-VALUE-FRONTIER** own general control/value sequencing.
 
 ## P5 - Cathedral over general Omega primitives
 
