@@ -615,6 +615,7 @@ impl<T: Default> Arena<T> {
         &self.dummy
     }
 
+    #[inline]
     pub fn iter(&self) -> ArenaIter<'_, T> {
         ArenaIter {
             arena: self,
@@ -721,7 +722,17 @@ pub struct ArenaIter<'arena, T> {
 impl<'arena, T: Default> Iterator for ArenaIter<'arena, T> {
     type Item = (Handle<T>, &'arena T);
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
+        // The borrowed arena cannot change under the iterator. A fresh one
+        // has every slot occupied at generation 1, so each row is yielded
+        // without reading the per-slot occupancy and generation metadata.
+        if self.arena.fresh {
+            let item = self.arena.items.get(self.index)?;
+            let handle = Handle::from_parts(next_arena_index(self.index), 1);
+            self.index += 1;
+            return Some((handle, item));
+        }
         while self.index < self.arena.items.len() {
             let index = self.index;
             self.index += 1;

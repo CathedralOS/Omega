@@ -9,6 +9,9 @@ const DEFAULT_PAGE_SIZE: usize = 256;
 pub struct PagedArena<T> {
     pages: Vec<Vec<T>>,
     page_size: usize,
+    /// `log2(page_size)` for a power-of-two size, so a position comes from a
+    /// shift and a mask instead of a division on every lookup.
+    page_shift: Option<u32>,
     len: usize,
     dummy: T,
 }
@@ -27,6 +30,9 @@ impl<T: Default> PagedArena<T> {
         Self {
             pages: Vec::new(),
             page_size,
+            page_shift: page_size
+                .is_power_of_two()
+                .then(|| page_size.trailing_zeros()),
             len: 0,
             dummy: T::default(),
         }
@@ -57,6 +63,7 @@ impl<T: Default> PagedArena<T> {
         }
     }
 
+    #[inline]
     pub fn get(&self, handle: Handle<T>) -> &T {
         let Some((page_index, slot_index)) = self.valid_position(handle) else {
             return self.dummy();
@@ -180,6 +187,7 @@ impl<T: Default> PagedArena<T> {
             .expect("paged arena index overflow")
     }
 
+    #[inline]
     fn valid_logical_index(&self, handle: Handle<T>) -> Option<usize> {
         if !handle.is_valid() || handle.generation() != 1 {
             return None;
@@ -194,17 +202,22 @@ impl<T: Default> PagedArena<T> {
         }
     }
 
+    #[inline]
     fn valid_position(&self, handle: Handle<T>) -> Option<(usize, usize)> {
         let logical_index = self.valid_logical_index(handle)?;
 
         Some(self.position_from_logical_index(logical_index))
     }
 
+    #[inline]
     fn position_from_logical_index(&self, logical_index: usize) -> (usize, usize) {
-        (
-            logical_index / self.page_size,
-            logical_index % self.page_size,
-        )
+        match self.page_shift {
+            Some(shift) => (logical_index >> shift, logical_index & (self.page_size - 1)),
+            None => (
+                logical_index / self.page_size,
+                logical_index % self.page_size,
+            ),
+        }
     }
 
     fn page_local_range(&self, span: HandleSpan<T>) -> Option<PageLocalRange> {

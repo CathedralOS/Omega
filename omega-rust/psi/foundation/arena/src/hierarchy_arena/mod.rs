@@ -15,6 +15,7 @@ pub struct HierarchyArena<T: HierarchyNode> {
 }
 
 impl<T: HierarchyNode> HierarchyArena<T> {
+    #[inline]
     pub fn get(&self, node: Handle<T>) -> &T {
         self.nodes.get(node)
     }
