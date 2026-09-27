@@ -27,6 +27,15 @@ Follow its subordinate owners for:
   [mixed_structural_scalar.rs](src/native_artifact/mixed_structural_scalar.rs):
   focused semantic-to-object checks used by both products.
 
+[proof.rs](src/proof.rs) constructs and independently verifies native `.proof`
+sidecars. [placed_image.rs](src/proof/placed_image.rs) owns the evidence model,
+capture from an artifact, and ordered replay against the published bytes.
+Its `codec.rs` owns canonical section encoding and decoder admission;
+`container_layout.rs` reads loader-visible entry points and loadable ranges
+from ELF, PE, and Mach-O bytes. Inventory and import-thunk checks still return
+`Incomplete` for unsupported behavioral proof. Compiler reporting owns file
+publication and dispatch between Psi and native proof products.
+
 [callable_entry.rs](src/callable_entry.rs) is the separate entrance for staging
 and replaying optimized ordinary callable entries. Its model, reconstruction,
 and codec live under `callable_entry/`.

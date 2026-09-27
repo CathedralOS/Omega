@@ -1,5 +1,5 @@
 //! Executable publication custody: the SHA-256 digest newtypes and domains,
-//! exact-byte file publication, and the self-verifying
+//! native pair validation, and the self-verifying
 //! [`ExecutablePublicationReceipt`] that ties published bytes to the artifact
 //! they came from.
 
@@ -138,177 +138,6 @@ pub(crate) fn executable_container_digest(bytes: &[u8]) -> ExecutableContainerDi
     ExecutableContainerDigest::from_digest(digest.finalize().into())
 }
 
-/// Publish ordinary non-executable product bytes — Psi artifacts and `.proof`
-/// companions — with the same stage/replay/rename/replay discipline as the
-/// executable path.
-pub(crate) fn publish_exact_file_bytes(path: &std::path::Path, bytes: &[u8]) -> Result<(), String> {
-    publish_exact_bytes(path, bytes, false)
-}
-
-/// One product file written and replayed beside its destination, not yet
-/// visible there.
-///
-/// Publication of a PAIR cannot be a sequence of single-file publications:
-/// "Publication must not associate a stale sidecar with newly written bytes"
-/// (spec, `proofs/publication.md`), and writing the artifact and then its
-/// companion leaves exactly that arrangement when the second write fails.
-/// Staging every member first, then installing them, means a write failure
-/// leaves the previous consistent pair untouched. The spec permits the
-/// residue: "Failure may leave diagnostic staging data".
-pub(crate) struct StagedProduct {
-    staged: std::path::PathBuf,
-    destination: std::path::PathBuf,
-    /// Retained for the post-install replay. Owned rather than borrowed so a
-    /// staged set can outlive the scopes that produced each member's bytes.
-    bytes: Vec<u8>,
-}
-
-/// Write `bytes` beside `path` and replay them, without making them visible
-/// at `path`.
-pub(crate) fn stage_exact_bytes(
-    path: &std::path::Path,
-    bytes: &[u8],
-    executable: bool,
-) -> Result<StagedProduct, String> {
-    let parent = path
-        .parent()
-        .ok_or_else(|| "native publication path has no parent directory".to_owned())?;
-    let file_name = path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or("omega-output");
-    let staged = parent.join(format!(".{file_name}.{}.tmp", std::process::id()));
-    let _ = std::fs::remove_file(&staged);
-    std::fs::write(&staged, bytes)
-        .map_err(|error| format!("failed to stage {}: {error}", staged.display()))?;
-    let staged_bytes = std::fs::read(&staged)
-        .map_err(|error| format!("failed to replay {}: {error}", staged.display()))?;
-    if staged_bytes != bytes {
-        let _ = std::fs::remove_file(&staged);
-        return Err("staged native output bytes failed exact replay".to_owned());
-    }
-    if executable && let Err(error) = make_executable(&staged) {
-        let _ = std::fs::remove_file(&staged);
-        return Err(error);
-    }
-    Ok(StagedProduct {
-        staged,
-        destination: path.to_path_buf(),
-        bytes: bytes.to_vec(),
-    })
-}
-
-/// Make one staged product visible at its destination and replay it there.
-pub(crate) fn install_staged_product(product: &StagedProduct) -> Result<(), String> {
-    install_staged(&product.staged, &product.destination)?;
-    let installed = std::fs::read(&product.destination).map_err(|error| {
-        format!(
-            "failed to replay {}: {error}",
-            product.destination.display()
-        )
-    })?;
-    if installed != product.bytes {
-        let _ = std::fs::remove_file(&product.destination);
-        return Err("published native output bytes failed exact replay".to_owned());
-    }
-    Ok(())
-}
-
-/// Install every member of one requested set, or none of them.
-pub(crate) fn install_staged_products(products: &[StagedProduct]) -> Result<(), String> {
-    for product in products {
-        install_staged_product(product)?;
-    }
-    Ok(())
-}
-
-fn publish_exact_bytes(
-    path: &std::path::Path,
-    bytes: &[u8],
-    executable: bool,
-) -> Result<(), String> {
-    install_staged_product(&stage_exact_bytes(path, bytes, executable)?)
-}
-
-/// Install the staged file at its destination. Unix `rename` replaces an
-/// existing file atomically; platforms whose rename refuses an occupied
-/// destination remove it first. Either way the staged bytes were already
-/// replayed, and on Unix the prior output survives a failed rename.
-#[cfg(unix)]
-fn install_staged(staged: &std::path::Path, path: &std::path::Path) -> Result<(), String> {
-    std::fs::rename(staged, path)
-        .map_err(|error| format!("failed to publish {}: {error}", path.display()))
-}
-
-#[cfg(not(unix))]
-fn install_staged(staged: &std::path::Path, path: &std::path::Path) -> Result<(), String> {
-    if path.exists() {
-        std::fs::remove_file(path)
-            .map_err(|error| format!("failed to replace {}: {error}", path.display()))?;
-    }
-    std::fs::rename(staged, path)
-        .map_err(|error| format!("failed to publish {}: {error}", path.display()))
-}
-
-#[cfg(unix)]
-pub(crate) fn make_executable(path: &std::path::Path) -> Result<(), String> {
-    use std::os::unix::fs::PermissionsExt;
-
-    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755))
-        .map_err(|error| format!("failed to make {} executable: {error}", path.display()))
-}
-
-#[cfg(not(unix))]
-pub(crate) fn make_executable(_path: &std::path::Path) -> Result<(), String> {
-    Ok(())
-}
-
-/// Remove one companion this publication is not refreshing. The publication
-/// contract forbids associating a stale sidecar with newly written bytes, so
-/// an unrequested artifact/`.proof` pair cannot survive beside the artifact
-/// it no longer commits to. Absence is the expected common case; every other
-/// removal failure aborts publication before any new bytes are installed.
-pub(crate) fn remove_stale_companion(path: &std::path::Path) -> Result<(), String> {
-    match std::fs::remove_file(path) {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(format!(
-            "failed to remove stale proof companion {}: {error}",
-            path.display()
-        )),
-    }
-}
-
-/// The adjacent `.proof`/`.psi` companion path beside `path`, formed by
-/// appending `suffix` to the complete artifact filename per the contract.
-pub(crate) fn appended_file_name_path(path: &std::path::Path, suffix: &str) -> PathBuf {
-    let mut name = path
-        .file_name()
-        .expect("a publication path always has a file name")
-        .to_os_string();
-    name.push(suffix);
-    path.with_file_name(name)
-}
-
-/// Producer-side pair validation for one Psi artifact/companion: replay the
-/// exact checks a receiver performs under a self-consistent policy so a
-/// malformed or internally inconsistent pair can never be reported as
-/// published.
-pub(crate) fn validate_psi_pair(
-    psi_bytes: &[u8],
-    sidecar: &terminal_codec::PccProofSidecar,
-    admission_profile: &proof_admission::AdmissionProfile,
-) -> Result<(), String> {
-    let policy =
-        terminal_codec::PccReceiverPolicy::for_offered_claim(sidecar, admission_profile.clone());
-    match terminal_codec::verify_psi_proof_sidecar(psi_bytes, &sidecar.to_bytes(), &policy) {
-        terminal_codec::PccVerificationOutcome::Complete(_) => Ok(()),
-        outcome => Err(format!(
-            "psi proof sidecar failed producer validation: {outcome:?}"
-        )),
-    }
-}
-
 /// Producer-side pair validation for one native executable/companion: replay
 /// the exact checks a receiver performs under a self-consistent policy so a
 /// malformed or byte-inconsistent pair can never be reported as published.
@@ -324,7 +153,7 @@ pub(crate) fn validate_native_pair(
 ) -> Result<(), String> {
     let policy =
         terminal_codec::PccReceiverPolicy::for_offered_claim(sidecar, admission_profile.clone());
-    match crate::report::pcc::verify_native_proof_sidecar(
+    match native_artifact::verify_native_proof_sidecar(
         executable_bytes,
         &sidecar.to_bytes(),
         &policy,

@@ -95,7 +95,6 @@ terminal-psi-to-abstract-operations = { path = "../pipeline/00_terminal-psi-to-a
 sha2 = "0.10.9"
 image = { path = "../backend/images/image" }
 image-macho = { path = "../backend/images/image-macho" }
-image-pe = { path = "../backend/images/image-pe" }
 
 [dev-dependencies]
 mimalloc = { version = "0.1", default-features = false }

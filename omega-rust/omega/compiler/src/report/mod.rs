@@ -43,17 +43,12 @@
 //! grouping is load-bearing: reorder that loop and every receipt ever stored
 //! stops replaying.
 //!
-//! Publication writes once and reads back twice, in two halves.
-//! `stage_exact_bytes` writes `.{file_name}.{process_id}.tmp` beside the
-//! target, reads the staged file and compares byte-for-byte, and sets mode
-//! 0o755 on unix when the member is the executable; `install_staged_product`
-//! removes any existing target, renames, then reads the installed file and
-//! compares byte-for-byte again. Either replay failure deletes the file and
-//! returns an error, so a failed publication leaves nothing behind that looks
-//! installed. Every executable goes out as one member of a staged set, never
-//! on its own: the split exists so the companions committing to its bytes
-//! become visible in the same install.
-
+//! Publication stages and reads back every requested artifact and companion
+//! before installation begins. `publication.rs` owns exact-byte
+//! staging, ordered installation, and installed-byte replay. Installation is
+//! sequential. A failure removes newly installed members, reports cleanup
+//! failures, and preserves untouched destinations; replaced files are not restored.
+//!
 //! The four 32-byte digest newtypes are minted by a macro with four identical
 //! bodies rather than sharing one `Digest([u8; 32])`, and the duplication is
 //! the point. `executable_installation_evidence_digest` takes both a
@@ -72,17 +67,6 @@
 //! custody already passed. That is why the accessors can be cheap and why
 //! `checked_native_executable_path` can afford to replay again anyway.
 
-//! `omega/src/compilation/publication.rs` is the only production caller of
-//! `publish_retained_native_artifact`; nine canary tests call it too.
-//! `compiler/src/compiler/native_checked.rs:23` calls the custody check.
-//! Custody tests reject rollback on check-only products and receipt drift
-//! in flat executable publication. Terminal rollback additionally rejoins the
-//! effective selection to the published Psi execution and pending proposal.
-//!
-//! `ProductionCompilationSubject::from_checked` is `pub` and `#[doc(hidden)]`
-//! rather than `pub(crate)` because its only caller lives in another crate, at
-//! `compiler/src/pipeline/reporting/production_subject.rs:36`.
-//!
 //! A selected macOS GUI product publishes one complete `.app` package through
 //! `package::publish_macos_application_package` — the executable, the fixed
 //! `Contents/Info.plist`, the exact directory shape, and the three-way
@@ -92,8 +76,14 @@
 //! retained `builder.identifier` must agree with the CodeDirectory identity
 //! already bound into the signed bytes.
 //!
-//! Start at [`CompileReport`] in `compile_report.rs`; publication custody and
-//! its digest domains live in `executable_publication.rs`.
+//! Start at [`CompileReport`] in `compile_report.rs` for product selection,
+//! publication sequencing, and custody validation. Follow
+//! `publication/psi_pair.rs` for preparing and staging the same
+//! Psi artifact/proof pair under Terminal, flat native, and package publication.
+//! `pcc.rs` owns pair receipts and dispatches receiver checking by product kind;
+//! native evidence construction and replay live in `native_artifact::proof`
+//! (`backend/artifacts/native-artifact/src/proof.rs`). Publication policy stays
+//! here; the native artifact crate consumes source-free bytes and evidence.
 
 // `publication_digest!` is defined in executable_publication and must be
 // visible before the package module mints its own component and evidence
@@ -107,6 +97,7 @@ mod optimization_rollback;
 mod package;
 mod pcc;
 mod production_manifest;
+mod publication;
 mod terminal_product;
 
 pub use batch_manifest::{
@@ -122,11 +113,7 @@ pub use executable_publication::{
 };
 pub use optimization_rollback::OptimizationRollbackReceipt;
 pub use package::{NativePackagePublicationReceipt, PackagePublicationComponent};
-pub use pcc::{
-    NATIVE_PLACED_IMAGE_COVERAGE_GUARANTEE, NativeEvidenceError, NativePlacedImageEvidence,
-    PccPublicationReceipt, build_native_proof_sidecar, verify_native_proof_sidecar,
-    verify_published_proof_pair,
-};
+pub use pcc::{PccPublicationReceipt, verify_published_proof_pair};
 pub use production_manifest::{
     FinalRealizationEvidenceError, ProductionArtifactIdentity, ProductionCompilationManifest,
     ProductionCompilationManifestIdentity, ProductionCompilationSubject,

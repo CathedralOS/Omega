@@ -384,7 +384,7 @@ pub(crate) fn publish_macos_application_package(
         return Err(format!("failed to publish {}: {error}", app_root.display()));
     }
     if let Err(error) =
-        crate::report::executable_publication::make_executable(&app_root.join(&executable_leaf))
+        crate::report::publication::make_executable(&app_root.join(&executable_leaf))
     {
         let _ = std::fs::remove_dir_all(&app_root);
         return Err(error);

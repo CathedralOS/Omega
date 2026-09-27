@@ -8,6 +8,7 @@
 //! source-free identity projections needed to replay their joins.
 //!
 //! Start at `native_artifact.rs` for artifact construction and replay,
+//! `proof.rs` for standalone native proof construction and verification,
 //! `callable_entry.rs` for validated callable-entry staging, or
 //! `semantic_wrapper_object.rs` for the optimized ProgramStorage
 //! semantic-wrapper object records and codec that native realization stages.
@@ -16,6 +17,7 @@ mod callable_entry;
 mod native_artifact;
 pub mod optimized_semantic_wrapper_object;
 mod physical;
+mod proof;
 mod semantic_wrapper_object;
 
 pub use callable_entry::{
@@ -66,4 +68,9 @@ pub use semantic_wrapper_object::{
     decode_optimized_program_storage_semantic_wrapper_object,
     encode_optimized_program_storage_semantic_wrapper_object,
     encode_optimized_program_storage_semantic_wrapper_object_preserving_seal,
+};
+
+pub use proof::{
+    NATIVE_PLACED_IMAGE_COVERAGE_GUARANTEE, NativeEvidenceError, NativePlacedImageEvidence,
+    build_native_proof_sidecar, verify_native_proof_sidecar,
 };
