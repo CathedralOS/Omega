@@ -183,9 +183,11 @@ pub fn schema_binds_exact_boundary_requirement(
 /// lifetime telescope (`Owner::name<'a>(...)`): the conformance edge
 /// carries no lifetime arguments because the realizing machine's own
 /// telescope is the identity application, and the erased names never
-/// enter the schema's canonical identity axes. A static generic
-/// telescope still remains outside provider selection until its
-/// application identity has an equally exact carrier.
+/// enter the schema's canonical identity axes. A generic token-machine
+/// template projects its authored schema — the normalized identity pins
+/// the telescope exactly, and the selected-requirement specialization
+/// roster is the exact carrier joining that template to each closed
+/// application identity Terminal Psi mints.
 pub fn from_typed_boundary_requirement(
     program: &typed_trees::TypedTrees,
     requirement: &typed_trees::machine::Machine,
@@ -194,7 +196,6 @@ pub fn from_typed_boundary_requirement(
         || !requirement.symbol.is_valid()
         || requirement.supply_mode != language_semantics::MachineSupplyMode::TopLevelRequirement
         || requirement.body_is_present
-        || !program.machine_type_parameters(requirement).is_empty()
     {
         return None;
     }

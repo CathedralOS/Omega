@@ -169,7 +169,7 @@ fn derives_and_selects_checked_top_level_boundary_requirement_provider() {
 }
 
 #[test]
-fn derives_closed_requirement_plan_for_specialized_token_provider() {
+fn derives_template_requirement_plan_for_specialized_token_provider() {
     let source = r#"
         data Buffer<Element, const Count: u64> { value: i64; }
         data Indexing {}
@@ -196,7 +196,12 @@ fn derives_closed_requirement_plan_for_specialized_token_provider() {
         .iter()
         .find(|machine| machine.name.as_str() == "Indexing::index")
         .expect("generic requirement template");
-    let closed = typed
+    let provider_template = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Provider::index")
+        .expect("generic provider template");
+    typed
         .machines()
         .iter()
         .find(|machine| {
@@ -207,21 +212,11 @@ fn derives_closed_requirement_plan_for_specialized_token_provider() {
                     .starts_with("Indexing::index$specialized$")
         })
         .expect("closed requirement instance");
-    let provider = typed
-        .machines()
-        .iter()
-        .find(|machine| {
-            machine
-                .name
-                .as_str()
-                .starts_with("Provider::index$specialized$")
-        })
-        .expect("specialized provider instance");
 
     let derived = derive_satisfies_plans(typed, ProviderPlanDerivation::unevaluated(None));
     let requirement_identity = typed
-        .normalized_machine_overload_identity(closed)
-        .expect("closed requirement identity")
+        .normalized_machine_overload_identity(template)
+        .expect("template requirement identity")
         .identity();
     let matching = derived
         .iter()
@@ -229,16 +224,22 @@ fn derives_closed_requirement_plan_for_specialized_token_provider() {
         .collect::<Vec<_>>();
     let [derived] = matching.as_slice() else {
         panic!(
-            "one plan for the closed requirement, got {}",
+            "one plan for the requirement template, got {}",
             matching.len()
         )
     };
+    // The plan retains the authored template identities: provider selection
+    // runs before specialization settles, and the specialization roster is
+    // the exact join to the closed requirement and provider instances.
     assert_eq!(
         derived.provenance.schema,
-        ProviderSchemaDeclaration::BoundaryRequirement(closed.symbol)
+        ProviderSchemaDeclaration::BoundaryRequirement(template.symbol)
     );
-    assert_eq!(derived.provenance.row_requirements, [closed.symbol]);
-    assert_eq!(derived.provenance.row_realizations, [provider.symbol]);
+    assert_eq!(derived.provenance.row_requirements, [template.symbol]);
+    assert_eq!(
+        derived.provenance.row_realizations,
+        [provider_template.symbol]
+    );
     assert_eq!(
         derived.plan.rows[0].requirement_identity,
         requirement_identity
@@ -246,7 +247,145 @@ fn derives_closed_requirement_plan_for_specialized_token_provider() {
     let validation = validate_provider_plan_candidates(typed, std::slice::from_ref(&derived.plan));
     assert!(
         validation.is_empty(),
-        "the specialized-instance plan must replay: {validation:?}"
+        "the template-keyed plan must replay: {validation:?}"
+    );
+}
+
+#[test]
+fn template_keyed_selected_plan_binds_the_exact_closed_requirement_roster() {
+    let source = r#"
+        data Buffer<Element, const Count: u64> { value: i64; }
+        data Indexing {}
+        boundary machine [] Indexing::index<Element, const Count: u64>(
+            items: Buffer<Element, Count>, offset: i32
+        ) -> Buffer<Element, Count> requires Count == Count;
+        data Provider {}
+        machine Provider::index<Value, const Length: u64>(
+            items: Buffer<Value, Length>, offset: i32
+        ) -> Buffer<Value, Length> satisfies Indexing::index { items }
+        machine run(items: Buffer<i32, 4>) {
+            let selected: Buffer<i32, 4> = items[(0 as i32)];
+        }
+    "#;
+    // Provider selection happens before specialization settles, so the
+    // selected plan retains the authored template schema and identities.
+    let typed = typed_fixture(source);
+    let derived = derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None));
+    let [template_plan] = derived.as_slice() else {
+        panic!("the generic provider template derives exactly one plan")
+    };
+    let template_plan = template_plan.plan.clone();
+    let mut checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("specialized token fixture checks");
+
+    let (template_identity, provider_template_identity, closed_identities) = {
+        let typed = &checked.typed;
+        let template = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Indexing::index")
+            .expect("generic requirement template");
+        let closed = typed
+            .machines()
+            .iter()
+            .find(|machine| {
+                machine.symbol != template.symbol
+                    && machine
+                        .name
+                        .as_str()
+                        .starts_with("Indexing::index$specialized$")
+            })
+            .expect("closed requirement instance");
+        let provider_template = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Provider::index")
+            .expect("generic provider template");
+        let provider_instance = typed
+            .machines()
+            .iter()
+            .find(|machine| {
+                machine
+                    .name
+                    .as_str()
+                    .starts_with("Provider::index$specialized$")
+            })
+            .expect("specialized provider instance");
+        (
+            typed
+                .normalized_machine_overload_identity(template)
+                .expect("template requirement identity")
+                .identity(),
+            typed
+                .normalized_machine_overload_identity(provider_template)
+                .expect("provider template identity")
+                .identity(),
+            (
+                typed
+                    .normalized_machine_overload_identity(closed)
+                    .expect("closed requirement identity")
+                    .identity(),
+                typed
+                    .normalized_machine_overload_identity(provider_instance)
+                    .expect("closed provider identity")
+                    .identity(),
+            ),
+        )
+    };
+    let (closed_identity, provider_instance_identity) = closed_identities;
+
+    let selected = effects::SelectedProviderPlanFacts::from_selection(
+        std::slice::from_ref(&template_plan),
+        std::slice::from_ref(&template_plan.name),
+    )
+    .expect("one selected template-keyed plan");
+    let selected = bind_selected_provider_plan_facts_for_test(
+        &mut checked,
+        std::slice::from_ref(&template_plan),
+        selected,
+        &[],
+    )
+    .expect("a template-keyed selected plan binds its specialization roster");
+
+    let [row] = selected.specialized_requirement_rows() else {
+        panic!(
+            "the closed requirement instance must join the selected row exactly once, got {}",
+            selected.specialized_requirement_rows().len()
+        )
+    };
+    assert_eq!(
+        row.provider_plan_report_identity,
+        template_plan.report_fingerprint()
+    );
+    assert_eq!(row.selected_requirement_identity, template_identity);
+    assert_eq!(row.selected_machine_identity, provider_template_identity);
+    assert_eq!(row.requirement_identity, closed_identity);
+    assert_eq!(row.machine_identity, provider_instance_identity);
+    assert_eq!(
+        selected
+            .specialized_requirement_row(&closed_identity)
+            .map(|row| row.selected_requirement_identity.as_str()),
+        Some(template_identity.as_str())
+    );
+    assert_eq!(
+        selected.selected_requirement_identity(&closed_identity),
+        template_identity
+    );
+    assert_eq!(
+        selected.closed_requirement_identities(&template_identity),
+        [closed_identity.as_str()]
+    );
+    assert_eq!(
+        selected
+            .selected_row_requirement_identities(
+                template_plan.report_fingerprint(),
+                &template_identity,
+            )
+            .as_slice(),
+        [closed_identity.as_str()]
     );
 }
 
