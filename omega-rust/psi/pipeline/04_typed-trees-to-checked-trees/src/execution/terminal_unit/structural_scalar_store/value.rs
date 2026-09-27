@@ -160,11 +160,12 @@ pub(super) fn record_field_value(
 }
 
 /// Floating stores forward existing bits: an authored IEEE literal or an
-/// already-defined scalar (parameter or local). A floating operation in a
-/// pure expression has no selected provider, so it is refused. The
-/// scalar-graph lane evaluates only those already-defined sources, so it also
-/// refuses a floating computation; the attached lane's computation retains
-/// its own selected operations and call correspondence.
+/// already-defined scalar (parameter, local, or a leaf read out of existing
+/// structural storage). A floating operation in a pure expression has no
+/// selected provider, so it is refused. The scalar-graph lane evaluates only
+/// those already-defined sources, so it also refuses a floating computation;
+/// the attached lane's computation retains its own selected operations and
+/// call correspondence.
 fn admits(
     root: &Root<'_>,
     primitive_type: PrimitiveType,
@@ -179,6 +180,8 @@ fn admits(
             CheckedScalarExpression::IeeeFloatLiteral { .. }
                 | CheckedScalarExpression::Parameter { .. }
                 | CheckedScalarExpression::Local { .. }
+                | CheckedScalarExpression::StructuralParameterField { .. }
+                | CheckedScalarExpression::StructuralParameterIndexedRead { .. }
         ),
         checked_trees::CheckedStructuralScalarFieldStoreValue::Computation(_) => {
             matches!(root, Root::Parameter { .. })

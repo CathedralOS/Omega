@@ -60,7 +60,17 @@ pub(super) fn settle_boundary<'request>(
         .plan()
         .boundary_machines
         .iter()
-        .filter(|boundary| boundary.identity == requirement)
+        .filter(|boundary| {
+            boundary.identity == requirement
+                || request
+                    .selected_provider_plans
+                    .specialized_requirement_row(&boundary.identity)
+                    .is_some_and(|specialization| {
+                        specialization.selected_requirement_identity == requirement
+                            && specialization.provider_plan_report_identity
+                                == evidence.provider_plan_report_identity()
+                    })
+        })
         .collect::<Vec<_>>();
     let [boundary] = matching_boundaries.as_slice() else {
         return Err(vec![Diagnostic::error(match matching_boundaries.len() {

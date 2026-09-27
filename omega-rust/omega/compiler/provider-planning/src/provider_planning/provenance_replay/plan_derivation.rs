@@ -235,6 +235,7 @@ fn derive_top_level_requirement_plans(
     evaluated_bindings: Option<&crate::evaluated_via_bindings::EvaluatedViaBindingTable>,
 ) -> Vec<DerivedProviderPlan> {
     let mut plans = Vec::<DerivedProviderPlan>::new();
+    let mut top_level_symbols = None;
     for machine in typed.machines() {
         if !crate::service_schema::is_product_declaration(typed, machine.symbol) {
             continue;
@@ -258,16 +259,34 @@ fn derive_top_level_requirement_plans(
         let provider_type_package_identity = provider_type_package_identity(typed, machine);
         let origin_package_identity = typed.symbols.symbol_package_identity(machine.symbol);
         for clause in typed.machine_trait_conformances(machine) {
-            let Some(typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(requirement)) =
-                typed_trees::machine::resolve_satisfied_declaration(typed, machine, clause)
+            // The authored satisfies edge keeps naming the requirement
+            // template even when the provider specializes it, so the clause's
+            // settled owner and requirement symbols select the template
+            // machine the same way conformance checking joins it. A generic
+            // token-machine template is satisfied by its exact closed
+            // applications: the row installs the closed requirement the
+            // provider instance's retained specialization receipt selects.
+            // The join replays that evidence; it neither aliases the closed
+            // requirement to its template nor trusts an equal runtime
+            // signature.
+            let Some(template) = typed.machines().iter().find(|candidate| {
+                candidate.symbol == clause.symbol
+                    && clause.requirement_symbol == candidate.symbol
+                    && candidate.supply_mode
+                        == language_semantics::MachineSupplyMode::TopLevelRequirement
+            }) else {
+                continue;
+            };
+            let Some(requirement) =
+                crate::provider_planning::provenance_replay::satisfied_row_requirement(
+                    typed,
+                    &mut top_level_symbols,
+                    machine,
+                    template,
+                )
             else {
                 continue;
             };
-            if clause.symbol != requirement.symbol
-                || clause.requirement_symbol != requirement.symbol
-            {
-                continue;
-            }
             let Some(schema) =
                 crate::service_schema::from_typed_boundary_requirement(typed, requirement)
             else {

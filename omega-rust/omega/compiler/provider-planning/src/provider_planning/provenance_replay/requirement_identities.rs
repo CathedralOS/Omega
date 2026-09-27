@@ -412,6 +412,41 @@ pub(crate) fn realization_machine_identity(
         .unwrap_or_default()
 }
 
+/// The exact requirement a provider's retained satisfies edge installs on
+/// its plan row. An edge naming a generic token-machine template is
+/// satisfied by the provider instance's closed applications: the clause
+/// keeps the template's symbols while the retained specialization receipt
+/// and validated operator application select the closed requirement. The
+/// join replays that source-specialization evidence; equal runtime
+/// signatures never qualify, and a template never aliases its closed
+/// requirement. `top_level_symbols` is built once per derivation or
+/// validation run and reused across rows.
+pub(crate) fn satisfied_row_requirement<'typed>(
+    typed: &'typed TypedTrees,
+    top_level_symbols: &mut Option<validation::TopLevelSymbols<'typed>>,
+    provider: &'typed typed_trees::machine::Machine,
+    requirement: &'typed typed_trees::machine::Machine,
+) -> Option<&'typed typed_trees::machine::Machine> {
+    if typed.machine_type_parameters(requirement).is_empty() {
+        return Some(requirement);
+    }
+    if top_level_symbols.is_none() {
+        let mut diagnostics = Vec::new();
+        let symbols = validation::TopLevelSymbols::build(typed, &mut diagnostics);
+        if !diagnostics.is_empty() {
+            return None;
+        }
+        *top_level_symbols = Some(symbols);
+    }
+    validation::resolve_closed_requirement_application(
+        typed,
+        provider,
+        requirement,
+        top_level_symbols.as_ref()?,
+    )
+    .ok()
+}
+
 pub(crate) fn provider_boundary_arguments(
     typed: &TypedTrees,
     boundary: &typed_trees::trait_definition::TraitDefinition,

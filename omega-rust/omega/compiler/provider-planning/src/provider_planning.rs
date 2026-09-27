@@ -123,8 +123,11 @@ pub fn bind_selected_provider_plan_facts(
     )?;
     let installation_reach_resolutions =
         derive_selected_installation_reach_resolutions(checked, &facts)?;
+    let specialized_requirement_rows =
+        provenance_replay::derive_selected_requirement_specializations(checked, &facts)?;
     let selected = facts
-        .with_installation_reach_resolutions(installation_reach_resolutions)
+        .with_specialized_requirement_rows(specialized_requirement_rows)
+        .and_then(|facts| facts.with_installation_reach_resolutions(installation_reach_resolutions))
         .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
     let updates = SelectedProviderProgramUpdates {
         admitted_receipts: receipt_updates,

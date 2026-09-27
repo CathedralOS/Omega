@@ -79,4 +79,5 @@ pub use provider_evidence::providers::provider_approval::{
 pub use provider_evidence::providers::provider_plan;
 pub use provider_evidence::{
     InstallationReachResolution, SelectedProviderClosureDigest, SelectedProviderPlanFacts,
+    SelectedRequirementSpecialization,
 };
