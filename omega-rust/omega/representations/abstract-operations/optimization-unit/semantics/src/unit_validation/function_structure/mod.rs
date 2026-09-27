@@ -28,6 +28,7 @@ mod parameters;
 mod provenance;
 mod results;
 mod structural_roots;
+pub(crate) use structural_roots::operation_place_inputs;
 mod structural_transfers;
 
 pub(crate) use control_flow::ControlCyclePolicy;

@@ -198,7 +198,15 @@ fn root_type(
                 || joined.access == StructuralAccess::MutableBorrow))
             .then_some(joined.structural_type);
     }
-    if access == StructuralAccess::MutableBorrow {
+    if access == StructuralAccess::MutableBorrow
+        && !function.structural_places.iter().any(|declaration| {
+            declaration.id == place
+                && matches!(
+                    declaration.kind,
+                    StructuralPlaceKind::OperationResult { .. }
+                )
+        })
+    {
         return None;
     }
     let (operation, result) = if let Some((operation, result, _)) =

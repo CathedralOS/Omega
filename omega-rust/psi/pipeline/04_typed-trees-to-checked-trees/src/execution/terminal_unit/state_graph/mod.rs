@@ -1224,7 +1224,13 @@ fn successor_bindings(
                 && target_parameters.get(target.position as usize).is_some_and(|parameter| {
                     calls::view_subslice::view_kind(program, parameter.type_reference).is_some()
                 });
-            if target.access == CheckedStructuralAccess::Owned || shared_view {
+            let mutable_local = source_index == 0
+                && matches!(edge, SuccessorEdge::Jump)
+                && target.access == CheckedStructuralAccess::MutableBorrow
+                && target.multiplicity == Multiplicity::Unrestricted
+                && matches!(program.expression_table.expression(expression), ExpressionNode::Borrow(borrow)
+                    if borrow.access == language_core::ReferenceAccess::Mutable);
+            if target.access == CheckedStructuralAccess::Owned || shared_view || mutable_local {
                 mark(SuccessorGuard::ResultTransfer);
                 let place = crate::flow::canonical_place_from_expression_in_state(program, source.symbol, ordinal as usize, expression)?;
                 if place.segments.is_empty() {
@@ -1237,7 +1243,20 @@ fn successor_bindings(
                     }).filter(|result| result.statement_index < ordinal && matches!(program.statement_table.statements(source.statement_nodes).get(result.statement_index as usize), Some(StatementNode::LocalData(local)) if place.root == facts::PlaceRoot::Symbol(local.symbol)));
                     if let Some(result) = matches.next() {
                         if matches.next().is_some() { return None; }
-                        if result.type_identity != target.type_identity || result.multiplicity != target.multiplicity { return None; }
+                        if result.type_identity != target.type_identity
+                            || (!mutable_local && result.multiplicity != target.multiplicity) { return None; }
+                        if mutable_local {
+                            let StatementNode::LocalData(local) = program.statement_table.statements(source.statement_nodes).get(result.statement_index as usize)? else { return None; };
+                            let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) else { return None; };
+                            if !local.is_mutable
+                                || !matches!(program.expression_table.expression(borrow.target), ExpressionNode::Name(name)
+                                    if name.symbol == local.symbol && name.head_symbol == local.symbol
+                                        && program.expression_table.name_path_members(name.members).len() == 1)
+                                || !matches!(result.multiplicity, Multiplicity::Affine | Multiplicity::Unrestricted)
+                                || !validation::has_plain_owned_contents_with_numeric_constraints(program, local.type_reference)
+                                || super::types::type_graph_requires_nominal_drop(program, local.type_reference)
+                            { return None; }
+                        }
                         return Some(CheckedStructuralControlTransferPlan {
                             source: checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal: result.binding_ordinal },
                             target_parameter_index: u32::try_from(target_index).ok()?,

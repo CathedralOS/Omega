@@ -139,6 +139,16 @@ fn root_type(
     access: StructuralAccess,
 ) -> Option<StructuralTypeId> {
     if access == StructuralAccess::MutableBorrow {
+        if let Some((_, result)) = crate::selection::aggregate_result_input::home(source, place) {
+            return (matches!(
+                result.multiplicity,
+                terminal_psi::StructuralMultiplicity::Affine
+                    | terminal_psi::StructuralMultiplicity::Unrestricted
+            ) && result.claims.is_empty()
+                && result.qualifications.is_empty()
+                && result.projected_qualifications.is_empty())
+            .then_some(result.structural_type);
+        }
         if let Some((_, parameter)) = join(source, place) {
             return (parameter.access == StructuralAccess::MutableBorrow)
                 .then_some(parameter.structural_type);

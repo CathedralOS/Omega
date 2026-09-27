@@ -600,6 +600,7 @@ pub(super) fn validate_current_ownership_cfg(
                     .expect("optimization-unit node position fits u32"),
                 edge,
                 &blocks[&edge.target].structural_parameters,
+                &frontier,
             )?;
             let mut outgoing = frontier.clone();
             if matches!(

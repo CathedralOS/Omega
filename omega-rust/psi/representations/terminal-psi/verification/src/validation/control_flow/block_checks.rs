@@ -65,8 +65,14 @@ pub(super) fn validate_block(
             .map(|parameter| parameter.place),
     );
     if let Some(mutable) = mutable_views.get(&block_id) {
-        available_structural
-            .retain(|place| !crate::validation::block_views::is_mutable_parameter(machine, *place));
+        available_structural.retain(|place| {
+            !crate::validation::block_views::is_mutable_parameter(machine, *place)
+                && (mutable_records.is_none()
+                    || crate::validation::block_views::mutable_records::owned_home(
+                        module, machine, *place,
+                    )
+                    .is_none())
+        });
         available_structural.extend(mutable.iter().copied());
     }
     for operation in &block.operations {

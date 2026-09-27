@@ -242,6 +242,8 @@ impl<'a> UnitBody<'a> {
         })
     }
 
+    /// Complete catalog dependencies, including structural producers carried by
+    /// selected return terminators. This is not the runtime operation order.
     pub(crate) fn operations(self) -> impl Iterator<Item = &'a CheckedUnitEffectOperationPlan> {
         let (ordinary, composed) = match self {
             Self::Ordinary(plan) => (plan.operations.as_slice(), &[][..]),
@@ -249,19 +251,11 @@ impl<'a> UnitBody<'a> {
         };
         ordinary
             .iter()
-            .chain(composed.iter().flat_map(|state| {
-                // A guarded terminator's return values are real operations of
-                // the body — the calls inside them are the state's call edges
-                // just as the ordered prefix's are.
-                let returns = match &state.terminator {
-                    checked_trees::CheckedComposedUnitControlTerminatorPlan::Guarded {
-                        return_values,
-                        ..
-                    } => return_values.as_slice(),
-                    _ => &[][..],
-                };
-                state.operations.iter().chain(returns)
-            }))
+            .chain(
+                composed
+                    .iter()
+                    .flat_map(|state| state.operation_dependencies()),
+            )
             .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
     }
 

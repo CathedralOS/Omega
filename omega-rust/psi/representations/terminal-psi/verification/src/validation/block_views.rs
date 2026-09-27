@@ -247,6 +247,14 @@ pub(super) fn validate_successor(
                 && source.multiplicity == expected.multiplicity
                 && source.qualifications == expected.qualifications
                 && source.projected_qualifications == expected.projected_qualifications
+        } else if expected.access == StructuralAccess::MutableBorrow {
+            mutable_records::owned_home(module, machine, argument.place).is_some_and(|home| {
+                available.contains(&argument.place)
+                    && home.structural_type == expected.structural_type
+                    && expected.multiplicity == StructuralMultiplicity::Unrestricted
+                    && expected.qualifications.is_empty()
+                    && expected.projected_qualifications.is_empty()
+            })
         } else if expected.access == StructuralAccess::Owned {
             // Whole plain records and sums use the same owned parameter move.
             // The constructor establishes its own exact type; a successor may
@@ -390,6 +398,30 @@ pub(super) fn mutable_availability(
                         )
                 }))
     };
+    let record_loans = machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.structural_parameters)
+        .any(|parameter| mutable_records::parameter_type(module, parameter));
+    let produced_homes = machine
+        .blocks
+        .iter()
+        .map(|block| {
+            (
+                block.id,
+                block
+                    .operations
+                    .iter()
+                    .filter_map(|operation| operation.result.structural())
+                    .filter(|result| {
+                        record_loans
+                            && mutable_records::owned_home(module, machine, result.place).is_some()
+                    })
+                    .map(|result| result.place)
+                    .collect::<BTreeSet<_>>(),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
     let universe = machine
         .structural_parameters
         .iter()
@@ -401,6 +433,7 @@ pub(super) fn mutable_availability(
         )
         .filter(|parameter| mutable_parameter(parameter))
         .map(|parameter| parameter.place)
+        .chain(produced_homes.values().flatten().copied())
         .collect::<BTreeSet<_>>();
     if universe.is_empty() {
         return BTreeMap::new();
@@ -463,7 +496,9 @@ pub(super) fn mutable_availability(
             };
             for (source, _, arguments) in edges.iter().filter(|(_, target, _)| *target == block.id)
             {
-                let mut incoming = available[source].clone();
+                let mut source_available = available[source].clone();
+                source_available.extend(produced_homes[source].iter().copied());
+                let mut incoming = source_available.clone();
                 let transfers = arguments
                     .iter()
                     .zip(&block.structural_parameters)
@@ -474,7 +509,7 @@ pub(super) fn mutable_availability(
                     incoming.remove(source);
                 }
                 for (source_place, destination) in transfers {
-                    if available[source].contains(&source_place) {
+                    if source_available.contains(&source_place) {
                         incoming.insert(destination);
                     }
                 }

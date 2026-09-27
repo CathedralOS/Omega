@@ -94,7 +94,10 @@ fn address_join_argument(
         return false;
     }
     let root_type = if let Some(home) = live.structural_homes.get(&argument.place) {
-        (parameter.access == terminal_psi::StructuralAccess::SharedBorrow
+        ((parameter.access == terminal_psi::StructuralAccess::SharedBorrow
+            || home
+                .operation_result()
+                .is_some_and(|(_, result)| result.place == argument.place))
             && !home.has_claims()
             && home.multiplicity() != terminal_psi::StructuralMultiplicity::Linear
             && home.qualifications().is_empty()

@@ -281,3 +281,6 @@ fn cyclic_record_field_must_name_a_defined_scalar() {
         Err(ModuleError::ValueUsedBeforeDefinition(id(77, ValueId::new)))
     );
 }
+
+#[path = "unranked_records/affine_home_loans.rs"]
+mod affine_home_loans;
