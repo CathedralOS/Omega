@@ -1,15 +1,15 @@
-// COMPILE-ONLY today, despite the `_exit` suffix. That suffix is the run
-// canary convention (build, execute, exit 70), and this fixture meets none
-// of it: there is no `build.omg`, no console binding, and `Root::main` is
-// empty, so nothing invokes `Root::enter` -- the machine that actually
-// carries the subject, a `Region in Owned` whose content custody survives a
-// `reaches PortIo` boundary read. What it does pin is that the declaration
-// and its custody CHECK; the execution the name promises is owed, either by
-// giving it an invoking entry and a run harness or by renaming it.
+// A RUN canary in shape as well as name: `Root::main` establishes an owned
+// `Region` and invokes `Root::enter`, whose `reaches PortIo` boundary read
+// is the subject -- content custody surviving a boundary observation. The
+// entry was empty until now, so the `_exit` suffix promised an execution the
+// fixture never performed and the declaration was all it pinned.
 //
-// CANARY-CORPUS records the general shape: an empty entry may be an honest
-// compile canary or a missing customer, and only the fixture's own stated
-// subject separates them. This header is that statement.
+// The owned input is CONSTRUCTED here, which is legal because
+// `domain Region::Owned` names no `established by` clause. A domain gated by
+// one -- as in `core/content_retained_custody_round_trip`, whose
+// `Buffer::Owned` is established by `Writer::complete` -- cannot be entered
+// this way: "an annotation cannot establish routed qualification", and such a
+// fixture waits on BOUNDARY-ISSUANCE for a first claim.
 data ByteUnit {}
 
 data CountedQuantity<Unit> {
@@ -47,4 +47,7 @@ reaches PortIo
     status
 }
 
-machine Root::main(&mut self) {}
+machine Root::main(&mut self) reaches PortIo {
+    let region: Region in Owned = Region { length: 4 };
+    _ = Root::enter(region);
+}
