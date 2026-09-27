@@ -158,6 +158,13 @@ pub(crate) enum LoweredScalarEffect {
     },
     EstablishScalarArray(LoweredScalarArrayConstruction),
     EstablishScalarCase(scalar_computations::cases::Construction),
+    /// Establish an immutable byte-view literal in its reserved place ahead of
+    /// the computed call that borrows it.
+    EstablishByteSequenceLiteral {
+        place: PlaceId,
+        structural_type: StructuralTypeId,
+        bytes: Vec<u8>,
+    },
     /// Derive a borrowed byte window on the edge for the successor's
     /// structural slot; `end` absent is the source's own length observation.
     ByteSequenceSubslice {
@@ -211,6 +218,9 @@ pub(crate) struct PreparedScalarMachine {
     pub(crate) crash_routes: Vec<checked_trees::CrashRouteBucket>,
     pub(crate) identity_reshuffles: LoweredContentIdentityReshuffles,
     pub(crate) partition_compositions: LoweredContentPartitionCompositions,
+    /// Reserved byte-literal places declared on the emitted machine; the
+    /// literal ops themselves join `all_operations` through their edges.
+    pub(crate) literal_places: Vec<scalar_computations::literals::Slot>,
     pub(crate) loop_plan: Option<cycles::ScalarLoopPlan>,
 }
 

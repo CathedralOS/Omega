@@ -103,19 +103,36 @@ pub(crate) fn structural_computation_argument(
             owned_array_local_argument(program, state, call.statement_index, name.symbol, target)
         });
     }
-    if target_access == CheckedStructuralAccess::SharedBorrow
-        && let Some(argument) = shared_slice_view_argument(
-            program,
-            borrow,
-            machine,
-            state,
-            call,
-            &place,
-            name.symbol,
-            target,
-        )
-    {
-        return Some(argument);
+    if target_access == CheckedStructuralAccess::SharedBorrow {
+        let argument =
+            if super::super::types::byte_sequence_carrier(program, target.type_reference, &[])
+                .is_some_and(|carrier| carrier.is_borrowed_view())
+            {
+                shared_byte_view_argument(
+                    program,
+                    borrow,
+                    machine,
+                    state,
+                    call,
+                    &place,
+                    name.symbol,
+                    target,
+                )
+            } else {
+                shared_slice_view_argument(
+                    program,
+                    borrow,
+                    machine,
+                    state,
+                    call,
+                    &place,
+                    name.symbol,
+                    target,
+                )
+            };
+        if let Some(argument) = argument {
+            return Some(argument);
+        }
     }
     let target_type = plain_primitive_referent(program, target.type_reference)?;
     if super::super::structural_scalar_store::primitive_local_before(
@@ -804,6 +821,93 @@ pub(crate) fn shared_slice_view_argument(
         )
     };
     if borrowed_slice_view_type_identity(program, source_type, &[], &[]) != identity {
+        return None;
+    }
+    if exact_structural_borrow_access(
+        program,
+        borrow,
+        machine,
+        state.symbol,
+        call,
+        place,
+        CheckedStructuralAccess::SharedBorrow,
+        &[],
+    )? != CheckedStructuralAccess::SharedBorrow
+    {
+        return None;
+    }
+    Some(CheckedUnitStructuralArgumentPlan {
+        source,
+        path: Vec::new(),
+        type_identity: identity,
+        access: CheckedStructuralAccess::SharedBorrow,
+    })
+}
+
+/// A `&[u8]` byte-view actual — the byte-sequence carrier sibling of
+/// `shared_slice_view_argument`. Source and access rules are identical; only
+/// the carrier family and its type identity differ.
+pub(crate) fn shared_byte_view_argument(
+    program: &TypedTrees,
+    borrow: &checked_trees::BorrowFacts,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
+    call: &checked_trees::FlowCallFact,
+    place: &crate::flow::CanonicalPlace,
+    symbol: SymbolHandle,
+    target: &StateParameter,
+) -> Option<CheckedUnitStructuralArgumentPlan> {
+    if !super::super::types::byte_sequence_carrier(program, target.type_reference, &[])?
+        .is_borrowed_view()
+    {
+        return None;
+    }
+    let identity =
+        super::super::types::byte_sequence_type_identity(program, target.type_reference, &[], &[])?;
+    let parameters = program.state_parameters(state);
+    let (source, source_type) = if let Some(position) = parameters
+        .iter()
+        .position(|parameter| parameter.symbol == symbol)
+    {
+        let parameter = &parameters[position];
+        if parameter.is_const || parameter.is_self {
+            return None;
+        }
+        let parameter_index = parameters[..position]
+            .iter()
+            .filter(|parameter| {
+                program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_none()
+            })
+            .count();
+        (
+            CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index: u32::try_from(parameter_index).ok()?,
+            },
+            parameter.type_reference,
+        )
+    } else {
+        let mut locals = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .get(..call.statement_index)?
+            .iter()
+            .filter_map(|statement| match statement {
+                StatementNode::LocalData(local) if local.symbol == symbol => Some(local),
+                _ => None,
+            });
+        let local = locals.next()?;
+        if locals.next().is_some() || !local.initial_value.is_valid() {
+            return None;
+        }
+        (
+            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
+            local.type_reference,
+        )
+    };
+    if super::super::types::byte_sequence_type_identity(program, source_type, &[], &[])? != identity
+    {
         return None;
     }
     if exact_structural_borrow_access(

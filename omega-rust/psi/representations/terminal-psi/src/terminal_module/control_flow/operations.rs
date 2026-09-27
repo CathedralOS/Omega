@@ -187,7 +187,9 @@ pub enum OperationKind {
         source: PlaceId,
         path: Vec<StructuralPathSegment>,
     },
-    /// Observe current live byte length, not capacity or stored byte content.
+    /// Observe the leaf view's current live extent — bytes for a byte
+    /// sequence field, elements for a borrowed element view — never capacity
+    /// or stored content.
     StructuralByteSequenceFieldLength {
         source: PlaceId,
         path: Vec<StructuralPathSegment>,

@@ -392,6 +392,7 @@ pub(super) fn emit(
                 catalog.requirement_counts,
                 &graph_parameters.1,
                 &views,
+                &machine.literal_places,
                 machine.loop_plan.as_ref(),
             )?;
         let [terminal_machine] = lowered.semantic_module.machines.as_mut_slice() else {

@@ -80,6 +80,24 @@ pub(crate) fn emit(
                     case, values, next_value, operations, calls,
                 )?
             }
+            LoweredScalarEffect::EstablishByteSequenceLiteral {
+                place,
+                structural_type: _,
+                bytes,
+            } => {
+                let id = operations.allocate();
+                operations.push(Operation {
+                    static_reach_binding: None,
+                    suspension_crossing: None,
+                    id,
+                    result: OperationResult::Unit,
+                    kind: OperationKind::EstablishByteSequenceLiteral {
+                        destination: *place,
+                        bytes: bytes.clone(),
+                        qualifications: Vec::new(),
+                    },
+                });
+            }
             LoweredScalarEffect::EstablishScalarArray(array) => {
                 crate::scalar_graph::scalar_computations::arrays::emit(
                     std::slice::from_ref(array),

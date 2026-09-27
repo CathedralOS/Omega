@@ -5,8 +5,8 @@ use super::super::direct_expression_contains_short_circuit;
 use super::{
     Argument, CheckedScalarComputationKind, CheckedScalarExpressionRole, CheckedTrees, Computation,
     Expansion, Handle, LoweringError, PreparedScalarQualifications, QualifiedScalarType, Site,
-    arrays, cases, lower_scalar_call, parameter, source_custody, storage, structural_arguments,
-    subslices, unsupported,
+    arrays, cases, literals, lower_scalar_call, parameter, source_custody, storage,
+    structural_arguments, subslices, unsupported,
 };
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::calls::{LoweredDirectCallBinding, ScalarCallCrashScope};
@@ -20,6 +20,9 @@ use checked_trees::CheckedScalarComputationStructuralArgument;
 
 enum Operand {
     ViewSubslice(LoweredScalarEffect),
+    /// An exact byte literal established into its reserved place before the
+    /// call reads it through a shared borrow.
+    ByteLiteral(literals::Slot),
     Scalar(Argument),
     Array {
         slot: arrays::Slot,
@@ -330,6 +333,7 @@ impl Expansion<'_> {
             &self.arrays,
             &self.cases,
             &self.subslices,
+            &self.literals,
         )?;
         let scalars = plans
             .operands
@@ -458,6 +462,19 @@ impl Expansion<'_> {
                         site.bindings,
                     )?));
                 }
+                if let CheckedScalarComputationStructuralArgument::Place(argument) = argument
+                    && let Some(bytes) = literals::source_bytes(argument)
+                {
+                    let slot = self
+                        .literals
+                        .iter()
+                        .find(|slot| slot.bytes == *bytes)
+                        .ok_or(LoweringError::Unsupported(
+                            "computed literal has no reserved place",
+                        ))?
+                        .clone();
+                    operands.push(Operand::ByteLiteral(slot));
+                }
                 structural_ordinal += 1;
             } else {
                 let scalar = scalars
@@ -525,6 +542,26 @@ impl Expansion<'_> {
                 Operand::Scalar(argument) => {
                     self.argument(argument, prefix, continuation, site, active)?
                 }
+                Operand::ByteLiteral(slot) => self.push(LoweredScalarBranchState {
+                    structural_parameters: Vec::new(),
+                    parameter_types: prefix.clone(),
+                    erased_formal_types: Vec::new(),
+                    erased_proof_formals: Vec::new(),
+                    bindings: Vec::new(),
+                    structural_effects: vec![LoweredScalarEffect::EstablishByteSequenceLiteral {
+                        place: slot.place,
+                        structural_type: slot.structural_type,
+                        bytes: slot.bytes.clone(),
+                    }],
+                    terminator: LoweredScalarBranchTerminator::Jump {
+                        trivial_affine_discards: Vec::new(),
+                        target: continuation,
+                        arguments: super::parameters(prefix),
+                        erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
+                        structural_arguments: Vec::new(),
+                    },
+                }),
                 Operand::ViewSubslice(effect) => self.push(LoweredScalarBranchState {
                     structural_parameters: Vec::new(),
                     parameter_types: prefix.clone(),

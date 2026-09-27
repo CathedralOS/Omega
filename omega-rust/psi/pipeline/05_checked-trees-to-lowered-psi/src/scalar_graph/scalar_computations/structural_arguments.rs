@@ -2,7 +2,8 @@
 
 use super::super::{Multiplicity, StructuralAccess, terminal_scalar_type};
 use super::{
-    CheckedTrees, LoweringError, StructuralArgument, arrays, cases, storage, subslices, unsupported,
+    CheckedTrees, LoweringError, StructuralArgument, arrays, cases, literals, storage, subslices,
+    unsupported,
 };
 pub(super) fn lower(
     checked: &CheckedTrees,
@@ -14,6 +15,7 @@ pub(super) fn lower(
     arrays: &[arrays::Slot],
     cases: &[cases::Slot],
     subslices: &[subslices::Slot],
+    literals: &[literals::Slot],
 ) -> Result<Vec<StructuralArgument>, LoweringError> {
     if arguments.is_empty() {
         return Ok(Vec::new());
@@ -205,6 +207,19 @@ pub(super) fn lower(
                         ))?;
                     if !argument.path.is_empty() {
                         return unsupported("computed range cannot project its descriptor");
+                    }
+                    return Ok(StructuralArgument {
+                        place: slot.place,
+                        path: Vec::new(),
+                        access: StructuralAccess::SharedBorrow,
+                    });
+                }
+                if let Some(bytes) = literals::source_bytes(argument) {
+                    let slot = literals.iter().find(|slot| slot.bytes == *bytes).ok_or(
+                        LoweringError::Unsupported("computed literal has no reserved place"),
+                    )?;
+                    if !argument.path.is_empty() {
+                        return unsupported("computed literal cannot project its view");
                     }
                     return Ok(StructuralArgument {
                         place: slot.place,

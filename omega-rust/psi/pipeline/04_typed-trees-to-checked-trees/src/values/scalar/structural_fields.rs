@@ -331,14 +331,21 @@ pub(super) fn structural_sequence_length(
         // The shared carrier classifier distinguishes a bounded byte field's
         // live length from a raw fixed array's static capacity. A borrowed
         // `&[u8]` leaf keeps a runtime length on its view descriptor, so its
-        // `.len` reads the same live extent.
-        || !matches!(
+        // `.len` reads the same live extent; a borrowed element view field
+        // carries its element count on the same descriptor slot whatever the
+        // view's access (`&[T]`, `&mut [T]`, `&write [T]`).
+        || (!matches!(
             crate::execution::terminal_unit::types::byte_sequence_carrier(program, selected_type, &[]),
             Some(
                 checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
                     | checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }
             )
+        ) && crate::execution::terminal_unit::types::borrowed_slice_view_element(
+            program,
+            selected_type,
+            &[],
         )
+        .is_none())
     {
         return None;
     }

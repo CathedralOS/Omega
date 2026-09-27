@@ -216,12 +216,14 @@ fn prepare_scalar_graph_machine_with_contract_mode(
     let subslices =
         computations::subslices::prepare(checked, machine, structural_types, next_place)?;
     let cases = computations::cases::prepare(checked, machine, structural_types, next_place)?;
+    let literals = computations::literals::prepare(checked, machine, structural_types, next_place)?;
     let fields = computations::fields::prepare(checked, machine, structural_types)?;
     let mut computations =
         computations::Expansion::new(checked, qualifications, machine, lowered_state_count)
             .with_arrays(&arrays)
             .with_subslices(&subslices)
             .with_cases(&cases)
+            .with_literals(&literals)
             .with_fields(&fields);
 
     for (state_index, state) in states.iter().enumerate() {
@@ -722,6 +724,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         crash_routes: crate::unit::effective_crash_routes(checked, machine)?,
         identity_reshuffles,
         partition_compositions,
+        literal_places: literals,
         loop_plan,
     })
 }

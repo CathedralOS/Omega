@@ -147,6 +147,7 @@ pub(crate) fn build_scalar_graph_module(
     identity_base: u64,
     machine_ids: &[(symbols::SymbolHandle, MachineId)],
     requirement_counts: &[(symbols::SymbolHandle, usize)],
+    literal_places: &[crate::scalar_graph::scalar_computations::literals::Slot],
     loop_plan: Option<&crate::scalar_graph::scalar_graph_lowering::cycles::ScalarLoopPlan>,
 ) -> Result<LoweredPsi, LoweringError> {
     build_scalar_graph_module_in_namespace(
@@ -164,6 +165,7 @@ pub(crate) fn build_scalar_graph_module(
         requirement_counts,
         &[],
         &scalar_contracts::ContractViewNamespace::EMPTY,
+        literal_places,
         loop_plan,
     )
 }
@@ -184,6 +186,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
     requirement_counts: &[(symbols::SymbolHandle, usize)],
     view_parameters: &[(u32, StructuralParameterDeclaration)],
     views: &scalar_contracts::ContractViewNamespace<'_>,
+    literal_places: &[crate::scalar_graph::scalar_computations::literals::Slot],
     loop_plan: Option<&crate::scalar_graph::scalar_graph_lowering::cycles::ScalarLoopPlan>,
 ) -> Result<LoweredPsi, LoweringError> {
     let scalar_qualifications = scalar_qualifications.clone();
@@ -587,6 +590,25 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
         )
     {
         merge_content_place_declaration(&mut structural_places, place)?;
+    }
+    for literal in literal_places {
+        let declaration_ordinal = u32::try_from(
+            structural_places
+                .values()
+                .filter(|kind| matches!(kind, StructuralPlaceKind::ByteSequenceLiteral { .. }))
+                .count(),
+        )
+        .map_err(|_| LoweringError::Unsupported("literal declaration ordinal exceeds u32"))?;
+        merge_content_place_declaration(
+            &mut structural_places,
+            StructuralPlaceDeclaration {
+                id: literal.place,
+                kind: StructuralPlaceKind::ByteSequenceLiteral {
+                    declaration_ordinal,
+                    structural_type: literal.structural_type,
+                },
+            },
+        )?;
     }
     for parameter in &structural_parameters {
         merge_content_place_declaration(

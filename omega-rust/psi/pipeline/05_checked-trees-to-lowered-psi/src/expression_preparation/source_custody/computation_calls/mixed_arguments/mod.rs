@@ -8,7 +8,10 @@ use checked_trees::{
 };
 use symbols::SymbolHandle;
 
-use super::{borrow_rows, owned_arguments, primitive_arguments, shared_nominal_arguments};
+use super::{
+    borrow_rows, owned_arguments, primitive_arguments, shared_byte_view_arguments,
+    shared_nominal_arguments,
+};
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
 
@@ -366,6 +369,49 @@ pub(crate) fn rejoin_computation_call_arguments(
                         call_ordinal: *call_ordinal,
                         argument_ordinal,
                     },
+                )?;
+                position
+            } else if shared_byte_view_arguments::shared_byte_view_referent(
+                checked,
+                parameter.type_reference,
+            )
+            .is_some()
+            {
+                // A literal payload observes no borrow row; it validates
+                // against its authored bytes without advancing the ordered
+                // observation roster.
+                if matches!(
+                    argument.source,
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. }
+                ) {
+                    shared_byte_view_arguments::validate(
+                        checked,
+                        caller_state,
+                        statement,
+                        parameter,
+                        expression,
+                        argument,
+                        borrow_call,
+                        None,
+                    )?;
+                    result.push(RejoinedComputationArgument::Structural { expression });
+                    continue;
+                }
+                let position = access_positions
+                    .as_ref()
+                    .map(|positions| positions[formal_position])
+                    .ok_or(LoweringError::Unsupported(
+                        "byte-view argument lost its observation position",
+                    ))?;
+                shared_byte_view_arguments::validate(
+                    checked,
+                    caller_state,
+                    statement,
+                    parameter,
+                    expression,
+                    argument,
+                    borrow_call,
+                    Some(position),
                 )?;
                 position
             } else if matches!(checked.type_reference_table.type_reference(parameter.type_reference),
