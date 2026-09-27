@@ -1,0 +1,30 @@
+use omega::language::core::binding;
+// A boundary machine's byte-extent requirement (`count <= buffer.len`)
+// discharges against the CALLER's sized storage: `&mut self.control`
+// supplies `control`'s declared extent at the call site. The instantiated
+// `self.control.len` resolves through the caller's attached data, not the
+// boundary target's (a trait machine has none). The forwarded `buffer`
+// parameter then re-proves the same term inside `pump`, whose incoming
+// `requires` carries the length across the second boundary.
+pub boundary trait ByteHost {
+    machine read(fd: i32, buffer: &mut [u8], count: u64) -> i64 reaches ByteHost
+    requires
+        count <= buffer.len;
+}
+
+data Main {
+    host: Binding<ByteHost>;
+    control: [u8; 64];
+    n: i64;
+}
+
+machine Main::main(&mut self) reaches ByteHost {
+    self.n = self.host.read(0, &mut self.control, 64);
+    transition { _ -> pump(&mut self.control) }
+
+    state pump(&mut self, buffer: &mut [u8])
+        requires 64 <= buffer.len;
+    {
+        self.n = self.host.read(0, buffer, 64);
+    }
+}
