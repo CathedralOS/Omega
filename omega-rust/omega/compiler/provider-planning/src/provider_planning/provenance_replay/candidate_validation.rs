@@ -32,6 +32,7 @@ pub fn validate_provider_plan_candidates(
     let effect_plan = validation::infer_operational_may(typed);
     let service_reach_plan = validation::infer_service_reaches(typed, &effect_plan);
     let invocation_plan = validation::infer_synchronous_invocations(typed);
+    let mut top_level_symbols = None;
     for plan in plans {
         let structural_diagnostics = plan.validate_candidate_against_schema();
         if structural_diagnostics.is_empty() {
@@ -118,8 +119,13 @@ pub fn validate_provider_plan_candidates(
                 )));
                 continue;
             }
-            let has_exact_conformance =
-                checked_adapter_has_exact_conformance(typed, adapter, plan, row);
+            let has_exact_conformance = checked_adapter_has_exact_conformance(
+                typed,
+                &mut top_level_symbols,
+                adapter,
+                plan,
+                row,
+            );
             if !has_exact_conformance {
                 diagnostics.push(diagnostics::Diagnostic::error(format!(
                     "checked adapter `{machine_identity}` for `{}::{}` has no exact checked satisfies edge for requirement identity `{}`",
@@ -243,6 +249,7 @@ fn exact_provider_requirement_kind(
 
 fn exact_provider_row_conformance<'typed>(
     typed: &'typed TypedTrees,
+    top_level_symbols: &mut Option<validation::TopLevelSymbols<'typed>>,
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
     realization: &'typed typed_trees::machine::Machine,
@@ -252,38 +259,68 @@ fn exact_provider_row_conformance<'typed>(
     let conformances = typed
         .machine_trait_conformances(realization)
         .iter()
-        .filter(|conformance| conformance.requirement_symbol == requirement_symbol)
         .filter(|conformance| match requirement_kind {
-            ExactProviderRequirementKind::Trait { owner } => matches!(
-                typed_trees::machine::resolve_satisfied_declaration(
-                    typed,
-                    realization,
-                    conformance,
-                ),
-                Some(typed_trees::machine::SatisfiedDeclaration::Trait {
-                    definition,
-                    requirement,
-                }) if definition.symbol == owner && requirement.symbol == requirement_symbol
-            ),
-            ExactProviderRequirementKind::TopLevelRequirement => matches!(
-                typed_trees::machine::resolve_satisfied_declaration(
-                    typed,
-                    realization,
-                    conformance,
-                ),
-                Some(
-                    typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(
-                        requirement,
+            ExactProviderRequirementKind::Trait { owner } => {
+                conformance.requirement_symbol == requirement_symbol
+                    && matches!(
+                        typed_trees::machine::resolve_satisfied_declaration(
+                            typed,
+                            realization,
+                            conformance,
+                        ),
+                        Some(typed_trees::machine::SatisfiedDeclaration::Trait {
+                            definition,
+                            requirement,
+                        }) if definition.symbol == owner && requirement.symbol == requirement_symbol
+                    )
+            }
+            ExactProviderRequirementKind::TopLevelRequirement => {
+                if matches!(
+                    typed_trees::machine::resolve_satisfied_declaration(
+                        typed,
+                        realization,
+                        conformance,
                     ),
-                ) if requirement.symbol == requirement_symbol
-            ),
-            ExactProviderRequirementKind::Operator => {
-                typed_trees::operator::resolve_satisfied_boundary_operator_for_conformance(
+                    Some(
+                        typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(
+                            requirement,
+                        ),
+                    ) if conformance.requirement_symbol == requirement.symbol
+                        && requirement.symbol == requirement_symbol
+                ) {
+                    return true;
+                }
+                // A specialized provider instance's satisfies edge names the
+                // generic requirement template; the row's requirement symbol
+                // is its exact closed application. The clause's settled
+                // symbols still select the template, and the specialization
+                // receipt replays the join rather than aliasing the closed
+                // requirement.
+                let Some(template) = typed.machines().iter().find(|candidate| {
+                    candidate.symbol == conformance.symbol
+                        && conformance.requirement_symbol == candidate.symbol
+                        && candidate.supply_mode
+                            == language_semantics::MachineSupplyMode::TopLevelRequirement
+                        && !typed.machine_type_parameters(candidate).is_empty()
+                }) else {
+                    return false;
+                };
+                crate::provider_planning::provenance_replay::satisfied_row_requirement(
                     typed,
+                    top_level_symbols,
                     realization,
-                    conformance,
+                    template,
                 )
-                .is_some_and(|operator| operator.symbol == requirement_symbol)
+                .is_some_and(|closed| closed.symbol == requirement_symbol)
+            }
+            ExactProviderRequirementKind::Operator => {
+                conformance.requirement_symbol == requirement_symbol
+                    && typed_trees::operator::resolve_satisfied_boundary_operator_for_conformance(
+                        typed,
+                        realization,
+                        conformance,
+                    )
+                    .is_some_and(|operator| operator.symbol == requirement_symbol)
             }
         })
         .collect::<Vec<_>>();
@@ -625,6 +662,7 @@ pub(crate) fn validate_derived_provider_plan_provenance(
         )));
         return diagnostics;
     }
+    let mut top_level_symbols = None;
     for (row_index, row) in plan.rows.iter().enumerate() {
         let requirement_symbol = provenance.row_requirements[row_index];
         let realization_symbol = provenance.row_realizations[row_index];
@@ -665,6 +703,7 @@ pub(crate) fn validate_derived_provider_plan_provenance(
             };
         let conformance = match exact_provider_row_conformance(
             typed,
+            &mut top_level_symbols,
             plan,
             row,
             realization,

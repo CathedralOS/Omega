@@ -119,18 +119,44 @@ impl<'a> ReviewContext<'a> {
         })
     }
 
+    /// The selected plan row serving one reachable requirement, plus the
+    /// specialization roster row when the requirement is a closed instance of
+    /// a generic template. Terminal declarations name the closed identity;
+    /// the selected row retains the template identity its plan derived before
+    /// specialization settled.
     pub(super) fn selected_requirement(
         &self,
         requirement: &str,
-    ) -> Result<(&'a ProviderPlan, &'a ProviderPlanRow), String> {
+    ) -> Result<
+        (
+            &'a ProviderPlan,
+            &'a ProviderPlanRow,
+            Option<&'a effects::SelectedRequirementSpecialization>,
+        ),
+        String,
+    > {
+        let specialization = self.selected.specialized_requirement_row(requirement);
         let matches = self
             .selected
             .plans()
             .iter()
+            .filter(|plan| {
+                specialization.is_none_or(|row| {
+                    row.provider_plan_report_identity == plan.report_fingerprint()
+                })
+            })
             .flat_map(|plan| {
                 plan.rows
                     .iter()
-                    .filter(move |row| row.requirement_identity == requirement)
+                    .filter(move |row| {
+                        specialization.map_or_else(
+                            || row.requirement_identity == requirement,
+                            |specialization| {
+                                row.requirement_identity
+                                    == specialization.selected_requirement_identity
+                            },
+                        )
+                    })
                     .map(move |row| (plan, row))
             })
             .collect::<Vec<_>>();
@@ -144,7 +170,7 @@ impl<'a> ReviewContext<'a> {
             .schema
             .methods
             .iter()
-            .filter(|method| method.requirement_identity == requirement)
+            .filter(|method| method.requirement_identity == row.requirement_identity)
             .collect::<Vec<_>>();
         if methods.len() != 1 {
             return Err(format!(
@@ -159,7 +185,7 @@ impl<'a> ReviewContext<'a> {
                 self.target_profile.target_name(),
             ));
         }
-        Ok((plan, row))
+        Ok((plan, row, specialization))
     }
 
     pub(super) fn exact_mechanism(

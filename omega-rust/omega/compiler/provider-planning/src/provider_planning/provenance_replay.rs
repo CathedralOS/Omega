@@ -11,6 +11,7 @@ mod adapter_conformance;
 mod candidate_validation;
 mod plan_derivation;
 mod requirement_identities;
+mod specialization_rows;
 
 #[cfg(test)]
 pub(crate) use adapter_conformance::exact_canonical_provider_schema;
@@ -22,10 +23,13 @@ pub(crate) use candidate_validation::validate_derived_provider_plan_provenance;
 pub use candidate_validation::{
     validate_derived_provider_plan_candidates, validate_provider_plan_candidates,
 };
-pub(crate) use requirement_identities::exact_satisfied_requirement_identity;
 #[cfg(feature = "installed-writer")]
 pub(crate) use requirement_identities::same_semantic_name;
+pub(crate) use requirement_identities::{
+    exact_satisfied_requirement_identity, satisfied_row_requirement,
+};
 pub use requirement_identities::{satisfied_requirement_identity, satisfies_plan_name};
+pub(crate) use specialization_rows::derive_selected_requirement_specializations;
 
 use super::{ProviderPlan, TypedTrees};
 use crate::provider_planning::provenance_replay::plan_derivation::derive_provider_plans;

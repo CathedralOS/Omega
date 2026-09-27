@@ -1,6 +1,6 @@
 use super::{
     bind_selected_provider_plan_facts_for_test, derive_provider_fixture,
-    normalized_machine_identity, selected_operator_binding_fixture, selection_plan,
+    normalized_machine_identity, selected_operator_binding_fixture, selection_plan, typed_fixture,
 };
 use crate::provider_planning::{
     Arc, ProviderBinding, ProviderPlanDerivation, ProviderPlanRow, ProviderSchemaDeclaration,
@@ -166,6 +166,88 @@ fn derives_and_selects_checked_top_level_boundary_requirement_provider() {
     )
     .expect("an explicit boundary-requirement selection chooses its declared candidate");
     assert_eq!(selected, std::slice::from_ref(&derived.plan));
+}
+
+#[test]
+fn derives_closed_requirement_plan_for_specialized_token_provider() {
+    let source = r#"
+        data Buffer<Element, const Count: u64> { value: i64; }
+        data Indexing {}
+        boundary machine [] Indexing::index<Element, const Count: u64>(
+            items: Buffer<Element, Count>, offset: i32
+        ) -> Buffer<Element, Count> requires Count == Count;
+        data Provider {}
+        machine Provider::index<Value, const Length: u64>(
+            items: Buffer<Value, Length>, offset: i32
+        ) -> Buffer<Value, Length> satisfies Indexing::index { items }
+        machine run(items: Buffer<i32, 4>) {
+            let selected: Buffer<i32, 4> = items[(0 as i32)];
+        }
+    "#;
+    let typed = typed_fixture(source);
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("specialized token fixture checks");
+    let typed = &checked.typed;
+    let template = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Indexing::index")
+        .expect("generic requirement template");
+    let closed = typed
+        .machines()
+        .iter()
+        .find(|machine| {
+            machine.symbol != template.symbol
+                && machine
+                    .name
+                    .as_str()
+                    .starts_with("Indexing::index$specialized$")
+        })
+        .expect("closed requirement instance");
+    let provider = typed
+        .machines()
+        .iter()
+        .find(|machine| {
+            machine
+                .name
+                .as_str()
+                .starts_with("Provider::index$specialized$")
+        })
+        .expect("specialized provider instance");
+
+    let derived = derive_satisfies_plans(typed, ProviderPlanDerivation::unevaluated(None));
+    let requirement_identity = typed
+        .normalized_machine_overload_identity(closed)
+        .expect("closed requirement identity")
+        .identity();
+    let matching = derived
+        .iter()
+        .filter(|derived| derived.plan.schema.trait_name == requirement_identity)
+        .collect::<Vec<_>>();
+    let [derived] = matching.as_slice() else {
+        panic!(
+            "one plan for the closed requirement, got {}",
+            matching.len()
+        )
+    };
+    assert_eq!(
+        derived.provenance.schema,
+        ProviderSchemaDeclaration::BoundaryRequirement(closed.symbol)
+    );
+    assert_eq!(derived.provenance.row_requirements, [closed.symbol]);
+    assert_eq!(derived.provenance.row_realizations, [provider.symbol]);
+    assert_eq!(
+        derived.plan.rows[0].requirement_identity,
+        requirement_identity
+    );
+    let validation = validate_provider_plan_candidates(typed, std::slice::from_ref(&derived.plan));
+    assert!(
+        validation.is_empty(),
+        "the specialized-instance plan must replay: {validation:?}"
+    );
 }
 
 #[test]

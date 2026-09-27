@@ -42,7 +42,8 @@ impl<'a> Reviewer<'a> {
             .get(&boundary)
             .ok_or_else(|| format!("reachable boundary {boundary:?} has no declaration"))?;
         let requirement = declaration.identity.as_str();
-        let (selected_plan, selected_row) = self.context.selected_requirement(requirement)?;
+        let (selected_plan, selected_row, specialization) =
+            self.context.selected_requirement(requirement)?;
         match &selected_row.binding {
             ProviderBinding::CheckedAdapter {
                 machine_identity,
@@ -61,6 +62,12 @@ impl<'a> Reviewer<'a> {
                         "selected checked-provider closure contains a cycle through `{requirement}`"
                     ));
                 }
+                // The installed candidate names the specialized provider
+                // instance for a closed requirement; the selected row's
+                // binding retains the authored generic provider template.
+                let realization_identity = specialization
+                    .map(|row| row.machine_identity.as_str())
+                    .unwrap_or(machine_identity.as_str());
                 let candidates = self
                     .context
                     .installed_candidates
@@ -69,7 +76,7 @@ impl<'a> Reviewer<'a> {
                         candidate.boundary == boundary
                             && candidate.requirement_identity == requirement
                             && candidate.provider_identity == selected_plan.provider_type
-                            && candidate.candidate_identity == *machine_identity
+                            && candidate.candidate_identity == realization_identity
                     })
                     .collect::<Vec<_>>();
                 let [candidate] = candidates.as_slice() else {

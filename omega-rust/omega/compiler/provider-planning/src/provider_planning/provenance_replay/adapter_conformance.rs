@@ -8,9 +8,10 @@ use crate::provider_planning::{
     ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema, TypedTrees,
 };
 
-pub(crate) fn checked_adapter_has_exact_conformance(
-    typed: &TypedTrees,
-    adapter: &typed_trees::machine::Machine,
+pub(crate) fn checked_adapter_has_exact_conformance<'typed>(
+    typed: &'typed TypedTrees,
+    top_level_symbols: &mut Option<validation::TopLevelSymbols<'typed>>,
+    adapter: &'typed typed_trees::machine::Machine,
     plan: &effects::provider_plan::ProviderPlan,
     row: &effects::provider_plan::ProviderPlanRow,
 ) -> bool {
@@ -29,21 +30,49 @@ pub(crate) fn checked_adapter_has_exact_conformance(
                 .machine_trait_conformances(adapter)
                 .iter()
                 .any(|conformance| {
-                    conformance.external_binding.is_none()
-                        && conformance.symbol == requirement.symbol
-                        && conformance.requirement_symbol == requirement.symbol
-                        && matches!(
-                            typed_trees::machine::resolve_satisfied_declaration(
-                                typed,
-                                adapter,
-                                conformance,
+                    if conformance.external_binding.is_some() {
+                        return false;
+                    }
+                    let direct = matches!(
+                        typed_trees::machine::resolve_satisfied_declaration(
+                            typed,
+                            adapter,
+                            conformance,
+                        ),
+                        Some(
+                            typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(
+                                selected,
                             ),
-                            Some(
-                                typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(
-                                    selected,
-                                ),
-                            ) if selected.symbol == requirement.symbol
-                        )
+                        ) if selected.symbol == requirement.symbol
+                            && conformance.symbol == requirement.symbol
+                            && conformance.requirement_symbol == requirement.symbol
+                    );
+                    if direct {
+                        return true;
+                    }
+                    // A specialized provider instance keeps its authored edge
+                    // naming the generic requirement template; its concrete
+                    // signature no longer replays the template's binders, so
+                    // declaration resolution cannot return that template. The
+                    // clause's settled symbols still join it, and the retained
+                    // specialization receipt selects the exact closed
+                    // requirement this plan's schema binds.
+                    let Some(template) = typed.machines().iter().find(|candidate| {
+                        candidate.symbol == conformance.symbol
+                            && conformance.requirement_symbol == candidate.symbol
+                            && candidate.supply_mode
+                                == language_semantics::MachineSupplyMode::TopLevelRequirement
+                            && !typed.machine_type_parameters(candidate).is_empty()
+                    }) else {
+                        return false;
+                    };
+                    crate::provider_planning::provenance_replay::satisfied_row_requirement(
+                        typed,
+                        top_level_symbols,
+                        adapter,
+                        template,
+                    )
+                    .is_some_and(|closed| closed.symbol == requirement.symbol)
                 });
     }
 

@@ -968,9 +968,25 @@ fn boundary_realization_coverage(
     };
     for requirement_identity in requirement_identities {
         let mut constrained = false;
+        // Terminal candidates name closed requirement identities and
+        // specialized provider instances; a template-keyed selected row
+        // reaches them through the specialization roster.
+        let specialization =
+            selected_provider_plans.specialized_requirement_row(requirement_identity);
         for plan in selected_provider_plans.plans() {
+            if specialization
+                .is_some_and(|row| row.provider_plan_report_identity != plan.report_fingerprint())
+            {
+                continue;
+            }
             for row in &plan.rows {
-                if row.requirement_identity != requirement_identity {
+                let row_matches = match specialization {
+                    Some(specialization) => {
+                        row.requirement_identity == specialization.selected_requirement_identity
+                    }
+                    None => row.requirement_identity == requirement_identity,
+                };
+                if !row_matches {
                     continue;
                 }
                 constrained = true;
@@ -979,10 +995,13 @@ fn boundary_realization_coverage(
                         machine_identity,
                         ..
                     } => {
+                        let realization_identity = specialization
+                            .map(|row| row.machine_identity.as_str())
+                            .unwrap_or(machine_identity.as_str());
                         let mut matched = false;
                         for candidate in candidates.iter().filter(|candidate| {
                             candidate.requirement_identity == requirement_identity
-                                && candidate.candidate_identity == *machine_identity
+                                && candidate.candidate_identity == realization_identity
                         }) {
                             matched = true;
                             bodies.push(candidate.candidate);

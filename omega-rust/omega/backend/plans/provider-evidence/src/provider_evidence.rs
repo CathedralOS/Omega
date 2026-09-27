@@ -48,6 +48,9 @@ pub struct SelectedProviderPlanFacts {
     execution_scope: crate::ExecutionScope,
     opaque_executable_admissions: Vec<crate::ValidatedOpaqueExecutableAdmission>,
     installation_reach_resolutions: Vec<InstallationReachResolution>,
+    /// Template-keyed selected rows rebound to their exact closed requirement
+    /// instances once specialization evidence exists.
+    specialized_requirement_rows: Vec<SelectedRequirementSpecialization>,
     /// Compact identities of the members settled by the toolchain itself
     /// (canonical-host mints). Report surfaces use this to label their
     /// provenance honestly instead of reporting them as ungranted
@@ -63,6 +66,7 @@ impl Default for SelectedProviderPlanFacts {
             execution_scope: crate::ExecutionScope::CallerAddressSpace,
             opaque_executable_admissions: Vec::new(),
             installation_reach_resolutions: Vec::new(),
+            specialized_requirement_rows: Vec::new(),
             toolchain_settled_identities: BTreeSet::new(),
         }
     }
@@ -127,6 +131,7 @@ impl SelectedProviderPlanFacts {
             execution_scope: crate::ExecutionScope::CallerAddressSpace,
             opaque_executable_admissions: Vec::new(),
             installation_reach_resolutions: Vec::new(),
+            specialized_requirement_rows: Vec::new(),
             toolchain_settled_identities: BTreeSet::new(),
         })
     }
@@ -147,6 +152,14 @@ impl SelectedProviderPlanFacts {
     /// there, never here. Uniqueness, nonzero identity, and boundary-slot
     /// invariants are unchanged.
     pub fn with_toolchain_settled_plan(mut self, plan: ProviderPlan) -> Result<Self, String> {
+        if !self.installation_reach_resolutions.is_empty()
+            || !self.specialized_requirement_rows.is_empty()
+        {
+            return Err(
+                "selected provider closure must join toolchain-settled plans before attaching installation reach or specialization evidence"
+                    .into(),
+            );
+        }
         let errors = plan.validate_candidate_against_schema();
         if !errors.is_empty() {
             return Err(format!(
@@ -298,6 +311,14 @@ impl SelectedProviderPlanFacts {
             encoder.u64(resolution.provider_plan_report_identity);
             encoder.strings(&resolution.upper_bound);
             encoder.strings(&resolution.resolved_row);
+        }
+        encoder.len(self.specialized_requirement_rows.len());
+        for row in &self.specialized_requirement_rows {
+            encoder.u64(row.provider_plan_report_identity);
+            encoder.string(&row.selected_requirement_identity);
+            encoder.string(&row.selected_machine_identity);
+            encoder.string(&row.requirement_identity);
+            encoder.string(&row.machine_identity);
         }
         encoder.finish()
     }
@@ -462,13 +483,168 @@ impl SelectedProviderPlanFacts {
             }
         }
         self.installation_reach_resolutions = resolutions;
-        self.report_fingerprint =
-            selected_closure_report_fingerprint(&self.plans, &self.installation_reach_resolutions);
+        self.report_fingerprint = selected_closure_report_fingerprint(
+            &self.plans,
+            &self.installation_reach_resolutions,
+            &self.specialized_requirement_rows,
+        );
         Ok(self)
     }
 
     pub fn installation_reach_resolutions(&self) -> &[InstallationReachResolution] {
         &self.installation_reach_resolutions
+    }
+
+    /// Attach the template→closed requirement join derived from retained
+    /// specialization evidence. Provider plans derive before specialization
+    /// settlement, so a generic requirement's selected row retains the
+    /// authored template identities; Terminal boundary declarations and
+    /// provider candidates instead name the exact closed identities. These
+    /// rows rebind the selected closure to them without rewriting any
+    /// selected row: each record must name a selected plan's checked-adapter
+    /// row, and a closed requirement resolves exactly once across the whole
+    /// closure.
+    pub fn with_specialized_requirement_rows(
+        mut self,
+        mut rows: Vec<SelectedRequirementSpecialization>,
+    ) -> Result<Self, String> {
+        rows.sort_by(|left, right| {
+            left.requirement_identity
+                .cmp(&right.requirement_identity)
+                .then_with(|| {
+                    left.provider_plan_report_identity
+                        .cmp(&right.provider_plan_report_identity)
+                })
+                .then_with(|| left.machine_identity.cmp(&right.machine_identity))
+        });
+        for pair in rows.windows(2) {
+            if pair[0].requirement_identity == pair[1].requirement_identity {
+                return Err(format!(
+                    "closed requirement `{}` has more than one selected specialization row",
+                    pair[0].requirement_identity
+                ));
+            }
+        }
+        for row in &rows {
+            if row.selected_requirement_identity.is_empty()
+                || row.selected_machine_identity.is_empty()
+                || row.requirement_identity.is_empty()
+                || row.machine_identity.is_empty()
+            {
+                return Err("selected requirement specialization has an empty identity".into());
+            }
+            let Some(plan) = self.plan_by_report_fingerprint(row.provider_plan_report_identity)
+            else {
+                return Err(format!(
+                    "selected requirement specialization for `{}` names unselected provider plan {:#018x}",
+                    row.requirement_identity, row.provider_plan_report_identity
+                ));
+            };
+            let bound = plan.rows.iter().any(|plan_row| {
+                plan_row.requirement_identity == row.selected_requirement_identity
+                    && matches!(
+                        &plan_row.binding,
+                        crate::provider_plan::ProviderBinding::CheckedAdapter {
+                            machine_identity,
+                            ..
+                        } if *machine_identity == row.selected_machine_identity
+                    )
+            });
+            if !bound {
+                return Err(format!(
+                    "selected requirement specialization for `{}` is absent from selected provider plan `{}`",
+                    row.requirement_identity, plan.name
+                ));
+            }
+        }
+        self.specialized_requirement_rows = rows;
+        self.report_fingerprint = selected_closure_report_fingerprint(
+            &self.plans,
+            &self.installation_reach_resolutions,
+            &self.specialized_requirement_rows,
+        );
+        Ok(self)
+    }
+
+    /// The specialization roster: each row rebinds one template-keyed
+    /// selected row to one closed requirement instance and its specialized
+    /// provider instance.
+    pub fn specialized_requirement_rows(&self) -> &[SelectedRequirementSpecialization] {
+        &self.specialized_requirement_rows
+    }
+
+    /// The roster row joining one closed requirement identity to its selected
+    /// plan row. A closed requirement belongs to one requirement template's
+    /// boundary slot, so it resolves once across the whole closure.
+    pub fn specialized_requirement_row(
+        &self,
+        requirement_identity: &str,
+    ) -> Option<&SelectedRequirementSpecialization> {
+        self.specialized_requirement_rows
+            .iter()
+            .find(|row| row.requirement_identity == requirement_identity)
+    }
+
+    /// The roster rows under one selected plan row — every closed requirement
+    /// instance that template-keyed row serves through a specialized provider
+    /// instance.
+    pub fn specialized_requirement_rows_for_row<'a>(
+        &'a self,
+        provider_plan_report_identity: u64,
+        selected_requirement_identity: &'a str,
+    ) -> impl Iterator<Item = &'a SelectedRequirementSpecialization> + 'a {
+        self.specialized_requirement_rows.iter().filter(move |row| {
+            row.provider_plan_report_identity == provider_plan_report_identity
+                && row.selected_requirement_identity == selected_requirement_identity
+        })
+    }
+
+    /// Every Terminal-facing requirement identity one selected plan row
+    /// serves: the roster's closed identities, or the row's own identity when
+    /// its requirement was never specialized.
+    pub fn selected_row_requirement_identities<'a>(
+        &'a self,
+        provider_plan_report_identity: u64,
+        row_requirement_identity: &'a str,
+    ) -> Vec<&'a str> {
+        let specialized = self
+            .specialized_requirement_rows_for_row(
+                provider_plan_report_identity,
+                row_requirement_identity,
+            )
+            .map(|row| row.requirement_identity.as_str())
+            .collect::<Vec<_>>();
+        if specialized.is_empty() {
+            vec![row_requirement_identity]
+        } else {
+            specialized
+        }
+    }
+
+    /// The requirement identity the selected row retains for one queried
+    /// requirement: a roster row rebinds its closed Terminal identity to the
+    /// template identity its selected row carries. Unspecialized identities
+    /// pass through unchanged.
+    pub fn selected_requirement_identity<'a>(&'a self, requirement: &'a str) -> &'a str {
+        self.specialized_requirement_row(requirement)
+            .map_or(requirement, |row| {
+                row.selected_requirement_identity.as_str()
+            })
+    }
+
+    /// Every closed requirement identity the roster binds to one retained
+    /// requirement identity, across every selected plan. Empty when no
+    /// roster row rebinds it — the identity is either not generic or was
+    /// never demanded under a closed instance.
+    pub fn closed_requirement_identities<'a>(
+        &'a self,
+        requirement_identity: &'a str,
+    ) -> Vec<&'a str> {
+        self.specialized_requirement_rows
+            .iter()
+            .filter(move |row| row.selected_requirement_identity == requirement_identity)
+            .map(|row| row.requirement_identity.as_str())
+            .collect()
     }
 
     /// Requirement lookup for identities realized by exactly one selected
@@ -480,6 +656,7 @@ impl SelectedProviderPlanFacts {
         &self,
         requirement_identity: &str,
     ) -> Option<&InstallationReachResolution> {
+        let requirement_identity = self.selected_requirement_identity(requirement_identity);
         let mut matches = self
             .installation_reach_resolutions
             .iter()
@@ -501,6 +678,7 @@ impl SelectedProviderPlanFacts {
         provider_plan_report_identity: u64,
         requirement_identity: &str,
     ) -> Option<&InstallationReachResolution> {
+        let requirement_identity = self.selected_requirement_identity(requirement_identity);
         self.installation_reach_resolutions
             .iter()
             .find(|resolution| {
@@ -522,14 +700,15 @@ impl SelectedProviderPlanFacts {
     ) -> Result<Vec<String>, String> {
         let mut resolved = concrete_reach.to_vec();
         for requirement_identity in requirement_identities {
-            if let Some(row) = self.installation_reach_resolution(requirement_identity) {
+            let selected_identity = self.selected_requirement_identity(requirement_identity);
+            if let Some(row) = self.installation_reach_resolution(selected_identity) {
                 resolved.extend(row.resolved_row.iter().cloned());
                 continue;
             }
             if self
                 .installation_reach_resolutions
                 .iter()
-                .any(|resolution| resolution.requirement_identity == *requirement_identity)
+                .any(|resolution| resolution.requirement_identity == *selected_identity)
             {
                 return Err(format!(
                     "installation reach requirement `{requirement_identity}` is realized by more than one selected provider plan; resolve it through the root's selected provider plan"
@@ -557,21 +736,22 @@ impl SelectedProviderPlanFacts {
     ) -> Result<Vec<String>, String> {
         let mut resolved = concrete_reach.to_vec();
         for requirement_identity in requirement_identities {
+            let selected_identity = self.selected_requirement_identity(requirement_identity);
             if let Some(row) = self.installation_reach_resolution_for_plan(
                 provider_plan_report_identity,
-                requirement_identity,
+                selected_identity,
             ) {
                 resolved.extend(row.resolved_row.iter().cloned());
                 continue;
             }
-            if let Some(row) = self.installation_reach_resolution(requirement_identity) {
+            if let Some(row) = self.installation_reach_resolution(selected_identity) {
                 resolved.extend(row.resolved_row.iter().cloned());
                 continue;
             }
             if self
                 .installation_reach_resolutions
                 .iter()
-                .any(|resolution| resolution.requirement_identity == *requirement_identity)
+                .any(|resolution| resolution.requirement_identity == *selected_identity)
             {
                 return Err(format!(
                     "installation reach requirement `{requirement_identity}` is realized by more than one selected provider plan, none under provider plan {provider_plan_report_identity:#018x}"
@@ -606,6 +786,35 @@ pub struct InstallationReachResolution {
     pub provider_plan_report_identity: u64,
     pub upper_bound: Vec<String>,
     pub resolved_row: Vec<String>,
+}
+
+/// The post-specialization realization of one template-keyed selected plan
+/// row: which exact closed requirement instance it serves and which
+/// specialized provider instance realizes it.
+///
+/// Provider plans derive before specialization settlement, so a selected row
+/// for a generic requirement retains the authored template identities.
+/// Terminal boundary declarations and provider candidates instead carry the
+/// closed identities specialization minted. This row is the exact join
+/// between the two — derived by replaying the retained specialization
+/// receipts and the provider's recorded closed applications, never display
+/// names or runtime signatures. The selected row itself is never rewritten.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelectedRequirementSpecialization {
+    /// Compact report coordinate of the owning selected plan; the retained
+    /// closure and its strong digest remain the replay authority.
+    pub provider_plan_report_identity: u64,
+    /// The exact requirement identity the selected row retains: the authored
+    /// generic requirement template.
+    pub selected_requirement_identity: String,
+    /// The exact provider machine identity the selected row's checked-adapter
+    /// binding names: the authored generic provider template.
+    pub selected_machine_identity: String,
+    /// The closed requirement identity Terminal boundary declarations carry.
+    pub requirement_identity: String,
+    /// The specialized provider instance identity Terminal provider
+    /// candidates carry as `candidate_identity`.
+    pub machine_identity: String,
 }
 
 fn selected_plan_order(left: &ProviderPlan, right: &ProviderPlan) -> std::cmp::Ordering {
@@ -643,6 +852,7 @@ fn selected_plans_report_fingerprint(plans: &[ProviderPlan]) -> u64 {
 fn selected_closure_report_fingerprint(
     plans: &[ProviderPlan],
     resolutions: &[InstallationReachResolution],
+    specialization_rows: &[SelectedRequirementSpecialization],
 ) -> u64 {
     let mut hash = selected_plans_report_fingerprint(plans);
     for resolution in resolutions {
@@ -666,6 +876,24 @@ fn selected_closure_report_fingerprint(
                     .iter()
                     .flat_map(|service| service.as_bytes().iter().copied().chain([0])),
             )
+        {
+            hash ^= u64::from(byte);
+            hash = hash.wrapping_mul(0x100000001b3);
+        }
+    }
+    for row in specialization_rows {
+        for byte in row
+            .provider_plan_report_identity
+            .to_le_bytes()
+            .into_iter()
+            .chain(row.selected_requirement_identity.as_bytes().iter().copied())
+            .chain([0])
+            .chain(row.selected_machine_identity.as_bytes().iter().copied())
+            .chain([0])
+            .chain(row.requirement_identity.as_bytes().iter().copied())
+            .chain([0])
+            .chain(row.machine_identity.as_bytes().iter().copied())
+            .chain([0])
         {
             hash ^= u64::from(byte);
             hash = hash.wrapping_mul(0x100000001b3);

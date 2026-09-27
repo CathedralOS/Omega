@@ -372,14 +372,21 @@ fn join_import_coverage_rows<'input>(
     let mut has_external_demand = false;
     for provider_plan in selected_plans.plans() {
         for row in &provider_plan.rows {
-            if let Some(rows) = demanded.get_mut(row.requirement_identity.as_str()) {
-                rows.selected_count += 1;
-                if matches!(
-                    row.binding,
-                    ProviderBinding::Import { .. } | ProviderBinding::Syscall { .. }
-                ) {
-                    rows.selected_external = Some((provider_plan, row));
-                    has_external_demand = true;
+            // Terminal demand names closed requirement identities; a
+            // template-keyed selected row reaches them through the roster.
+            for identity in selected_plans.selected_row_requirement_identities(
+                provider_plan.report_fingerprint(),
+                row.requirement_identity.as_str(),
+            ) {
+                if let Some(rows) = demanded.get_mut(identity) {
+                    rows.selected_count += 1;
+                    if matches!(
+                        row.binding,
+                        ProviderBinding::Import { .. } | ProviderBinding::Syscall { .. }
+                    ) {
+                        rows.selected_external = Some((provider_plan, row));
+                        has_external_demand = true;
+                    }
                 }
             }
         }
@@ -394,9 +401,14 @@ fn join_import_coverage_rows<'input>(
             }
         }
         for external in external_binding_rows {
-            if let Some(rows) = demanded.get_mut(external.requirement_identity.as_str()) {
-                rows.external = Some(external);
-                rows.external_count += 1;
+            let mut identities = selected_plans
+                .closed_requirement_identities(external.requirement_identity.as_str());
+            identities.push(external.requirement_identity.as_str());
+            for identity in identities {
+                if let Some(rows) = demanded.get_mut(identity) {
+                    rows.external = Some(external);
+                    rows.external_count += 1;
+                }
             }
         }
     }
