@@ -551,7 +551,7 @@ impl CheckedOperatorCrashContract {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Clone, Default, PartialEq, Eq)]
 pub struct CheckedOperatorFacts {
     pub uses: Arena<CheckedOperatorUseFact>,
     /// Target-neutral executions settled by Omega from exact selected plans.
@@ -570,6 +570,40 @@ pub struct CheckedOperatorFacts {
     /// D29 open demands retained separately from closed applications so no
     /// downstream consumer can accidentally interpret them as coverage.
     pub symbolic_boundary_applications: Vec<CheckedSymbolicBoundaryOperatorApplicationDemand>,
+    /// The first expression-occurrence use per expression, derived from
+    /// `uses` and keyed on its revision.
+    expression_uses: arena::OwnedIndex<ExpressionUseIndex>,
+}
+
+/// Checked lowering asks for an expression's operator use once per operand;
+/// each lookup scanned every use.
+type ExpressionUseIndex = symbols::SymbolKeyMap<ExpressionHandle, Handle<CheckedOperatorUseFact>>;
+
+// Written out so the derived use index stays out of the facts' rendering.
+impl std::fmt::Debug for CheckedOperatorFacts {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("CheckedOperatorFacts")
+            .field("uses", &self.uses)
+            .field(
+                "selected_float_comparisons",
+                &self.selected_float_comparisons,
+            )
+            .field("named_uses", &self.named_uses)
+            .field("named_requirement_uses", &self.named_requirement_uses)
+            .field("candidates", &self.candidates)
+            .field("operator_crash_contracts", &self.operator_crash_contracts)
+            .field(
+                "operator_realization_contracts",
+                &self.operator_realization_contracts,
+            )
+            .field("boundary_applications", &self.boundary_applications)
+            .field(
+                "symbolic_boundary_applications",
+                &self.symbolic_boundary_applications,
+            )
+            .finish()
+    }
 }
 
 /// Retained checked baseline for one machine-to-operator realization.
@@ -695,6 +729,7 @@ impl CheckedOperatorFacts {
             operator_realization_contracts: Vec::new(),
             boundary_applications: Vec::new(),
             symbolic_boundary_applications: Vec::new(),
+            expression_uses: arena::OwnedIndex::default(),
         }
     }
 
@@ -715,11 +750,20 @@ impl CheckedOperatorFacts {
     }
 
     pub fn expression_use(&self, expression: ExpressionHandle) -> Option<&CheckedOperatorUseFact> {
-        self.uses.iter().find_map(|(_, operator_use)| {
-            (operator_use.expression == expression
-                && operator_use.occurrence == CheckedOperatorOccurrence::Expression)
-                .then_some(operator_use)
-        })
+        let handle = self.expression_uses.with(
+            self.uses.revision(),
+            || {
+                let mut index = ExpressionUseIndex::default();
+                for (handle, operator_use) in self.uses.iter() {
+                    if operator_use.occurrence == CheckedOperatorOccurrence::Expression {
+                        index.entry(operator_use.expression).or_insert(handle);
+                    }
+                }
+                index
+            },
+            |index| index.get(&expression).copied(),
+        )?;
+        Some(self.uses.get(handle))
     }
 
     pub fn expression_use_in_origin(
