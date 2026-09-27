@@ -141,7 +141,12 @@ fn prove_math_relation(
             semantic_axioms,
             definitions,
         )
-        .flatten()?,
+        .flatten()
+        // The mathematical cast obligation has the same fixed-carrier
+        // endpoint as an ordinary scalar bound. Let the existing equality
+        // closure connect field stores/reads to prior cast-image bounds;
+        // the outer proof still checks the lifted, original proposition.
+        .or_else(|| super::derived::prove(context, &scalar_goal, assumptions, semantic_axioms))?,
         _ => return None,
     };
     if lift_fixed_integer_relation(&scalar_goal).as_ref() != Some(goal) {
