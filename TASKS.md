@@ -2437,65 +2437,6 @@ syntax and other terminal services are not prerequisites.
   loan admission; **TERMINAL-SLICE-VIEW-VOCABULARY** owns broader view bounds;
   **PLAN-LAID-VIEWS** owns provider-backed establishment and access plans.
 
-- **ADDRESS-EXPOSURE.** (new-scope) Implement the settled
-  [`address_of` queries](wiki/spec/language/counts_and_addresses.md#address-exposure)
-  for low-level entry/storage observation. Carry selected declaration/application
-  or referent identity through source checking, Terminal Psi, independent
-  verification, interpreter execution, and native relocation/materialization.
-  A retained machine query is an executable-entry dependency even without a
-  direct call; do not introduce a separate registration or lowering route.
-  Owners: Psi expression admission and executable-demand lowering; Terminal
-  encoding/verification/interpreter; Omega entry retention and backend emission.
-
-  Native addresses name realized entries/storage. Interpreted values reuse
-  existing entry/referent identities where possible, with disjoint code/storage
-  encodings and enough scope to avoid collisions across live invocations and
-  loaded instances. Include subplace identity and compatible-view equality;
-  never truncate existing IDs to fit tag bits. Do not build a virtual byte-memory
-  system or a duplicate registry merely to expose identity.
-
-  Acceptance: `address_of<Selected<Arguments>>()` and `address_of(reference)`
-  cover a generic executable machine, selected machine binder, local and borrowed
-  field in both modes. Machine/reference `as addr` is not a compatibility alias.
-  Repeated exposure agrees; distinct live storage occurrences and code/storage IDs do
-  not collide. Native entry demand survives absence/inlining of direct calls;
-  interpreted demand retains its body without zero or a native trampoline.
-  Reject unresolved selections, proof-only entities without executable meaning,
-  invalid loans and nonaddressable projections, encoding overflow/collision,
-  and attempts to launder addresses into borrows or call authority. Check that
-  evaluator IDs cannot escape into constants and native relocation bits are not
-  treated as known semantic-evaluation integers. Preserve private callback ABI
-  selection and custody. Address exposure is separate from
-  [instruction interpretation](wiki/spec/language/assembly.md#interpreted-execution)
-  and does not implement indirect-call syntax, arbitrary code patching, or
-  native-address interchange for interpreter IDs.
-
-- **DATA-LAYOUT-QUERIES.** (new-scope) Implement core `size_of<T>()` and
-  `align_of<T>()` from the selected target's validated layout, following
-  [layout queries](wiki/spec/layouts/plans.md#size-and-alignment-queries).
-  Owners: Psi static-query admission/evaluation, existing layout production,
-  and ordinary constant materialization; no second size calculator or keyword.
-  Acceptance: default/custom layouts report size including padding and alignment
-  in authored constants and runtime uses; erased fields, zero-sized layouts,
-  reference-versus-referent storage, and target variation agree with actual
-  layout/ABI. Reject unavailable fixed size, missing runtime layout, circular
-  layout queries and machine declarations. A known alignment may remain available
-  for a dynamic-size plan; no interpreter-host allocation size escapes.
-
-- **NATIVE-CODE-LAYOUT-QUERIES.** (new-scope) Deliver
-  [`code_layout<Machine>()`](wiki/spec/language/counts_and_addresses.md#native-code-layout-queries)
-  for a selected application: entry address plus exact emitted instruction
-  regions with `addr` bases and `u64` lengths. The low-level editor customer
-  needs actual regions, not a guessed 2 KiB window or next-symbol subtraction.
-  Reuse ADDRESS-EXPOSURE's demand and Omega's final layout/relocation products;
-  Psi records the query without executing a second compiler or exposing the
-  unfinished native product to semantic evaluation. Acceptance: an otherwise
-  uncalled generic body is retained and its runtime metadata matches the final
-  artifact, including split/shared regions without claiming exclusive ownership
-  or including padding, pools and callees. Reject missing native realization
-  and use in the same product's type/constant/layout computation. Interpreted
-  entry IDs do not receive a fabricated code size or byte region.
-
 - **ASSUMED-BINDING-CONTRACTS.** (new-scope) Implement the root-only
   [`Build::assume_binding_contract<Required::operation, Supplied::operation>()`](wiki/spec/build/assumed_binding_contracts.md)
   relationship through existing Build/provider installation, Terminal evidence,
@@ -2630,6 +2571,71 @@ syntax and other terminal services are not prerequisites.
   Keep open templates, non-closed member applications and runtime counts in
   static layout rejected. Reuse the recursive consumer and closed literal
   substitution; no depth-specific representation is needed.
+
+- **ADDRESS-EXPOSURE.** (new-scope) Implement the settled
+  [`address_of` queries](wiki/spec/language/counts_and_addresses.md#address-exposure)
+  through Psi admission, Terminal encoding/replay, interpretation and native
+  realization. These queries have no current `AuthoredDeclarationSelectionIntrinsic`
+  or admission in checked `authored_selections/intrinsic_calls.rs`.
+  Retain the selected machine application or original referent; a machine query
+  adds ordinary executable demand even without a direct call. Preserve that
+  demand through specialization/inlining and retain the interpreted body.
+  Native entry/storage addresses use normal realization and relocations;
+  preserve private callback ABI selection and custody.
+
+  Reuse the interpreter's `StructuralRuntimePlace` and
+  `LocalStructuralIdentities`, which currently identify storage within one
+  execution, and its machine identities. Exposure still needs disjoint
+  code/storage encodings covering loaded instances, runtime occurrences and
+  subplaces. Compatible views must agree; full identities must fit without
+  truncation, collision, or zero for live entries. No parallel registry,
+  virtual byte memory or native trampoline is required.
+
+  Acceptance: source programs execute `address_of<Selected<Arguments>>()` and
+  `address_of(reference)` for generic machines, selected machine binders, locals
+  and borrowed fields in both modes. Repeated exposure agrees and distinct live
+  locations remain distinct. Reject unresolved selections, proof-only entities
+  without executable meaning, invalid loans, nonaddressable projections and
+  exhausted encodings. Addresses grant no borrow/call authority; machine/reference
+  `as addr` is not an alias. Keep evaluator IDs out of portable constants and
+  unresolved native relocation bits out of semantic evaluation. This remains separate from
+  [instruction interpretation](wiki/spec/language/assembly.md#interpreted-execution)
+  and adds no indirect-call syntax, arbitrary patching or native-address
+  interchange for interpreter IDs.
+
+- **DATA-LAYOUT-QUERIES.** (new-scope) Implement core `size_of<T>()` and
+  `align_of<T>()` from the selected target's validated layout, following
+  [layout queries](wiki/spec/layouts/plans.md#size-and-alignment-queries).
+  Add source admission and semantic evaluation using existing
+  `build-time-evaluation::compute_native_layout_plan`,
+  `LayoutPlanReport::{size, align}` and `layout::layout_type_reference`, then
+  ordinary constant materialization. Preserve exact schema, target and policy
+  custody; no second size calculator or keyword. The native layout builder's
+  unresolved-array fallback is `TypeLayout::default()` (size 0, alignment 1);
+  a query must distinguish that absence from a validated zero-sized layout.
+  Acceptance: default/custom layouts report size including padding and alignment
+  in authored constants and runtime uses; erased fields, zero-sized layouts,
+  reference-versus-referent storage, and target variation agree with actual
+  layout/ABI. Reject unavailable fixed size, missing runtime layout, circular
+  layout queries and machine declarations. A known alignment may remain available
+  for a dynamic-size plan; no interpreter-host allocation size escapes.
+
+- **NATIVE-CODE-LAYOUT-QUERIES.** (new-scope) Deliver
+  [`code_layout<Machine>()`](wiki/spec/language/counts_and_addresses.md#native-code-layout-queries)
+  for a selected application: entry address plus exact emitted instruction
+  regions with `addr` bases and `u64` lengths. The low-level editor customer
+  needs actual regions, not a guessed 2 KiB window or next-symbol subtraction.
+  Reuse **ADDRESS-EXPOSURE**'s demand and `machine-emission::text_placement`'s
+  retained/replayed `PlacedInstructionSpan` geometry. The existing callable-entry
+  record exposes one section offset/byte count, not a complete region query.
+  Join final instruction spans and relocations to the selected application;
+  Psi records demand without running a second compiler or evaluating the
+  unfinished native product. Acceptance: an otherwise uncalled generic body
+  is retained and its runtime metadata matches the final
+  artifact, including split/shared regions without claiming exclusive ownership
+  or including padding, pools and callees. Reject missing native realization
+  and use in the same product's type/constant/layout or optimization computation.
+  Interpreted entry IDs do not receive a fabricated code size or byte region.
 
 ## P3 - Terminal Psi, PCC, and observation
 
