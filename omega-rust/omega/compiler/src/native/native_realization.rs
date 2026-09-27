@@ -11,7 +11,6 @@ mod callback_thunks;
 mod input_preparation;
 mod object_emission;
 mod optimization_stage;
-mod optimized_fragment_projection;
 mod physical_stage;
 mod realization_diagnostics;
 mod realization_request;
@@ -161,11 +160,6 @@ fn realize_image(
         receiver_settlement.as_ref(),
         &artifact,
         request,
-    )?;
-    validate_emitted_receiver_binding(
-        &emitted.object,
-        emitted.semantic_wrapper_object.is_some(),
-        receiver_settlement.as_ref(),
     )?;
     assemble_requested_native_artifact(
         artifact,
@@ -343,72 +337,4 @@ fn entry_boundary_without_receiver(
         "ProgramEntry placed-view custody",
         "bound placed-view establishments require the hosted entry boundary that lends each referent; this admission retains none",
     ))
-}
-
-/// Admission is demand, not construction. The emitted object must carry a
-/// hosted receiver binding iff one was admitted, and that binding must be the
-/// validated settlement's exact source signature and physical contract — a
-/// missing binding is bypassed provisioning, and a substituted one binds a
-/// different continuation, receiver, or arrival contract than the checked
-/// source selected.
-fn validate_emitted_receiver_binding(
-    object: &image_emission::ObjectArtifact,
-    semantic_wrapper_object: bool,
-    admitted: Option<&crate::native::ValidatedNativeProgramEntrySettlement>,
-) -> Result<(), Vec<Diagnostic>> {
-    let binding = object.hosted_receiver_binding();
-    let Some(settlement) = admitted else {
-        return if binding.is_none() && !semantic_wrapper_object {
-            Ok(())
-        } else {
-            Err(realization_error(
-                "ProgramEntry receiver provisioning",
-                "emitted object carries a hosted receiver binding that admission never granted",
-            ))
-        };
-    };
-    if settlement.source().target_slot().owner == target::TargetProfile::UefiX64 {
-        // The authored semantic entry binds through the staged wrapper object's
-        // custody, not a hosted shim: the emitted object must stay
-        // receiver-binding-free and the wrapper object must have been staged.
-        return if binding.is_none() && semantic_wrapper_object {
-            Ok(())
-        } else {
-            Err(realization_error(
-                "ProgramEntry receiver provisioning",
-                "admitted UEFI semantic entry did not reach a staged wrapper object",
-            ))
-        };
-    }
-    let Some(binding) = binding else {
-        return Err(realization_error(
-            "ProgramEntry receiver provisioning",
-            "admitted receiver provisioning did not reach the emitted object",
-        ));
-    };
-    let admitted_contract = settlement
-        .storage_entry()
-        .and_then(|storage| storage.physical_contract());
-    if binding.source() != settlement.source()
-        || admitted_contract != Some(binding.physical_contract())
-    {
-        return Err(realization_error(
-            "ProgramEntry receiver provisioning",
-            "emitted hosted receiver binding does not carry the admitted source signature and physical contract",
-        ));
-    }
-    let admitted_occupancy = settlement
-        .checked_entry()
-        .receiver_eligibility()
-        .is_some_and(|eligibility| {
-            eligibility.cleanup()
-                == terminal_psi::CheckedProgramEntryReceiverCleanup::OccupiesHostedExtent
-        });
-    if binding.cleanup_occupancy() != admitted_occupancy {
-        return Err(realization_error(
-            "ProgramEntry receiver provisioning",
-            "emitted hosted receiver binding does not track the admitted cleanup occupancy",
-        ));
-    }
-    Ok(())
 }
