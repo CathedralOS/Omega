@@ -105,25 +105,8 @@ pub struct DynamicElfNativeArtifactParts {
 /// Fresh dynamic writer inputs.  Physical evidence is rederived from the
 /// canonical Terminal/object/final-image join rather than accepted from the
 /// caller.
-#[derive(Debug)]
-pub struct DynamicElfNativeArtifactEmissionParts {
-    pub target: target::NativeTarget,
-    pub psi_artifact: terminal_codec::CanonicalTerminalArtifact,
-    pub object: image_emission::ObjectArtifact,
-    pub image: image_emission::RequestedDynamicElfImage,
-    pub selected_provider_closure_report_identity: u64,
-    pub selected_provider_closure_digest: NativeSelectedProviderClosureDigest,
-    pub selected_provider_plans: Vec<NativeSelectedProviderPlan>,
-    pub provider_executions: Vec<NativeProviderExecution>,
-    pub terminal_authority_policy_identity: TerminalAuthorityPolicyIdentity,
-    /// The exact receiving permission policy this artifact was realized under,
-    /// or `None` when production ran without a receiver-admission claim.
-    pub terminal_authority_permission_policy_identity:
-        Option<TerminalAuthorityPermissionPolicyIdentity>,
-    pub terminal_authority_closure_review: TerminalAuthorityClosureReviewReceipt,
-    pub boundary_application_coverage: Option<TerminalBoundaryApplicationCoverage>,
-    pub physical_evidence_scope: NativePhysicalEvidenceScope,
-}
+pub type DynamicElfNativeArtifactEmissionParts =
+    super::NativeArtifactEmissionParts<image_emission::RequestedDynamicElfImage>;
 
 impl DynamicElfNativeArtifact {
     /// Complete fresh source-free dynamic emission by deriving every physical

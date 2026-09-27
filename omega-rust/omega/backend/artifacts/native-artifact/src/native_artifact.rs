@@ -20,6 +20,7 @@ use terminal_psi::TerminalPsiIdentity;
 
 mod boundary_applications;
 mod dynamic_elf;
+mod emission;
 mod identity;
 mod mixed_structural_scalar;
 mod provider_execution;
@@ -37,6 +38,7 @@ pub use dynamic_elf::{
     DynamicElfNativeArtifact, DynamicElfNativeArtifactEmissionParts,
     DynamicElfNativeArtifactIdentity, DynamicElfNativeArtifactParts,
 };
+pub use emission::RequestedNativeArtifact;
 use identity::{
     NativeArtifactIdentityFields, derive_native_artifact_identity, foreign_call_custody_digest,
 };
@@ -93,12 +95,15 @@ pub struct NativeArtifactParts {
 /// Fresh machine/image emission inputs. Physical evidence is deliberately
 /// absent: this owner derives it from the exact Terminal, object, image, and
 /// selected-plan custody before constructing a replayable artifact.
+/// The image carrier is either a completed image or an explicit emission
+/// request consumed by [`RequestedNativeArtifact::emit`]. It does not change
+/// the evidence required by either image product.
 #[derive(Debug)]
-pub struct NativeArtifactEmissionParts {
+pub struct NativeArtifactEmissionParts<Image = image_emission::ExecutableImage> {
     pub target: target::NativeTarget,
     pub psi_artifact: terminal_codec::CanonicalTerminalArtifact,
     pub object: image_emission::ObjectArtifact,
-    pub image: image_emission::ExecutableImage,
+    pub image: Image,
     pub selected_provider_closure_report_identity: u64,
     pub selected_provider_closure_digest: NativeSelectedProviderClosureDigest,
     pub selected_provider_plans: Vec<NativeSelectedProviderPlan>,

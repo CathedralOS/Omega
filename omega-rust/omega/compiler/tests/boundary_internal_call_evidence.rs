@@ -104,6 +104,7 @@ fn installed_provider_internal_call_retains_complete_physical_evidence() {
     .expect("permission policy");
     let image_request =
         compiler::native::ExecutableImageEmissionRequest::direct(proposal.subsystem());
+    let replay_image_request = image_request.clone();
     let product = realize_retained_native_artifact(
         retained,
         RetainedNativeRealizationRequest {
@@ -216,4 +217,52 @@ fn installed_provider_internal_call_retains_complete_physical_evidence() {
         ),
         "the hosted exit boundary keeps its builtin role"
     );
+
+    // The backend owns final image construction and custody replay, even
+    // when called without the compiler's realization coordinator.
+    let expected_identity = artifact.identity();
+    let reproduced = native_artifact::RequestedNativeArtifact::emit(emission_request_parts(
+        artifact,
+        replay_image_request.clone(),
+    ))
+    .expect("backend re-emission preserves the complete native join")
+    .into_direct()
+    .expect("the same object and image request remain direct custody");
+    assert_eq!(reproduced.identity(), expected_identity);
+    let mut substituted = emission_request_parts(reproduced, replay_image_request);
+    substituted.target = target::NativeTarget::windows_x64();
+    let diagnostics = native_artifact::RequestedNativeArtifact::emit(substituted)
+        .expect_err("the backend must replay, not trust the supplied target");
+    // Physical replay encounters the unsupported hosted target before the
+    // later object/image target equality check.
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("hosted builtin physical child requires a canonical supported target")),
+        "{diagnostics:?}",
+    );
+}
+
+fn emission_request_parts(
+    artifact: native_artifact::NativeArtifact,
+    image: compiler::native::ExecutableImageEmissionRequest,
+) -> native_artifact::NativeArtifactEmissionParts<compiler::native::ExecutableImageEmissionRequest>
+{
+    let parts = artifact.into_parts();
+    native_artifact::NativeArtifactEmissionParts {
+        target: parts.target,
+        psi_artifact: parts.psi_artifact,
+        object: parts.object,
+        image,
+        selected_provider_closure_report_identity: parts.selected_provider_closure_report_identity,
+        selected_provider_closure_digest: parts.selected_provider_closure_digest,
+        selected_provider_plans: parts.selected_provider_plans,
+        provider_executions: parts.provider_executions,
+        terminal_authority_policy_identity: parts.terminal_authority_policy_identity,
+        terminal_authority_permission_policy_identity: parts
+            .terminal_authority_permission_policy_identity,
+        terminal_authority_closure_review: parts.terminal_authority_closure_review,
+        boundary_application_coverage: parts.boundary_application_coverage,
+        physical_evidence_scope: parts.physical_evidence_scope,
+    }
 }

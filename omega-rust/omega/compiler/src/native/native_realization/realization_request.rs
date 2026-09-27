@@ -5,7 +5,7 @@
 pub use abstract_operations_to_target_operations::provider_admission::{
     NativeBoundaryRealization, NativeCompilerBuiltinSettlement, NativeProviderSettlement,
 };
-use native_artifact::{DynamicElfNativeArtifact, NativeArtifact};
+pub use native_artifact::RequestedNativeArtifact;
 use terminal_psi_to_abstract_operations::NativeProgramEntrySettlement;
 pub(crate) use terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput as NativeRealizationInput;
 
@@ -75,33 +75,6 @@ pub struct NativeRealizationRequest<'request> {
     /// absence is adjudicated against the admitted mechanism closure whether
     /// or not the request carries a receiver permission policy.
     pub behavior_exclusions: &'request effects::BehaviorExclusions,
-}
-
-/// Source-free native result selected by the exact object-bound image request.
-/// Dynamic ELF remains a separate, non-installable authority class.
-#[derive(Debug)]
-#[must_use = "requested native realization retains its authority-distinct image custody"]
-pub enum RequestedNativeArtifact {
-    Direct(NativeArtifact),
-    DynamicElf(DynamicElfNativeArtifact),
-}
-
-impl RequestedNativeArtifact {
-    /// Borrow a direct artifact without treating dynamic custody as executable authority.
-    pub fn as_direct(&self) -> Option<&NativeArtifact> {
-        match self {
-            Self::Direct(artifact) => Some(artifact),
-            Self::DynamicElf(_) => None,
-        }
-    }
-
-    /// Extract a direct artifact without discarding a different image's custody.
-    pub fn into_direct(self) -> Result<NativeArtifact, Self> {
-        match self {
-            Self::Direct(artifact) => Ok(artifact),
-            other => Err(other),
-        }
-    }
 }
 
 /// Failed requested realization with the complete image input recoverable.

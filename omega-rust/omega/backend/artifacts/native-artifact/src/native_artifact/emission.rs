@@ -1,0 +1,110 @@
+//! Emit the requested image and replay the corresponding native artifact.
+//!
+//! The image writer selects the authority-distinct result. Both branches
+//! consume the same source-free evidence, then use their own construction and
+//! independent replay; dynamic ELF never acquires direct-image authority.
+
+use super::{DynamicElfNativeArtifact, NativeArtifact, NativeArtifactEmissionParts};
+use diagnostics::Diagnostic;
+use image_emission::{ExecutableImageEmissionRequest, RequestedExecutableImage};
+
+/// Source-free native result selected by the exact object-bound image request.
+/// Dynamic ELF remains a separate, non-installable authority class.
+#[derive(Debug)]
+#[must_use = "requested native realization retains its authority-distinct image custody"]
+pub enum RequestedNativeArtifact {
+    Direct(NativeArtifact),
+    DynamicElf(DynamicElfNativeArtifact),
+}
+
+impl RequestedNativeArtifact {
+    /// Emit an image from the retained object and construct its complete
+    /// Terminal/object/image custody. Every physical-evidence derivation and
+    /// replay runs before a product is returned. This writes no files and
+    /// grants no receiving, installation or execution authority.
+    pub fn emit(
+        parts: NativeArtifactEmissionParts<ExecutableImageEmissionRequest>,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let NativeArtifactEmissionParts {
+            target,
+            psi_artifact,
+            object,
+            image: image_request,
+            selected_provider_closure_report_identity,
+            selected_provider_closure_digest,
+            selected_provider_plans,
+            provider_executions,
+            terminal_authority_policy_identity,
+            terminal_authority_permission_policy_identity,
+            terminal_authority_closure_review,
+            boundary_application_coverage,
+            physical_evidence_scope,
+        } = parts;
+        let image = image_emission::emit_executable_image(&object, image_request)
+            .map_err(|error| vec![error.diagnostic().clone()])?;
+        match image {
+            RequestedExecutableImage::Direct(image) => {
+                NativeArtifact::from_emitted_parts(NativeArtifactEmissionParts {
+                    target,
+                    psi_artifact,
+                    object,
+                    image,
+                    selected_provider_closure_report_identity,
+                    selected_provider_closure_digest,
+                    selected_provider_plans,
+                    provider_executions,
+                    terminal_authority_policy_identity,
+                    terminal_authority_permission_policy_identity,
+                    terminal_authority_closure_review,
+                    boundary_application_coverage,
+                    physical_evidence_scope,
+                })
+                .map(Self::Direct)
+                .map_err(|error| {
+                    vec![Diagnostic::error(format!(
+                        "native artifact native artifact replay failed: {error}"
+                    ))]
+                })
+            }
+            RequestedExecutableImage::DynamicElf(image) => {
+                DynamicElfNativeArtifact::from_emitted_parts(NativeArtifactEmissionParts {
+                    target,
+                    psi_artifact,
+                    object,
+                    image,
+                    selected_provider_closure_report_identity,
+                    selected_provider_closure_digest,
+                    selected_provider_plans,
+                    provider_executions,
+                    terminal_authority_policy_identity,
+                    terminal_authority_permission_policy_identity,
+                    terminal_authority_closure_review,
+                    boundary_application_coverage,
+                    physical_evidence_scope,
+                })
+                .map(Self::DynamicElf)
+                .map_err(|error| {
+                    vec![Diagnostic::error(format!(
+                        "native artifact dynamic ELF native artifact replay failed: {error}"
+                    ))]
+                })
+            }
+        }
+    }
+
+    /// Borrow a direct artifact without treating dynamic custody as executable authority.
+    pub fn as_direct(&self) -> Option<&NativeArtifact> {
+        match self {
+            Self::Direct(artifact) => Some(artifact),
+            Self::DynamicElf(_) => None,
+        }
+    }
+
+    /// Extract a direct artifact without discarding a different image's custody.
+    pub fn into_direct(self) -> Result<NativeArtifact, Self> {
+        match self {
+            Self::Direct(artifact) => Ok(artifact),
+            other => Err(other),
+        }
+    }
+}

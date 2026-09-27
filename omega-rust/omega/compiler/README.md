@@ -217,6 +217,12 @@ omission reports `unimplemented:`.
 
 ## Native realization
 
+Final image construction and Direct/Dynamic-ELF artifact dispatch belong to
+[native-artifact emission](../backend/artifacts/native-artifact/src/native_artifact/emission.rs).
+The coordinator supplies source-free selected-plan projections and forwards the
+emitted object and retained evidence; the backend constructs and independently
+replays the complete product. No compiler-local artifact assembler remains.
+
 This coordinator consumes canonical Terminal Psi and explicit realization
 inputs. Its public contracts are [boundary realization](../../../wiki/spec/terminal-psi/boundary_calls.md),
 [private callbacks](../../../wiki/spec/build/private_callbacks.md), and
