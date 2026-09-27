@@ -144,13 +144,31 @@ fn validate_expression(
         .collect::<Vec<_>>();
     let structural_names_unique = names_are_unambiguous(program, &structural_facts, &arguments);
     let judge = StructuralJudge::from_requires(program, machine, &structural_facts);
-    for requirement in requirements {
+    // Named proposition requirements are an erased evidence lane, not Boolean
+    // facts for the structural/arithmetic prover. The checked-tree contract
+    // evidence binder validates each supplied term's exact owner, proposition
+    // and argument substitution before publication. Defer only the nominal
+    // call form that binder handles, with a complete nonempty lane; ordinary
+    // requirements below still need independent prior facts.
+    let named_evidence_count = requirements.iter().filter(|(_, named)| *named).count();
+    let has_named_evidence_lane = matches!(contract_owner, RequirementOwner::Concrete(..))
+        && call.static_requirement_dispatch.is_none()
+        && call.quotient_operation.is_none()
+        && call.machine_arguments.is_empty()
+        && named_evidence_count != 0
+        && call.evidence_arguments.len() == named_evidence_count;
+    for (requirement, named_evidence) in requirements {
+        if named_evidence
+            && has_named_evidence_lane
+            && matches!(requirement, ProofFact::Proposition(_))
+        {
+            continue;
+        }
         // Substitution needs one argument per owned parameter. A dispatched
         // requirement call is the signature owner's own spelling, so its
         // dispatch record does not disqualify it; a concrete call keeps the
         // static-selection gate that requires the same shape.
         let arguments_select_plainly = call.machine_arguments.is_empty()
-            && call.evidence_arguments.is_empty()
             && (matches!(contract_owner, RequirementOwner::Signature(..))
                 || call.static_requirement_dispatch.is_none());
         let proven = if let ProofFact::Expression(required) = requirement
@@ -268,7 +286,7 @@ fn owner_parameters<'program>(
 fn applicable_requirements_of<'program>(
     program: &'program TypedTrees,
     owner: &RequirementOwner<'program>,
-) -> Vec<&'program ProofFact> {
+) -> Vec<(&'program ProofFact, bool)> {
     match owner {
         RequirementOwner::Concrete(machine, state) => {
             applicable_requirements(program, machine, state).collect()
@@ -277,7 +295,13 @@ fn applicable_requirements_of<'program>(
             .state_signature_contracts(signature)
             .iter()
             .filter(|contract| contract.kind == SignatureContractKind::Requires)
-            .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+            .flat_map(|contract| {
+                program
+                    .proof_facts
+                    .span_or_empty(contract.facts)
+                    .iter()
+                    .map(|fact| (fact, contract.binding.is_some()))
+            })
             .collect(),
     }
 }
@@ -286,7 +310,7 @@ fn applicable_requirements<'program>(
     program: &'program TypedTrees,
     machine: &Machine,
     state: &State,
-) -> impl Iterator<Item = &'program ProofFact> {
+) -> impl Iterator<Item = (&'program ProofFact, bool)> {
     let is_entry = program
         .machine_states(machine)
         .first()
@@ -297,7 +321,13 @@ fn applicable_requirements<'program>(
         .filter(move |_| is_entry)
         .chain(program.state_contracts(state))
         .filter(|contract| contract.kind == SignatureContractKind::Requires)
-        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+        .flat_map(|contract| {
+            program
+                .proof_facts
+                .span_or_empty(contract.facts)
+                .iter()
+                .map(|fact| (fact, contract.binding.is_some()))
+        })
 }
 
 fn structurally_substitutable_fact(program: &TypedTrees, expression: ExpressionHandle) -> bool {
@@ -488,7 +518,7 @@ fn requirements_are_acyclic(
     }
     active.push(symbol);
     let mut pending = Vec::new();
-    for fact in applicable_requirements_of(program, owner) {
+    for (fact, _) in applicable_requirements_of(program, owner) {
         fact_roots(program, fact, &mut pending);
     }
     let mut visited = Vec::new();

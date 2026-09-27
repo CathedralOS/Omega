@@ -37,6 +37,94 @@ requires observes(value; {caller_binding})
     (package, checked)
 }
 
+#[test]
+fn contract_evidence_arguments_do_not_replace_preconditions_or_subject_custody() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    for (arguments, callee_requirement, caller_requirement, expected_error) in [
+        (
+            "value; incoming",
+            "requires value >= 0",
+            "requires value >= 0",
+            None,
+        ),
+        (
+            "value; incoming",
+            "requires value >= 0",
+            "",
+            Some("cannot prove requires contract"),
+        ),
+        ("value", "", "", Some("cannot prove requires contract")),
+        (
+            "value; missing",
+            "",
+            "",
+            Some("resolves incoming evidence term `missing` to 0 exact contract rows"),
+        ),
+        (
+            "value; unrelated",
+            "",
+            "",
+            Some("does not inhabit erased requires position 0"),
+        ),
+        (
+            "other; incoming",
+            "",
+            "",
+            Some("does not inhabit erased requires position 0"),
+        ),
+        (
+            "value; incoming, incoming",
+            "",
+            "",
+            Some("cannot prove requires contract"),
+        ),
+    ] {
+        let package = TempPackage::new();
+        package.write(
+            "main.omg",
+            &format!(
+                "pub trait Evidence {{}}
+pub proposition carries(value: i32) evidence Evidence;
+pub proposition different(value: i32) evidence Evidence;
+pub machine observes(value: i32) -> bool
+requires required: carries(value)
+{callee_requirement}
+{{ true }}
+pub machine inspect(value: i32, other: i32)
+requires incoming: carries(value)
+requires unrelated: different(value)
+{caller_requirement}
+requires observes({arguments})
+{{}}"
+            ),
+        );
+        package.write(
+            "build.omg",
+            "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }",
+        );
+        let result = compile_review_fixture(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+        });
+        match (result, expected_error) {
+            (Ok(checked), None) => {
+                project_checked_package_review(&checked)
+                    .expect("independent Boolean and evidence premises both project");
+            }
+            (Err(diagnostics), Some(expected)) => assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains(expected)),
+                "{arguments}, {callee_requirement}: expected {expected}: {diagnostics:?}",
+            ),
+            (Err(diagnostics), None) => panic!("valid evidence call rejected: {diagnostics:?}"),
+            (Ok(_), Some(expected)) => panic!("invalid evidence call accepted: {expected}"),
+        }
+    }
+}
+
 fn evidence_call_expression(
     review: &CheckedPackageReviewProjection,
 ) -> &PackageReviewContractExpression {
