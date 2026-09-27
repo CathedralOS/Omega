@@ -467,7 +467,7 @@ fn omega_case_applications_are_named_after_their_case() {
             BuildDeclaration::Application(declaration) => assert_eq!(
                 declaration,
                 package_manager::declarations::ApplicationDeclaration {
-                    name: PackageName::parse(&expected_omega_case_application_name(&root)).unwrap(),
+                    name: PackageName::parse(expected_omega_case_application_name(&root)).unwrap(),
                     artifact_only: false,
                 },
                 "unexpected Omega case application declaration in {}",
