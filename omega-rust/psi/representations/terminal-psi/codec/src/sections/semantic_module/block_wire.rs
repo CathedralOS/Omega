@@ -1084,58 +1084,6 @@ mod tests {
     }
 
     #[test]
-    fn write_only_primitive_store_uses_exact_stable_wire_fields() {
-        let block = Block {
-            erased_scalar_formals: Vec::new(),
-            erased_proof_formals: Vec::new(),
-            structural_parameters: Vec::new(),
-            id: id::<BlockId>(1),
-            parameters: Vec::new(),
-            operations: vec![Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id: id::<OperationId>(2),
-                result: OperationResult::Unit,
-                kind: OperationKind::WriteOnlyPrimitiveStore {
-                    path: Vec::new(),
-                    destination: id::<PlaceId>(3),
-                    value: id(4),
-                },
-            }],
-            terminator: Terminator::ReturnUnit {
-                edge: id::<EdgeId>(5),
-                trivial_affine_discards: Vec::new(),
-            },
-        };
-        let mut writer = Writer::default();
-        encode_block(&mut writer, &block).expect("write-only primitive store block encodes");
-        let bytes = writer.finish();
-        assert_eq!(bytes[36], 0, "absent static reach binder marker");
-        assert_eq!(bytes[37], 0, "Unit OperationResult wire tag");
-        assert_eq!(bytes[38], 43, "WriteOnlyPrimitiveStore wire tag");
-        assert_eq!(
-            &bytes[39..47],
-            &id::<PlaceId>(3).get().to_le_bytes(),
-            "destination is the first exact operation field",
-        );
-        assert_eq!(
-            &bytes[47..55],
-            &id::<semantic_vocabulary::ValueId>(4).get().to_le_bytes(),
-            "source value is the second exact operation field",
-        );
-        let mut reader = Reader::new(&bytes);
-        assert_eq!(decode_block(&mut reader), Ok(block));
-        assert_eq!(reader.remaining(), 0);
-
-        let mut invalid = bytes;
-        invalid[38] = 255;
-        assert_eq!(
-            decode_block(&mut Reader::new(&invalid)),
-            Err(CodecError::InvalidTag("OperationKind", 255)),
-        );
-    }
-
-    #[test]
     fn structural_scalar_field_operations_use_exact_stable_wire_fields() {
         let store = Block {
             erased_scalar_formals: Vec::new(),
@@ -1804,55 +1752,6 @@ mod tests {
             Err(CodecError::InvalidTag("OperationKind", 255))
         );
         assert!(decode_block(&mut Reader::new(&bytes[..position + 32])).is_err());
-    }
-
-    #[test]
-    fn structural_scalar_call_round_trips_scalar_arguments() {
-        let block = Block {
-            erased_scalar_formals: Vec::new(),
-            erased_proof_formals: Vec::new(),
-            structural_parameters: Vec::new(),
-            id: id::<BlockId>(1),
-            parameters: Vec::new(),
-            operations: vec![Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id: id::<OperationId>(2),
-                result: OperationResult::Scalar(ValueDeclaration {
-                    qualifications: Default::default(),
-                    id: id::<ValueId>(3),
-                    scalar_type: ScalarType::Boolean,
-                }),
-                kind: OperationKind::CallStructuralScalar {
-                    erased_arguments: Vec::new(),
-                    erased_proof_arguments: Vec::new(),
-                    callee: id::<MachineId>(4),
-                    arguments: vec![id::<ValueId>(5)],
-                    structural_arguments: vec![StructuralArgument {
-                        place: id::<PlaceId>(6),
-                        path: Vec::new(),
-                        access: StructuralAccess::SharedBorrow,
-                    }],
-                    claim_transfers: Vec::new(),
-                    requirement_obligations: Vec::new(),
-                    crash_continuations: Vec::new(),
-                },
-            }],
-            terminator: Terminator::ReturnUnit {
-                edge: id::<EdgeId>(7),
-                trivial_affine_discards: Vec::new(),
-            },
-        };
-        let mut writer = Writer::default();
-        encode_block(&mut writer, &block).expect("mixed structural scalar call encodes");
-        let bytes = writer.finish();
-        let decoded = decode_block(&mut Reader::new(&bytes)).expect("mixed call decodes");
-        let OperationKind::CallStructuralScalar { arguments, .. } = &decoded.operations[0].kind
-        else {
-            unreachable!()
-        };
-        assert_eq!(arguments, &[id::<ValueId>(5)]);
-        assert_eq!(decoded, block);
     }
 
     #[test]

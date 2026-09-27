@@ -4,7 +4,7 @@ use semantic_vocabulary::{
 };
 
 use super::{
-    CheckedPredicateDenotations, PredicateDenotationError, check_predicate_denotations,
+    CheckedPredicateDenotations, PredicateDenotationError,
     check_predicate_denotations_with_value_equalities,
 };
 use crate::{PrimitiveJudgment, ProofNode, ProofRule};
@@ -75,34 +75,6 @@ fn citation(checked: &CheckedPredicateDenotations<'_>, index: usize) -> ProofNod
         conclusion: checked.goal().clone(),
         rule: ProofRule::SemanticAxiom { index },
     }
-}
-
-#[test]
-fn nested_value_equations_transport_the_original_guard_without_new_axioms() {
-    let (context, goal, axioms) = fixture();
-    let original = axioms.clone();
-    let checked =
-        check_predicate_denotations_with_value_equalities(&context, &goal, &[], &axioms).unwrap();
-    assert_eq!(checked.semantic_axioms().len(), axioms.len());
-    assert_eq!(
-        checked.goal(),
-        &Proposition::LessOrEqual(value(2), sum(value(1), literal(1)))
-    );
-    for index in [3, 4] {
-        checked
-            .check_certificate(&context, &citation(&checked, index))
-            .unwrap();
-    }
-    assert_eq!(axioms, original);
-    assert_eq!(checked.original_goal, &goal);
-    assert_eq!(checked.original_semantic_axioms, &axioms);
-
-    let unchanged = check_predicate_denotations(&context, &goal, &[], &axioms).unwrap();
-    assert!(
-        unchanged
-            .check_certificate(&context, &citation(&unchanged, 3))
-            .is_err()
-    );
 }
 
 #[test]

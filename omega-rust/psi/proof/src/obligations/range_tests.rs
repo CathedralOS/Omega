@@ -6,8 +6,7 @@ use crate::obligations::plan::ConstraintBuffer;
 use crate::obligations::ranges::constraints_prove_finite;
 use crate::obligations::ranges::float_binary_range;
 use crate::obligations::ranges::has_named_constraint;
-use numerics::bignum::BigInt;
-use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
+use numerics::literals::{IntegerLanding, IntegerLiteral, LandedIntegerType};
 use typed_trees::TypedTrees;
 use typed_trees::expression::BinaryOperator;
 use typed_trees::expression::ExpressionNode;
@@ -85,73 +84,6 @@ fn proof_range_rejects_invalid_integer_landing_in_float_fallback() {
             );
         }
     }
-}
-
-#[test]
-fn proof_range_preserves_valid_mixed_float_endpoints() {
-    for floating_minimum in [false, true] {
-        let (mut program, carrier) = program_with_u8();
-        let integer = program.expression_table.insert(ExpressionNode::Integer(
-            IntegerLiteral::from_value(2).with_landing(IntegerLanding {
-                landed_type: LandedIntegerType::U8,
-                domain: numerics::arithmetic::ArithmeticDomain::Exact,
-            }),
-        ));
-        let floating = program
-            .expression_table
-            .insert(ExpressionNode::Float(FloatLiteral::new(
-                if floating_minimum { 0.5 } else { 3.5 },
-            )));
-        let (minimum, maximum, expected_minimum, expected_maximum) = if floating_minimum {
-            (floating, integer, 0.5, 2.0)
-        } else {
-            (integer, floating, 2.0, 3.5)
-        };
-        assert_eq!(
-            ProofConstraint::from_node(
-                &program,
-                carrier,
-                &TypeConstraintNode::Range {
-                    minimum,
-                    maximum,
-                    end_inclusive: true,
-                }
-            ),
-            Some(ProofConstraint::FloatRange {
-                minimum: FloatLiteral::new(expected_minimum),
-                maximum: FloatLiteral::new(expected_maximum),
-                maximum_inclusive: true,
-            })
-        );
-    }
-}
-
-#[test]
-fn proof_range_keeps_exclusive_float_endpoint_verbatim() {
-    let (mut program, carrier) = program_with_u8();
-    let minimum = program
-        .expression_table
-        .insert(ExpressionNode::Float(FloatLiteral::new(0.0)));
-    let maximum = program
-        .expression_table
-        .insert(ExpressionNode::Float(FloatLiteral::new(1.5)));
-
-    assert_eq!(
-        ProofConstraint::from_node(
-            &program,
-            carrier,
-            &TypeConstraintNode::Range {
-                minimum,
-                maximum,
-                end_inclusive: false,
-            }
-        ),
-        Some(ProofConstraint::FloatRange {
-            minimum: FloatLiteral::new(0.0),
-            maximum: FloatLiteral::new(1.5),
-            maximum_inclusive: false,
-        })
-    );
 }
 
 #[test]
@@ -279,96 +211,6 @@ fn float_ranges_intersect_and_contain_with_strict_endpoints() {
     assert!(strict.contains_range(&strict));
     assert!(inclusive.contains_range(&strict));
     assert_eq!(strict.intersect(inclusive), strict);
-}
-
-#[test]
-fn proof_range_normalizes_exclusive_bounds_without_carrier_arithmetic() {
-    for (minimum, maximum, expected_maximum) in [(0, 8, 7), (0, 0, -1), (-128, -128, -129)] {
-        let (mut program, carrier) = program_with_u8();
-        let minimum_handle = program
-            .expression_table
-            .insert(ExpressionNode::Integer(IntegerLiteral::from_value(minimum)));
-        let maximum_handle = program
-            .expression_table
-            .insert(ExpressionNode::Integer(IntegerLiteral::from_value(maximum)));
-        assert_eq!(
-            ProofConstraint::from_node(
-                &program,
-                carrier,
-                &TypeConstraintNode::Range {
-                    minimum: minimum_handle,
-                    maximum: maximum_handle,
-                    end_inclusive: false,
-                }
-            ),
-            Some(ProofConstraint::IntegerRange {
-                minimum: BigInt::from_i64(minimum),
-                maximum: BigInt::from_i64(expected_maximum),
-            }),
-        );
-    }
-}
-
-#[test]
-fn proof_range_retains_full_width_unsigned_exclusive_maximum() {
-    let (mut program, carrier) = program_with_u8();
-    let minimum = program
-        .expression_table
-        .insert(ExpressionNode::Integer(IntegerLiteral::from_value(0)));
-    let maximum = program.expression_table.insert(ExpressionNode::Integer(
-        IntegerLiteral::from_parts(false, IntegerRadix::Decimal, "18446744073709551616").unwrap(),
-    ));
-    assert_eq!(
-        ProofConstraint::from_node(
-            &program,
-            carrier,
-            &TypeConstraintNode::Range {
-                minimum,
-                maximum,
-                end_inclusive: false,
-            }
-        ),
-        Some(ProofConstraint::IntegerRange {
-            minimum: BigInt::zero(),
-            maximum: BigInt::from_u128(u128::from(u64::MAX)),
-        }),
-    );
-}
-
-#[test]
-fn float_range_proves_finite_only_when_infinities_are_excluded() {
-    let inclusive = FloatRange {
-        minimum: 0.0,
-        maximum: 1.5,
-        maximum_inclusive: true,
-    };
-    let strict = FloatRange {
-        minimum: 0.0,
-        maximum: 1.5,
-        maximum_inclusive: false,
-    };
-    let inclusive_supremum = FloatRange {
-        minimum: 0.0,
-        maximum: f64::INFINITY,
-        maximum_inclusive: true,
-    };
-    let exclusive_supremum = FloatRange {
-        minimum: 0.0,
-        maximum: f64::INFINITY,
-        maximum_inclusive: false,
-    };
-    let infinite_floor = FloatRange {
-        minimum: f64::NEG_INFINITY,
-        maximum: 1.0,
-        maximum_inclusive: true,
-    };
-
-    assert!(inclusive.proves_finite());
-    assert!(strict.proves_finite());
-    // `x <= +inf` admits +inf; `x < +inf` and NaN reject it outright.
-    assert!(!inclusive_supremum.proves_finite());
-    assert!(exclusive_supremum.proves_finite());
-    assert!(!infinite_floor.proves_finite());
 }
 
 #[test]

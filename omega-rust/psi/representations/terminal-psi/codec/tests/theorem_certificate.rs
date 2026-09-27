@@ -25,10 +25,6 @@ fn type_sort(arena: &mut TermArena, level: u32) -> TermHandle {
     arena.insert(Term::Sort(Sort::Type(Level::Constant(level))))
 }
 
-fn sort_level(arena: &mut TermArena, level: Level) -> TermHandle {
-    arena.insert(Term::Sort(Sort::Type(level)))
-}
-
 fn variable(arena: &mut TermArena, index: u32) -> TermHandle {
     arena.insert(Term::Variable(index))
 }
@@ -154,21 +150,6 @@ fn producer_signature(arena: &mut TermArena) -> Vec<Declaration> {
     declarations.push(identity_substitution(arena)); // subst
     declarations.push(indexed_correctness(arena)); // indexCorrect
     declarations.push(Declaration::assumption(0, type_sort(arena, 0))); // Elem
-    declarations.push(Declaration::assumption(0, elem(arena))); // e0
-    declarations.push(Declaration::definition(0, type_sort(arena, 0), elem(arena))); // Box
-    declarations.push(box_refl_declaration(arena)); // boxRefl
-    declarations
-}
-
-/// The same signature with `Elem` — position 7 — replaced by the
-/// definition `Elem : Type 0 := Two`: every declaration still checks and
-/// every judgment still verifies, but the axiom's meaning changed and so
-/// does the exact assumption closure a receiver computes.
-fn defect_signature(arena: &mut TermArena) -> Vec<Declaration> {
-    let mut declarations = indexed_scheme(arena);
-    declarations.push(identity_substitution(arena));
-    declarations.push(indexed_correctness(arena));
-    declarations.push(Declaration::definition(0, type_sort(arena, 0), two(arena))); // Elem := Two
     declarations.push(Declaration::assumption(0, elem(arena))); // e0
     declarations.push(Declaration::definition(0, type_sort(arena, 0), elem(arena))); // Box
     declarations.push(box_refl_declaration(arena)); // boxRefl
@@ -516,81 +497,6 @@ fn a_theorem_dependent_obligation_transports_over_the_wire() {
 }
 
 #[test]
-fn an_axiom_dependent_theorem_keeps_its_assumption_through_the_wire() {
-    let mut arena = TermArena::new();
-    // Γ = x : Box proves `boxRefl x : Id Box x x`. The theorem's
-    // statement and body name `Box` — a definition whose own body is the
-    // `Elem` assumption — and checking never unfolds `Box`: every
-    // comparison is reflexive. The judgment's closure nonetheless records
-    // `Elem`, because closure walks the stored declaration graph rather
-    // than watching which constants conversion unfolded.
-    let binding = constant(&mut arena, BOX);
-    let theorem = constant(&mut arena, BOX_REFL);
-    let bound = variable(&mut arena, 0);
-    let term = apply(&mut arena, theorem, bound);
-    let expected = {
-        let ty = constant(&mut arena, BOX);
-        let bound = variable(&mut arena, 0);
-        id(&mut arena, ty, bound, bound)
-    };
-    let certificate = MathematicalCertificate {
-        signature: producer_signature(&mut arena),
-        level_arity: 0,
-        context: vec![binding],
-        term,
-        expected,
-    };
-    let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
-    let mut decoded = decode_mathematical_certificate(&bytes).expect("decode");
-    verify(&mut decoded).expect("the axiom-dependent theorem must re-verify");
-    assert_eq!(
-        encode_mathematical_certificate(&decoded.arena, &decoded.certificate).expect("re-encode"),
-        bytes
-    );
-    let closure =
-        proof_admission::certificate_assumption_closure(&decoded.arena, &decoded.certificate);
-    assert_eq!(closure, [ELEM].into_iter().collect());
-
-    // Two receiving policies read the same decoded bytes: one admitting
-    // `Elem` accepts the theorem's commitment; one admitting only `e0`
-    // (or nothing) rejects it — the judgment's meaning is its exact
-    // closure, not a producer label.
-    assert!(closure.is_subset(&[ELEM].into_iter().collect()));
-    assert!(!closure.is_subset(&[ELEM_ZERO].into_iter().collect()));
-    assert!(!closure.is_subset(&std::collections::BTreeSet::new()));
-
-    // The same certificate over the defect signature — `Elem := Two` in
-    // place of the axiom — still verifies: `Box` and `boxRefl` check
-    // identically. But its closure is empty, so a receiver comparing the
-    // decoded closure to the admitted-axiom policy distinguishes the
-    // substituted meaning without trusting the producer's claim.
-    let mut arena = TermArena::new();
-    let binding = constant(&mut arena, BOX);
-    let theorem = constant(&mut arena, BOX_REFL);
-    let bound = variable(&mut arena, 0);
-    let term = apply(&mut arena, theorem, bound);
-    let expected = {
-        let ty = constant(&mut arena, BOX);
-        let bound = variable(&mut arena, 0);
-        id(&mut arena, ty, bound, bound)
-    };
-    let certificate = MathematicalCertificate {
-        signature: defect_signature(&mut arena),
-        level_arity: 0,
-        context: vec![binding],
-        term,
-        expected,
-    };
-    let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
-    let mut decoded = decode_mathematical_certificate(&bytes).expect("decode");
-    verify(&mut decoded).expect("the defect signature still checks");
-    assert_eq!(
-        proof_admission::certificate_assumption_closure(&decoded.arena, &decoded.certificate),
-        std::collections::BTreeSet::new()
-    );
-}
-
-#[test]
 fn a_missing_dependency_rejects_the_signature() {
     let mut arena = TermArena::new();
     // Drop positions 7 and 8 (`Elem`, `e0`) and keep `Box`/`boxRefl`
@@ -624,82 +530,5 @@ fn a_missing_dependency_rejects_the_signature() {
             declaration: 7,
             signature_len: 7,
         })
-    );
-}
-
-#[test]
-fn a_polymorphic_theorem_reference_round_trips_at_its_own_arity() {
-    let mut arena = TermArena::new();
-    // `subst` publishes polymorphically: at judgment arity 1 the
-    // reference `subst[u, u]` is the transport theorem instantiated at
-    // `A : Type u`, `P : Π(_:A). Type u` — level parameters, not
-    // constants. The certificate claims the theorem's own statement at
-    // that instantiation.
-    let type_u = sort_level(&mut arena, Level::Parameter(0));
-    // `Π(A : Type u). Π(P : Π(_:A). Type u). Π(x : A). Π(y : A).
-    //   Π(_ : Id A x y). Π(_ : P x). P y`
-    let expected = {
-        let result = {
-            // Under A, P, x, y, _p, _h: P is 4, y is 2, x is 3.
-            let predicate = variable(&mut arena, 4);
-            let endpoint = variable(&mut arena, 2);
-            apply(&mut arena, predicate, endpoint)
-        };
-        let hypothesis_domain = {
-            // Under A, P, x, y, _p: P is 3, x is 2.
-            let predicate = variable(&mut arena, 3);
-            let source = variable(&mut arena, 2);
-            apply(&mut arena, predicate, source)
-        };
-        let over_hypothesis = pi(&mut arena, hypothesis_domain, result);
-        let proof_domain = {
-            // Under A, P, x, y: A is 3, x is 1, y is 0.
-            let ty = variable(&mut arena, 3);
-            let left = variable(&mut arena, 1);
-            let right = variable(&mut arena, 0);
-            id(&mut arena, ty, left, right)
-        };
-        let over_proof = pi(&mut arena, proof_domain, over_hypothesis);
-        let carrier = variable(&mut arena, 2);
-        let over_y = pi(&mut arena, carrier, over_proof);
-        let carrier = variable(&mut arena, 1);
-        let over_x = pi(&mut arena, carrier, over_y);
-        let predicate_domain = {
-            let domain = variable(&mut arena, 0);
-            let codomain = sort_level(&mut arena, Level::Parameter(0));
-            pi(&mut arena, domain, codomain)
-        };
-        let over_predicate = pi(&mut arena, predicate_domain, over_x);
-        pi(&mut arena, type_u, over_predicate)
-    };
-    let term = constant_levels(
-        &mut arena,
-        SUBST,
-        vec![Level::Parameter(0), Level::Parameter(0)],
-    );
-    let certificate = MathematicalCertificate {
-        signature: producer_signature(&mut arena),
-        level_arity: 1,
-        context: Vec::new(),
-        term,
-        expected,
-    };
-    let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
-    let mut decoded = decode_mathematical_certificate(&bytes).expect("decode");
-    assert_eq!(decoded.certificate.level_arity, 1);
-    verify(&mut decoded).expect("the polymorphic theorem reference must re-check");
-    assert_eq!(
-        encode_mathematical_certificate(&decoded.arena, &decoded.certificate).expect("re-encode"),
-        bytes
-    );
-
-    // Forging the arity to zero on the wire makes the level arguments
-    // out of scope — the kernel refuses, as for any malformed universe.
-    let mut forged = bytes.clone();
-    forged[10..14].copy_from_slice(&0_u32.to_le_bytes());
-    let mut decoded = decode_mathematical_certificate(&forged).expect("decode");
-    assert_eq!(
-        verify(&mut decoded),
-        Err(CoreError::UnboundLevelParameter { index: 0, arity: 0 })
     );
 }

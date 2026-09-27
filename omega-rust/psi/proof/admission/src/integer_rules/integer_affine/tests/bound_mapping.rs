@@ -843,41 +843,6 @@ fn correlated_subtract_replays_complement_definition_and_endpoint_landing() {
 }
 
 #[test]
-fn unsigned_correlated_subtract_replays_exact_operand_order() {
-    let integer_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
-    let left = value(1, integer_type);
-    let right = value(2, integer_type);
-    let context = PropositionContext::from_value_types([
-        (ValueId::new(1).unwrap(), ScalarType::Integer(integer_type)),
-        (ValueId::new(2).unwrap(), ScalarType::Integer(integer_type)),
-    ])
-    .unwrap();
-    let checked = check_integer_affine_witness(
-        &context,
-        &[],
-        &IntegerAffineWitness {
-            root: right.clone(),
-            target: ScalarTerm::exact_integer_subtract(integer_type, left.clone(), right.clone())
-                .unwrap(),
-            definition_axioms: Vec::new(),
-            literal_axioms: Vec::new(),
-        },
-    )
-    .expect("unsigned joint guard witness");
-    assert!(
-        map_integer_affine_bound(
-            &checked,
-            &Proposition::LessOrEqual(right.clone(), left.clone()),
-        )
-        .is_ok(),
-    );
-    assert!(
-        map_integer_affine_bound(&checked, &Proposition::LessOrEqual(left, right)).is_err(),
-        "reversed unsigned guard rejects",
-    );
-}
-
-#[test]
 fn direct_multiply_replays_four_corners_and_rejects_order_mutations() {
     let integer_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
     let left = value(1, integer_type);

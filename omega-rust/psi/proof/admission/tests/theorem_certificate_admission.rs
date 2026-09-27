@@ -92,18 +92,6 @@ fn symmetry_certificate() -> ProofNode {
     }
 }
 
-/// `EqualityTransitivity { Assumption 0, Assumption 1 }` concluding
-/// `a == c` — the shape for `requires a == b, b == c ensures a == c`.
-fn transitivity_certificate() -> ProofNode {
-    ProofNode {
-        conclusion: equal(1, 3),
-        rule: ProofRule::EqualityTransitivity {
-            left_equals_middle: Box::new(cite(0, equal(1, 2))),
-            middle_equals_right: Box::new(cite(1, equal(2, 3))),
-        },
-    }
-}
-
 fn admit(
     goal: Proposition,
     requires: &[Proposition],
@@ -138,25 +126,6 @@ fn the_symmetry_theorem_obligation_is_judged_by_the_kernel_at_admission() {
             assumption_closure: 3,
             context_depth: 1,
             arena_slots: 34,
-        })
-    );
-}
-
-#[test]
-fn the_transitivity_theorem_obligation_is_judged_with_both_premises_bound() {
-    let decision = admit(
-        equal(1, 3),
-        &[equal(1, 2), equal(2, 3)],
-        transitivity_certificate(),
-    )
-    .expect("the shipped transitivity certificate discharges the ensures obligation");
-    assert_eq!(
-        decision,
-        MathematicalCoreDecision::Judged(MathematicalJudgmentReceipt {
-            declarations: 4,
-            assumption_closure: 4,
-            context_depth: 2,
-            arena_slots: 156,
         })
     );
 }

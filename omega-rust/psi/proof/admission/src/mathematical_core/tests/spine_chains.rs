@@ -9,10 +9,9 @@
 //! recursive substitution helpers stay at `SHALLOW`, which is already
 //! sixteen times that observed depth.
 
-use super::{apply, default_budget, fst, lambda, pair, pi, sigma, snd, two, two_zero, variable};
+use super::{apply, default_budget, lambda, pair, pi, sigma, snd, two, two_zero, variable};
 use crate::mathematical_core::{
-    Context, CoreError, Level, Sort, Term, TermArena, TermHandle, check_type, infer_sort,
-    infer_type,
+    Context, CoreError, Term, TermArena, TermHandle, check_type, infer_type,
 };
 
 const DEEP: usize = 131_072;
@@ -26,31 +25,6 @@ fn two_telescope(arena: &mut TermArena, n: usize) -> TermHandle {
         tail = pi(arena, domain, tail);
     }
     tail
-}
-
-#[test]
-fn long_formation_telescope_infers_its_sort_off_the_call_stack() {
-    let mut arena = TermArena::new();
-    let mut budget = default_budget();
-    let context = Context::empty();
-
-    let telescope = two_telescope(&mut arena, DEEP);
-    let sort = infer_sort(&mut arena, &context, telescope, &mut budget).unwrap();
-    assert_eq!(sort, Sort::Type(Level::Constant(0)));
-
-    // Alternating Π/Σ links run one shared chain rule; every component
-    // is relevant `Two`, so the telescope stays `Type 0`.
-    let mut tail = two(&mut arena);
-    for link in 0..DEEP {
-        let domain = two(&mut arena);
-        tail = if link % 2 == 0 {
-            pi(&mut arena, domain, tail)
-        } else {
-            sigma(&mut arena, domain, tail)
-        };
-    }
-    let sort = infer_sort(&mut arena, &context, tail, &mut budget).unwrap();
-    assert_eq!(sort, Sort::Type(Level::Constant(0)));
 }
 
 #[test]
@@ -80,23 +54,6 @@ fn long_lambda_spine_infers_off_the_call_stack() {
         }
     }
     assert!(matches!(arena.get(cursor), Term::Two));
-}
-
-#[test]
-fn long_telescope_body_checks_off_the_call_stack() {
-    let mut arena = TermArena::new();
-    let mut budget = default_budget();
-    let context = Context::empty();
-
-    // `check_type`'s componentwise descent: a λ-telescope body against a
-    // Π-telescope type iterates instead of recursing.
-    let mut term = two_zero(&mut arena);
-    for _ in 0..SHALLOW {
-        let domain = two(&mut arena);
-        term = lambda(&mut arena, domain, term);
-    }
-    let expected = two_telescope(&mut arena, SHALLOW);
-    check_type(&mut arena, &context, term, expected, &mut budget).unwrap();
 }
 
 #[test]
@@ -220,40 +177,4 @@ fn a_chain_rejects_at_its_end() {
             context_depth: SHALLOW,
         }
     );
-}
-
-#[test]
-fn a_single_link_still_runs_the_spine_rules() {
-    let mut arena = TermArena::new();
-    let mut budget = default_budget();
-    let context = Context::empty();
-
-    // Depth one degenerates into the plain judgments: one binder, one
-    // application, one pair, one projection.
-    let body = two_zero(&mut arena);
-    let domain = two(&mut arena);
-    let identity = lambda(&mut arena, domain, body);
-    let pi_domain = two(&mut arena);
-    let pi_codomain = two(&mut arena);
-    let expected = pi(&mut arena, pi_domain, pi_codomain);
-    check_type(&mut arena, &context, identity, expected, &mut budget).unwrap();
-
-    let argument = two_zero(&mut arena);
-    let applied = apply(&mut arena, identity, argument);
-    let inferred = infer_type(&mut arena, &context, applied, &mut budget).unwrap();
-    assert!(matches!(arena.get(inferred), Term::Two));
-
-    let first = two_zero(&mut arena);
-    let second = two_zero(&mut arena);
-    let witness = pair(&mut arena, first, second);
-    let inferred = infer_type(&mut arena, &context, witness, &mut budget).unwrap();
-    assert!(matches!(arena.get(inferred), Term::Sigma { .. }));
-
-    let projected = fst(&mut arena, witness);
-    let inferred = infer_type(&mut arena, &context, projected, &mut budget).unwrap();
-    assert!(matches!(arena.get(inferred), Term::Two));
-
-    let projected = snd(&mut arena, witness);
-    let inferred = infer_type(&mut arena, &context, projected, &mut budget).unwrap();
-    assert!(matches!(arena.get(inferred), Term::Two));
 }

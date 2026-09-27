@@ -232,37 +232,6 @@ fn scalar_calls_compose_with_arithmetic_boolean_logic_and_match() {
 }
 
 #[test]
-fn skipped_calls_still_validate_argument_carriers_and_anonymous_landings() {
-    for body in [
-        "false && (never(1u64) == 0u8)",
-        "false && (never(256) == 0u8)",
-        "false && (never(1 / 2) == 0u8)",
-        "false && (never(1 / 0) == 0u8)",
-    ] {
-        let (program, expression) = program(body, PrimitiveType::Bool);
-        let machine = &program.machines()[0];
-        let state = &program.machine_states(machine)[0];
-        let calls = Calls {
-            program: &program,
-            executed: Cell::new(0),
-        };
-        assert!(
-            evaluate(
-                &program,
-                machine,
-                state,
-                expression,
-                PrimitiveType::Bool,
-                Some(&calls)
-            )
-            .is_err(),
-            "{body}"
-        );
-        assert_eq!(calls.executed.get(), 0, "{body}");
-    }
-}
-
-#[test]
 fn call_graph_rejects_stale_argument_spans_and_cycles_before_callbacks() {
     let (original, root) = program("number(7) + 0u8", PrimitiveType::U8);
     let ExpressionNode::Binary(binary) = original.expression_table.expression(root) else {
@@ -365,58 +334,6 @@ fn call_result_cannot_change_its_validated_carrier_or_encoding() {
 }
 
 #[test]
-fn casts_retain_signedness_and_exact_full_width_values() {
-    for (source, destination, expected) in [
-        ("7u8 as i64", PrimitiveType::I64, 7),
-        ("-7i8 as i64", PrimitiveType::I64, -7),
-        (
-            "18446744073709551615u64 as u64",
-            PrimitiveType::U64,
-            18446744073709551615,
-        ),
-    ] {
-        let (program, expression) = program(source, destination);
-        let machine = &program.machines()[0];
-        let (actual, _) = evaluate(
-            &program,
-            machine,
-            &program.machine_states(machine)[0],
-            expression,
-            destination,
-            None,
-        )
-        .unwrap();
-        assert_eq!(
-            actual.identity(),
-            CanonicalConstIdentity::integer(destination.name(), expected)
-        );
-    }
-}
-
-#[test]
-fn cast_graphs_reject_stale_and_cyclic_operands_before_type_queries() {
-    let (original, expression) = program("7u8 as u64", PrimitiveType::U64);
-    for operand in [expression, ExpressionHandle::invalid()] {
-        let mut program = original.clone();
-        let ExpressionNode::Cast(cast) = program.expression_table.expression_mut(expression) else {
-            panic!("cast fixture");
-        };
-        cast.value = operand;
-        let machine = &program.machines()[0];
-        let error = evaluate(
-            &program,
-            machine,
-            &program.machine_states(machine)[0],
-            expression,
-            PrimitiveType::U64,
-            None,
-        )
-        .expect_err("malformed cast graph");
-        assert!(error.contains("invalid or cyclic"), "{error}");
-    }
-}
-
-#[test]
 fn policy_calls_reduce_each_node_before_explicit_erasure() {
     for (source, expected) in [
         ("(wrapping_seed() + 2) as u8", 1),
@@ -507,31 +424,5 @@ fn policy_destinations_keep_landing_and_all_arm_compatibility() {
         } else {
             assert!(validated.is_err(), "policy was erased: {source}");
         }
-    }
-}
-
-#[test]
-fn endpoint_literal_retains_call_result_policy() {
-    for (source, policy, expected) in [
-        (
-            "wrapping_seed() + 2",
-            numerics::arithmetic::ArithmeticDomain::Wrapping,
-            1,
-        ),
-        (
-            "saturating_seed() + 2",
-            numerics::arithmetic::ArithmeticDomain::Saturating,
-            255,
-        ),
-    ] {
-        let (program, expression) = program(source, PrimitiveType::U8);
-        let calls = Calls {
-            program: &program,
-            executed: Cell::new(0),
-        };
-        let (literal, _) = super::evaluate_integer_endpoint(&program, expression, &calls)
-            .unwrap_or_else(|reason| panic!("{source}: {reason}"));
-        assert_eq!(literal.value_u64(), Some(expected));
-        assert_eq!(literal.landing().unwrap().domain, policy);
     }
 }

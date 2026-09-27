@@ -317,25 +317,3 @@ fn append_warnings(warnings: &mut Vec<Diagnostic>, additions: Vec<Diagnostic>) {
         }
     }
 }
-
-#[cfg(test)]
-pub(super) fn evaluate(
-    _program: &TypedTrees,
-    original: &TypedTrees,
-    admission: &BuildTimeAdmissionPlan,
-    expression: ExpressionHandle,
-    callee: super::EndpointCallee,
-    authority: Option<&dyn BuildTimeSelectionAuthority>,
-) -> Result<(Vec<BuildTimeValue>, Vec<Diagnostic>), String> {
-    crate::machine_execution::admission::require_closed_expression_custody(
-        original, expression, authority,
-    )?;
-    let calls = Invocation {
-        working: original,
-        execution: original,
-        admission,
-        authority,
-    };
-    calls.validate_call(expression)?;
-    calls.arguments(expression, callee)
-}

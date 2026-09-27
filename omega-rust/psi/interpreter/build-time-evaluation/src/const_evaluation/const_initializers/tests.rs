@@ -97,21 +97,6 @@ fn integer_encoding(syntax: &SyntaxTrees, name: &str, value: i128) {
     ));
 }
 
-fn array_leaves(
-    syntax: &SyntaxTrees,
-    expression: syntax_trees::expression::ExpressionHandle,
-) -> Vec<ExpressionNode> {
-    match syntax.expressions.expression(expression) {
-        ExpressionNode::ArrayLiteral(elements) => syntax
-            .expressions
-            .expression_handles(*elements)
-            .iter()
-            .flat_map(|element| array_leaves(syntax, *element))
-            .collect(),
-        leaf => vec![leaf.clone()],
-    }
-}
-
 fn literal_encoding(text: &str, name: &str) -> String {
     let (syntax, _) = parse(text);
     syntax_trees_to_symbol_resolved_trees::pre_resolution::canonicalize_declared_const_definition(

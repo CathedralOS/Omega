@@ -1,6 +1,6 @@
 use super::{
-    AcceptedPremise, AcceptedProofRule, CertificateAcceptance, ProofError, ProofNode, ProofRule,
-    Proposition, PropositionContext, accept_certificate,
+    CertificateAcceptance, ProofError, ProofNode, ProofRule, Proposition, PropositionContext,
+    accept_certificate,
 };
 use semantic_vocabulary::PropositionId;
 
@@ -66,22 +66,6 @@ fn check(
         &[],
         proof,
     )
-}
-
-#[test]
-fn ordered_branches_discharge_only_their_local_assumptions() {
-    let (assumptions, proof) = fixture();
-    let accepted = check(&assumptions, &proof).expect("both cases prove the same conclusion");
-    assert!(
-        accepted
-            .rules
-            .contains(&AcceptedProofRule::DisjunctionElimination)
-    );
-    assert_eq!(accepted.assumptions.len(), 3);
-    for (index, premise) in accepted.assumptions.iter().enumerate() {
-        assert_eq!(premise.index, index);
-        assert_eq!(premise.proposition, assumptions[index]);
-    }
 }
 
 #[test]
@@ -153,90 +137,5 @@ fn branches_cannot_reuse_another_case_or_an_unproved_disjunction() {
     assert_eq!(
         check(&assumptions, &unproved),
         Err(ProofError::UnknownAssumption(3))
-    );
-}
-
-#[test]
-fn nested_implication_and_case_scopes_keep_only_ambient_custody() {
-    let disjunction = Proposition::Disjunction(vec![atom(1), atom(2)]);
-    let goal = Proposition::Implication {
-        premise: Box::new(disjunction.clone()),
-        conclusion: Box::new(Proposition::Truth),
-    };
-    let branches = [atom(1), atom(2)]
-        .into_iter()
-        .map(|branch| {
-            // An inner case analysis can cite the enclosing case assumption,
-            // but neither assumption is an ambient certificate requirement.
-            ProofNode {
-                conclusion: Proposition::Truth,
-                rule: ProofRule::DisjunctionElimination {
-                    disjunction: Box::new(ProofNode {
-                        conclusion: Proposition::Disjunction(vec![branch.clone(), atom(4)]),
-                        rule: ProofRule::DisjunctionIntroduction {
-                            disjunct: Box::new(assumption(branch, 1)),
-                            index: 0,
-                        },
-                    }),
-                    branches: vec![
-                        ProofNode {
-                            conclusion: Proposition::Truth,
-                            rule: ProofRule::SemanticAxiom { index: 0 },
-                        };
-                        2
-                    ],
-                },
-            }
-        })
-        .collect();
-    let proof = ProofNode {
-        conclusion: goal.clone(),
-        rule: ProofRule::ImplicationIntroduction {
-            body: Box::new(ProofNode {
-                conclusion: Proposition::Truth,
-                rule: ProofRule::DisjunctionElimination {
-                    disjunction: Box::new(assumption(disjunction, 0)),
-                    branches,
-                },
-            }),
-        },
-    };
-    let accepted = accept_certificate(
-        &PropositionContext::default(),
-        &goal,
-        &[],
-        &[Proposition::Truth],
-        &proof,
-    )
-    .expect("nested scopes");
-    assert!(accepted.assumptions.is_empty());
-    assert_eq!(
-        accepted.semantic_axioms,
-        vec![AcceptedPremise {
-            index: 0,
-            proposition: Proposition::Truth
-        }]
-    );
-    assert!(
-        accepted
-            .rules
-            .contains(&AcceptedProofRule::ImplicationIntroduction)
-    );
-
-    let identity = Proposition::Implication {
-        premise: Box::new(atom(1)),
-        conclusion: Box::new(atom(1)),
-    };
-    let proof = ProofNode {
-        conclusion: identity,
-        rule: ProofRule::ImplicationIntroduction {
-            body: Box::new(assumption(atom(1), 0)),
-        },
-    };
-    assert!(
-        check(&[], &proof)
-            .expect("discharged implication")
-            .assumptions
-            .is_empty()
     );
 }

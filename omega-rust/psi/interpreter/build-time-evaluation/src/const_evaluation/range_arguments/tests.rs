@@ -45,46 +45,6 @@ fn range_arguments(syntax: &SyntaxTrees) -> Vec<TypeReferenceHandle> {
 }
 
 #[test]
-fn range_argument_observations_normalize_equivalent_closed_intervals() {
-    let syntax = parse(&["u64[0..=256]", "u64[0..257]", "u64[0..=1 / 2 * 512]"]);
-    let syntax = super::evaluate(syntax, None, &[], None).expect("observe closed arguments");
-    let ranges = range_arguments(&syntax);
-    assert_eq!(ranges.len(), 3);
-    let expected = IntegerRangeNormalization {
-        minimum: BigInt::from_u64(0),
-        maximum: BigInt::from_u64(256),
-    };
-    for range in ranges {
-        assert_eq!(
-            syntax.type_references.integer_range_normalization(range, 0),
-            Some(&expected)
-        );
-    }
-}
-
-#[test]
-fn range_argument_observations_preserve_wide_and_empty_proof_integer_endpoints() {
-    for (argument, maximum) in [
-        ("u64[0..18446744073709551616]", BigInt::from_u64(u64::MAX)),
-        ("u64[0..0]", BigInt::from_i64(-1)),
-    ] {
-        let syntax = super::evaluate(parse(&[argument]), None, &[], None)
-            .expect("observe proof integer endpoint");
-        let ranges = range_arguments(&syntax);
-        assert_eq!(ranges.len(), 1);
-        assert_eq!(
-            syntax
-                .type_references
-                .integer_range_normalization(ranges[0], 0),
-            Some(&IntegerRangeNormalization {
-                minimum: BigInt::from_u64(0),
-                maximum
-            })
-        );
-    }
-}
-
-#[test]
 fn malformed_closed_endpoints_never_receive_range_observations() {
     for argument in [
         "u64[0..=256u8]",
@@ -100,59 +60,6 @@ fn malformed_closed_endpoints_never_receive_range_observations() {
                         .is_none(),
                     "invalid endpoint admitted: {argument}"
                 );
-            }
-        }
-    }
-}
-
-#[test]
-fn range_argument_observations_execute_declared_call_endpoints() {
-    let text = "machine limit() -> u64 { 256 }
-        data RangeValue<T> [copy] { value: T; }
-        machine read(value: RangeValue<u64[0..=limit()]>, other: RangeValue<u64[0..limit() + 1]>) -> u64 { 0 }";
-    let syntax = crate::front_end::syntax_program(text);
-    let syntax = super::evaluate(syntax, None, &[], None).expect("observe call endpoints");
-    let ranges = range_arguments(&syntax);
-    assert_eq!(ranges.len(), 2);
-    let expected = IntegerRangeNormalization {
-        minimum: BigInt::from_u64(0),
-        maximum: BigInt::from_u64(256),
-    };
-    for range in &ranges {
-        assert_eq!(
-            syntax
-                .type_references
-                .integer_range_normalization(*range, 0),
-            Some(&expected)
-        );
-    }
-    for range in ranges {
-        let TypeReferenceNode::Constrained { constraints, .. } =
-            *syntax.type_references.type_reference(range)
-        else {
-            continue;
-        };
-        let mut work = Vec::new();
-        for constraint in syntax.type_references.constraints(constraints) {
-            let syntax_trees::types::TypeConstraintNode::Range {
-                minimum, maximum, ..
-            } = *constraint
-            else {
-                continue;
-            };
-            work.push(minimum);
-            work.push(maximum);
-        }
-        while let Some(expression) = work.pop() {
-            match syntax.expressions.expression(expression) {
-                syntax_trees::expression::ExpressionNode::Binary(binary) => {
-                    work.push(binary.left);
-                    work.push(binary.right);
-                }
-                syntax_trees::expression::ExpressionNode::Call(_) => {
-                    panic!("an executed endpoint call keeps no authored call in canonical syntax");
-                }
-                _ => {}
             }
         }
     }

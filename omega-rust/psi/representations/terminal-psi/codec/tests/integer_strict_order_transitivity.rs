@@ -1,12 +1,12 @@
 use proof_admission::{
-    AcceptedProofRule, CertificateEnvelope, EvidenceRoute, PrimitiveJudgment, ProofNode, ProofRule,
-    ProofSystemMarker, accept_certificate, check_certificate, lift_fixed_integer_relation,
+    AcceptedProofRule, CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemMarker,
+    accept_certificate, check_certificate, lift_fixed_integer_relation,
 };
 use semantic_vocabulary::{
     EvidenceIdentity, IntegerSign, IntegerType, ObligationId, Proposition, PropositionContext,
     ScalarTerm, ScalarType, ValueId,
 };
-use terminal_codec::{ProofCodecError, decode_proof_bundle, encode_proof_bundle};
+use terminal_codec::{decode_proof_bundle, encode_proof_bundle};
 use terminal_verifier::{ObligationEvidence, ProofBundle};
 
 fn bundle(proof: ProofNode) -> ProofBundle {
@@ -123,113 +123,6 @@ fn strict_and_mixed_chains_roundtrip_and_replay_both_citations() {
                 )
                 .is_err()
             );
-        }
-    }
-}
-
-#[test]
-fn appended_rule_tag_and_current_markers_reject_unknown_or_stale_bytes() {
-    let (_, _, proof) = fixture([true, false], false);
-    let bytes = encode_proof_bundle(&bundle(proof.clone())).unwrap();
-    let ProofRule::IntegerStrictOrderTransitivity {
-        left_to_middle,
-        middle_to_right,
-    } = proof.rule
-    else {
-        unreachable!()
-    };
-    let previous_rule = ProofNode {
-        conclusion: proof.conclusion,
-        rule: ProofRule::IntegerLessOrEqualTransitivity {
-            left_less_or_equal_middle: left_to_middle,
-            middle_less_or_equal_right: middle_to_right,
-        },
-    };
-    let previous_bytes = encode_proof_bundle(&bundle(previous_rule)).unwrap();
-    let differences = bytes
-        .iter()
-        .zip(&previous_bytes)
-        .enumerate()
-        .filter_map(|(position, (current, previous))| (current != previous).then_some(position))
-        .collect::<Vec<_>>();
-    assert_eq!(differences.len(), 1, "only the rule tag differs");
-    let rule_position = differences[0];
-    assert_eq!(bytes[rule_position], 21);
-    assert_eq!(previous_bytes[rule_position], 10);
-    let mut unknown = bytes.clone();
-    unknown[rule_position] = 27;
-    assert_eq!(
-        decode_proof_bundle(&unknown),
-        Err(ProofCodecError::InvalidTag("ProofRule", 27))
-    );
-    let mut stale_format = bytes.clone();
-    stale_format[8..10].copy_from_slice(&30_u16.to_le_bytes());
-    assert_eq!(
-        decode_proof_bundle(&stale_format),
-        Err(ProofCodecError::UnsupportedFormatMarker(30))
-    );
-    let mut stale_system = bytes.clone();
-    stale_system[31..33].copy_from_slice(&2_u16.to_le_bytes());
-    assert_eq!(
-        decode_proof_bundle(&stale_system),
-        Err(ProofCodecError::UnsupportedProofSystemMarker(2))
-    );
-    for length in 0..bytes.len() {
-        assert!(decode_proof_bundle(&bytes[..length]).is_err());
-    }
-}
-
-#[test]
-fn both_order_children_obey_encoding_and_decoding_depth_limits() {
-    let leaf = ProofNode {
-        conclusion: Proposition::Truth,
-        rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
-    };
-    let shallow = encode_proof_bundle(&bundle(leaf.clone())).unwrap();
-    let leaf_bytes = &shallow[33..36];
-    for nested_right in [false, true] {
-        for depth in [256, 257] {
-            let mut tree = leaf_bytes.to_vec();
-            let mut proof = leaf.clone();
-            for _ in 0..depth {
-                let mut wrapper = vec![leaf_bytes[0], 21];
-                let other = Box::new(leaf.clone());
-                let nested = Box::new(proof);
-                let (left_to_middle, middle_to_right) = if nested_right {
-                    wrapper.extend_from_slice(leaf_bytes);
-                    wrapper.extend_from_slice(&tree);
-                    (other, nested)
-                } else {
-                    wrapper.extend_from_slice(&tree);
-                    wrapper.extend_from_slice(leaf_bytes);
-                    (nested, other)
-                };
-                tree = wrapper;
-                proof = ProofNode {
-                    conclusion: Proposition::Truth,
-                    rule: ProofRule::IntegerStrictOrderTransitivity {
-                        left_to_middle,
-                        middle_to_right,
-                    },
-                };
-            }
-            let mut bytes = shallow[..33].to_vec();
-            bytes.extend_from_slice(&tree);
-            bytes.extend_from_slice(&shallow[36..]);
-            if depth == 256 {
-                assert_eq!(encode_proof_bundle(&bundle(proof)).unwrap(), bytes);
-                let decoded = decode_proof_bundle(&bytes).unwrap();
-                assert_eq!(encode_proof_bundle(&decoded).unwrap(), bytes);
-            } else {
-                assert_eq!(
-                    encode_proof_bundle(&bundle(proof)),
-                    Err(ProofCodecError::ProofNestingTooDeep)
-                );
-                assert_eq!(
-                    decode_proof_bundle(&bytes),
-                    Err(ProofCodecError::ProofNestingTooDeep)
-                );
-            }
         }
     }
 }

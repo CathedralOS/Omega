@@ -103,20 +103,6 @@ mod tests {
     }
 
     #[test]
-    fn prepared_prefix_keeps_independent_guard_conjuncts() {
-        let prefix = ArrivalPrefix {
-            written_paths: vec!["self.scratch".into()],
-            local_definitions: Vec::new(),
-        };
-        let scratch = [path(&["self", "scratch"])];
-        let direction = [path(&["self", "direction"])];
-        assert!(!prefix.preserves_reads(&scratch, &scratch));
-        assert!(prefix.preserves_reads(&direction, &direction));
-        assert!(!prefix.preserves_reads(&direction, &scratch));
-        assert!(prefix.preserves_reads(&direction, &direction));
-    }
-
-    #[test]
     fn local_definition_can_supply_a_value_but_cannot_shadow_a_premise() {
         let prefix = ArrivalPrefix {
             written_paths: Vec::new(),

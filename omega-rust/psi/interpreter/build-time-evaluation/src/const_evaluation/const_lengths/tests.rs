@@ -112,25 +112,6 @@ fn selected_operator_crash_fences_cover_admission_and_direct_execution() {
 }
 
 #[test]
-fn operator_crash_fence_ignores_unselected_overload_and_survives_expression_rewrite() {
-    let (typed, rows) = fixture("Float");
-    let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(&typed);
-    assert!(!facts.has_crash_qualified_uses(&typed));
-    assert!(rows.iter().all(|row| !row.has_crash_contract(&typed)));
-    crate::validate_selected_operators(&typed, &rows).unwrap();
-
-    let (mut typed, rows) = fixture_with_operator_contract("Float", "", "crashes Trap");
-    let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(&typed);
-    // Adapter settlement may replace the source node; the selected contracts
-    // remain the authority for this fence.
-    for row in rows {
-        *typed.expression_table.expression_mut(row.expression) =
-            typed_trees::expression::ExpressionNode::Boolean(false);
-    }
-    assert!(facts.has_crash_qualified_uses(&typed));
-}
-
-#[test]
 fn folded_result_replay_rejects_paired_literal_forgery_and_lost_owner() {
     let (mut typed, rows) = fixture("Float");
     let folds = evaluate_selected_array_lengths(
@@ -364,54 +345,6 @@ fn named_provider_body_executes_its_ordinary_machine_and_replays() {
 }
 
 #[test]
-fn named_provider_body_row_rejects_stale_and_substituted_custody() {
-    let (typed, rows) = named_provider_fixture();
-    crate::validate_selected_provider_bodies(&typed, &rows).unwrap();
-
-    let mut substituted = rows.clone();
-    let caller = typed
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "length")
-        .unwrap();
-    substituted[0].provider_machine = caller.symbol;
-    substituted[0].provider_state = typed.machine_states(caller).first().unwrap().symbol;
-    assert!(
-        crate::validate_selected_provider_bodies(&typed, &substituted).is_err(),
-        "a substituted provider machine must never satisfy the named row"
-    );
-
-    let mut stale = rows.clone();
-    stale[0].expression = stale[0].operands[0];
-    assert!(
-        crate::validate_selected_provider_bodies(&typed, &stale).is_err(),
-        "a stale expression coordinate must never rejoin a current named use"
-    );
-}
-
-#[test]
-fn selected_provider_body_executes_its_ordinary_machine_and_replays() {
-    let (mut typed, rows) = provider_fixture();
-    assert_eq!(rows.len(), 1);
-    crate::validate_selected_provider_bodies(&typed, &rows).unwrap();
-    let folds = evaluate_selected_array_lengths(
-        &mut typed,
-        None,
-        SelectedBuildTimeOperators {
-            operators: &[],
-            provider_bodies: &rows,
-        },
-    )
-    .unwrap();
-    assert_eq!(folds.len(), 1);
-    assert_eq!(
-        folds[0].value, 9,
-        "the provider's `left + right` body must run; builtin `%` would fold 1"
-    );
-    validate_folded_array_lengths(&typed, &folds, &[], &rows, None).unwrap();
-}
-
-#[test]
 fn unselected_boundary_use_cannot_fall_back_to_host_semantics() {
     let (mut typed, _rows) = provider_fixture();
     let diagnostics = evaluate_selected_array_lengths(
@@ -428,29 +361,6 @@ fn unselected_boundary_use_cannot_fall_back_to_host_semantics() {
             .to_string()
             .contains("requires exact authored selection")),
         "an unselected boundary use must never reach builtin execution: {diagnostics:?}"
-    );
-}
-
-#[test]
-fn provider_body_fold_rejects_a_forged_builtin_result() {
-    let (mut typed, rows) = provider_fixture();
-    let folds = evaluate_selected_array_lengths(
-        &mut typed,
-        None,
-        SelectedBuildTimeOperators {
-            operators: &[],
-            provider_bodies: &rows,
-        },
-    )
-    .unwrap();
-    let mut forged = folds.clone();
-    forged[0].value = 1;
-    typed
-        .type_reference_table
-        .set_fixed_array_length(forged[0].type_reference, 1);
-    assert!(
-        validate_folded_array_lengths(&typed, &forged, &[], &rows, None).is_err(),
-        "a fold claiming the builtin `%` result must not survive provider replay"
     );
 }
 

@@ -186,21 +186,6 @@ fn default_budget() -> Budget {
     Budget::new(DEFAULT_CONVERSION_STEPS)
 }
 
-/// Builds `λ(A : Type 0). λ(x : A). x` and its Π type; returns the identity
-/// term and the expected type for reuse by the storage test.
-fn polymorphic_identity(arena: &mut TermArena) -> (TermHandle, TermHandle) {
-    let type_zero = type_sort(arena, 0);
-    let bound = variable(arena, 0);
-    let inner = lambda(arena, bound, bound);
-    let identity = lambda(arena, type_zero, inner);
-    // Π(A : Type 0). Π(x : A). A
-    let codomain_domain = variable(arena, 0);
-    let codomain_body = variable(arena, 1);
-    let codomain = pi(arena, codomain_domain, codomain_body);
-    let expected_type = pi(arena, type_zero, codomain);
-    (identity, expected_type)
-}
-
 /// `M := λ(_ : Two). Type 0` — the motive the large-elimination family
 /// uses to return a universe per branch.
 fn universe_motive(arena: &mut TermArena) -> TermHandle {
@@ -365,14 +350,6 @@ fn sort_level(arena: &mut TermArena, level: Level) -> TermHandle {
     arena.insert(Term::Sort(Sort::Type(level)))
 }
 
-/// `level + count` written with the successor constructor.
-fn offset(mut level: Level, count: u32) -> Level {
-    for _ in 0..count {
-        level = level.successor().unwrap();
-    }
-    level
-}
-
 fn constant(arena: &mut TermArena, declaration: u32, levels: Vec<Level>) -> TermHandle {
     arena.insert(Term::Constant {
         declaration,
@@ -394,15 +371,6 @@ fn polymorphic_identity_declaration(arena: &mut TermArena) -> Declaration {
     let inner = lambda(arena, bound_a, inner_x);
     let body = lambda(arena, type_u, inner);
     Declaration::definition(1, ty, body)
-}
-
-/// The `polyId` statement instantiated at `u`: `Π(A : Type u). Π(x : A). A`.
-fn instantiated_identity_type(arena: &mut TermArena, u: Level) -> TermHandle {
-    let type_u = sort_level(arena, u);
-    let bound_a = variable(arena, 0);
-    let inner_a = variable(arena, 1);
-    let inner_pi = pi(arena, bound_a, inner_a);
-    pi(arena, type_u, inner_pi)
 }
 
 /// A closed description for tests: indices `Two`, labels `Two`, child

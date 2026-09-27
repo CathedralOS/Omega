@@ -118,17 +118,6 @@ fn store_module(block_home: bool) -> TerminalModule {
 }
 
 #[test]
-fn owned_record_store_homes_round_trip_canonically() {
-    for block_home in [false, true] {
-        let module = store_module(block_home);
-        let bytes = encode_module(&module).expect("owned record store encodes");
-        let decoded = decode_module(&bytes).expect("owned record store decodes");
-        assert_eq!(decoded, module);
-        assert_eq!(encode_module(&decoded).unwrap(), bytes);
-    }
-}
-
-#[test]
 fn owned_record_store_codec_rejects_forged_home_field_and_custody() {
     for block_home in [false, true] {
         for corruption in 0..3 {

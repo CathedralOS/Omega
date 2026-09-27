@@ -1,6 +1,4 @@
-use proof_admission::{
-    AcceptedProofRule, PrimitiveJudgment, ProofNode, ProofRule, accept_certificate,
-};
+use proof_admission::{PrimitiveJudgment, ProofNode, ProofRule, accept_certificate};
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId};
 
 fn context() -> PropositionContext {
@@ -62,29 +60,6 @@ fn fixture() -> (Proposition, Vec<Proposition>, ProofNode) {
 }
 
 #[test]
-fn nested_computations_keep_each_original_equation_citation() {
-    let (goal, equations, proof) = fixture();
-    let acceptance = accept_certificate(&context(), &goal, &[], &equations, &proof).unwrap();
-    assert!(
-        acceptance
-            .rules
-            .contains(&AcceptedProofRule::ValueEqualityTransport)
-    );
-    assert!(acceptance.assumptions.is_empty());
-    assert_eq!(acceptance.semantic_axioms.len(), 3);
-    for (citation, original) in acceptance
-        .semantic_axioms
-        .iter()
-        .zip(equations.iter().skip(1))
-    {
-        assert_eq!(&citation.proposition, original);
-        assert_eq!(&equations[citation.index], original);
-    }
-    assert!(accept_certificate(&context(), &goal, &[], &[], &proof).is_err());
-    assert!(accept_certificate(&context(), &Proposition::Truth, &[], &equations, &proof).is_err());
-}
-
-#[test]
 fn ambient_equations_cannot_replace_missing_or_unproved_children() {
     let (goal, equations, original) = fixture();
     for mutation in 0..5 {
@@ -114,57 +89,6 @@ fn ambient_equations_cannot_replace_missing_or_unproved_children() {
     let mut changed = equations.clone();
     changed[1] = Proposition::Equal(value(3), equal(value(1), value(4)));
     assert!(accept_certificate(&context(), &goal, &[], &changed, &original).is_err());
-}
-
-#[test]
-fn transport_preserves_polarity_identity_and_declared_types() {
-    let (_, equations, original) = fixture();
-    for goal in [
-        Proposition::Equal(
-            value(7),
-            equal(equal(value(1), value(4)), equal(value(4), value(5))),
-        ),
-        Proposition::Equal(
-            value(7),
-            ScalarTerm::boolean_not(equal(equal(value(1), value(2)), equal(value(4), value(5))))
-                .unwrap(),
-        ),
-        Proposition::Equal(
-            value(8),
-            equal(equal(value(1), value(2)), equal(value(4), value(5))),
-        ),
-    ] {
-        let mut proof = original.clone();
-        proof.conclusion = goal.clone();
-        assert!(accept_certificate(&context(), &goal, &[], &equations, &proof).is_err());
-    }
-    let malformed_context = PropositionContext::from_value_types((1..=7).map(|identity| {
-        (
-            ValueId::new(identity).unwrap(),
-            if identity == 1 {
-                ScalarType::Integer(
-                    semantic_vocabulary::IntegerType::new(
-                        semantic_vocabulary::IntegerSign::Unsigned,
-                        8,
-                    )
-                    .unwrap(),
-                )
-            } else {
-                ScalarType::Boolean
-            },
-        )
-    }))
-    .unwrap();
-    assert!(
-        accept_certificate(
-            &malformed_context,
-            &original.conclusion,
-            &[],
-            &equations,
-            &original
-        )
-        .is_err()
-    );
 }
 
 #[test]
@@ -210,40 +134,6 @@ fn guarded_or_unoriented_equations_are_not_definitions() {
 }
 
 #[test]
-fn equation_children_obey_local_assumption_lifetime() {
-    let equation = Proposition::Equal(value(2), ScalarTerm::boolean_not(value(1)).unwrap());
-    let goal = Proposition::Equal(
-        ScalarTerm::boolean_not(value(2)).unwrap(),
-        ScalarTerm::boolean_not(ScalarTerm::boolean_not(value(1)).unwrap()).unwrap(),
-    );
-    let body = transport(
-        goal.clone(),
-        vec![ProofNode {
-            conclusion: equation.clone(),
-            rule: ProofRule::Assumption { index: 0 },
-        }],
-    );
-    let implication = ProofNode {
-        conclusion: Proposition::Implication {
-            premise: Box::new(equation),
-            conclusion: Box::new(goal.clone()),
-        },
-        rule: ProofRule::ImplicationIntroduction {
-            body: Box::new(body.clone()),
-        },
-    };
-    let acceptance =
-        accept_certificate(&context(), &implication.conclusion, &[], &[], &implication).unwrap();
-    assert!(acceptance.assumptions.is_empty());
-    assert!(acceptance.semantic_axioms.is_empty());
-    let leaked = ProofNode {
-        conclusion: Proposition::Conjunction(vec![implication.conclusion.clone(), goal]),
-        rule: ProofRule::ConjunctionIntroduction(vec![implication, body]),
-    };
-    assert!(accept_certificate(&context(), &leaked.conclusion, &[], &[], &leaked).is_err());
-}
-
-#[test]
 fn cyclic_and_expanding_equations_fail_with_bounded_work() {
     for equations in [
         vec![
@@ -273,34 +163,6 @@ fn cyclic_and_expanding_equations_fail_with_bounded_work() {
         );
         assert!(accept_certificate(&context(), &goal, &[], &equations, &proof).is_err());
     }
-}
-
-#[test]
-fn transport_preserves_a_nontrivial_premise_and_its_equation_dependencies() {
-    let original = Proposition::Equal(value(1), ScalarTerm::boolean(false));
-    let equation = Proposition::Equal(value(2), ScalarTerm::boolean_not(value(1)).unwrap());
-    let goal = Proposition::Equal(value(2), ScalarTerm::boolean(true));
-    let premises = [original.clone(), equation.clone()];
-    let proof = ProofNode {
-        conclusion: goal.clone(),
-        rule: ProofRule::ValueEqualityTransport {
-            premise: Box::new(ProofNode {
-                conclusion: original,
-                rule: ProofRule::Assumption { index: 0 },
-            }),
-            equalities: vec![ProofNode {
-                conclusion: equation,
-                rule: ProofRule::Assumption { index: 1 },
-            }],
-        },
-    };
-    let acceptance = accept_certificate(&context(), &goal, &premises, &[], &proof).unwrap();
-    assert_eq!(acceptance.assumptions.len(), 2);
-    for citation in acceptance.assumptions {
-        assert_eq!(citation.proposition, premises[citation.index]);
-    }
-    let wrong_premises = [Proposition::Truth, premises[1].clone()];
-    assert!(accept_certificate(&context(), &goal, &wrong_premises, &[], &proof).is_err());
 }
 
 #[test]

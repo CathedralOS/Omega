@@ -37,8 +37,6 @@ pub(crate) mod structural_type_wire;
 pub(crate) mod wire;
 
 pub(crate) use crate::codec_error::CodecError;
-#[cfg(test)]
-use crate::{CanonicalTerminalArtifact, CanonicalTerminalArtifactError};
 use canonical_order::{
     canonical_proposition_order_key, crash_routes_are_canonical, validate_canonical_order,
     validate_crash_route_predicates,

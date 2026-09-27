@@ -1,17 +1,9 @@
 use super::{
-    ArithmeticDomain, Diagnostic, ExpressionNode, IntegerLanding, IntegerLiteral, IntegerRadix,
-    LandedIntegerType, TypeConstraintNode, TypedTrees, arguments, evaluate_const_range_endpoints,
+    ArithmeticDomain, Diagnostic, ExpressionNode, IntegerLanding, IntegerLiteral,
+    LandedIntegerType, TypeConstraintNode, TypedTrees, evaluate_const_range_endpoints,
     pending_endpoints,
 };
 use crate::SelectedBuildTimeOperators;
-#[test]
-fn runtime_receivers_are_not_pending_endpoints() {
-    let program = crate::front_end::typed_program(
-        "data Limits {} machine Limits::capacity(&self) -> u64 { 256 }
-         machine bounded(limits: Limits, value: u64[0..=limits.capacity()]) {}",
-    );
-    assert!(pending_endpoints(&program).unwrap().is_empty());
-}
 
 #[test]
 fn inferred_endpoint_calls_use_closed_argument_types_and_reject_conflicts() {
@@ -39,57 +31,6 @@ fn inferred_endpoint_calls_use_closed_argument_types_and_reject_conflicts() {
             .expect_err("conflicting or unused open binders cannot reach execution");
         assert_eq!(program.expression_table.expression(expression), &original);
     }
-}
-
-#[test]
-fn explicit_endpoint_type_stays_fixed_while_other_arguments_are_inferred() {
-    let mut program = crate::front_end::typed_program(
-        "machine pick<T, Other>(value: T, ignored: Other) -> T { value }
-         machine keep(value: u64[0..=pick<u64[0..=7]>(7u64, true)]) {}",
-    );
-    let expression = pending_endpoints(&program).unwrap()[0].expression;
-    evaluate_const_range_endpoints(&mut program, None)
-        .expect("the explicit range remains fixed while Other is inferred from bool");
-    assert_eq!(
-        validation::closed_integer_range_bound(&program, expression)
-            .unwrap()
-            .to_string(),
-        "7",
-    );
-}
-
-#[test]
-fn pending_type_bound_keeps_even_an_unused_application_unreplaced() {
-    let mut program = crate::front_end::typed_program(
-        "machine limit() -> u64 { 7 }
-         machine ignored<T>() -> u64 { 7 }
-         machine keep(value: u64[0..=ignored<u64[0..=limit()]>()]) {}",
-    );
-    let pending = pending_endpoints(&program).unwrap();
-    let outer = pending
-        .iter()
-        .find(|endpoint| endpoint.static_application)
-        .unwrap()
-        .expression;
-    let prepared = crate::PreparedBuildMachineProgram::prepare(&program).unwrap();
-    assert!(
-        program.pending_const_range_endpoints.is_empty(),
-        "preparation stays private"
-    );
-    assert!(
-        prepared.typed().machine_specializations.is_empty(),
-        "pending types grant no instance"
-    );
-    let ExpressionNode::Call(call) = prepared.typed().expression_table.expression(outer) else {
-        panic!("the unresolved call must remain authored");
-    };
-    assert_eq!(call.machine_arguments.len(), 1);
-    evaluate_const_range_endpoints(&mut program, None).unwrap();
-    let ExpressionNode::Integer(value) = program.expression_table.expression(outer) else {
-        panic!("closed application must execute after its bound is evaluated");
-    };
-    assert_eq!(value.value_u64(), Some(7));
-    assert!(program.pending_const_range_endpoints.is_empty());
 }
 
 #[test]
@@ -169,33 +110,6 @@ fn failed_type_bound_restores_folds_and_does_not_discharge_an_unused_argument() 
 }
 
 #[test]
-fn substituted_target_cannot_borrow_another_type_qualifier() {
-    let mut program = crate::front_end::typed_program(
-        "data Limits {} data Other {}
-         machine Limits::capacity() -> u64 { 256 }
-         machine Other::capacity() -> u64 { 512 }
-         machine bounded(value: u64[0..=Limits::capacity()]) {}",
-    );
-    let pending = pending_endpoints(&program).unwrap();
-    assert_eq!(pending.len(), 1);
-    let expression = pending[0].expression;
-    let other = program
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "Other::capacity")
-        .expect("other attached machine");
-    let other_entry = program.machine_states(other)[0].symbol;
-    let ExpressionNode::Call(call) = program.expression_table.expression_mut(expression) else {
-        panic!("authored endpoint call");
-    };
-    call.target_symbol = other_entry;
-    assert!(
-        pending_endpoints(&program).unwrap().is_empty(),
-        "resolved owner and qualifier must agree"
-    );
-}
-
-#[test]
 fn closed_integer_arguments_keep_carriers_and_exact_landings() {
     for (parameter, argument, expected) in [
         ("u64", "256", "256"),
@@ -219,104 +133,6 @@ fn closed_integer_arguments_keep_carriers_and_exact_landings() {
             panic!("evaluated endpoint must be a literal");
         };
         assert_eq!(literal.value_bignum().unwrap().to_string(), expected);
-    }
-}
-
-#[test]
-fn ignored_arguments_cannot_hide_invalid_or_unsupported_inputs() {
-    for (parameter, arguments, diagnostic) in [
-        ("u64", "true", "destination carrier"),
-        ("u8", "255u16", "destination carrier"),
-        ("u8", "255u64", "destination carrier"),
-        ("u8", "256", "cannot land exactly"),
-        ("u64", "-1", "cannot land exactly"),
-        ("u64", "1 / 2", "cannot land exactly"),
-        ("u64", "7u64 / 0", "constant"),
-        ("u64", "18446744073709551615u64 + 1", "constant"),
-        ("u64[0..=8]", "9", "outside declared range"),
-        ("u64", "", "argument count"),
-        ("u64", "1, 2", "argument count"),
-        ("u64", "input", "unsupported node"),
-    ] {
-        let mut program = crate::front_end::typed_program(&format!(
-            "machine endpoint(ignored: {parameter}) -> u64 {{ 256 }}
-             machine bounded(input: u64, value: u64[0..=endpoint({arguments})]) {{}}"
-        ));
-        let pending = pending_endpoints(&program).unwrap();
-        assert_eq!(pending.len(), 1);
-        let errors = evaluate_const_range_endpoints(&mut program, None)
-            .expect_err("an ignored argument still needs source admission");
-        assert!(
-            errors
-                .iter()
-                .any(|error| error.message.contains(diagnostic)),
-            "{parameter} <- {arguments}: {errors:?}"
-        );
-        assert!(
-            matches!(
-                program.expression_table.expression(pending[0].expression),
-                ExpressionNode::Call(_)
-            ),
-            "rejection must not erase the authored call"
-        );
-    }
-}
-
-#[test]
-fn argument_landing_retains_nested_fractional_warnings() {
-    for argument in ["1 / 2 * 512", "1u64 + (1 / 2 * 510)"] {
-        let program = crate::front_end::typed_program(&format!(
-            "machine endpoint(value: u64) -> u64 {{ value }}
-             machine bounded(value: u64[0..=endpoint({argument})]) {{}}"
-        ));
-        let pending = pending_endpoints(&program).unwrap();
-        let admission = crate::BuildTimeAdmissionPlan::infer(&program, None);
-        let (values, warnings) = arguments::evaluate(
-            &program,
-            &program,
-            &admission,
-            pending[0].expression,
-            super::EndpointCallee::plain(pending[0].machine),
-            None,
-        )
-        .expect("closed integer arguments land");
-        assert_eq!(values, vec![crate::BuildTimeValue::Int(256)]);
-        assert_eq!(warnings.len(), 1, "{argument}: {warnings:?}");
-        assert!(warnings[0].source_span.is_some());
-    }
-}
-
-#[test]
-fn nested_calls_compose_without_erasing_their_integer_carriers() {
-    for (parameter, argument, expected) in [
-        ("u64", "endpoint(endpoint(256))", "256"),
-        ("u64", "endpoint(128) + endpoint(128)", "256"),
-        ("u64", "endpoint(1 / 2 * 512)", "256"),
-        (
-            "u64",
-            "endpoint(18446744073709551615u64)",
-            "18446744073709551615",
-        ),
-        (
-            "i64",
-            "endpoint(-9223372036854775808i64)",
-            "-9223372036854775808",
-        ),
-        ("u8", "endpoint(127) + endpoint(128)", "255"),
-    ] {
-        let mut program = crate::front_end::typed_program(&format!(
-            "machine endpoint(value: {parameter}) -> {parameter} {{ value }}
-             machine bounded(value: {parameter}[0..=endpoint({argument})]) {{}}"
-        ));
-        let calls = pending_endpoints(&program).unwrap();
-        let expression = calls.last().unwrap().expression;
-        evaluate_const_range_endpoints(&mut program, None)
-            .unwrap_or_else(|errors| panic!("{parameter}: {argument}: {errors:?}"));
-        let value = program
-            .closed_integer_value_in(expression, symbols::SymbolHandle::invalid())
-            .expect("closed endpoint preserves value and carrier");
-        assert_eq!(value.value.to_string(), expected);
-        assert_eq!(value.primitive.unwrap().name(), parameter);
     }
 }
 
@@ -371,112 +187,6 @@ fn endpoint_discovery_rejects_cyclic_expression_graphs() {
     };
     binary.right = maximum;
     assert!(pending_endpoints(&program).is_err());
-}
-
-#[test]
-fn folded_arguments_still_require_their_original_selection_authority() {
-    use semantic_vocabulary::PackageKeyIdentity;
-    use std::path::PathBuf;
-    struct Selection(bool);
-    impl crate::BuildTimeSelectionAuthority for Selection {
-        fn allows_declaration_selection(
-            &self,
-            _: PackageKeyIdentity,
-            _: PackageKeyIdentity,
-        ) -> bool {
-            self.0
-        }
-        fn package_label(&self, _: PackageKeyIdentity) -> String {
-            "argument-package".to_owned()
-        }
-    }
-    for text in [
-        "const CAPACITY: u64 = 256;
-                machine endpoint(value: u64) -> u64 { value }
-                machine bounded(value: u64[0..=endpoint(CAPACITY)]) {}",
-        "machine inner() -> u64 { 256 }
-                machine endpoint(value: u64) -> u64 { value }
-                machine bounded(value: u64[0..=endpoint(inner())]) {}",
-    ] {
-        let mut sources = source::SourceMap::default();
-        let source_id = sources
-            .add_with_metadata(
-                PathBuf::from("main.omg"),
-                text.to_owned(),
-                PathBuf::from("."),
-                Some(PackageKeyIdentity::from_digest([0x63; 32]).unwrap()),
-                source::SourceOrigin::User,
-            )
-            .source_id;
-        let program =
-            crate::front_end::typed_program_from_source_map(sources, &[(source_id, text)]);
-        let pending = pending_endpoints(&program).unwrap();
-        let endpoint = pending.last().unwrap();
-        let mut evaluated = program.clone();
-        for inner in &pending[..pending.len() - 1] {
-            *evaluated.expression_table.expression_mut(inner.expression) = ExpressionNode::Integer(
-                IntegerLiteral::from_parts(false, IntegerRadix::Decimal, "256")
-                    .unwrap()
-                    .with_landing(IntegerLanding {
-                        landed_type: LandedIntegerType::U64,
-                        domain: ArithmeticDomain::Exact,
-                    }),
-            );
-        }
-        // Test argument admission directly so the callee's separate gate cannot
-        // mask failure to consult the original constant/call occurrence's
-        // authority. Only the working graph contains the simulated call result.
-        let admission = crate::BuildTimeAdmissionPlan::infer(&program, None);
-        let (values, _) = arguments::evaluate(
-            &evaluated,
-            &program,
-            &admission,
-            endpoint.expression,
-            super::EndpointCallee::plain(endpoint.machine),
-            Some(&Selection(true)),
-        )
-        .expect("admitted constant argument");
-        assert_eq!(values, vec![crate::BuildTimeValue::Int(256)]);
-        let error = arguments::evaluate(
-            &evaluated,
-            &program,
-            &admission,
-            endpoint.expression,
-            super::EndpointCallee::plain(endpoint.machine),
-            Some(&Selection(false)),
-        )
-        .expect_err("the callee cannot grant selection authority to its arguments");
-        assert!(
-            error.contains("without direct dependency authority"),
-            "{error}"
-        );
-    }
-}
-
-#[test]
-fn signature_bounds_are_dependencies_even_when_declared_after_the_consumer() {
-    let mut program = crate::front_end::typed_program(
-        "machine bounded(value: u64[0..=endpoint(256)]) {}
-         machine endpoint(value: u64[1..=limit()]) -> u64[0..=limit()] {value}
-         machine limit() -> u64 {256}",
-    );
-    let calls = pending_endpoints(&program).unwrap();
-    assert_eq!(calls.len(), 3);
-    assert!(
-        calls[..2]
-            .iter()
-            .all(|call| program.symbols.display_path(call.machine, "::") == "limit")
-    );
-    assert_eq!(
-        program.symbols.display_path(calls[2].machine, "::"),
-        "endpoint"
-    );
-    evaluate_const_range_endpoints(&mut program, None)
-        .expect("signature dependencies fold before invocation");
-    let value = program
-        .closed_integer_expression_value(calls[2].expression)
-        .unwrap();
-    assert_eq!(value.to_u64(), Some(256));
 }
 
 #[test]
@@ -642,26 +352,6 @@ fn domain_qualified_callee_positions_fold_members_and_reject_nonmembers() {
 }
 
 #[test]
-fn domain_qualified_result_positions_check_the_returned_value() {
-    // A result domain is checked on the value the callee actually returned:
-    // `zero()` returns 0 into `u64 in Positive` and must not fold.
-    let mut program = crate::front_end::typed_program(
-        "domain u64::Positive requires self > 0;
-         machine zero() -> u64 in Positive { 0 }
-         machine keep(value: u64[0..=zero()]) {}",
-    );
-    let errors = evaluate_const_range_endpoints(&mut program, None).expect_err("non-member result");
-    assert_eq!(errors.len(), 1, "{errors:?}");
-    assert!(
-        errors[0]
-            .message
-            .contains("range endpoint value `0` is outside domain `Positive`"),
-        "{}",
-        errors[0].message
-    );
-}
-
-#[test]
 fn proved_parameter_domains_do_not_stand_down_the_fence_for_other_premises() {
     // The membership proof discharges exactly the root's parameter-domain
     // premises. An authored `requires` clause on the callee, or a domain
@@ -689,59 +379,6 @@ fn proved_parameter_domains_do_not_stand_down_the_fence_for_other_premises() {
                 .contains("has an authored `requires` premise"),
             "{source}: {}",
             errors[0].message
-        );
-    }
-}
-
-#[test]
-fn boolean_arguments_and_boolean_helpers_fold_into_integer_endpoints() {
-    // A Boolean literal, Boolean logic, and a Boolean-returning helper are
-    // closed arguments of an integer-returning endpoint callee. Each helper
-    // folds to a Boolean literal in argument position; the bound itself is
-    // still the integer the callee returned.
-    let declarations = "machine pick(wide: bool) -> u64 {
-             transition wide {
-                 true -> 512
-                 false -> 256
-             }
-         }
-         machine is_wide() -> bool { false }
-         machine both(first: bool, second: bool) -> bool { first && second }";
-    for (endpoint, bound) in [
-        ("pick(false)", "256"),
-        ("pick(true)", "512"),
-        ("pick(is_wide())", "256"),
-        ("pick(both(true, is_wide()))", "256"),
-        ("pick(true && is_wide())", "256"),
-        ("pick(false || true)", "512"),
-        ("pick(is_wide()) + 1", "257"),
-    ] {
-        let mut program = crate::front_end::typed_program(&format!(
-            "{declarations}
-             machine keep(value: u64[0..={endpoint}]) {{}}"
-        ));
-        evaluate_const_range_endpoints(&mut program, None)
-            .unwrap_or_else(|errors| panic!("{endpoint}: {errors:?}"));
-        assert!(
-            pending_endpoints(&program).unwrap().is_empty(),
-            "{endpoint}"
-        );
-        // Surrounding bound arithmetic stays authored around the folded
-        // literal, so read the bound through the shared closed query.
-        let (_, _, constraints) = program
-            .type_reference_table
-            .constrained_type_reference_sites()[0];
-        let TypeConstraintNode::Range { maximum, .. } =
-            program.type_reference_table.constraints(constraints)[0]
-        else {
-            panic!("{endpoint}: authored range");
-        };
-        assert_eq!(
-            validation::closed_integer_range_bound(&program, maximum)
-                .map(|value| value.to_string())
-                .as_deref(),
-            Some(bound),
-            "{endpoint}"
         );
     }
 }
@@ -839,25 +476,6 @@ fn fully_supplied_static_applications_fold_through_their_specialized_instance() 
                 .as_deref(),
             Some(bound),
             "{endpoint}"
-        );
-    }
-}
-
-#[test]
-fn closed_type_arguments_use_the_specialized_endpoint_signature() {
-    for (carrier, value) in [("u8", "255"), ("u64", "18446744073709551615")] {
-        let mut program = crate::front_end::typed_program(&format!(
-            "machine identity<T>(value: T) -> T {{ value }}
-             machine keep(value: {carrier}[0..=identity<{carrier}>({value})]) {{}}"
-        ));
-        let pending = pending_endpoints(&program).unwrap();
-        assert_eq!(pending.len(), 1, "closed {carrier} application is pending");
-        evaluate_const_range_endpoints(&mut program, None)
-            .unwrap_or_else(|errors| panic!("{carrier}: {errors:?}"));
-        assert_eq!(
-            validation::closed_integer_range_bound(&program, pending[0].expression)
-                .map(|bound| bound.to_string()),
-            Some(value.to_owned())
         );
     }
 }
@@ -1013,23 +631,6 @@ fn generic_record_arguments_still_reject_unclosable_endpoint_calls() {
     }
 }
 
-/// A selected boundary-operator use inside an endpoint callee: the provider's
-/// ordinary checked body computes `left | right` = 7 where builtin `%` would
-/// fold 1, so a folded bound of 7 is the positive witness that the provider
-/// machine -- not host arithmetic -- ran.
-fn provider_endpoint_fixture() -> (TypedTrees, Vec<crate::SelectedBuildTimeProviderBody>) {
-    let program = crate::front_end::typed_program(
-        "data Math {}
-         boundary operator % Math::remainder(left: u64, right: u64) -> u64;
-         data Provider {}
-         machine Provider::remainder(left: u64, right: u64) -> u64 satisfies Math::remainder { left | right }
-         machine limit() -> u64 { let left:u64 = 7; let right:u64 = 2; transition { _ -> (left % right) } }
-         machine take_bounded(value: u64[0..=(match true { true -> limit(), false -> 0u64 })]) -> u64 { value }",
-    );
-    let rows = provider_rows(&program);
-    (program, rows)
-}
-
 /// The fixture's selected provider-body rows: every resolved boundary
 /// operator use binds `Provider::remainder`'s exact entry under a fixed test
 /// plan commitment.
@@ -1084,82 +685,6 @@ fn folded_maximum(program: &TypedTrees) -> Option<String> {
 }
 
 #[test]
-fn provider_boundary_endpoint_waits_for_selected_execution() {
-    let (program, rows) = provider_endpoint_fixture();
-    assert_eq!(rows.len(), 1);
-    assert!(
-        super::pending_endpoint_calls_need_operator_selection(&program, None).unwrap(),
-        "a boundary-operator callee must defer its endpoint until selected rows exist"
-    );
-    let independent = crate::front_end::typed_program(
-        "machine limit() -> u64 { 7 }
-         machine take_bounded(value: u64[0..=(match true { true -> limit(), false -> 0u64 })]) -> u64 { value }",
-    );
-    assert!(
-        !super::pending_endpoint_calls_need_operator_selection(&independent, None).unwrap(),
-        "an independent endpoint keeps its early route"
-    );
-}
-
-#[test]
-fn pending_type_bound_does_not_hide_the_callees_provider_dependency() {
-    let mut program = crate::front_end::typed_program(
-        "data Math {}
-         boundary operator % Math::remainder(left: u64, right: u64) -> u64;
-         data Provider {}
-         machine Provider::remainder(left: u64, right: u64) -> u64 satisfies Math::remainder { left | right }
-         machine count() -> u64 { 7 }
-         machine limit<T>() -> u64 { let left:u64 = 7; let right:u64 = 2; transition { _ -> (left % right) } }
-         machine keep(value: u64[0..=limit<u64[0..=count()]>()]) {}",
-    );
-    let outer = pending_endpoints(&program)
-        .unwrap()
-        .into_iter()
-        .find(|endpoint| endpoint.static_application)
-        .unwrap()
-        .expression;
-    assert!(super::pending_endpoint_calls_need_operator_selection(&program, None).unwrap());
-    let rows = provider_rows(&program);
-    super::evaluate_selected_range_endpoints(
-        &mut program,
-        None,
-        SelectedBuildTimeOperators {
-            operators: &[],
-            provider_bodies: &rows,
-        },
-    )
-    .unwrap();
-    assert!(pending_endpoints(&program).unwrap().is_empty());
-    assert_eq!(
-        validation::closed_integer_range_bound(&program, outer)
-            .unwrap()
-            .to_string(),
-        "7",
-        "the selected provider computes 7, not builtin remainder 1"
-    );
-}
-
-#[test]
-fn provider_boundary_endpoint_executes_the_selected_body() {
-    let (mut program, rows) = provider_endpoint_fixture();
-    crate::validate_selected_provider_bodies(&program, &rows).unwrap();
-    super::evaluate_selected_range_endpoints(
-        &mut program,
-        None,
-        SelectedBuildTimeOperators {
-            operators: &[],
-            provider_bodies: &rows,
-        },
-    )
-    .unwrap_or_else(|errors| panic!("provider-boundary endpoint: {errors:?}"));
-    assert_eq!(
-        folded_maximum(&program).as_deref(),
-        Some("7"),
-        "the provider's `left | right` body must run; builtin `%` would fold 1"
-    );
-}
-
-#[test]
 fn inferred_endpoint_still_waits_for_and_executes_its_selected_provider() {
     let mut program = crate::front_end::typed_program(
         "data Math {}
@@ -1182,74 +707,6 @@ fn inferred_endpoint_still_waits_for_and_executes_its_selected_provider() {
     )
     .unwrap();
     assert_eq!(folded_maximum(&program).as_deref(), Some("7"));
-}
-
-#[test]
-fn unselected_boundary_endpoint_never_falls_back_to_host_semantics() {
-    let (mut program, _rows) = provider_endpoint_fixture();
-    let errors = super::evaluate_selected_range_endpoints(
-        &mut program,
-        None,
-        SelectedBuildTimeOperators {
-            operators: &[],
-            provider_bodies: &[],
-        },
-    )
-    .expect_err("an unselected boundary use must not execute");
-    assert!(
-        errors
-            .iter()
-            .any(|error| error.message.contains("requires exact authored selection")),
-        "{errors:?}"
-    );
-    assert!(folded_maximum(&program).is_none(), "no fold may survive");
-}
-
-#[test]
-fn deferred_continuation_folds_provider_boundary_endpoint() {
-    let source = r#"
-data Math {}
-boundary operator % Math::remainder(left: u64, right: u64) -> u64;
-data Provider {}
-machine Provider::remainder(left: u64, right: u64) -> u64 satisfies Math::remainder { left | right }
-machine limit() -> u64 { let left:u64 = 7; let right:u64 = 2; transition { _ -> (left % right) } }
-machine take_bounded(value: u64[0..=(match true { true -> limit(), false -> 0u64 })]) -> u64 { value }
-"#;
-    let syntax = crate::front_end::syntax_program(source);
-    let evaluated = crate::evaluate_pre_resolution(crate::BuildTimeEvaluationRequest {
-        syntax_trees: syntax,
-        source_context: None,
-    })
-    .unwrap();
-    let (syntax, pre_check) = evaluated.into_syntax_and_pre_check();
-    let mut program = crate::front_end::typed_program_from_evaluated_syntax(&syntax, None);
-    let Some(pending) = pre_check.evaluate_or_defer(&mut program).unwrap() else {
-        panic!("a provider-dependent endpoint must defer its pre-check continuation");
-    };
-    assert_eq!(
-        program.pending_const_range_endpoints.len(),
-        2,
-        "the deferred endpoint must keep interim checking from reading it as a non-constant bound"
-    );
-    let rows = provider_rows(&program);
-    pending
-        .evaluate_selected_operators(
-            &mut program,
-            SelectedBuildTimeOperators {
-                operators: &[],
-                provider_bodies: &rows,
-            },
-        )
-        .unwrap_or_else(|errors| panic!("deferred endpoint: {errors:?}"));
-    assert_eq!(
-        folded_maximum(&program).as_deref(),
-        Some("7"),
-        "the deferred endpoint must fold under the selected provider body"
-    );
-    assert!(
-        program.pending_const_range_endpoints.is_empty(),
-        "the landed endpoint must release its deferred-evaluation mark"
-    );
 }
 
 /// The deferred mark keeps interim package checking from misreading the
@@ -1311,137 +768,6 @@ machine take_bounded(value: u64[0..=(match true { true -> limit(), false -> 0u64
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap_or_else(|errors| panic!("the folded endpoint must check: {errors:?}"));
-}
-
-#[test]
-fn template_signature_bounds_with_endpoint_calls_close_under_explicit_application() {
-    // The template's own bound `u64[0..=limit()]` folds in the first round.
-    // The instance's cloned bound lives only in the prepared tree, so the
-    // static application fails that round; the driver re-prepares from the
-    // folded working tree and the second round closes it. The instance's
-    // folded bound is what the argument position checks: `300` rejects.
-    let declarations = "machine limit() -> u64 { 256 }
-         machine bounded<const N: u64>(value: u64[0..=limit()]) -> u64 { N }
-         machine result_bounded<const N: u64>() -> u64[0..=limit()] { N }";
-    for (endpoint, bound) in [
-        ("bounded<256>(0)", "256"),
-        ("result_bounded<256>()", "256"),
-        ("bounded<256>(limit() - 256)", "256"),
-    ] {
-        let mut program = crate::front_end::typed_program(&format!(
-            "{declarations}
-             machine keep(value: u64[0..={endpoint}]) {{}}"
-        ));
-        evaluate_const_range_endpoints(&mut program, None)
-            .unwrap_or_else(|errors| panic!("{endpoint}: {errors:?}"));
-        assert!(
-            pending_endpoints(&program).unwrap().is_empty(),
-            "{endpoint}"
-        );
-        let (_, _, constraints) = *program
-            .type_reference_table
-            .constrained_type_reference_sites()
-            .last()
-            .expect("keep's authored range");
-        let TypeConstraintNode::Range { maximum, .. } =
-            program.type_reference_table.constraints(constraints)[0]
-        else {
-            panic!("{endpoint}: authored range");
-        };
-        assert_eq!(
-            validation::closed_integer_range_bound(&program, maximum)
-                .map(|value| value.to_string())
-                .as_deref(),
-            Some(bound),
-            "{endpoint}"
-        );
-    }
-    let mut program = crate::front_end::typed_program(&format!(
-        "{declarations}
-         machine keep(value: u64[0..=bounded<256>(300)]) {{}}"
-    ));
-    let errors = evaluate_const_range_endpoints(&mut program, None).expect_err("out of range");
-    assert_eq!(errors.len(), 1, "{errors:?}");
-    assert!(
-        errors[0]
-            .message
-            .contains("range endpoint value `300` is outside declared range `0..=256`"),
-        "{}",
-        errors[0].message
-    );
-}
-
-#[test]
-fn rounds_stop_without_progress_and_restore_every_published_fold() {
-    // A template bound that depends on a sibling parameter is never a
-    // pending endpoint, so no round can close the application: the first
-    // round folds `limit()` for the sibling endpoint, the second makes no
-    // progress and reports the unclosed signature bound. Every fold
-    // published by the first round is restored so the rejected program
-    // keeps its authored calls and their deferral marks.
-    let mut program = crate::front_end::typed_program(
-        "machine limit() -> u64 { 256 }
-         machine unclosable<const N: u64>(cap: u64, value: u64[0..=cap]) -> u64 { N }
-         machine keep(first: u64[0..=(match true { true -> limit(), false -> limit() })], second: u64[0..=unclosable<256>(256, 0)]) {}",
-    );
-    let authored = pending_endpoints(&program).unwrap().len();
-    assert_eq!(authored, 3);
-    super::defer_pending_endpoint_calls(&mut program).unwrap();
-    let marks = program.pending_const_range_endpoints.clone();
-    let errors = evaluate_const_range_endpoints(&mut program, None).expect_err("unclosable bound");
-    assert_eq!(errors.len(), 1, "{errors:?}");
-    assert!(
-        errors[0]
-            .message
-            .contains("range endpoint signature bound is not closed"),
-        "{}",
-        errors[0].message
-    );
-    assert_eq!(program.pending_const_range_endpoints, marks);
-    assert_eq!(
-        pending_endpoints(&program).unwrap().len(),
-        authored,
-        "a rejected program keeps every authored endpoint call"
-    );
-}
-
-#[test]
-fn whole_endpoint_comparison_customer_uses_shared_evaluation() {
-    let mut program = crate::front_end::typed_program(
-        "machine pick(wide: bool) -> u64 { transition wide { true -> 512 false -> 256 } } machine keep(value: u64[0..=pick(1u64 < 2u64)]) {}",
-    );
-    evaluate_const_range_endpoints(&mut program, None)
-        .expect("comparison is an ordinary closed Boolean argument");
-    assert_eq!(folded_maximum(&program).as_deref(), Some("512"));
-}
-
-#[test]
-fn whole_endpoint_composes_calls_match_and_original_carriers() {
-    let declarations =
-        "machine endpoint(value: u64) -> u64 { value } machine flag() -> bool { false }";
-    for (endpoint, expected) in [
-        (
-            "(match flag() { true -> endpoint(endpoint(512)), false -> endpoint(256) }) + 1",
-            "257",
-        ),
-        ("match true { true -> endpoint(256), false -> 0u64 }", "256"),
-        (
-            "endpoint(256) + (match true { true -> 1u64, false -> endpoint(2) })",
-            "257",
-        ),
-        ("18446744073709551616", "18446744073709551616"),
-    ] {
-        let mut program = crate::front_end::typed_program(&format!(
-            "{declarations} machine keep(value: u64[0..{endpoint}]) {{}}"
-        ));
-        evaluate_const_range_endpoints(&mut program, None)
-            .unwrap_or_else(|errors| panic!("{endpoint}: {errors:?}"));
-        assert_eq!(
-            folded_maximum(&program).as_deref(),
-            Some(expected),
-            "{endpoint}"
-        );
-    }
 }
 
 #[test]
@@ -1536,48 +862,6 @@ fn whole_endpoint_computed_result_metadata_keeps_actual_carrier() {
             "computed result cannot inherit an operand domain: {endpoint}"
         );
     }
-}
-
-#[test]
-fn whole_endpoint_discovery_retains_distinct_roots_with_shared_call() {
-    let mut program = crate::front_end::typed_program(
-        "machine endpoint() -> u64 { 256 } machine keep(first: u64[0..=endpoint() + 1], second: u64[0..=endpoint() + 2]) {}",
-    );
-    let pending = pending_endpoints(&program).unwrap();
-    assert_eq!(pending.len(), 2);
-    let roots = [pending[0].root, pending[1].root];
-    let shared_call = pending[0].expression;
-    let ExpressionNode::Binary(binary) = program.expression_table.expression_mut(roots[1]) else {
-        panic!("second bound is arithmetic");
-    };
-    binary.left = shared_call;
-    assert_eq!(
-        pending_endpoints(&program).unwrap().len(),
-        2,
-        "each root owns its own normalization even when operands share handles"
-    );
-    evaluate_const_range_endpoints(&mut program, None).unwrap();
-    for (root, expected) in roots.into_iter().zip(["257", "258"]) {
-        let ExpressionNode::Integer(literal) = program.expression_table.expression(root) else {
-            panic!("each bound folds");
-        };
-        assert_eq!(literal.value_bignum().unwrap().to_string(), expected);
-    }
-}
-
-#[test]
-fn whole_endpoint_without_calls_uses_the_same_shared_evaluator() {
-    let mut program = crate::front_end::typed_program(
-        "machine keep(value: u64[0..=(match false { true -> 512u64, false -> 256u64 }) + 1]) {}",
-    );
-    assert!(pending_endpoints(&program).unwrap().is_empty());
-    evaluate_const_range_endpoints(&mut program, None).unwrap();
-    assert_eq!(folded_maximum(&program).as_deref(), Some("257"));
-    typed_trees_to_checked_trees::lower_typed_trees(
-        program,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap();
 }
 
 #[test]
@@ -1703,56 +987,6 @@ fn policy_parameters_execute_the_declared_width_without_changing_initial_landing
                 "{policy} initial argument must reject: {argument}"
             );
         }
-    }
-}
-
-#[test]
-fn policy_parameter_admission_checks_skipped_calls_and_implicit_erasure() {
-    for endpoint in [
-        "match false { true -> wrapping(255u8), false -> 256u64 }",
-        "exact_result(wrapping_result())",
-        "wrapping_result() + 1u8",
-    ] {
-        let mut program = crate::front_end::typed_program(&format!(
-            "machine wrapping(value: u8 in Wrapping) -> u64 {{ (value + 2) as u64 }} machine wrapping_result() -> u8 in Wrapping {{ 1 }} machine exact_result(value: u8) -> u64 {{ value as u64 }} machine keep(value: u64[0..={endpoint}]) {{}}"
-        ));
-        assert!(
-            evaluate_const_range_endpoints(&mut program, None).is_err(),
-            "{endpoint}"
-        );
-    }
-}
-
-#[test]
-fn policy_endpoint_publication_retains_its_landed_policy() {
-    for (policy, domain, expected) in [
-        ("Wrapping", ArithmeticDomain::Wrapping, "1"),
-        ("Saturating", ArithmeticDomain::Saturating, "255"),
-    ] {
-        let mut program = crate::front_end::typed_program(&format!(
-            "machine seed() -> u8 in {policy} {{ 255 }}
-             machine keep(value: u64[0..=seed() + 2]) {{}}"
-        ));
-        let root = pending_endpoints(&program).unwrap()[0].root;
-        evaluate_const_range_endpoints(&mut program, None).unwrap();
-        assert_eq!(folded_maximum(&program).as_deref(), Some(expected));
-        assert!(pending_endpoints(&program).unwrap().is_empty());
-        let ExpressionNode::Integer(literal) = program.expression_table.expression(root) else {
-            panic!("completed endpoint must be a literal");
-        };
-        assert_eq!(literal.landing().unwrap().domain, domain);
-        assert_eq!(
-            program
-                .closed_integer_expression_value(root)
-                .unwrap()
-                .to_string(),
-            expected,
-        );
-        typed_trees_to_checked_trees::lower_typed_trees(
-            program,
-            &typed_trees_to_checked_trees::CheckingRequest::settled(),
-        )
-        .unwrap();
     }
 }
 

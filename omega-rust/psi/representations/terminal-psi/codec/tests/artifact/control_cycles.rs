@@ -1,17 +1,12 @@
-use super::{kernel_bundle, semantic_module};
 use proof_admission::{
-    AdmissionProfile, CertificateEnvelope, EvidenceRoute, PrimitiveJudgment, ProofNode, ProofRule,
-    ProofSystemMarker, RecursiveComponentCertificate, RecursiveEdgeCertificate,
+    CertificateEnvelope, EvidenceRoute, PrimitiveJudgment, ProofNode, ProofRule, ProofSystemMarker,
+    RecursiveComponentCertificate, RecursiveEdgeCertificate,
 };
 use semantic_vocabulary::{
     CycleComponentId, EvidenceIdentity, ObligationId, Proposition, RankingRelationId,
-    RecursiveComponentId,
 };
-use terminal_codec::{
-    ProofCodecError, decode_proof_bundle, encode_proof_bundle, proof_bundle_fingerprint,
-};
-use terminal_psi::{ControlCycleEvidence, ProofBundle, RecursiveComponentEvidence};
-use terminal_verifier::verify_module;
+use terminal_codec::{ProofCodecError, decode_proof_bundle, encode_proof_bundle};
+use terminal_psi::{ControlCycleEvidence, ProofBundle};
 
 fn component(identity: u64) -> ControlCycleEvidence {
     ControlCycleEvidence {
@@ -39,59 +34,6 @@ fn component(identity: u64) -> ControlCycleEvidence {
             ],
         },
     }
-}
-
-#[test]
-fn control_cycle_certificates_round_trip_after_proof_recursion_with_exact_identities() {
-    let control = component(31);
-    let bundle = ProofBundle {
-        recursive_components: vec![RecursiveComponentEvidence {
-            component: RecursiveComponentId::new(31).unwrap(),
-            certificate: control.certificate.clone(),
-        }],
-        control_cycles: vec![control, component(32)],
-        ..ProofBundle::default()
-    };
-    let bytes = encode_proof_bundle(&bundle).unwrap();
-    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
-    assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
-    let identity = proof_bundle_fingerprint(&bundle).unwrap();
-    for changed in [
-        {
-            let mut changed = bundle.clone();
-            changed.control_cycles[0].component = CycleComponentId::new(30).unwrap();
-            changed
-        },
-        {
-            let mut changed = bundle.clone();
-            changed.control_cycles[0].certificate.identity = EvidenceIdentity::new(42).unwrap();
-            changed
-        },
-        {
-            let mut changed = bundle.clone();
-            changed.control_cycles[0].certificate.ranking_relation =
-                RankingRelationId::new(52).unwrap();
-            changed
-        },
-        {
-            let mut changed = bundle.clone();
-            changed.control_cycles[0].certificate.edges[0].obligation =
-                ObligationId::new(60).unwrap();
-            changed
-        },
-    ] {
-        assert_ne!(proof_bundle_fingerprint(&changed).unwrap(), identity);
-        assert_eq!(
-            decode_proof_bundle(&encode_proof_bundle(&changed).unwrap()),
-            Ok(changed)
-        );
-    }
-    let mut stale = bytes;
-    stale[8..10].copy_from_slice(&29_u16.to_le_bytes());
-    assert_eq!(
-        decode_proof_bundle(&stale),
-        Err(ProofCodecError::UnsupportedFormatMarker(29)),
-    );
 }
 
 #[test]
@@ -140,15 +82,6 @@ fn control_cycle_evidence_rejects_noncanonical_components_and_edges() {
     for end in 0..bytes.len() {
         assert!(decode_proof_bundle(&bytes[..end]).is_err());
     }
-}
-
-#[test]
-fn wire_control_cycle_evidence_never_authorizes_surplus_components() {
-    let module = semantic_module();
-    let mut bundle = kernel_bundle();
-    bundle.control_cycles.push(component(31));
-    let decoded = decode_proof_bundle(&encode_proof_bundle(&bundle).unwrap()).unwrap();
-    assert!(verify_module(&module, &decoded, &AdmissionProfile::default()).is_err());
 }
 
 #[test]

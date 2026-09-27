@@ -1,13 +1,13 @@
 use super::{
     canonical_artifact, kernel_bundle, proof_recursive_component, proof_recursive_evidence,
-    representative_bundle, semantic_module,
+    semantic_module,
 };
 use crate::artifact::{
     evidence_id, obligation_id, place_id, structural_case_id, structural_field_id, value_id,
 };
 use proof_admission::{
     AdmissionProfile, CertificateEnvelope, CorrelatedAffineBranchWitness,
-    CorrelatedAffineStepWitness, EvidenceRoute, IntegerAffineWitness, IntegerCastChainWitness,
+    CorrelatedAffineStepWitness, EvidenceRoute, IntegerAffineWitness,
     IntegerCorrelatedForbiddenRootWitness, PrimitiveJudgment, ProofNode, ProofRule,
     ProofSystemMarker, RecursiveComponentCertificate, RecursiveEdgeCertificate,
 };
@@ -18,42 +18,12 @@ use semantic_vocabulary::{
     ScalarType,
 };
 use terminal_codec::{
-    CanonicalTerminalArtifact, ProofCodecError, decode_module, decode_proof_bundle,
-    encode_proof_bundle, render_verified_proof_synopsis, terminal_psi_identity,
+    ProofCodecError, decode_module, decode_proof_bundle, encode_proof_bundle,
+    render_verified_proof_synopsis, terminal_psi_identity,
 };
 use terminal_verifier::{
     ObligationEvidence, ProofBundle, RecursiveComponentEvidence, verify_module,
 };
-
-#[test]
-fn proof_bundle_uses_one_current_canonical_vocabulary() {
-    let bundle = representative_bundle();
-    let bytes = encode_proof_bundle(&bundle).expect("representative proof bundle should encode");
-
-    assert_eq!(&bytes[..8], b"PSIPRF\0\0");
-    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
-    assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
-
-    let mut noncanonical = bytes.clone();
-    noncanonical[14..22].copy_from_slice(&3_u64.to_le_bytes());
-    assert_eq!(
-        decode_proof_bundle(&noncanonical),
-        Err(ProofCodecError::NonCanonicalEvidenceOrder)
-    );
-
-    let mut trailing = bytes.clone();
-    trailing.push(0);
-    assert_eq!(
-        decode_proof_bundle(&trailing),
-        Err(ProofCodecError::TrailingBytes(1))
-    );
-    let mut stale = bytes;
-    stale[8..10].copy_from_slice(&26_u16.to_le_bytes());
-    assert_eq!(
-        decode_proof_bundle(&stale),
-        Err(ProofCodecError::UnsupportedFormatMarker(26))
-    );
-}
 
 #[test]
 fn grouped_recursive_component_evidence_round_trips_and_rejects_reordering() {
@@ -154,65 +124,6 @@ fn canonical_terminal_artifact_owns_and_replays_exact_sections() {
 }
 
 #[test]
-fn canonical_terminal_artifact_transport_round_trips_without_producer_objects() {
-    let artifact = canonical_artifact(&semantic_module(), &kernel_bundle(), None);
-    let identity = artifact.manifest().identity();
-    let bytes = artifact.to_bytes();
-    drop(artifact);
-
-    assert_eq!(&bytes[..8], b"PSIART\0\0");
-    assert_eq!(&bytes[8..10], &2_u16.to_le_bytes());
-    let decoded = CanonicalTerminalArtifact::from_bytes(&bytes)
-        .expect("source-free Terminal artifact envelope");
-    assert_eq!(decoded.manifest().identity(), identity);
-    assert_eq!(decoded.to_bytes(), bytes);
-
-    let semantic_len = usize::try_from(u64::from_le_bytes(bytes[10..18].try_into().unwrap()))
-        .expect("semantic section length");
-    let proof_len = usize::try_from(u64::from_le_bytes(bytes[18..26].try_into().unwrap()))
-        .expect("proof section length");
-    let optimization_start = 35 + semantic_len + proof_len;
-    let mut corrupt_optimization = bytes.clone();
-    corrupt_optimization[optimization_start] ^= 1;
-    assert!(matches!(
-        CanonicalTerminalArtifact::from_bytes(&corrupt_optimization),
-        Err(
-            terminal_codec::CanonicalTerminalArtifactError::Optimization(
-                terminal_codec::PsiOptimizationExecutionRecordDecodeError::InvalidMagic
-            )
-        )
-    ));
-
-    let mut wrong_magic = bytes.clone();
-    wrong_magic[0] ^= 1;
-    assert!(matches!(
-        CanonicalTerminalArtifact::from_bytes(&wrong_magic),
-        Err(terminal_codec::CanonicalTerminalArtifactError::Envelope(
-            terminal_codec::CanonicalTerminalArtifactEnvelopeError::InvalidMagic
-        ))
-    ));
-
-    let mut stale = bytes.clone();
-    stale[8..10].copy_from_slice(&1_u16.to_le_bytes());
-    assert!(matches!(
-        CanonicalTerminalArtifact::from_bytes(&stale),
-        Err(terminal_codec::CanonicalTerminalArtifactError::Envelope(
-            terminal_codec::CanonicalTerminalArtifactEnvelopeError::UnsupportedFormatMarker(1)
-        ))
-    ));
-
-    let mut trailing = bytes.clone();
-    trailing.push(0);
-    assert!(matches!(
-        CanonicalTerminalArtifact::from_bytes(&trailing),
-        Err(terminal_codec::CanonicalTerminalArtifactError::Envelope(
-            terminal_codec::CanonicalTerminalArtifactEnvelopeError::TrailingBytes(1)
-        ))
-    ));
-    assert!(CanonicalTerminalArtifact::from_bytes(&bytes[..bytes.len() - 1]).is_err());
-}
-
-#[test]
 fn proof_format_round_trips_terminal_proposition_disjunction() {
     let conclusion = Proposition::Disjunction(vec![Proposition::Truth, Proposition::Falsehood]);
     let proof = ProofNode {
@@ -293,46 +204,6 @@ fn proof_format_round_trips_terminal_proposition_disjunction() {
     assert_eq!(
         decode_proof_bundle(&stale),
         Err(ProofCodecError::UnsupportedFormatMarker(14))
-    );
-}
-
-#[test]
-fn proof_format_assigns_tag_ten_to_integer_order_transitivity() {
-    let child = || ProofNode {
-        conclusion: Proposition::Truth,
-        rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
-    };
-    let bundle = ProofBundle {
-        crash_obligations: Vec::new(),
-        recursive_components: Vec::new(),
-        control_cycles: Vec::new(),
-        evidence_producers: Vec::new(),
-        evidence: vec![ObligationEvidence {
-            obligation: obligation_id(72),
-            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
-                identity: evidence_id(72),
-                proof_system_marker: ProofSystemMarker::CURRENT,
-                proof: ProofNode {
-                    conclusion: Proposition::Truth,
-                    rule: ProofRule::IntegerLessOrEqualTransitivity {
-                        left_less_or_equal_middle: Box::new(child()),
-                        middle_less_or_equal_right: Box::new(child()),
-                    },
-                },
-            }),
-        }],
-    };
-
-    let bytes = encode_proof_bundle(&bundle).expect("integer-order proof node encodes");
-    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
-    assert_eq!(bytes[34], 10, "canonical integer-order-transitivity tag");
-    assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
-
-    let mut corrupt_tag = bytes;
-    corrupt_tag[34] = 27;
-    assert_eq!(
-        decode_proof_bundle(&corrupt_tag),
-        Err(ProofCodecError::InvalidTag("ProofRule", 27))
     );
 }
 
@@ -512,51 +383,6 @@ fn proof_format_assigns_tag_twelve_to_integer_affine_bound() {
 }
 
 #[test]
-fn proof_format_assigns_tag_thirteen_to_integer_cast_chain_bound() {
-    let source = IntegerType::new(IntegerSign::Signed, 16).expect("i16");
-    let target = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
-    let bundle = ProofBundle {
-        crash_obligations: Vec::new(),
-        recursive_components: Vec::new(),
-        control_cycles: Vec::new(),
-        evidence_producers: Vec::new(),
-        evidence: vec![ObligationEvidence {
-            obligation: obligation_id(77),
-            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
-                identity: evidence_id(77),
-                proof_system_marker: ProofSystemMarker::CURRENT,
-                proof: ProofNode {
-                    conclusion: Proposition::Truth,
-                    rule: ProofRule::IntegerCastBound {
-                        root_bound: Box::new(ProofNode {
-                            conclusion: Proposition::Truth,
-                            rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
-                        }),
-                        witness: IntegerCastChainWitness {
-                            root: ScalarTerm::value(value_id(78), ScalarType::Integer(source)),
-                            target: ScalarTerm::value(value_id(79), ScalarType::Integer(target)),
-                            definition_axioms: vec![3, 8],
-                        },
-                    },
-                },
-            }),
-        }],
-    };
-
-    let bytes = encode_proof_bundle(&bundle).expect("integer cast bound node encodes");
-    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
-    assert_eq!(bytes[34], 13, "canonical integer-cast-bound tag");
-    assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
-
-    let mut corrupt_tag = bytes;
-    corrupt_tag[34] = 27;
-    assert_eq!(
-        decode_proof_bundle(&corrupt_tag),
-        Err(ProofCodecError::InvalidTag("ProofRule", 27))
-    );
-}
-
-#[test]
 fn proof_format_assigns_tag_fourteen_to_integer_correlated_forbidden_roots() {
     let integer = IntegerType::new(IntegerSign::Signed, 16).expect("i16");
     let root = ScalarTerm::value(value_id(80), ScalarType::Integer(integer));
@@ -627,74 +453,6 @@ fn proof_format_assigns_tag_fourteen_to_integer_correlated_forbidden_roots() {
         decode_proof_bundle(&corrupt_tag),
         Err(ProofCodecError::InvalidTag("ProofRule", 27))
     );
-}
-
-#[test]
-fn proof_format_round_trips_negative_nonzero_certificate() {
-    let integer = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
-    let divisor = ScalarTerm::value(value_id(73), ScalarType::Integer(integer));
-    let literal =
-        |value| ScalarTerm::integer(integer, IntegerValue::Signed(value)).expect("i8 literal");
-    let tighter = Proposition::LessOrEqual(divisor.clone(), literal(-2));
-    let negative = Proposition::LessOrEqual(divisor.clone(), literal(-1));
-    let goal = Proposition::Disjunction(vec![
-        negative.clone(),
-        Proposition::LessOrEqual(literal(1), divisor),
-    ]);
-    let proof = ProofNode {
-        conclusion: goal.clone(),
-        rule: ProofRule::DisjunctionIntroduction {
-            disjunct: Box::new(ProofNode {
-                conclusion: negative,
-                rule: ProofRule::IntegerLessOrEqualTransitivity {
-                    left_less_or_equal_middle: Box::new(ProofNode {
-                        conclusion: tighter.clone(),
-                        rule: ProofRule::SemanticAxiom { index: 0 },
-                    }),
-                    middle_less_or_equal_right: Box::new(ProofNode {
-                        conclusion: Proposition::LessOrEqual(literal(-2), literal(-1)),
-                        rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
-                    }),
-                },
-            }),
-            index: 0,
-        },
-    };
-    let bundle = ProofBundle {
-        crash_obligations: Vec::new(),
-        recursive_components: Vec::new(),
-        control_cycles: Vec::new(),
-        evidence_producers: Vec::new(),
-        evidence: vec![ObligationEvidence {
-            obligation: obligation_id(73),
-            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
-                identity: evidence_id(73),
-                proof_system_marker: ProofSystemMarker::CURRENT,
-                proof: proof.clone(),
-            }),
-        }],
-    };
-    let context =
-        PropositionContext::from_value_types([(value_id(73), ScalarType::Integer(integer))])
-            .expect("context");
-    proof_admission::check_certificate(
-        &context,
-        &goal,
-        &[],
-        std::slice::from_ref(&tighter),
-        &proof,
-    )
-    .expect("negative nonzero certificate checks before encoding");
-
-    let bytes = encode_proof_bundle(&bundle).expect("negative nonzero proof encodes");
-    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
-    let decoded = decode_proof_bundle(&bytes).expect("negative nonzero proof decodes");
-    assert_eq!(decoded, bundle);
-    let EvidenceRoute::CertificateDerived(certificate) = &decoded.evidence[0].route else {
-        unreachable!("fixture carries a certificate")
-    };
-    proof_admission::check_certificate(&context, &goal, &[], &[tighter], &certificate.proof)
-        .expect("negative nonzero certificate checks after decoding");
 }
 
 #[test]

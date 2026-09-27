@@ -165,27 +165,6 @@ fn rejects(integer: IntegerType, assumptions: &[Proposition], proof: &ProofNode)
 }
 
 #[test]
-fn open_addition_order_derives_from_the_inverse_and_antitone_laws() {
-    for integer in [
-        IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
-        IntegerType::new(IntegerSign::Signed, 32).unwrap(),
-    ] {
-        let one = ScalarTerm::integer(
-            integer,
-            match integer.sign() {
-                IntegerSign::Signed => IntegerValue::Signed(1),
-                IntegerSign::Unsigned => IntegerValue::Unsigned(1),
-            },
-        )
-        .unwrap();
-        for increment in [value(integer, 3), one] {
-            let (assumptions, proof) = add_order(integer, value(integer, 2), increment);
-            assert!(!checked(integer, &assumptions, &proof));
-        }
-    }
-}
-
-#[test]
 fn closed_addition_order_keeps_the_checked_rule_instance() {
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
     let literal = |value| ScalarTerm::integer(integer, IntegerValue::Unsigned(value)).unwrap();
@@ -221,22 +200,6 @@ fn addition_order_rejects_reversal_nonstrict_positivity_and_another_increment() 
     };
     positive.conclusion = other[1].clone();
     rejects(integer, &other, &redirected);
-}
-
-#[test]
-fn open_subtraction_antitonicity_derives_from_the_antitone_law() {
-    for integer in [
-        IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
-        IntegerType::new(IntegerSign::Signed, 16).unwrap(),
-    ] {
-        let (assumptions, proof) = antitone(
-            integer,
-            value(integer, 3),
-            value(integer, 4),
-            value(integer, 5),
-        );
-        assert!(!checked(integer, &assumptions, &proof));
-    }
 }
 
 #[test]

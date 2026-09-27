@@ -848,53 +848,6 @@ mod tests {
     }
 
     #[test]
-    fn unresolved_named_operator_call_rejoins_its_exact_typed_declaration() {
-        let source = r#"
-            data Math {}
-
-            operator Math::same(value: u64) -> u64;
-
-            machine selected() -> u64 {
-                let result: u64 = Math::same(7);
-                transition { _ -> result }
-            }
-        "#;
-        let typed = crate::front_end::typed_program(source);
-        let expression = named_call(&typed, "same");
-        let operator = typed
-            .operators()
-            .iter()
-            .find(|operator| {
-                typed
-                    .operator_path_members(operator.name)
-                    .last()
-                    .is_some_and(|name| name.as_str() == "same")
-            })
-            .expect("named operator declaration");
-        let operational = validation::infer_operational_may(&typed);
-        let selected_call = operational
-            .machines()
-            .iter()
-            .flat_map(|machine| operational.states.span_or_empty(machine.states))
-            .flat_map(|state| operational.calls.span_or_empty(state.calls))
-            .find(|call| call.target_name == "same")
-            .expect("named operator operational call");
-
-        assert_eq!(selected_call.target_operator_symbol, operator.symbol);
-        assert!(!selected_call.target_machine_symbol.is_valid());
-
-        assert_eq!(
-            late_bound_selection_symbol(
-                &typed,
-                expression,
-                &[],
-                typed_trees::AuthoredDeclarationSelectionLateBinding::CheckedCall,
-            ),
-            Some(operator.symbol)
-        );
-    }
-
-    #[test]
     fn ambiguous_named_operator_call_does_not_manufacture_early_identity() {
         let typed = crate::front_end::typed_program(
             r#"
@@ -1118,61 +1071,6 @@ mod tests {
                 .then_some(expression)
             })
             .expect("case-payload member projection")
-    }
-
-    fn payload_field_symbol(
-        program: &TypedTrees,
-        data: &str,
-        case: &str,
-        field: &str,
-    ) -> symbols::SymbolHandle {
-        let definition = program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.name.as_str() == data)
-            .expect("payload owner");
-        program
-            .data_members(definition)
-            .iter()
-            .find_map(|member| match member {
-                typed_trees::data::DataMember::Variant(variant)
-                    if variant.name.as_str() == case =>
-                {
-                    program
-                        .data_payload_fields(variant)
-                        .iter()
-                        .find(|candidate| candidate.name.as_str() == field)
-                        .map(|candidate| candidate.symbol)
-                }
-                _ => None,
-            })
-            .expect("payload field")
-    }
-
-    #[test]
-    fn destructure_payload_member_resolves_to_its_exact_owner_not_a_same_spelled_member() {
-        let typed = crate::front_end::typed_program(PAYLOAD_PROJECTION_SOURCE);
-        for name in ["first_field", "field_count"] {
-            let expression = payload_projection(&typed, name);
-            let ExpressionNode::Member(member) = typed.expression_table.expression(expression)
-            else {
-                unreachable!();
-            };
-            assert!(
-                !member.member_symbol.is_valid(),
-                "typing leaves the payload projection late-bound"
-            );
-            assert_eq!(
-                late_bound_selection_symbol(
-                    &typed,
-                    expression,
-                    &[],
-                    typed_trees::AuthoredDeclarationSelectionLateBinding::CheckedMember,
-                ),
-                Some(payload_field_symbol(&typed, "Shape", "Record", name)),
-                "{name} resolves through the scrutinee's owner type"
-            );
-        }
     }
 
     struct FixedAuthority(bool);

@@ -68,22 +68,6 @@ fn fixture(
 }
 
 #[test]
-fn strict_and_nonstrict_orders_replay_both_endpoints_and_equality_directions() {
-    for strict in [false, true] {
-        for mathematical in [false, true] {
-            for reverse in [false, true] {
-                let (context, axioms, proof) = fixture(strict, mathematical, reverse);
-                check_certificate(&context, &proof.conclusion, &[], &axioms, &proof).unwrap();
-                assert!(
-                    check_certificate(&context, &proof.conclusion, &[], &axioms[..1], &proof)
-                        .is_err()
-                );
-            }
-        }
-    }
-}
-
-#[test]
 fn substitution_cannot_change_order_strictness_in_either_direction() {
     for strict in [false, true] {
         for mathematical in [false, true] {

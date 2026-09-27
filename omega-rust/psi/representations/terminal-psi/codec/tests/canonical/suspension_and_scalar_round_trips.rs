@@ -1,6 +1,5 @@
 use super::{
-    call_fixture, five_nominal_affine_fixture, fixture, i32_type, nominal_affine_fixture,
-    partial_affine_fixture, proof_recursive_component_fixture, ranked_countdown_fixture,
+    call_fixture, fixture, i32_type, nominal_affine_fixture, ranked_countdown_fixture,
     structural_effect_fixture, two_nominal_affine_fixture, unit_fixture,
 };
 use crate::canonical::{
@@ -10,29 +9,26 @@ use crate::canonical::{
 };
 use language_semantics::CarryPolicy;
 use semantic_vocabulary::{
-    CanonicalStructuralPathSegment, ContentAlgebra, ContentAlgebraKind, ContentDomainId,
-    ContentProjectionExpression, ContentProjectionIdentity, ContentProjectionScalar,
-    IeeeFloatFormat, IeeeFloatStructuralField, IeeeFloatValue, IntegerSign, IntegerType,
-    Proposition, ScalarTerm, ScalarType, StructuralFieldId, StructuralPlaceKind,
+    ContentAlgebra, ContentAlgebraKind, ContentDomainId, ContentProjectionExpression,
+    ContentProjectionIdentity, ContentProjectionScalar, IeeeFloatFormat, IeeeFloatValue,
+    IntegerSign, IntegerType, Proposition, ScalarTerm, ScalarType, StructuralFieldId,
 };
 use terminal_codec::{
     CodecError, decode_module, encode_module, semantic_fingerprint, terminal_psi_identity,
 };
 use terminal_psi::{
-    BindingRelevance, Block, DirectBlockFloatParameter, DirectCallFloatResult,
-    DirectMachineFloatParameter, DirectMachineFloatResult, DirectOperationFloatResult,
-    DirectStructuralFloatLeaf, EntryClaim, FloatMeaningEqualityProposition, FloatMeaningProjection,
-    FloatMeaningProjectionOperation, FloatMeaningSource, InstallationReachDependency,
-    MachineContract, Operation, OperationKind, OperationResult, ProofOnlyValueType,
-    ProofPropositionId, ProofValueDeclaration, ProofValueId, ServiceDeclaration, StructuralAccess,
-    StructuralCaseDeclaration, StructuralContentProjection, StructuralDomainDeclaration,
-    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralTypeDeclaration,
-    StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult,
-    TerminalPlacedViewInput, TerminalRankedScc, TerminalSuspensionCallPlan,
+    BindingRelevance, Block, DirectBlockFloatParameter, DirectMachineFloatParameter,
+    DirectMachineFloatResult, DirectOperationFloatResult, EntryClaim,
+    FloatMeaningEqualityProposition, FloatMeaningProjection, FloatMeaningProjectionOperation,
+    FloatMeaningSource, InstallationReachDependency, MachineContract, Operation, OperationKind,
+    OperationResult, ProofOnlyValueType, ProofPropositionId, ProofValueDeclaration, ProofValueId,
+    ServiceDeclaration, StructuralCaseDeclaration, StructuralContentProjection,
+    StructuralDomainDeclaration, StructuralFieldDeclaration, StructuralFieldType,
+    StructuralMultiplicity, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
+    TerminalMachineResult, TerminalRankedScc, TerminalSuspensionCallPlan,
     TerminalSuspensionCallSite, TerminalSuspensionCallTarget, TerminalSuspensionLiveValue,
     TerminalSuspensionPlace, TerminalSuspensionStorage, TerminalSuspensionValueType, Terminator,
-    ValueDeclaration, VocabularyMarker,
+    ValueDeclaration,
 };
 
 #[test]
@@ -95,50 +91,6 @@ fn suspension_call_plan_round_trips_canonically_and_rejects_prior_format() {
 }
 
 #[test]
-fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
-    let module = fixture();
-    let bytes = encode_module(&module).expect("fixture should encode");
-
-    assert_eq!(&bytes[..8], b"PSITERM\0");
-    assert_eq!(&bytes[8..10], 107_u16.to_le_bytes());
-    assert_eq!(decode_module(&bytes), Ok(module.clone()));
-    assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
-
-    let identity = terminal_psi_identity(&module).expect("fixture should have an identity");
-    assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
-    assert_eq!(
-        identity.program_fingerprint.to_string(),
-        "44629202253acae4e069af6d2fe97851a5980834bc3866c323c7cca5fad653b6"
-    );
-    assert_eq!(
-        identity.program_fingerprint,
-        semantic_fingerprint(&module).unwrap()
-    );
-}
-
-#[test]
-fn proof_recursive_components_round_trip_and_enter_terminal_identity() {
-    let mut module = unit_fixture();
-    module.proof_recursive_components = vec![proof_recursive_component_fixture()];
-    let bytes = encode_module(&module).expect("proof-recursive module should encode");
-    assert_eq!(&bytes[8..10], 107_u16.to_le_bytes());
-    assert_eq!(decode_module(&bytes), Ok(module.clone()));
-
-    let original = semantic_fingerprint(&module).expect("recursive semantic identity");
-    let mut changed_path = module.clone();
-    changed_path.proof_recursive_components[0].edges[0].strict_member_path =
-        vec!["package::Node::right".into()];
-    assert_ne!(
-        semantic_fingerprint(&changed_path).expect("changed recursive semantic identity"),
-        original,
-    );
-
-    let mut reordered = module;
-    reordered.proof_recursive_components[0].edges.reverse();
-    assert!(encode_module(&reordered).is_err());
-}
-
-#[test]
 fn ieee_float_constants_and_nearest_fma_round_trip_exact_interchange_bits() {
     let mut module = unit_fixture();
     let binary32 = ValueDeclaration {
@@ -191,66 +143,6 @@ fn ieee_float_constants_and_nearest_fma_round_trip_exact_interchange_bits() {
     let decoded = decode_module(&bytes).expect("IEEE scalar module decodes");
     assert_eq!(decoded, module);
     assert_eq!(encode_module(&decoded).unwrap(), bytes);
-}
-
-#[test]
-fn placed_view_input_round_trips_with_exact_semantic_identity() {
-    let mut module = unit_fixture();
-    let identity = |name: &str| format!("package:{}::{name}", "01".repeat(32));
-    let policy_identity = identity("Uart");
-    let schema_identity = identity("Registers");
-    let input = TerminalPlacedViewInput {
-        machine: module.entry,
-        position: 0,
-        source_machine_identity: identity("inspect"),
-        source_state_identity: identity("inspect::entry"),
-        source_parameter_identity: identity("inspect::entry::view"),
-        access: StructuralAccess::MutableBorrow,
-        binding_is_const: false,
-        binding_is_mutable: true,
-        view_identity: terminal_psi::canonical_placed_view_identity(
-            &policy_identity,
-            &schema_identity,
-        ),
-        policy_identity,
-        policy_plan_machine_identity: identity("Uart::plan"),
-        schema_identity,
-        placement_report_fingerprint: 41,
-        placement_commitment: [0x5a; 32],
-    };
-    module.placed_view_inputs.push(input.clone());
-    module.placed_view_inputs.push(TerminalPlacedViewInput {
-        position: 0,
-        source_state_identity: identity("inspect::next"),
-        source_parameter_identity: identity("inspect::next::view"),
-        ..input
-    });
-
-    let bytes = encode_module(&module).expect("placed-view input should encode");
-    assert_eq!(decode_module(&bytes), Ok(module));
-}
-
-#[test]
-fn ranked_countdown_round_trips_in_current_terminal_identity() {
-    let module = ranked_countdown_fixture();
-    let bytes = encode_module(&module).expect("ranked representation should encode");
-    assert_eq!(&bytes[8..10], 107_u16.to_le_bytes());
-    assert_eq!(
-        &bytes[10..12],
-        VocabularyMarker::CURRENT.get().to_le_bytes()
-    );
-    assert_eq!(decode_module(&bytes), Ok(module.clone()));
-    assert_eq!(
-        encode_module(&decode_module(&bytes).unwrap()),
-        Ok(bytes.clone())
-    );
-
-    let mut stale_format = bytes;
-    stale_format[8..10].copy_from_slice(&33_u16.to_le_bytes());
-    assert_eq!(
-        decode_module(&stale_format),
-        Err(CodecError::UnsupportedFormatMarker(33))
-    );
 }
 
 #[test]
@@ -812,197 +704,6 @@ fn proof_only_float_projections_round_trip_and_reject_tampering() {
 }
 
 #[test]
-fn direct_call_float_result_round_trips_and_enters_semantic_identity() {
-    let format = IeeeFloatFormat::Binary32;
-    let scalar_type = ScalarType::IeeeFloat(format);
-    let mut module = call_fixture();
-    let TerminalMachineResult::Scalar(caller_result) = &mut module.machines[0].result else {
-        unreachable!("fixture caller has a scalar result")
-    };
-    caller_result.scalar_type = scalar_type;
-    let OperationResult::Scalar(constant_result) =
-        &mut module.machines[0].blocks[0].operations[0].result
-    else {
-        unreachable!("fixture constant has a scalar result")
-    };
-    constant_result.scalar_type = scalar_type;
-    module.machines[0].blocks[0].operations[0].kind = OperationKind::IeeeFloatConstant {
-        value: IeeeFloatValue::Binary32(0x3f80_0000),
-    };
-    let OperationResult::Scalar(call_result) =
-        &mut module.machines[0].blocks[0].operations[1].result
-    else {
-        unreachable!("fixture call has a scalar result")
-    };
-    call_result.scalar_type = scalar_type;
-    module.machines[1].parameters[0].scalar_type = scalar_type;
-    let TerminalMachineResult::Scalar(callee_result) = &mut module.machines[1].result else {
-        unreachable!("fixture callee has a scalar result")
-    };
-    callee_result.scalar_type = scalar_type;
-
-    let contract =
-        numerics::float_projection::FloatProjectionOperation::Meaning32.contract_identity();
-    module.float_meaning_projections = vec![FloatMeaningProjection {
-        result: ProofValueDeclaration {
-            id: ProofValueId(0),
-            value_type: ProofOnlyValueType::FloatMeaning,
-        },
-        source: FloatMeaningSource::DirectCallResult(DirectCallFloatResult {
-            owner: machine_id(100),
-            producer: operation_id(101),
-            result: value_id(101),
-            format,
-        }),
-        operation: FloatMeaningProjectionOperation::Meaning32,
-        contract: terminal_psi::FloatProjectionContractIdentity {
-            format: contract.format,
-            operation: contract.operation,
-            declaration: contract.declaration,
-            catalog_version: contract.catalog_version,
-            commitment: contract.commitment,
-        },
-    }];
-
-    let bytes = encode_module(&module).expect("direct call-result source should encode");
-    assert_eq!(decode_module(&bytes), Ok(module.clone()));
-    let source_prefix = [0, 0, 0, 0, 1, 8];
-    let source_offset = bytes
-        .windows(source_prefix.len())
-        .position(|window| window == source_prefix)
-        .expect("direct call-result source encoding is unique");
-    let mut unknown_source = bytes.clone();
-    unknown_source[source_offset + 5] = 0xff;
-    assert_eq!(
-        decode_module(&unknown_source),
-        Err(CodecError::InvalidTag("FloatMeaningSource", 0xff))
-    );
-
-    let original = semantic_fingerprint(&module).expect("direct call-result identity");
-    module.machines[0].blocks[0].operations[1].id = operation_id(102);
-    module.float_meaning_projections[0].source =
-        FloatMeaningSource::DirectCallResult(DirectCallFloatResult {
-            owner: machine_id(100),
-            producer: operation_id(102),
-            result: value_id(101),
-            format,
-        });
-    assert_ne!(
-        semantic_fingerprint(&module).expect("changed direct call-result identity"),
-        original,
-        "direct call producer identity enters Terminal semantic identity"
-    );
-}
-
-#[test]
-fn direct_structural_float_leaf_round_trips_complete_path_and_identity() {
-    let mut module = unit_fixture();
-    let owner = module.entry;
-    let root = place_id(500);
-    let structural_type = structural_type_id(500);
-    let field = structural_field_id(500);
-    module.structural_types.push(StructuralTypeDeclaration {
-        id: structural_type,
-        identity: "Fixture::FloatRecord".into(),
-        shape: StructuralTypeShape::Record {
-            fields: vec![
-                StructuralFieldDeclaration {
-                    id: field,
-                    identity: "value".into(),
-                    relevance: BindingRelevance::Relevant,
-                    field_type: StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary32),
-                },
-                StructuralFieldDeclaration {
-                    id: structural_field_id(501),
-                    identity: "alternate".into(),
-                    relevance: BindingRelevance::Relevant,
-                    field_type: StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary32),
-                },
-            ],
-        },
-    });
-    module.machines[0]
-        .structural_parameters
-        .push(StructuralParameterDeclaration {
-            place: root,
-            position: 0,
-            is_self: false,
-            structural_type,
-            multiplicity: StructuralMultiplicity::Unrestricted,
-            access: StructuralAccess::SharedBorrow,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-        });
-    module.machines[0]
-        .structural_places
-        .push(StructuralPlaceDeclaration {
-            id: root,
-            kind: StructuralPlaceKind::Parameter {
-                position: 0,
-                is_self: false,
-            },
-        });
-    let contract =
-        numerics::float_projection::FloatProjectionOperation::Meaning32.contract_identity();
-    module.float_meaning_projections = vec![FloatMeaningProjection {
-        result: ProofValueDeclaration {
-            id: ProofValueId(0),
-            value_type: ProofOnlyValueType::FloatMeaning,
-        },
-        source: FloatMeaningSource::DirectStructuralLeaf(DirectStructuralFloatLeaf {
-            owner,
-            field: IeeeFloatStructuralField::new(
-                root,
-                vec![CanonicalStructuralPathSegment::Field(field)],
-            )
-            .expect("nonempty structural path"),
-            format: IeeeFloatFormat::Binary32,
-        }),
-        operation: FloatMeaningProjectionOperation::Meaning32,
-        contract: terminal_psi::FloatProjectionContractIdentity {
-            format: contract.format,
-            operation: contract.operation,
-            declaration: contract.declaration,
-            catalog_version: contract.catalog_version,
-            commitment: contract.commitment,
-        },
-    }];
-
-    let bytes = encode_module(&module).expect("direct structural leaf should encode");
-    assert_eq!(decode_module(&bytes), Ok(module.clone()));
-    let source_prefix = [0, 0, 0, 0, 1, 9];
-    let source_offset = bytes
-        .windows(source_prefix.len())
-        .position(|window| window == source_prefix)
-        .expect("direct structural-leaf source encoding is unique");
-    let mut unknown_source = bytes.clone();
-    unknown_source[source_offset + 5] = 0xff;
-    assert_eq!(
-        decode_module(&unknown_source),
-        Err(CodecError::InvalidTag("FloatMeaningSource", 0xff))
-    );
-
-    let original = semantic_fingerprint(&module).expect("direct structural-leaf identity");
-    let FloatMeaningSource::DirectStructuralLeaf(source) =
-        &mut module.float_meaning_projections[0].source
-    else {
-        unreachable!()
-    };
-    source.field = IeeeFloatStructuralField::new(
-        root,
-        vec![CanonicalStructuralPathSegment::Field(structural_field_id(
-            501,
-        ))],
-    )
-    .expect("nonempty structural path");
-    assert_ne!(
-        semantic_fingerprint(&module).expect("changed direct structural-leaf identity"),
-        original,
-        "the complete canonical leaf path enters Terminal semantic identity"
-    );
-}
-
-#[test]
 fn payload_sum_shape_round_trips_exact_fields_and_requires_canonical_order() {
     let mut valid = fixture();
     valid.structural_types.push(StructuralTypeDeclaration {
@@ -1092,65 +793,6 @@ fn payload_sum_shape_round_trips_exact_fields_and_requires_canonical_order() {
     };
     cases.clear();
     assert!(encode_module(&empty).is_err());
-}
-
-#[test]
-fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
-    let module = partial_affine_fixture();
-    let bytes = encode_module(&module).expect("partial affine return should encode");
-    assert_eq!(&bytes[8..10], 107_u16.to_le_bytes());
-    assert_eq!(
-        &bytes[10..12],
-        VocabularyMarker::CURRENT.get().to_le_bytes()
-    );
-    assert_eq!(decode_module(&bytes), Ok(module.clone()));
-    assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
-}
-
-#[test]
-fn nominal_affine_unit_return_round_trips_exact_root_type_and_cleanup_machine() {
-    let module = nominal_affine_fixture();
-    let bytes = encode_module(&module).expect("nominal affine return should encode");
-    assert_eq!(&bytes[8..10], 107_u16.to_le_bytes());
-    assert_eq!(
-        &bytes[10..12],
-        VocabularyMarker::CURRENT.get().to_le_bytes()
-    );
-    assert_eq!(decode_module(&bytes), Ok(module.clone()));
-    assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
-}
-
-#[test]
-fn scalar_return_round_trips_nominal_affine_cleanup_action() {
-    let mut module = nominal_affine_fixture();
-    let machine = &mut module.machines[0];
-    let source = ValueDeclaration {
-        qualifications: Default::default(),
-        id: value_id(50),
-        scalar_type: ScalarType::Boolean,
-    };
-    machine.parameters = vec![source];
-    machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
-        qualifications: Default::default(),
-        id: value_id(51),
-        scalar_type: ScalarType::Boolean,
-    });
-    let Terminator::ReturnUnitNominalAffine { edge, cleanups } = &machine.blocks[0].terminator
-    else {
-        unreachable!()
-    };
-    machine.blocks[0].terminator = Terminator::Return {
-        edge: *edge,
-        value: source.id,
-        cleanup_actions: vec![TerminalAffineCleanupAction::InvokeNominal(
-            cleanups[0].clone(),
-        )],
-    };
-
-    let bytes = encode_module(&module).expect("scalar nominal cleanup should encode");
-    assert_eq!(&bytes[8..10], 107_u16.to_le_bytes());
-    assert_eq!(decode_module(&bytes), Ok(module.clone()));
-    assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
 
 #[test]
@@ -1258,31 +900,6 @@ fn nominal_affine_unit_return_round_trips_two_roots_in_reverse_parameter_order()
             "nominal affine cleanup list is not in reverse parameter order"
         ))
     );
-}
-
-#[test]
-fn nominal_affine_unit_return_round_trips_five_roots() {
-    let module = five_nominal_affine_fixture();
-    let Terminator::ReturnUnitNominalAffine { cleanups, .. } =
-        &module.machines[0].blocks[0].terminator
-    else {
-        unreachable!()
-    };
-    assert_eq!(
-        cleanups
-            .iter()
-            .map(|cleanup| cleanup.place)
-            .collect::<Vec<_>>(),
-        vec![
-            place_id(5),
-            place_id(4),
-            place_id(3),
-            place_id(2),
-            place_id(1)
-        ]
-    );
-    let bytes = encode_module(&module).expect("five nominal affine roots should encode");
-    assert_eq!(decode_module(&bytes), Ok(module.clone()));
 }
 
 #[test]

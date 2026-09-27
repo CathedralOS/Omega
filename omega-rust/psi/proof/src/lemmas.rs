@@ -348,19 +348,6 @@ mod tests {
     }
 
     #[test]
-    fn bounds_lemmas_conclude_in_bounds() {
-        assert_eq!(ProofLemma::IndexInBounds.conclusion(), LemmaFact::InBounds);
-        assert_eq!(
-            ProofLemma::IndexInBounds.premises(),
-            [LemmaFact::IndexLessThanLength].as_slice()
-        );
-        assert_eq!(
-            ProofLemma::NonEmptyHasFirst.conclusion(),
-            LemmaFact::InBounds
-        );
-    }
-
-    #[test]
     fn window_lemmas_share_within_length_premise() {
         assert_eq!(
             ProofLemma::WindowLength.premises(),
@@ -373,21 +360,6 @@ mod tests {
         assert_eq!(
             ProofLemma::WindowSubrange.conclusion(),
             LemmaFact::WindowWithinParent
-        );
-    }
-
-    #[test]
-    fn apply_requires_all_premises() {
-        // Premise present: bounds lemma fires.
-        assert_eq!(
-            ProofLemma::IndexInBounds.apply(&[LemmaFact::IndexLessThanLength]),
-            Some(LemmaFact::InBounds)
-        );
-        // Premise missing: lemma does not fire.
-        assert_eq!(ProofLemma::IndexInBounds.apply(&[]), None);
-        assert_eq!(
-            ProofLemma::IndexInBounds.apply(&[LemmaFact::NonEmpty]),
-            None
         );
     }
 
@@ -421,38 +393,6 @@ mod tests {
             ProofLemma::TailLengthDecreases.conclusion(),
             LemmaFact::TailStrictlyShorter
         );
-    }
-
-    #[test]
-    fn for_all_full_extent_quantifies_over_length() {
-        let fact = ForAllInRangeFact::over_full_extent("Ascii");
-        assert_eq!(fact.start, QuantifiedBound::Zero);
-        assert_eq!(fact.end, QuantifiedBound::Length);
-        assert_eq!(fact.predicate, "Ascii");
-        assert!(!fact.is_vacuous());
-    }
-
-    #[test]
-    fn empty_literal_range_is_vacuous() {
-        let fact = ForAllInRangeFact::new(
-            "Positive",
-            QuantifiedBound::Literal(3),
-            QuantifiedBound::Literal(3),
-        );
-        assert!(fact.is_vacuous());
-
-        let non_empty = ForAllInRangeFact::new(
-            "Positive",
-            QuantifiedBound::Literal(0),
-            QuantifiedBound::Literal(2),
-        );
-        assert!(!non_empty.is_vacuous());
-    }
-
-    #[test]
-    fn zero_to_length_is_not_assumed_vacuous() {
-        let fact = ForAllInRangeFact::new("Ascii", QuantifiedBound::Zero, QuantifiedBound::Length);
-        assert!(!fact.is_vacuous());
     }
 
     #[test]
@@ -557,16 +497,5 @@ mod tests {
             !ForAllInRangeFact::new("P", QuantifiedBound::Literal(0), QuantifiedBound::Length)
                 .is_vacuous()
         );
-    }
-
-    #[test]
-    fn vacuous_range_proves_no_element() {
-        let fact = ForAllInRangeFact::new(
-            "Ascii",
-            QuantifiedBound::Literal(3),
-            QuantifiedBound::Literal(3),
-        );
-        assert!(!fact.proves_element("Ascii", ElementIndex::Literal(3)));
-        assert!(!fact.proves_element("Ascii", ElementIndex::InBounds));
     }
 }

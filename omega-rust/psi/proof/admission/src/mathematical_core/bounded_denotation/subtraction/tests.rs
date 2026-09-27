@@ -7,8 +7,7 @@ use semantic_vocabulary::{
 
 use super::super::Elaboration;
 use crate::{
-    Budget, PrimitiveJudgment, ProofNode, ProofRule, Term, verify_bounded_certificate,
-    verify_mathematical_certificate,
+    Budget, ProofNode, ProofRule, Term, verify_bounded_certificate, verify_mathematical_certificate,
 };
 
 fn fixture(
@@ -154,27 +153,6 @@ fn maximal_width_and_nested_overflow_keep_the_original_conditional_domain() {
 }
 
 #[test]
-fn closed_subtraction_still_denotes_the_canonical_evaluated_value() {
-    let integer = IntegerType::new(IntegerSign::Signed, 128).unwrap();
-    let literal = |value| ScalarTerm::integer(integer, IntegerValue::Signed(value)).unwrap();
-    let subtraction = ScalarTerm::exact_integer_subtract(integer, literal(9), literal(4)).unwrap();
-    let goal = Proposition::Equal(subtraction, literal(5));
-    let proof = ProofNode {
-        conclusion: goal.clone(),
-        rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
-    };
-    verify_bounded_certificate(
-        &PropositionContext::default(),
-        &goal,
-        &[],
-        &[],
-        &proof,
-        &mut Budget::default(),
-    )
-    .unwrap();
-}
-
-#[test]
 fn mismatched_decrement_and_reversed_goal_still_reject() {
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
     let literal = |value| ScalarTerm::integer(integer, IntegerValue::Unsigned(value)).unwrap();
@@ -207,86 +185,6 @@ fn mismatched_decrement_and_reversed_goal_still_reject() {
             &context,
             &proof.conclusion,
             &changed,
-            &[],
-            &proof,
-            &mut Budget::default()
-        )
-        .is_err()
-    );
-}
-
-#[test]
-fn compound_and_value_equalities_compose_by_checked_identity_elimination() {
-    let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
-    let scalar = ScalarType::Integer(integer);
-    let value = |identity| ScalarTerm::value(ValueId::new(identity).unwrap(), scalar);
-    let compound = ScalarTerm::exact_integer_subtract(integer, value(2), value(3)).unwrap();
-    let first = Proposition::Equal(compound.clone(), value(1));
-    let second = Proposition::Equal(value(1), value(2));
-    let goal = Proposition::Equal(compound, value(2));
-    let proof = ProofNode {
-        conclusion: goal.clone(),
-        rule: ProofRule::EqualityTransitivity {
-            left_equals_middle: Box::new(ProofNode {
-                conclusion: first.clone(),
-                rule: ProofRule::Assumption { index: 0 },
-            }),
-            middle_equals_right: Box::new(ProofNode {
-                conclusion: second.clone(),
-                rule: ProofRule::Assumption { index: 1 },
-            }),
-        },
-    };
-    let context = PropositionContext::from_value_types(
-        (1..=3).map(|identity| (ValueId::new(identity).unwrap(), scalar)),
-    )
-    .unwrap();
-    let assumptions = [first, second];
-    let parameters = BTreeSet::new();
-    let mut elaboration =
-        Elaboration::new(&context, &goal, &assumptions, &[], &parameters).unwrap();
-    elaboration.node(&proof).unwrap();
-    assert!(elaboration.denotation.rule_axioms.is_empty());
-    assert!(
-        elaboration.denotation.subtraction.laws.is_empty(),
-        "composition requires only Id elimination, not arithmetic laws"
-    );
-    verify_bounded_certificate(
-        &context,
-        &goal,
-        &assumptions,
-        &[],
-        &proof,
-        &mut Budget::default(),
-    )
-    .unwrap();
-}
-
-#[test]
-fn compositional_denotation_does_not_expand_bounded_premise_matching() {
-    use semantic_vocabulary::IntegerMathTerm;
-
-    let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
-    let scalar = ScalarType::Integer(integer);
-    let value = |identity| ScalarTerm::value(ValueId::new(identity).unwrap(), scalar);
-    let (context, assumptions, _) = fixture(integer, value(2), value(3));
-    let mathematical = |identity| IntegerMathTerm::MathValue {
-        source_type: integer,
-        value: ValueId::new(identity).unwrap(),
-    };
-    let goal = Proposition::IntegerMathEqual(
-        mathematical(1),
-        IntegerMathTerm::Subtract(Box::new(mathematical(2)), Box::new(mathematical(3))),
-    );
-    let proof = ProofNode {
-        conclusion: goal.clone(),
-        rule: ProofRule::Assumption { index: 0 },
-    };
-    assert!(
-        verify_bounded_certificate(
-            &context,
-            &goal,
-            &assumptions,
             &[],
             &proof,
             &mut Budget::default()

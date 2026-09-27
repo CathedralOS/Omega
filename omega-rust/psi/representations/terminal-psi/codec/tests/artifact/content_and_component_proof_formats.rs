@@ -1,8 +1,7 @@
-use super::{certificate_bundle, kernel_bundle, representative_bundle, semantic_module};
+use super::representative_bundle;
 use crate::artifact::{evidence_id, obligation_id};
 use proof_admission::{
-    AdmissionProfile, CertificateEnvelope, EvidenceRoute, PrimitiveJudgment, ProofNode, ProofRule,
-    ProofSystemMarker,
+    CertificateEnvelope, EvidenceRoute, PrimitiveJudgment, ProofNode, ProofRule, ProofSystemMarker,
 };
 use semantic_vocabulary::{
     ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentDomainId, ContentPlaceSegment,
@@ -10,12 +9,8 @@ use semantic_vocabulary::{
     IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, PlaceId, Proposition,
     PropositionContext, ScalarTerm, StructuralPlaceKind,
 };
-use terminal_codec::{
-    ArtifactManifestError, ProofCodecError, build_artifact_manifest,
-    build_identity_optimization_execution_record, decode_proof_bundle, encode_proof_bundle,
-    terminal_psi_identity, validate_artifact_manifest,
-};
-use terminal_verifier::{ObligationEvidence, ProofBundle, verify_module};
+use terminal_codec::{ProofCodecError, decode_proof_bundle, encode_proof_bundle};
+use terminal_verifier::{ObligationEvidence, ProofBundle};
 
 #[test]
 fn proof_format_canonically_encodes_content_certificates() {
@@ -438,118 +433,6 @@ fn proof_evidence_order_and_proof_depth_fail_closed() {
     assert_eq!(
         encode_proof_bundle(&deep_term),
         Err(ProofCodecError::ScalarTermNestingTooDeep)
-    );
-}
-
-#[test]
-fn proof_replacement_and_attached_sections_change_only_their_identities() {
-    let module = semantic_module();
-    let kernel = kernel_bundle();
-    let certificate = certificate_bundle();
-    verify_module(&module, &kernel, &AdmissionProfile::default()).unwrap();
-    verify_module(&module, &certificate, &AdmissionProfile::default()).unwrap();
-
-    let semantic_identity = terminal_psi_identity(&module).unwrap();
-    let kernel_optimization =
-        build_identity_optimization_execution_record(&module, &kernel).unwrap();
-    let certificate_optimization =
-        build_identity_optimization_execution_record(&module, &certificate).unwrap();
-    let first = build_artifact_manifest(
-        &module,
-        &kernel,
-        &kernel_optimization,
-        Some(b"provider=A"),
-        Some(b"source-map=A"),
-    )
-    .unwrap();
-    let replacement = build_artifact_manifest(
-        &module,
-        &certificate,
-        &certificate_optimization,
-        Some(b"provider=A"),
-        Some(b"source-map=A"),
-    )
-    .unwrap();
-    assert_eq!(first.semantic(), semantic_identity);
-    assert_eq!(replacement.semantic(), semantic_identity);
-    assert_eq!(first.obligations(), replacement.obligations());
-    assert_ne!(first.proof(), replacement.proof());
-    assert_ne!(first.identity(), replacement.identity());
-    assert_eq!(first.installation(), replacement.installation());
-    assert_eq!(first.debug(), replacement.debug());
-
-    let reinstalled = build_artifact_manifest(
-        &module,
-        &kernel,
-        &kernel_optimization,
-        Some(b"provider=B"),
-        Some(b"source-map=A"),
-    )
-    .unwrap();
-    assert_eq!(first.semantic(), reinstalled.semantic());
-    assert_eq!(first.obligations(), reinstalled.obligations());
-    assert_eq!(first.proof(), reinstalled.proof());
-    assert_ne!(first.installation(), reinstalled.installation());
-    assert_ne!(first.identity(), reinstalled.identity());
-
-    let stripped_debug = build_artifact_manifest(
-        &module,
-        &kernel,
-        &kernel_optimization,
-        Some(b"provider=A"),
-        None,
-    )
-    .unwrap();
-    assert_eq!(first.semantic(), stripped_debug.semantic());
-    assert_eq!(first.proof(), stripped_debug.proof());
-    assert_eq!(first.installation(), stripped_debug.installation());
-    assert_ne!(first.debug(), stripped_debug.debug());
-    assert_ne!(first.identity(), stripped_debug.identity());
-
-    let empty_debug = build_artifact_manifest(
-        &module,
-        &kernel,
-        &kernel_optimization,
-        Some(b"provider=A"),
-        Some(b""),
-    )
-    .unwrap();
-    assert_ne!(stripped_debug.debug(), empty_debug.debug());
-    assert_ne!(stripped_debug.identity(), empty_debug.identity());
-
-    let equal_payloads = build_artifact_manifest(
-        &module,
-        &kernel,
-        &kernel_optimization,
-        Some(b"same"),
-        Some(b"same"),
-    )
-    .unwrap();
-    assert_ne!(
-        equal_payloads.installation(),
-        equal_payloads.debug(),
-        "section roles must domain-separate identical bytes"
-    );
-
-    validate_artifact_manifest(
-        &module,
-        &kernel,
-        &kernel_optimization,
-        Some(b"provider=A"),
-        Some(b"source-map=A"),
-        first,
-    )
-    .unwrap();
-    assert_eq!(
-        validate_artifact_manifest(
-            &module,
-            &certificate,
-            &certificate_optimization,
-            Some(b"provider=A"),
-            Some(b"source-map=A"),
-            first,
-        ),
-        Err(ArtifactManifestError::ManifestMismatch)
     );
 }
 

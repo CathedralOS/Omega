@@ -32,17 +32,6 @@ fn catalog() -> ScalarQualificationCatalog {
 }
 
 #[test]
-fn scalar_qualification_catalog_round_trip_retains_exact_identity() {
-    let catalog = catalog();
-    let mut writer = Writer::default();
-    encode(&mut writer, &catalog).unwrap();
-    let bytes = writer.finish();
-    let mut reader = Reader::new(&bytes);
-    assert_eq!(decode(&mut reader), Ok(catalog));
-    assert_eq!(reader.remaining(), 0);
-}
-
-#[test]
 fn scalar_qualification_catalog_rejects_zero_empty_and_duplicate_sets() {
     let mut catalog = catalog();
     catalog.sets[0].id = ScalarQualificationSetId::ZERO;

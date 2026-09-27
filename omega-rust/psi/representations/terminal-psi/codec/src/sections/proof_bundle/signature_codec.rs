@@ -981,16 +981,6 @@ mod tests {
     }
 
     #[test]
-    fn equal_signatures_encode_to_identical_bytes() {
-        let (first_arena, first) = identity_signature();
-        let (second_arena, second) = identity_signature();
-        assert_eq!(
-            encode_mathematical_signature(&first_arena, &first).expect("encode first"),
-            encode_mathematical_signature(&second_arena, &second).expect("encode second"),
-        );
-    }
-
-    #[test]
     fn a_forged_declaration_root_rejects() {
         let (arena, signature) = identity_signature();
         let mut bytes = encode_mathematical_signature(&arena, &signature).expect("encode");

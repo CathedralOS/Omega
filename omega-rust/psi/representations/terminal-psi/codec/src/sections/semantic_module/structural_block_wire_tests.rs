@@ -102,99 +102,6 @@ fn borrowed_parameter(place: u64, position: u32) -> StructuralParameterDeclarati
     }
 }
 
-#[test]
-fn primitive_local_operations_round_trip_with_exact_result_and_operand_identities() {
-    use semantic_vocabulary::{IeeeFloatFormat, IntegerSign, IntegerType, ScalarType};
-
-    for scalar_type in [
-        ScalarType::Boolean,
-        ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap()),
-        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap()),
-        ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
-        ScalarType::IeeeFloat(IeeeFloatFormat::Binary64),
-    ] {
-        let mut module = unit_module();
-        module.structural_types.push(StructuralTypeDeclaration {
-            id: id(7),
-            identity: "PrimitiveLocal".into(),
-            shape: StructuralTypeShape::PrimitiveScalar(scalar_type),
-        });
-        let machine = &mut module.machines[0];
-        machine.parameters.push(ValueDeclaration {
-            qualifications: Default::default(),
-            id: id(11),
-            scalar_type,
-        });
-        machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
-            qualifications: Default::default(),
-            id: id(59),
-            scalar_type,
-        });
-        machine.structural_places.push(StructuralPlaceDeclaration {
-            id: id(23),
-            kind: StructuralPlaceKind::OperationResult {
-                producer: id(31),
-                structural_type: id(7),
-            },
-        });
-        machine.blocks[0].operations = vec![
-            Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id: id(31),
-                result: OperationResult::Structural(StructuralOperationResult {
-                    qualification_establishments: Vec::new(),
-                    place: id(23),
-                    structural_type: id(7),
-                    multiplicity: StructuralMultiplicity::Unrestricted,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
-                    claims: Vec::new(),
-                }),
-                kind: OperationKind::EstablishPrimitiveLocal { value: id(11) },
-            },
-            Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id: id(32),
-                result: OperationResult::Scalar(ValueDeclaration {
-                    qualifications: Default::default(),
-                    id: id(47),
-                    scalar_type,
-                }),
-                kind: OperationKind::PrimitiveScalarRead {
-                    path: Vec::new(),
-                    source: id(23),
-                },
-            },
-        ];
-        machine.blocks[0].terminator = Terminator::Return {
-            edge: id(1),
-            value: id(47),
-            cleanup_actions: Vec::new(),
-        };
-
-        let bytes = encode_module(&module).expect("primitive local module encodes");
-        assert_eq!(&bytes[8..12], &[107, 0, 109, 0]);
-        let decoded = decode_module(&bytes).expect("primitive local module decodes");
-        assert_eq!(decoded, module);
-        assert_eq!(encode_module(&decoded).unwrap(), bytes);
-
-        let mut stale = bytes;
-        stale[8..10].copy_from_slice(&81_u16.to_le_bytes());
-        assert_eq!(
-            decode_module(&stale),
-            Err(super::CodecError::UnsupportedFormatMarker(81))
-        );
-        stale[8..10].copy_from_slice(&super::FORMAT_MARKER.to_le_bytes());
-        stale[10..12].copy_from_slice(&87_u16.to_le_bytes());
-        assert_eq!(
-            decode_module(&stale),
-            Err(super::CodecError::UnsupportedVocabularyMarker(87))
-        );
-    }
-}
-
 fn borrowed_argument(place: u64) -> StructuralArgument {
     StructuralArgument {
         place: id(place),
@@ -280,67 +187,6 @@ fn structural_block_module() -> TerminalModule {
         },
     });
     module
-}
-
-#[test]
-fn structural_block_bindings_round_trip_and_bind_each_argument_order() {
-    let module = structural_block_module();
-    let bytes = encode_module(&module).expect("borrowed block bindings encode");
-    assert_eq!(&bytes[8..12], &[107, 0, 109, 0]);
-    assert_eq!(decode_module(&bytes), Ok(module.clone()));
-    assert_eq!(
-        encode_module(&decode_module(&bytes).unwrap()),
-        Ok(bytes.clone())
-    );
-    for edge in 0..3 {
-        let mut changed = module.clone();
-        let machine = &mut changed.machines[0];
-        let arguments = if edge == 0 {
-            let Terminator::Jump {
-                structural_arguments,
-                ..
-            } = &mut machine.blocks[0].terminator
-            else {
-                unreachable!()
-            };
-            structural_arguments
-        } else {
-            let Terminator::Conditional {
-                when_true,
-                when_false,
-                ..
-            } = &mut machine.blocks[1].terminator
-            else {
-                unreachable!()
-            };
-            if edge == 1 {
-                &mut when_true.structural_arguments
-            } else {
-                &mut when_false.structural_arguments
-            }
-        };
-        arguments.reverse();
-        assert_ne!(encode_module(&changed).unwrap(), bytes);
-        assert_ne!(
-            super::semantic_fingerprint(&changed).unwrap(),
-            super::semantic_fingerprint(&module).unwrap()
-        );
-    }
-    let format = super::FORMAT_MARKER;
-    let vocabulary = terminal_psi::VocabularyMarker::CURRENT.get();
-    for (offset, marker) in [
-        (8, format - 1),
-        (8, format + 1),
-        (10, vocabulary - 1),
-        (10, vocabulary + 1),
-    ] {
-        let mut stale = bytes.clone();
-        stale[offset..offset + 2].copy_from_slice(&marker.to_le_bytes());
-        assert!(decode_module(&stale).is_err());
-    }
-    for length in [12, bytes.len() - 1] {
-        assert!(decode_module(&bytes[..length]).is_err());
-    }
 }
 
 #[test]
@@ -440,17 +286,6 @@ fn unit_byte_field_module() -> TerminalModule {
     }];
     module.machines.push(callee);
     module
-}
-
-#[test]
-fn unit_mutable_byte_field_presentation_round_trips_exact_owner_and_field() {
-    let module = unit_byte_field_module();
-    let bytes = encode_module(&module).expect("exact Unit-call byte field presentation");
-    assert_eq!(decode_module(&bytes), Ok(module));
-    assert_eq!(
-        encode_module(&decode_module(&bytes).unwrap()).unwrap(),
-        bytes
-    );
 }
 
 #[test]

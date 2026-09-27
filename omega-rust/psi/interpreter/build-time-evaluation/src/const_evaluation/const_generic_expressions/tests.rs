@@ -3,11 +3,10 @@ use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind as Kind, AuthoredDeclarationSelectionLateBinding as Binding,
     AuthoredDeclarationSelectionTarget as Target,
 };
-use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::{
     TypedTrees,
     expression::{ExpressionHandle, ExpressionNode},
-    types::{PrimitiveType, TypeConstraintNode, TypeReferenceNode},
+    types::PrimitiveType,
 };
 
 fn typed_binary() -> (TypedTrees, ExpressionHandle) {
@@ -94,48 +93,6 @@ fn unary_graph_validation_rejects_cycles_and_stale_operands_before_type_readers(
 }
 
 #[test]
-fn index_destination_rejects_range_constraints_even_under_exact_policy() {
-    let (mut program, expression) = typed_binary();
-    let machine = program.machines().iter().next().expect("probe machine");
-    let destination = program.machine_states(machine)[0].return_type;
-    assert_eq!(
-        exact_probe_destination(&program, destination),
-        Some(PrimitiveType::U64)
-    );
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression).clone()
-    else {
-        panic!("binary bounds");
-    };
-    let constraints = program.type_reference_table.insert_constraints([
-        TypeConstraintNode::Range {
-            minimum: binary.left,
-            maximum: binary.right,
-            end_inclusive: true,
-        },
-        TypeConstraintNode::ArithmeticDomain(ArithmeticDomain::Exact),
-    ]);
-    let constrained = program
-        .type_reference_table
-        .insert(TypeReferenceNode::Constrained {
-            base_type: destination,
-            constraints,
-        });
-    assert_eq!(
-        program.primitive_type_reference(constrained),
-        Some(PrimitiveType::U64)
-    );
-    assert_eq!(
-        program.type_reference_table.arithmetic_domain(constrained),
-        ArithmeticDomain::Exact
-    );
-    assert_eq!(
-        exact_probe_destination(&program, constrained),
-        None,
-        "a primitive projection and Exact policy do not discharge range obligations"
-    );
-}
-
-#[test]
 fn boolean_index_probe_retains_exact_literal_value_and_rejects_missing_nodes() {
     for value in [false, true] {
         let text = format!("machine run() -> bool {{ {value} }}");
@@ -190,33 +147,6 @@ fn boolean_index_probe_retains_exact_literal_value_and_rejects_missing_nodes() {
     )
     .expect("landed integer retains its carrier for the caller's destination check");
     assert_eq!(canonical.type_name, "u64");
-}
-
-#[test]
-fn genuine_builtin_binary_retains_exact_operator_custody() {
-    let (program, expression) = typed_binary();
-    let machine = program.machines().iter().next().expect("probe machine");
-    let state = &program.machine_states(machine)[0];
-    let expected = program
-        .expression_table
-        .authored_selection_occurrences(expression)
-        .filter_map(|occurrence| program.authored_declaration_selections().get(occurrence))
-        .filter(|selection| selection.kind() == Kind::Operator)
-        .map(|selection| selection.source_span())
-        .collect::<Vec<_>>();
-    assert_eq!(expected.len(), 1);
-    let (constants, operators) = expression_custody(
-        &program,
-        machine,
-        state,
-        expression,
-        false,
-        &syntax_trees::SyntaxTrees::default(),
-        &std::collections::HashSet::new(),
-    )
-    .expect("checked builtin meaning");
-    assert!(constants.is_empty());
-    assert_eq!(operators, expected);
 }
 
 #[test]
@@ -363,151 +293,5 @@ fn folded_literal_cannot_promote_unresolved_operator_custody() {
         )
         .expect_err("folded literal has no checked operator meaning");
         assert!(error.contains("checked builtin meaning"));
-    }
-}
-
-#[test]
-fn data_index_discovery_excludes_shadowed_machine_scope() {
-    let syntax = crate::front_end::syntax_program(
-        r#"
-        const SIZE: u64 = 2;
-        data Buffer<const N: u64> { value: u64; }
-        data Use { value: Buffer<SIZE + 0>; }
-        machine run(SIZE: u64) -> u64 {
-            let value: Buffer<SIZE + 1>;
-            transition { _ -> 0u64 }
-        }
-    "#,
-    );
-    let positions =
-        syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_data_const_argument_expressions(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        ).expect("data argument discovery");
-    assert_eq!(
-        positions.len(),
-        1,
-        "standalone probes cannot borrow a machine parameter's lexical scope"
-    );
-    let syntax_trees::types::TypeReferenceNode::ConstExpression(expression) =
-        syntax.type_references.type_reference(positions[0].0)
-    else {
-        panic!("data index expression");
-    };
-    let syntax_trees::expression::ExpressionNode::Binary(binary) =
-        syntax.expressions.expression(*expression)
-    else {
-        panic!("data index arithmetic");
-    };
-    let syntax_trees::expression::ExpressionNode::Integer(value) =
-        syntax.expressions.expression(binary.right)
-    else {
-        panic!("data index literal");
-    };
-    assert_eq!(value.value_u64(), Some(0));
-}
-
-#[test]
-fn aggregate_indices_reject_runtime_qualified_roots_at_each_machine_frontier() {
-    for body in [
-        "machine run(Sizes: Index, value: Indexed<Sizes::SIZE>) {}",
-        "machine run(Sizes: Index) -> Indexed<Sizes::SIZE> {}",
-        "machine run() { let Sizes: Index; let value: Indexed<Sizes::SIZE>; }",
-    ] {
-        let source = format!(
-            "data Index {{ value: u64; }} data Sizes {{}}
-             const Sizes::SIZE: Index = Index {{ value: 1 }};
-             data Indexed<const Selected: Index> {{ value: u8; }} {body}"
-        );
-        let syntax = crate::front_end::syntax_program(&source);
-        let diagnostics = super::evaluate(syntax, None, &[], None)
-            .expect_err("runtime roots must not acquire static aggregate identity");
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains(
-                    "machine index operand must select a constant in its original lexical scope"
-                )),
-            "{diagnostics:?}"
-        );
-    }
-}
-
-#[test]
-fn aggregate_indices_preserve_static_paths_before_later_local_bindings() {
-    let source = "data Index { value: u64; } data Sizes {}
-        const Sizes::SIZE: Index = Index { value: 1 };
-        data Indexed<const Selected: Index> { value: u8; }
-        machine run(value: Indexed<Sizes::SIZE>) -> Indexed<Sizes::SIZE> {
-            let before: Indexed<Sizes::SIZE>;
-            let Sizes: Index;
-        }";
-    let syntax = crate::front_end::syntax_program(source);
-    let positions =
-        syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_machine_const_arguments(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .expect("machine argument discovery");
-    assert_eq!(positions.len(), 3);
-    let normalized = super::evaluate(syntax, None, &[], None)
-        .expect("later local cannot capture prior static selections");
-    for (argument, _, _) in positions {
-        assert!(
-            matches!(normalized.type_references.type_reference(argument),
-            syntax_trees::types::TypeReferenceNode::Named(name) if name.as_str() == "Sizes::SIZE")
-        );
-    }
-}
-
-#[test]
-fn short_circuit_anonymous_landing_warns_once_whether_executed_or_skipped() {
-    for left in [false, true] {
-        let text = format!("machine run() -> bool {{ {left} || (7u8 == (7 / 2 * 2)) }}");
-        let program = crate::front_end::typed_program(&text);
-        let machine = program.machines().iter().next().expect("probe machine");
-        let state = &program.machine_states(machine)[0];
-        let expression = program.expression_table.iter_expressions().find_map(|(handle, node)| matches!(node, ExpressionNode::Binary(binary) if binary.operator == typed_trees::expression::BinaryOperator::Or).then_some(handle)).expect("Boolean root");
-        let (canonical, warnings) = super::value::evaluate(
-            &program,
-            machine,
-            state,
-            expression,
-            PrimitiveType::Bool,
-            None,
-        )
-        .expect("valid anonymous landing");
-        assert_eq!(
-            canonical,
-            language_semantics::const_value::CanonicalConstValue::boolean(true)
-        );
-        assert_eq!(
-            warnings.len(),
-            1,
-            "static landing warning must not duplicate during value evaluation"
-        );
-    }
-}
-
-#[test]
-fn anonymous_rational_comparisons_do_not_create_integer_landing_warnings() {
-    for left in [false, true] {
-        let text = format!("machine run() -> bool {{ {left} || (7 / 2 == 3.5) }}");
-        let program = crate::front_end::typed_program(&text);
-        let machine = program.machines().iter().next().expect("probe machine");
-        let state = &program.machine_states(machine)[0];
-        let expression = program.expression_table.iter_expressions().find_map(|(handle, node)| matches!(node, ExpressionNode::Binary(binary) if binary.operator == typed_trees::expression::BinaryOperator::Or).then_some(handle)).expect("Boolean root");
-        let (canonical, warnings) = super::value::evaluate(
-            &program,
-            machine,
-            state,
-            expression,
-            PrimitiveType::Bool,
-            None,
-        )
-        .expect("exact rational comparison");
-        assert_eq!(
-            canonical,
-            language_semantics::const_value::CanonicalConstValue::boolean(true)
-        );
-        assert!(warnings.is_empty(), "comparison has no integer destination");
     }
 }

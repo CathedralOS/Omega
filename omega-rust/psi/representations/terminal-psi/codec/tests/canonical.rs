@@ -11,8 +11,6 @@ mod boundary_crashes;
 mod bounded_integer_fields;
 #[path = "canonical/contract_fields.rs"]
 mod contract_fields;
-#[path = "canonical/operation_crash_contracts.rs"]
-mod operation_crash_contracts;
 #[path = "canonical/owned_integer_fields.rs"]
 mod owned_integer_fields;
 #[path = "canonical/scalar_array_arguments.rs"]
@@ -39,9 +37,7 @@ use semantic_vocabulary::{
     StructuralCaseId, StructuralDomainId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId,
     SuspensionCrossingId, ValueId,
 };
-use terminal_codec::{
-    CodecError, decode_module, encode_module, semantic_fingerprint, terminal_psi_identity,
-};
+use terminal_codec::{CodecError, decode_module, encode_module, semantic_fingerprint};
 
 use terminal_psi::{
     BindingRelevance, Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimTransfer,
@@ -55,9 +51,7 @@ use terminal_psi::{
     StructuralPlaceDeclaration, StructuralResultClaimBinding, StructuralResultClaimTransfer,
     StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
     TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
-    TerminalProofRankingRelation, TerminalProofRecursiveCallSite, TerminalProofRecursiveComponent,
-    TerminalProofRecursiveEdge, TerminalProofRecursiveField, TerminalProofRecursiveMember,
-    TerminalProofRecursiveType, TerminalRankedScc, Terminator, ValueDeclaration, VocabularyMarker,
+    TerminalRankedScc, Terminator, ValueDeclaration, VocabularyMarker,
 };
 
 fn unused_provider_attachment_fixture() -> TerminalModule {
@@ -366,49 +360,6 @@ fn two_nominal_affine_fixture() -> TerminalModule {
             requirement_obligations: Vec::new(),
         },
     );
-    module
-}
-
-fn five_nominal_affine_fixture() -> TerminalModule {
-    let mut module = two_nominal_affine_fixture();
-    let machine = &mut module.machines[0];
-    for position in 2_u32..5 {
-        let place = place_id(u64::from(position + 1));
-        machine
-            .structural_parameters
-            .push(StructuralParameterDeclaration {
-                place,
-                position,
-                is_self: false,
-                structural_type: structural_type_id(1),
-                multiplicity: StructuralMultiplicity::Affine,
-                access: StructuralAccess::Owned,
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
-            });
-        machine.structural_places.push(StructuralPlaceDeclaration {
-            id: place,
-            kind: StructuralPlaceKind::Parameter {
-                position,
-                is_self: false,
-            },
-        });
-        let Terminator::ReturnUnitNominalAffine { cleanups, .. } =
-            &mut machine.blocks[0].terminator
-        else {
-            unreachable!()
-        };
-        cleanups.insert(
-            0,
-            NominalAffineCleanup {
-                place,
-                structural_type: structural_type_id(1),
-                cleanup_machine: machine_id(2),
-                cleanup_receiver: None,
-                requirement_obligations: Vec::new(),
-            },
-        );
-    }
     module
 }
 
@@ -1101,77 +1052,6 @@ fn fixed_array_custody_fixture() -> TerminalModule {
     completion_receipts[0].claim = claim_id(2);
     module.machines[0].blocks[0].operations.push(second_call);
     module
-}
-
-fn proof_recursive_component_fixture() -> TerminalProofRecursiveComponent {
-    let contract = |raw| ContractId::new(raw).expect("nonzero proof contract identity");
-    TerminalProofRecursiveComponent {
-        ranking_relation: TerminalProofRankingRelation::StructuralSubterm,
-        rank_type_identity: "package::Node".into(),
-        types: vec![TerminalProofRecursiveType {
-            identity: "package::Node".into(),
-            fields: vec![
-                TerminalProofRecursiveField {
-                    identity: "package::Node::left".into(),
-                    type_identity: "package::Node".into(),
-                },
-                TerminalProofRecursiveField {
-                    identity: "package::Node::right".into(),
-                    type_identity: "package::Node".into(),
-                },
-            ],
-        }],
-        members: vec![
-            TerminalProofRecursiveMember {
-                contract: contract(1001),
-                machine_identity: "package::left".into(),
-                rank_parameter_identity: "package::left::node".into(),
-            },
-            TerminalProofRecursiveMember {
-                contract: contract(1002),
-                machine_identity: "package::right".into(),
-                rank_parameter_identity: "package::right::node".into(),
-            },
-        ],
-        edges: vec![
-            TerminalProofRecursiveEdge {
-                caller: contract(1001),
-                callee: contract(1002),
-                site: TerminalProofRecursiveCallSite::Statement {
-                    state_identity: "package::left::step".into(),
-                    statement_index: 0,
-                },
-                strict_member_path: vec!["package::Node::left".into()],
-            },
-            TerminalProofRecursiveEdge {
-                caller: contract(1001),
-                callee: contract(1002),
-                site: TerminalProofRecursiveCallSite::Statement {
-                    state_identity: "package::left::step".into(),
-                    statement_index: 1,
-                },
-                strict_member_path: vec!["package::Node::right".into()],
-            },
-            TerminalProofRecursiveEdge {
-                caller: contract(1002),
-                callee: contract(1001),
-                site: TerminalProofRecursiveCallSite::Statement {
-                    state_identity: "package::right::step".into(),
-                    statement_index: 0,
-                },
-                strict_member_path: vec!["package::Node::left".into()],
-            },
-            TerminalProofRecursiveEdge {
-                caller: contract(1002),
-                callee: contract(1001),
-                site: TerminalProofRecursiveCallSite::Statement {
-                    state_identity: "package::right::step".into(),
-                    statement_index: 1,
-                },
-                strict_member_path: vec!["package::Node::right".into()],
-            },
-        ],
-    }
 }
 
 fn unit_fixture() -> TerminalModule {

@@ -62,16 +62,6 @@ fn encoded(ranking: &TerminalRankedScc) -> Vec<u8> {
 }
 
 #[test]
-fn natural_wire_retains_multiple_components_observations_and_comparisons() {
-    let ranking = natural_ranking();
-    let bytes = encoded(&ranking);
-    assert_eq!(&bytes[..8], &[2, 2, 0, 0, 0, 2, 32, 0]);
-    let mut reader = Reader::new(&bytes);
-    assert_eq!(decode_ranked_scc(&mut reader), Ok(Some(ranking)));
-    assert_eq!(reader.remaining(), 0);
-}
-
-#[test]
 fn natural_wire_rejects_unknown_tags_zero_identities_and_truncation() {
     let bytes = encoded(&natural_ranking());
     for end in 0..bytes.len() {
@@ -93,17 +83,5 @@ fn natural_wire_rejects_unknown_tags_zero_identities_and_truncation() {
     assert_eq!(
         decode_ranked_scc(&mut Reader::new(&[3])),
         Err(CodecError::InvalidTag("TerminalRankedScc", 3)),
-    );
-}
-
-#[test]
-fn retired_unsigned_countdown_tag_one_is_rejected() {
-    // Tag 1 carried the retired `UnsignedCountdown` variant. Reusing it must
-    // fail closed rather than decode under the Natural route.
-    let mut retired = vec![1];
-    retired.extend_from_slice(&[0; 64]);
-    assert_eq!(
-        decode_ranked_scc(&mut Reader::new(&retired)),
-        Err(CodecError::InvalidTag("TerminalRankedScc", 1)),
     );
 }

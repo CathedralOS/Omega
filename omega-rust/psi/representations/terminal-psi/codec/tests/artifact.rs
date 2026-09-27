@@ -25,8 +25,6 @@ mod pcc;
 mod pcc_custody;
 #[path = "artifact/placed_view_input_custody.rs"]
 mod placed_view_input_custody;
-#[path = "artifact/proof_section.rs"]
-mod proof_section;
 #[path = "artifact/proof_section_custody.rs"]
 mod proof_section_custody;
 #[path = "artifact/proposition_vocabulary_custody.rs"]

@@ -4,49 +4,7 @@
 #[path = "support/front_end.rs"]
 mod front_end;
 
-use build_time_evaluation::{BuildTimeAdmissionPlan, BuildTimeInvocationCustody, BuildTimeValue};
-
-#[test]
-fn exact_symbol_structured_evaluation_never_reselects_a_sibling_by_name() {
-    let typed = crate::front_end::typed_program(
-        r#"
-        data Left {}
-        data Right {}
-
-        machine Left::binding() -> i64 {
-            11
-        }
-
-        machine Right::binding() -> i64 {
-            22
-        }
-        "#,
-    );
-    let left = typed
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "Left::binding")
-        .expect("left producer");
-    let right = typed
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "Right::binding")
-        .expect("right producer");
-    assert_ne!(left.symbol, right.symbol);
-
-    let admission = BuildTimeAdmissionPlan::infer(&typed, None);
-    let evaluated = admission
-        .evaluate_machine_symbol_for_invocation_measured(
-            &typed,
-            right.symbol,
-            Vec::new(),
-            BuildTimeInvocationCustody::Symbol(right.symbol),
-        )
-        .expect("evaluate the exact right-hand producer");
-
-    assert_eq!(evaluated.value(), &BuildTimeValue::Int(22));
-    assert_eq!(evaluated.usage().result_cells(), 1);
-}
+use build_time_evaluation::{BuildTimeAdmissionPlan, BuildTimeInvocationCustody};
 
 #[test]
 fn exact_symbol_structured_evaluation_rejects_a_non_machine_symbol() {

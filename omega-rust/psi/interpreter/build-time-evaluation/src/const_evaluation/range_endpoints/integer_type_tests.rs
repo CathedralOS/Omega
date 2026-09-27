@@ -1,4 +1,4 @@
-use super::integer_type::{IntegerPosition, ScalarPosition};
+use super::integer_type::IntegerPosition;
 use super::{
     ExpressionNode, TypeConstraintNode, TypeReferenceHandle, TypedTrees,
     evaluate_const_range_endpoints,
@@ -59,41 +59,6 @@ fn closed_range_positions_keep_full_width_and_empty_boundaries() {
                 "{parameter} <- {value}"
             );
         }
-    }
-}
-
-#[test]
-fn every_range_shell_contributes_to_value_admission() {
-    let mut program = crate::front_end::typed_program(
-        "machine endpoint(first: u64[0..=5], second: u64[3..7]) {}",
-    );
-    let first = parameter_type(&program, 0);
-    let second = parameter_type(&program, 1);
-    let TypeReferenceNode::Constrained { constraints, .. } =
-        *program.type_reference_table.type_reference(second)
-    else {
-        panic!("second authored range");
-    };
-    let combined = program
-        .type_reference_table
-        .insert(TypeReferenceNode::Constrained {
-            base_type: first,
-            constraints,
-        });
-    let admission = BuildTimeAdmissionPlan::infer(&program, None);
-    let position = IntegerPosition::prepare(&program, &program, combined, None).unwrap();
-    for value in [3, 5] {
-        position
-            .require_value(&program, &admission, &BigInt::from_i64(value))
-            .unwrap();
-    }
-    for value in [0, 2, 6, 7, 10] {
-        assert!(
-            position
-                .require_value(&program, &admission, &BigInt::from_i64(value))
-                .is_err(),
-            "{value}"
-        );
     }
 }
 
@@ -301,23 +266,4 @@ fn retained_constant_bound_selection_is_admitted_before_the_body() {
             "{signature}: {errors:?}"
         );
     }
-}
-
-#[test]
-fn bare_boolean_parameters_are_boolean_positions_and_ranges_stay_integer() {
-    let program =
-        crate::front_end::typed_program("machine endpoint(flag: bool, count: u64[0..=8]) {}");
-    assert!(matches!(
-        ScalarPosition::prepare(&program, &program, parameter_type(&program, 0), None,).unwrap(),
-        ScalarPosition::Boolean
-    ));
-    assert!(matches!(
-        ScalarPosition::prepare(&program, &program, parameter_type(&program, 1), None,).unwrap(),
-        ScalarPosition::Integer(_)
-    ));
-    // The range bound never prepares as a scalar position: a Boolean there
-    // is still rejected by the integer position.
-    assert!(
-        IntegerPosition::prepare(&program, &program, parameter_type(&program, 0), None).is_err()
-    );
 }

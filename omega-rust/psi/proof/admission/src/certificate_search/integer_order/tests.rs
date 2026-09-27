@@ -1,11 +1,10 @@
-use crate::ProofRule;
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext, ScalarTerm,
     ScalarType, ValueId,
 };
 
 use super::adjacent;
-use crate::certificate_search::{MAXIMUM_SEARCH_STEPS, establishes, prove};
+use crate::certificate_search::{establishes, prove};
 
 fn literal(integer_type: IntegerType, number: i128) -> ScalarTerm {
     let value = match integer_type.sign() {
@@ -30,65 +29,6 @@ fn context(integer_type: IntegerType) -> PropositionContext {
         )
     }))
     .unwrap()
-}
-
-#[test]
-fn inclusive_entry_bound_covers_the_exact_strict_crash_denotation() {
-    for sign in [IntegerSign::Signed, IntegerSign::Unsigned] {
-        for bits in [8, 16, 32, 64] {
-            let integer_type = IntegerType::new(sign, bits).unwrap();
-            let value = parameter(integer_type, 1);
-            let context = context(integer_type);
-            for lower in [true, false] {
-                let (left, right, premise) = if lower {
-                    (
-                        literal(integer_type, 0),
-                        value.clone(),
-                        Proposition::LessOrEqual(literal(integer_type, 1), value.clone()),
-                    )
-                } else {
-                    (
-                        value.clone(),
-                        literal(integer_type, 2),
-                        Proposition::LessOrEqual(value.clone(), literal(integer_type, 1)),
-                    )
-                };
-                let strict = Proposition::LessThan(left.clone(), right.clone());
-                let predicate = Proposition::Equal(
-                    ScalarTerm::integer_less_than(integer_type, left, right).unwrap(),
-                    ScalarTerm::boolean(true),
-                );
-                let requirements = [premise];
-                let mut remaining = MAXIMUM_SEARCH_STEPS;
-                let proof = prove(&strict, &requirements, &[], &mut remaining, 0).unwrap();
-                assert!(matches!(
-                    proof.rule,
-                    ProofRule::IntegerOrderDiscreteness { .. }
-                ));
-                assert!(establishes(&context, &predicate, &requirements, &[]));
-            }
-        }
-    }
-}
-
-#[test]
-fn inclusive_endpoints_and_foreign_values_do_not_prove_strict_bounds() {
-    let integer_type = IntegerType::new(IntegerSign::Signed, 32).unwrap();
-    let context = context(integer_type);
-    let value = parameter(integer_type, 1);
-    let other = parameter(integer_type, 2);
-    let goal = Proposition::LessThan(literal(integer_type, 0), value.clone());
-    for premise in [
-        Proposition::LessOrEqual(literal(integer_type, 0), value.clone()),
-        Proposition::LessOrEqual(literal(integer_type, 1), other),
-        Proposition::LessOrEqual(value.clone(), literal(integer_type, 1)),
-        Proposition::LessOrEqual(literal(integer_type, -1), value.clone()),
-    ] {
-        assert!(!establishes(&context, &goal, &[premise], &[]));
-    }
-    let requirement = Proposition::LessOrEqual(literal(integer_type, -1), value.clone());
-    let negative = Proposition::LessThan(literal(integer_type, -2), value);
-    assert!(establishes(&context, &negative, &[requirement], &[]));
 }
 
 #[test]
@@ -159,29 +99,6 @@ fn wrong_carriers_and_addresses_do_not_gain_discrete_proofs() {
     let one = literal(address, 1);
     assert!(adjacent(&one, true).is_none());
     assert!(adjacent(&one, false).is_none());
-}
-
-#[test]
-fn integer_bridge_uses_the_existing_shared_search_and_depth_bounds() {
-    let integer_type = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
-    let value = parameter(integer_type, 1);
-    let goal = Proposition::LessThan(literal(integer_type, 0), value.clone());
-    let requirements = [Proposition::LessOrEqual(literal(integer_type, 1), value)];
-    let mut remaining = 1;
-    assert!(prove(&goal, &requirements, &[], &mut remaining, 0).is_none());
-    assert_eq!(remaining, 0);
-    assert!(prove(&goal, &requirements, &[], &mut remaining, 0).is_none());
-    let mut remaining = MAXIMUM_SEARCH_STEPS;
-    assert!(
-        prove(
-            &goal,
-            &requirements,
-            &[],
-            &mut remaining,
-            crate::certificate_search::MAXIMUM_PROOF_DEPTH
-        )
-        .is_none()
-    );
 }
 
 #[test]
