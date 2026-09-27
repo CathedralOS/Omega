@@ -88,6 +88,9 @@ pub(super) fn checked(
     if cfg!(test) {
         return check(program);
     }
+    // OMEGA_LOWER_MEMO=1 reports each check's fingerprint, mode, and hit or
+    // miss — the only way to observe which checkpoint a check served from.
+    let probe = std::env::var_os("OMEGA_LOWER_MEMO").is_some();
     let fingerprint = fingerprint(&program, &request);
     {
         let mut memo = MEMO.lock().unwrap_or_else(PoisonError::into_inner);
@@ -97,21 +100,73 @@ pub(super) fn checked(
             let entry = memo.entries.remove(position);
             let result = entry.result.clone();
             memo.entries.push(entry);
+            if probe {
+                eprintln!(
+                    "[lower-memo] HIT mode={:?} fp={fingerprint:016x}",
+                    request.mode,
+                );
+            }
             return result;
+        }
+        // A package compile checks the same frozen program at the preliminary
+        // checkpoint and again at settlement. The checkpoint only changes how
+        // the check treats state the program may carry — deferred range
+        // endpoints, pending opaque-copy admission — so a program carrying
+        // none of it checks identically under both modes, and a settled
+        // request on such a program may serve the preliminary check's result.
+        if request.mode == CheckingMode::Settled && preliminary_mode_is_vacuous(&program) {
+            let preliminary_request = RequestKey {
+                mode: CheckingMode::Preliminary,
+                ..request.clone()
+            };
+            if let Some(position) = memo.entries.iter().position(|entry| {
+                entry.fingerprint == fingerprint
+                    && entry.request == preliminary_request
+                    && programs_equal_for_check(&entry.program, &program)
+            }) {
+                let entry = memo.entries.remove(position);
+                // The masked field is return cargo: the result embeds the
+                // preliminary program, so the identities settlement stamped
+                // on this program must come back along for post-lower pruning.
+                let mut result = entry.result.clone();
+                if let Ok(checked) = &mut result {
+                    checked.typed.boundary_calling_plans = program.boundary_calling_plans.clone();
+                }
+                memo.entries.push(entry);
+                if probe {
+                    eprintln!(
+                        "[lower-memo] HIT-PRELIMINARY mode={:?} fp={fingerprint:016x}",
+                        request.mode,
+                    );
+                }
+                return result;
+            }
         }
         if !memo.fingerprints.contains(&fingerprint) {
             if memo.fingerprints.len() == REMEMBERED_FINGERPRINTS {
                 memo.fingerprints.remove(0);
             }
             memo.fingerprints.push(fingerprint);
-            if RETENTION_REQUESTS.load(Ordering::Relaxed) == 0 {
+            // Preliminary results are also retained on first sight: the
+            // settled checkpoint of the same compile asks for them next.
+            if RETENTION_REQUESTS.load(Ordering::Relaxed) == 0
+                && request.mode != CheckingMode::Preliminary
+            {
                 drop(memo);
                 return check(program);
             }
         }
     }
     let retained = program.clone();
+    let started = std::time::Instant::now();
     let result = check(program);
+    if probe {
+        eprintln!(
+            "[lower-memo] MISS mode={:?} fp={fingerprint:016x} elapsed={:?}",
+            request.mode,
+            started.elapsed(),
+        );
+    }
     let mut memo = MEMO.lock().unwrap_or_else(PoisonError::into_inner);
     if memo.entries.len() == RETAINED_RESULTS {
         memo.entries.remove(0);
@@ -123,6 +178,39 @@ pub(super) fn checked(
         result: result.clone(),
     });
     result
+}
+
+/// Whether the checking mode reads any program state a preliminary check
+/// tolerates differently than a settled one. The mode surfaces in only three
+/// places: pending const-range endpoints refuse only outside the preliminary
+/// window, opaque `[copy]` claims admit pending selection only there, and the
+/// toolchain-selection policy arm is identical for both — so with no pending
+/// endpoints and no boundary-opaque copy claims the modes are observationally
+/// equal for this program.
+fn preliminary_mode_is_vacuous(program: &TypedTrees) -> bool {
+    program.pending_const_range_endpoints.is_empty()
+        && !program.data_definitions().iter().any(|definition| {
+            definition.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque
+                && definition.properties.multiplicity
+                    == language_semantics::Multiplicity::Unrestricted
+        })
+}
+
+/// Equality over the state the check consumes. Settlement stamps derived
+/// boundary calling-policy identities on the program between the two
+/// checkpoints; `lower_typed_trees` never reads them (their consumer is
+/// post-lower product pruning), so they are masked out of the comparison
+/// while every other field — including any added later — still compares
+/// exactly.
+fn programs_equal_for_check(retained: &TypedTrees, incoming: &TypedTrees) -> bool {
+    if retained == incoming {
+        return true;
+    }
+    let mut retained = retained.clone();
+    let mut incoming = incoming.clone();
+    retained.boundary_calling_plans.clear();
+    incoming.boundary_calling_plans.clear();
+    retained == incoming
 }
 
 /// Table sizes and boundary symbols: equal programs always agree on it, and
