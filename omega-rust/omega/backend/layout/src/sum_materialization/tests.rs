@@ -120,79 +120,6 @@ fn projects_exact_authored_case_order_and_overlay_geometry() {
 }
 
 #[test]
-fn mixed_common_field_shape_projects_common_rows_beside_the_case_overlay() {
-    let checked = checked(
-        r#"
-        data Event [copy] {
-            sequence: u8;
-            case Ready(value: u16);
-            case Waiting;
-        }
-        "#,
-    );
-    let definition = checked
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.name.as_str() == "Event")
-        .unwrap();
-    let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
-    let report =
-        project_conventional_sum_materialization_layout(&checked, &plan, definition.symbol)
-            .expect("a mixed common-field/case shape projects under the same rung");
-
-    // The tag leads at 0; `sequence` packs at 4; the shared payload base
-    // aligns to 6 under Ready.value's u16 alignment, so Ready.value sits at
-    // 6 and the 8-byte extent covers common plus payload.
-    assert_eq!(report.tag_offset, 0);
-    assert_eq!(report.tag_size, 4);
-    assert_eq!(report.size, 8);
-    assert_eq!(report.align, 4);
-    assert_eq!(
-        report
-            .common_fields
-            .iter()
-            .map(|field| (field.field.as_str(), field.offset, field.size, field.align))
-            .collect::<Vec<_>>(),
-        [("sequence", 4, 1, 1)]
-    );
-    assert_eq!(
-        report
-            .cases
-            .iter()
-            .map(|case| (case.case.as_str(), case.ordinal))
-            .collect::<Vec<_>>(),
-        [("Ready", 0), ("Waiting", 1)]
-    );
-    assert_eq!(
-        report.cases[0]
-            .payload_fields
-            .iter()
-            .map(|field| (field.field.as_str(), field.offset, field.size))
-            .collect::<Vec<_>>(),
-        [("value", 6, 2)]
-    );
-
-    // The projected report is authoritative: a merged value materializes the
-    // common field and the selected case payload at their exact offsets.
-    let value = BuildTimeValue::Case {
-        variant: "Ready".into(),
-        payload: vec![
-            ("sequence".into(), BuildTimeValue::Int(9)),
-            ("value".into(), BuildTimeValue::Int(0x1122)),
-        ],
-    };
-    let materialized = validate_const_materializable_conventional_sum(
-        &checked,
-        "Event",
-        &report,
-        &value,
-        ByteOrder::LittleEndian,
-    )
-    .expect("authoritative mixed report should materialize its active case");
-    assert_eq!(materialized.bytes(), &[0, 0, 0, 0, 9, 0, 0x22, 0x11]);
-}
-
-#[test]
 fn target_path_projects_and_replays_one_inner_record_with_complete_direct_sums() {
     let checked = checked(
         r#"
@@ -1594,6 +1521,7 @@ fn mixed_sum_array_elements_project_with_common_fields_beside_the_overlay() {
     // The element report spells the mixed interior once: the common field
     // packs between the tag and the shared payload base inside every element.
     assert_eq!(row.element_layout.size, 8);
+    assert_eq!(row.element_layout.align, 4);
     assert_eq!(
         row.element_layout
             .common_fields
