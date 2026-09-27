@@ -444,7 +444,13 @@ fn validate_expression_call_bounds(
                 program.primitive_type_reference(operator.return_type),
             ),
             (Some("F32"), Some(PrimitiveType::F32)) | (Some("F64"), Some(PrimitiveType::F64))
-        );
+        )
+            || (typed_trees::operator::primitive_float_binary_semantics(program, operator)
+                .is_some()
+                && matches!(
+                    program.primitive_type_reference(operator.return_type),
+                    Some(PrimitiveType::F32 | PrimitiveType::F64)
+                ));
         validate_call_arguments_handles_with_policy_retention(
             program,
             current_machine,

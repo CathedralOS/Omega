@@ -249,6 +249,13 @@ actual provider plan; Psi independently checks the current operator occurrence,
 ordered operands, format, and arithmetic policy before using the shared Float
 semantics kernel. A matching spelling or scalar signature cannot authorize an
 unrelated provider body. Ordinary helper calls retain the same closure admission.
+`SelectedBuildTimeBinaryOperator::prepare` derives the operation and ordered
+operands for spelled and named uses, including token-machine requirements.
+Admission independently checks the retained row against the actual requirement
+and its token view. Named intrinsic calls become binary operations only on the
+private execution copy; the source expression identity and its checked policy
+remain available for final replay. This shares the existing Float interpreter
+kernel without giving bodyless requirement signatures executable bodies.
 
 Checked provider bodies use the same route for spelled operators, named operator
 calls, and plain named boundary requirements. Omega resolves the exact adapter

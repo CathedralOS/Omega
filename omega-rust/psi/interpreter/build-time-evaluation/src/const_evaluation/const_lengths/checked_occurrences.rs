@@ -2,7 +2,7 @@
 //! Provider-plan authority stays with Omega; these joins establish only the
 //! retained source occurrence, requirement and primitive arithmetic policy.
 
-use checked_trees::{CheckedOperatorOccurrence, CheckedTrees};
+use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 
 use crate::{SelectedBuildTimeBinaryOperator, SelectedBuildTimeProviderBody};
@@ -13,19 +13,19 @@ pub(super) fn validate(
     provider_bodies: &[SelectedBuildTimeProviderBody],
 ) -> Result<(), Vec<Diagnostic>> {
     for selected in operators {
-        let mut matching = checked.facts.operators.resolved_uses().filter(|fact| {
-            fact.expression == selected.expression
-                && fact.origin == selected.origin
-                && fact.occurrence == CheckedOperatorOccurrence::Expression
-        });
-        let (Some(fact), None) = (matching.next(), matching.next()) else {
+        let facts = &checked.facts.operators;
+        let mut matching =
+            facts
+                .resolved_expression_selections()
+                .filter(|(expression, origin, _, _)| {
+                    *expression == selected.expression && *origin == selected.origin
+                });
+        let (Some((_, _, requirement, policy)), None) = (matching.next(), matching.next()) else {
             return Err(vec![Diagnostic::error(
                 "folded operator has no unique final checked occurrence",
             )]);
         };
-        if fact.selected_operator_symbol != selected.requirement
-            || fact.policy_adapter != selected.policy
-        {
+        if requirement != selected.requirement || policy != selected.policy {
             return Err(vec![Diagnostic::error(
                 "folded operator differs from final checked requirement or arithmetic policy",
             )]);
@@ -34,25 +34,14 @@ pub(super) fn validate(
     for body in provider_bodies {
         // A token machine normalizes from a spelled use to a requirement call.
         // Exactly one occurrence must survive across the three fact arenas.
-        let spelled = checked.facts.operators.resolved_uses().filter(|fact| {
-            fact.expression == body.expression
-                && fact.origin == body.origin
-                && fact.occurrence == CheckedOperatorOccurrence::Expression
-        });
-        let named = checked
+        let mut requirements = checked
             .facts
             .operators
-            .named_uses()
-            .filter(|fact| fact.expression == body.expression && fact.origin == body.origin);
-        let requirements = checked
-            .facts
-            .operators
-            .named_requirement_uses()
-            .filter(|fact| fact.expression == body.expression && fact.origin == body.origin);
-        let mut requirements = spelled
-            .map(|fact| fact.selected_operator_symbol)
-            .chain(named.map(|fact| fact.selected_operator_symbol))
-            .chain(requirements.map(|fact| fact.requirement_symbol));
+            .resolved_expression_selections()
+            .filter(|(expression, origin, _, _)| {
+                *expression == body.expression && *origin == body.origin
+            })
+            .map(|(_, _, requirement, _)| requirement);
         let (Some(requirement), None) = (requirements.next(), requirements.next()) else {
             return Err(vec![Diagnostic::error(
                 "folded provider body has no unique final checked occurrence",

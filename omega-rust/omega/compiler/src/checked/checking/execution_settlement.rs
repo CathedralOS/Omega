@@ -166,10 +166,10 @@ pub(crate) fn check_selected_execution(
     let mut const_evaluation = const_evaluation::SelectedConstEvaluation::default();
     if !pending_pre_checks.is_empty() {
         validation::land_float_literal_destinations(&mut typed);
-        const_evaluation.operators =
-            const_evaluation::selected_operators(&typed, &selected_provider_plan_facts)?;
-        const_evaluation.provider_bodies =
-            const_evaluation::selected_provider_bodies(&typed, &selected_provider_plan_facts)?;
+        const_evaluation = const_evaluation::SelectedConstEvaluation::prepare(
+            &typed,
+            &selected_provider_plan_facts,
+        )?;
         for pre_check in pending_pre_checks {
             const_evaluation
                 .folds

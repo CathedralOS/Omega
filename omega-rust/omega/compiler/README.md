@@ -201,10 +201,12 @@ Deferred constant folds keep provider-plan rederivation in Omega. Their final
 source-occurrence checks and invocation replay belong to Psi's
 `build-time-evaluation::validate_folded_array_lengths`, which consumes the final
 checked program directly; the coordinator does not reconstruct those judgments.
-Provider-body preparation likewise belongs to that Psi service: Omega joins
-the canonical requirement schema to an exact checked adapter and plan commitment;
-Psi derives operands and the executable entry, then independently validates
-source selection, signature, conformance, and invocation admission.
+Selected execution preparation belongs to Psi: one Omega authority pass joins
+each source requirement to an exact intrinsic or checked adapter and plan
+commitment. Psi derives the Float operation and carriers or provider entry,
+then independently validates source selection, operands, arithmetic policy,
+signature, conformance, and invocation admission. The coordinator does not
+classify Float meaning or rebuild separate fact lists for these two supplies.
 
 Selected execution then produces `SelectedExecutionSettlementSurface`. Its
 ordered work closes component-entry progress, selected-dispatch settlement,

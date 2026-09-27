@@ -179,17 +179,13 @@ pub(crate) fn evaluate_selected_array_lengths(
     // occurrence to the exact provider entry state on one private copy: the
     // provider joins the ordinary call closure and runs its real body, while
     // the caller's tree and its source-owned handles stay untouched.
-    let selected_program = if provider_bodies.is_empty() {
-        None
-    } else {
-        Some(
-            crate::machine_execution::selected_operators::apply_selected_provider_bodies(
-                typed,
-                provider_bodies,
-            )
-            .map_err(|reason| vec![Diagnostic::error(reason)])?,
+    let selected_program =
+        crate::machine_execution::selected_operators::prepare_selected_execution(
+            typed,
+            provider_bodies,
+            operators,
         )
-    };
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let execution = selected_program.as_ref().unwrap_or(typed);
     let admission = BuildTimeAdmissionPlan::infer(execution, authority)
         .with_selected_operators(execution, operators)
@@ -244,17 +240,13 @@ pub fn validate_folded_array_lengths(
 ) -> Result<(), Vec<Diagnostic>> {
     checked_occurrences::validate(checked, operators, provider_bodies)?;
     let typed = &checked.typed;
-    let selected_program = if provider_bodies.is_empty() {
-        None
-    } else {
-        Some(
-            crate::machine_execution::selected_operators::apply_selected_provider_bodies(
-                typed,
-                provider_bodies,
-            )
-            .map_err(|reason| vec![Diagnostic::error(reason)])?,
+    let selected_program =
+        crate::machine_execution::selected_operators::prepare_selected_execution(
+            typed,
+            provider_bodies,
+            operators,
         )
-    };
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let execution = selected_program.as_ref().unwrap_or(typed);
     let admission = BuildTimeAdmissionPlan::infer(execution, authority)
         .with_selected_operators(execution, operators)

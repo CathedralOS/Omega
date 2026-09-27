@@ -185,11 +185,51 @@ pub struct SelectedBuildTimeBinaryOperator {
 }
 
 impl SelectedBuildTimeBinaryOperator {
+    /// Prepare semantic execution after Omega has selected the exact intrinsic.
+    /// Psi owns the operation, carriers, and authored operand order; this does
+    /// not select a provider or replace independent admission of the row.
+    pub fn prepare(
+        program: &typed_trees::TypedTrees,
+        expression: typed_trees::expression::ExpressionHandle,
+        origin: checked_trees::CheckedValueOrigin,
+        requirement: symbols::SymbolHandle,
+        policy: checked_trees::CheckedArithmeticPolicyAdapter,
+        provider: checked_trees::CheckedProviderPlanCommitment,
+    ) -> Result<Self, String> {
+        let operator = typed_trees::operator::declaration_by_symbol(program, requirement)
+            .ok_or("selected build-time Float requirement disappeared")?;
+        let (operation, format) =
+            typed_trees::operator::primitive_float_binary_semantics(program, operator)
+                .ok_or("selected build-time operation has no matching sealed Float meaning")?;
+        let operands = match program.expression_table.expression(expression) {
+            typed_trees::expression::ExpressionNode::Binary(binary) => [binary.left, binary.right],
+            typed_trees::expression::ExpressionNode::Call(call) => {
+                let [left, right] = program.expression_table.expression_handles(call.arguments)
+                else {
+                    return Err("selected build-time Float call has wrong arity".into());
+                };
+                [*left, *right]
+            }
+            _ => return Err("selected build-time Float expression has no binary operands".into()),
+        };
+        Ok(Self {
+            expression,
+            origin,
+            requirement,
+            operation,
+            operands,
+            format,
+            policy,
+            provider,
+        })
+    }
+
     /// Inspect only this supplied selection, never unrelated operator overloads.
     pub fn has_crash_contract(&self, program: &typed_trees::TypedTrees) -> bool {
         program
             .operators()
             .iter()
+            .chain(program.machine_token_bindings())
             .filter(|operator| operator.symbol == self.requirement)
             .any(|operator| {
                 program
@@ -203,5 +243,26 @@ impl SelectedBuildTimeBinaryOperator {
                         )
                     })
             })
+            || program
+                .machines()
+                .iter()
+                .filter(|machine| machine.symbol == self.requirement)
+                .any(|machine| {
+                    program
+                        .machine_contracts(machine)
+                        .iter()
+                        .chain(
+                            program
+                                .machine_states(machine)
+                                .iter()
+                                .flat_map(|state| program.state_contracts(state)),
+                        )
+                        .any(|contract| {
+                            matches!(
+                                contract.kind,
+                                typed_trees::signature::SignatureContractKind::Crashes { .. }
+                            )
+                        })
+                })
     }
 }

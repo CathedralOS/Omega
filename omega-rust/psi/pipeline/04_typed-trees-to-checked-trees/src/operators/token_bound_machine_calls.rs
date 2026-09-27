@@ -69,10 +69,9 @@ pub(crate) fn bind_token_bound_machine_calls(
         return Ok(0);
     }
     // Binding reads the operator uses and their candidates only.
-    let mut facts = crate::operators::build_operator_uses(
-        program,
-        &crate::values::build_value_origin_rows(program),
-    );
+    let values = crate::values::build_value_origin_rows(program);
+    let mut facts = crate::operators::build_operator_uses(program, &values);
+    let named = super::requirement_uses::collect_named_requirement_uses(program, &values);
     // A domain-homed binding (`machine + Quantity::Additive::add`) is a
     // `DomainPending` candidate until binding-site selection settles it. That
     // selection reads only static operand qualifications, mints, and
@@ -130,7 +129,76 @@ pub(crate) fn bind_token_bound_machine_calls(
         bindings.push((expression, selected, operator_use.origin));
     }
 
-    let bound_count = bindings.len();
+    let mut bound_count = bindings.len();
+    // A qualified requirement name is not a runtime receiver. A resolved
+    // named call keeps its exact entry and authored call metadata; erase only
+    // the namespace prefix after rejoining it with that token declaration.
+    // Lexical value receivers must never be reclassified by their spelling.
+    for (expression, requirement) in facts
+        .named_uses()
+        .map(|fact| (fact.expression, fact.selected_operator_symbol))
+        .chain(
+            named
+                .iter()
+                .map(|(_, fact)| (fact.expression, fact.requirement_symbol)),
+        )
+    {
+        let Some(binding) = program
+            .machine_token_bindings()
+            .iter()
+            .find(|binding| binding.symbol == requirement)
+        else {
+            continue;
+        };
+        let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+            continue;
+        };
+        if !call.receiver.is_valid() {
+            continue;
+        }
+        let ExpressionNode::Name(receiver) = program.expression_table.expression(call.receiver)
+        else {
+            continue;
+        };
+        if receiver.symbol.is_valid()
+            && !matches!(
+                program.symbols.get(receiver.symbol).kind,
+                symbols::SymbolKind::Data
+                    | symbols::SymbolKind::Domain
+                    | symbols::SymbolKind::Module
+            )
+        {
+            continue;
+        }
+        let path = program.operator_path_members(binding.name);
+        let Some((member, namespace)) = path.split_last() else {
+            continue;
+        };
+        if member.as_str() != call.target.as_str()
+            || namespace != program.expression_table.name_path_members(receiver.members)
+        {
+            continue;
+        }
+        let Some(machine) = crate::lookup::machine_by_symbol(program, requirement) else {
+            continue;
+        };
+        let Some(entry) = program.machine_states(machine).first() else {
+            continue;
+        };
+        if program
+            .state_parameters(entry)
+            .iter()
+            .any(|parameter| parameter.is_self)
+        {
+            continue;
+        }
+        let entry_symbol = entry.symbol;
+        if let ExpressionNode::Call(call) = program.expression_table.expression_mut(expression) {
+            call.receiver = ExpressionHandle::invalid();
+            call.target_symbol = entry_symbol;
+            bound_count += 1;
+        }
+    }
     for (expression, machine_symbol, origin) in bindings {
         // Copy the operand source handles before any endpoint normalization
         // mutates the expression table below.

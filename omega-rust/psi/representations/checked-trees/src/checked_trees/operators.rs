@@ -792,6 +792,47 @@ impl CheckedOperatorFacts {
         self.uses_with_status(CheckedOperatorResolutionStatus::Resolved)
     }
 
+    /// Project resolved expression selections across spelled operators, named
+    /// operators, and named requirements without deriving or deduplicating facts.
+    /// Consumers that require a unique occurrence must still check that property.
+    pub fn resolved_expression_selections(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            ExpressionHandle,
+            CheckedValueOrigin,
+            SymbolHandle,
+            CheckedArithmeticPolicyAdapter,
+        ),
+    > {
+        self.resolved_uses()
+            .filter(|fact| fact.occurrence == CheckedOperatorOccurrence::Expression)
+            .map(|fact| {
+                (
+                    fact.expression,
+                    fact.origin,
+                    fact.selected_operator_symbol,
+                    fact.policy_adapter,
+                )
+            })
+            .chain(self.named_uses().map(|fact| {
+                (
+                    fact.expression,
+                    fact.origin,
+                    fact.selected_operator_symbol,
+                    fact.policy_adapter,
+                )
+            }))
+            .chain(self.named_requirement_uses().map(|fact| {
+                (
+                    fact.expression,
+                    fact.origin,
+                    fact.requirement_symbol,
+                    fact.policy_adapter,
+                )
+            }))
+    }
+
     pub fn named_uses(&self) -> impl Iterator<Item = &CheckedNamedOperatorUseFact> {
         self.named_uses.iter().map(|(_, operator_use)| operator_use)
     }

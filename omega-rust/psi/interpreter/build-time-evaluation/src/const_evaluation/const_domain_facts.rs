@@ -133,17 +133,13 @@ pub(crate) fn evaluate_selected_domain_facts(
     // occurrence to the exact provider entry state on one private copy: the
     // provider joins the ordinary call closure and runs its real body, while
     // the caller's tree and its source-owned handles stay untouched.
-    let selected_program = if selected.provider_bodies.is_empty() {
-        None
-    } else {
-        Some(
-            crate::machine_execution::selected_operators::apply_selected_provider_bodies(
-                typed,
-                selected.provider_bodies,
-            )
-            .map_err(|reason| vec![Diagnostic::error(reason)])?,
+    let selected_program =
+        crate::machine_execution::selected_operators::prepare_selected_execution(
+            typed,
+            selected.provider_bodies,
+            selected.operators,
         )
-    };
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let execution = selected_program.as_ref().unwrap_or(typed);
     let admission = BuildTimeAdmissionPlan::infer(execution, selection_authority)
         .with_selected_operators(execution, selected.operators)
