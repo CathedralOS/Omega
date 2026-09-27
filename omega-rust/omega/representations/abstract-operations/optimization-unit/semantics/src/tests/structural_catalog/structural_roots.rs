@@ -370,7 +370,7 @@ fn bounded_scalar_store_authority_unit() -> PsiOptimizationUnit {
     let obligation = id(4_730, ObligationId::new);
     *range_obligation = Some(obligation);
     let operation = *psi_operation;
-    let owner_type = destination.structural_type;
+    let owner_type = destination.structural_type();
     let selected_field = *field;
     let stored_value = *value;
     let ScalarType::Integer(integer) = stored_value.scalar_type else {
@@ -577,8 +577,10 @@ fn projected_structural_scalar_field_store_validates_and_rejects_corruption() {
     let mut affine = structural_scalar_field_store_unit();
     affine.functions[0].structural_parameters[0].multiplicity =
         terminal_psi::StructuralMultiplicity::Affine;
-    let O::StructuralScalarFieldStore { destination, .. } =
-        &mut affine.functions[0].blocks[0].nodes[1].operation
+    let O::StructuralScalarFieldStore {
+        destination: abstract_operations::StructuralScalarStoreDestination::Parameter(destination),
+        ..
+    } = &mut affine.functions[0].blocks[0].nodes[1].operation
     else {
         unreachable!()
     };
@@ -591,8 +593,10 @@ fn projected_structural_scalar_field_store_validates_and_rejects_corruption() {
     let mut access = structural_scalar_field_store_unit();
     access.functions[0].structural_parameters[0].access =
         terminal_psi::StructuralAccess::SharedBorrow;
-    let O::StructuralScalarFieldStore { destination, .. } =
-        &mut access.functions[0].blocks[0].nodes[1].operation
+    let O::StructuralScalarFieldStore {
+        destination: abstract_operations::StructuralScalarStoreDestination::Parameter(destination),
+        ..
+    } = &mut access.functions[0].blocks[0].nodes[1].operation
     else {
         unreachable!()
     };
@@ -731,4 +735,187 @@ fn structural_returns_reject_non_source_roots_and_signature_drift() {
         validate_psi_optimization_unit(&wrong_signature),
         Err(OptimizationUnitValidationError::StructuralReturnSourceContractMismatch { .. })
     ));
+}
+
+fn owned_record_scalar_store_unit() -> PsiOptimizationUnit {
+    use terminal_psi::{RecordFieldInitializer, RecordFieldValue, StructuralMultiplicity};
+    let mut unit = structural_scalar_field_store_unit();
+    unit.functions.truncate(1);
+    let O::StructuralScalarFieldStore { field, value, .. } =
+        unit.functions[0].blocks[0].nodes[1].operation.clone()
+    else {
+        unreachable!()
+    };
+    let structural_type = unit
+        .structural_types
+        .iter()
+        .find(|declaration| {
+            matches!(&declaration.shape, terminal_psi::StructuralTypeShape::Record { fields }
+            if fields.iter().any(|candidate| candidate.id == field))
+        })
+        .unwrap()
+        .id;
+    let producer = id(4_900, OperationId::new);
+    let result = terminal_psi::StructuralOperationResult {
+        place: id(4_901, PlaceId::new),
+        structural_type,
+        multiplicity: StructuralMultiplicity::Affine,
+        qualifications: Vec::new(),
+        qualification_establishments: Vec::new(),
+        projected_qualifications: Vec::new(),
+        claims: Vec::new(),
+    };
+    let function = &mut unit.functions[0];
+    unit.entry = function.machine;
+    function.attachment = None;
+    function.structural_parameters.clear();
+    function.declared_places = std::collections::BTreeSet::from([result.place]);
+    function.structural_places = vec![terminal_psi::StructuralPlaceDeclaration {
+        id: result.place,
+        kind: StructuralPlaceKind::OperationResult {
+            producer,
+            structural_type,
+        },
+    }];
+    let mut constructor = function.blocks[0].nodes[0].clone();
+    constructor.operation = O::EstablishRecord {
+        psi_operation: producer,
+        result: result.clone(),
+        fields: vec![RecordFieldInitializer {
+            field,
+            value: RecordFieldValue::Scalar {
+                value: value.value,
+                range_obligation: None,
+            },
+        }],
+    };
+    function.blocks[0].nodes[1].operation = O::StructuralScalarFieldStore {
+        psi_operation: id(4_712, OperationId::new),
+        destination: abstract_operations::StructuralScalarStoreDestination::OwnedResult {
+            producer,
+            result: result.clone(),
+        },
+        path: Vec::new(),
+        field,
+        value,
+        range_obligation: None,
+    };
+    function.blocks[0].nodes.insert(1, constructor);
+    let O::ReturnUnit {
+        cleanup_actions, ..
+    } = &mut function.blocks[0].nodes.last_mut().unwrap().operation
+    else {
+        unreachable!()
+    };
+    *cleanup_actions = vec![terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
+        result.place,
+    )];
+    refresh_function_derivatives(&mut unit, 0);
+    unit
+}
+
+#[test]
+fn owned_record_scalar_store_retains_exact_producer_and_custody() {
+    let baseline = owned_record_scalar_store_unit();
+    validate_psi_optimization_unit(&baseline)
+        .expect("a live owned record permits scalar replacement");
+    for mutation in 0..3 {
+        let mut changed = baseline.clone();
+        let O::StructuralScalarFieldStore {
+            destination:
+                abstract_operations::StructuralScalarStoreDestination::OwnedResult { producer, result },
+            ..
+        } = &mut changed.functions[0].blocks[0].nodes[2].operation
+        else {
+            unreachable!()
+        };
+        match mutation {
+            0 => *producer = id(4_707, OperationId::new),
+            1 => result.multiplicity = terminal_psi::StructuralMultiplicity::Unrestricted,
+            _ => result.place = id(4_999, PlaceId::new),
+        }
+        refresh_function_derivatives(&mut changed, 0);
+        assert!(
+            validate_psi_optimization_unit(&changed).is_err(),
+            "owned destination mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn owned_record_scalar_store_rejects_owner_consumed_by_constructor() {
+    let mut unit = owned_record_scalar_store_unit();
+    validate_psi_optimization_unit(&unit).expect("live-owner control");
+    let O::StructuralScalarFieldStore {
+        destination:
+            abstract_operations::StructuralScalarStoreDestination::OwnedResult { result, .. },
+        ..
+    } = unit.functions[0].blocks[0].nodes[2].operation.clone()
+    else {
+        unreachable!()
+    };
+    let (outer_type, field) = unit
+        .structural_types
+        .iter()
+        .find_map(|declaration| {
+            let terminal_psi::StructuralTypeShape::Record { fields } = &declaration.shape else {
+                return None;
+            };
+            fields
+                .iter()
+                .find(|field| {
+                    field.field_type
+                        == terminal_psi::StructuralFieldType::Structural(result.structural_type)
+                })
+                .map(|field| (declaration.id, field.id))
+        })
+        .expect("the existing fixture has an enclosing record");
+    let producer = id(4_902, OperationId::new);
+    let outer = terminal_psi::StructuralOperationResult {
+        place: id(4_903, PlaceId::new),
+        structural_type: outer_type,
+        ..result.clone()
+    };
+    let function = &mut unit.functions[0];
+    function.declared_places.insert(outer.place);
+    function
+        .structural_places
+        .push(terminal_psi::StructuralPlaceDeclaration {
+            id: outer.place,
+            kind: StructuralPlaceKind::OperationResult {
+                producer,
+                structural_type: outer_type,
+            },
+        });
+    let mut consumption = function.blocks[0].nodes[1].clone();
+    consumption.operation = O::EstablishRecord {
+        psi_operation: producer,
+        result: outer.clone(),
+        fields: vec![terminal_psi::RecordFieldInitializer {
+            field,
+            value: terminal_psi::RecordFieldValue::Structural(terminal_psi::StructuralArgument {
+                place: result.place,
+                path: Vec::new(),
+                access: terminal_psi::StructuralAccess::Owned,
+            }),
+        }],
+    };
+    function.blocks[0].nodes.insert(2, consumption);
+    let O::ReturnUnit {
+        cleanup_actions, ..
+    } = &mut function.blocks[0].nodes.last_mut().unwrap().operation
+    else {
+        unreachable!()
+    };
+    *cleanup_actions = vec![terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
+        outer.place,
+    )];
+    refresh_function_derivatives(&mut unit, 0);
+    assert!(matches!(validate_psi_optimization_unit(&unit),
+        Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive { place, .. }) if place == result.place));
+    // Moving the store before the consuming constructor preserves both ordinary
+    // operations and exact final cleanup; only access after transfer is invalid.
+    unit.functions[0].blocks[0].nodes.swap(2, 3);
+    refresh_function_derivatives(&mut unit, 0);
+    validate_psi_optimization_unit(&unit).expect("store before transfer remains valid");
 }

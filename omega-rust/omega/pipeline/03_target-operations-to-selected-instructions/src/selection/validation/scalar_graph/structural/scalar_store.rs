@@ -27,7 +27,7 @@ pub(super) fn validate(
             let signature = source.structural.as_ref().ok_or_else(|| replay.invalid())?;
             let (offset, size, elements) =
                 crate::structural_inputs::structural_reference_input::store(
-                    destination.structural_type,
+                    destination.structural_type(),
                     path,
                     *field,
                     value.scalar_type,
@@ -39,7 +39,13 @@ pub(super) fn validate(
             {
                 return Err(replay.invalid());
             }
-            (destination, value, *byte_offset, *byte_size, indices)
+            (
+                destination.clone(),
+                value,
+                *byte_offset,
+                *byte_size,
+                indices,
+            )
         }
         LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
             destination,
@@ -64,31 +70,47 @@ pub(super) fn validate(
             {
                 return Err(replay.invalid());
             }
-            (destination, value, *byte_offset, *byte_size, indices)
+            (
+                abstract_operations::StructuralScalarStoreDestination::Parameter(
+                    destination.clone(),
+                ),
+                value,
+                *byte_offset,
+                *byte_size,
+                indices,
+            )
         }
         _ => return Err(replay.invalid()),
     };
     let signature = source.structural.as_ref().ok_or_else(|| replay.invalid())?;
-    if row.result.is_some()
-        || !(signature
-            .parameters
-            .iter()
-            .any(|parameter| parameter.semantic == *destination)
-            || destination.access == StructuralAccess::MutableBorrow
-                && crate::selection::address_join_input::join(source, destination.place)
-                    .is_some_and(|(_, parameter)| parameter == destination))
-        || !matches!(
-            destination.access,
-            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-        )
-    {
+    let declared = match &destination {
+        abstract_operations::StructuralScalarStoreDestination::Parameter(parameter) => {
+            (signature
+                .parameters
+                .iter()
+                .any(|declared| declared.semantic == *parameter)
+                || parameter.access == StructuralAccess::MutableBorrow
+                    && crate::selection::address_join_input::join(source, parameter.place)
+                        .is_some_and(|(_, declared)| declared == parameter))
+                && matches!(
+                    parameter.access,
+                    StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                )
+        }
+        abstract_operations::StructuralScalarStoreDestination::OwnedResult { producer, result } => {
+            crate::selection::aggregate_result_input::owned_store_destination(
+                source, *producer, result,
+            )
+        }
+    };
+    if row.result.is_some() || !declared {
         return Err(replay.invalid());
     }
     let pointer = replay
         .transport
         .pointers
         .iter()
-        .find(|(place, _)| *place == destination.place)
+        .find(|(place, _)| *place == destination.place())
         .map(|(_, register)| *register)
         .ok_or_else(|| replay.invalid())?;
     let (_, register, _, scalar) = replay
@@ -100,7 +122,7 @@ pub(super) fn validate(
     let address = super::runtime_address::scale(
         replay,
         row,
-        destination.place,
+        destination.place(),
         byte_offset,
         pointer,
         indices,
@@ -108,7 +130,7 @@ pub(super) fn validate(
     super::runtime_address::footprint(
         replay,
         row,
-        destination.place,
+        destination.place(),
         byte_offset,
         u32::from(byte_size),
         indices,

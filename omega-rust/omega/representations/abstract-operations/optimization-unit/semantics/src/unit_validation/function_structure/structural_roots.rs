@@ -285,7 +285,7 @@ pub(crate) fn validate_structural_root_operations(
                 } => {
                     let parent = super::super::structural_catalog::resolve_structural_path(
                         structural_types,
-                        destination.structural_type,
+                        destination.structural_type(),
                         path,
                     );
                     // The retained store destination must be the complete
@@ -293,28 +293,48 @@ pub(crate) fn validate_structural_root_operations(
                     // supplies its incoming permission, never an entry ABI slot.
                     // Availability above and exclusive-transfer replay below
                     // independently establish dominance and live custody.
-                    let valid = exact_store_destination(destination)
+                    let exact_destination = match destination {
+                        abstract_operations::StructuralScalarStoreDestination::Parameter(parameter) => {
+                            exact_store_destination(parameter)
+                                && matches!(parameter.access, terminal_psi::StructuralAccess::MutableBorrow | terminal_psi::StructuralAccess::WriteOnlyBorrow)
+                                && parameter.qualifications.is_empty()
+                                && parameter.projected_qualifications.is_empty()
+                        }
+                        abstract_operations::StructuralScalarStoreDestination::OwnedResult { producer, result } => {
+                            place_kinds.get(&result.place) == Some(&StructuralPlaceKind::OperationResult { producer: *producer, structural_type: result.structural_type })
+                                && result.claims.is_empty()
+                                && result.qualifications.is_empty()
+                                && result.projected_qualifications.is_empty()
+                                && function.blocks.iter().flat_map(|block| &block.nodes).any(|node| {
+                                    let (operation, actual) = match &node.operation {
+                                        O::EstablishRecord { psi_operation, result, .. }
+                                        | O::EstablishScalarArray { psi_operation, result, .. }
+                                        | O::EstablishScalarCase { psi_operation, result, .. }
+                                        | O::StructuralLeafCopy { psi_operation, result, .. }
+                                        | O::MoveStructuralField { psi_operation, result, .. }
+                                        | O::CallStructural { psi_operation, result, .. }
+                                        | O::BoundaryCall { psi_operation, result: abstract_operations::AbstractBoundaryResult::Structural(result), .. } => (psi_operation, result),
+                                        _ => return false,
+                                    };
+                                    operation == producer && actual == result
+                                })
+                        }
+                    };
+                    let valid = exact_destination
                         && matches!(
-                            destination.multiplicity,
+                            destination.multiplicity(),
                             terminal_psi::StructuralMultiplicity::Unrestricted
                                 | terminal_psi::StructuralMultiplicity::Affine
                         )
-                        && matches!(
-                            destination.access,
-                            terminal_psi::StructuralAccess::MutableBorrow
-                                | terminal_psi::StructuralAccess::WriteOnlyBorrow
-                        )
-                        && destination.qualifications.is_empty()
-                        && destination.projected_qualifications.is_empty()
                         && terminal_psi::is_structural_scalar_store_path(path)
                         && function
                             .entry_claim_declarations
                             .iter()
-                            .all(|claim| claim.input != destination.place)
+                            .all(|claim| claim.input != destination.place())
                         && function
                             .content_entry_claims
                             .iter()
-                            .all(|claim| claim.input.root != destination.place)
+                            .all(|claim| claim.input.root != destination.place())
                         && parent.is_some_and(|parent| {
                             direct_relevant_scalar_field(
                                 structural_types,

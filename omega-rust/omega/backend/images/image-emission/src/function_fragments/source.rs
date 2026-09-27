@@ -420,8 +420,18 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 | AbstractOperation::TrappingInteger { .. } => true,
                 // A static store writes one exact place row; a store through
                 // runtime-selected elements publishes one row per element.
-                AbstractOperation::StructuralScalarFieldStore { psi_operation, destination, .. }
-                | AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, destination, .. } => {
+                AbstractOperation::StructuralScalarFieldStore { psi_operation, destination, .. } => {
+                    if operation.runtime_indices().is_empty() {
+                        selected.memory_accesses.iter().any(|access| {
+                            access.origin == selected_instructions::SelectedMemoryAccessOrigin::Operation(*psi_operation)
+                                && access.place == destination.place()
+                                && access.role == selected_instructions::SelectedMemoryAccessRole::WritePlace
+                        })
+                    } else {
+                        structural_fields::runtime_footprint_retained(operation, &selected.memory_accesses)
+                    }
+                }
+                AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, destination, .. } => {
                     if operation.runtime_indices().is_empty() {
                         selected.memory_accesses.iter().any(|access| {
                             access.origin == selected_instructions::SelectedMemoryAccessOrigin::Operation(*psi_operation)

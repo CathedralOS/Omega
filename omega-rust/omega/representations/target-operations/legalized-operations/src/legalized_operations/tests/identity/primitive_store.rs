@@ -113,7 +113,7 @@ fn primitive_store_references_its_input_and_is_not_a_field_store() {
         panic!("primitive store fixture")
     };
     row.kind = LegalizedScalarInstructionKind::StructuralScalarFieldStore {
-        destination,
+        destination: destination.into(),
         value,
         byte_size,
         path: Vec::new(),
@@ -123,8 +123,10 @@ fn primitive_store_references_its_input_and_is_not_a_field_store() {
     };
     assert_identity_drift(legalized_operation_plan_identity(&plan), &field);
     let field_identity = legalized_operation_plan_identity(&field);
-    let LegalizedScalarInstructionKind::StructuralScalarFieldStore { destination, .. } =
-        &mut field.scalar_functions[0].blocks[0].instructions[0].kind
+    let LegalizedScalarInstructionKind::StructuralScalarFieldStore {
+        destination: abstract_operations::StructuralScalarStoreDestination::Parameter(destination),
+        ..
+    } = &mut field.scalar_functions[0].blocks[0].instructions[0].kind
     else {
         panic!("field store fixture")
     };

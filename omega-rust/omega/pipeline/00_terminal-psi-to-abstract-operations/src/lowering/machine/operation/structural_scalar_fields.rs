@@ -3,7 +3,7 @@
 //! proof reconstruction. A read captures a value; it does not relax the declared
 //! invariant, so stores without their own establishment proof remain rejected.
 
-use abstract_operations::{AbstractOperation, AbstractResult};
+use abstract_operations::{AbstractOperation, AbstractResult, StructuralScalarStoreDestination};
 use semantic_vocabulary::{
     PlaceId, ScalarType, StructuralFieldId, StructuralPlaceKind, StructuralTypeId,
 };
@@ -93,19 +93,22 @@ fn lower_store(
             }
             Some(parameter.clone())
         })
+        .map(StructuralScalarStoreDestination::Parameter)
+        .or_else(|| owned_store_destination(machine, destination))
         .ok_or_else(invalid)?;
     let scalar_type =
         dominating_scalar_type(machine, block, operation.id, value).ok_or_else(invalid)?;
     if operation.result != OperationResult::Unit
         || !matches!(
-            destination.multiplicity,
+            destination.multiplicity(),
             StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
         )
-        || !matches!(
-            destination.access,
-            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-        )
-        || !has_empty_structural_custody(machine, destination.place)
+        || destination.parameter().is_some_and(|parameter| {
+            !matches!(
+                parameter.access,
+                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+            ) || !has_empty_structural_custody(machine, parameter.place)
+        })
         || !terminal_psi::is_structural_scalar_store_path(path)
         || !path
             .iter()
@@ -121,8 +124,9 @@ fn lower_store(
     {
         return Err(invalid());
     }
-    let parent_type = resolve_structural_path(structural_types, destination.structural_type, path)
-        .ok_or_else(invalid)?;
+    let parent_type =
+        resolve_structural_path(structural_types, destination.structural_type(), path)
+            .ok_or_else(invalid)?;
     let declaration = structural_types
         .iter()
         .find(|candidate| candidate.id == parent_type)
@@ -154,6 +158,59 @@ fn lower_store(
         field,
         value: AbstractResult { value, scalar_type },
         range_obligation,
+    })
+}
+
+/// Retain the exact owned producer instead of manufacturing a parameter row.
+fn owned_store_destination(
+    machine: &TerminalMachine,
+    place: PlaceId,
+) -> Option<StructuralScalarStoreDestination> {
+    let mut declarations = machine
+        .structural_places
+        .iter()
+        .filter(|row| row.id == place);
+    let declaration = declarations.next()?;
+    if declarations.next().is_some() {
+        return None;
+    }
+    let StructuralPlaceKind::OperationResult {
+        producer,
+        structural_type,
+    } = declaration.kind
+    else {
+        return None;
+    };
+    let mut operations = machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter(|operation| operation.id == producer);
+    let operation = operations.next()?;
+    if operations.next().is_some() {
+        return None;
+    }
+    let result = operation.result.structural()?;
+    (result.place == place
+        && result.structural_type == structural_type
+        && matches!(
+            result.multiplicity,
+            StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
+        )
+        && result.qualifications.is_empty()
+        && result.projected_qualifications.is_empty()
+        && result.claims.is_empty()
+        && machine
+            .entry_claims
+            .iter()
+            .all(|claim| claim.input != place)
+        && machine
+            .content_entry_claims
+            .iter()
+            .all(|claim| claim.input.root != place))
+    .then(|| StructuralScalarStoreDestination::OwnedResult {
+        producer,
+        result: result.clone(),
     })
 }
 

@@ -496,9 +496,11 @@ pub(super) fn member_place_references(operation: &O, references: &mut BTreeSet<P
             references.insert(*destination);
             references.insert(*source);
         }
-        O::WriteOnlyPrimitiveStore { destination, .. }
-        | O::StructuralScalarFieldStore { destination, .. } => {
+        O::WriteOnlyPrimitiveStore { destination, .. } => {
             references.insert(destination.place);
+        }
+        O::StructuralScalarFieldStore { destination, .. } => {
+            references.insert(destination.place());
         }
         // The three structural-signature call variants whose complete place
         // surface is `structural_arguments`: a dynamic-argument sibling's

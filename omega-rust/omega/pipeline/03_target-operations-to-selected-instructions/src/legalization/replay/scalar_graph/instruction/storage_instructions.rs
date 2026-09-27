@@ -181,7 +181,7 @@ pub(super) fn validate_structural_scalar_field_store(
     let invalid = Error::NonCanonicalLegalizedPlan;
     let (expected_offset, expected_size, elements) =
         crate::structural_inputs::structural_reference_input::store(
-            expected.structural_type,
+            expected.structural_type(),
             expected_path,
             *expected_field,
             expected_value.scalar_type,

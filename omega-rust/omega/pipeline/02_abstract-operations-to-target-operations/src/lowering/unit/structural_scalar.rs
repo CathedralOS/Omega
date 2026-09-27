@@ -31,6 +31,7 @@ pub(in crate::lowering) fn lower_field_store(
     function: &AbstractFunction,
     structural_types: &StructuralTypeLookup<'_>,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
+    structural_homes: &BTreeMap<PlaceId, target_operations::TargetStructuralHomeRequirement>,
     scalar_sources: &crate::lowering::control_flow::scalar_sources::ScalarSources<'_>,
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
@@ -48,59 +49,91 @@ pub(in crate::lowering) fn lower_field_store(
     else {
         unreachable!("projected field-store lowering receives only field stores")
     };
-    if !matches!(
-        destination.access,
-        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-    ) || !terminal_psi::is_structural_scalar_store_path(path)
-    {
+    if !terminal_psi::is_structural_scalar_store_path(path) {
         return Err(LoweringError::UnsupportedOperationInUnitFunction(
             function.machine,
         ));
     }
-    // Entry loans arrive in an ABI placement; state loans arrive in their
-    // own pointer slot. Preserve that origin instead of inventing an entry
-    // parameter placement for a block-local reference.
-    let destination_storage = if function.structural_parameters.contains(destination) {
-        let parameter = parameters_by_place
-            .get(&destination.place)
-            .copied()
-            .filter(|parameter| {
-                parameter.structural_type == destination.structural_type
-                    && parameter.multiplicity == destination.multiplicity
-                    && parameter.access == destination.access
-                    && parameter.projected_qualifications == destination.projected_qualifications
-            })
-            .ok_or(LoweringError::UnsupportedOperationInUnitFunction(
-                function.machine,
-            ))?;
-        target_operations::TargetStructuralArgumentSource::Placement(parameter.placement.clone())
-    } else {
-        let block = function
-            .block_entries
-            .iter()
-            .find(|block| {
-                block.structural_parameters.contains(destination)
-                    && destination.access == StructuralAccess::MutableBorrow
-                    && abstract_operations::control_flow::address_joins::is_address_join(
-                        destination,
-                        |identity| structural_types.get(&identity).copied(),
-                    )
-            })
-            .ok_or(LoweringError::UnsupportedOperationInUnitFunction(
-                function.machine,
-            ))?;
-        target_operations::TargetStructuralArgumentSource::BlockParameter {
-            block: block.block,
-            place: destination.place,
+    let destination_storage = match destination {
+        abstract_operations::StructuralScalarStoreDestination::Parameter(destination) => {
+            if !matches!(
+                destination.access,
+                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+            ) {
+                return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                    function.machine,
+                ));
+            }
+            if function.structural_parameters.contains(destination) {
+                let parameter = parameters_by_place
+                    .get(&destination.place)
+                    .copied()
+                    .filter(|parameter| {
+                        parameter.structural_type == destination.structural_type
+                            && parameter.multiplicity == destination.multiplicity
+                            && parameter.access == destination.access
+                            && parameter.projected_qualifications
+                                == destination.projected_qualifications
+                    })
+                    .ok_or(LoweringError::UnsupportedOperationInUnitFunction(
+                        function.machine,
+                    ))?;
+                target_operations::TargetStructuralArgumentSource::Placement(
+                    parameter.placement.clone(),
+                )
+            } else {
+                let block = function
+                    .block_entries
+                    .iter()
+                    .find(|block| {
+                        block.structural_parameters.contains(destination)
+                            && destination.access == StructuralAccess::MutableBorrow
+                            && abstract_operations::control_flow::address_joins::is_address_join(
+                                destination,
+                                |identity| structural_types.get(&identity).copied(),
+                            )
+                    })
+                    .ok_or(LoweringError::UnsupportedOperationInUnitFunction(
+                        function.machine,
+                    ))?;
+                target_operations::TargetStructuralArgumentSource::BlockParameter {
+                    block: block.block,
+                    place: destination.place,
+                }
+            }
+        }
+        abstract_operations::StructuralScalarStoreDestination::OwnedResult { producer, result } => {
+            let home = structural_homes
+                .get(&result.place)
+                .filter(|home| home.operation_result() == Some((*producer, result)))
+                .ok_or(LoweringError::UnsupportedOperationInUnitFunction(
+                    function.machine,
+                ))?;
+            if home.has_claims()
+                || !home.qualifications().is_empty()
+                || !home.projected_qualifications().is_empty()
+                || !matches!(
+                    home.multiplicity(),
+                    terminal_psi::StructuralMultiplicity::Affine
+                        | terminal_psi::StructuralMultiplicity::Unrestricted
+                )
+            {
+                return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                    function.machine,
+                ));
+            }
+            target_operations::TargetStructuralArgumentSource::StructuralHome {
+                psi_operation: *producer,
+            }
         }
     };
     let destination_shape = super::super::structural_layout::structural_shape(
-        destination.structural_type,
+        destination.structural_type(),
         structural_types,
         shape_cache,
         active,
     )?;
-    // The retained destination and its exact parameter placement select the
+    // The retained destination and its exact storage origin select the
     // write. Additional borrowed inputs do not change that storage authority.
     // A field consumes the same dominating scalar source as a call or edge:
     // Boolean and IEEE results can have homes or block parameters just as
@@ -150,7 +183,7 @@ pub(in crate::lowering) fn lower_field_store(
     // an `(index, stride)` run over its selector's dominating source. The
     // element's bound stays the store's verified obligation.
     let (carrier_type, _, carrier_byte_offset, runs) = runtime_projection(
-        destination.structural_type,
+        destination.structural_type(),
         path,
         structural_types,
         shape_cache,
@@ -178,7 +211,7 @@ pub(in crate::lowering) fn lower_field_store(
                 .is_some_and(|end| end <= u32::from(destination_shape.byte_size))
         })
         .ok_or(LoweringError::StructuralTypeTooLarge(
-            destination.structural_type,
+            destination.structural_type(),
         ))?;
     operations.push(TargetUnitOperation::StructuralScalarFieldStore {
         psi_operation: *psi_operation,

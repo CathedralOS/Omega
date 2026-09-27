@@ -261,7 +261,7 @@ pub(super) fn project_structural_scalar_field_store(
     let kind = {
         let (byte_offset, byte_size, elements) =
             crate::structural_inputs::structural_reference_input::store(
-                destination.structural_type,
+                destination.structural_type(),
                 path,
                 *field,
                 value.scalar_type,

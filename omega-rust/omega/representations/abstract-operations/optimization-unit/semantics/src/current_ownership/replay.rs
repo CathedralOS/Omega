@@ -62,6 +62,27 @@ pub(super) fn validate_current_ownership_cfg(
                 &mut frontier.live_references,
             )?;
 
+            if let O::StructuralScalarFieldStore {
+                destination:
+                    abstract_operations::StructuralScalarStoreDestination::OwnedResult {
+                        result, ..
+                    },
+                ..
+            } = &node.operation
+            {
+                if (result.multiplicity != StructuralMultiplicity::Unrestricted
+                    && frontier.owned_places.get(&result.place) != Some(&result.multiplicity))
+                    || frontier.partial_custody_paths.contains_key(&result.place)
+                {
+                    return Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive {
+                        machine: function.machine,
+                        block: block_id,
+                        node: node_index,
+                        place: result.place,
+                    });
+                }
+            }
+
             if let O::StructuralCase { source, .. }
             | O::StructuralCaseMembership { source, .. }
             | O::IntegerStructuralField { source, .. }

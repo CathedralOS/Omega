@@ -68,9 +68,9 @@ pub(super) fn lower_operation(
         | AbstractOperation::IntegerStructuralField { source, .. }
         | AbstractOperation::BooleanStructuralField { source, .. } => Some(*source),
         AbstractOperation::PrimitiveLocalStore { destination, .. } => Some(*destination),
-        AbstractOperation::WriteOnlyPrimitiveStore { destination, .. }
-        | AbstractOperation::StructuralScalarFieldStore { destination, .. } => {
-            Some(destination.place)
+        AbstractOperation::WriteOnlyPrimitiveStore { destination, .. } => Some(destination.place),
+        AbstractOperation::StructuralScalarFieldStore { destination, .. } => {
+            Some(destination.place())
         }
         AbstractOperation::EstablishPrimitiveLocal { result, .. } => Some(result.place),
         AbstractOperation::MoveStructuralField { source, .. } => Some(source.place),
@@ -565,6 +565,7 @@ pub(super) fn lower_operation(
                 function,
                 structural_types,
                 parameters_by_place,
+                &live.structural_homes,
                 &super::scalar_sources::ScalarSources::from(&*live),
                 &mut BTreeMap::new(),
                 &mut BTreeSet::new(),

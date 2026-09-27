@@ -107,13 +107,13 @@ pub(super) fn runtime_footprint_retained(
             destination,
             value,
             ..
-        }
-        | AbstractOperation::StructuralScalarFieldStore {
+        } => (*psi_operation, destination.place, Some(value.value)),
+        AbstractOperation::StructuralScalarFieldStore {
             psi_operation,
             destination,
             value,
             ..
-        } => (*psi_operation, destination.place, Some(value.value)),
+        } => (*psi_operation, destination.place(), Some(value.value)),
         _ => return false,
     };
     let elements = operation.runtime_indices();

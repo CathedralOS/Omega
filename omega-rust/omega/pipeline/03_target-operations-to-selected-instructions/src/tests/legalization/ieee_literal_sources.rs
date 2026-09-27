@@ -77,7 +77,7 @@ fn fixture(
             AbstractOperation::StructuralScalarFieldStore {
                 range_obligation: None,
                 psi_operation: OperationId::new(2).unwrap(),
-                destination,
+                destination: destination.into(),
                 path: Vec::new(),
                 field,
                 value: AbstractResult { value, scalar_type },

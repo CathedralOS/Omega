@@ -613,8 +613,40 @@ pub(super) fn validate(
         }
         if let AbstractOperation::StructuralScalarFieldStore {
             destination, value, ..
+        } = &node.operation
+        {
+            let declared = match destination {
+                abstract_operations::StructuralScalarStoreDestination::Parameter(parameter) => {
+                    (optimized.structural_parameters.contains(parameter)
+                        || parameter.access == terminal_psi::StructuralAccess::MutableBorrow
+                            && optimized
+                                .blocks
+                                .iter()
+                                .any(|block| block.structural_parameters.contains(parameter)))
+                        && matches!(
+                            parameter.access,
+                            terminal_psi::StructuralAccess::MutableBorrow
+                                | terminal_psi::StructuralAccess::WriteOnlyBorrow
+                        )
+                }
+                abstract_operations::StructuralScalarStoreDestination::OwnedResult {
+                    producer,
+                    result,
+                } => super::structural_case::source_result(optimized, result.place).is_ok_and(
+                    |(operation, declared)| operation == *producer && declared == result,
+                ),
+            };
+            if result.is_some()
+                || !node.definitions.is_empty()
+                || !declared
+                || value_type(optimized, value.value) != Some(value.scalar_type)
+                || scalar_shape(value.scalar_type).is_none()
+            {
+                return Err(LegalizationError::custody());
+            }
+            continue;
         }
-        | AbstractOperation::WriteOnlyPrimitiveStore {
+        if let AbstractOperation::WriteOnlyPrimitiveStore {
             destination, value, ..
         } = &node.operation
         {
