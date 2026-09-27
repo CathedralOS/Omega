@@ -1,5 +1,38 @@
 # Release tooling
 
+## GitHub draft prereleases
+
+`.github/workflows/release.yml` builds and validates Windows x64, macOS ARM64,
+and Linux x64/ARM64 on separate native runners. Dispatch **Release bundles**
+on `main` with a new tag such as `v0.1.0-alpha.1`, or push that prerelease tag
+for a commit already on `main`. It accepts only explicit alpha/beta/rc versions.
+
+Every build checks out the same exact commit and runs the packager below. Only
+after all four pass does the publication job verify the complete asset set,
+create the tag if needed, and create a **draft prerelease**. Four fresh runners
+then download its actual GitHub assets, verify hashes and exact identities, and
+repeat the installed-product smoke with no toolchain on PATH or preexisting
+package cache. A final job records successful verification in the draft notes.
+The release stays draft for human review; the workflow never publishes it publicly.
+
+```sh
+gh workflow run release.yml --ref main -f tag=v0.1.0-alpha.1
+gh run list --workflow release.yml
+```
+
+Existing releases and conflicting tags reject, never overwrite. Failure before
+publication creates no release; failure afterwards leaves a draft explicitly
+marked pending validation. Fixes use a new prerelease version rather than moving
+a tag or replacing distributed bytes. Build jobs have read-only repository
+permissions; only draft creation and verification-note update have write access.
+Action dependencies are pinned by commit. These jobs do not implement installers
+or change `omega update`, which remains the package-update command.
+
+The hosted matrix is an installation test, not the compiler-completion matrix.
+Release notes identify its tested hosts and known Windows Git-cache limitation.
+Broader OS compatibility, code signing, dependency-license review and installer
+channels remain release-distribution work, not claims made by the smoke tests.
+
 ## Build a relocatable bundle
 
 From a clean checkout, on the host you are distributing:
