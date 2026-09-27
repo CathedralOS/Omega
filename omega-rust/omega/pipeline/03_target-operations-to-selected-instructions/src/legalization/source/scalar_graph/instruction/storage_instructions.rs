@@ -545,6 +545,7 @@ pub(super) fn project_element_view_read(
         index,
         length,
         obligation,
+        path,
         ..
     } = &node.operation
     else {
@@ -566,6 +567,7 @@ pub(super) fn project_element_view_read(
             length: *length,
             obligation: *obligation,
             accepted_fact: fact.identity,
+            path: path.clone(),
         }
     };
     Ok(kind)

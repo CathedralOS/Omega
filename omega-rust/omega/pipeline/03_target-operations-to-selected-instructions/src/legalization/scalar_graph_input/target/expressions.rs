@@ -110,12 +110,17 @@ impl Checker<'_> {
                         AbstractOperation::ByteSequenceLength { psi_operation: operation, result, source: expected }
                         if operation == psi_operation && result.value == resolved && expected == source))
             }
-            Expression::ElementViewRead { psi_operation, source_value, source, view, index, length, obligation } => {
+            Expression::ElementViewRead { psi_operation, source_value, source, view, index, length, obligation, path, element_byte_offset } => {
                 *source_value == resolved
                     && self.element_view(view, *source, aliases)
                     && self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
-                        AbstractOperation::ElementViewRead { psi_operation: operation, result, source: expected, index: expected_index, length: expected_length, obligation: expected_obligation }
+                        AbstractOperation::ElementViewRead { psi_operation: operation, result, source: expected, index: expected_index, length: expected_length, obligation: expected_obligation, path: expected_path }
                         if operation == psi_operation && result.value == resolved && expected == source
+                        && path == expected_path
+                        && super::super::byte_views::element_type(self.optimized, *source, self.types)
+                            .and_then(|element| crate::structural_inputs::structural_reference_input::element_leaf_geometry(
+                                element, path, result.scalar_type, self.types))
+                            .is_some_and(|(offset, _)| offset == *element_byte_offset)
                         && length == expected_length && obligation == expected_obligation && self.integer_source(index, *expected_index, aliases)))
             }
             Expression::ElementViewLength { psi_operation, source_value, source, view, length_byte_offset } => {

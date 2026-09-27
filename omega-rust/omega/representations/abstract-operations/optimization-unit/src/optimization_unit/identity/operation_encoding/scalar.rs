@@ -146,6 +146,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             index,
             length,
             obligation,
+            path,
         } => {
             bytes.u8(87);
             bytes.id(*psi_operation);
@@ -154,6 +155,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.id(*index);
             bytes.id(*length);
             bytes.id(*obligation);
+            bytes.slice(path, encode_structural_path_segment);
         }
         O::IntegerConstant {
             psi_operation,

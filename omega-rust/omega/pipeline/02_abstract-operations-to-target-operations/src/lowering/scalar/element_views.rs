@@ -2,7 +2,9 @@
 use super::{KnownInteger, KnownScalar};
 use crate::LoweringError;
 use crate::lowering::scalar::expressions::insert_value;
-use crate::lowering::structural_layout::resolve_structural_field_path;
+use crate::lowering::structural_layout::{
+    direct_scalar_field_offset, resolve_structural_field_path, resolve_structural_projection_path,
+};
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use calling_conventions::ValueShape;
@@ -121,14 +123,19 @@ pub(in crate::lowering) fn lower_element_observation_with_lengths(
             index,
             length,
             obligation,
+            path,
             ..
         } => {
-            if !observes_length(values, lengths, *length, source)
-                || element_scalar_type(structural_types, view_structural_type)
-                    != Some(ScalarType::Integer(scalar_type))
-            {
+            if !observes_length(values, lengths, *length, source) {
                 return Err(invalid());
             }
+            let element_byte_offset = element_leaf_offset(
+                structural_types,
+                view_structural_type,
+                path,
+                result.scalar_type,
+            )
+            .ok_or_else(invalid)?;
             let Some(KnownScalar::Integer {
                 scalar_type: index_type,
                 value: index_value,
@@ -147,6 +154,8 @@ pub(in crate::lowering) fn lower_element_observation_with_lengths(
                 index: Box::new(index_value.clone().into_expression(*index)),
                 length: *length,
                 obligation: *obligation,
+                path: path.clone(),
+                element_byte_offset,
             }
         }
         _ => return Ok(false),
@@ -163,12 +172,14 @@ pub(in crate::lowering) fn lower_element_observation_with_lengths(
     Ok(true)
 }
 
-/// The declared element scalar type of one element-view descriptor type, when
-/// that element is a primitive scalar.
-fn element_scalar_type(
+/// The index advances by whole elements; the static path selects bytes inside
+/// that element. A scalar field need not have a standalone type declaration.
+fn element_leaf_offset(
     structural_types: &StructuralTypeLookup<'_>,
     view_structural_type: StructuralTypeId,
-) -> Option<ScalarType> {
+    path: &[StructuralPathSegment],
+    scalar: ScalarType,
+) -> Option<u32> {
     let StructuralTypeDeclaration {
         shape: StructuralTypeShape::ElementView { element },
         ..
@@ -176,10 +187,46 @@ fn element_scalar_type(
     else {
         return None;
     };
-    match structural_types.get(element)?.shape {
-        StructuralTypeShape::PrimitiveScalar(scalar) => Some(scalar),
-        _ => None,
+    if terminal_semantics::element_view_leaf_scalar(
+        structural_types.catalog().as_slice(),
+        *element,
+        path,
+    ) != Some(scalar)
+    {
+        return None;
     }
+    if path.is_empty() {
+        return Some(0);
+    }
+    let mut cache = BTreeMap::new();
+    let mut active = BTreeSet::new();
+    if let Some((StructuralPathSegment::Field(identity), prefix)) = path.split_last() {
+        let (parent, parent_offset) = if prefix.is_empty() {
+            (*element, 0)
+        } else {
+            let (parent, _, offset) = resolve_structural_projection_path(
+                *element,
+                prefix,
+                structural_types,
+                &mut cache,
+                &mut active,
+            )
+            .ok()?;
+            (parent, offset)
+        };
+        let StructuralTypeShape::Record { fields } = &structural_types.get(&parent)?.shape else {
+            return None;
+        };
+        let field = fields.iter().find(|field| field.identity == *identity)?;
+        if field.field_type.scalar_type() == Some(scalar) {
+            return parent_offset.checked_add(
+                direct_scalar_field_offset(parent, field.id, scalar, structural_types).ok()?,
+            );
+        }
+    }
+    resolve_structural_projection_path(*element, path, structural_types, &mut cache, &mut active)
+        .ok()
+        .map(|(_, _, offset)| offset)
 }
 
 /// Resolve one element-view place's descriptor identity: signature or

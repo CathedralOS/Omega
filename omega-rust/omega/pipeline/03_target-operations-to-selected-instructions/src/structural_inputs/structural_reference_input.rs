@@ -877,6 +877,36 @@ pub(crate) fn store(
     scalar_field_geometry(root, path, field, scalar, declarations, false)
 }
 
+/// Independently reconstruct the scalar leaf's offset and width inside one
+/// element. The descriptor's element stride is not the width of this access.
+pub(crate) fn element_leaf_geometry(
+    element: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    scalar: ScalarType,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<(u32, u8)> {
+    if terminal_semantics::element_view_leaf_scalar(declarations, element, path) != Some(scalar) {
+        return None;
+    }
+    if let Some((StructuralPathSegment::Field(identity), prefix)) = path.split_last() {
+        let (parent, _) = project(element, prefix, declarations)?;
+        let StructuralTypeShape::Record { fields } = &declarations
+            .iter()
+            .find(|declaration| declaration.id == parent)?
+            .shape
+        else {
+            return None;
+        };
+        let field = fields.iter().find(|field| field.identity == *identity)?;
+        if field.field_type.scalar_type() == Some(scalar) {
+            return scalar_field_geometry(element, prefix, field.id, scalar, declarations, false)
+                .map(|(offset, bytes, _)| (offset, bytes));
+        }
+    }
+    primitive_geometry(element, path, scalar, declarations)
+        .map(|(offset, bytes, _)| (offset, bytes))
+}
+
 /// Reads and proven writes share carrier geometry. Neither this layout nor a
 /// constructor/entry range proof supplies the separate authority for a write.
 fn scalar_field_geometry(

@@ -315,12 +315,14 @@ pub(super) fn validate_element_view_read(
             length,
             obligation,
             accepted_fact,
+            path,
         },
         AbstractOperation::ElementViewRead {
             source: expected_source,
             index: expected_index,
             length: expected_length,
             obligation: expected_obligation,
+            path: expected_path,
             ..
         },
     ) = (&actual.kind, &node.operation)
@@ -328,7 +330,8 @@ pub(super) fn validate_element_view_read(
         unreachable!("dispatched validate_element_view_read")
     };
     let invalid = Error::NonCanonicalLegalizedPlan;
-    if source != expected_source
+    if path != expected_path
+        || source != expected_source
         || index != expected_index
         || length != expected_length
         || obligation != expected_obligation

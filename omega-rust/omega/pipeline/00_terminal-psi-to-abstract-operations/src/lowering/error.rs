@@ -42,10 +42,6 @@ pub enum LoweringError {
     /// A verified Trapping primitive's operands did not rejoin its result
     /// carrier, or a shift count or conversion source was not an integer.
     VerifiedTrappingIntegerMalformed(semantic_vocabulary::OperationId),
-    /// Terminal verifies an element-view read of a record element's scalar
-    /// leaf (`view[i].value`), but Omega's abstract element read addresses a
-    /// scalar element by index and stride only; it has no field leaf yet.
-    UnsupportedElementViewFieldRead(semantic_vocabulary::OperationId),
     /// A verified atomic access whose root is not a machine structural
     /// parameter: a block parameter may alias the same storage under another
     /// place identity, splitting one modification order in two.

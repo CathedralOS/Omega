@@ -475,6 +475,7 @@ pub enum LegalizedScalarInstructionKind {
         length: ValueId,
         obligation: semantic_vocabulary::ObligationId,
         accepted_fact: optimization_core::AcceptedObligationFactIdentity,
+        path: Vec<terminal_psi::StructuralPathSegment>,
     },
     ElementViewLength {
         source: semantic_vocabulary::PlaceId,

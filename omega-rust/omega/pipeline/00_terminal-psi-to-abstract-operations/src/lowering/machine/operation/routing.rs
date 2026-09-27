@@ -302,11 +302,6 @@ pub(super) fn lower(
             obligation,
             path,
         } => {
-            // Native element reads address a scalar element by index and
-            // stride; a record element's field leaf has no abstract read yet.
-            if !path.is_empty() {
-                return Err(LoweringError::UnsupportedElementViewFieldRead(operation.id));
-            }
             let result = operation
                 .result
                 .scalar()
@@ -321,6 +316,7 @@ pub(super) fn lower(
                 index: *index,
                 length: *length,
                 obligation: *obligation,
+                path: path.clone(),
             })
         }
         OperationKind::ElementViewSubslice {

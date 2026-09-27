@@ -374,6 +374,7 @@ fn validate_surviving_byte_operations(
                     index,
                     length,
                     obligation,
+                    path,
                     ..
                 } => (
                     terminal_psi::OperationResult::Scalar(terminal_psi::ValueDeclaration {
@@ -386,7 +387,7 @@ fn validate_surviving_byte_operations(
                         index: *index,
                         length: *length,
                         obligation: *obligation,
-                        path: Vec::new(),
+                        path: path.clone(),
                     },
                 ),
                 // The abstract read keeps Terminal's exact path; each runtime

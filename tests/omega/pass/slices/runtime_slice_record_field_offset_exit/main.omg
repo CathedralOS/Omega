@@ -1,0 +1,32 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Entry {
+    prefix: u64;
+    value: i16;
+    suffix: u32;
+}
+
+data Main {
+    console: Binding<Console>;
+    entries: [Entry; 2];
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.entries[0].value = 11;
+    self.entries[1].prefix = 123;
+    self.entries[1].value = 29;
+    self.entries[1].suffix = 456;
+    let entry_view: &[Entry] = self.entries.as_slice();
+    let index: u64 = 1;
+    transition entry_view[index].value == 29 {
+        true -> good()
+        false -> bad()
+    }
+    state good(&mut self) {
+        self.console.exit_process(61);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(62);
+    }
+}

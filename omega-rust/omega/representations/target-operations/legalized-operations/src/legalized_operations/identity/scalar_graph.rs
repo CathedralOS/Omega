@@ -511,6 +511,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     length,
                     obligation,
                     accepted_fact,
+                    path,
                 } => {
                     bytes.push(42);
                     bytes.extend_from_slice(&source.get().to_le_bytes());
@@ -518,6 +519,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     bytes.extend_from_slice(&length.get().to_le_bytes());
                     bytes.extend_from_slice(&obligation.get().to_le_bytes());
                     bytes.extend_from_slice(&accepted_fact.bytes());
+                    super::structural_types::encode_structural_path(bytes, path);
                 }
                 LegalizedScalarInstructionKind::ElementViewLength {
                     source,

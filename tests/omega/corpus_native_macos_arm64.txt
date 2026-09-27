@@ -813,13 +813,13 @@ pass/slices/runtime_slice_index_copy_dispatch_exit rejected 483ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 1, statement 3)
 pass/slices/runtime_slice_index_copy_exit rejected 492ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 0, statement 3)
-pass/slices/runtime_slice_index_read_dispatch_exit rejected 494ms
-	native artifact native artifact lowering failed: Lowering(UnsupportedElementViewFieldRead(OperationId(6)))
+pass/slices/runtime_slice_index_read_dispatch_exit built 683ms exit:43
 pass/slices/runtime_slice_index_transition_exit rejected 415ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 1, statement 0)
 pass/slices/runtime_slice_indexed_read_exit built 689ms exit:70
 pass/slices/runtime_slice_iteration_exit rejected 810ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 1, statement 0)
+pass/slices/runtime_slice_record_field_offset_exit built 684ms exit:61
 pass/slices/runtime_subslice_dynamic_index_exit rejected 461ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::main`), which was itself omitted at an unavailable callee (`Main::main`) (dependency cycle)
 pass/slices/runtime_subslice_len_exit rejected 449ms
@@ -835,8 +835,7 @@ pass/storage/runtime_alias_field_binary checked 217ms
 pass/storage/runtime_alias_integer_write checked 190ms
 pass/storage/runtime_local_slice_forward_exit rejected 449ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural result shape` (state 0, statement 1)
-pass/storage/runtime_machine_owned_indexed_integer_write_exit rejected 516ms
-	native artifact native artifact lowering failed: Lowering(UnsupportedElementViewFieldRead(OperationId(6)))
+pass/storage/runtime_machine_owned_indexed_integer_write_exit built 683ms exit:79
 pass/storage/runtime_machine_owned_indexed_struct_copy_exit rejected 480ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: record literal source` (state 0, statement 2)
 pass/structs/affine_record_state_clone built 967ms exit:70
