@@ -324,8 +324,21 @@ backend-visible; full corpus runs only at the end of an item.
   the float range inside a RECORD, so the shell need not be the attached
   type's own field list. The fifth,
   `pass/generics/runtime_const_container_methods_exit`, has no float at all
-  (`FixedBuffer<2>`, `FixedBuffer<4>`) and is a different, unattributed
-  cause. Acceptance: the pending fixture checks and those four move.
+  and is now ATTRIBUTED: a const generic parameter carrying a bracketed
+  RANGE (`const N: u64[1..=..]`) makes the machine unplannable at the same
+  phase. Pinned at
+  `tests/omega/pending/generics/ranged_const_parameter_attached_shape`. Its
+  element policy is ruled out and that matters -- the fixture declares
+  `items: [i32 in Wrapping; N]` and reads exactly like the member-policy
+  family, but the policy element checks on its own and the PLAIN element
+  with a ranged const parameter omits.
+  PAIRED, not merged. Both triggers are a bracketed range the attached shape
+  must represent, the natural hypothesis for one limitation in
+  `shapes.add_attached_application`. But an INTEGER FIELD range
+  (`value: i32 [0..=10]`) CHECKS, so "ranges in the attached shape" is too
+  broad; settle what admits that one and refuses these two before repairing
+  either. Acceptance: both pending fixtures check and all five corpus rows
+  move, which empties this phase.
 
 - **VALUE-CALL-SUBEXPRESSION.** (new-scope) A value (machine) call omits
   whenever it is not the ROOT of the expression its construction site lowers;
