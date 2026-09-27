@@ -12,7 +12,7 @@ use typed_trees::{
 /// settled ProviderPlan; Psi prepares the execution row and independently
 /// rechecks the exact authored selection, operand custody, provider ownership,
 /// and executable entry before binding it. Execution never fabricates a
-/// result: [`apply_selected_provider_bodies`] rebinds the authored expression
+/// result: [`prepare_selected_execution`] rebinds the authored expression
 /// to the exact provider entry state on a private evaluation copy -- the same
 /// ordinary call shape checked-side settlement publishes -- so the checked
 /// interpreter runs the real provider body and the caller's result is
@@ -82,17 +82,37 @@ impl SelectedBuildTimeProviderBody {
     }
 }
 
-/// Rebind each retained provider-body occurrence to its exact selected entry
-/// state on a private evaluation copy. The caller's tree is never rewritten:
+/// Prepare selected checked-body calls and primitive Float operations on one
+/// private evaluation copy, only when rewriting is necessary. The caller's tree is never rewritten:
 /// the private program is the only thing admission and interpretation see, so
 /// the provider body joins the ordinary call closure (termination, suspension,
 /// blocking, linear carriers, and selection authority all apply unchanged) and
 /// executes through `ExpressionNode::Call` like any other machine call.
-pub(crate) fn apply_selected_provider_bodies(
+pub(crate) fn prepare_selected_execution(
     program: &TypedTrees,
     selected: &[SelectedBuildTimeProviderBody],
-) -> Result<TypedTrees, String> {
+    operators: &[SelectedBuildTimeBinaryOperator],
+) -> Result<Option<TypedTrees>, String> {
     validate_selected_provider_bodies(program, selected)?;
+    validate_selected_operators(program, operators)?;
+    if operators.iter().any(|operator| {
+        selected.iter().any(|body| {
+            body.expression == operator.expression
+                && body.origin.machine_symbol() == operator.origin.machine_symbol()
+        })
+    }) {
+        return Err("selected build-time expression has competing executable supplies".into());
+    }
+    if selected.is_empty()
+        && operators.iter().all(|row| {
+            matches!(
+                program.expression_table.expression(row.expression),
+                ExpressionNode::Binary(_)
+            )
+        })
+    {
+        return Ok(None);
+    }
     let mut program = program.clone();
     for row in selected {
         let provider_name = program
@@ -124,7 +144,18 @@ pub(crate) fn apply_selected_provider_bodies(
                     },
             });
     }
-    Ok(program)
+    // Named and normalized Float calls use the same interpreter kernel as
+    // spelled uses. Preserve expression identity and authored selection records;
+    // only the private execution graph loses the bodyless requirement call.
+    for row in operators {
+        *program.expression_table.expression_mut(row.expression) =
+            ExpressionNode::Binary(typed_trees::expression::TableBinaryExpression {
+                left: row.operands[0],
+                operator: row.operation,
+                right: row.operands[1],
+            });
+    }
+    Ok(Some(program))
 }
 
 /// Independently check each supplied provider-body row against the current
@@ -519,43 +550,62 @@ pub fn validate_selected_operators(
         {
             return Err("selected build-time operator lacks unique exact provider custody".into());
         }
-        // The evaluator frame addresses an expression within its machine.
-        // Reject current cross-origin aliasing as well as duplicate supplied
-        // rows, so another state cannot borrow this occurrence's execution.
-        if facts
+        // All source forms address the same expression in its owning frame.
+        // Count unresolved and cross-arena occurrences too: neither can borrow
+        // another occurrence's supplied execution.
+        let occurrences = facts
             .uses
             .iter()
             .filter(|(_, fact)| {
-                fact.expression == row.expression
-                    && fact.occurrence == checked_trees::CheckedOperatorOccurrence::Expression
-                    && fact.origin.machine_symbol() == row.origin.machine_symbol()
+                fact.occurrence == checked_trees::CheckedOperatorOccurrence::Expression
             })
-            .count()
-            != 1
-        {
+            .map(|(_, fact)| (fact.expression, fact.origin))
+            .chain(
+                facts
+                    .named_uses()
+                    .map(|fact| (fact.expression, fact.origin)),
+            )
+            .chain(
+                facts
+                    .named_requirement_uses()
+                    .map(|fact| (fact.expression, fact.origin)),
+            )
+            .filter(|(expression, origin)| {
+                *expression == row.expression
+                    && origin.machine_symbol() == row.origin.machine_symbol()
+            })
+            .count();
+        if occurrences != 1 {
             return Err(
                 "selected build-time expression is shared by distinct current origins".into(),
             );
         }
-        let matching: Vec<_> = facts
-            .uses_with_status(checked_trees::CheckedOperatorResolutionStatus::Resolved)
-            .filter(|fact| {
-                fact.expression == row.expression
-                    && fact.origin == row.origin
-                    && fact.occurrence == checked_trees::CheckedOperatorOccurrence::Expression
-            })
-            .collect();
-        let [fact] = matching.as_slice() else {
+        let mut matching =
+            facts
+                .resolved_expression_selections()
+                .filter(|(expression, origin, _, _)| {
+                    *expression == row.expression && *origin == row.origin
+                });
+        let (Some((_, _, requirement, policy)), None) = (matching.next(), matching.next()) else {
             return Err("selected build-time operator has no unique current use".into());
         };
-        if fact.selected_operator_symbol != row.requirement || fact.policy_adapter != row.policy {
+        if requirement != row.requirement || policy != row.policy {
             return Err("selected build-time operator differs from current requirement or arithmetic policy".into());
         }
-        let ExpressionNode::Binary(binary) = program.expression_table.expression(row.expression)
-        else {
-            return Err("selected build-time binary expression disappeared".into());
+        let operands = match program.expression_table.expression(row.expression) {
+            ExpressionNode::Binary(binary) if binary.operator == row.operation => {
+                [binary.left, binary.right]
+            }
+            ExpressionNode::Call(call) => {
+                let [left, right] = program.expression_table.expression_handles(call.arguments)
+                else {
+                    return Err("selected build-time binary requirement has wrong arity".into());
+                };
+                [*left, *right]
+            }
+            _ => return Err("selected build-time binary expression disappeared".into()),
         };
-        if binary.operator != row.operation || [binary.left, binary.right] != row.operands {
+        if operands != row.operands {
             return Err(
                 "selected build-time operation differs from current authored selection".into(),
             );
@@ -563,11 +613,37 @@ pub fn validate_selected_operators(
         let matching: Vec<_> = program
             .operators()
             .iter()
+            .chain(program.machine_token_bindings())
             .filter(|operator| operator.symbol == row.requirement)
             .collect();
         let [operator] = matching.as_slice() else {
             return Err("selected build-time requirement is not unique".into());
         };
+        if let Some(requirement) = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == row.requirement)
+        {
+            let [entry] = program.machine_states(requirement) else {
+                return Err("selected build-time Float requirement has no unique entry".into());
+            };
+            if requirement.supply_mode != language_semantics::MachineSupplyMode::TopLevelRequirement
+                || requirement.body_is_present
+                || requirement.spelling != operator.spelling
+                || entry.parameters != operator.parameters
+                || entry.return_type != operator.return_type
+                || requirement.type_parameters != operator.type_parameters
+                || requirement.contracts != operator.contracts
+                || program
+                    .state_parameters(entry)
+                    .iter()
+                    .any(|parameter| parameter.is_self)
+            {
+                return Err(
+                    "selected build-time token view differs from its actual requirement".into(),
+                );
+            }
+        }
         if typed_trees::operator::primitive_float_binary_semantics(program, operator)
             != Some((row.operation, row.format))
         {

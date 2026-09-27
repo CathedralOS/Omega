@@ -215,6 +215,150 @@ fn fixture(namespace: &str) -> (TypedTrees, Vec<SelectedBuildTimeBinaryOperator>
     fixture_with_receiver(namespace, "data Main { bytes:[u8;length()]; }")
 }
 
+#[test]
+fn selected_float_calls_execute_and_replay_their_source_policy() {
+    for (introducer, invocation, overloads) in [
+        ("operator", "Float::multiply(left, right)", ""),
+        ("machine", "left * right", ""),
+        ("machine", "Float::multiply(left, right)", ""),
+        (
+            "machine",
+            "Float::multiply(left, right)",
+            "boundary machine * Float::multiply(left:f32, right:f32) -> f32; machine Other::multiply(format:u8, left:f64, right:f64) -> f64 { left }",
+        ),
+    ] {
+        let source = format!(
+            r#"
+pub boundary {introducer} * Float::multiply(left:f64, right:f64) -> f64;
+pub boundary {introducer} == Float::equal(left:f64, right:f64) -> bool;
+{overloads}
+machine length() -> u64 {{
+    let left:f64 in Saturating = 2.0;
+    let right:f64 in Saturating = 3.0;
+    let product:f64 = ({invocation}) as f64;
+    transition product == 6.0 {{ true -> 4 _ -> 5 }}
+}}
+data Main {{ bytes:[u8;length()]; }}
+"#
+        );
+        let mut typed = crate::front_end::typed_program(&source);
+        validation::land_float_literal_destinations(&mut typed);
+        let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(&typed);
+        let rows: Vec<_> = facts
+            .resolved_expression_selections()
+            .map(|(expression, origin, requirement, policy)| {
+                SelectedBuildTimeBinaryOperator::prepare(
+                    &typed,
+                    expression,
+                    origin,
+                    requirement,
+                    policy,
+                    checked_trees::CheckedProviderPlanCommitment::from_digest([1; 32]),
+                )
+                .unwrap()
+            })
+            .collect();
+        assert_eq!(rows.len(), 2, "{introducer}: {invocation}");
+        assert!(
+            rows.iter()
+                .all(|row| row.format == numerics::literals::FloatFormat::F64)
+        );
+        let multiply = rows
+            .iter()
+            .find(|row| row.operation == typed_trees::expression::BinaryOperator::Multiply)
+            .unwrap();
+        assert_eq!(
+            multiply.policy,
+            checked_trees::CheckedArithmeticPolicyAdapter::FloatSaturatingOverflowOnly {
+                format: numerics::float_semantics::FloatFormat::BINARY64,
+            }
+        );
+        let folds = evaluate_selected_array_lengths(
+            &mut typed,
+            None,
+            SelectedBuildTimeOperators {
+                operators: &rows,
+                provider_bodies: &[],
+            },
+        )
+        .unwrap_or_else(|error| panic!("{introducer}: {invocation}: {error:?}"));
+        assert_eq!(folds[0].value, 4);
+        let mut checked = typed_trees_to_checked_trees::lower_typed_trees(
+            typed,
+            &typed_trees_to_checked_trees::CheckingRequest::settled(),
+        )
+        .unwrap_or_else(|error| panic!("{introducer}: {invocation}: {error:?}"));
+        validate_folded_array_lengths(&checked, &folds, &rows, &[], None).unwrap();
+        if introducer == "machine" {
+            let mut stale = checked.typed.clone();
+            stale
+                .machines_mut()
+                .iter_mut()
+                .find(|machine| machine.symbol == multiply.requirement)
+                .unwrap()
+                .spelling = None;
+            assert!(
+                crate::validate_selected_operators(&stale, &rows)
+                    .unwrap_err()
+                    .contains("token view differs from its actual requirement")
+            );
+        }
+        let wrong_policy = checked_trees::CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite {
+            format: numerics::float_semantics::FloatFormat::BINARY64,
+        };
+        if introducer == "machine" {
+            let handle = checked
+                .facts
+                .operators
+                .named_requirement_uses
+                .iter()
+                .next()
+                .unwrap()
+                .0;
+            checked
+                .facts
+                .operators
+                .named_requirement_uses
+                .get_mut(handle)
+                .policy_adapter = wrong_policy;
+        } else {
+            let handle = checked.facts.operators.named_uses.iter().next().unwrap().0;
+            checked
+                .facts
+                .operators
+                .named_uses
+                .get_mut(handle)
+                .policy_adapter = wrong_policy;
+        }
+        let diagnostics =
+            validate_folded_array_lengths(&checked, &folds, &rows, &[], None).unwrap_err();
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .to_string()
+                .contains("differs from final checked requirement or arithmetic policy")),
+            "{diagnostics:?}"
+        );
+    }
+
+    let ordinary = crate::front_end::typed_program(
+        "machine unchanged(value:f64) -> f64 { value }
+         machine caller(value:f64 in Saturating) -> f64 { unchanged(value) }",
+    );
+    let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(
+        ordinary,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap_err();
+    for rejection in ["implicitly converts", "implicit domain weakening"] {
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.to_string().contains(rejection)),
+            "ordinary calls must retain their carrier and domain checks: {diagnostics:?}"
+        );
+    }
+}
+
 fn fixture_with_receiver(
     namespace: &str,
     receiver: &str,

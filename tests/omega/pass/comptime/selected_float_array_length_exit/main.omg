@@ -1,0 +1,26 @@
+use omega::language::core::float_operations;
+use omega::language::core::binding;
+use omega_language_std::console;
+
+// Named and spelled uses execute their selected primitive Float meanings
+// while the array type is evaluated. Runtime indexing consumes that result.
+machine slot_count() -> u64 {
+    let half: f32 in Saturating = 0.5f32;
+    let whole: f32 = Float::add(half, half) as f32;
+    transition whole == 1.0f32 { true -> 8 _ -> 0 }
+}
+
+data Main {
+    console: Binding<Console>;
+    slots: [u8; slot_count()];
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.slots[7] = 63;
+    transition self.slots[7] == 63 {
+        true -> good()
+        false -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

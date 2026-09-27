@@ -473,9 +473,9 @@ pub(crate) fn validate_call_arguments_handles(
 }
 
 /// Whether a call to this state retains its arguments' arithmetic policy the
-/// way a named `F32::`/`F64::` float operator use does: the callee is a
-/// public nongeneric receiver-free top-level `boundary requirement` whose path
-/// starts with `F32::` or `F64::` and whose result is f32 or f64. Both
+/// way a named primitive `Float::`, `F32::` or `F64::` operator use does: the
+/// callee is a public nongeneric receiver-free top-level requirement whose path
+/// identifies a float operation and whose result is f32 or f64. Both
 /// spellings of one float requirement adapt policy-qualified operands through
 /// the selected provider; an ordinary machine still weakens nothing implicitly.
 pub(crate) fn float_requirement_retains_argument_policy(
@@ -492,7 +492,12 @@ pub(crate) fn float_requirement_retains_argument_policy(
         && callee_machine.lifetime_parameters.is_empty()
         && program.machine_type_parameters(callee_machine).is_empty()
         && (callee_machine.name.as_str().starts_with("F32::")
-            || callee_machine.name.as_str().starts_with("F64::"))
+            || callee_machine.name.as_str().starts_with("F64::")
+            || typed_trees::operator::declaration_by_symbol(program, callee_machine.symbol)
+                .is_some_and(|operator| {
+                    typed_trees::operator::primitive_float_binary_semantics(program, operator)
+                        .is_some()
+                }))
         && float_result
         && matches!(program.machine_states(callee_machine), [entry] if entry.symbol == callee_state.symbol)
         && !program
@@ -797,6 +802,7 @@ fn validate_call_arguments_with_type_correspondence(
                 *argument,
                 parameter,
                 target_name,
+                retain_arithmetic_policy,
                 diagnostics,
             );
         }
@@ -988,6 +994,8 @@ fn validate_value_call_argument_classes(
         )));
     }
 
+    let retain_arithmetic_policy =
+        float_requirement_retains_argument_policy(program, callee_machine, callee_state);
     for (argument, parameter) in arguments.iter().zip(
         program
             .state_parameters(callee_state)
@@ -1057,6 +1065,7 @@ fn validate_value_call_argument_classes(
                 *argument,
                 parameter,
                 callee_state.name.as_str(),
+                retain_arithmetic_policy,
                 diagnostics,
             );
         }
@@ -1088,7 +1097,7 @@ fn validate_value_call_argument_classes(
             "argument",
             diagnostics,
         );
-        if float_requirement_retains_argument_policy(program, callee_machine, callee_state) {
+        if retain_arithmetic_policy {
             crate::proof_contracts::domain_weakening::validate_implicit_domain_weakening_retaining_arithmetic_policy(
                 program,
                 current_machine,

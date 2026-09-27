@@ -5,7 +5,7 @@
 use build_time_evaluation::{
     FoldedArrayLength, SelectedBuildTimeBinaryOperator, SelectedBuildTimeProviderBody,
 };
-use checked_trees::{CheckedOperatorResolutionStatus, CheckedProviderPlanCommitment, CheckedTrees};
+use checked_trees::{CheckedProviderPlanCommitment, CheckedTrees};
 use diagnostics::Diagnostic;
 use effects::SelectedProviderPlanFacts;
 use typed_trees::TypedTrees;
@@ -20,110 +20,68 @@ pub(super) struct SelectedConstEvaluation {
     pub(super) folds: Vec<FoldedArrayLength>,
 }
 
-pub(super) fn selected_operators(
-    typed: &TypedTrees,
-    plans: &SelectedProviderPlanFacts,
-) -> Result<Vec<SelectedBuildTimeBinaryOperator>, Vec<Diagnostic>> {
-    let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(typed);
-    let mut selected = Vec::new();
-    for fact in facts.uses_with_status(CheckedOperatorResolutionStatus::Resolved) {
-        if fact.occurrence != checked_trees::CheckedOperatorOccurrence::Expression {
-            continue;
+impl SelectedConstEvaluation {
+    /// Join provider authority once for every retained source use. Psi prepares
+    /// semantic operands and independently admits both intrinsic and checked-body
+    /// execution; the coordinator supplies only the selected realization.
+    pub(super) fn prepare(
+        typed: &TypedTrees,
+        plans: &SelectedProviderPlanFacts,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(typed);
+        let uses = facts.resolved_expression_selections();
+        let mut selected = Self::default();
+        for (expression, origin, requirement, policy) in uses {
+            let Some((_, plan)) =
+                provider_planning::selected_requirement_plan(typed, plans.plans(), requirement)
+            else {
+                continue;
+            };
+            if plan.rows.iter().any(|row| {
+                matches!(
+                    row.binding,
+                    effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
+                )
+            }) {
+                if selected_dispatch::derive_selected_primitive_float_binary_execution(
+                    typed,
+                    plan,
+                    requirement,
+                )
+                .map_err(|error| vec![error])?
+                .is_some()
+                {
+                    selected.operators.push(
+                        SelectedBuildTimeBinaryOperator::prepare(
+                            typed,
+                            expression,
+                            origin,
+                            requirement,
+                            policy,
+                            CheckedProviderPlanCommitment::from_digest(
+                                *plan.identity_digest().as_bytes(),
+                            ),
+                        )
+                        .map_err(|reason| vec![Diagnostic::error(reason)])?,
+                    );
+                }
+            } else if let Some(row) =
+                selected_provider_body_row(typed, plan, requirement, expression, origin)
+                    .map_err(|diagnostic| vec![diagnostic])?
+            {
+                selected.provider_bodies.push(row);
+            }
         }
-        let Some(operator) = typed
-            .operators()
-            .iter()
-            .find(|operator| operator.symbol == fact.selected_operator_symbol)
-        else {
-            continue;
-        };
-        let Some((operation, format)) =
-            typed_trees::operator::primitive_float_binary_semantics(typed, operator)
-        else {
-            continue;
-        };
-        let identity =
-            typed_trees::operator::boundary_operator_requirement_identity(typed, operator);
-        let matching: Vec<_> = plans
-            .plans()
-            .iter()
-            .filter(|plan| plan.schema.trait_name == identity)
-            .collect();
-        let [plan] = matching.as_slice() else {
-            continue;
-        };
-        let execution = selected_dispatch::derive_selected_primitive_float_binary_execution(
-            typed,
-            plan,
-            operator.symbol,
-        )
-        .map_err(|error| vec![error])?;
-        let expected =
-            provider_planning::primitive_float_binary_intrinsic_execution_identity(typed, operator);
-        if execution.is_none() || execution != expected {
-            continue;
-        }
-        let typed_trees::expression::ExpressionNode::Binary(binary) =
-            typed.expression_table.expression(fact.expression)
-        else {
-            continue;
-        };
-        selected.push(SelectedBuildTimeBinaryOperator {
-            expression: fact.expression,
-            origin: fact.origin,
-            requirement: fact.selected_operator_symbol,
-            operation,
-            operands: [binary.left, binary.right],
-            format,
-            policy: fact.policy_adapter,
-            provider: CheckedProviderPlanCommitment::from_digest(
-                *plan.identity_digest().as_bytes(),
-            ),
-        });
+        build_time_evaluation::validate_selected_operators(typed, &selected.operators)
+            .and_then(|()| {
+                build_time_evaluation::validate_selected_provider_bodies(
+                    typed,
+                    &selected.provider_bodies,
+                )
+            })
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        Ok(selected)
     }
-    build_time_evaluation::validate_selected_operators(typed, &selected)
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    Ok(selected)
-}
-
-/// Resolve provider authority for retained source uses. Psi prepares and
-/// independently checks each selected body's source signature and operands;
-/// Omega supplies only the exact checked adapter and its plan commitment.
-pub(super) fn selected_provider_bodies(
-    typed: &TypedTrees,
-    plans: &SelectedProviderPlanFacts,
-) -> Result<Vec<SelectedBuildTimeProviderBody>, Vec<Diagnostic>> {
-    let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(typed);
-    let uses = facts
-        .uses_with_status(CheckedOperatorResolutionStatus::Resolved)
-        .filter(|fact| fact.occurrence == checked_trees::CheckedOperatorOccurrence::Expression)
-        .map(|fact| (fact.expression, fact.origin, fact.selected_operator_symbol))
-        .chain(
-            facts
-                .named_uses()
-                .map(|fact| (fact.expression, fact.origin, fact.selected_operator_symbol)),
-        )
-        .chain(
-            facts
-                .named_requirement_uses()
-                .map(|fact| (fact.expression, fact.origin, fact.requirement_symbol)),
-        );
-    let mut selected = Vec::new();
-    for (expression, origin, requirement) in uses {
-        let Some((_, plan)) =
-            provider_planning::selected_requirement_plan(typed, plans.plans(), requirement)
-        else {
-            continue;
-        };
-        if let Some(row) = selected_provider_body_row(typed, plan, requirement, expression, origin)
-            .map_err(|diagnostic| vec![diagnostic])?
-        {
-            selected.push(row);
-        }
-    }
-    build_time_evaluation::validate_selected_provider_bodies(typed, &selected)
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    Ok(selected)
 }
 
 /// Actual machines own top-level requirement schemas, whether or not they
@@ -223,9 +181,15 @@ impl SelectedConstEvaluation {
         if self.folds.is_empty() {
             return Ok(());
         }
-        let current = selected_operators(&checked.typed, plans)?;
+        let current = Self::prepare(&checked.typed, plans)?;
         for selected in &self.operators {
-            if current.iter().filter(|row| *row == selected).count() != 1 {
+            if current
+                .operators
+                .iter()
+                .filter(|row| *row == selected)
+                .count()
+                != 1
+            {
                 return Err(vec![Diagnostic::error(
                     "folded operator differs from current selected provider execution",
                 )]);
@@ -238,9 +202,14 @@ impl SelectedConstEvaluation {
                 )]);
             }
         }
-        let current_bodies = selected_provider_bodies(&checked.typed, plans)?;
         for body in &self.provider_bodies {
-            if current_bodies.iter().filter(|row| *row == body).count() != 1 {
+            if current
+                .provider_bodies
+                .iter()
+                .filter(|row| *row == body)
+                .count()
+                != 1
+            {
                 return Err(vec![Diagnostic::error(
                     "folded provider body differs from current selected provider execution",
                 )]);

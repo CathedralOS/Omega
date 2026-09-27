@@ -363,17 +363,13 @@ fn evaluate_round(
     // Rebinding only the template after preparation would leave its cloned
     // body with an unselected operator. Both steps remain private, and the
     // existing provider validator checks the original occurrence first.
-    let selected_execution = if provider_bodies.is_empty() {
-        None
-    } else {
-        Some(
-            crate::machine_execution::selected_operators::apply_selected_provider_bodies(
-                typed,
-                provider_bodies,
-            )
-            .map_err(|reason| vec![Diagnostic::error(reason)])?,
+    let selected_execution =
+        crate::machine_execution::selected_operators::prepare_selected_execution(
+            typed,
+            provider_bodies,
+            operators,
         )
-    };
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let prepared =
         crate::PreparedBuildMachineProgram::prepare(selected_execution.as_ref().unwrap_or(typed))?;
     let execution = prepared.typed();

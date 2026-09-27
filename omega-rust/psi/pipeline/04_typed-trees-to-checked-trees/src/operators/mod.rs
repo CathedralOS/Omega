@@ -836,7 +836,43 @@ fn named_operator_use_fact(
     origin: CheckedValueOrigin,
     call: &TableCallExpression,
 ) -> Option<CheckedNamedOperatorUseFact> {
-    let operator = typed_trees::operator::resolve_named_expression_call(program, call)?;
+    let operator = typed_trees::operator::resolve_named_expression_call(program, call)
+        .or_else(|| {
+            // Token-machine overloads use the same complete operand matching as
+            // their spelled form. Namespace/arity candidates alone cannot choose
+            // between, for example, the f32 and f64 requirements.
+            let operands: Vec<_> = program
+                .expression_table
+                .expression_handles(call.arguments)
+                .iter()
+                .map(|operand| expression_type_reference_for_origin(program, *operand, origin))
+                .collect();
+            let candidates = typed_trees::operator::named_expression_call_candidates(program, call);
+            let mut matching = candidates.into_iter().filter(|candidate| {
+                program
+                    .machine_token_bindings()
+                    .iter()
+                    .any(|binding| binding.symbol == candidate.symbol)
+                    && candidate.spelling.is_some_and(|spelling| {
+                        typed_trees::operator::resolve_spelling_for_operands(
+                            program,
+                            spelling,
+                            &operands,
+                            program.expression_table.source_span(expression),
+                        )
+                        .iter()
+                        .any(|selected| selected.operator.symbol == candidate.symbol)
+                    })
+            });
+            let selected = matching.next()?;
+            matching.next().is_none().then_some(selected)
+        })
+        .filter(|operator| {
+            program.symbols.source_reference_may_select_symbol(
+                program.expression_table.source_span(expression),
+                operator.symbol,
+            )
+        })?;
     let path = program.operator_path_members(operator.name);
     let [namespace, requirement] = path else {
         return None;
@@ -844,6 +880,12 @@ fn named_operator_use_fact(
     let format = match namespace.as_str() {
         "F32" => Some(FloatFormat::BINARY32),
         "F64" => Some(FloatFormat::BINARY64),
+        "Float" => typed_trees::operator::primitive_float_binary_semantics(program, operator).map(
+            |(_, format)| match format {
+                numerics::literals::FloatFormat::F32 => FloatFormat::BINARY32,
+                numerics::literals::FloatFormat::F64 => FloatFormat::BINARY64,
+            },
+        ),
         "I8" | "I16" | "I32" | "I64" | "U8" | "U16" | "U32" | "U64"
             if matches!(requirement.as_str(), "from_f32" | "from_f64") =>
         {

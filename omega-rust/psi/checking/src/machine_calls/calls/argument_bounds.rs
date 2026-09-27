@@ -20,6 +20,7 @@ pub(super) fn report_argument_bounds(
     argument: ExpressionHandle,
     parameter: &StateParameter,
     target_name: &str,
+    retain_arithmetic_policy: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(parameter_primitive) = program.primitive_type_reference(parameter.type_reference)
@@ -49,13 +50,29 @@ pub(super) fn report_argument_bounds(
         }
         return;
     }
+    // A selected float adapter retains the operand's policy rather than
+    // storing it into an ordinary unqualified parameter. Width and range
+    // compatibility still use the requirement's declared carrier.
+    let parameter_domain = program.arithmetic_domain_for_type_reference(parameter.type_reference);
+    let target_domain = if retain_arithmetic_policy && parameter_domain == ArithmeticDomain::Exact {
+        crate::value_custody::places::declared_place_type_raw(
+            program,
+            current_machine,
+            current_state,
+            argument,
+        )
+        .map(|source| program.arithmetic_domain_for_type_reference(source))
+        .unwrap_or(parameter_domain)
+    } else {
+        parameter_domain
+    };
     arithmetic_domains::check_value_narrowing(
         program,
         current_machine,
         current_state,
         argument,
         parameter_primitive,
-        program.arithmetic_domain_for_type_reference(parameter.type_reference),
+        target_domain,
         value_environment,
         &owner,
         diagnostics,

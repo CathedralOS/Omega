@@ -63,6 +63,7 @@ pub fn named_expression_call_candidates<'program>(
         return program
             .operators()
             .iter()
+            .chain(program.machine_token_bindings())
             .filter(|operator| operator.symbol == call.target_symbol)
             .collect();
     }
@@ -96,19 +97,23 @@ pub fn named_expression_call_candidates<'program>(
         // operator vocabulary and complete authored path; selection itself is
         // still finalized separately.
         let is_operator_namespace = !path.symbol.is_valid()
-            && program.operators().iter().any(|operator| {
-                let operator_path = program.operator_path_members(operator.name);
-                operator_path
-                    .split_last()
-                    .is_some_and(|(member, namespace)| {
-                        member.as_str() == call.target.as_str()
-                            && namespace.len() == receiver_members.len()
-                            && namespace
-                                .iter()
-                                .zip(receiver_members)
-                                .all(|(expected, actual)| expected == actual)
-                    })
-            });
+            && program
+                .operators()
+                .iter()
+                .chain(program.machine_token_bindings())
+                .any(|operator| {
+                    let operator_path = program.operator_path_members(operator.name);
+                    operator_path
+                        .split_last()
+                        .is_some_and(|(member, namespace)| {
+                            member.as_str() == call.target.as_str()
+                                && namespace.len() == receiver_members.len()
+                                && namespace
+                                    .iter()
+                                    .zip(receiver_members)
+                                    .all(|(expected, actual)| expected == actual)
+                        })
+                });
         let is_static_namespace = is_known_static_namespace || is_operator_namespace;
         if is_static_namespace {
             static_segments.extend(receiver_members.iter().map(|segment| segment.as_str()));
@@ -126,6 +131,7 @@ pub fn named_expression_call_candidates<'program>(
     program
         .operators()
         .iter()
+        .chain(program.machine_token_bindings())
         .filter(|operator| {
             named_operator_path_matches_call(
                 program,
