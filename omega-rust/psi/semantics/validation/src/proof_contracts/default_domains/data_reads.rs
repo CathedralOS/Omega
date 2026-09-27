@@ -75,9 +75,15 @@ pub(crate) fn scan_statement_reads(
                     diagnostics,
                 );
             }
+            // A STATEMENT call's argument handles live in the statement
+            // table's arena, not the expression table's. Resolving them
+            // through `expression_table` returns whatever occupies those
+            // indices there -- foreign expressions from other declarations --
+            // which this scan then reports as reads of places the machine
+            // does not have.
             reads.extend(
                 program
-                    .expression_table
+                    .statement_table
                     .expression_handles(call.arguments)
                     .iter()
                     .copied(),
