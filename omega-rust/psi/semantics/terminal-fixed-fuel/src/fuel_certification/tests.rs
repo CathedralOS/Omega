@@ -69,8 +69,7 @@ fn segment_row_comparison_binds_every_identity_endpoint_and_ceiling() {
 
 mod machine_bounds {
     use super::super::outcome_bounds::{
-        boundary_call_candidates, dynamic_call_targets, maximum_machine_outcomes,
-        used_contract_premises,
+        boundary_call_candidates, dynamic_call_targets, maximum_machine_outcomes, used_premises,
     };
     use super::super::segment_partition::{PreparedFuelModule, PreparedSegments};
     use super::super::{
@@ -85,15 +84,16 @@ mod machine_bounds {
         TerminalRankedScc, Terminator, identity,
     };
     use semantic_vocabulary::{
-        ContractId, IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, ScalarTerm,
-        ScalarType, ValueId,
+        ContractId, IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, ObligationId,
+        ScalarTerm, ScalarType, ValueId,
     };
     use std::collections::{BTreeMap, BTreeSet};
     use terminal_psi::{
         Block, MachineContract, Operation, OperationResult, ProviderCandidateConformance,
-        ProviderRefinement, ProviderSignature, TerminalBlockNaturalRank,
-        TerminalIndirectDynamicDispatch, TerminalMachineResult, TerminalNaturalRankComparison,
-        TerminalNaturalRankEdge, TerminalStoredDynamicDispatch, ValueDeclaration,
+        ProviderRefinement, ProviderSignature, ScalarBlockInvariant, ScalarBlockInvariantArrival,
+        TerminalBlockNaturalRank, TerminalIndirectDynamicDispatch, TerminalMachineResult,
+        TerminalNaturalRankComparison, TerminalNaturalRankEdge, TerminalStoredDynamicDispatch,
+        ValueDeclaration,
     };
 
     fn id<T: semantic_vocabulary::PsiSemanticId>(raw: u64) -> T {
@@ -200,19 +200,83 @@ mod machine_bounds {
         edge_false: u64,
         target_false: u64,
     ) -> Terminator {
-        let successor = |edge, target| terminal_psi::SuccessorEdge {
+        conditional_arguments(
+            9_000,
+            edge_true,
+            target_true,
+            Vec::new(),
+            edge_false,
+            target_false,
+            Vec::new(),
+        )
+    }
+
+    /// A conditional whose successors carry explicit scalar arguments — the
+    /// shape a path-fact test needs to bind a component member's rank
+    /// parameter through a selected edge.
+    #[allow(clippy::too_many_arguments)]
+    fn conditional_arguments(
+        condition: u64,
+        edge_true: u64,
+        target_true: u64,
+        arguments_true: Vec<ValueId>,
+        edge_false: u64,
+        target_false: u64,
+        arguments_false: Vec<ValueId>,
+    ) -> Terminator {
+        let successor = |edge, target, arguments| terminal_psi::SuccessorEdge {
             edge: id::<EdgeId>(edge),
             target: id::<BlockId>(target),
-            arguments: Vec::new(),
+            arguments,
             erased_arguments: Vec::new(),
             erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         };
         Terminator::Conditional {
-            condition: id(9_000),
-            when_true: successor(edge_true, target_true),
-            when_false: successor(edge_false, target_false),
+            condition: id(condition),
+            when_true: successor(edge_true, target_true, arguments_true),
+            when_false: successor(edge_false, target_false, arguments_false),
+        }
+    }
+
+    fn integer_less_than(operation_id: u64, result: u64, left: u64, right: u64) -> Operation {
+        Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: id(operation_id),
+            result: OperationResult::Scalar(ValueDeclaration {
+                id: id(result),
+                scalar_type: ScalarType::Boolean,
+                qualifications: Default::default(),
+            }),
+            kind: OperationKind::IntegerLessThan {
+                left: id(left),
+                right: id(right),
+            },
+        }
+    }
+
+    /// One `scalar_block_invariants` roster row: `predicate` holds on every
+    /// arrival to `(machine, header)` — including the entries a cyclic
+    /// component's rank bound must cover.
+    fn scalar_invariant(
+        machine: u64,
+        header: u64,
+        predicate: Proposition,
+        arrival_edges: &[u64],
+    ) -> ScalarBlockInvariant {
+        ScalarBlockInvariant {
+            machine: id(machine),
+            header: id(header),
+            predicate,
+            arrivals: arrival_edges
+                .iter()
+                .map(|edge| ScalarBlockInvariantArrival {
+                    edge: id(*edge),
+                    obligation: id::<ObligationId>(9_000 + *edge),
+                })
+                .collect(),
         }
     }
 
@@ -1525,7 +1589,7 @@ mod machine_bounds {
             Ok(1 + 4 * 6 + 1)
         );
         assert_eq!(
-            used_contract_premises(tightened.machines.first().expect("one machine")),
+            used_premises(&tightened, tightened.machines.first().expect("one machine")),
             vec![clause],
             "the certificate binds exactly the consulted premise"
         );
@@ -1664,7 +1728,7 @@ mod machine_bounds {
                 Ok(1 + 4 * 256 + 1)
             );
             assert!(
-                used_contract_premises(module.machines.first().expect("one machine")).is_empty(),
+                used_premises(&module, module.machines.first().expect("one machine")).is_empty(),
                 "a clause the bound never rests on is not a premise"
             );
         }
@@ -1695,7 +1759,7 @@ mod machine_bounds {
             Ok(1 + 4 * 6 + 1)
         );
         assert_eq!(
-            used_contract_premises(module.machines.first().expect("one machine")),
+            used_premises(&module, module.machines.first().expect("one machine")),
             vec![conjunction],
             "the premise is the contract row, not its flattened conjunct"
         );
@@ -1727,7 +1791,7 @@ mod machine_bounds {
             Ok(1 + 4 * 8 + 1)
         );
         assert_eq!(
-            used_contract_premises(module.machines.first().expect("one machine")),
+            used_premises(&module, module.machines.first().expect("one machine")),
             vec![disjunction],
             "the premise is the contract row, not a resolved arm"
         );
@@ -1767,7 +1831,7 @@ mod machine_bounds {
             Ok(1 + 4 * 8 + 1)
         );
         assert_eq!(
-            used_contract_premises(module.machines.first().expect("one machine")),
+            used_premises(&module, module.machines.first().expect("one machine")),
             vec![relation, disjunction],
             "the bound rests on the disjunction row plus the ambient row \
              the first arm's chain consulted"
@@ -1820,7 +1884,7 @@ mod machine_bounds {
         // keeps the maximum across arms: 5.
         assert_eq!(derive_maximum_entry_bound(&built, id(1)), Ok(1 + 4 * 6 + 1));
         assert_eq!(
-            used_contract_premises(built.machines.first().expect("one machine")),
+            used_premises(&built, built.machines.first().expect("one machine")),
             vec![ceiling, disjunction]
         );
 
@@ -1862,7 +1926,7 @@ mod machine_bounds {
             Ok(1 + 4 * 5 + 1)
         );
         assert_eq!(
-            used_contract_premises(rebuilt.machines.first().expect("one machine")),
+            used_premises(&rebuilt, rebuilt.machines.first().expect("one machine")),
             vec![first, second],
             "the bound rests on the row stating the shared edge and the \
              row bounding its target"
@@ -1956,7 +2020,7 @@ mod machine_bounds {
             Ok(1 + 4 * 6 + 1)
         );
         assert_eq!(
-            used_contract_premises(rebuilt.machines.first().expect("one machine")),
+            used_premises(&rebuilt, rebuilt.machines.first().expect("one machine")),
             vec![ambient, implication],
             "the certificate binds the implication row and the row that \
              discharged its premise"
@@ -1996,7 +2060,7 @@ mod machine_bounds {
             Ok(1 + 4 * 6 + 1)
         );
         assert_eq!(
-            used_contract_premises(rebuilt.machines.first().expect("one machine")),
+            used_premises(&rebuilt, rebuilt.machines.first().expect("one machine")),
             vec![hops[0].clone(), hops[1].clone(), implication],
             "the discharging chain's rows join the premise set"
         );
@@ -2067,8 +2131,481 @@ mod machine_bounds {
             Ok(1 + 4 * 8 + 1)
         );
         assert_eq!(
-            used_contract_premises(module.machines.first().expect("one machine")),
+            used_premises(&module, module.machines.first().expect("one machine")),
             vec![conjunction]
+        );
+    }
+
+    /// A `Natural` countdown entered through a conditional edge: entry 1
+    /// computes `condition` by comparing two machine-visible values, then
+    /// the `enter` arm passes machine parameter `initial` (id 100) into
+    /// header 2's rank parameter `rank` (id 200) while the other arm
+    /// leaves to return block 5. `enter_on_true` selects which arm enters
+    /// the component, and `condition` is the comparison value the
+    /// conditional reads. The component and its {2,3} ranking match
+    /// `ranked_countdown_machine`.
+    fn guarded_countdown_machine(
+        enter_on_true: bool,
+        condition: TerminatorCondition,
+    ) -> TerminalMachine {
+        let rank_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let scalar = ScalarType::Integer(rank_type);
+        let value = |raw: u64| ValueDeclaration {
+            qualifications: Default::default(),
+            id: id(raw),
+            scalar_type: scalar,
+        };
+        // The entering arm carries `initial` into the header's rank
+        // parameter; the leaving arm takes no arguments.
+        let (enter_edge, leave_edge) = if enter_on_true { (1, 6) } else { (6, 1) };
+        let successor =
+            |edge: u64, target: u64, arguments: Vec<ValueId>| terminal_psi::SuccessorEdge {
+                edge: id(edge),
+                target: id(target),
+                arguments,
+                erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+                trivial_affine_discards: Vec::new(),
+            };
+        let (when_true, when_false) = if enter_on_true {
+            (
+                successor(enter_edge, 2, vec![id(100)]),
+                successor(leave_edge, 5, Vec::new()),
+            )
+        } else {
+            (
+                successor(leave_edge, 5, Vec::new()),
+                successor(enter_edge, 2, vec![id(100)]),
+            )
+        };
+        let mut semantic = machine(
+            1,
+            1,
+            vec![
+                block(
+                    1,
+                    condition.operations,
+                    Terminator::Conditional {
+                        condition: condition.value,
+                        when_true,
+                        when_false,
+                    },
+                ),
+                Block {
+                    erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    id: id(2),
+                    parameters: vec![value(200)],
+                    operations: vec![boolean_constant(20, 9_001, true)],
+                    terminator: conditional_arguments(9_001, 2, 3, Vec::new(), 3, 4, Vec::new()),
+                },
+                block(
+                    3,
+                    vec![integer_constant(30, 300, 0)],
+                    jump_arguments(4, 2, vec![id(300)]),
+                ),
+                block(4, Vec::new(), return_unit(5)),
+                block(5, Vec::new(), return_unit(7)),
+            ],
+            Some(TerminalRankedScc::Natural(vec![TerminalNaturalCycle {
+                rank_type,
+                ranks: [2, 3]
+                    .into_iter()
+                    .map(|block| TerminalBlockNaturalRank {
+                        block: id(block),
+                        value: id(200),
+                    })
+                    .collect(),
+                edges: vec![
+                    rank_edge(2, 2, 3, TerminalNaturalRankComparison::Preserving),
+                    rank_edge(4, 3, 2, TerminalNaturalRankComparison::Strict),
+                ],
+            }])),
+        );
+        semantic.parameters = vec![value(100)];
+        semantic
+    }
+
+    /// The condition value a `guarded_countdown_machine` entry block
+    /// computes: `operations` run before the branch reads `value`.
+    struct TerminatorCondition {
+        operations: Vec<Operation>,
+        value: ValueId,
+    }
+
+    /// `left < right` where `literal` is the constant operation's value —
+    /// `less_than_condition(100, 101, 6)` computes `initial < 6` and
+    /// `less_than_condition(101, 100, 6)` computes `6 < initial`, so both
+    /// operand orders exercise both arm polarities.
+    fn less_than_condition(left: u64, right: u64, literal: u64) -> TerminatorCondition {
+        TerminatorCondition {
+            operations: vec![
+                integer_constant(10, 101, literal),
+                integer_less_than(11, 9_000, left, right),
+            ],
+            value: id(9_000),
+        }
+    }
+
+    /// `not inner` — a `BooleanNot` over another condition's value.
+    fn negated_condition(inner: TerminatorCondition) -> TerminatorCondition {
+        TerminatorCondition {
+            operations: inner
+                .operations
+                .into_iter()
+                .chain([Operation {
+                    static_reach_binding: None,
+                    suspension_crossing: None,
+                    id: id(12),
+                    result: OperationResult::Scalar(ValueDeclaration {
+                        id: id(9_002),
+                        scalar_type: ScalarType::Boolean,
+                        qualifications: Default::default(),
+                    }),
+                    kind: OperationKind::BooleanNot {
+                        operand: inner.value,
+                    },
+                }])
+                .collect(),
+            value: id(9_002),
+        }
+    }
+
+    /// A conditional whose condition is a constant — the unselected arm is
+    /// infeasible, so an edge it would carry needs no rank bound.
+    fn constant_condition(value: bool) -> TerminatorCondition {
+        TerminatorCondition {
+            operations: vec![boolean_constant(10, 9_000, value)],
+            value: id(9_000),
+        }
+    }
+
+    /// An entering edge's own guard fact caps the argument it carries:
+    /// `initial < 6` selected on the true arm gives the arrival a ceiling
+    /// of 5 through a `Guard` premise — no contract row is consulted, and
+    /// the certificate binds the reconstructed comparison itself.
+    #[test]
+    fn edge_guard_true_arm_tightens_and_reports_the_guard() {
+        let rank_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let module = module(
+            1,
+            vec![guarded_countdown_machine(
+                true,
+                less_than_condition(100, 101, 6),
+            )],
+        );
+        // entry: iconst + compare + conditional = 3; component: (bconst +
+        // conditional + iconst + jump) = 4 per visit; `100 < 6` admits 6
+        // visits; exit edge = 1.
+        assert_eq!(
+            derive_maximum_entry_bound(&module, id(1)),
+            Ok(3 + 4 * 6 + 1)
+        );
+        assert!(
+            module
+                .machines
+                .first()
+                .expect("one machine")
+                .contract
+                .requires
+                .is_empty(),
+            "the contract carries no rows for the bound to launder"
+        );
+        assert_eq!(
+            used_premises(&module, module.machines.first().expect("one machine")),
+            vec![Proposition::LessThan(
+                parameter_term(100, rank_type),
+                integer_literal(rank_type, 6),
+            )],
+            "the premise is the edge's own reconstructed guard fact"
+        );
+    }
+
+    /// The false arm reads the negated condition: entering on
+    /// `!(initial < 6)` — reconstructed as `6 <= initial` — places no
+    /// ceiling on the argument and leaves the carrier maximum standing,
+    /// while `!(6 < initial)` — `initial <= 6` — caps it at 6 through the
+    /// same `Guard` channel.
+    #[test]
+    fn edge_guard_false_arm_uses_the_negated_polarity() {
+        let rank_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        // False arm of `100 < 6` is `6 <= 100`: a lower bound on the
+        // arrival, so the carrier's 255 stands.
+        let built = module(
+            1,
+            vec![guarded_countdown_machine(
+                false,
+                less_than_condition(100, 101, 6),
+            )],
+        );
+        assert_eq!(
+            derive_maximum_entry_bound(&built, id(1)),
+            Ok(3 + 4 * 256 + 1),
+            "a lower-bound guard tightens no entry rank"
+        );
+        assert!(
+            used_premises(&built, built.machines.first().expect("one machine")).is_empty(),
+            "a guard that bounds nothing is no premise"
+        );
+
+        // False arm of `6 < 100` is `100 <= 6`: a true ceiling, so seven
+        // rank observations arrive.
+        let rebuilt = module(
+            1,
+            vec![guarded_countdown_machine(
+                false,
+                less_than_condition(101, 100, 6),
+            )],
+        );
+        assert_eq!(
+            derive_maximum_entry_bound(&rebuilt, id(1)),
+            Ok(3 + 4 * 7 + 1)
+        );
+        assert_eq!(
+            used_premises(&rebuilt, rebuilt.machines.first().expect("one machine")),
+            vec![Proposition::LessOrEqual(
+                parameter_term(100, rank_type),
+                integer_literal(rank_type, 6),
+            )],
+            "the false arm's premise is the negated comparison"
+        );
+    }
+
+    /// `BooleanNot` inverts the arm's polarity: entering on the false arm
+    /// of `not (6 < initial)` selects `not (initial <= 6)` —
+    /// `6 < initial` — which bounds nothing, while the true arm selects
+    /// `initial <= 6` and caps the entry.
+    #[test]
+    fn edge_guard_boolean_not_threads_polarity() {
+        let rank_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let built = module(
+            1,
+            vec![guarded_countdown_machine(
+                true,
+                negated_condition(less_than_condition(101, 100, 6)),
+            )],
+        );
+        assert_eq!(
+            derive_maximum_entry_bound(&built, id(1)),
+            Ok(4 + 4 * 7 + 1),
+            "not (6 < 100) is 100 <= 6 on the true arm"
+        );
+        assert_eq!(
+            used_premises(&built, built.machines.first().expect("one machine")),
+            vec![Proposition::LessOrEqual(
+                parameter_term(100, rank_type),
+                integer_literal(rank_type, 6),
+            )]
+        );
+
+        let rebuilt = module(
+            1,
+            vec![guarded_countdown_machine(
+                false,
+                negated_condition(less_than_condition(101, 100, 6)),
+            )],
+        );
+        assert_eq!(
+            derive_maximum_entry_bound(&rebuilt, id(1)),
+            Ok(4 + 4 * 256 + 1),
+            "not (100 <= 6) is 6 < 100: no ceiling on the arrival"
+        );
+    }
+
+    /// An edge no execution can take carries no arrival: a constant-false
+    /// condition marks the entering edge infeasible, so the component's
+    /// first-entry coverage needs no bound for it — the component admits
+    /// rank 0 on its single visit slot rather than inheriting the carrier
+    /// maximum from an arrival that cannot exist.
+    #[test]
+    fn edge_guard_constant_condition_marks_the_arm_infeasible() {
+        let built = module(
+            1,
+            vec![guarded_countdown_machine(true, constant_condition(false))],
+        );
+        // The true arm can never select the component: bound = entry
+        // (bconst + conditional = 2) + one visit slot (4) + exit (1). The
+        // same entry with a feasible but unbounded arm keeps the carrier
+        // maximum instead.
+        assert_eq!(derive_maximum_entry_bound(&built, id(1)), Ok(2 + 4 + 1));
+
+        let rebuilt = module(
+            1,
+            vec![guarded_countdown_machine(true, constant_condition(true))],
+        );
+        assert_eq!(
+            derive_maximum_entry_bound(&rebuilt, id(1)),
+            Ok(2 + 4 * 256 + 1),
+            "a feasible edge's unbounded argument keeps the carrier maximum"
+        );
+    }
+
+    /// A verified header invariant covers every first entry at once:
+    /// `rank <= 5` on `(machine 1, header 2)` caps the member's observed
+    /// rank regardless of what each incoming edge passes, and the
+    /// certificate binds the invariant predicate through its own channel —
+    /// not as a contract row.
+    #[test]
+    fn header_invariant_tightens_without_a_contract_row() {
+        let rank_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let predicate = Proposition::LessOrEqual(
+            parameter_term(200, rank_type),
+            integer_literal(rank_type, 5),
+        );
+        let mut module = module(1, vec![ranked_countdown_machine(8)]);
+        module.scalar_block_invariants = vec![scalar_invariant(1, 2, predicate.clone(), &[1])];
+        assert!(
+            module
+                .machines
+                .first()
+                .expect("one machine")
+                .contract
+                .requires
+                .is_empty(),
+            "no contract row exists to be miscredited"
+        );
+        assert_eq!(
+            derive_maximum_entry_bound(&module, id(1)),
+            Ok(1 + 4 * 6 + 1)
+        );
+        assert_eq!(
+            used_premises(&module, module.machines.first().expect("one machine")),
+            vec![predicate],
+            "the premise is the verified invariant predicate itself"
+        );
+    }
+
+    /// An invariant on the departing block bounds the argument that edge
+    /// passes: `initial <= 7` verified at entry block 1 caps the edge's
+    /// actual at the header's rank position even when no clause names the
+    /// parameter the edge binds.
+    #[test]
+    fn source_invariant_bounds_the_departing_edge_argument() {
+        let rank_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let predicate = Proposition::LessOrEqual(
+            parameter_term(100, rank_type),
+            integer_literal(rank_type, 7),
+        );
+        let mut module = module(1, vec![ranked_countdown_machine(8)]);
+        module.scalar_block_invariants = vec![scalar_invariant(1, 1, predicate.clone(), &[])];
+        assert_eq!(
+            derive_maximum_entry_bound(&module, id(1)),
+            Ok(1 + 4 * 8 + 1)
+        );
+        assert_eq!(
+            used_premises(&module, module.machines.first().expect("one machine")),
+            vec![predicate],
+            "the departing block's invariant is the premise, not a \
+             contract row"
+        );
+    }
+
+    /// Every first entry must be covered: a second outside edge passing an
+    /// unbounded value leaves the carrier maximum standing even though the
+    /// other arrival is contract-bounded — a bound the whole component
+    /// cannot claim while any entry escapes it.
+    #[test]
+    fn unbounded_second_entry_keeps_the_carrier_maximum() {
+        let rank_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let mut walk = ranked_countdown_machine(8);
+        walk.parameters.push(ValueDeclaration {
+            qualifications: Default::default(),
+            id: id(102),
+            scalar_type: ScalarType::Integer(rank_type),
+        });
+        walk.contract.requires = vec![Proposition::LessOrEqual(
+            parameter_term(100, rank_type),
+            integer_literal(rank_type, 5),
+        )];
+        walk.blocks
+            .push(block(9, Vec::new(), jump_arguments(8, 2, vec![id(102)])));
+        let module = module(1, vec![walk]);
+        assert_eq!(
+            derive_maximum_entry_bound(&module, id(1)),
+            Ok(1 + 4 * 256 + 1),
+            "one unbounded arrival forfeits the tightened bound"
+        );
+        assert!(
+            used_premises(&module, module.machines.first().expect("one machine")).is_empty(),
+            "a bound that never forms consults no premises"
+        );
+    }
+
+    /// A roster row keyed to another header, another machine, or absent
+    /// entirely is not evidence: the bound falls back to the carrier
+    /// maximum exactly as before, binding no premise.
+    #[test]
+    fn unrelated_invariant_rows_supply_no_evidence() {
+        let rank_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let predicate = Proposition::LessOrEqual(
+            parameter_term(200, rank_type),
+            integer_literal(rank_type, 5),
+        );
+        for stale in [
+            vec![],
+            vec![scalar_invariant(1, 4, predicate.clone(), &[3])],
+            vec![scalar_invariant(9, 2, predicate.clone(), &[1])],
+        ] {
+            let mut module = module(1, vec![ranked_countdown_machine(8)]);
+            module.scalar_block_invariants = stale;
+            assert_eq!(
+                derive_maximum_entry_bound(&module, id(1)),
+                Ok(1 + 4 * 256 + 1)
+            );
+            assert!(
+                used_premises(&module, module.machines.first().expect("one machine")).is_empty()
+            );
+        }
+    }
+
+    /// The certificate's premise set is recomputed from the module's own
+    /// edges: altering the comparison constant changes the reconstructed
+    /// guard fact, so a certificate still carrying the earlier comparison
+    /// can never match the fresh derivation.
+    #[test]
+    fn recomputation_replays_altered_guard_evidence() {
+        let rank_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let baseline = module(
+            1,
+            vec![guarded_countdown_machine(
+                false,
+                less_than_condition(101, 100, 6),
+            )],
+        );
+        let premises = used_premises(&baseline, baseline.machines.first().expect("one machine"));
+        assert_eq!(
+            premises,
+            vec![Proposition::LessOrEqual(
+                parameter_term(100, rank_type),
+                integer_literal(rank_type, 6),
+            )]
+        );
+
+        let mut altered = module(
+            1,
+            vec![guarded_countdown_machine(
+                false,
+                less_than_condition(101, 100, 6),
+            )],
+        );
+        // The same edge now compares against 9: the replayed fact must
+        // change with the evidence, and the bound with it.
+        let OperationKind::IntegerConstant { value } =
+            &mut altered.machines[0].blocks[0].operations[0].kind
+        else {
+            panic!("the constant operation is the comparison's right operand");
+        };
+        *value = IntegerValue::Unsigned(9);
+        assert_ne!(
+            used_premises(&altered, altered.machines.first().expect("one machine")),
+            premises,
+            "an altered edge never replays the stale guard"
+        );
+        assert_eq!(
+            derive_maximum_entry_bound(&altered, id(1)),
+            Ok(3 + 4 * 10 + 1)
         );
     }
 
@@ -2133,7 +2670,7 @@ mod machine_bounds {
                 "{clause:?} did not tighten the entry rank"
             );
             assert_eq!(
-                used_contract_premises(built.machines.first().expect("one machine")),
+                used_premises(&built, built.machines.first().expect("one machine")),
                 vec![clause]
             );
         }
@@ -2239,7 +2776,7 @@ mod machine_bounds {
         let built = module(1, vec![walk]);
         assert_eq!(derive_maximum_entry_bound(&built, id(1)), Ok(1 + 4 * 6 + 1));
         assert_eq!(
-            used_contract_premises(built.machines.first().expect("one machine")),
+            used_premises(&built, built.machines.first().expect("one machine")),
             vec![disjunction]
         );
 
@@ -2256,7 +2793,7 @@ mod machine_bounds {
         let built = module(1, vec![walk]);
         assert_eq!(derive_maximum_entry_bound(&built, id(1)), Ok(1 + 4 * 4 + 1));
         assert_eq!(
-            used_contract_premises(built.machines.first().expect("one machine")),
+            used_premises(&built, built.machines.first().expect("one machine")),
             vec![disjunction]
         );
 
@@ -2287,7 +2824,7 @@ mod machine_bounds {
         let built = module(1, vec![walk]);
         assert_eq!(derive_maximum_entry_bound(&built, id(1)), Ok(1 + 4 * 6 + 1));
         assert_eq!(
-            used_contract_premises(built.machines.first().expect("one machine")),
+            used_premises(&built, built.machines.first().expect("one machine")),
             vec![ambient, implication]
         );
 
@@ -2324,7 +2861,7 @@ mod machine_bounds {
         let built = module(1, vec![walk]);
         assert_eq!(derive_maximum_entry_bound(&built, id(1)), Ok(1 + 4 * 6 + 1));
         assert_eq!(
-            used_contract_premises(built.machines.first().expect("one machine")),
+            used_premises(&built, built.machines.first().expect("one machine")),
             vec![hops[1].clone(), implication],
             "the premise rests on the strict hop; the unconsulted ceiling \
              row stays out"
@@ -2471,7 +3008,7 @@ mod machine_bounds {
         let built = module(1, vec![walk]);
         assert_eq!(derive_maximum_entry_bound(&built, id(1)), Ok(1 + 4 * 6 + 1));
         assert_eq!(
-            used_contract_premises(built.machines.first().expect("one machine")),
+            used_premises(&built, built.machines.first().expect("one machine")),
             vec![equality]
         );
 
@@ -2490,7 +3027,7 @@ mod machine_bounds {
         let built = module(1, vec![walk]);
         assert_eq!(derive_maximum_entry_bound(&built, id(1)), Ok(1 + 4 * 4 + 1));
         assert_eq!(
-            used_contract_premises(built.machines.first().expect("one machine")),
+            used_premises(&built, built.machines.first().expect("one machine")),
             vec![q_ceiling, sum]
         );
 
@@ -2509,7 +3046,7 @@ mod machine_bounds {
         let built = module(1, vec![walk]);
         assert_eq!(derive_maximum_entry_bound(&built, id(1)), Ok(1 + 4 * 4 + 1));
         assert_eq!(
-            used_contract_premises(built.machines.first().expect("one machine")),
+            used_premises(&built, built.machines.first().expect("one machine")),
             vec![disjunction]
         );
     }
@@ -2539,7 +3076,9 @@ mod machine_bounds {
             "a computed arrival has no contract ceiling — the entry \
              block's extra operation is the only added charge"
         );
-        assert!(used_contract_premises(computed.machines.first().expect("one machine")).is_empty());
+        assert!(
+            used_premises(&computed, computed.machines.first().expect("one machine")).is_empty()
+        );
 
         // The entry edge passes a second machine parameter no clause caps.
         let mut walk = ranked_countdown_machine(8);
@@ -2557,7 +3096,7 @@ mod machine_bounds {
             "an unbounded parameter arrival keeps the carrier maximum"
         );
         assert!(
-            used_contract_premises(unbounded.machines.first().expect("one machine")).is_empty()
+            used_premises(&unbounded, unbounded.machines.first().expect("one machine")).is_empty()
         );
 
         // The entry edge supplies no argument at the rank parameter's
@@ -2571,7 +3110,7 @@ mod machine_bounds {
             Ok(1 + 4 * 256 + 1),
             "an unbound argument position keeps the carrier maximum"
         );
-        assert!(used_contract_premises(missing.machines.first().expect("one machine")).is_empty());
+        assert!(used_premises(&missing, missing.machines.first().expect("one machine")).is_empty());
     }
 
     /// A relational `requires` row derives a conditional ceiling no literal
@@ -2631,7 +3170,7 @@ mod machine_bounds {
                 "{relation:?}"
             );
             assert_eq!(
-                used_contract_premises(module.machines.first().expect("one machine")),
+                used_premises(&module, module.machines.first().expect("one machine")),
                 vec![relation, ceiling],
                 "the bound binds every row its chain rests on"
             );
@@ -2674,7 +3213,7 @@ mod machine_bounds {
             "two strict links deduct twice from the literal anchor"
         );
         assert_eq!(
-            used_contract_premises(chained.machines.first().expect("one machine")),
+            used_premises(&chained, chained.machines.first().expect("one machine")),
             hops
         );
 
@@ -2703,7 +3242,7 @@ mod machine_bounds {
             Ok(1 + 4 * 6 + 1)
         );
         assert_eq!(
-            used_contract_premises(module.machines.first().expect("one machine")),
+            used_premises(&module, module.machines.first().expect("one machine")),
             vec![conjunction]
         );
     }
@@ -2735,7 +3274,7 @@ mod machine_bounds {
             derive_maximum_entry_bound(&orphan, id(1)),
             Ok(1 + 4 * 256 + 1)
         );
-        assert!(used_contract_premises(orphan.machines.first().expect("one machine")).is_empty());
+        assert!(used_premises(&orphan, orphan.machines.first().expect("one machine")).is_empty());
 
         // `p <= q`, `q <= p`, `p <= 9`: the direct clause achieves the
         // bound alone, so the cyclic rows stay out of the premise set.
@@ -2762,7 +3301,7 @@ mod machine_bounds {
             Ok(1 + 4 * 10 + 1)
         );
         assert_eq!(
-            used_contract_premises(cyclic.machines.first().expect("one machine")),
+            used_premises(&cyclic, cyclic.machines.first().expect("one machine")),
             vec![direct],
             "a relational cycle is no premise the bound needs"
         );
@@ -2792,7 +3331,7 @@ mod machine_bounds {
             Ok(1 + 4 * 6 + 1)
         );
         assert_eq!(
-            used_contract_premises(covered.machines.first().expect("one machine")),
+            used_premises(&covered, covered.machines.first().expect("one machine")),
             vec![covering],
             "the leanest achieving derivation supplies the premise"
         );
@@ -2919,7 +3458,7 @@ mod machine_bounds {
         // 3 * 6 = 18, plus the exit edge.
         assert_eq!(derive_maximum_entry_bound(&module, id(1)), Ok(19));
         assert_eq!(
-            used_contract_premises(module.machines.first().expect("one machine")),
+            used_premises(&module, module.machines.first().expect("one machine")),
             vec![clause]
         );
     }
@@ -2976,7 +3515,7 @@ mod machine_bounds {
             Ok(1 + 2 * 256 + 1)
         );
         assert!(
-            used_contract_premises(module.machines.first().expect("one machine")).is_empty(),
+            used_premises(&module, module.machines.first().expect("one machine")).is_empty(),
             "an unreachable component's clause is not a bound premise"
         );
     }
@@ -3992,6 +4531,7 @@ mod machine_bounds {
             &machines,
             &dynamic_call_targets(module),
             &boundary_call_candidates(module),
+            &module.scalar_block_invariants,
             TerminalFuelSchedule::CURRENT,
             &mut BTreeMap::new(),
             &mut BTreeSet::new(),

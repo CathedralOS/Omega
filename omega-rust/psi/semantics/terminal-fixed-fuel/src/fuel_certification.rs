@@ -4,7 +4,7 @@ use crate::{
     FixedEntryFuelCertificate, FixedFuelError, FixedSegmentFuelCertificate,
     ValidatedFixedSafePointFuelSegments,
 };
-use outcome_bounds::{derive_maximum_entry_bound, used_contract_premises};
+use outcome_bounds::{derive_maximum_entry_bound, used_premises};
 use segment_partition::{PreparedFuelModule, PreparedSegments};
 use semantic_vocabulary::{BlockId, EdgeId, MachineId};
 use std::collections::BTreeMap;
@@ -37,16 +37,17 @@ pub fn derive_fixed_entry_fuel(
         schedule: TerminalFuelSchedule::CURRENT.identity(),
         entry,
         // Control and operation costs are value-independent, so a machine
-        // without a contract-tightened component entry rank binds no
-        // premise. When `requires` clauses cap the rank arriving at a
-        // `Natural` component's first entry — directly, through a
-        // relational chain the clauses themselves state, through an
+        // whose component entry ranks no premise channel tightens binds no
+        // premise. When a `requires` clause, a verified header-block
+        // invariant, or a reconstructed edge-guard fact caps the rank
+        // arriving at a `Natural` component's first entry — directly,
+        // through a relational chain the rows themselves state, through an
         // `IntegerMath*` linear bound solved over unbounded integers, or
         // through a conditional row whose disjunctive arms all bound the
         // rank or whose implication premise the ambient rows discharge —
         // the visit bound rests on them and the certificate binds the
-        // consulted premises.
-        relevant_preconditions: used_contract_premises(machine),
+        // consulted premises replayed from their own channel.
+        relevant_preconditions: used_premises(module, machine),
         ceiling_units,
     })
 }
