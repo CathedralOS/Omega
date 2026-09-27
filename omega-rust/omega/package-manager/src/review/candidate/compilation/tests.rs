@@ -938,6 +938,7 @@ impl FilesystemApplicationFixture {
         fs::write(
             root.join("application/main.omg"),
             r#"use ordinary_filesystem::main;
+use omega::language::core::binding;
 
 pub data Main { files: Binding<FilesystemHost>; rc: i32; }
 pub machine Main::main(&mut self)
