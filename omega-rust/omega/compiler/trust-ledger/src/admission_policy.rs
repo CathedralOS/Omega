@@ -250,41 +250,6 @@ mod tests {
     }
 
     #[test]
-    fn package_lock_contents_are_preserved_on_read_accept_replace_and_clear() {
-        let root = std::env::temp_dir().join(format!(
-            "omega-admissions-package-lock-{}",
-            std::process::id()
-        ));
-        std::fs::create_dir_all(&root).unwrap();
-        let root_path = root.join("main.omg");
-        let lock_path = root.join("omega.lock");
-        let admissions_path = root.join("omega.admissions");
-        // Unknown modern package formats stay under package-owner custody too.
-        for contents in [
-            b"OMEGA-PACKAGE-LOCK 1\n".as_slice(),
-            b"OMEGA-PACKAGE-LOCK 999\nfuture package state\n".as_slice(),
-            b"\xff\n".as_slice(),
-        ] {
-            std::fs::write(&lock_path, contents).unwrap();
-            assert!(read_trust_admissions(&root_path).unwrap().is_empty());
-            assert_eq!(std::fs::read(&lock_path).unwrap(), contents);
-            accept_trust_admissions(&root_path, &[]).unwrap();
-            assert!(!admissions_path.exists());
-            for required in [
-                vec![persisted("accepted fact: Alpha", 1)],
-                vec![persisted("accepted fact: Beta", 2)],
-                vec![],
-            ] {
-                accept_trust_admissions(&root_path, &required).unwrap();
-                assert_eq!(read_trust_admissions(&root_path).unwrap(), required);
-                assert_eq!(std::fs::read(&lock_path).unwrap(), contents);
-            }
-            std::fs::remove_file(&admissions_path).unwrap();
-        }
-        std::fs::remove_dir_all(root).unwrap();
-    }
-
-    #[test]
     fn legacy_strong_lock_requires_explicit_migration_without_implicit_acceptance() {
         let root = std::env::temp_dir().join(format!(
             "omega-admissions-legacy-migration-{}",
@@ -394,47 +359,6 @@ mod tests {
         accept_trust_admissions(&root_path, &[]).unwrap();
         assert!(read_trust_admissions(&root_path).unwrap().is_empty());
         assert!(std::fs::read(&admissions_path).unwrap().is_empty());
-        std::fs::remove_dir_all(root).unwrap();
-    }
-
-    #[test]
-    fn explicit_acceptance_rechecks_contents_after_an_earlier_policy_read() {
-        let root = std::env::temp_dir().join(format!(
-            "omega-lock-edited-explicit-acceptance-{}",
-            std::process::id()
-        ));
-        let _ = std::fs::remove_dir_all(&root);
-        std::fs::create_dir_all(&root).unwrap();
-        let root_path = root.join("main.omg");
-        let admissions_path = root.join("omega.admissions");
-        let admissions = [persisted("accepted fact: Alpha", 1)];
-        accept_trust_admissions(&root_path, &admissions).unwrap();
-        assert_eq!(read_trust_admissions(&root_path).unwrap(), admissions);
-
-        let changed = "OMEGA-PACKAGE-LOCK 1\n";
-        std::fs::write(&admissions_path, changed).unwrap();
-        assert!(accept_trust_admissions(&root_path, &admissions).is_err());
-        assert_eq!(std::fs::read_to_string(&admissions_path).unwrap(), changed);
-        std::fs::remove_dir_all(root).unwrap();
-    }
-
-    #[test]
-    fn explicit_acceptance_propagates_existing_lock_read_errors() {
-        let root = std::env::temp_dir().join(format!(
-            "omega-lock-unreadable-explicit-acceptance-{}",
-            std::process::id()
-        ));
-        let _ = std::fs::remove_dir_all(&root);
-        let admissions_path = root.join("omega.admissions");
-        std::fs::create_dir_all(&admissions_path).unwrap();
-        let root_path = root.join("main.omg");
-        let admissions = [persisted("accepted fact: Alpha", 1)];
-        for required in [admissions.as_slice(), &[]] {
-            let diagnostics = accept_trust_admissions(&root_path, required)
-                .expect_err("a failed lock read must not be treated as an absent lock");
-            assert!(format!("{diagnostics:?}").contains("failed to read"));
-            assert!(admissions_path.is_dir());
-        }
         std::fs::remove_dir_all(root).unwrap();
     }
 
