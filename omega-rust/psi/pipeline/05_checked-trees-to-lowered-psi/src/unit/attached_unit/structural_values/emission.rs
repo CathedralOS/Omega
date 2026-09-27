@@ -1057,15 +1057,11 @@ impl Emission<'_, '_, '_> {
                 if let Some(source) = self.copied_parameter(&argument)? {
                     return self.copied_leaf_place(&source, continuation);
                 }
-                if self.sources.is_empty()
-                    && continuation.is_none()
-                    && self.structural_types.iter().any(|declaration| {
-                        declaration.id == self.structural_type
-                            && matches!(declaration.shape, StructuralTypeShape::Record { .. })
-                    })
-                {
-                    // Source replay distinguishes a whole record child from a
-                    // selected sum leaf, whose receipt and continuation remain mandatory.
+                if self.sources.is_empty() && continuation.is_none() {
+                    // An ordinary constructor consumes this whole source place,
+                    // including a sum's active case. Source replay already checks
+                    // its exact owned transfer. Only a selected value needs the
+                    // per-arm source receipt and continuation handled below.
                     if let Some(place) = self.parameter_source(&argument)? {
                         return Ok(place);
                     }

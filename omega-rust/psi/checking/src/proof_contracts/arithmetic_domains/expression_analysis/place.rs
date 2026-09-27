@@ -74,6 +74,21 @@ pub(super) fn analyze(walk: &ExpressionWalk, expression: ExpressionHandle) -> An
         Some(facts) => interval.intersect(facts),
         None => interval,
     };
+    // Calls may clear snapshot facts without changing an immutable parameter.
+    // Its checked arrival requirements remain valid at every read; the shared
+    // standing-bounds query excludes mutable parameter arrival facts and only
+    // recovers store-enforced bounds for mutable places.
+    let interval = walk
+        .state
+        .and_then(|state| {
+            crate::proof_contracts::arithmetic_domains::standing_integer_interval(
+                program,
+                walk.machine,
+                state,
+                expression,
+            )
+        })
+        .map_or(interval, |standing| interval.intersect(standing));
     // Atomic integer types (AtomicU32, ...) have hardware wrap-around semantics,
     // so their arithmetic is Wrapping, not Exact -- a `fetch_add` never raises
     // an overflow proof obligation.
