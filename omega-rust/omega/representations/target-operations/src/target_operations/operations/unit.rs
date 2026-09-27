@@ -13,7 +13,7 @@ use abstract_operations::{
     AbstractParameterDynamicDispatch, AbstractReboundDynamicDispatch, AbstractResult,
     AbstractStoredDynamicDescriptor, AbstractStoredDynamicDispatch, CompletionClaimSource,
 };
-use calling_conventions::{CallPlan, ValuePlacement, ValueShape};
+use calling_conventions::{CallPlan, ValueShape};
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerType, IntegerValue,
     MachineId, OperationId, PlaceId, ServiceId, StructuralFieldId, ValueId,
