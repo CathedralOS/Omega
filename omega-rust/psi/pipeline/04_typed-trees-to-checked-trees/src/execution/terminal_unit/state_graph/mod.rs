@@ -1014,6 +1014,10 @@ enum SuccessorGuard {
     ErasedArguments,
     ErasedProofArguments,
     EdgeCleanup,
+    EdgeCleanupProjected,
+    EdgeCleanupStatePlan,
+    EdgeCleanupRow,
+    EdgeCleanupTarget,
 }
 
 impl SuccessorEdge {
@@ -1047,6 +1051,18 @@ impl SuccessorEdge {
                         guard_phase!($edge, "erased proof arguments")
                     }
                     SuccessorGuard::EdgeCleanup => guard_phase!($edge, "edge cleanup"),
+                    SuccessorGuard::EdgeCleanupProjected => {
+                        guard_phase!($edge, "edge cleanup: projected row shadows")
+                    }
+                    SuccessorGuard::EdgeCleanupStatePlan => {
+                        guard_phase!($edge, "edge cleanup: no state plan")
+                    }
+                    SuccessorGuard::EdgeCleanupRow => {
+                        guard_phase!($edge, "edge cleanup: no edge row")
+                    }
+                    SuccessorGuard::EdgeCleanupTarget => {
+                        guard_phase!($edge, "edge cleanup: target mismatch")
+                    }
                 }
             };
         }
@@ -1087,13 +1103,27 @@ fn successor(
     trace.phase(edge.phase(SuccessorGuard::EdgeCleanup));
     trace.statement(Some(ordinal));
     let source = &program.machine_states(machine)[source_index];
-    let cleanup = facts.flow.terminal_structural_control_cleanups.for_edge(
-        machine.symbol,
-        source.symbol,
-        ordinal,
-    );
-    let cleanup = cleanup?;
+    let cleanups = &facts.flow.terminal_structural_control_cleanups;
+    let cleanup = if cleanups
+        .for_projected_edge(machine.symbol, source.symbol, ordinal)
+        .is_some()
+    {
+        trace.phase(edge.phase(SuccessorGuard::EdgeCleanupProjected));
+        return None;
+    } else if cleanups.for_state(machine.symbol, source.symbol).is_none() {
+        trace.phase(edge.phase(SuccessorGuard::EdgeCleanupStatePlan));
+        return None;
+    } else {
+        match cleanups.for_edge(machine.symbol, source.symbol, ordinal) {
+            Some(cleanup) => cleanup,
+            None => {
+                trace.phase(edge.phase(SuccessorGuard::EdgeCleanupRow));
+                return None;
+            }
+        }
+    };
     if cleanup.target_state != successor.target_state {
+        trace.phase(edge.phase(SuccessorGuard::EdgeCleanupTarget));
         return None;
     }
     // An owned parameter the target does not receive dies on this edge. The
