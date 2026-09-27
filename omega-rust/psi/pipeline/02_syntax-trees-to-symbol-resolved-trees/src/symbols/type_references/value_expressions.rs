@@ -28,6 +28,7 @@ pub(in crate::symbols) fn assign_data_type_value_expression_symbols(
         let mut scope = MachineScope {
             symbol: definition.symbol,
             attached_machines: &attached_machines,
+            resolution_indexes: &program.resolution_indexes,
             type_parameters: declarations
                 .data_type_parameters
                 .span_or_empty(definition.type_parameters),

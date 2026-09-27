@@ -9,6 +9,7 @@ use arena::HandleSpan;
 use language_semantics::{ServiceReachId, ServiceReachInterface};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
+use typed_trees::declaration_index::CallTargetIndex;
 
 use flow_effects::{
     CallServiceReachInference, InstallationReachRequirement, MachineServiceReachInference,
@@ -55,107 +56,14 @@ struct DirectServiceReach {
 // Reach inference repeats the same symbol scans at three scales: the
 // operational summary per machine, the work row per call target inside the
 // fixed point, and the whole program's boundary states / machine-parameter
-// and trait signatures per call. Each roster is stable for the program, so
-// the maps are built once -- locally for the plan pass, cached for the
-// per-call target index.
-struct CallTargetIndex {
-    boundary_machine_by_state: symbols::SymbolKeyMap<SymbolHandle, u32>,
-    parameter_signature: symbols::SymbolKeyMap<SymbolHandle, (u32, u32)>,
-    trait_by_symbol: symbols::SymbolKeyMap<SymbolHandle, u32>,
-    trait_signature: symbols::SymbolKeyMap<SymbolHandle, (u32, u32)>,
-    parameter_contract:
-        symbols::SymbolKeyMap<SymbolHandle, arena::Handle<typed_trees::data::TypeParameter>>,
-}
-
-thread_local! {
-    static CALL_TARGET_INDEX: std::cell::RefCell<
-        Option<(typed_trees::ProgramIdentity, u64, CallTargetIndex)>,
-    > = const { std::cell::RefCell::new(None) };
-}
-
-fn call_target_index_revision(program: &TypedTrees) -> u64 {
-    // Freshness is the summed revision of every arena the index reads. Each
-    // arena revision only ever moves forward, so the sum moves exactly when
-    // one of the tables changes — an append or a same-length in-place rewrite
-    // alike — and never otherwise.
-    program
-        .tables
-        .machines
-        .revision()
-        .wrapping_add(program.tables.machine_states.revision())
-        .wrapping_add(program.tables.data_type_parameters.revision())
-        .wrapping_add(program.tables.traits.revision())
-        .wrapping_add(program.tables.trait_machine_signatures.revision())
-}
+// and trait signatures per call. The call-target index is owned by the
+// program itself: `TypedTrees::with_call_target_index` rebuilds
+// `CallTargetIndex` when any of the arena revisions it reads move, so no
+// caller-side freshness key is needed and a dropped program can never serve
+// a replacement its index.
 
 fn with_call_target_index<R>(program: &TypedTrees, run: impl FnOnce(&CallTargetIndex) -> R) -> R {
-    CALL_TARGET_INDEX.with(|cell| {
-        let mut slot = cell.borrow_mut();
-        let revision = call_target_index_revision(program);
-        let fresh = matches!(&*slot, Some((owner, seen, _))
-            if owner.get() == program.identity.get() && *seen == revision);
-        if !fresh {
-            let mut index = CallTargetIndex {
-                boundary_machine_by_state: symbols::SymbolKeyMap::default(),
-                parameter_signature: symbols::SymbolKeyMap::default(),
-                trait_by_symbol: symbols::SymbolKeyMap::default(),
-                trait_signature: symbols::SymbolKeyMap::default(),
-                parameter_contract: symbols::SymbolKeyMap::default(),
-            };
-            for (machine_index, machine) in program.machines().iter().enumerate() {
-                if machine.supply_mode.is_boundary_declaration() {
-                    for state in program.machine_states(machine) {
-                        index
-                            .boundary_machine_by_state
-                            .entry(state.symbol)
-                            .or_insert(machine_index as u32);
-                    }
-                }
-                for (parameter_index, parameter) in
-                    program.machine_type_parameters(machine).iter().enumerate()
-                {
-                    if matches!(
-                        parameter.kind,
-                        typed_trees::data::TypeParameterKind::Machine { .. }
-                    ) {
-                        index
-                            .parameter_signature
-                            .entry(parameter.symbol)
-                            .or_insert((machine_index as u32, parameter_index as u32));
-                    }
-                }
-            }
-            for (trait_index, trait_definition) in program.traits().iter().enumerate() {
-                index
-                    .trait_by_symbol
-                    .entry(trait_definition.symbol)
-                    .or_insert(trait_index as u32);
-                for (signature_index, signature) in program
-                    .trait_machine_signatures(trait_definition)
-                    .iter()
-                    .enumerate()
-                {
-                    index
-                        .trait_signature
-                        .entry(signature.symbol)
-                        .or_insert((trait_index as u32, signature_index as u32));
-                }
-            }
-            for (handle, parameter) in program.data_type_parameters.iter() {
-                if matches!(
-                    parameter.kind,
-                    typed_trees::data::TypeParameterKind::Machine { .. }
-                ) {
-                    index
-                        .parameter_contract
-                        .entry(parameter.symbol)
-                        .or_insert(handle);
-                }
-            }
-            *slot = Some((program.identity, revision, index));
-        }
-        run(&slot.as_ref().expect("index slot is populated").2)
-    })
+    program.with_call_target_index(run)
 }
 
 pub fn infer_service_reaches(
@@ -489,43 +397,13 @@ fn concrete_effective_services(machine: &MachineReachWork) -> &[ServiceReachId] 
     &machine.concrete_effective
 }
 
-thread_local! {
-    static OPERATIONAL_INDEX: std::cell::RefCell<
-        Option<(*const OperationalPlan, usize, symbols::SymbolKeyMap<SymbolHandle, usize>)>,
-    > = const { std::cell::RefCell::new(None) };
-}
-
 fn with_operational_index<R>(
     operational: &OperationalPlan,
     run: impl FnOnce(&symbols::SymbolKeyMap<SymbolHandle, usize>) -> R,
 ) -> R {
-    OPERATIONAL_INDEX.with(|cell| {
-        let mut slot = cell.borrow_mut();
-        let machines = operational.machines();
-        let sample = |index: usize| -> usize {
-            if index < machines.len() {
-                machines[index].symbol.arena_index() as usize
-            } else {
-                0
-            }
-        };
-        let fingerprint = machines.as_ptr() as usize
-            ^ machines.len().rotate_left(11)
-            ^ sample(0).rotate_left(23)
-            ^ sample(machines.len() / 2).rotate_left(31)
-            ^ sample(machines.len().saturating_sub(1));
-        let fresh = matches!(&*slot, Some((owner, seen, _))
-            if std::ptr::eq(*owner, operational as *const _) && *seen == fingerprint);
-        if !fresh {
-            let index = machines
-                .iter()
-                .enumerate()
-                .map(|(index, summary)| (summary.symbol, index))
-                .collect();
-            *slot = Some((operational as *const OperationalPlan, fingerprint, index));
-        }
-        run(&slot.as_ref().expect("index slot is populated").2)
-    })
+    // The machine-symbol index is owned by the plan itself; the arena
+    // revision inside the slot is the freshness key.
+    operational.with_machine_index(run)
 }
 
 pub(crate) fn required_boundary_services(

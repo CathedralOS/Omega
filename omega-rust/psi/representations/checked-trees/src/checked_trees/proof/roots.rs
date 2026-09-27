@@ -1,4 +1,6 @@
-use arena::Arena;
+use arena::{Arena, Handle, OwnedIndex};
+
+use symbols::SymbolHandle;
 
 use crate::{
     CheckedEvidenceTerm, ContractCallFact, ContractEvidenceArgument, ContractExitFact,
@@ -57,6 +59,59 @@ pub struct ProofFacts {
     /// universe binders, the parameter telescope, the statement's result, and
     /// a transparent term or named-assumption absence.
     pub mathematical_declarations: Vec<crate::CheckedMathematicalDeclaration>,
+    /// Caller-coordinate -> `contract_calls` row lookup owned by this
+    /// ledger; the index carries the `contract_calls` arena's revision, so
+    /// a mutation rebuilds it on the next query.
+    pub call_index: OwnedIndex<ProofCallIndex>,
+}
+
+/// `contract_calls` rows keyed by caller coordinate — `(machine symbol,
+/// state symbol, statement index, call ordinal)`. A call's contract row is
+/// addressed by its recorded identity rather than position; the last row
+/// recorded under a coordinate wins, matching the linear scan the index
+/// replaces. The integer hasher suits the handle-keyed map.
+#[derive(Clone, Default)]
+pub struct ProofCallIndex {
+    by_key: symbols::SymbolKeyMap<
+        (SymbolHandle, SymbolHandle, usize, usize),
+        Handle<ContractCallFact>,
+    >,
+}
+
+impl ProofCallIndex {
+    /// The row recorded under `key`, if any.
+    pub fn get(
+        &self,
+        key: &(SymbolHandle, SymbolHandle, usize, usize),
+    ) -> Option<Handle<ContractCallFact>> {
+        self.by_key.get(key).copied()
+    }
+}
+
+impl ProofFacts {
+    /// Run `run` against this ledger's owned caller-coordinate index,
+    /// rebuilding when the `contract_calls` arena's revision moved.
+    pub fn with_call_index<R>(&self, run: impl FnOnce(&ProofCallIndex) -> R) -> R {
+        self.call_index.with(
+            self.contract_calls.revision(),
+            || {
+                let mut index = ProofCallIndex::default();
+                for (handle, call) in self.contract_calls.iter() {
+                    index.by_key.insert(
+                        (
+                            call.caller_machine_symbol,
+                            call.caller_state_symbol,
+                            call.statement_index,
+                            call.call_ordinal,
+                        ),
+                        handle,
+                    );
+                }
+                index
+            },
+            run,
+        )
+    }
 }
 
 impl ProofFacts {

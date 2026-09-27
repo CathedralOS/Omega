@@ -12,6 +12,7 @@
 pub mod calls;
 mod commitments;
 pub mod control_flow;
+pub mod declaration_index;
 mod declaration_tables;
 pub mod declarations;
 pub mod evidence;
@@ -149,6 +150,13 @@ pub struct TypedTrees {
     /// group itself is proof metadata; a contextual scalar `value` separately
     /// names its corresponding ordinary runtime local/call statement.
     pub proof_output_calls: Vec<ProofOutputCall>,
+    /// Symbol-to-declaration indexes owned by this program. Each slot pairs
+    /// its index with the revision of the arenas it was built from, so a
+    /// table mutation — through the `push_*` methods or any other mutating
+    /// call — rebuilds the index on the next query. Declaration mutation goes
+    /// through methods; the revisions keep the indexes honest even where a
+    /// table remains reachable through a `pub` field.
+    pub declaration_indexes: declaration_index::DeclarationIndexes,
     /// Exact typed roots for private ranking witnesses. The normalized
     /// termination plan retains stable semantic text; checked consumers join
     /// through these handles instead of rediscovering expressions by spelling.
@@ -359,6 +367,7 @@ impl TypedTrees {
             open_index_normalizations: Vec::new(),
             evidence_forwardings: Vec::new(),
             proof_output_calls: Vec::new(),
+            declaration_indexes: declaration_index::DeclarationIndexes::default(),
             ranking_expression_custody: Vec::new(),
             pending_const_range_endpoints: std::collections::HashSet::new(),
         }

@@ -121,6 +121,7 @@ fn payload_candidates_reject_foreign_fields_cases_and_roots() {
     let attachments = crate::symbols::scope::attached_machines(&program);
     let scope = MachineScope {
         attached_machines: &attachments,
+        resolution_indexes: &program.resolution_indexes,
         symbol: machine.symbol,
         type_parameters: &[],
         attached_data: machine.attached_data.as_ref(),
@@ -283,6 +284,7 @@ fn payload_candidates_keep_same_spelled_nominal_owners_in_their_source() {
     let attachments = crate::symbols::scope::attached_machines(&program);
     let scope = MachineScope {
         attached_machines: &attachments,
+        resolution_indexes: &program.resolution_indexes,
         symbol: machine.symbol,
         type_parameters: &[],
         attached_data: machine.attached_data.as_ref(),

@@ -428,6 +428,9 @@ impl Lowerer {
             semantic_domains,
             external_bindings,
             evidence_forwardings,
+            // Derived lookup state does not travel with the fields; the
+            // rebuilt program's indexes fill lazily from its own tables.
+            resolution_indexes: _,
         } = self.symbol_resolved_trees;
         let mut trees = SymbolResolvedTrees::with_roots(roots, tables, symbols);
         trees.service_reaches = service_reaches;

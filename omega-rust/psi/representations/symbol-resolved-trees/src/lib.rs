@@ -32,6 +32,7 @@ pub use symbol_resolved_trees::declarations::{
 };
 pub use symbol_resolved_trees::evidence::{mathematical, proposition};
 pub use symbol_resolved_trees::inspection::snapshot;
+pub use symbol_resolved_trees::lookup_indexes;
 pub use symbol_resolved_trees::names::name;
 pub use symbol_resolved_trees::storage::tables;
 pub use symbol_resolved_trees::type_system::types;

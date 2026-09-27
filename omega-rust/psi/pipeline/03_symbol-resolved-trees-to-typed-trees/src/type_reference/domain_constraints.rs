@@ -1,6 +1,4 @@
 use diagnostics::Diagnostic;
-use std::cell::RefCell;
-use std::collections::HashMap;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use typed_trees::TypedTrees;
 use typed_trees::domain::DomainDefinition;
@@ -240,27 +238,10 @@ fn normalize_constraint_span(
     Ok(())
 }
 
-/// Every spelling a domain answers to, bucketed once per program. Occurrences
-/// then consult two buckets instead of rescanning and re-spelling every
-/// declaration: a qualified-spelling match needs no exposure check, while the
-/// relative spellings (declared, member-relative, leaf) still require
-/// [`domain_exposed_to`]. The roster extends in place while the typed program
-/// keeps growing between queries.
-struct DomainCandidateIndex {
-    qualified: Vec<Box<str>>,
-    by_qualified: HashMap<Box<str>, Vec<u32>>,
-    by_relative: HashMap<Box<str>, Vec<u32>>,
-}
-
-fn domain_spelling_sample(domain: &DomainDefinition) -> usize {
-    (domain.symbol.arena_index() as usize)
-        ^ (domain.name.as_str().as_ptr() as usize).rotate_left(11)
-}
-
 fn spell_domain_range(
     source: &SymbolResolvedTrees,
     definitions: &[DomainDefinition],
-    index: &mut DomainCandidateIndex,
+    index: &mut typed_trees::declaration_index::DomainCandidateIndex,
     range: std::ops::Range<usize>,
 ) {
     for position in range {
@@ -293,80 +274,21 @@ fn spell_domain_range(
     }
 }
 
-thread_local! {
-    // Addresses can be reused after a prior compilation is dropped, including
-    // all three sampled names. The program's instance identity prevents that
-    // later compilation from inheriting the previous spelling buckets.
-    static DOMAIN_CANDIDATE_INDEX: RefCell<
-        Option<(
-            u64,
-            *const DomainDefinition,
-            usize,
-            [usize; 3],
-            DomainCandidateIndex,
-        )>,
-    > = const { RefCell::new(None) };
-}
-
+/// Read the domain-spelling index the program owns
+/// (`TypedTrees::with_domain_candidate_index`): the slot records the domain
+/// arena's revision, so a mutation between queries rebuilds the buckets —
+/// no sampled-name fingerprint is needed once the index lives on the
+/// program itself.
 fn with_domain_candidate_index<R>(
     source: &SymbolResolvedTrees,
     program: &TypedTrees,
-    reader: impl FnOnce(&DomainCandidateIndex) -> R,
+    reader: impl FnOnce(&typed_trees::declaration_index::DomainCandidateIndex) -> R,
 ) -> R {
     let definitions = program.domain_definitions();
-    DOMAIN_CANDIDATE_INDEX.with(|slot| {
-        let mut slot = slot.borrow_mut();
-        let fresh = slot
-            .as_ref()
-            .is_some_and(|(owner, base, watermark, samples, index)| {
-                *owner == program.identity.get()
-                    && *base == definitions.as_ptr()
-                    && *watermark <= definitions.len()
-                    && [0usize, *watermark / 2, watermark.saturating_sub(1)]
-                        .iter()
-                        .enumerate()
-                        .all(|(slot, &position)| {
-                            definitions.get(position).is_some_and(|domain| {
-                                domain_spelling_sample(domain) == samples[slot]
-                            })
-                        })
-                    && index.qualified.len() == *watermark
-            });
-        if !fresh {
-            let mut index = DomainCandidateIndex {
-                qualified: Vec::with_capacity(definitions.len()),
-                by_qualified: HashMap::new(),
-                by_relative: HashMap::new(),
-            };
-            spell_domain_range(source, definitions, &mut index, 0..definitions.len());
-            *slot = Some((
-                program.identity.get(),
-                definitions.as_ptr(),
-                definitions.len(),
-                [0; 3],
-                index,
-            ));
-        }
-        {
-            let (owner, base, watermark, samples, index) =
-                slot.as_mut().expect("index just populated");
-            let _ = (owner, base);
-            if *watermark < definitions.len() {
-                spell_domain_range(source, definitions, index, *watermark..definitions.len());
-                *watermark = definitions.len();
-            }
-            for (slot, &position) in [0usize, *watermark / 2, watermark.saturating_sub(1)]
-                .iter()
-                .enumerate()
-            {
-                samples[slot] = definitions
-                    .get(position)
-                    .map(domain_spelling_sample)
-                    .unwrap_or_default();
-            }
-            reader(index)
-        }
-    })
+    program.with_domain_candidate_index(
+        |index| spell_domain_range(source, definitions, index, 0..definitions.len()),
+        reader,
+    )
 }
 
 /// Type annotations and qualification casts share source-aware selection.

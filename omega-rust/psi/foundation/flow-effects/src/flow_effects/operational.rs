@@ -1,5 +1,12 @@
-use arena::{Arena, HandleSpan};
+use arena::{Arena, HandleSpan, OwnedIndex};
 use symbols::SymbolHandle;
+
+/// Lazily built `symbol -> machine index` map owned by the plan it
+/// describes. The slot pairs the map with the `machines` arena revision it
+/// was built against; a query rebuilds when the arena moved, so no
+/// caller-side freshness key is needed and a dropped plan can never serve a
+/// replacement its index.
+pub type OperationalMachineIndex = OwnedIndex<symbols::SymbolKeyMap<SymbolHandle, usize>>;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct OperationalPlan {
@@ -8,6 +15,9 @@ pub struct OperationalPlan {
     pub states: Arena<StateOperational>,
     pub calls: Arena<CallOperational>,
     pub static_machine_bindings: Arena<StaticMachineCallBinding>,
+    /// Machine-symbol lookup owned by the plan; see
+    /// [`OperationalMachineIndex`].
+    pub machine_index: OperationalMachineIndex,
 }
 
 /// Exact static arguments on an ordinary generic call. Nested applications
@@ -23,6 +33,31 @@ pub struct StaticMachineCallBinding {
 impl OperationalPlan {
     pub fn machines(&self) -> &[MachineOperational] {
         self.machines.span_or_empty(self.root_machines)
+    }
+
+    /// Run `run` against the plan-owned `symbol -> machine index` map,
+    /// rebuilding it when the machines arena's revision moved since the
+    /// stored map was built.
+    pub fn with_machine_index<R>(
+        &self,
+        run: impl FnOnce(&symbols::SymbolKeyMap<SymbolHandle, usize>) -> R,
+    ) -> R {
+        self.machine_index.with(
+            self.machines.revision(),
+            || {
+                self.machines()
+                    .iter()
+                    .enumerate()
+                    .map(|(index, summary)| (summary.symbol, index))
+                    .collect()
+            },
+            run,
+        )
+    }
+
+    /// Position of `symbol` in `machines()`, through the plan-owned index.
+    pub fn machine_index_by_symbol(&self, symbol: SymbolHandle) -> Option<usize> {
+        self.with_machine_index(|index| index.get(&symbol).copied())
     }
 }
 

@@ -44,6 +44,15 @@ impl TypeReferenceTable {
         }
     }
 
+    /// Summed revision of the table's arenas — the freshness key for every
+    /// index or memo derived from type-reference rows and constraints.
+    pub fn revision(&self) -> u64 {
+        self.type_references
+            .revision()
+            .wrapping_add(self.type_reference_handles.revision())
+            .wrapping_add(self.constraints.revision())
+    }
+
     pub fn insert(&mut self, type_reference: TypeReferenceNode) -> TypeReferenceHandle {
         self.type_references.insert(type_reference)
     }

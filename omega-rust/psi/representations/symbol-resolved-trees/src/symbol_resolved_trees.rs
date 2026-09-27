@@ -8,6 +8,7 @@ pub mod control_flow;
 pub mod declarations;
 pub mod evidence;
 pub mod inspection;
+pub mod lookup_indexes;
 pub mod names;
 pub mod storage;
 pub mod type_system;
@@ -48,6 +49,10 @@ pub struct SymbolResolvedTrees {
     pub external_bindings: language_semantics::ExternalBindingTable,
     /// Erased evidence assignments removed from runtime statement spans.
     pub evidence_forwardings: Vec<statement::EvidenceForwarding>,
+    /// Lookup indexes owned by this program — resolution's roster scans
+    /// turned thread-local once; as owned slots they cannot outlive the
+    /// tables they index, and arena revisions mark their freshness exactly.
+    pub resolution_indexes: lookup_indexes::ResolvedIndexes,
 }
 
 /// Exact append boundary for every symbol-resolved store which can retain an
@@ -385,6 +390,7 @@ impl SymbolResolvedTrees {
             semantic_domains: language_semantics::SemanticDomainTable::default(),
             external_bindings: language_semantics::ExternalBindingTable::default(),
             evidence_forwardings: Vec::new(),
+            resolution_indexes: lookup_indexes::ResolvedIndexes::default(),
         }
     }
 

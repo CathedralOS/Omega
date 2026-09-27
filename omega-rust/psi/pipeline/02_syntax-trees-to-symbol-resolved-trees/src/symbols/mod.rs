@@ -403,6 +403,7 @@ pub(crate) fn assign_constant_expression_symbols(
     let declarations = &mut program.tables.declarations;
     let scope = scope::MachineScope {
         attached_machines: &attached_machines,
+        resolution_indexes: &program.resolution_indexes,
         symbol: symbols::SymbolHandle::invalid(),
         type_parameters: &[],
         attached_data: None,

@@ -1,6 +1,7 @@
 use arena::{Arena, OrderedRootArena};
 use language_core::is_self_receiver;
 use symbol_resolved_trees::data::{DataDefinition, DataMember};
+use symbol_resolved_trees::lookup_indexes::ResolvedIndexes;
 use symbol_resolved_trees::types::TypeReference;
 use symbols::{SymbolHandle, SymbolLookup, SymbolTable};
 
@@ -10,7 +11,34 @@ pub(super) struct AttachedMachine {
     pub(super) machine: SymbolHandle,
 }
 
+/// The attached-machine roster together with the by-owner index every
+/// ambient-method lookup re-derives: the walk used to bucket the roster
+/// through a thread-local keyed on the slice address; carrying the index in
+/// the roster makes the built-once index a value the caller owns.
+pub(super) struct AttachedMachines {
+    pub(super) list: Vec<AttachedMachine>,
+    by_owner: symbols::SymbolKeyMap<SymbolHandle, Vec<usize>>,
+}
+
+impl AttachedMachines {
+    /// Roster positions of machines attached to `owner`, in roster order.
+    pub(super) fn positions_for_owner(&self, owner: SymbolHandle) -> &[usize] {
+        self.by_owner.get(&owner).map(Vec::as_slice).unwrap_or(&[])
+    }
+}
+
 pub(super) fn attached_machines(
+    program: &symbol_resolved_trees::SymbolResolvedTrees,
+) -> AttachedMachines {
+    let list = attached_machine_list(program);
+    let mut by_owner: symbols::SymbolKeyMap<SymbolHandle, Vec<usize>> = Default::default();
+    for (index, entry) in list.iter().enumerate() {
+        by_owner.entry(entry.owner).or_default().push(index);
+    }
+    AttachedMachines { list, by_owner }
+}
+
+fn attached_machine_list(
     program: &symbol_resolved_trees::SymbolResolvedTrees,
 ) -> Vec<AttachedMachine> {
     use symbol_resolved_trees::trait_definition::{
@@ -58,7 +86,11 @@ pub(super) fn attached_machines(
 
 pub(super) struct MachineScope<'program> {
     pub(super) symbol: SymbolHandle,
-    pub(super) attached_machines: &'program [AttachedMachine],
+    pub(super) attached_machines: &'program AttachedMachines,
+    /// The program's owned position indexes — local-statement, parameter,
+    /// and data-definition positions resolve through these instead of
+    /// rescanning (or a thread-local side table).
+    pub(super) resolution_indexes: &'program ResolvedIndexes,
     pub(super) type_parameters: &'program [symbol_resolved_trees::data::TypeParameter],
     pub(super) attached_data: Option<&'program symbol_resolved_trees::name::DiagnosticName>,
     pub(super) attached_data_symbol: SymbolHandle,
@@ -89,22 +121,18 @@ impl MachineScope<'_> {
         if !owner.is_valid() || symbols.get(owner).kind != symbols::SymbolKind::Data {
             return SymbolHandle::invalid();
         }
-        let owner_attachments =
-            super::expression_paths::projected_receivers::attached_machines_for_owner(
-                self.attached_machines,
-                owner,
-            );
+        let owner_attachments = self.attached_machines.positions_for_owner(owner);
         // The visibility lookup's candidate filter asks "is this machine
         // attached to `owner`" per roster candidate; answer it from a set
         // built once instead of rescanning the attached list each probe.
         let owner_machines: std::collections::HashSet<SymbolHandle> = owner_attachments
             .iter()
-            .map(|index| self.attached_machines[*index].machine)
+            .map(|index| self.attached_machines.list[*index].machine)
             .collect();
         let mut selected = SymbolHandle::invalid();
         for attachment in owner_attachments
             .iter()
-            .map(|index| &self.attached_machines[*index])
+            .map(|index| &self.attached_machines.list[*index])
         {
             let state = super::lookup::child_symbol_by_kinds(
                 symbols,
@@ -234,11 +262,10 @@ impl MachineScope<'_> {
             return None;
         }
         for hop in hops {
-            let definition = &self.data_definitions
-                [super::expression_paths::projected_receivers::data_definition_position(
-                    self.data_definitions,
-                    current_symbol,
-                )? as usize];
+            let definition = &self.data_definitions[self
+                .resolution_indexes
+                .data_definition_position(self.data_definitions, current_symbol)?
+                as usize];
             let field = self
                 .data_members
                 .span_or_empty(definition.storage.members)

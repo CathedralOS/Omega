@@ -9,16 +9,17 @@ use super::type_instantiation::{
     TypeBindings, push_generic_application_bindings, substituted_head,
 };
 use crate::value_custody::struct_literals::construction_field_type;
-use std::cell::RefCell;
-/// Handle-keyed maps take the integer hasher; none is iterated for output order.
-type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
+use typed_trees::declaration_index::IsolationVerdicts;
 use typed_trees::expression::TableStructLiteral;
 use typed_trees::name::Identifier;
 use typed_trees::type_identity::NormalizedTypeIdentity;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+
+/// Handle-keyed maps take the integer hasher; none is iterated for output order.
+type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>;
 
 /// Ordinary normalized identities are a pure function of the handle, and
 /// these walks re-query the same handles heavily (the `visiting` back-edge
@@ -26,55 +27,22 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 /// keeps each normalization a one-time cost per walk.
 pub(super) type TypeIdentityMemo = HashMap<TypeReferenceHandle, NormalizedTypeIdentity>;
 
-/// Write-frame inference asks these same questions once per frame expression:
-/// verdicts at empty outer bindings are pure functions of the queried handle,
-/// and the definition scans below re-filter the whole table per named type.
-/// Cache exact verdicts and ordered definition indexes per program, anchored
-/// on the definition-table identity (validation may append definitions).
-type IsolationVerdicts = HashMap<(TypeReferenceHandle, bool), bool>;
-type StorageMatchVerdicts = HashMap<(TypeReferenceHandle, TypeReferenceHandle), bool>;
-// Definition verdicts key on the definition pointer, not its symbol: test
-// fixtures can forge duplicate symbols, and two definitions sharing one must
-// keep independent verdicts. Within a freshness window the slice is stable.
-type DefinitionVerdicts = HashMap<*const typed_trees::data::DataDefinition, bool>;
-// Substitution-sensitive verdicts key on the queried handle plus the exact
-// binding frame, since the same handle can walk different member graphs
-// under different applications.
-type BindingsVerdicts = HashMap<
-    (
-        TypeReferenceHandle,
-        Vec<(SymbolHandle, TypeReferenceHandle)>,
-    ),
-    bool,
->;
-
-pub(super) struct IsolationCache {
-    pub(super) isolation: IsolationVerdicts,
-    pub(super) storage_match: StorageMatchVerdicts,
-    pub(super) definitions: DefinitionVerdicts,
-    pub(super) reference_free: BindingsVerdicts,
-    pub(super) carry_write: BindingsVerdicts,
-    pub(super) by_symbol: HashMap<SymbolHandle, Vec<u32>>,
-    pub(super) by_name: HashMap<String, Vec<u32>>,
+/// Write-frame inference asks these same questions once per frame
+/// expression: verdicts at empty outer bindings are pure functions of the
+/// queried handle. The verdict memo is owned by the program
+/// (`TypedTrees::with_isolation_verdicts`); `program_fingerprint` is the
+/// revision key it rebuilds against.
+fn roster_marker<T>(span: arena::HandleSpan<T>) -> u64 {
+    ((span.start().arena_index() as u64) << 32) | span.count() as u64
 }
 
-thread_local! {
-    static ISOLATION_CACHE: RefCell<
-        Option<(typed_trees::ProgramIdentity, u64, usize, IsolationCache)>,
-    > = const { RefCell::new(None) };
-}
-
-/// Cheap per-call staleness check over the tables these verdicts read.
-///
-/// `TypedTrees::identity` answers "is this the same program"; the revision
-/// answers "did a table change since the entry was built" — exactly, not by
-/// sampling. Each arena's revision only moves forward, so their sum moves
-/// precisely when a read table does: an append, a free, or a same-length
-/// in-place rewrite all count identically. The three `Vec` planning tables
-/// have no arena revision of their own, so their lengths still join the
-/// check; they are populated before checking opens the cache and no caller
-/// rewrites one in place mid-pass.
-fn program_fingerprint(program: &TypedTrees) -> (u64, usize) {
+fn program_fingerprint(program: &TypedTrees) -> u64 {
+    // Each arena's revision only moves forward, so their sum moves precisely
+    // when a read table does: an append, a free, or a same-length in-place
+    // rewrite all count identically. The three `Vec` planning tables have no
+    // arena revision of their own, so their lengths still join the key; they
+    // are populated before checking opens the memo and no caller rewrites
+    // one in place mid-pass.
     let revision = program
         .tables
         .data_definitions
@@ -82,88 +50,47 @@ fn program_fingerprint(program: &TypedTrees) -> (u64, usize) {
         .wrapping_add(program.tables.data_members.revision())
         .wrapping_add(program.tables.data_type_parameters.revision())
         .wrapping_add(program.tables.machines.revision())
-        .wrapping_add(program.tables.machine_states.revision());
+        .wrapping_add(program.tables.machine_states.revision())
+        // Root spans can be re-pointed in place (retained-prefix builds,
+        // product pruning) without touching an arena's revision — their
+        // start/count carry the visible roster, so they join the key.
+        .wrapping_add(roster_marker(program.roots.data_definitions))
+        .wrapping_add(roster_marker(program.roots.machines));
     let vector_lengths = program
         .plan_laid_layouts
         .len()
         .wrapping_add(program.placed_view_plans.len())
         .wrapping_add(program.authored_service_reach_rows.len());
-    (revision, vector_lengths)
+    revision ^ (vector_lengths as u64).rotate_left(41)
 }
 
 pub(super) fn with_isolation_cache<R>(
     program: &TypedTrees,
-    run: impl FnOnce(&mut IsolationCache) -> R,
+    run: impl FnOnce(&mut IsolationVerdicts) -> R,
 ) -> R {
-    ISOLATION_CACHE.with(|cell| {
-        let mut slot = cell.borrow_mut();
-        let (revision, vector_lengths) = program_fingerprint(program);
-        let fresh = matches!(&*slot, Some((owner, seen, seen_lengths, _))
-            if owner.get() == program.identity.get()
-                && *seen == revision
-                && *seen_lengths == vector_lengths);
-        if !fresh {
-            let mut by_symbol: HashMap<SymbolHandle, Vec<u32>> = HashMap::default();
-            let mut by_name: HashMap<String, Vec<u32>> = HashMap::default();
-            for (index, definition) in program.data_definitions().iter().enumerate() {
-                if definition.symbol.is_valid() {
-                    by_symbol
-                        .entry(definition.symbol)
-                        .or_default()
-                        .push(index as u32);
-                }
-                by_name
-                    .entry(definition.name.as_str().to_string())
-                    .or_default()
-                    .push(index as u32);
-            }
-            *slot = Some((
-                program.identity,
-                revision,
-                vector_lengths,
-                IsolationCache {
-                    isolation: HashMap::default(),
-                    storage_match: HashMap::default(),
-                    definitions: HashMap::default(),
-                    reference_free: HashMap::default(),
-                    carry_write: HashMap::default(),
-                    by_symbol,
-                    by_name,
-                },
-            ));
-        }
-        run(&mut slot.as_mut().unwrap().3)
-    })
+    program.with_isolation_verdicts(program_fingerprint(program), run)
 }
 
 pub(super) fn definitions_for_symbol(
     program: &TypedTrees,
     symbol: SymbolHandle,
 ) -> Vec<&typed_trees::data::DataDefinition> {
-    let indexes = with_isolation_cache(program, |cache| cache.by_symbol.get(&symbol).cloned());
-    indexes
-        .map(|indexes| {
-            indexes
-                .iter()
-                .map(|index| &program.data_definitions()[*index as usize])
-                .collect()
-        })
-        .unwrap_or_default()
+    program
+        .data_definition_positions_for_symbol(symbol)
+        .iter()
+        .map(|index| &program.data_definitions()[*index as usize])
+        .collect()
 }
 
 pub(super) fn definitions_for_name<'p>(
     program: &'p TypedTrees,
     name: &str,
 ) -> Vec<&'p typed_trees::data::DataDefinition> {
-    let indexes = with_isolation_cache(program, |cache| cache.by_name.get(name).cloned());
-    indexes
-        .map(|indexes| {
-            indexes
-                .iter()
-                .map(|index| &program.data_definitions()[*index as usize])
-                .collect()
-        })
-        .unwrap_or_default()
+    program
+        .data_definition_positions_for_name(name)
+        .iter()
+        .map(|index| &program.data_definitions()[*index as usize])
+        .collect()
 }
 
 fn type_identities_match(
@@ -625,7 +552,13 @@ pub(super) fn data_definition_has_only_owned_storage(
     program: &TypedTrees,
     definition: &typed_trees::data::DataDefinition,
 ) -> bool {
-    let key = definition as *const typed_trees::data::DataDefinition;
+    // Definition verdicts key on the definition's own address, not its
+    // symbol: test fixtures can forge duplicate symbols, and two definitions
+    // sharing one must keep independent verdicts. The verdict slot rebuilds
+    // whenever the definition table mutates, so an address can never be
+    // recycled under a live verdict — the memo's freshness window bounds the
+    // slice.
+    let key = definition as *const typed_trees::data::DataDefinition as usize;
     if let Some(verdict) =
         with_isolation_cache(program, |cache| cache.definitions.get(&key).copied())
     {

@@ -35,7 +35,7 @@ pub use borrow::{
     BorrowCompatibilityPremise, BorrowCompatibilityPremiseRelation,
     BorrowCompatibilityPremiseSource, BorrowCompatibilitySelectorPosition,
     BorrowCompatibilitySelectorSnapshot, BorrowCompatibilitySelectorValue, BorrowFacts,
-    BorrowLoanFact, BorrowLoanLineage, BorrowLoanOwnerSegment, BorrowRootKind,
+    BorrowLoanFact, BorrowLoanLineage, BorrowLoanOwnerSegment, BorrowRootKind, BorrowStateIndex,
     BorrowWritableRootFact, CapturedPlace, CapturedPlaceCompatibility, CapturedPlaceContainment,
     CheckedBorrowCallCompatibilityCertificate, CheckedBorrowCompatibilityCertificate,
     CheckedBorrowMutationCertificate, CheckedBorrowResourceDispositionTarget,
