@@ -32,12 +32,40 @@ pub fn root() -> Result<PathBuf, String> {
                 if option_env!("OMEGA_RELEASE_LIBRARY_SHA256").is_some() {
                     None
                 } else {
-                    option_env!("OMEGA_DEVELOPMENT_LIBRARY_ROOT").map(PathBuf::from)
+                    recover_development_root(
+                        &executable,
+                        option_env!("OMEGA_DEVELOPMENT_LIBRARY_ROOT").map(PathBuf::from),
+                    )
                 },
             )?;
             validate(&root, option_env!("OMEGA_RELEASE_LIBRARY_SHA256"))
         })
         .clone()
+}
+
+/// The development library root to offer, recovering one the recorded path lost.
+///
+/// `build.rs` bakes an absolute `source/library` path from the checkout that
+/// compiled the binary, and asks Cargo to rerun only when the release digest
+/// changes. A binary therefore keeps naming its original checkout after that
+/// tree is moved or deleted, and every compilation fails on a path the current
+/// checkout never had. Prefer the recorded root while it still holds a library,
+/// then fall back to the tree this executable actually sits in, and finally to
+/// the recorded root so its absence is reported as before.
+///
+/// Release builds never reach this: their caller passes no development root,
+/// keeping "a release carries a digest and no checkout fallback" intact.
+fn recover_development_root(executable: &Path, recorded: Option<PathBuf>) -> Option<PathBuf> {
+    if let Some(recorded) = &recorded {
+        if recorded.join("core").is_dir() {
+            return Some(recorded.clone());
+        }
+    }
+    executable
+        .ancestors()
+        .map(|ancestor| ancestor.join("source/library"))
+        .find(|candidate| candidate.join("core").is_dir())
+        .or(recorded)
 }
 
 fn select_root(
@@ -200,5 +228,29 @@ mod tests {
             select_root(&fixture.0.join("bin/omega"), None, Some(fixture.0.clone())).unwrap();
         assert_eq!(selected, fixture.0.join("lib/omega/library"));
         assert!(validate(&selected, None).is_err());
+    }
+
+    #[test]
+    fn a_recorded_development_root_that_vanished_recovers_from_the_executable_tree() {
+        let checkout = LibraryFixture::new();
+        let library = checkout.0.join("source/library");
+        std::fs::create_dir_all(library.join("core")).unwrap();
+        let executable = checkout.0.join("target/debug/omega");
+        let vanished = checkout.0.join("worktrees/removed/source/library");
+
+        assert_eq!(
+            recover_development_root(&executable, Some(vanished.clone())).unwrap(),
+            library
+        );
+        assert_eq!(
+            recover_development_root(&executable, Some(checkout.0.clone())).unwrap(),
+            checkout.0
+        );
+
+        let outside = std::env::temp_dir().join("omega-absent-checkout/target/debug/omega");
+        assert_eq!(
+            recover_development_root(&outside, Some(vanished.clone())),
+            Some(vanished)
+        );
     }
 }
