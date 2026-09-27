@@ -1,0 +1,58 @@
+// A float COMPUTATION has no Terminal route. A float copy does. Reduced while
+// attributing the six-sample guard cluster; the repair is owned by
+// OPERATOR-BOUNDARY-CALLS, which already records that compiler-known float
+// realizations are absent. This is the reproduction, not a second claim on it.
+//
+//   self.d = self.e;                 (copy)         checks
+//   self.flag = self.n > 5;          (integer cmp)  checks
+//   self.d = self.d + self.e;        (float arith)  OMITTED
+//   self.flag = self.d > 211.5;      (float cmp)    OMITTED
+//   self.flag = self.d == self.e;    (float cmp)    OMITTED (this fixture)
+//
+// It is not about guards, which is what the cluster's shared phase suggests.
+// Every position fails and each reports a different phase, none naming a
+// float:
+//
+//   transition self.d > 211.5 { true -> .. _ -> .. }
+//                          `state graph: terminator: conditional successors:
+//                           guard expression`
+//   transition { self.d > 211.5 -> .. _ -> .. }      the same
+//   let b: bool = self.d > 211.5;
+//                          `statement sequence: local data: scalar local:
+//                           pure initializer`
+//   self.flag = self.d > 211.5;
+//                          `structural field store: pure source: scalar
+//                           expression row`
+//
+// Binding the comparison to a local or a field first is therefore NOT a
+// workaround; there is no spelling of a float computation that routes.
+//
+// What names the real owner: import `omega::language::core::float_operations`
+// and the same comparison becomes a call, omitting at
+// `a missing boundary target (\`Float::equal\`)`. Every operator and both
+// widths behave alike -- `>`, `<`, `==` on `f64`, and `>` on `f32`.
+//
+// CLUSTER ATTRIBUTION, recorded here because the phase string hides it. The
+// six samples reporting `state graph: terminator: conditional successors:
+// guard expression` are TWO causes, three each:
+//   float comparison guards -- cli/{arithmetic/dual_float,
+//     basics/unit_converter, simulation/particle_sim}  -> this gap
+//   `self.i < self.text.len` with `i: i32` against a u64 length --
+//     cli/text/{parse_int,roman_numeral,string_hash}   -> already pinned at
+//     tests/omega/pending/expressions/mixed_integer_guard_comparison
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    left: f64;
+    right: f64;
+    equal: bool;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.left = 212.0;
+    self.right = 2.0;
+    self.equal = self.left == self.right;
+    self.console.exit_process(0);
+}
