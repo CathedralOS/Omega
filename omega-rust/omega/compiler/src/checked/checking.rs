@@ -549,6 +549,56 @@ pub fn typed_frontier_reuse_count() -> u64 {
     TYPED_FRONTIER_REUSES.load(std::sync::atomic::Ordering::Relaxed)
 }
 
+static PRELIMINARY_CHECK_CALLS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static PRELIMINARY_CHECK_MICROS: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(0);
+static SETTLED_CHECK_CALLS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static SETTLED_CHECK_MICROS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Monotonic `(calls, wall microseconds)` totals of the pre-build
+/// declaration-authority checks `lower_typed_trees` served. A call served
+/// from the exact-input check memo returns in microseconds while a fresh
+/// check of a package graph takes seconds, so a review pass whose
+/// preliminary total stays near zero while its call count rises was already
+/// deduplicated, and the microseconds that remain name the residual
+/// preliminary-versus-settled duplication inside each compile.
+#[doc(hidden)]
+pub fn preliminary_check_totals() -> (u64, u64) {
+    (
+        PRELIMINARY_CHECK_CALLS.load(std::sync::atomic::Ordering::Relaxed),
+        PRELIMINARY_CHECK_MICROS.load(std::sync::atomic::Ordering::Relaxed),
+    )
+}
+
+/// Monotonic `(calls, wall microseconds)` totals of the settled
+/// `lower_typed_trees` checks, so a review pass report can show what the
+/// settled checkpoint costs beside the preliminary gate.
+#[doc(hidden)]
+pub fn settled_check_totals() -> (u64, u64) {
+    (
+        SETTLED_CHECK_CALLS.load(std::sync::atomic::Ordering::Relaxed),
+        SETTLED_CHECK_MICROS.load(std::sync::atomic::Ordering::Relaxed),
+    )
+}
+
+/// Account one pre-build declaration-authority check's wall time.
+pub(crate) fn record_preliminary_check(elapsed: std::time::Duration) {
+    PRELIMINARY_CHECK_CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    PRELIMINARY_CHECK_MICROS.fetch_add(
+        u64::try_from(elapsed.as_micros()).unwrap_or(u64::MAX),
+        std::sync::atomic::Ordering::Relaxed,
+    );
+}
+
+/// Account one settled whole-program check's wall time.
+pub(crate) fn record_settled_check(elapsed: std::time::Duration) {
+    SETTLED_CHECK_CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    SETTLED_CHECK_MICROS.fetch_add(
+        u64::try_from(elapsed.as_micros()).unwrap_or(u64::MAX),
+        std::sync::atomic::Ordering::Relaxed,
+    );
+}
+
 fn compile_checked_request(
     request: CheckedCompileRequest<'_>,
     prepared: Option<PreparedCheckedSource>,

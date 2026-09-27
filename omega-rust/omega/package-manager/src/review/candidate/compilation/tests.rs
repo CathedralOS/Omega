@@ -798,6 +798,8 @@ fn bound_pass_compiles_only_the_occurrences_its_bindings_changed() {
     );
     let compilations_before = compiler::checked_compilation_call_count();
     let frontiers_before = compiler::typed_frontier_reuse_count();
+    let preliminary_before = compiler::preliminary_check_totals();
+    let settled_before = compiler::settled_check_totals();
     let bound = compile_pass(
         &exact,
         &fixture.0.join("bound"),
@@ -828,6 +830,22 @@ fn bound_pass_compiles_only_the_occurrences_its_bindings_changed() {
         "each recompiled occurrence still re-lowered no source: the discovered \
          bindings are all post-frontier service roles, so both typed frontiers \
          carried over from the discovery pass unchanged"
+    );
+    let (preliminary_calls, _) = compiler::preliminary_check_totals();
+    let (settled_calls, _) = compiler::settled_check_totals();
+    assert_eq!(
+        preliminary_calls - preliminary_before.0,
+        2,
+        "each recompiled occurrence still asks the pre-build admission gate for \
+         its own checked graph; the exact-input memo, not a skipped gate, is \
+         what answers the identical frozen program"
+    );
+    assert_eq!(
+        settled_calls - settled_before.0,
+        2,
+        "each recompiled occurrence settles its own checked program: the \
+         preliminary result cannot feed settlement because the program it \
+         checked predates provider settlement and target selection"
     );
     let plain = closure
         .graph()

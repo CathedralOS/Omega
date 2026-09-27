@@ -483,22 +483,35 @@ fn compile_candidate(
 /// Run one review pass, then attribute its checked work beside the pass's
 /// stage line when review timings are enabled: how many occurrences it
 /// holds, how many it actually compiled, how many a prior pass's identical
-/// compile carried forward untouched, and how many typed frontiers a later
-/// occurrence reused instead of re-assembling identical source.
+/// compile carried forward untouched, how many typed frontiers a later
+/// occurrence reused instead of re-assembling identical source, and what the
+/// two whole-program checkpoints inside each compiled occurrence cost. The
+/// preliminary row is the pre-build declaration-authority check; a pass that
+/// repeats an identical frozen graph serves it from the exact-input memo in
+/// microseconds, so its per-pass micros name the residual
+/// preliminary-versus-settled duplication rather than just its call count.
 fn note_pass_accounting(
     pass: &'static str,
     run: impl FnOnce() -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError>,
 ) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
     let compilations_before = compiler::checked_compilation_call_count();
     let frontiers_before = compiler::typed_frontier_reuse_count();
+    let preliminary_before = compiler::preliminary_check_totals();
+    let settled_before = compiler::settled_check_totals();
     let result = run()?;
     let occurrences = result.occurrences.len();
     let carried = result.carried;
     timings::note(|| {
+        let (preliminary_calls, preliminary_micros) = compiler::preliminary_check_totals();
+        let (settled_calls, settled_micros) = compiler::settled_check_totals();
         format!(
-            "review_pass {pass} occurrences={occurrences} compiled={} carried={carried} frontier_reused={}",
+            "review_pass {pass} occurrences={occurrences} compiled={} carried={carried} frontier_reused={} preliminary_checks={} preliminary_micros={} settled_checks={} settled_micros={}",
             compiler::checked_compilation_call_count() - compilations_before,
             compiler::typed_frontier_reuse_count() - frontiers_before,
+            preliminary_calls - preliminary_before.0,
+            preliminary_micros - preliminary_before.1,
+            settled_calls - settled_before.0,
+            settled_micros - settled_before.1,
         )
     });
     Ok(result)
