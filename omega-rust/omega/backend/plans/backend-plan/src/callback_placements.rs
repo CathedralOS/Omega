@@ -3,7 +3,8 @@
 
 use calling_conventions::{
     BoundaryEntryPlan, CallbackMaterializationContext, CallbackRequirementId,
-    NativeParameterApplication, NativePlace, StaticMachineBinderId, ValueClass, ValueShape,
+    NativeParameterApplication, NativePlace, PlanDiagnostic, StaticMachineBinderId, ValueClass,
+    ValueShape,
 };
 use checked_trees::NominalMachineUseSite;
 use function_identity::StateKey;
@@ -42,8 +43,9 @@ pub struct BoundNominalCallbackPlacement {
 }
 
 /// Complete address-free context and selected row for one private callback
-/// materialization. Physical offsets, target operations, bytes, object
-/// relocations, runtime storage, registration authority, and leases are absent.
+/// materialization, including the retained field offset when applicable.
+/// Target operations, bytes, object relocations, runtime storage, registration
+/// authority, and leases are absent.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundCallbackPrivateMaterialization {
     pub binder: StaticMachineBinderId,
@@ -72,6 +74,74 @@ pub struct BoundCallbackPrivateMaterialization {
     /// root parameter's record. Direct parameter destinations retain `None`.
     pub field_byte_offset: Option<usize>,
     pub context: CallbackMaterializationContext,
+}
+
+impl BoundCallbackPrivateMaterialization {
+    /// Borrow the destination's exact registrar parameter application.
+    ///
+    /// Direct destinations apply the callback parameter; field destinations
+    /// apply the root record parameter and require a retained byte offset.
+    /// Reject mixed or missing custody and identity, ordinal, shape or placement
+    /// drift. This does not authenticate the field layout or application
+    /// commitment, or replace independent ABI-plan and callback-context replay.
+    pub fn destination_parameter_application(
+        &self,
+    ) -> Result<&NativeParameterApplication, PlanDiagnostic> {
+        let (parameter, application) = match &self.destination {
+            NativePlace::Parameter(parameter) => {
+                if self.root_parameter_application.is_some() || self.field_byte_offset.is_some() {
+                    return Err(PlanDiagnostic(
+                        "direct callback destination retains field-destination custody".to_owned(),
+                    ));
+                }
+                let application = self.direct_registrar_parameter_application.as_ref().ok_or_else(|| {
+                    PlanDiagnostic("direct callback destination lost its exact native parameter application".to_owned())
+                })?;
+                (parameter, application)
+            }
+            NativePlace::Field { parameter, .. } => {
+                if self.direct_registrar_parameter_application.is_some()
+                    || self.field_byte_offset.is_none()
+                {
+                    return Err(PlanDiagnostic(
+                        "field callback destination lacks or mixes parameter-destination custody"
+                            .to_owned(),
+                    ));
+                }
+                let application = self.root_parameter_application.as_ref().ok_or_else(|| {
+                    PlanDiagnostic(
+                        "field callback destination lost its exact root parameter application"
+                            .to_owned(),
+                    )
+                })?;
+                (parameter, application)
+            }
+        };
+        let placement = usize::try_from(application.native_ordinal)
+            .ok()
+            .and_then(|ordinal| {
+                self.registrar_boundary_entry_plan
+                    .call
+                    .parameters
+                    .get(ordinal)
+            })
+            .ok_or_else(|| {
+                PlanDiagnostic(
+                    "callback registrar native telescope ordinal is absent from its exact plan"
+                        .to_owned(),
+                )
+            })?;
+        if application.parameter != *parameter
+            || application.shape != application.placement.shape
+            || application.placement != *placement
+        {
+            return Err(PlanDiagnostic(
+                "callback registrar native telescope identity, shape, or placement drifted"
+                    .to_owned(),
+            ));
+        }
+        Ok(application)
+    }
 }
 
 /// Exact checked identity retained when a callback placement becomes a thunk.
@@ -508,7 +578,7 @@ pub fn validate_bound_nominal_callback_placement(
                         .to_owned(),
                 ));
         }
-        validate_callback_registrar_native_parameters(materialization)?;
+        materialization.destination_parameter_application()?;
     }
     if validated.plan() != &placement.boundary_entry_plan {
         return Err(calling_conventions::PlanDiagnostic(
@@ -525,54 +595,6 @@ pub fn validate_bound_nominal_callback_placement(
         ));
     }
     Ok(validated)
-}
-
-fn validate_callback_registrar_native_parameters(
-    materialization: &BoundCallbackPrivateMaterialization,
-) -> Result<(), calling_conventions::PlanDiagnostic> {
-    let destination_parameter = match &materialization.destination {
-        NativePlace::Parameter(parameter) => *parameter,
-        NativePlace::Field { .. } => {
-            if materialization
-                .direct_registrar_parameter_application
-                .is_some()
-            {
-                return Err(calling_conventions::PlanDiagnostic(
-                    "field callback destination retained a direct native parameter application"
-                        .to_owned(),
-                ));
-            }
-            return Ok(());
-        }
-    };
-    let Some(application) = &materialization.direct_registrar_parameter_application else {
-        return Err(calling_conventions::PlanDiagnostic(
-            "direct callback destination lost its exact native parameter application".to_owned(),
-        ));
-    };
-    let Some(placement) = usize::try_from(application.native_ordinal)
-        .ok()
-        .and_then(|ordinal| {
-            materialization
-                .registrar_boundary_entry_plan
-                .call
-                .parameters
-                .get(ordinal)
-        })
-    else {
-        return Err(calling_conventions::PlanDiagnostic(
-            "callback registrar native telescope ordinal is absent from its exact plan".to_owned(),
-        ));
-    };
-    if application.parameter != destination_parameter
-        || application.shape != application.placement.shape
-        || application.placement != *placement
-    {
-        return Err(calling_conventions::PlanDiagnostic(
-            "callback registrar native telescope identity, shape, or placement drifted".to_owned(),
-        ));
-    }
-    Ok(())
 }
 
 /// Derive the one compiler-private object identity bound to an exact validated

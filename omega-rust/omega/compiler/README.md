@@ -285,6 +285,12 @@ opaque companion by value on both success and rejection. That wrapper does not
 admit, lower, fingerprint, or interpret its contents.
 
 Native callback arguments separately enter the realization request. Their
+[backend placement](../backend/plans/backend-plan/src/callback_placements.rs)
+owns destination application selection and consistency: a direct callback
+parameter or a record-field root, with its exact native ordinal and placement.
+Proposal production, retained-product replay and native admission consume that
+same checked projection; ABI/context replay and occurrence joins remain separate.
+The
 [target-side carrier](../pipeline/02_abstract-operations-to-target-operations/src/lowering/coordination/native_callbacks.rs)
 binds a Terminal operation, placement index, private function, native parameter
 application, registrar plan/context, and application commitment. Target lowering
