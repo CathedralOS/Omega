@@ -5,8 +5,8 @@ use super::{
 };
 use package_manager::review::{
     CandidateSourcePreparation, PackagePolicyChangeSet, PackagePolicyDecision,
-    PackagePolicyDecisionError, PackagePolicyDecisionSubject as Subject,
-    PackagePolicyReviewError as Error, ReviewOnlyRootPolicyDisposition::*, SemanticBindingReview,
+    PackagePolicyDecisionSubject as Subject, PackagePolicyReviewError as Error,
+    ReviewOnlyRootPolicyDisposition::*, SemanticBindingReview,
     compile_resolved_package_reviews_reusing, recover_package_policy_review,
     render_package_policy_review, resolve_package_policy_decisions,
 };
@@ -174,11 +174,17 @@ fn pure_initial_policy_has_readable_findings_and_no_choices() {
 }
 
 #[test]
-fn initial_assumptions_require_explicit_choices_and_preserve_rejection() {
+fn review_document_choices_bind_exact_findings_subjects_and_limits() {
     let tree = Tree::new();
     let changes = initial_assumptions(&tree);
     assert!(accepting(&changes).len() >= 2);
     assert_choices_round_trip(&changes);
+    let template = render_package_policy_review(&changes, MAXIMUM_BYTES).unwrap();
+    let accepted = accept_document(&changes, &template);
+    assert_exact_choice_tokens(&changes, &accepted);
+    assert_exact_choice_subjects(&changes, &accepted);
+    assert_immutable_findings(&changes, &template, &accepted);
+    assert_document_byte_limits(&changes, &template, &accepted);
 }
 
 #[test]
@@ -217,13 +223,8 @@ fn advisory_representation_findings_never_receive_choices() {
     assert!(recover_package_policy_review(&changes, &extra, MAXIMUM_BYTES).is_err());
 }
 
-#[test]
-fn only_exact_accept_and_reject_tokens_complete_a_choice() {
-    let tree = Tree::new();
-    let changes = initial_assumptions(&tree);
-    let template = render_package_policy_review(&changes, MAXIMUM_BYTES).unwrap();
-    let accepted = accept_document(&changes, &template);
-    let subject = accepting(&changes)[0].subject;
+fn assert_exact_choice_tokens(changes: &PackagePolicyChangeSet, accepted: &str) {
+    let subject = accepting(changes)[0].subject;
     for token in [
         "",
         "accepted",
@@ -237,20 +238,15 @@ fn only_exact_accept_and_reject_tokens_complete_a_choice() {
             &choice_line(subject, token),
         );
         assert_eq!(
-            recover_package_policy_review(&changes, &edited, MAXIMUM_BYTES),
+            recover_package_policy_review(changes, &edited, MAXIMUM_BYTES),
             Err(Error::InvalidDecision),
             "token {token:?}"
         );
     }
 }
 
-#[test]
-fn edited_missing_duplicate_foreign_and_advisory_choice_lines_reject() {
-    let tree = Tree::new();
-    let changes = initial_assumptions(&tree);
-    let template = render_package_policy_review(&changes, MAXIMUM_BYTES).unwrap();
-    let accepted = accept_document(&changes, &template);
-    let decisions = accepting(&changes);
+fn assert_exact_choice_subjects(changes: &PackagePolicyChangeSet, accepted: &str) {
+    let decisions = accepting(changes);
     let first = choice_line(decisions[0].subject, "accept");
     let second = choice_line(decisions[1].subject, "accept");
     let foreign_tree = Tree::new();
@@ -293,23 +289,19 @@ fn edited_missing_duplicate_foreign_and_advisory_choice_lines_reject() {
         ),
     ] {
         assert_eq!(
-            recover_package_policy_review(&changes, &edited, MAXIMUM_BYTES),
+            recover_package_policy_review(changes, &edited, MAXIMUM_BYTES),
             Err(Error::ChangedFindings),
             "{label}"
         );
     }
 }
 
-#[test]
-fn findings_and_exact_line_framing_are_immutable_even_with_pending_choices() {
-    let tree = Tree::new();
-    let changes = initial_assumptions(&tree);
-    let template = render_package_policy_review(&changes, MAXIMUM_BYTES).unwrap();
+fn assert_immutable_findings(changes: &PackagePolicyChangeSet, template: &str, accepted: &str) {
     let finding = template
         .split_inclusive('\n')
         .find(|line| line.starts_with("+ ") && line.contains("trusted_zero"))
         .expect("readable canonical assumption row");
-    for text in [&template, &accept_document(&changes, &template)] {
+    for text in [template, accepted] {
         for edited in [
             text.replace("omega-package-review 1\n", "omega-package-review 2\n"),
             text.replace(finding, &finding.replace("trusted_zero", "trusted_other")),
@@ -320,94 +312,42 @@ fn findings_and_exact_line_framing_are_immutable_even_with_pending_choices() {
             text.strip_suffix('\n').unwrap().to_owned(),
         ] {
             assert_eq!(
-                recover_package_policy_review(&changes, &edited, MAXIMUM_BYTES),
+                recover_package_policy_review(changes, &edited, MAXIMUM_BYTES),
                 Err(Error::ChangedFindings)
             );
         }
     }
 }
 
-#[test]
-fn byte_limits_bound_both_input_and_regenerated_template() {
-    let tree = Tree::new();
-    let changes = initial_assumptions(&tree);
-    let template = render_package_policy_review(&changes, MAXIMUM_BYTES).unwrap();
+fn assert_document_byte_limits(changes: &PackagePolicyChangeSet, template: &str, accepted: &str) {
     assert_eq!(
-        render_package_policy_review(&changes, template.len()).unwrap(),
+        render_package_policy_review(changes, template.len()).unwrap(),
         template
     );
     for maximum_bytes in [0, template.len() - 1] {
         assert_eq!(
-            render_package_policy_review(&changes, maximum_bytes),
+            render_package_policy_review(changes, maximum_bytes),
             Err(Error::ByteLimit)
         );
     }
-    let accepted = accept_document(&changes, &template);
     assert!(accepted.len() < template.len());
-    assert!(recover_package_policy_review(&changes, &accepted, template.len()).is_ok());
+    assert!(recover_package_policy_review(changes, accepted, template.len()).is_ok());
     // Input fits, but recovery must also fit the original pending template.
     assert_eq!(
-        recover_package_policy_review(&changes, &accepted, accepted.len()),
+        recover_package_policy_review(changes, accepted, accepted.len()),
         Err(Error::ByteLimit)
     );
     for maximum_bytes in [0, accepted.len() - 1] {
         assert_eq!(
-            recover_package_policy_review(&changes, &accepted, maximum_bytes),
+            recover_package_policy_review(changes, accepted, maximum_bytes),
             Err(Error::ByteLimit)
         );
     }
     let oversized = format!("{accepted}{}", " ".repeat(template.len()));
     assert_eq!(
-        recover_package_policy_review(&changes, &oversized, template.len()),
+        recover_package_policy_review(changes, &oversized, template.len()),
         Err(Error::ByteLimit)
     );
-}
-
-#[test]
-fn source_only_edits_invalidate_saved_comparisons_even_when_policy_is_identical() {
-    let tree = Tree::new();
-    source(&tree, "pub const VALUE: u64 = 7;\n", "");
-    let (baseline_sources, baseline_reviews) = candidate(&tree, "document-baseline");
-    let lock = lock_from_reviews(&baseline_sources, &baseline_reviews);
-    source(&tree, ASSUMPTIONS, "");
-    let (original_sources, original_reviews) = candidate(&tree, "document-original");
-    let original = compare(lock.target(TARGET), &original_sources, &original_reviews);
-    let template = render_package_policy_review(&original, MAXIMUM_BYTES).unwrap();
-    let saved = accept_document(&original, &template);
-    source(
-        &tree,
-        &format!("// source-only revision\n{ASSUMPTIONS}"),
-        "",
-    );
-    let (updated_sources, updated_reviews) = candidate(&tree, "document-updated");
-    let root = original_sources.graph().root();
-    assert_eq!(root, updated_sources.graph().root());
-    assert_eq!(
-        original_reviews.review(root).unwrap().policy(),
-        updated_reviews.review(root).unwrap().policy()
-    );
-    let updated = compare(lock.target(TARGET), &updated_sources, &updated_reviews);
-    assert_ne!(original.fingerprint(), updated.fingerprint());
-    for text in [&template, &saved] {
-        assert_eq!(
-            recover_package_policy_review(&updated, text, MAXIMUM_BYTES),
-            Err(Error::Decisions(
-                PackagePolicyDecisionError::WrongComparison
-            ))
-        );
-    }
-    let current = render_package_policy_review(&updated, MAXIMUM_BYTES).unwrap();
-    let wrong_comparison = current.replace(
-        &format!("comparison {}\n", hex(updated.fingerprint().digest())),
-        &format!("comparison {}\n", hex(original.fingerprint().digest())),
-    );
-    assert_eq!(
-        recover_package_policy_review(&updated, &wrong_comparison, MAXIMUM_BYTES),
-        Err(Error::Decisions(
-            PackagePolicyDecisionError::WrongComparison
-        ))
-    );
-    assert_choices_round_trip(&updated);
 }
 
 #[test]

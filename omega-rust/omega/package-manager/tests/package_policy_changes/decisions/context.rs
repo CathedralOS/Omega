@@ -3,8 +3,13 @@ use super::{
     ASSUMPTIONS, Error, PackagePolicyDecision, RejectCandidateChange, Subject, TARGET, Tree,
     accepting, candidate, compare, initial_assumptions, resolve_package_policy_decisions, source,
 };
+use package_manager::review::{
+    PackagePolicyReviewError, recover_package_policy_review, render_package_policy_review,
+};
+
 #[test]
-fn same_policy_source_edits_invalidate_whole_comparisons_and_foreign_rows_reject() {
+fn source_edits_invalidate_saved_decisions_and_documents_and_foreign_rows_reject() {
+    const MAXIMUM_REVIEW_BYTES: usize = 4 * 1024 * 1024;
     let tree = Tree::new();
     source(&tree, "pub const VALUE: u64 = 7;\n", "");
     let (baseline_sources, baseline_reviews) = candidate(&tree, "baseline");
@@ -17,6 +22,13 @@ fn same_policy_source_edits_invalidate_whole_comparisons_and_foreign_rows_reject
         &original_reviews,
     );
     let decisions = accepting(&original);
+    let pending_document = render_package_policy_review(&original, MAXIMUM_REVIEW_BYTES).unwrap();
+    let accepted_document = pending_document.replace(" pending\n", " accept\n");
+    assert!(
+        recover_package_policy_review(&original, &accepted_document, MAXIMUM_REVIEW_BYTES)
+            .unwrap()
+            .all_required_changes_accepted()
+    );
     source(
         &tree,
         &format!("// source-only revision\n{ASSUMPTIONS}"),
@@ -39,6 +51,12 @@ fn same_policy_source_edits_invalidate_whole_comparisons_and_foreign_rows_reject
         original.baseline_source_subject(),
         updated.baseline_source_subject()
     );
+    for document in [&pending_document, &accepted_document] {
+        assert_eq!(
+            recover_package_policy_review(&updated, document, MAXIMUM_REVIEW_BYTES),
+            Err(PackagePolicyReviewError::Decisions(Error::WrongComparison))
+        );
+    }
     assert_eq!(
         resolve_package_policy_decisions(&updated, original.fingerprint().digest(), &decisions),
         Err(Error::WrongComparison)
@@ -55,10 +73,15 @@ fn same_policy_source_edits_invalidate_whole_comparisons_and_foreign_rows_reject
         resolve_package_policy_decisions(&updated, comparison, &foreign_decisions),
         Err(Error::UnknownSubject(foreign_decisions[0].subject))
     );
-    assert!(
-        resolve_package_policy_decisions(&updated, comparison, &accepting(&updated))
-            .unwrap()
-            .all_required_changes_accepted()
+    let resolution =
+        resolve_package_policy_decisions(&updated, comparison, &accepting(&updated)).unwrap();
+    assert!(resolution.all_required_changes_accepted());
+    let current_document = render_package_policy_review(&updated, MAXIMUM_REVIEW_BYTES)
+        .unwrap()
+        .replace(" pending\n", " accept\n");
+    assert_eq!(
+        recover_package_policy_review(&updated, &current_document, MAXIMUM_REVIEW_BYTES).unwrap(),
+        resolution
     );
 
     source(
