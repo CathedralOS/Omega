@@ -18,8 +18,16 @@ pub(super) fn proves(
     caller: &FlowStateFact,
     call: &FlowCallFact,
     expression: ExpressionHandle,
+    guard: Option<ExpressionHandle>,
 ) -> bool {
-    prove(program, facts, caller, call, expression).unwrap_or(false)
+    // A guard is supplied only by the selected transition route, which also
+    // verifies that earlier operands preserve every required read.
+    if guard.is_some_and(|guard| {
+        !super::prover::has_builtin_operators(program, &facts.operators, guard)
+    }) {
+        return false;
+    }
+    prove(program, facts, caller, call, expression, guard).unwrap_or(false)
 }
 
 fn prove(
@@ -28,6 +36,7 @@ fn prove(
     caller: &FlowStateFact,
     call: &FlowCallFact,
     expression: ExpressionHandle,
+    guard: Option<ExpressionHandle>,
 ) -> Option<bool> {
     let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
         return None;
@@ -40,14 +49,14 @@ fn prove(
     }
     if binary.operator == BinaryOperator::And {
         return Some(
-            proves(program, facts, caller, call, binary.left)
-                && proves(program, facts, caller, call, binary.right),
+            proves(program, facts, caller, call, binary.left, guard)
+                && proves(program, facts, caller, call, binary.right, guard),
         );
     }
     if binary.operator == BinaryOperator::Or {
         return Some(
-            proves(program, facts, caller, call, binary.left)
-                || proves(program, facts, caller, call, binary.right),
+            proves(program, facts, caller, call, binary.left, guard)
+                || proves(program, facts, caller, call, binary.right, guard),
         );
     }
     let spelling = match binary.operator {
@@ -74,7 +83,9 @@ fn prove(
             call: source_call, ..
         } => {
             if source_call.target_symbol != call.target_symbol
-                || source_call.receiver.is_valid()
+                || (source_call.receiver.is_valid()
+                    && crate::flow::canonical_place_from_expression(program, source_call.receiver)
+                        .is_none())
                 || source_call.static_requirement_dispatch.is_some()
             {
                 return None;
@@ -106,9 +117,8 @@ fn prove(
         crate::semantic::calls::CallSite::TransitionNamed { .. }
     );
     let parameters = program.state_parameters(callee_state);
-    if !transition && parameters.iter().any(|parameter| parameter.is_self) {
-        return None;
-    }
+    // Only explicit scalar operands are substituted below. A runtime receiver
+    // contributes no premises or implicit-self value to this interval query.
     let explicit = parameters
         .iter()
         .filter(|parameter| !parameter.is_self)
@@ -139,9 +149,30 @@ fn prove(
             if !super::prover::has_builtin_operators(program, &facts.operators, argument) {
                 return None;
             }
-            let (low, high) =
-                validation::immutable_integer_expression_bounds(program, machine, state, argument)?;
-            Some(((Some(low), Some(high)), Some(parameter.type_reference)))
+            let (mut low, mut high) =
+                validation::immutable_integer_expression_bounds(program, machine, state, argument)
+                    .map(|(low, high)| (Some(low), Some(high)))
+                    .or_else(|| {
+                        validation::stored_integer_bounds(program, machine, state, argument)
+                    })?;
+            if let Some((guard_low, guard_high)) = guard.and_then(|guard| {
+                super::intervals::guard_interval_for_label(
+                    program,
+                    guard,
+                    &program.expression_table.display_name(argument),
+                )
+            }) {
+                // This existing closed-interval reader uses signed extrema as
+                // missing-endpoint sentinels. Keep them open here: a u64's
+                // unconstrained ceiling does not become i64::MAX.
+                if let Some(bound) = guard_low.to_i64().filter(|bound| *bound > i64::MIN) {
+                    low = Some(low.map_or(bound, |low| low.max(bound)));
+                }
+                if let Some(bound) = guard_high.to_i64().filter(|bound| *bound < i64::MAX) {
+                    high = Some(high.map_or(bound, |high| high.min(bound)));
+                }
+            }
+            Some(((low, high), Some(parameter.type_reference)))
         }
         // A field of the shared receiver holds what every store to it
         // enforces at each read, so those bounds hold at arrival. The
