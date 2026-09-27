@@ -1,0 +1,17 @@
+// A `&mut` reborrow weakens to the callee's shared loan: the caller's mutable
+// custody already covers the read the callee performs.
+
+data Counts { tally: u64; }
+
+data Main { counts: Counts; }
+
+machine Counts::clone(source: &Counts) -> Counts {
+    Counts { tally: source.tally }
+}
+
+machine Counts::collect(&mut self, merged: &mut Counts) -> u64 {
+    let copy: Counts = Counts::clone(&mut merged);
+    copy.tally
+}
+
+machine Main::main(&mut self) { }
