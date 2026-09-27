@@ -1,10 +1,14 @@
 # Target-set compilation
 
-Plan for making target multiplicity data inside the compilation instead of
-control flow around it. Companion to the **TARGET-SET-COMPILATION** board item.
-Delete once that item closes: one compile admits a target set, the per-target
-outer loops and post-hoc reuse structures are gone, and the spine reads in one
-place.
+Historical proposal, superseded by the [pipeline route](../../../TASKS.md#pipeline-route)
+and [multi-target contract](../../spec/build/configuration.md#multi-target-compilation).
+The measurements and alternatives below are retained as history, not execution
+instructions: Build runs once without observing the realized target, every
+family body survives in one Terminal artifact, and the existing stage boundaries
+remain. The duplicate board item was consolidated into the pipeline owners;
+**PCC-PRODUCT-PUBLICATION** owns Terminal-only command publication. Delete this
+note when the pipeline migration closes and its historical comparisons are no
+longer useful.
 
 Measured at `c5a798a411` (2026-09-24, Windows host).
 

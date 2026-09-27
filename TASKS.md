@@ -675,6 +675,12 @@ backend-visible; full corpus runs only at the end of an item.
   **PROVIDER-SELECTION-AFTER-TERMINAL**. Prefix consumers stop at their actual
   checkpoint; stage counters must distinguish execution from reused reports.
 
+  Retire the per-target source clones and reuse structures that merely mask
+  repeated compilation (`NativeInputReuse`, `CandidateSourcePreparation`)
+  as their work moves into the shared stages. Preserve single-target command
+  behavior, Build-effect custody and per-target admission/publication checks.
+  **PCC-PRODUCT-PUBLICATION** owns the separate Terminal-only command product.
+
 ## Immediate product closure
 
 Prioritize unchanged customer programs reaching native execution over additional
@@ -927,6 +933,58 @@ the complete product bar; focused successes below do not establish that baseline
   tampering cases when replacing tests of retired plan types. The affected
   corpus and execution oracles must pass; fewer dispatch branches or an empty
   entry compiling do not establish closure.
+
+- **STATE-GRAPH-SCALAR-RESULT-CUSTOMERS.** Finish native execution of
+  result-bearing state graphs and their callers under **LOWERING-ROUTE-CONSOLIDATION**
+  and **STATE-LOCAL-VALUE-FRONTIER**. Scalar result completion is implemented;
+  retain `proofs/runtime_decreases_u64_measure_exit`'s five effects/result 5
+  (recorded native exit 70) and `calls/value_call_param_effect_arm`'s one
+  mutation (exit 1). The latter replaced the obsolete fail fixture; restoring
+  its rejection would regress mutable-record transfer.
+
+  - **Ranks through complete callers.** `CollectionLengthDistance` already
+    carries a collection-bound cursor through stage 04, stage 05 replay and
+    rank emission. `unit_state_graph/ranking.rs` verifies and interprets normal,
+    empty and already-crossed bounds, and rejects substituted collections and
+    nonadvancing cursors. Re-run `calls/runtime_value_call_statement_recursive_walk_exit`:
+    its recorded omission is still natural ranks, but creating another measure
+    is no longer the assignment. Preserve both separator-count effects and
+    result 2, native exit 70. Connect `termination/rank_range_state_call`'s
+    count/step cycle through its subordinate state with **GENERAL-CYCLIC-EXECUTION**
+    and **TRANSITION-TAIL-CALL-TO-MACHINE**. It has no Build entry; its native
+    golden says `checked`, which does not prove execution. Bind an executable
+    customer preserving the weak/strict cycle and result 0.
+  - **Results and control.** `calls/runtime_dispatch_float_terminal_exit`
+    currently records a guard-expression omission before the remaining
+    Boolean/integer-only result gate in native `scalar_graph_input/byte_views.rs`.
+    Close both stages for its f64 result. Finish case-payload field observation
+    in `expression_preparation/bindings/structural_fields/` for
+    `calls/runtime_dispatch_result_enum_case_exit` (score 15, exit 70), and
+    receiver transfer through `control_flow/runtime_tuple_transition_exit`
+    (exit 22). Keep short-circuit evaluation and later-binding order from
+    `unit_state_graph/scalars.rs`; the old prefix-initializer refusal has been
+    replaced by ordinary conditional sequencing.
+  - **Borrowed arguments.** Reconcile source admission and independent loan
+    replay for `calls/runtime_param_receiver_second_instance_exit` and
+    `calls/runtime_dispatch_{slice_element_terminal,machine_array_slice_arg}_exit`.
+    They currently record overlapping-exclusive-argument refusals. Preserve
+    second-instance value 9 versus 7 and slice element 7, with exit 70;
+    **BORROW-PROOF-CONVERGENCE** owns compatibility evidence. Genuine conflicting
+    parent/child loans must still reject; widening the verifier's pair check
+    does not supply missing authority.
+
+  Account for deleted customers through equivalent current coverage or recover
+  their distinct behavior: `runtime_trailing_state_mut_param_phase_exit` at
+  `ba6e88a4101^` observes two mutations before its outer guard and three before
+  its trailing guard (exit 70). The old `rooted_residual_scalar_entry_cohort`
+  at `c60792d7bdd^` exercised `guarded_transition_dispatch` and
+  `record_array_field_access`, each returning 0 through a scalar callee;
+  preserve their case dispatch, record-array/string operations and output.
+
+  Acceptance: every named customer has its actual entry and interpreter/native
+  oracle accounted for. Use focused corpus filters and matching-host native
+  execution; the default corpus can expose lowering failures, but a `checked`
+  or `built` record without execution does not satisfy a runtime oracle.
 
 - **SAMPLE-CORPUS.** Close every maintained `samples/cli|gui|uefi` project
   through checked semantics, native publication for its authored targets, and
@@ -2556,8 +2614,18 @@ syntax and other terminal services are not prerequisites.
 
 ## P3 - Terminal Psi, PCC, and observation
 
-- **PCC-PRODUCT-PUBLICATION.** Deliver standalone native behavioral evidence
+- **PCC-PRODUCT-PUBLICATION.** Deliver requested Psi and standalone native evidence
   under [optional proof products](wiki/spec/proofs/publication.md).
+  Expose the existing Terminal-only product through the project/CLI route:
+  `ProjectProduct` currently offers only Check/NativeArtifact, and command
+  `publish_compilation` rejects retained Terminal reports. Connect
+  `publish_retained_terminal_artifact` with an authored customer that publishes
+  and independently verifies `.psi` and the requested `.psi.proof`, without
+  requiring native emission. The `semantic_binding_review` test constructs an
+  in-memory report; it does not exercise command publication. Preserve optional
+  proof defaults and root-owned requests. Keep the check-only PCC refusal
+  control; a Terminal stop must likewise reject native PCC requests.
+
   `native-artifact/src/proof.rs` builds/verifies native sidecars; compiler
   reporting owns publication and bundle placement. Checks cover image/data
   inventories, entry/load-map custody and
@@ -3647,122 +3715,6 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   either -- a `[i32 in Wrapping; 3]` field taking a whole-array literal store
   checks and produces its unit plan -- and native execution cannot be the
   evidence on a host with no recorded native golden.
-- **TARGET-SET-COMPILATION.** (new-scope) Multi-target compilation is
-  repeated single-target compilation at two layers
-  ([plan](wiki/drafts/designs/target_set_compilation.md), measured at
-  `c5a798a411`). `compiler::compile` does
-  `for (target, source) in request.targets.into_iter().zip(repeat_n(source))`:
-  `source_checkpoint.for_exact_target(name).assemble()` filters the source
-  graph per target, so resolve/type/build-eval/check/admission all re-run per
-  target and `build.omg` executes N times. The batch surface
-  (`with_target_configurations`, `ExplicitTargetSet`,
-  `TargetCompileConfiguration`) has no production caller; package operations
-  loop `for target in targets` one layer up
-  (`omega-rust/omega/package-manager/src/operations/inspect_packages/execution.rs`,
-  `CandidateSourcePreparation`), and `NativeInputReuse` deduplicates
-  realization inputs after the work is already done. Make target multiplicity
-  data: one `AssembledSyntax` retains all targets' qualified declarations
-  (target-indexed coexistence, a namespace/resolution model change), the
-  shared spine (resolve/type/build-eval/check/trust) runs once producing
-  target-indexed rows, and terminal/native products partition per
-  (entry, target) — identical partitions shared by construction. While
-  resequencing, name the spine: the native leg's stage order
-  (`prepare_native_product` → `realization::realize` → `realize_image` →
-  `emit_realization_object` → `physical_pipeline` →
-  `emit_optimized_fragments` → `assemble_*`) is stated at one owner, the
-  `settle_selected_execution` wedge becomes a named checked→settled stage,
-  and `RequestedCompileProduct::TerminalArtifact` is wired to the CLI so
-  `<root>.psi`/`.proof` publication is reachable. That wiring creates its
-  first consumer rather than serving one: the product has a single caller in
-  the repository, `packages/manager`'s `semantic_binding_review`, the CLI's
-  `ProjectProduct` spells only `Check` and `NativeArtifact`, and no
-  `build.omg` under `tests/omega`, `samples` or `source/library` sets
-  `Build.pcc.psi` or `Build.pcc.native`. Today a psi product can only ride
-  along with a native build, because `check_prepared_local_project` refuses
-  outright -- "a check-only stop cannot satisfy an optional proof-product
-  request" -- so the Terminal-only publication path is unexercised end to
-  end. Decide whether to author that customer with the wiring or defer both. Acceptance: one invocation
-  over a two-target set loads, parses, resolves, types and evaluates build
-  once; package multi-target operations make one compile call; per-target
-  failure isolation and build-effect custody are preserved as data;
-  `NativeInputReuse`, `repeat_n` cloning and `CandidateSourcePreparation`
-  retire; single-target CLI output is unchanged. Sequencing and open
-  questions (Build vocabulary set-awareness, generated-source re-entry,
-  overlap with TWO-AXIS-TERMINAL-AUTHORITY-REVIEW and
-  PIPELINE-OWNER-CONSOLIDATION) are in the plan draft.
-
-- **STATE-GRAPH-SCALAR-RESULT-CUSTOMERS.** (new-scope) The Unit state graph
-  now completes a primitive scalar result (`CheckedControlResultPlan::Scalar`,
-  `ReturnScalar` with the ordinary binding or exit completion), and ordinary or
-  composed callers reach it through the scalar call lane. The 27 run canaries
-  that stopped at `state graph: result signature`, plus
-  `runtime_decreases_u64_measure_exit`, all get past it. Each now stops at the
-  next missing capability. Repair the capability, not the fixture:
-  - The natural-ranks gap is closed for every order the Nat prover decides:
-    countdowns (signed or multi-state) rank their subject, and
-    `Nat::BoundedDistance`/`Nat::IncreasingTo` rank `MAX - lower`, certified by
-    `IntegerAddOrder` and `IntegerSubtractAntitone`. Eleven of the fifteen
-    natural-ranks canaries run. The other four stop later:
-    `runtime_dispatch_float_terminal_exit` in native legalization (the mixed
-    structural-scalar ABI admits only Boolean and integer results,
-    `03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/byte_views.rs`);
-    `runtime_dispatch_result_enum_case_exit` at c2l
-    `expression_preparation/bindings/structural_fields` ("runtime field
-    observation requires a record-only field path", a `Verdict` case result
-    stored to `self.result` and dispatched);
-    `runtime_dispatch_slice_element_terminal_exit` and
-    `runtime_dispatch_machine_array_slice_arg_exit` in Terminal validation
-    (`OverlappingExclusiveStructuralArguments`: `self.pick(self.nums, ..)`
-    passes `&mut self` beside a view of its own field).
-    A distance bounded by a slice length (`terminates by (i, path.len)`: the
-    pass canary `calls/runtime_value_call_statement_recursive_walk_exit`, std
-    `Filesystem::mkall_walk`) still gets no shared rank: `nat::state_rank`'s
-    `DecreaseMeasure::Distance` arm runs both endpoints through `plain`, which
-    demands an `ExpressionNode::Name` resolving to a non-self state parameter,
-    and `path.len` is a member access.
-
-    Admitting it is not a local widening, because the upper survives into the
-    checked measure. `CheckedNaturalRankMeasure::UnsignedDistance` carries
-    `upper` and `upper_position`; stage 05's `ranking.rs` re-proves the plan
-    against the graph through `upper_parameter.symbol == upper` and
-    `upper_parameter.name == bound.name`, and its emission comments that "the
-    bound stays a checked scalar lane though the ceiling distance does not read
-    it". So the rank arithmetic genuinely ignores the bound while three
-    consumers still require it to be a scalar parameter. Closing this wants a
-    measure that names the sequence rather than a scalar upper -- beside the
-    existing `ByteSequenceLength`, which a separate machine-level route already
-    produces -- carried through stage 04, stage 05 and the verifier.
-
-    The canary is not a check-level failure: it records `checked` in the corpus
-    today. The missing rank shows only in native execution, which the pass tier
-    does not reach, so a corpus run cannot witness this repair and the run-tier
-    or a native build has to.
-  - `state graph: prefix initializers: short-circuit boolean` (2,
-    `Store::check`), `guarded jump successors: receiver transfer` (1,
-    `runtime_tuple_transition_exit`), and `conditional successors` (2).
-  - Of the projected-receiver callers that once stopped at the per-state
-    scalar-call admission copy (now the one call admission,
-    **LOWERING-ROUTE-CONSOLIDATION**, ordinary/state-graph parity),
-    `runtime_param_receiver_second_instance_exit` stops in Terminal
-    verification (`OverlappingExclusiveStructuralArguments`). The fail canary
-    `calls/value_call_param_effect_arm_rejected` produces an invalid Terminal
-    module (`InvalidBlockStructuralParameter`) rather than its pinned
-    expected.txt fragment: a producer defect to repair, not a rejection to
-    re-pin. The defect is not in the projected-receiver caller at all -- the
-    refused machine is the callee, for declaring `&mut` of a record at an arm
-    state. The three gates that widening crosses are measured under the
-    fail-fixture roster above.
-  - `runtime_trailing_state_mut_param_phase` stops on the ordinary route
-    (`call operation: structural arguments: parameter access`).
-    `rooted_residual_scalar_entry_cohort` lowers through Terminal and stops in
-    native target lowering (`UnsupportedControlFlow`, `borrowed_calls.rs`).
-  `termination/rank_range_state_call` ranks only through its `count`/`step`
-  call cycle, so its machines have no state cycle, no shared ranks, and still
-  stop at `state graph: natural ranks`. It also needs its entry's tail-call
-  transition (`_ -> self.count(5)`: statement sequence, unsupported statement
-  kind), and the Unit closure rejects its `count`/`step` recursion.
-  Acceptance: the run canaries named in the omission roster execute.
-
 - **FILTERED-CALLEE-CALL-SITES.** Finish command-level acceptance for calls
   whose target-scoped callee is unavailable to a realization. Current code has
   `reject_inert_sibling_callers` in compiler build-evaluation's
