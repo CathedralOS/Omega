@@ -128,13 +128,26 @@ pub(crate) fn normalized_event_place_root(
     // Some generated entry parameters are direct machine children. Check the
     // matching declaration roster in that owner, never every state's roster
     // in the program for each fact comparison. Names do not establish `self`.
-    if program.machine_states(machine).iter().any(|state| {
-        (!state_symbol.is_valid() || state.symbol == state_symbol)
-            && program
-                .state_parameters(state)
-                .iter()
-                .any(|parameter| parameter.is_self && parameter.symbol == symbol)
-    }) {
+    let owns_self_parameter = |state: &typed_trees::state::State| {
+        program
+            .state_parameters(state)
+            .iter()
+            .any(|parameter| parameter.is_self && parameter.symbol == symbol)
+    };
+    // A state symbol identifies its one declaration. Reuse the existing
+    // revision-aware owner lookup rather than scanning unrelated states for
+    // every fact. Generated machine children keep their owner-wide fallback.
+    let is_self = if state_symbol.is_valid() {
+        crate::lookup::symbols::state_index_by_symbol(program, machine, state_symbol)
+            .and_then(|position| program.machine_states(machine).get(position))
+            .is_some_and(owns_self_parameter)
+    } else {
+        program
+            .machine_states(machine)
+            .iter()
+            .any(owns_self_parameter)
+    };
+    if is_self {
         facts::PlaceRoot::Symbol(machine.symbol)
     } else {
         root
@@ -223,5 +236,54 @@ mod tests {
                 facts::PlaceRoot::Symbol(machine)
             );
         }
+    }
+
+    #[test]
+    fn self_event_roots_require_exact_owned_declarations() {
+        for machine_parent in [false, true] {
+            for (kind, is_self, foreign) in [
+                (SymbolKind::Parameter, false, false),
+                (SymbolKind::Field, true, false),
+                (SymbolKind::Parameter, true, true),
+            ] {
+                let (program, _, parameter) =
+                    program_with_self_parameter(machine_parent, kind, is_self, foreign);
+                let root = facts::PlaceRoot::Symbol(parameter);
+                assert_eq!(normalized_event_place_root(&program, root), root);
+            }
+        }
+    }
+
+    #[test]
+    fn state_event_root_lookup_refreshes_missing_and_changed_rosters() {
+        let (mut program, owner, parameter) =
+            program_with_self_parameter(false, SymbolKind::Parameter, true, false);
+        let root = facts::PlaceRoot::Symbol(parameter);
+        let machine = program.machines()[0].clone();
+        let state_symbol = program.machine_states(&machine)[0].symbol;
+        program.machine_states_mut(&machine)[0].symbol = SymbolHandle::invalid();
+        assert_eq!(normalized_event_place_root(&program, root), root);
+        program.machine_states_mut(&machine)[0].symbol = state_symbol;
+        assert_eq!(
+            normalized_event_place_root(&program, root),
+            facts::PlaceRoot::Symbol(owner)
+        );
+        let state = program.machine_states(&machine)[0].clone();
+        program.state_parameters.span_mut_or_empty(state.parameters)[0].is_self = false;
+        assert_eq!(normalized_event_place_root(&program, root), root);
+    }
+
+    #[test]
+    fn duplicate_state_roster_cannot_add_self_authority() {
+        let (mut program, _, parameter) =
+            program_with_self_parameter(false, SymbolKind::Parameter, true, false);
+        let root = facts::PlaceRoot::Symbol(parameter);
+        let mut machine = program.machines()[0].clone();
+        let duplicate = program.machine_states(&machine)[0].clone();
+        program.machine_states_mut(&machine)[0].parameters = Default::default();
+        program.push_machine_state(&mut machine, duplicate);
+        program.machines_mut()[0] = machine;
+        // Malformed duplicate rows do not supplement the first exact owner.
+        assert_eq!(normalized_event_place_root(&program, root), root);
     }
 }
