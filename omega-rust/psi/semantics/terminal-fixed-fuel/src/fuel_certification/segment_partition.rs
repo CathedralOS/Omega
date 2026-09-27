@@ -1,11 +1,11 @@
 //! Invocation-local preparation and complete reachable segment partition.
 
 use super::outcome_bounds::{
-    NaturalGeometry, NaturalGraphNode, OutcomeBounds, boundary_call_candidates,
+    NaturalGeometry, NaturalGraphNode, OutcomeBounds, PremiseRow, boundary_call_candidates,
     component_entry_rank_bound, compose_cleanup_outcomes, dynamic_call_targets,
     maximum_machine_outcomes, maximum_optional, natural_component_geometry, operation_callees,
-    terminator_cleanup_machines, terminator_edge_targets, unbounded_cycle_report,
-    unbounded_rank_report,
+    premise_proposition, terminator_cleanup_machines, terminator_edge_targets,
+    unbounded_cycle_report, unbounded_rank_report,
 };
 use crate::{FixedFuelError, FixedSegmentFuelCertificate};
 use semantic_vocabulary::{
@@ -133,6 +133,7 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
                             machines,
                             dynamic_call_targets,
                             provider_candidates,
+                            &self.subject.module.scalar_block_invariants,
                             schedule,
                             &mut memoized_machines,
                             &mut active_machines,
@@ -211,10 +212,11 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
     /// another terminal edge never commits `end_edge`; that execution is
     /// covered by the other edge's own segment certificate. When no walk
     /// commits the endpoint, the first dead end observed in traversal order
-    /// is the reported displacement. The returned premises are the
-    /// `machine.contract.requires` clauses the bound consulted — a cyclic
-    /// component interior charged at a contract-tightened rank ceiling —
-    /// in canonical contract order.
+    /// is the reported displacement. The returned premises are the rows
+    /// the bound consulted — `machine.contract.requires` clauses, verified
+    /// `scalar_block_invariants` predicates, and reconstructed edge-guard
+    /// facts behind a cyclic component's tightened rank ceiling — replayed
+    /// from their own channels in canonical premise order.
     fn segment_bound(
         &self,
         start_block: BlockId,
@@ -303,6 +305,7 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
                     machines,
                     dynamic_call_targets,
                     provider_candidates,
+                    &self.subject.module.scalar_block_invariants,
                     schedule,
                     walk.memoized_machines,
                     walk.active_machines,
@@ -391,6 +394,7 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
                         machines,
                         dynamic_call_targets,
                         provider_candidates,
+                        &self.subject.module.scalar_block_invariants,
                         schedule,
                         memoized_machines,
                         active_machines,
@@ -457,8 +461,7 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
             // member visit the cycle could take. Taking the acyclic path here
             // also keeps the catalog derivable when the rank carrier's type
             // maximum itself overflows the whole-component bound. No
-            // component rank bound is consulted, so no contract premise is
-            // bound.
+            // component rank bound is consulted, so no premise is bound.
             let mut walk = SegmentWalk {
                 end_edge,
                 memoized_machines,
@@ -480,6 +483,7 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
             &self.subject.machines,
             &self.subject.dynamic_call_targets,
             &self.subject.provider_candidates,
+            &self.subject.module.scalar_block_invariants,
             TerminalFuelSchedule::CURRENT,
             memoized_machines,
             active_machines,
@@ -491,14 +495,14 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
             active_nodes: BTreeSet::new(),
             settled: BTreeMap::new(),
             first_dead_end: None,
-            used_clauses: BTreeSet::new(),
+            used_premises: BTreeSet::new(),
         };
         match self.node_to_edge_bound(start_block, components, &geometry, &mut walk)? {
             Some(units) => Ok((
                 u64::try_from(units).map_err(|_| FixedFuelError::BoundOverflow)?,
-                walk.used_clauses
+                walk.used_premises
                     .iter()
-                    .filter_map(|index| self.machine.contract.requires.get(*index).cloned())
+                    .filter_map(|row| premise_proposition(self.subject.module, self.machine, *row))
                     .collect(),
             )),
             None => Err(walk
@@ -589,6 +593,7 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
                     &self.subject.machines,
                     &self.subject.dynamic_call_targets,
                     &self.subject.provider_candidates,
+                    &self.subject.module.scalar_block_invariants,
                     TerminalFuelSchedule::CURRENT,
                     walk.memoized_machines,
                     walk.active_machines,
@@ -754,6 +759,7 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
                         &self.subject.machines,
                         &self.subject.dynamic_call_targets,
                         &self.subject.provider_candidates,
+                        &self.subject.module.scalar_block_invariants,
                         TerminalFuelSchedule::CURRENT,
                         walk.memoized_machines,
                         walk.active_machines,
@@ -1041,6 +1047,7 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
                         &self.subject.machines,
                         &self.subject.dynamic_call_targets,
                         &self.subject.provider_candidates,
+                        &self.subject.module.scalar_block_invariants,
                         TerminalFuelSchedule::CURRENT,
                         walk.memoized_machines,
                         walk.active_machines,
@@ -1084,8 +1091,8 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
     /// can still be re-entered through the surviving internal edges may be
     /// visited up to the component's entry-rank bound plus one times before
     /// the walk leaves the component — the carrier's type maximum, or the
-    /// lower ceiling the `requires` clauses' conjunction places on every
-    /// rank arriving at first entry, the same per-member visit ceiling the
+    /// lower ceiling the premise channels' rows place on every rank
+    /// arriving at first entry, the same per-member visit ceiling the
     /// whole-component charge uses — while a member left off every surviving
     /// cycle is crossed at most once, since the walk cannot return to it.
     /// The bound is therefore the rank-multiplied sum over the re-enterable
@@ -1104,13 +1111,19 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
         let IntegerValue::Unsigned(rank_maximum) = component.rank_type.maximum_value() else {
             return Err(FixedFuelError::InvalidRankedScc(self.machine.id));
         };
-        let entry_bound =
-            component_entry_rank_bound(self.machine, component, &self.blocks, rank_maximum);
+        let entry_bound = component_entry_rank_bound(
+            self.machine,
+            component,
+            &self.blocks,
+            &self.subject.module.scalar_block_invariants,
+            rank_maximum,
+        );
         if let Some(entry) = &entry_bound {
-            // The rank ceiling this split bills rests on the contract
-            // clauses that derived it; the certificate binds them as its
-            // relevant preconditions.
-            walk.used_clauses.extend(entry.clauses.iter().copied());
+            // The rank ceiling this split bills rests on the premise rows
+            // that derived it — contract clauses, verified invariants, and
+            // edge-guard facts alike; the certificate binds them replayed
+            // through their own channels as its relevant preconditions.
+            walk.used_premises.extend(entry.clauses.iter().copied());
         }
         let rank_bound = entry_bound.map(|entry| entry.bound).unwrap_or(rank_maximum);
         let mut reenterable_units = 0_u128;
@@ -1231,10 +1244,11 @@ impl SegmentWalk<'_> {
 /// arrival, `active_nodes` is a defensive depth-first stack on a graph
 /// the verified partition already makes acyclic, and the first dead end
 /// is retained so a wholly unreachable request still reports a terminal
-/// edge or all-crash call. `used_clauses` records the
-/// `machine.contract.requires` positions a cyclic interior bound rested
-/// on, so the certificate's `relevant_preconditions` names exactly the
-/// premises the derivation consulted.
+/// edge or all-crash call. `used_premises` records the premise rows a
+/// cyclic interior bound rested on — contract clause positions, verified
+/// invariant roster positions, and reconstructed edge-guard facts — so the
+/// certificate's `relevant_preconditions` names exactly the premises the
+/// derivation consulted, replayed through their own channels.
 struct NaturalSegmentWalk<'a> {
     end_edge: EdgeId,
     memoized_machines: &'a mut BTreeMap<MachineId, OutcomeBounds>,
@@ -1242,7 +1256,7 @@ struct NaturalSegmentWalk<'a> {
     active_nodes: BTreeSet<BlockId>,
     settled: BTreeMap<BlockId, Option<u128>>,
     first_dead_end: Option<FixedFuelError>,
-    used_clauses: BTreeSet<usize>,
+    used_premises: BTreeSet<PremiseRow>,
 }
 
 impl NaturalSegmentWalk<'_> {

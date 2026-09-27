@@ -9,8 +9,8 @@ use semantic_vocabulary::{
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_fuel::TerminalFuelSchedule;
 use terminal_psi::{
-    OperationKind, TerminalAffineCleanupAction, TerminalMachine, TerminalModule,
-    TerminalNaturalCycle, TerminalRankedScc, Terminator,
+    OperationKind, ScalarBlockInvariant, TerminalAffineCleanupAction, TerminalMachine,
+    TerminalModule, TerminalNaturalCycle, TerminalRankedScc, Terminator,
 };
 
 #[cfg(test)]
@@ -35,6 +35,7 @@ pub(super) fn derive_maximum_entry_bound(
         &machines,
         &dynamic_call_targets,
         &provider_candidates,
+        &module.scalar_block_invariants,
         schedule,
         &mut BTreeMap::new(),
         &mut BTreeSet::new(),
@@ -187,6 +188,7 @@ pub(super) fn maximum_machine_outcomes(
     machines: &BTreeMap<MachineId, &TerminalMachine>,
     dynamic_call_targets: &BTreeMap<(MachineId, OperationId), MachineId>,
     provider_candidates: &BTreeMap<BoundaryMachineId, Vec<MachineId>>,
+    invariants: &[ScalarBlockInvariant],
     schedule: TerminalFuelSchedule,
     memoized_machines: &mut BTreeMap<MachineId, OutcomeBounds>,
     active_machines: &mut BTreeSet<MachineId>,
@@ -216,6 +218,7 @@ pub(super) fn maximum_machine_outcomes(
             machines,
             dynamic_call_targets,
             provider_candidates,
+            invariants,
             schedule,
             memoized_machines,
             active_machines,
@@ -227,6 +230,7 @@ pub(super) fn maximum_machine_outcomes(
             machines,
             dynamic_call_targets,
             provider_candidates,
+            invariants,
             schedule,
             &mut BTreeMap::new(),
             &mut BTreeSet::new(),
@@ -253,11 +257,12 @@ pub(super) fn maximum_machine_outcomes(
 /// charges commit-reachable visits and reports `None` when no normal-return
 /// walk exists, and the crashed derivation charges crash-terminal walks and
 /// reports `None` when no execution can crash. The rank bound is the
-/// carrier's type maximum unless the machine contract places a lower
-/// literal ceiling on every rank arriving at the component's first entry —
-/// `used_contract_premises` names the consulted clauses — and the
-/// certificate's merged bound is the maximum of the two outcome classes
-/// rather than a single ceiling billed against both.
+/// carrier's type maximum unless the premise channels — contract rows,
+/// header block invariants, and entering-edge guard facts — place a lower
+/// literal ceiling on every rank arriving at the component's first entry;
+/// `used_premises` names the consulted rows, and the certificate's merged
+/// bound is the maximum of the two outcome classes rather than a single
+/// ceiling billed against both.
 fn natural_machine_outcomes(
     machine: &TerminalMachine,
     components: &[TerminalNaturalCycle],
@@ -265,6 +270,7 @@ fn natural_machine_outcomes(
     machines: &BTreeMap<MachineId, &TerminalMachine>,
     dynamic_call_targets: &BTreeMap<(MachineId, OperationId), MachineId>,
     provider_candidates: &BTreeMap<BoundaryMachineId, Vec<MachineId>>,
+    invariants: &[ScalarBlockInvariant],
     schedule: TerminalFuelSchedule,
     memoized_machines: &mut BTreeMap<MachineId, OutcomeBounds>,
     active_machines: &mut BTreeSet<MachineId>,
@@ -275,6 +281,7 @@ fn natural_machine_outcomes(
         machines,
         dynamic_call_targets,
         provider_candidates,
+        invariants,
         schedule,
         memoized_machines,
         active_machines,
@@ -355,6 +362,7 @@ pub(super) fn natural_component_geometry(
     machines: &BTreeMap<MachineId, &TerminalMachine>,
     dynamic_call_targets: &BTreeMap<(MachineId, OperationId), MachineId>,
     provider_candidates: &BTreeMap<BoundaryMachineId, Vec<MachineId>>,
+    invariants: &[ScalarBlockInvariant],
     schedule: TerminalFuelSchedule,
     memoized_machines: &mut BTreeMap<MachineId, OutcomeBounds>,
     active_machines: &mut BTreeSet<MachineId>,
@@ -378,6 +386,7 @@ pub(super) fn natural_component_geometry(
                 machines,
                 dynamic_call_targets,
                 provider_candidates,
+                invariants,
                 schedule,
                 memoized_machines,
                 active_machines,
@@ -394,6 +403,7 @@ pub(super) fn natural_component_geometry(
                 machines,
                 dynamic_call_targets,
                 provider_candidates,
+                invariants,
                 schedule,
                 memoized_machines,
                 active_machines,
@@ -416,11 +426,13 @@ pub(super) fn natural_component_geometry(
         };
         // `requires` clauses whose conjunction caps every rank arriving at
         // the component's first entry tighten the visit bound below the
-        // carrier maximum; the consulted clauses enter the certificate's
-        // `relevant_preconditions` through `used_contract_premises`.
-        let rank_bound = component_entry_rank_bound(machine, component, &blocks, rank_maximum)
-            .map(|entry| entry.bound)
-            .unwrap_or(rank_maximum);
+        // carrier maximum, as do the verified block-invariant and edge-guard
+        // path facts the premise channel derives; the consulted rows enter
+        // the certificate's `relevant_preconditions` through `used_premises`.
+        let rank_bound =
+            component_entry_rank_bound(machine, component, &blocks, invariants, rank_maximum)
+                .map(|entry| entry.bound)
+                .unwrap_or(rank_maximum);
         // The interior's rank-bounded visit arithmetic is the component's
         // own bound: when it cannot be represented, the report names this
         // component with the unbounded-rank cause rather than a flat
@@ -645,39 +657,51 @@ fn interior_visit_bound(
         .ok_or(FixedFuelError::BoundOverflow)
 }
 
-/// A `Natural` component's contract-derived ceiling on the rank observed at
-/// first entry, together with the `machine.contract.requires` clause
-/// positions that ceiling rests on.
+/// A `Natural` component's derived ceiling on the rank observed at first
+/// entry, together with the premise rows that ceiling rests on — contract
+/// `requires` positions, `scalar_block_invariants` roster positions, and
+/// the entering-edge guard facts the derivation reconstructed.
 pub(super) struct EntryRankBound {
     pub(super) bound: u128,
-    pub(super) clauses: BTreeSet<usize>,
+    pub(super) clauses: ClauseSupport,
 }
 
-/// The contract ceiling on one component's initial rank, or `None` when the
+/// The ceiling on one component's initial rank, or `None` when the
 /// carrier's type maximum must stand. The verifier discharges the machine's
 /// `requires` propositions as assumptions, so every admitted invocation
 /// satisfies them; clauses whose conjunction caps the value arriving as a
 /// member's rank observation therefore bound the component's initial rank
-/// directly. Every way control first enters the component must be covered:
-/// the machine entry itself when it is a member — the entry block declares
-/// no parameters, so only a machine-parameter observation can be bounded —
-/// and each edge arriving from outside the component, whose arriving rank
-/// is the argument at the target's rank-parameter position. An arrival
-/// reduces to a boundable value only when it is a machine parameter the
-/// contract caps — directly by a literal clause, through a relational
-/// chain the clauses themselves state, through an `IntegerMath*` linear
-/// bound solved over unbounded integers, or through a conditional row
-/// whose arms all bound it or whose premise the ambient rows discharge, as
-/// `contract_scope` derives; an argument threaded through another block's
-/// parameters, a computed value, an observed view, or a structural-case
-/// payload has no contract ceiling, so one unbounded arrival leaves the
-/// carrier maximum in place rather than guessing. The result is `Some`
-/// only when the derived ceiling genuinely tightens the type maximum — a
-/// clause that merely restates it binds nothing new.
+/// directly. The path-fact channel is the second premise source: a block
+/// invariant is a verified predicate holding on every arrival to its
+/// header, so an invariant row on a component member that bounds the rank
+/// observation covers every first entry at once, and an invariant row on
+/// an outside source block — or the proposition a conditional's selected
+/// edge establishes — caps the exact argument that edge passes into the
+/// member's rank position.
+///
+/// Every way control first enters the component must be covered: the
+/// machine entry itself when it is a member — the entry block declares no
+/// parameters and carries no invariant row, so only a contract-bounded
+/// machine parameter can cap it — and each edge arriving from outside the
+/// component, whose arriving rank is the argument at the target's
+/// rank-parameter position, bound under the departing block's clause
+/// scope. An arrival reduces to a boundable value only when that scope
+/// caps it — directly by a literal clause, through a relational chain the
+/// clauses themselves state, through an `IntegerMath*` linear bound solved
+/// over unbounded integers, or through a conditional row whose arms all
+/// bound it or whose premise the ambient rows discharge, as
+/// `resolve_scope` derives; an argument threaded through another block's
+/// parameters with no row capping it, a computed value, an observed view,
+/// or a structural-case payload has no ceiling the derivation can trust,
+/// so one unbounded arrival leaves the carrier maximum in place rather
+/// than guessing. The result is `Some` only when the derived ceiling
+/// genuinely tightens the type maximum — a clause that merely restates it
+/// binds nothing new.
 pub(super) fn component_entry_rank_bound(
     machine: &TerminalMachine,
     component: &TerminalNaturalCycle,
     blocks: &BTreeMap<BlockId, &terminal_psi::Block>,
+    invariants: &[ScalarBlockInvariant],
     rank_maximum: u128,
 ) -> Option<EntryRankBound> {
     let member_rank: BTreeMap<BlockId, ValueId> = component
@@ -685,25 +709,89 @@ pub(super) fn component_entry_rank_bound(
         .iter()
         .map(|rank| (rank.block, rank.value))
         .collect();
-    let mut arrivals = Vec::new();
-    if let Some(&rank) = member_rank.get(&machine.entry) {
-        arrivals.push(rank);
-    }
+    let contract = contract_scope(machine, component.rank_type);
+    let contract_ceilings = relaxed_ceilings(&contract);
+    // First-entry targets and the outside edges arriving at them. The
+    // machine entry is covered separately when it is itself a member: it
+    // has no incoming edges and declares no parameters, and the roster
+    // admits no invariant row there, so its arrival is the bare rank value.
+    let mut first_entries: BTreeMap<BlockId, Vec<(BlockId, EdgeId, Option<&[ValueId]>)>> =
+        BTreeMap::new();
     for source in &machine.blocks {
         if member_rank.contains_key(&source.id) {
             continue;
         }
-        for (target, arguments) in successor_arguments(&source.terminator) {
-            let Some(&target_rank) = member_rank.get(&target) else {
+        for (edge, target, arguments) in successor_arguments(&source.terminator) {
+            if member_rank.contains_key(&target) {
+                first_entries
+                    .entry(target)
+                    .or_default()
+                    .push((source.id, edge, arguments));
+            }
+        }
+    }
+    if member_rank.contains_key(&machine.entry) {
+        first_entries.entry(machine.entry).or_default();
+    }
+    if first_entries.is_empty() {
+        return None;
+    }
+    // Reconstruct each entering edge's guard proposition once up front so
+    // the per-edge scopes borrow a stable roster; a constant condition
+    // marks the edge infeasible — no execution takes it — and its arrival
+    // then needs no bound.
+    let mut guard_facts: BTreeMap<EdgeId, Proposition> = BTreeMap::new();
+    let mut infeasible = BTreeSet::new();
+    for arrivals in first_entries.values() {
+        for (source, edge, _) in arrivals {
+            match edge_guard(machine, blocks.get(source).copied()?, *edge) {
+                Some(EdgeGuard::Holds(proposition)) => {
+                    guard_facts.insert(*edge, proposition);
+                }
+                Some(EdgeGuard::Infeasible) => {
+                    infeasible.insert(*edge);
+                }
+                None => {}
+            }
+        }
+    }
+    let mut bound = 0_u128;
+    let mut clauses = ClauseSupport::new();
+    for (target, arrivals) in first_entries {
+        let target_rank = member_rank[&target];
+        // The header's own verified invariant covers every arrival at once
+        // when it bounds the observed rank — whichever value each incoming
+        // edge actually carries.
+        let header_scope = resolve_scope(
+            &contract,
+            &invariant_clauses(invariants, machine.id, target),
+            component.rank_type,
+        );
+        if let Some((candidate, support)) =
+            scope_bound(&header_scope, &relaxed_ceilings(&header_scope), target_rank)
+        {
+            bound = bound.max(candidate);
+            clauses.extend(support);
+            continue;
+        }
+        if target == machine.entry {
+            // The entry arrival is the invocation itself: only a machine
+            // formal the contract caps can bound it.
+            let (candidate, support) = scope_bound(&contract, &contract_ceilings, target_rank)?;
+            bound = bound.max(candidate);
+            clauses.extend(support);
+        }
+        for (source, edge, arguments) in arrivals {
+            if infeasible.contains(&edge) {
                 continue;
-            };
+            }
             let target_block = blocks.get(&target)?;
             // The edge binds the target's parameters positionally, so the
             // rank arriving at a parameter-observed member is that edge's
-            // argument at the rank's position; a non-parameter observation —
-            // a machine parameter or an observed view — is not rebound by
-            // the edge and reduces to the observed value itself, which the
-            // machine-parameter check below then accepts or rejects.
+            // argument at the rank's position — a value in the source
+            // block's namespace. A non-parameter observation reduces to the
+            // rank value itself, boundable only when a clause names it —
+            // a machine formal the contract or the source's invariant caps.
             let arrival = match target_block
                 .parameters
                 .iter()
@@ -712,49 +800,50 @@ pub(super) fn component_entry_rank_bound(
                 Some(position) => *arguments?.get(position)?,
                 None => target_rank,
             };
-            arrivals.push(arrival);
+            let mut edge_clauses = invariant_clauses(invariants, machine.id, source);
+            if let Some(fact) = guard_facts.get(&edge) {
+                edge_clauses.push((ClauseSupport::from([PremiseRow::Guard(edge)]), fact));
+            }
+            let scope = resolve_scope(&contract, &edge_clauses, component.rank_type);
+            let (candidate, support) = scope_bound(&scope, &relaxed_ceilings(&scope), arrival)?;
+            bound = bound.max(candidate);
+            clauses.extend(support);
         }
-    }
-    if arrivals.is_empty() {
-        return None;
-    }
-    let scope = contract_scope(machine, component.rank_type);
-    let ceilings = relaxed_ceilings(&scope);
-    let mut bound = 0_u128;
-    let mut clauses = BTreeSet::new();
-    for arrival in arrivals {
-        if !machine.parameters.iter().any(|parameter| {
-            parameter.id == arrival
-                && parameter.scalar_type == ScalarType::Integer(component.rank_type)
-        }) {
-            return None;
-        }
-        let (candidate, support) = scope_bound(&scope, &ceilings, arrival)?;
-        bound = bound.max(candidate);
-        clauses.extend(support);
     }
     (bound < rank_maximum).then_some(EntryRankBound { bound, clauses })
 }
 
-/// Each successor's target and the scalar argument list binding its
+/// Each successor's edge, target, and the scalar argument list binding its
 /// parameters positionally. A `StructuralCase` successor carries `None`:
-/// its payload-field bindings cannot name a machine parameter directly.
-fn successor_arguments(terminator: &Terminator) -> Vec<(BlockId, Option<&[ValueId]>)> {
+/// its payload-field bindings cannot name a boundable value directly.
+fn successor_arguments(terminator: &Terminator) -> Vec<(EdgeId, BlockId, Option<&[ValueId]>)> {
     match terminator {
         Terminator::Jump {
-            target, arguments, ..
-        } => vec![(*target, Some(arguments.as_slice()))],
+            edge,
+            target,
+            arguments,
+            ..
+        } => vec![(*edge, *target, Some(arguments.as_slice()))],
         Terminator::Conditional {
             when_true,
             when_false,
             ..
         } => vec![
-            (when_true.target, Some(when_true.arguments.as_slice())),
-            (when_false.target, Some(when_false.arguments.as_slice())),
+            (
+                when_true.edge,
+                when_true.target,
+                Some(when_true.arguments.as_slice()),
+            ),
+            (
+                when_false.edge,
+                when_false.target,
+                Some(when_false.arguments.as_slice()),
+            ),
         ],
-        Terminator::StructuralCase { cases, .. } => {
-            cases.iter().map(|case| (case.target, None)).collect()
-        }
+        Terminator::StructuralCase { cases, .. } => cases
+            .iter()
+            .map(|case| (case.edge, case.target, None))
+            .collect(),
         Terminator::Return { .. }
         | Terminator::ReturnUnit { .. }
         | Terminator::ReturnUnitPartialAffine { .. }
@@ -764,11 +853,252 @@ fn successor_arguments(terminator: &Terminator) -> Vec<(BlockId, Option<&[ValueI
     }
 }
 
-/// The `requires` row positions one derived fact rests on — the
-/// certificate's premise set is their union. A leaf's support is its own
-/// row; a conditional row's contribution also carries the rows that
-/// discharged or bounded its arms.
-type ClauseSupport = BTreeSet<usize>;
+/// One verified premise row a derived ceiling or discharge rests on.
+/// `Contract` indexes the machine's `contract.requires` roster; `Invariant`
+/// indexes the module's `scalar_block_invariants` roster — the path-fact
+/// channel, a predicate the verifier established on every arrival to its
+/// header block; `Guard` names one conditional successor edge whose
+/// selection itself establishes the reconstructed proposition. The
+/// certificate's premise set is their union, replayed to propositions by
+/// `premise_proposition`.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) enum PremiseRow {
+    Contract(usize),
+    Invariant(usize),
+    Guard(EdgeId),
+}
+
+/// The premise rows one derived fact rests on — the certificate's premise
+/// set is their union. A leaf's support is its own row; a conditional
+/// row's contribution also carries the rows that discharged or bounded
+/// its arms.
+type ClauseSupport = BTreeSet<PremiseRow>;
+
+/// The path-fact clauses one block carries: every `scalar_block_invariants`
+/// row for `(machine, header)` is a predicate the verifier established on
+/// every arrival to that block — including the first arrivals a cyclic
+/// component's entry bound must cover. Each row enters with its own roster
+/// position as its premise; the machine entry admits no row, so the roster
+/// contributes nothing there.
+fn invariant_clauses(
+    invariants: &[ScalarBlockInvariant],
+    machine: MachineId,
+    header: BlockId,
+) -> Vec<(ClauseSupport, &Proposition)> {
+    invariants
+        .iter()
+        .enumerate()
+        .filter(|(_, invariant)| invariant.machine == machine && invariant.header == header)
+        .map(|(row, invariant)| {
+            (
+                ClauseSupport::from([PremiseRow::Invariant(row)]),
+                &invariant.predicate,
+            )
+        })
+        .collect()
+}
+
+/// What selecting one conditional successor edge establishes in the source
+/// block's namespace.
+enum EdgeGuard {
+    /// The edge can be selected, and this proposition holds when it is.
+    Holds(Proposition),
+    /// The condition is a constant that can never select this edge — no
+    /// execution arrives through it, so its arrival needs no bound.
+    Infeasible,
+}
+
+/// The guard fact one `Conditional` successor edge commits in the source
+/// block's namespace: the condition's own comparison read at the selected
+/// arm's polarity — `left < right` on an `IntegerLessThan`'s true arm,
+/// `right <= left` on its false arm — through any `BooleanNot` chain, with
+/// an `IntegerEqual`'s false arm yielding the trichotomy disjunction the
+/// clause machinery already resolves. A constant condition yields `Truth`
+/// on the arm it always selects and marks the other infeasible. A
+/// condition the block does not define — a parameter or a value defined
+/// earlier — recovers no comparison and yields `None`.
+fn edge_guard(
+    machine: &TerminalMachine,
+    block: &terminal_psi::Block,
+    edge: EdgeId,
+) -> Option<EdgeGuard> {
+    let Terminator::Conditional {
+        condition,
+        when_true,
+        when_false,
+    } = &block.terminator
+    else {
+        return None;
+    };
+    let positive = if when_true.edge == edge {
+        true
+    } else if when_false.edge == edge {
+        false
+    } else {
+        return None;
+    };
+    condition_fact(machine, block, *condition, positive)
+}
+
+/// The proposition a condition value's defining operation establishes,
+/// read at `polarity`: the true arm's `left < right` is the false arm's
+/// `right <= left`. `BooleanNot` inverts the polarity through its operand.
+fn condition_fact(
+    machine: &TerminalMachine,
+    block: &terminal_psi::Block,
+    condition: ValueId,
+    polarity: bool,
+) -> Option<EdgeGuard> {
+    let operation = block.operations.iter().find(|operation| {
+        operation
+            .result
+            .scalar()
+            .is_some_and(|result| result.id == condition)
+    })?;
+    match &operation.kind {
+        OperationKind::BooleanConstant { value } => Some(if *value == polarity {
+            EdgeGuard::Holds(Proposition::Truth)
+        } else {
+            EdgeGuard::Infeasible
+        }),
+        OperationKind::BooleanNot { operand } => {
+            condition_fact(machine, block, *operand, !polarity)
+        }
+        OperationKind::IntegerLessThan { left, right } => {
+            let (left, right) = ordered_terms(machine, block, *left, *right)?;
+            Some(EdgeGuard::Holds(if polarity {
+                Proposition::LessThan(left, right)
+            } else {
+                Proposition::LessOrEqual(right, left)
+            }))
+        }
+        OperationKind::IntegerLessOrEqual { left, right } => {
+            let (left, right) = ordered_terms(machine, block, *left, *right)?;
+            Some(EdgeGuard::Holds(if polarity {
+                Proposition::LessOrEqual(left, right)
+            } else {
+                Proposition::LessThan(right, left)
+            }))
+        }
+        OperationKind::IntegerEqual { left, right } => {
+            let (left, right) = ordered_terms(machine, block, *left, *right)?;
+            Some(EdgeGuard::Holds(if polarity {
+                Proposition::Equal(left, right)
+            } else {
+                // Same-typed integers are totally ordered, so `left !=
+                // right` is `left < right` or `right < left`.
+                let mut arms = vec![
+                    Proposition::LessThan(left.clone(), right.clone()),
+                    Proposition::LessThan(right, left),
+                ];
+                arms.sort();
+                Proposition::Disjunction(arms)
+            }))
+        }
+        _ => None,
+    }
+}
+
+/// Both operands of an integer comparison as block-visible terms, or `None`
+/// when either names no term or the two disagree on the integer type — a
+/// malformed comparison yields no guard rather than a mistyped fact.
+fn ordered_terms(
+    machine: &TerminalMachine,
+    block: &terminal_psi::Block,
+    left: ValueId,
+    right: ValueId,
+) -> Option<(ScalarTerm, ScalarTerm)> {
+    let left = value_scalar_term(machine, block, left)?;
+    let right = value_scalar_term(machine, block, right)?;
+    if !matches!(left.scalar_type(), ScalarType::Integer(_))
+        || left.scalar_type() != right.scalar_type()
+    {
+        return None;
+    }
+    Some((left, right))
+}
+
+/// The proposition term one block-visible value names: a machine formal or
+/// block parameter as itself, and an `IntegerConstant` operation result as
+/// the literal its unconditional `result == literal` axiom establishes —
+/// folding `n <= cap` to the literal ceiling form the clause machinery
+/// reads directly. A value the block does not see — another block's local
+/// or a result pseudo-value — names no term.
+fn value_scalar_term(
+    machine: &TerminalMachine,
+    block: &terminal_psi::Block,
+    value: ValueId,
+) -> Option<ScalarTerm> {
+    if let Some(declaration) = machine
+        .parameters
+        .iter()
+        .chain(&block.parameters)
+        .find(|declaration| declaration.id == value)
+    {
+        return Some(ScalarTerm::Value {
+            id: declaration.id,
+            scalar_type: declaration.scalar_type,
+        });
+    }
+    let operation = block.operations.iter().find(|operation| {
+        operation
+            .result
+            .scalar()
+            .is_some_and(|result| result.id == value)
+    })?;
+    let declaration = operation.result.scalar()?;
+    match &operation.kind {
+        OperationKind::IntegerConstant { value } => match declaration.scalar_type {
+            ScalarType::Integer(scalar_type) => Some(ScalarTerm::Integer {
+                scalar_type,
+                value: *value,
+            }),
+            _ => None,
+        },
+        _ => Some(ScalarTerm::Value {
+            id: declaration.id,
+            scalar_type: declaration.scalar_type,
+        }),
+    }
+}
+
+/// The proposition a `PremiseRow` names, replayed to the certificate's
+/// premise list: the contract row verbatim, the invariant row's verified
+/// predicate verbatim, or the edge's reconstructed guard fact — recomputed
+/// from the edge's own terminator so the reported premise is the same fact
+/// the derivation consumed. A row that cannot be replayed yields `None`;
+/// the report drops it rather than manufacturing a premise the bound did
+/// not consult.
+pub(super) fn premise_proposition(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    row: PremiseRow,
+) -> Option<Proposition> {
+    match row {
+        PremiseRow::Contract(row) => machine.contract.requires.get(row).cloned(),
+        PremiseRow::Invariant(row) => module
+            .scalar_block_invariants
+            .get(row)
+            .map(|invariant| invariant.predicate.clone()),
+        PremiseRow::Guard(edge) => edge_guard_proposition(machine, edge),
+    }
+}
+
+/// The proposition a `Guard` premise names — the fact the edge's selection
+/// establishes, reconstructed from its source block's terminator. `None`
+/// when no block's terminator emits the edge or it carries no usable
+/// guard: impossible for a row the derivation recorded, but the replay
+/// stays fail-closed rather than manufacturing a premise.
+fn edge_guard_proposition(machine: &TerminalMachine, edge: EdgeId) -> Option<Proposition> {
+    let source = machine
+        .blocks
+        .iter()
+        .find(|block| block.terminator.edges().any(|emitted| emitted == edge))?;
+    match edge_guard(machine, source, edge) {
+        Some(EdgeGuard::Holds(proposition)) => Some(proposition),
+        _ => None,
+    }
+}
 
 /// The unconditional ceiling facts one clause context provides: literal
 /// `terminals` capping a value outright, relational `edges` transferring a
@@ -1118,7 +1448,7 @@ fn contract_scope<'a>(machine: &'a TerminalMachine, rank_type: IntegerType) -> C
         .requires
         .iter()
         .enumerate()
-        .map(|(row, clause)| (ClauseSupport::from([row]), clause))
+        .map(|(row, clause)| (ClauseSupport::from([PremiseRow::Contract(row)]), clause))
         .collect();
     resolve_scope(&ClauseScope::default(), &clauses, rank_type)
 }
@@ -1906,7 +2236,7 @@ fn justify_requires_ceiling(
     {
         return Some(rows.clone());
     }
-    let mut candidates: Vec<(usize, usize, ValueId)> = scope
+    let mut candidates: Vec<(Option<PremiseRow>, usize, ValueId)> = scope
         .edges
         .iter()
         .enumerate()
@@ -1917,9 +2247,7 @@ fn justify_requires_ceiling(
                     .and_then(|bound| bound.checked_sub(*cost))
                     .is_some_and(|candidate| candidate == residual)
         })
-        .map(|(index, (_, y, _, rows))| {
-            (rows.iter().next().copied().unwrap_or(usize::MAX), index, *y)
-        })
+        .map(|(index, (_, y, _, rows))| (rows.iter().next().copied(), index, *y))
         .collect();
     candidates.sort_unstable();
     for (_, index, y) in candidates {
@@ -1937,15 +2265,21 @@ fn justify_requires_ceiling(
     None
 }
 
-/// The machine-contract premises a whole-entry certificate's bound
-/// derivation used: the `requires` clauses that tighten a reachable cyclic
+/// The premises a whole-entry certificate's bound derivation used: every
+/// row — contract `requires` clause, `scalar_block_invariants` predicate,
+/// or reconstructed edge-guard fact — that tightened a reachable cyclic
 /// component's entry rank below its carrier maximum. The condensed bound
 /// only consumes the interiors of components reachable from the machine
-/// entry, so an unreachable component's clauses stay out. Callee contracts
+/// entry, so an unreachable component's rows stay out. Callee contracts
 /// never appear here — their premises are discharged as ordinary call
 /// obligations at each call site rather than becoming premises on the
-/// entry machine's inputs. Clauses surface in canonical contract order.
-pub(super) fn used_contract_premises(machine: &TerminalMachine) -> Vec<Proposition> {
+/// entry machine's inputs. Rows surface in canonical premise order:
+/// contract positions, then invariant roster positions, then guard edge
+/// identities.
+pub(super) fn used_premises(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+) -> Vec<Proposition> {
     let Some(TerminalRankedScc::Natural(components)) = &machine.ranked_scc else {
         return Vec::new();
     };
@@ -1978,12 +2312,18 @@ pub(super) fn used_contract_premises(machine: &TerminalMachine) -> Vec<Propositi
         let IntegerValue::Unsigned(rank_maximum) = component.rank_type.maximum_value() else {
             continue;
         };
-        if let Some(entry) = component_entry_rank_bound(machine, component, &blocks, rank_maximum) {
+        if let Some(entry) = component_entry_rank_bound(
+            machine,
+            component,
+            &blocks,
+            &module.scalar_block_invariants,
+            rank_maximum,
+        ) {
             used.extend(entry.clauses);
         }
     }
     used.into_iter()
-        .filter_map(|index| machine.contract.requires.get(index).cloned())
+        .filter_map(|row| premise_proposition(module, machine, row))
         .collect()
 }
 
@@ -2356,6 +2696,7 @@ pub(super) fn block_crash_visit_units(
     machines: &BTreeMap<MachineId, &TerminalMachine>,
     dynamic_call_targets: &BTreeMap<(MachineId, OperationId), MachineId>,
     provider_candidates: &BTreeMap<BoundaryMachineId, Vec<MachineId>>,
+    invariants: &[ScalarBlockInvariant],
     schedule: TerminalFuelSchedule,
     memoized_machines: &mut BTreeMap<MachineId, OutcomeBounds>,
     active_machines: &mut BTreeSet<MachineId>,
@@ -2382,6 +2723,7 @@ pub(super) fn block_crash_visit_units(
                 machines,
                 dynamic_call_targets,
                 provider_candidates,
+                invariants,
                 schedule,
                 memoized_machines,
                 active_machines,
@@ -2427,6 +2769,7 @@ pub(super) fn block_crash_visit_units(
                 machines,
                 dynamic_call_targets,
                 provider_candidates,
+                invariants,
                 schedule,
                 memoized_machines,
                 active_machines,
@@ -2453,6 +2796,7 @@ pub(super) fn block_return_visit_units(
     machines: &BTreeMap<MachineId, &TerminalMachine>,
     dynamic_call_targets: &BTreeMap<(MachineId, OperationId), MachineId>,
     provider_candidates: &BTreeMap<BoundaryMachineId, Vec<MachineId>>,
+    invariants: &[ScalarBlockInvariant],
     schedule: TerminalFuelSchedule,
     memoized_machines: &mut BTreeMap<MachineId, OutcomeBounds>,
     active_machines: &mut BTreeSet<MachineId>,
@@ -2482,6 +2826,7 @@ pub(super) fn block_return_visit_units(
                 machines,
                 dynamic_call_targets,
                 provider_candidates,
+                invariants,
                 schedule,
                 memoized_machines,
                 active_machines,
@@ -2509,6 +2854,7 @@ pub(super) fn block_return_visit_units(
             machines,
             dynamic_call_targets,
             provider_candidates,
+            invariants,
             schedule,
             memoized_machines,
             active_machines,
@@ -2684,6 +3030,7 @@ fn outcome_bounds_from(
     machines: &BTreeMap<MachineId, &TerminalMachine>,
     dynamic_call_targets: &BTreeMap<(MachineId, OperationId), MachineId>,
     provider_candidates: &BTreeMap<BoundaryMachineId, Vec<MachineId>>,
+    invariants: &[ScalarBlockInvariant],
     schedule: TerminalFuelSchedule,
     memoized: &mut BTreeMap<BlockId, OutcomeBounds>,
     active: &mut BTreeSet<BlockId>,
@@ -2726,6 +3073,7 @@ fn outcome_bounds_from(
                 machines,
                 dynamic_call_targets,
                 provider_candidates,
+                invariants,
                 schedule,
                 memoized_machines,
                 active_machines,
@@ -2779,6 +3127,7 @@ fn outcome_bounds_from(
             machines,
             dynamic_call_targets,
             provider_candidates,
+            invariants,
             schedule,
             memoized_machines,
             active_machines,
@@ -2797,6 +3146,7 @@ fn outcome_bounds_from(
                 machines,
                 dynamic_call_targets,
                 provider_candidates,
+                invariants,
                 schedule,
                 memoized_machines,
                 active_machines,
@@ -2817,6 +3167,7 @@ fn outcome_bounds_from(
             machines,
             dynamic_call_targets,
             provider_candidates,
+            invariants,
             schedule,
             memoized,
             active,
@@ -2842,6 +3193,7 @@ fn outcome_bounds_from(
             machines,
             dynamic_call_targets,
             provider_candidates,
+            invariants,
             schedule,
             memoized,
             active,
@@ -2855,6 +3207,7 @@ fn outcome_bounds_from(
             machines,
             dynamic_call_targets,
             provider_candidates,
+            invariants,
             schedule,
             memoized,
             active,
@@ -2878,6 +3231,7 @@ fn outcome_bounds_from(
                 machines,
                 dynamic_call_targets,
                 provider_candidates,
+                invariants,
                 schedule,
                 memoized,
                 active,
@@ -2892,6 +3246,7 @@ fn outcome_bounds_from(
                     machines,
                     dynamic_call_targets,
                     provider_candidates,
+                    invariants,
                     schedule,
                     memoized,
                     active,
@@ -2926,6 +3281,7 @@ pub(super) fn compose_cleanup_outcomes(
     machines: &BTreeMap<MachineId, &TerminalMachine>,
     dynamic_call_targets: &BTreeMap<(MachineId, OperationId), MachineId>,
     provider_candidates: &BTreeMap<BoundaryMachineId, Vec<MachineId>>,
+    invariants: &[ScalarBlockInvariant],
     schedule: TerminalFuelSchedule,
     memoized_machines: &mut BTreeMap<MachineId, OutcomeBounds>,
     active_machines: &mut BTreeSet<MachineId>,
@@ -2939,6 +3295,7 @@ pub(super) fn compose_cleanup_outcomes(
             machines,
             dynamic_call_targets,
             provider_candidates,
+            invariants,
             schedule,
             memoized_machines,
             active_machines,
