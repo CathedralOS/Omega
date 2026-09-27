@@ -193,6 +193,7 @@ pub fn validate_selected_provider_bodies(
         let matching: Vec<_> = program
             .operators()
             .iter()
+            .chain(program.machine_token_bindings())
             .filter(|operator| operator.symbol == row.requirement)
             .collect();
         let [operator] = matching.as_slice() else {
@@ -306,19 +307,50 @@ pub fn validate_selected_provider_bodies(
                 "selected build-time provider requirement has no exact namespace path".into(),
             );
         };
-        let conformances = program
-            .machine_trait_conformances(provider)
+        let is_machine_requirement = program
+            .machine_token_bindings()
             .iter()
-            .filter(|conformance| {
-                conformance.external_binding.is_none()
-                    && conformance.name.as_str() == namespace.as_str()
-                    && conformance.requirement.as_ref().map(|name| name.as_str())
-                        == Some(requirement.as_str())
-                    && (typed_trees::operator::resolve_satisfied_checked_operator(
-                        program,
-                        provider,
-                        namespace.as_str(),
-                        requirement.as_str(),
+            .any(|binding| binding.symbol == row.requirement);
+        let conformances =
+            program
+                .machine_trait_conformances(provider)
+                .iter()
+                .filter(|conformance| {
+                    if conformance.external_binding.is_some()
+                        || conformance.name.as_str() != namespace.as_str()
+                        || conformance.requirement.as_ref().map(|name| name.as_str())
+                            != Some(requirement.as_str())
+                    {
+                        return false;
+                    }
+                    if is_machine_requirement {
+                        // A token binding is only a signature view. The actual
+                        // machine requirement and its exact conformance still
+                        // own supply, contracts, and the operational ceiling.
+                        // Reuse their independent checker before executing the
+                        // selected provider through the ordinary call path.
+                        let Some(typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(
+                            required,
+                        )) = typed_trees::machine::resolve_satisfied_declaration(
+                            program,
+                            provider,
+                            conformance,
+                        )
+                        else {
+                            return false;
+                        };
+                        required.symbol == row.requirement
+                            && required.spelling == operator.spelling
+                            && validation::revalidate_top_level_requirement_realization(
+                                program,
+                                provider,
+                                required,
+                                conformance,
+                            )
+                            .is_ok()
+                    } else {
+                        typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(
+                        program, provider, conformance,
                     )
                     .is_some_and(|resolved| resolved.symbol == operator.symbol)
                         || typed_trees::operator::resolve_specialized_checked_operator_application(
@@ -327,9 +359,10 @@ pub fn validate_selected_provider_bodies(
                             namespace.as_str(),
                             requirement.as_str(),
                         )
-                        .is_some_and(|(resolved, _)| resolved.symbol == operator.symbol))
-            })
-            .count();
+                        .is_some_and(|(resolved, _)| resolved.symbol == operator.symbol)
+                    }
+                })
+                .count();
         if conformances != 1 {
             return Err(
                 "selected build-time provider does not bind its requirement through exactly one checked conformance"

@@ -232,6 +232,12 @@ fn single_supplied_row_cannot_authorize_another_live_expression_origin() {
 /// from the builtin `%` result, so a fold of 9 instead of 1 is the positive
 /// witness that the provider's machine -- not host arithmetic -- ran.
 fn provider_fixture() -> (TypedTrees, Vec<SelectedBuildTimeProviderBody>) {
+    provider_fixture_with_introducer("operator")
+}
+
+fn provider_fixture_with_introducer(
+    introducer: &str,
+) -> (TypedTrees, Vec<SelectedBuildTimeProviderBody>) {
     let source = r#"
 data Math {}
 boundary operator % Math::remainder(left: u64, right: u64) -> u64;
@@ -240,14 +246,19 @@ machine Provider::remainder(left: u64, right: u64) -> u64 satisfies Math::remain
 machine length() -> u64 { let left:u64 = 7; let right:u64 = 2; transition { _ -> (left % right) } }
 data Main { bytes:[u8;length()]; }
 "#;
-    let typed = crate::front_end::typed_program(source);
+    let source = source.replace("boundary operator", &format!("boundary {introducer}"));
+    let typed = crate::front_end::typed_program(&source);
     let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(&typed);
     let rows = facts
         .uses_with_status(checked_trees::CheckedOperatorResolutionStatus::Resolved)
         .filter(|fact| {
-            typed.operators().iter().any(|operator| {
-                operator.symbol == fact.selected_operator_symbol && operator.is_boundary
-            })
+            typed
+                .operators()
+                .iter()
+                .chain(typed.machine_token_bindings())
+                .any(|operator| {
+                    operator.symbol == fact.selected_operator_symbol && operator.is_boundary
+                })
         })
         .map(|fact| {
             let provider = typed
@@ -323,6 +334,75 @@ data Main { bytes:[u8;length()]; }
 }
 
 #[test]
+fn token_machine_provider_body_executes_and_replays() {
+    let (mut typed, rows) = provider_fixture_with_introducer("machine");
+    assert_eq!(rows.len(), 1);
+    crate::validate_selected_provider_bodies(&typed, &rows).unwrap();
+    let folds = evaluate_selected_array_lengths(
+        &mut typed,
+        None,
+        SelectedBuildTimeOperators {
+            operators: &[],
+            provider_bodies: &rows,
+        },
+    )
+    .unwrap();
+    assert_eq!(folds.len(), 1);
+    assert_eq!(
+        folds[0].value, 9,
+        "execute the selected body, not builtin modulo"
+    );
+    validate_folded_array_lengths(&typed, &folds, &[], &rows, None).unwrap();
+}
+
+#[test]
+fn token_machine_provider_body_rechecks_the_actual_requirement() {
+    let (mut typed, rows) = provider_fixture_with_introducer("machine");
+    crate::validate_selected_provider_bodies(&typed, &rows).unwrap();
+    let mut substituted = typed.clone();
+    let provider = substituted
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == rows[0].provider_machine)
+        .unwrap();
+    let conformances = provider.satisfies;
+    substituted
+        .machine_trait_conformances
+        .span_mut_or_empty(conformances)[0]
+        .symbol = rows[0].provider_machine;
+    assert!(
+        crate::validate_selected_provider_bodies(&substituted, &rows)
+            .unwrap_err()
+            .contains("exactly one checked conformance"),
+        "matching names and signatures cannot replace the exact satisfaction target"
+    );
+    let mut stale_binding = typed.clone();
+    stale_binding
+        .machines_mut()
+        .iter_mut()
+        .find(|machine| machine.symbol == rows[0].requirement)
+        .unwrap()
+        .spelling = None;
+    assert!(
+        crate::validate_selected_provider_bodies(&stale_binding, &rows).is_err(),
+        "the signature view must retain the actual machine's token binding"
+    );
+    // The signature view alone must not authorize a different supply mode.
+    // Leave it and the use untouched while replacing the actual requirement.
+    let requirement = typed
+        .machines_mut()
+        .iter_mut()
+        .find(|machine| machine.symbol == rows[0].requirement)
+        .unwrap();
+    requirement.supply_mode = language_semantics::MachineSupplyMode::CheckedBody;
+    assert!(
+        crate::validate_selected_provider_bodies(&typed, &rows)
+            .unwrap_err()
+            .contains("exactly one checked conformance")
+    );
+}
+
+#[test]
 fn named_provider_body_executes_its_ordinary_machine_and_replays() {
     let (mut typed, rows) = named_provider_fixture();
     assert_eq!(rows.len(), 1);
@@ -366,7 +446,13 @@ fn unselected_boundary_use_cannot_fall_back_to_host_semantics() {
 
 #[test]
 fn provider_body_row_rejects_stale_and_substituted_custody() {
-    let (typed, rows) = provider_fixture();
+    for introducer in ["operator", "machine"] {
+        assert_provider_body_row_rejects_stale_and_substituted_custody(introducer);
+    }
+}
+
+fn assert_provider_body_row_rejects_stale_and_substituted_custody(introducer: &str) {
+    let (typed, rows) = provider_fixture_with_introducer(introducer);
     let mut invalid_entry = rows.clone();
     invalid_entry[0].provider_state = symbols::SymbolHandle::invalid();
     assert!(

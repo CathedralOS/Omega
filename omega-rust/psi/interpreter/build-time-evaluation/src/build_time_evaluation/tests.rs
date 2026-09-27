@@ -94,9 +94,13 @@ fn provider_body_rows(typed: &typed_trees::TypedTrees) -> Vec<SelectedBuildTimeP
     facts
         .uses_with_status(checked_trees::CheckedOperatorResolutionStatus::Resolved)
         .filter(|fact| {
-            typed.operators().iter().any(|operator| {
-                operator.symbol == fact.selected_operator_symbol && operator.is_boundary
-            })
+            typed
+                .operators()
+                .iter()
+                .chain(typed.machine_token_bindings())
+                .any(|operator| {
+                    operator.symbol == fact.selected_operator_symbol && operator.is_boundary
+                })
         })
         .map(|fact| {
             let provider = typed
@@ -201,6 +205,15 @@ fn provider_backed_domain_fact_defers_then_evaluates_its_selected_body() {
 /// checks see a concrete extent rather than the open template's `N`.
 #[test]
 fn selected_provider_const_application_realizes_instance() {
+    assert_selected_provider_const_application_realizes_instance("operator");
+}
+
+#[test]
+fn token_machine_provider_const_application_realizes_instance() {
+    assert_selected_provider_const_application_realizes_instance("machine");
+}
+
+fn assert_selected_provider_const_application_realizes_instance(introducer: &str) {
     let package = PackageKeyIdentity::from_digest([0x7b; 32]).expect("nonzero package identity");
     let source = r#"
         data Math {}
@@ -212,7 +225,8 @@ fn selected_provider_const_application_realizes_instance() {
         data Main { value: Buffer<limit()>; }
         machine Main::main(&mut self) { self.value.values[6] = 70; }
     "#;
-    let (syntax, sources) = parsed_source(source, package);
+    let source = source.replace("boundary operator", &format!("boundary {introducer}"));
+    let (syntax, sources) = parsed_source(&source, package);
     let evaluated = evaluate_pre_resolution(BuildTimeEvaluationRequest {
         syntax_trees: syntax,
         source_context: Some(BuildTimeSourceContext {

@@ -243,9 +243,15 @@ impl BuildTimeAdmissionPlan {
                 return true;
             }
             let boundary_use = |selected_operator_symbol| {
-                program.operators().iter().any(|operator| {
-                    operator.symbol == selected_operator_symbol && operator.is_boundary
-                })
+                // Before call normalization the same machine requirement is
+                // selected through its token-signature view instead.
+                program
+                    .operators()
+                    .iter()
+                    .chain(program.machine_token_bindings())
+                    .any(|operator| {
+                        operator.symbol == selected_operator_symbol && operator.is_boundary
+                    })
             };
             if facts
                 .uses_with_status(checked_trees::CheckedOperatorResolutionStatus::Resolved)
