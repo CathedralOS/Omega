@@ -1,6 +1,9 @@
-use arena::{Arena, Handle, HandleSpan};
+use arena::{Arena, Handle, HandleSpan, OwnedIndex};
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
+
+/// Handle-keyed maps take the integer hasher; none is iterated for output order.
+type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>;
 
 /// One exact structural place captured for compatibility checking.
 ///
@@ -752,6 +755,10 @@ pub struct BorrowFacts {
     pub calls: Arena<BorrowCallFact>,
     pub loans: Arena<BorrowLoanFact>,
     pub states: Arena<StateBorrowFact>,
+    /// `(machine, state) -> state row` lookup owned by this ledger. The
+    /// index carries the `states` arena's revision, so a mutation rebuilds
+    /// it on the next query; the ledger's lifetime bounds it.
+    pub state_index: OwnedIndex<BorrowStateIndex>,
     /// Zero-premise structural certificates retained by checked borrow
     /// admission. This is a separate proof ledger from the loan resource rows.
     pub compatibility_certificates: Arena<CheckedBorrowCompatibilityCertificate>,
@@ -804,6 +811,7 @@ impl BorrowFacts {
             calls,
             loans,
             states,
+            state_index: OwnedIndex::default(),
             compatibility_certificates: Arena::new(),
             mutation_certificates: Arena::new(),
             call_compatibility_certificates: Arena::new(),
@@ -1018,6 +1026,51 @@ fn handle_span_contains<T>(span: HandleSpan<T>, handle: Handle<T>) -> bool {
         && handle.generation() == span.start().generation()
         && handle.arena_index() >= span.start().arena_index()
         && handle.arena_index() < span.start().arena_index().saturating_add(span.count())
+}
+
+/// `states` rows bucketed by `(machine symbol, state symbol)`. A state's
+/// borrow row is addressed by its recorded identity rather than position,
+/// so consumers look rows up through this index instead of rescanning the
+/// arena — one build per ledger revision replaces O(states × queries).
+#[derive(Clone, Default)]
+pub struct BorrowStateIndex {
+    by_key: HashMap<(SymbolHandle, SymbolHandle), Vec<Handle<StateBorrowFact>>>,
+}
+
+impl BorrowStateIndex {
+    /// The rows recorded under `(machine, state)`, in arena order.
+    pub fn bucket(
+        &self,
+        machine_symbol: SymbolHandle,
+        state_symbol: SymbolHandle,
+    ) -> &[Handle<StateBorrowFact>] {
+        self.by_key
+            .get(&(machine_symbol, state_symbol))
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
+}
+
+impl BorrowFacts {
+    /// Run `run` against this ledger's owned `(machine, state)` row index,
+    /// rebuilding when the `states` arena's revision moved.
+    pub fn with_state_index<R>(&self, run: impl FnOnce(&BorrowStateIndex) -> R) -> R {
+        self.state_index.with(
+            self.states.revision(),
+            || {
+                let mut index = BorrowStateIndex::default();
+                for (handle, state) in self.states.iter() {
+                    index
+                        .by_key
+                        .entry((state.machine_symbol, state.state_symbol))
+                        .or_default()
+                        .push(handle);
+                }
+                index
+            },
+            run,
+        )
+    }
 }
 
 #[cfg(test)]

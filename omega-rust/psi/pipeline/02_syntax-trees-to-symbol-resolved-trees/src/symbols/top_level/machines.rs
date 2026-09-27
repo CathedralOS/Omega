@@ -304,6 +304,7 @@ pub(super) fn assign_machine_symbols(
                     symbols,
                     &MachineScope {
                         attached_machines: &attached_machines,
+                        resolution_indexes: &program.resolution_indexes,
                         symbol: machine_symbol,
                         type_parameters: &local_type_parameters,
                         attached_data: machine.attached_data.as_ref(),
@@ -417,6 +418,7 @@ pub(super) fn assign_machine_symbols(
                     symbols,
                     &MachineScope {
                         attached_machines: &attached_machines,
+                        resolution_indexes: &program.resolution_indexes,
                         symbol: machine_symbol,
                         type_parameters: &local_type_parameters,
                         attached_data: machine.attached_data.as_ref(),

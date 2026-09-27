@@ -43,6 +43,7 @@ pub(super) fn assign_contract_reference_symbols(
             .find(|definition| definition.symbol == machine.attached_data_symbol);
         let scope = MachineScope {
             attached_machines: &attached_machines,
+            resolution_indexes: &program.resolution_indexes,
             symbol: machine.symbol,
             type_parameters: data_type_parameters.span_or_empty(machine.type_parameters),
             attached_data: machine.attached_data.as_ref(),
@@ -99,6 +100,7 @@ pub(super) fn assign_contract_reference_symbols(
     for trait_definition in roots.traits.iter() {
         let scope = MachineScope {
             attached_machines: &attached_machines,
+            resolution_indexes: &program.resolution_indexes,
             symbol: trait_definition.symbol,
             type_parameters: data_type_parameters.span_or_empty(trait_definition.type_parameters),
             attached_data: None,
@@ -142,6 +144,7 @@ pub(super) fn assign_contract_reference_symbols(
     {
         let scope = MachineScope {
             attached_machines: &attached_machines,
+            resolution_indexes: &program.resolution_indexes,
             symbol: operator.symbol,
             type_parameters: data_type_parameters.span_or_empty(operator.type_parameters),
             attached_data: None,
@@ -182,6 +185,7 @@ pub(super) fn assign_contract_reference_symbols(
         };
         let scope = MachineScope {
             attached_machines: &attached_machines,
+            resolution_indexes: &program.resolution_indexes,
             symbol: signature.symbol,
             type_parameters: data_type_parameters.span_or_empty(signature.type_parameters),
             attached_data: None,

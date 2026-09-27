@@ -154,56 +154,12 @@ pub fn index_parameters<'program>(
     }
 }
 
-// Proof readers resolve declarations by symbol repeatedly, including inside
-// recursive membership walks; the roster below maps each symbol to its first
-// declaration position so those lookups stop rescanning the whole slice.
-struct DomainSymbolIndex {
-    by_symbol: std::collections::HashMap<SymbolHandle, usize>,
-}
-
-thread_local! {
-    // Owned by the program's instance tag plus the domain arena's own
-    // revision: the counter moves on every mutation — appends and same-length
-    // in-place rewrites alike — so a recycled program or a mutated table can
-    // never be served the stale index.
-    static DOMAIN_SYMBOL_INDEX: std::cell::RefCell<
-        Option<(u64, u64, DomainSymbolIndex)>,
-    > = const { std::cell::RefCell::new(None) };
-}
-
-fn with_domain_symbol_index<R>(
-    program: &TypedTrees,
-    definitions: &[DomainDefinition],
-    reader: impl FnOnce(&DomainSymbolIndex) -> R,
-) -> R {
-    DOMAIN_SYMBOL_INDEX.with(|slot| {
-        let mut slot = slot.borrow_mut();
-        let revision = program.tables.domain_definitions.revision();
-        let owner = program.identity.get();
-        let fresh = slot
-            .as_ref()
-            .is_some_and(|(seen_owner, seen, _)| *seen_owner == owner && *seen == revision);
-        if !fresh {
-            let mut index = DomainSymbolIndex {
-                by_symbol: std::collections::HashMap::with_capacity(definitions.len()),
-            };
-            for (position, domain) in definitions.iter().enumerate() {
-                index.by_symbol.entry(domain.symbol).or_insert(position);
-            }
-            *slot = Some((owner, revision, index));
-        }
-        reader(&slot.as_ref().expect("index just populated").2)
-    })
-}
-
-/// The declaration carrying `symbol`, resolving through a cached symbol map
-/// instead of rescanning `domain_definitions()` per query.
+/// The declaration carrying `symbol`, resolving through the program-owned
+/// domain index (`TypedTrees::domain_position_by_symbol`) instead of
+/// rescanning `domain_definitions()` per query.
 pub fn domain_by_symbol(program: &TypedTrees, symbol: SymbolHandle) -> Option<&DomainDefinition> {
-    let definitions = program.domain_definitions();
-    let position = with_domain_symbol_index(program, definitions, |index| {
-        index.by_symbol.get(&symbol).copied()
-    })?;
-    definitions.get(position)
+    let position = program.domain_position_by_symbol(symbol)?;
+    program.domain_definitions().get(position)
 }
 
 fn const_index_type_name(

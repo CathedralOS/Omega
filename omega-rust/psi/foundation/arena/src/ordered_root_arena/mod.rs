@@ -63,6 +63,17 @@ impl<T: Default> OrderedRootArena<T> {
 
         None
     }
+
+    /// The owned freshness counter of the storage arena, bumped by every
+    /// mutation-capable call — `push`, `for_each_mut`, `find_mut`, and
+    /// `IndexMut` all route through the storage arena's own revision. A
+    /// consumer comparing revisions across borrows sees any change to the
+    /// arena's contents, including in-place rewrites that keep the length
+    /// fixed.
+    #[inline]
+    pub fn revision(&self) -> u64 {
+        self.storage.revision()
+    }
 }
 
 impl<T: Default> Default for OrderedRootArena<T> {

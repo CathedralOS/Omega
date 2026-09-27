@@ -21,6 +21,7 @@ pub(super) fn assign_measure_expression_symbols(
         // but no machine receiver: `self` must not name this declaration.
         let scope = MachineScope {
             attached_machines: &attached_machines,
+            resolution_indexes: &program.resolution_indexes,
             symbol: SymbolHandle::invalid(),
             type_parameters: &[],
             attached_data: None,

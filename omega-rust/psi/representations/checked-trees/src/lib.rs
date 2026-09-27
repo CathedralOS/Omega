@@ -14,7 +14,7 @@ pub use checked_trees::{
     BorrowCompatibilityPremiseRelation, BorrowCompatibilityPremiseSource,
     BorrowCompatibilitySelectorPosition, BorrowCompatibilitySelectorSnapshot,
     BorrowCompatibilitySelectorValue, BorrowFacts, BorrowLoanFact, BorrowLoanLineage,
-    BorrowLoanOwnerSegment, BorrowRootKind, BorrowWritableRootFact,
+    BorrowLoanOwnerSegment, BorrowRootKind, BorrowStateIndex, BorrowWritableRootFact,
     BoundaryQualificationAuthorization, BuildBoundProgressDemand, CallAcceptance,
     CallServiceReachRows, CapturedPlace, CapturedPlaceCompatibility, CapturedPlaceContainment,
     CarryFacts, CheckFacts, CheckedAffineConstructionElementPlan, CheckedArithmeticPolicyAdapter,

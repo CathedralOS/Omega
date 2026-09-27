@@ -15,6 +15,7 @@ pub mod typed_trees;
 
 pub use typed_trees::calls::{boundary, dynamic_traits, finite_family, service, signature};
 pub use typed_trees::control_flow::{machine, state, statement};
+pub use typed_trees::declaration_index;
 pub use typed_trees::declarations::{
     constant, data, domain, measure, operator, trait_definition, visibility, wire,
 };

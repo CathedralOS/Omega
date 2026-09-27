@@ -154,58 +154,20 @@ fn use_key(
 /// `application` is called once per lowered named/generic reference and used
 /// to rescan the whole origin roster and definition table per call; both
 /// scans only ever match one symbol, so bucket them once per source program.
-/// Freshness anchors on the source pointer plus sampled declaration heap
-/// addresses: fixture programs forge identical symbol arenas, but a
-/// `DiagnosticName`'s text pointer is a distinct allocation per program.
-struct GenericOriginIndex {
-    origins_by_symbol:
-        symbols::SymbolKeyMap<SymbolHandle, Vec<Handle<resolved::types::GenericApplicationOrigin>>>,
-    definitions_by_symbol: symbols::SymbolKeyMap<SymbolHandle, Vec<usize>>,
-    malformed: bool,
-}
-
-thread_local! {
-    static GENERIC_ORIGIN_INDEX: std::cell::RefCell<
-        Option<(*const resolved::SymbolResolvedTrees, usize, GenericOriginIndex)>,
-    > = const { std::cell::RefCell::new(None) };
-}
-
-fn source_index_fingerprint(source: &resolved::SymbolResolvedTrees) -> usize {
-    let definitions_len = source.data_definitions.len();
-    let sample = |index: usize| -> usize {
-        if index < definitions_len {
-            let definition = &source.data_definitions[index];
-            definition.symbol.arena_index() as usize ^ definition.name.as_str().as_ptr() as usize
-        } else {
-            0
-        }
-    };
-    let mut fingerprint = (source as *const resolved::SymbolResolvedTrees) as usize
-        ^ source.tables.types.generic_application_origins.len()
-        ^ definitions_len.rotate_left(17)
-        ^ source.symbols.name(source.symbols.root()).as_ptr() as usize;
-    fingerprint = fingerprint.rotate_left(11) ^ sample(0);
-    fingerprint = fingerprint.rotate_left(11) ^ sample(definitions_len / 2);
-    fingerprint.rotate_left(11) ^ sample(definitions_len.saturating_sub(1))
-}
+/// The index is owned by the resolved trees (`with_generic_origin_index` on
+/// `SymbolResolvedTrees`): the arena revisions inside the slot mark exactly
+/// when its source tables changed — a recycled program can never serve a
+/// replacement its roster.
+use symbol_resolved_trees::lookup_indexes::GenericOriginIndex;
 
 fn with_generic_origin_index<R>(
     source: &resolved::SymbolResolvedTrees,
     run: impl FnOnce(&GenericOriginIndex) -> R,
 ) -> R {
-    GENERIC_ORIGIN_INDEX.with(|cell| {
-        let mut slot = cell.borrow_mut();
-        let fingerprint = source_index_fingerprint(source);
-        let fresh = matches!(&*slot, Some((owner, seen, _))
-            if std::ptr::eq(*owner, source as *const _) && *seen == fingerprint);
-        if !fresh {
+    source.with_generic_origin_index(
+        |index| {
             let origins = &source.tables.types.generic_application_origins;
             let references = &source.tables.declarations.child_type_references;
-            let mut index = GenericOriginIndex {
-                origins_by_symbol: symbols::SymbolKeyMap::default(),
-                definitions_by_symbol: symbols::SymbolKeyMap::default(),
-                malformed: false,
-            };
             for (handle, origin) in origins.iter() {
                 let instance_symbol = if references.is_valid(origin.instance)
                     && references.is_valid(origin.application)
@@ -235,14 +197,9 @@ fn with_generic_origin_index<R>(
                     .or_default()
                     .push(position);
             }
-            *slot = Some((
-                source as *const resolved::SymbolResolvedTrees,
-                fingerprint,
-                index,
-            ));
-        }
-        run(&slot.as_ref().unwrap().2)
-    })
+        },
+        run,
+    )
 }
 
 pub(super) fn application<'source>(

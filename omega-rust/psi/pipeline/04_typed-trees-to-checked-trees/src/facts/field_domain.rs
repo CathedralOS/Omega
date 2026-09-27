@@ -383,9 +383,36 @@ type OwnedFieldDomainIdentities = Vec<(
     language_semantics::SemanticDomainId,
 )>;
 
+/// Freshness for the scope memo: the program's identity (a process-unique
+/// counter a recycled `TypedTrees` can never inherit) plus the summed
+/// revisions of every arena the walk reads. The program address is never
+/// consulted, and a mutated table cannot keep a stale revision.
+fn field_domain_freshness(program: &typed_trees::TypedTrees) -> (u64, u64) {
+    let tables = &program.tables;
+    let revision = program
+        .type_reference_table
+        .revision()
+        .wrapping_add(tables.data_definitions.revision())
+        .wrapping_add(tables.data_members.revision())
+        .wrapping_add(tables.data_payload_fields.revision())
+        .wrapping_add(tables.domain_definitions.revision())
+        .wrapping_add(tables.domain_path_members.revision())
+        .wrapping_add(tables.machines.revision())
+        // Root spans can be re-pointed in place without touching an arena's
+        // revision; start/count carry the visible roster.
+        .wrapping_add(roster_marker(program.roots.data_definitions))
+        .wrapping_add(roster_marker(program.roots.domain_definitions));
+    (program.identity.get(), revision)
+}
+
+fn roster_marker<T>(span: arena::HandleSpan<T>) -> u64 {
+    ((span.start().arena_index() as u64) << 32) | span.count() as u64
+}
+
 type FieldDomainSlot = Option<
     Option<(
-        *const typed_trees::TypedTrees,
+        u64,
+        u64,
         symbols::SymbolKeyMap<TypeReferenceHandle, OwnedFieldDomainIdentities>,
     )>,
 >;
@@ -393,8 +420,10 @@ type FieldDomainSlot = Option<
 thread_local! {
     /// Same build-scope rule as `validation`'s program plan scope: outer
     /// `None` means no checked build is open, so a stale map can never outlive
-    /// the program that produced it; the program is borrowed for the whole
-    /// scope so its address cannot be recycled mid-scope.
+    /// the program that produced it. The slot keys on the program's identity
+    /// tag plus the arena revisions the walk reads — not the program's
+    /// address — so a recycled `TypedTrees` can never inherit the memo, and
+    /// any mutation rebuilds it.
     static OWNED_FIELD_DOMAIN_SLOT: std::cell::RefCell<FieldDomainSlot> =
         const { std::cell::RefCell::new(None) };
 }
@@ -432,13 +461,14 @@ pub(crate) fn declared_owned_field_domain_identities(
         Miss,
         ForeignProgram,
     }
+    let freshness = field_domain_freshness(program);
     let state = OWNED_FIELD_DOMAIN_SLOT.with(|cell| {
         let cell = cell.borrow();
         match cell.as_ref() {
             None => SlotState::NoScope,
             Some(None) => SlotState::Miss,
-            Some(Some((owner, map))) => {
-                if std::ptr::eq(*owner, program) {
+            Some(Some((identity, revision, map))) => {
+                if (*identity, *revision) == freshness {
                     map.get(&reference)
                         .cloned()
                         .map_or(SlotState::Miss, SlotState::Hit)
@@ -458,13 +488,14 @@ pub(crate) fn declared_owned_field_domain_identities(
                 && let Some(scope) = &mut *slot
             {
                 match scope {
-                    Some((owner, map)) if std::ptr::eq(*owner, program) => {
+                    Some((identity, revision, map)) if (*identity, *revision) == freshness => {
                         map.insert(reference, identities.clone());
                     }
                     slot_none @ None => {
                         *slot_none = Some((
-                            program,
-                            symbols::SymbolKeyMap::from_iter([(reference, identities.clone())]),
+                            freshness.0,
+                            freshness.1,
+                            std::iter::once((reference, identities.clone())).collect(),
                         ));
                     }
                     Some(_) => {}
@@ -573,46 +604,17 @@ fn declared_owned_field_domain_identities_uncached(
     output
 }
 
-// Domain declarations bucketed by their resolved symbol once per program.
 // `domain_requires_provenance` runs per DomainMembership fact per context
-// per statement and its alias walk rescanned the whole domain table at
-// every visited node. Freshness is the program's `ProgramIdentity` plus the
-// domain-definition arena's own revision — the counter moves on every
-// mutation, so a same-length rewrite or a recycled `TypedTrees` can never be
-// served a dropped table's domain positions.
-thread_local! {
-    static DOMAIN_SYMBOL_INDEX: std::cell::RefCell<
-        Option<(
-            typed_trees::ProgramIdentity,
-            u64,
-            symbols::SymbolKeyMap<SymbolHandle, usize>,
-        )>,
-    > = const { std::cell::RefCell::new(None) };
-}
-
+// per statement and its alias walk visited every node with a whole-table
+// scan. The symbol-to-domain lookup resolves through the index the program
+// owns (`TypedTrees::domain_position_by_symbol`): its revision guard
+// rebuilds on any mutation of the domain arena, so no per-caller freshness
+// key is needed.
 fn domain_by_symbol(
     program: &typed_trees::TypedTrees,
     symbol: SymbolHandle,
 ) -> Option<&typed_trees::domain::DomainDefinition> {
-    DOMAIN_SYMBOL_INDEX.with(|cell| {
-        let mut slot = cell.borrow_mut();
-        let revision = program.tables.domain_definitions.revision();
-        let fresh = matches!(&*slot, Some((owner, seen, _))
-            if owner.get() == program.identity.get() && *seen == revision);
-        if !fresh {
-            let mut by_symbol = symbols::SymbolKeyMap::default();
-            for (position, domain) in program.domain_definitions().iter().enumerate() {
-                // `find` returns the first matching row; keep it.
-                by_symbol.entry(domain.symbol).or_insert(position);
-            }
-            *slot = Some((program.identity, revision, by_symbol));
-        }
-        slot.as_ref()
-            .unwrap()
-            .2
-            .get(&symbol)
-            .map(|position| &program.domain_definitions()[*position])
-    })
+    typed_trees::domain::domain_by_symbol(program, symbol)
 }
 
 /// Transparent aliases retain their constituents' provenance requirement;

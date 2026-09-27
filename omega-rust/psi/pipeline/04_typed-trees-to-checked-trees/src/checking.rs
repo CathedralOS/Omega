@@ -257,7 +257,6 @@ fn lower_typed_trees_uncached(
     // operational and service-reach plans and the rest serve from them.
     let _plan_scope = ::validation::enter_program_plan_scope();
     let _field_domain_scope = crate::facts::field_domain::enter_field_domain_scope();
-    let _fact_row_scope = crate::flow::enter_fact_row_scope();
     let _root_currency_scope = checks::enter_root_currency_scope();
     // Consumers below share one set of write-frame memos and one proof-only
     // classification. The only mutation in the scope, contract-identity
