@@ -93,9 +93,9 @@ pub(super) fn plan(
         completes_machine,
         result,
         mut structural_result,
-        result_stores: call_result_stores,
+        result_stores: mut call_result_stores,
         structural_store_bindings,
-        displaced_discard,
+        mut displaced_discard,
     } = statement_call;
     // Guard-group markers beneath the statement phase keep the statement
     // position that `phase` resets.
@@ -253,7 +253,44 @@ pub(super) fn plan(
         *structural_count = structural_count.checked_add(1)?;
     }
     if let Some((result, _)) = &mut structural_result {
-        result.binding_ordinal = u32::try_from(*structural_count).ok()?;
+        let binding_ordinal = u32::try_from(*structural_count).ok()?;
+        // Assignment planning reserves the result and displaced field before
+        // operand establishment. Copies and nested calls take earlier slots;
+        // keep the immediate replacement continuation tied to its producer.
+        if !call_result_stores.is_empty() {
+            let [
+                CheckedUnitEffectOperationPlan::MoveStructuralField {
+                    result: displaced, ..
+                },
+                CheckedUnitEffectOperationPlan::StoreStructuralField { value, .. },
+            ] = call_result_stores.as_mut_slice()
+            else {
+                return None;
+            };
+            let old_displaced = result.binding_ordinal.checked_add(1)?;
+            let old_source = CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal: result.binding_ordinal,
+            };
+            if displaced.binding_ordinal != old_displaced || value.source != old_source {
+                return None;
+            }
+            displaced.binding_ordinal = binding_ordinal.checked_add(1)?;
+            value.source =
+                CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal };
+            if let Some(discard) = &mut displaced_discard {
+                if discard.source
+                    != (CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal: old_displaced,
+                    })
+                {
+                    return None;
+                }
+                discard.source = CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    binding_ordinal: displaced.binding_ordinal,
+                };
+            }
+        }
+        result.binding_ordinal = binding_ordinal;
     }
     // The existing sole-call partial-return route remains available to
     // native consumers. Wider statement schedules use a dying continuation;
