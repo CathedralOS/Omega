@@ -165,42 +165,6 @@ const NESTED_WRAPPER_SOURCE: &str = r#"
     }
 "#;
 
-#[derive(Default)]
-struct ObserveNestedWrapper {
-    calls: Vec<Vec<TerminalScalarValue>>,
-}
-
-impl TerminalEffectHandler for ObserveNestedWrapper {
-    fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
-        panic!("all fixture effects return a scalar");
-    }
-
-    fn handle_effect_result(
-        &mut self,
-        effect: &TerminalEffect,
-    ) -> Result<terminal_interpreter::TerminalEffectResult, TerminalEffectRejection> {
-        let TerminalEffect::BoundaryCall {
-            arguments,
-            structural_arguments,
-            ..
-        } = effect
-        else {
-            panic!("boundary effect");
-        };
-        self.calls.push(arguments.clone());
-        let value = if let [receipt] = structural_arguments.as_slice() {
-            assert_eq!(receipt.opaque_identity, 700);
-            assert!(receipt.path.is_empty());
-            unsigned(700)
-        } else {
-            assert!(structural_arguments.is_empty());
-            assert_eq!(arguments.len(), 1);
-            arguments[0]
-        };
-        Ok(terminal_interpreter::TerminalEffectResult::Scalar(value))
-    }
-}
-
 fn assert_constructed_wrapper_execution(source: &str) {
     let original = crate::front_end::checked_program(source);
     let artifact = unit_wrapper_artifact(&original);

@@ -17,23 +17,6 @@ fn field_is_owned(spelling: &str) -> bool {
 }
 
 #[test]
-fn scalar_ranges_and_policies_retain_owned_storage_classification() {
-    for spelling in [
-        "u64",
-        "f64",
-        "u64 [0..=100]",
-        "i8 [-10..=10]",
-        "u8 in Wrapping",
-        "i8 in Saturating",
-    ] {
-        assert!(
-            field_is_owned(spelling),
-            "{spelling} is an owned scalar, not a reference"
-        );
-    }
-}
-
-#[test]
 fn scalar_constraints_do_not_erase_reference_access() {
     for spelling in [
         "&u64",

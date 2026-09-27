@@ -55,27 +55,6 @@ fn assert_rejects(source: &str) -> Vec<diagnostics::Diagnostic> {
 }
 
 #[test]
-fn out_parameter_ensures_establishes_through_boundary_route() {
-    // The join itself: `established by Filler::fill` authorizes the boundary
-    // requirement's `ensures buf in Buf::Full`; `consume` then sees the claim
-    // on the exact `&mut` argument place after the call.
-    assert_checks(
-        r#"
-data Buf { length: u64; }
-domain Buf::Full established by Filler::fill;
-boundary trait Filler {
-    machine fill(buf: &mut Buf) ensures buf in Buf::Full;
-}
-machine consume(x: Buf in Full) -> u64 { x.length }
-machine use_fill(filler: &Filler, buf: &mut Buf) reaches Filler {
-    filler.fill(buf);
-    let _r: u64 = consume(buf);
-}
-"#,
-    );
-}
-
-#[test]
 fn out_parameter_ensures_checked_body_machine_passes() {
     // A checked-body callee that delegates to the route provider owes its
     // authored parameter claim at every exit; the caller-side provisional

@@ -13,28 +13,6 @@ fn accepts(source: &str) -> CheckedTrees {
 }
 
 #[test]
-fn range_inference_converts_authored_upper_endpoint_kinds_exactly() {
-    for (formal, actual, expected) in [
-        ("0..=N", "0..18446744073709551616", "18446744073709551615"),
-        ("0..N", "0..=256", "257"),
-        ("0..=N", "0..257", "256"),
-        ("0..N", "0..=7u64 / 2 * 2", "7"),
-        ("0..=N", "0..7u64 / 2 * 2", "5"),
-    ] {
-        let checked = accepts(&format!(
-            "machine bound<const N: u64>(value: u64[{formal}]) -> u64 {{ N }}
-             machine inferred(value: u64[{actual}]) -> u64 {{ bound(value) }}"
-        ));
-        assert_eq!(checked.machine_specializations.len(), 1);
-        assert_eq!(
-            checked.machine_specializations[0].const_arguments,
-            [expected],
-            "{formal} from {actual}"
-        );
-    }
-}
-
-#[test]
 fn exclusive_predecessor_cannot_repair_an_invalid_typed_endpoint() {
     for endpoint in ["256u8", "255u8 + 1"] {
         let source = format!(

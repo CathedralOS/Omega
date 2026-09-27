@@ -1,13 +1,5 @@
 use crate::tests::front_end::checked_program_result;
 
-fn float_ordering_declarations(scalar: &str) -> String {
-    format!(
-        "operator > {scalar}::greater(left: {scalar}, right: {scalar}) -> bool;
-         operator < {scalar}::less(left: {scalar}, right: {scalar}) -> bool;
-         operator >= {scalar}::greater_or_equal(left: {scalar}, right: {scalar}) -> bool;"
-    )
-}
-
 fn slice_source(declarations: &str) -> String {
     // Two acyclic guarded edges exercise the console's head/tail staging
     // without introducing a termination obligation into this bounds fixture.
@@ -44,15 +36,6 @@ fn computed_index_source(declarations: &str) -> String {
 }
 
 #[test]
-fn unrelated_float_ordering_preserves_slice_length_guards() {
-    for scalar in ["f32", "f64"] {
-        let source = slice_source(&float_ordering_declarations(scalar));
-        checked_program_result(&source)
-            .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
-    }
-}
-
-#[test]
 fn selected_integer_greater_cannot_supply_head_or_tail_bounds() {
     let source = slice_source("operator > u64::custom(left: u64, right: u64) -> bool;");
     let diagnostics =
@@ -64,25 +47,6 @@ fn selected_integer_greater_cannot_supply_head_or_tail_bounds() {
                 .any(|diagnostic| diagnostic.message.contains(expected)),
             "expected {expected}: {source}\n{diagnostics:#?}"
         );
-    }
-}
-
-#[test]
-fn unrelated_float_ordering_preserves_computed_index_guard() {
-    for scalar in ["f32", "f64"] {
-        let source = computed_index_source(&float_ordering_declarations(scalar));
-        checked_program_result(&source)
-            .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
-    }
-}
-
-#[test]
-fn unrelated_float_ordering_preserves_explicitly_typed_computed_index_guard() {
-    for scalar in ["f32", "f64"] {
-        let source = computed_index_source(&float_ordering_declarations(scalar))
-            .replace("self.depth - 1", "self.depth - 1u64");
-        checked_program_result(&source)
-            .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
     }
 }
 

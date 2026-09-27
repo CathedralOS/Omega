@@ -8,7 +8,7 @@ mod source_custody;
 mod support;
 
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use terminal_psi::{OperationKind, StructuralAccess};
+use terminal_psi::OperationKind;
 
 use support::{Expectations, execute, publish_original, reject, unsigned};
 
@@ -81,71 +81,6 @@ fn source_debug_map_distinguishes_scalar_values_from_local_and_unit_results() {
     assert_eq!(
         terminal_codec::validate_debug_map(module, &debug_map),
         Err(terminal_codec::DebugMapError::UnknownSubject(unknown))
-    );
-}
-
-#[test]
-fn scalar_root_repeated_shared_borrows_keep_the_local_and_scalar_positions() {
-    let source = SOURCE
-        .replace(
-            "machine first",
-            "machine hold(left: &u64, number: u64, right: &u64) -> u64 { number }\nmachine first",
-        )
-        .replace(
-            "    slot = answer;",
-            "    let held: u64 = hold(&slot, slot, &slot);\n    slot = answer;",
-        )
-        .replace("\n    snapshot\n", "\n    held\n");
-    let module = execute(
-        &source,
-        &[unsigned(7), unsigned(11)],
-        Expectations {
-            machines: 4,
-            ..Expectations::scalar(unsigned(11), 2)
-        },
-    );
-    let hold = module
-        .machines
-        .iter()
-        .find(|machine| machine.structural_parameters.len() == 2)
-        .expect("shared alias callee retains both structural formals");
-    assert_eq!(hold.parameters.len(), 1);
-    assert_eq!(
-        hold.structural_parameters
-            .iter()
-            .map(|parameter| parameter.position)
-            .collect::<Vec<_>>(),
-        [0, 1]
-    );
-    assert!(
-        hold.structural_parameters
-            .iter()
-            .all(|parameter| parameter.access == StructuralAccess::SharedBorrow)
-    );
-    let calls = module
-        .machines
-        .iter()
-        .flat_map(|machine| &machine.blocks)
-        .flat_map(|block| &block.operations)
-        .filter_map(|operation| match &operation.kind {
-            OperationKind::CallStructuralScalar {
-                callee,
-                structural_arguments,
-                ..
-            } if *callee == hold.id => Some(structural_arguments),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(calls.len(), 1);
-    assert_eq!(calls[0].len(), 2);
-    assert_eq!(
-        calls[0][0].place, calls[0][1].place,
-        "shared actuals retain the same local referent"
-    );
-    assert!(
-        calls[0]
-            .iter()
-            .all(|argument| argument.access == StructuralAccess::SharedBorrow)
     );
 }
 

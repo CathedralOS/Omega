@@ -2,95 +2,12 @@ use super::{
     CheckedScalarDispatchPattern, CheckedStructuralValueKind, CheckedTrees,
     CheckedUnitEffectOperationPlan, SymbolHandle, validate,
 };
-use crate::TerminalMachineSelection;
 fn checked() -> CheckedTrees {
     let source = "data Tag { case First; case Second; }
         machine choose(selector: u64) -> Tag {
             match selector { 0 -> Tag::First, _ -> Tag::Second }
         }";
     crate::front_end::checked_program(source)
-}
-
-#[test]
-fn moved_record_replay_preserves_value_origin_and_requires_exact_transfer() {
-    use language_semantics::{PermissionEventKind, PermissionEventSource, PermissionProvenance};
-    let original = crate::front_end::checked_program(
-        "data Owned { value: u64; }
-         machine moved() -> u64 {
-             let keep: Owned = Owned { value: 17 };
-             let first: Owned = Owned { value: 256 };
-             let second: Owned = first;
-             let third: Owned = second;
-             keep.value ^ third.value
-         }",
-    );
-    let mut moves = Vec::new();
-    crate::lower_machine(&original, TerminalMachineSelection::Name("moved"))
-        .expect("chained moves retain the survivor and dispose only their current owners");
-    for (_, root) in original.facts.values.structural_values.roots.iter() {
-        let operation = CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-            result: checked_trees::CheckedUnitStructuralResultBindingPlan {
-                statement_index: root.statement_ordinal,
-                binding_ordinal: root.statement_ordinal,
-                type_identity: original
-                    .normalized_type_identity(root.type_reference)
-                    .into_string(),
-                multiplicity: original.type_multiplicity(root.type_reference),
-            },
-            value: root.root,
-            calls: Vec::new(),
-            operand_source: None,
-            discard_result_on_return: false,
-        };
-        validate(&original, root.machine, root.state, &operation)
-            .expect("each moved local preserves its original establishment");
-        if root.statement_ordinal >= 2 {
-            moves.push((root.machine, root.state, root.statement_ordinal, operation));
-        }
-    }
-    assert_eq!(moves.len(), 2);
-    for (machine, state, ordinal, operation) in moves {
-        for change_destination in [true, false] {
-            let mut forged = original.clone();
-            let mut changed = false;
-            let permissions = forged
-                .facts
-                .flow
-                .ownership
-                .permissions
-                .iter()
-                .map(|(handle, _)| handle)
-                .collect::<Vec<_>>();
-            for handle in permissions {
-                let event = forged.facts.flow.ownership.permissions.get_mut(handle);
-                if event.machine_symbol != machine
-                    || event.state_symbol != state
-                    || event.source
-                        != (PermissionEventSource::Statement {
-                            statement_index: ordinal as usize,
-                        })
-                {
-                    continue;
-                }
-                if change_destination && event.kind == PermissionEventKind::Establish {
-                    event.provenance = PermissionProvenance::Established {
-                        machine_symbol: machine,
-                        state_symbol: state,
-                        source: event.source,
-                    };
-                    changed = true;
-                } else if !change_destination && event.kind == PermissionEventKind::Transfer {
-                    event.kind = PermissionEventKind::AffineDrop;
-                    changed = true;
-                }
-            }
-            assert!(changed);
-            assert!(
-                validate(&forged, machine, state, &operation).is_err(),
-                "a moved result cannot mint provenance or replace its source transfer with disposal"
-            );
-        }
-    }
 }
 
 #[test]

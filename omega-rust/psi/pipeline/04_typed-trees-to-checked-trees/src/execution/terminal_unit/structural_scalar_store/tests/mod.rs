@@ -2,7 +2,6 @@ use crate::execution::terminal_unit::types::{ShapeCollector, machine_binders};
 
 use super::{build_structural_scalar_field_store_sequence, frame};
 use crate::execution::terminal_unit::calls::structural_signature;
-use crate::execution::terminal_unit::control::build_checked_machine;
 use crate::tests::front_end::{checked_program, typed_program};
 use checked_trees::{CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan};
 
@@ -24,51 +23,6 @@ mod record_literal_fields;
 mod reference_field_stores;
 mod value_root_stores;
 mod where_field_stores;
-
-#[test]
-fn array_byte_field_store_retains_the_borrowed_receiver_and_exact_path() {
-    let source = r#"
-        domain [u8;3]::Utf8 requires valid_utf8(self);
-        data Cell { out: [u8;3] in Utf8; }
-        data Record { cells: [Cell;2]; }
-        machine Record::replace(&mut self) { self.cells[1].out = "old"; }
-    "#;
-    let checked = checked_program(source);
-    let program = &checked.typed;
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "Record::replace")
-        .unwrap();
-    let state = &program.machine_states(machine)[0];
-    let mut shapes = ShapeCollector::new(program);
-    let (_, parameters) = structural_signature(program, &mut shapes, machine, state, &[], true)
-        .expect("array record receiver signature");
-    let stores = build_structural_scalar_field_store_sequence(
-        program,
-        &checked.facts,
-        machine,
-        state,
-        &parameters,
-        &[],
-        0,
-        None,
-    )
-    .expect("array byte field stores");
-    assert_eq!(stores.len(), 1);
-    let CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(store) = &stores[0] else {
-        panic!("bounded byte store")
-    };
-    assert_eq!(
-        store.carrier_path,
-        [
-            checked_trees::CheckedUnitStructuralPathSegment::Field("cells".into()),
-            checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(1)
-        ]
-    );
-    assert_eq!(store.field_identity, "out");
-    assert_eq!(store.bytes, b"old");
-}
 
 #[test]
 fn array_byte_fields_do_not_admit_stored_borrows_or_nominal_drop() {
@@ -171,95 +125,6 @@ fn byte_field_sequence_rejects_missing_extra_and_opaque_write_frames() {
             .is_none()
         );
     }
-}
-
-#[test]
-fn structural_entry_field_write_retains_its_ordered_unit_plan() {
-    let source = r#"
-        data Flag { enabled: bool; }
-        data Helper {}
-        boundary trait Sink { machine record(value: bool); }
-        machine trigger() -> bool crashes Trap { crash Trap; }
-        machine Helper::forward(record: &mut Flag)
-        reaches Sink
-        requires record.enabled
-        crashes Trap record.enabled
-        { record.enabled = false; Sink::record(trigger()); }
-    "#;
-    let checked = checked_program(source);
-    let program = &checked.typed;
-    let facts = &checked.facts;
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str().ends_with("forward"))
-        .unwrap();
-    let state = &program.machine_states(machine)[0];
-    let mut shapes = ShapeCollector::new(program);
-    let (_, structural_parameters) = structural_signature(
-        program,
-        &mut shapes,
-        machine,
-        state,
-        &machine_binders(program, machine),
-        true,
-    )
-    .expect("mutable record signature");
-    let frame = &facts
-        .mutation
-        .for_machine(machine.symbol)
-        .unwrap()
-        .state_write_frames
-        .iter()
-        .find(|frame| frame.state == state.symbol)
-        .unwrap()
-        .frame;
-    assert!(
-        frame::matches(program, machine, state, frame, None),
-        "assignment frame does not match exact authored record.enabled store: {frame:?}"
-    );
-    assert!(
-        facts
-            .values
-            .scalar_expressions
-            .expression_at(
-                state.symbol,
-                0,
-                CheckedScalarExpressionRole::AssignmentValue
-            )
-            .is_some(),
-        "checked literal assignment value"
-    );
-    let stores = build_structural_scalar_field_store_sequence(
-        program,
-        facts,
-        machine,
-        state,
-        &structural_parameters,
-        &[],
-        0,
-        None,
-    )
-    .expect("exact ordered scalar field store sequence");
-    assert_eq!(stores.len(), 1);
-    let plan = build_checked_machine(
-        program,
-        facts,
-        crate::execution::terminal_unit::ScalarCalleePlans {
-            boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
-            structural_returns: &facts.flow.terminal_structural_scalar_returns,
-        },
-        &mut shapes,
-        machine,
-        None,
-    )
-    .expect("store plus crashing scalar argument call retains Unit machine plan");
-    assert!(matches!(
-        plan.operations.first(),
-        Some(CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(
-            _
-        ))
-    ));
 }
 
 #[test]

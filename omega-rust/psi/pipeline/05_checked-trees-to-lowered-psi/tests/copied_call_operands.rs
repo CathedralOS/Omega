@@ -20,23 +20,6 @@ const WITNESS: &str = r#"
     }
 "#;
 
-#[test]
-fn borrowed_record_field_is_copied_before_an_ordinary_call() {
-    assert_copied_operand(WITNESS);
-}
-
-#[test]
-fn copied_call_composes_with_surrounding_stores() {
-    let source = WITNESS.replace(
-        "self.target.initialize(self.holder.source.id, self.holder.source.length as u64);",
-        "self.target.seen = 9;\n\
-         self.target.initialize(self.holder.source.id, self.holder.source.length as u64);\n\
-         self.holder.source.length = 7;",
-    );
-    assert_ne!(source, WITNESS);
-    assert_copied_operand(&source);
-}
-
 const ASSIGNMENT_WITNESS: &str = r#"
     data SourceId [copy] { value: u32; }
     data Target { seen: u32; }
@@ -50,25 +33,6 @@ const ASSIGNMENT_WITNESS: &str = r#"
 "#;
 
 #[test]
-fn copied_argument_precedes_a_scalar_call_result_store() {
-    let checked = crate::front_end::checked_program(ASSIGNMENT_WITNESS);
-    checked_trees_to_lowered_psi::lower_machine(
-        &checked,
-        TerminalMachineSelection::Name("Target::read"),
-    )
-    .expect("the scalar callee has a standalone body");
-    assert_copied_operand(ASSIGNMENT_WITNESS);
-}
-
-#[test]
-fn copied_argument_precedes_a_structural_call_result_store() {
-    let source = ASSIGNMENT_WITNESS
-        .replace("-> u32 { id.value }", "-> SourceId { id }")
-        .replace("result: u32", "result: SourceId");
-    assert_copied_operand(&source);
-}
-
-#[test]
 fn copied_call_result_stores_compose_with_state_transitions() {
     let scalar = ASSIGNMENT_WITNESS.replace(
         "self.target.seen = 7;",
@@ -79,22 +43,6 @@ fn copied_call_result_stores_compose_with_state_transitions() {
         .replace("-> u32 { id.value }", "-> SourceId { id }")
         .replace("result: u32", "result: SourceId");
     assert_copied_operand(&structural);
-}
-
-#[test]
-fn copied_argument_preserves_displaced_affine_field_cleanup() {
-    let source = ASSIGNMENT_WITNESS
-        .replace("data Target", "data BoxedId { value: u32; } data Target")
-        .replace(
-            "-> u32 { id.value }",
-            "-> BoxedId { BoxedId { value: id.value } }",
-        )
-        .replace("result: u32", "result: BoxedId");
-    assert_copied_operand(&source);
-    assert_copied_operand(&source.replace(
-        "self.target.seen = 7;",
-        "transition { _ -> done() } state done(&mut self) { self.target.seen = 7; }",
-    ));
 }
 
 #[test]

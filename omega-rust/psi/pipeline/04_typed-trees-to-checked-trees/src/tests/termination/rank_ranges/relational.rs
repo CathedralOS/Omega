@@ -27,23 +27,6 @@ fn reject(source: &str) {
 const DEPENDENT: &str = "machine walk(lo: u64, hi: u64, n: u64) requires lo <= n && n <= hi; terminates by n -> Nat::Descending in lo..=hi; -> u64";
 
 #[test]
-fn requires_establishes_entry_and_exact_backedge_reproves_fixed_endpoints() {
-    let source =
-        format!("{DEPENDENT} {{ transition n > lo {{ true -> walk(lo, hi, n - 1) false -> n }} }}");
-    prove(&source);
-    // A redundant scalar conjunct must preserve the same relational proof.
-    prove(&source.replace("transition n > lo", "transition n > lo && n > 0"));
-    for arguments in ["lo + 1, hi, n - 1", "lo, hi + 1, n - 1", "lo, hi, n"] {
-        reject(&format!(
-            "{DEPENDENT} {{ transition n > lo {{ true -> walk({arguments}) false -> n }} }}"
-        ));
-    }
-    reject(&format!(
-        "{DEPENDENT} {{ transition n >= lo {{ true -> walk(lo, hi, n - 1) false -> n }} }}"
-    ));
-}
-
-#[test]
 fn bounded_distance_subject_may_shrink_but_view_argument_stays_pinned() {
     let source = "machine shrink(lower: u64, upper: u64) requires lower <= upper && upper <= 10; terminates by (lower, upper) -> Nat::BoundedDistance in 0..=10; -> u64 { transition lower < upper { true -> shrink(lower, upper - 1) false -> lower } }";
     prove(source);

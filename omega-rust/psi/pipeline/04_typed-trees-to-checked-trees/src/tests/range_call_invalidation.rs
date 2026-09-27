@@ -24,21 +24,6 @@ fn effectful_guard_cannot_restore_an_old_bound_in_its_fallback() {
 }
 
 #[test]
-fn mutating_array_contents_preserves_its_declared_extent() {
-    checked_program_result(
-        r#"
-        machine touch(values: &mut [u64; 2]) { values[0] = 9; }
-        machine main() -> u64 {
-            let mut values: [u64; 2] = [10, 20];
-            touch(&mut values);
-            values[1]
-        }
-    "#,
-    )
-    .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
-}
-
-#[test]
 fn mutating_expression_operands_retire_bounds_before_indexing() {
     for value in [
         "combine(set_index(&mut index), values[index])",

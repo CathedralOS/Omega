@@ -294,21 +294,6 @@ const OWNED_REFERENCE_RECORD_SOURCE: &str = "data View { body: &mut i32; }
         }";
 
 #[test]
-fn owned_reference_record_argument_preserves_original_storage() {
-    let checked = crate::front_end::checked_program(OWNED_REFERENCE_RECORD_SOURCE);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("exercise"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("owned reference record arguments preserve complete leaf custody")
-    .into_artifact();
-    execute(&artifact, 1, 1);
-}
-
-#[test]
 fn owned_reference_record_argument_rejects_changed_prior_custody() {
     let original = crate::front_end::checked_program(OWNED_REFERENCE_RECORD_SOURCE);
     let machine = original

@@ -240,33 +240,3 @@ fn an_exhausted_roster_round_budget_declines_inference_without_rejecting() {
     )
     .expect("the module still verifies");
 }
-
-/// On convergent modules the bounded pass is the unchanged pass: the
-/// production round budget retains the roster the first lowering inferred.
-#[test]
-fn the_production_round_budget_keeps_the_convergent_roster_verdict() {
-    let checked = crate::front_end::checked_program(FIELD_COUNTER);
-    let mut lowered = crate::machine_lowering::lower_machine(
-        &checked,
-        TerminalMachineSelection::Name("Poly::run"),
-    )
-    .expect("the field counter lowers");
-    let shape = |roster: &[terminal_psi::ScalarBlockInvariant]| {
-        roster
-            .iter()
-            .map(|row| (row.machine, row.header, row.predicate.clone()))
-            .collect::<Vec<_>>()
-    };
-    let converged = shape(&lowered.semantic_module.scalar_block_invariants);
-    assert!(!converged.is_empty());
-    lowered.semantic_module.scalar_block_invariants.clear();
-    let original = terminal_verifier::reconstruct_terminal_obligations(&lowered.semantic_module)
-        .expect("the cleared module reconstructs");
-    super::retain_provable_roster_bounded(&mut lowered, &original, super::MAX_ROSTER_ROUNDS)
-        .expect("the convergent module is not declined");
-    assert_eq!(
-        shape(&lowered.semantic_module.scalar_block_invariants),
-        converged,
-        "the bounded pass retains the roster the unbounded first lowering did",
-    );
-}

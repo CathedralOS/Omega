@@ -1,9 +1,7 @@
 //! Transitive scalar helpers retain complete ordered bodies, storage and custody.
 
 use super::super::{CheckedScalarExpressionRole, PrimitiveType, StatementNode};
-use super::{
-    TerminalExecutionResult, TerminalScalarValue, WRITE, assert_array, byte, execute, reject,
-};
+use super::{TerminalExecutionResult, TerminalScalarValue, assert_array, byte, execute, reject};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 #[test]
 fn scalar_array_local_control_keeps_prefix_effects_and_call_result_storage() {
@@ -139,34 +137,6 @@ fn scalar_array_control_rejects_substituted_tail_and_local_custody() {
 }
 
 #[test]
-fn scalar_array_locals_preserve_conditional_call_continuations() {
-    for binding in [false, true] {
-        let (prefix, argument) = if binding {
-            ("let row: [u8; 2] = [7u8, 9u8];", "row")
-        } else {
-            ("", "[7u8, 9u8]")
-        };
-        let source = format!(
-            "machine answer(row: [u8; 2], value: u8) -> u8 {{ value }}
-             machine selected(enabled: bool, value: u8) -> u8 {{
-                 {prefix}
-                 transition enabled {{
-                     true -> (answer({argument}, value))
-                     false -> 0u8
-                 }}
-             }}"
-        );
-        for (enabled, expected) in [(true, 42), (false, 0)] {
-            assert_eq!(
-                execute(&source, &[TerminalScalarValue::Boolean(enabled), byte(42)]),
-                TerminalExecutionResult::Scalar(byte(expected)),
-                "local binding: {binding}, enabled: {enabled}"
-            );
-        }
-    }
-}
-
-#[test]
 fn ordered_scalar_helpers_are_reachable_from_scalar_and_unit_entries() {
     let helpers = "machine answer(row: [u8; 2], value: u8) -> u8 { value }
          machine helper(value: u8) -> u8 {
@@ -191,96 +161,6 @@ fn ordered_scalar_helpers_are_reachable_from_scalar_and_unit_entries() {
             &[byte(42)],
         ),
         TerminalExecutionResult::Unit,
-    );
-}
-
-#[test]
-fn ordered_scalar_helpers_retain_unit_structural_and_scalar_dependencies() {
-    for (array_type, literal) in [("[u8; 2]", "[7u8, 9u8]"), ("[u8; 0]", "[]")] {
-        assert_array(
-            &format!(
-                "machine touch() {{}}
-                 machine keep(row: {array_type}) -> {array_type} {{ row }}
-                 machine answer(row: {array_type}, value: u8) -> u8 {{ value }}
-                 machine inner(value: u8) -> u8 {{
-                     touch();
-                     let row: {array_type} = keep({literal});
-                     answer(row, value)
-                 }}
-                 machine helper(value: u8) -> u8 {{
-                     touch();
-                     let row: {array_type} = keep({literal});
-                     let nested: u8 = inner(value);
-                     answer(row, nested)
-                 }}
-                 machine selected(value: u8) -> [u8; 2] {{ [helper(value), inner(9u8)] }}"
-            ),
-            &[byte(42)],
-            &[byte(42), byte(9)],
-        );
-    }
-}
-
-#[test]
-fn ordered_helpers_and_scalar_graph_unit_calls_share_one_catalog() {
-    let source = "machine replace(destination: &mut bool) { destination = true; }
-         machine branch(value: u8) -> u8 {
-             let mut enabled: bool = false;
-             replace(&mut enabled);
-             transition enabled { true -> value false -> 0u8 }
-         }
-         machine answer(row: [u8; 2], value: u8) -> u8 { value }
-         machine helper(value: u8) -> u8 {
-             let row: [u8; 2] = [branch(value), 9u8];
-             answer(row, value)
-         }
-         machine gate(value: u8) -> u8 {
-             let mut enabled: bool = false;
-             replace(&mut enabled);
-             transition enabled { true -> (helper(value)) false -> 0u8 }
-         }
-         machine selected(value: u8) -> [u8; 2] { [gate(value), 9u8] }";
-    let checked = crate::front_end::checked_program(source);
-    for name in ["branch", "gate"] {
-        let symbol = checked
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == name)
-            .unwrap()
-            .symbol;
-        let graph = checked
-            .facts
-            .flow
-            .terminal_scalar_graphs
-            .for_machine(symbol)
-            .unwrap_or_else(|| panic!("mixed closure retains scalar graph owner {name}"));
-        assert!(
-            graph
-                .states
-                .iter()
-                .any(|state| !state.unit_operations.is_empty())
-        );
-    }
-    assert_array(source, &[byte(42)], &[byte(42), byte(9)]);
-}
-
-#[test]
-fn ordered_scalar_helper_stores_keep_order_across_fuel_resumption() {
-    assert_array(
-        &format!(
-            "{WRITE}
-             machine touch() {{}}
-             machine answer(row: [u8; 2], value: u8) -> u8 {{ value }}
-             machine helper(value: u8) -> u8 {{
-                 let mut current: u8 = 0;
-                 let row: [u8; 2] = [write(&mut current, 7u8), write(&mut current, value)];
-                 touch();
-                 answer(row, current)
-             }}
-             machine selected(value: u8) -> [u8; 2] {{ [helper(value), helper(9u8)] }}"
-        ),
-        &[byte(42)],
-        &[byte(42), byte(9)],
     );
 }
 

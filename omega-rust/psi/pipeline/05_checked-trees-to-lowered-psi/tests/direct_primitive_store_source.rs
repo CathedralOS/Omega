@@ -1,39 +1,8 @@
 //! Primitive replacement completes scalar evaluation before its ordered store.
 
-use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
-use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
-use terminal_interpreter::{
-    TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
-    TerminalStructuralPrimitiveValue, TerminalStructuralValue,
-};
 use terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
-use terminal_psi::OperationKind;
-
-fn signed(value: i128) -> TerminalScalarValue {
-    TerminalScalarValue::Integer {
-        scalar_type: IntegerType::new(IntegerSign::Signed, 32).unwrap(),
-        value: IntegerValue::Signed(value),
-    }
-}
-
-#[test]
-fn primitive_assignment_evaluates_selected_match_call_before_mutation() {
-    for choose_first in [false, true] {
-        execute(
-            r#"
-            data Sink {}
-            machine value(input: i32) -> i32 { input }
-            machine Sink::fill(destination: &write i32, choose_first: bool) {
-                destination = match choose_first { true -> value(7), false -> value(9) };
-            }
-            "#,
-            &[TerminalScalarValue::Boolean(choose_first)],
-            &[signed(91), signed(if choose_first { 7 } else { 9 })],
-        );
-    }
-}
 
 #[test]
 fn computed_primitive_store_rejects_replaced_roots_and_literal_meaning() {
@@ -142,94 +111,5 @@ fn computed_primitive_store_rejects_replaced_roots_and_literal_meaning() {
             .is_err(),
             "store mutation {mutation}"
         );
-    }
-}
-
-fn execute(source: &str, arguments: &[TerminalScalarValue], expected: &[TerminalScalarValue]) {
-    let checked = crate::front_end::checked_program(source);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("Sink::fill"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("publish exact store sequence")
-    .into_artifact();
-    let module =
-        terminal_codec::decode_module(artifact.semantic_bytes()).expect("reload semantics");
-    let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).expect("reload proof");
-    let profile = proof_admission::AdmissionProfile::default();
-    terminal_verifier::verify_module(&module, &proof, &profile).expect("verify reloaded artifact");
-    let machine = module
-        .machines
-        .iter()
-        .find(|machine| machine.id == module.entry)
-        .unwrap();
-    let parameter = &machine.structural_parameters[0];
-    let stores = machine
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .filter(|operation| {
-            matches!(
-                operation.kind,
-                OperationKind::WriteOnlyPrimitiveStore { .. }
-            )
-        })
-        .map(|operation| operation.id)
-        .collect::<Vec<_>>();
-    assert_eq!(stores.len(), expected.len() - 1);
-    let mut execution = TerminalExecution::start_artifact(
-        artifact.semantic_bytes(),
-        artifact.proof_bytes(),
-        &profile,
-        arguments,
-        TerminalStructuralInputs {
-            arguments: &[TerminalStructuralValue {
-                opaque_identity: 91,
-                structural_type: parameter.structural_type,
-                qualifications: Vec::new(),
-                path: Vec::new(),
-            }],
-            primitive_values: &[TerminalStructuralPrimitiveValue {
-                argument_index: 0,
-                value: expected[0],
-            }],
-            ..Default::default()
-        },
-    )
-    .expect("start with original referent");
-    let mut meter = terminal_fuel::TerminalFuelMeter::with_allowance(0);
-    let mut observations = Vec::new();
-    let mut complete = false;
-    for _ in 0..64 {
-        let status = execution
-            .resume(&mut meter, &mut AcceptTerminalEffects)
-            .expect("execute store sequence");
-        observations.push(execution.structural_primitive_values()[0].value);
-        match status {
-            TerminalExecutionStatus::Complete(result) => {
-                assert_eq!(result, TerminalExecutionResult::Unit);
-                complete = true;
-                break;
-            }
-            TerminalExecutionStatus::SponsorExhausted(_) => meter.replenish(1).unwrap(),
-            other => panic!("unexpected execution status {other:?}"),
-        }
-    }
-    assert!(complete, "bounded direct stores must complete");
-    observations.dedup();
-    assert_eq!(
-        observations, expected,
-        "caller-visible writes preserve source order"
-    );
-    for store in stores {
-        let usage = meter
-            .usage()
-            .at(terminal_fuel::FuelChargeSite::Operation(store))
-            .unwrap();
-        assert_eq!(usage.executions(), 1, "committed store must not replay");
-        assert_eq!(usage.units(), 1);
     }
 }

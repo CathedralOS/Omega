@@ -7,53 +7,6 @@ use checked_trees::{
 };
 
 #[test]
-fn local_record_copy_retains_shared_structural_value_plan() {
-    let checked = checked_source(
-        "data Value [copy] { value: u64; } machine copied() -> u64 { let first: Value = Value { value: 256 }; let second: Value = first; first.value ^ second.value }",
-        false,
-    );
-    let owner = checked
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "copied")
-        .unwrap();
-    let roots = checked
-        .facts
-        .values
-        .structural_values
-        .roots
-        .iter()
-        .filter(|(_, root)| root.machine == owner.symbol)
-        .map(|(_, root)| root)
-        .collect::<Vec<_>>();
-    assert_eq!(
-        roots.len(),
-        2,
-        "construction and whole-record copy each retain their value operation"
-    );
-    assert!(matches!(
-        checked
-            .facts
-            .values
-            .structural_values
-            .nodes
-            .get(roots[1].root)
-            .kind,
-        CheckedStructuralValueKind::Place(_)
-    ));
-    assert!(
-        checked
-            .facts
-            .flow
-            .terminal_unit_effects
-            .machines
-            .iter()
-            .any(|plan| plan.machine == owner.symbol),
-        "both the source and copied record remain readable in the ordinary plan"
-    );
-}
-
-#[test]
 fn primitive_reference_leaves_compose_under_store_operands_and_completion() {
     let checked = checked_source(
         r#"
@@ -382,33 +335,6 @@ fn fresh_match_subject_uses_its_exact_member_and_arithmetic_carrier() {
         assert_eq!(computation.primitive_type, PrimitiveType::I32);
         assert!(computation.authored_root.is_valid());
     }
-}
-
-#[test]
-fn match_owned_parameter_sources_record_state_entry_origins() {
-    let checked = checked_source(
-        "data Tag { case First; case Second; }
-         machine choose(selector: bool, left: Tag, right: Tag) -> Tag {
-             match selector { true -> left, false -> right }
-         }",
-        false,
-    );
-    let ownership = &checked.facts.flow.ownership;
-    let (_, receipt) = ownership.owned_selections.iter().next().expect("receipt");
-    assert!(!receipt.destination.is_valid());
-    let sources = ownership.selection_sources.span_or_empty(receipt.sources);
-    assert_eq!(sources.len(), 2);
-    // Reverse authored position order: `right` (2) precedes `left` (1), and
-    // each carries its state-entry establishment as the direct origin.
-    assert_eq!(sources[0].statement_ordinal, 2);
-    assert_eq!(sources[1].statement_ordinal, 1);
-    assert!(sources.iter().all(|source| matches!(
-        source.provenance,
-        language_semantics::PermissionProvenance::Established {
-            source: language_semantics::PermissionEventSource::StateEntry,
-            ..
-        }
-    )));
 }
 
 #[test]

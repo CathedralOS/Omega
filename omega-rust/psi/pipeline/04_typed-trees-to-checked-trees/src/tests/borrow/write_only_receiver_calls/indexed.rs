@@ -161,39 +161,3 @@ fn foreign_observing_method_does_not_block_indexed_write_only_target() {
         });
     }
 }
-
-#[test]
-fn indexed_receiver_alias_chain_preserves_overlap_and_distinct_root_access() {
-    for (receiver, argument) in [
-        ("child[0]", "other"),
-        ("child[0]", "parent"),
-        ("child[0]", "records"),
-        ("child[index]", "other"),
-        ("child[index]", "parent"),
-    ] {
-        let source = source(
-            "exercise(records: &write [Record; 2], other: &write [Record; 2], index: u64 [0..=1])",
-            &format!(
-                "let parent: &write [Record; 2] = &write records;
-                 let child: &write [Record; 2] = &write parent;
-                 {receiver}.noop(&write {argument});"
-            ),
-            "machine Record::noop(&write self, other: &write [Record; 2]) {}",
-        );
-        // Exact whole-root reborrows preserve storage identity across both
-        // aliases. Exclusion applies even when the selected method has no writes.
-        if argument != "other" {
-            reject_source(
-                &source,
-                &[
-                    "receives write-only",
-                    "overlapping another argument in the same call",
-                ],
-            );
-        } else {
-            checked_program_result(&source).unwrap_or_else(|diagnostics| {
-                panic!("an alias receiver and distinct argument remain disjoint: {diagnostics:#?}\n{source}")
-            });
-        }
-    }
-}

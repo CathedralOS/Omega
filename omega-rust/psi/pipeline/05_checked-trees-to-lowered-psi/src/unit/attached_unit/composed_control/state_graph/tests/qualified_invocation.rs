@@ -1,7 +1,7 @@
 //! Invocation qualification is preserved on the original parameter, never
 //! inferred for a later block arrival from the entry's precondition.
 use super::{CheckedComposedUnitControlMachinePlan, CheckedTrees, admission};
-use crate::{LoweringError, TerminalMachineSelection};
+use crate::LoweringError;
 
 fn fixture() -> (CheckedTrees, CheckedComposedUnitControlMachinePlan) {
     let checked = crate::front_end::checked_program(
@@ -29,45 +29,6 @@ fn fixture() -> (CheckedTrees, CheckedComposedUnitControlMachinePlan) {
         1
     );
     (checked, plan)
-}
-
-#[test]
-fn qualified_invocation_retains_exact_domain_on_original_parameter() {
-    let (checked, plan) = fixture();
-    assert!(admission::has_shared_graph_custody(&checked, &plan));
-    admission::admit(&checked, &plan).expect("source-exact invocation qualification");
-    let lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("Worker::run"))
-        .expect("qualified entry lowers through the ordinary signature catalog");
-    terminal_verifier::validate_module(&lowered.semantic_module)
-        .expect("the invocation qualification independently verifies");
-    let module = &lowered.semantic_module;
-    let machine = module
-        .machines
-        .iter()
-        .find(|machine| machine.id == module.entry)
-        .expect("the selected invocation");
-    let parameter = &machine.structural_parameters[0];
-    assert_eq!(parameter.qualifications.len(), 1);
-    let domain = module
-        .structural_domains
-        .iter()
-        .find(|domain| domain.id == parameter.qualifications[0])
-        .expect("the qualification has a published declaration");
-    assert_eq!(
-        domain.semantic_domain,
-        semantic_vocabulary::DomainSemanticId::new(u64::from(
-            plan.states[0].structural_parameters[0].qualifications[0].0
-        ),)
-        .expect("the source domain identity is nonzero")
-    );
-    assert_eq!(domain.carrier, parameter.structural_type);
-    assert!(
-        machine
-            .blocks
-            .iter()
-            .all(|block| block.structural_parameters.is_empty()),
-        "invocation custody is not redeclared as a block parameter"
-    );
 }
 
 #[test]

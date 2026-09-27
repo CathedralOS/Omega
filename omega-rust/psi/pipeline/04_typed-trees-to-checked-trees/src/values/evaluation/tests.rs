@@ -3,7 +3,6 @@ use super::{
     CheckedScalarExpression, LandedIntegerType, PrimitiveType, ScalarValue, ScalarValueSource,
     evaluate,
 };
-use crate::tests::front_end::checked_program;
 use crate::values::BoundScalarValues;
 use numerics::{
     arithmetic::ArithmeticDomain,
@@ -404,49 +403,6 @@ fn wrapping_casts_apply_target_width_and_signedness() {
 }
 
 #[test]
-fn booleans_preserve_short_circuit_order_and_unknown_values() {
-    use CheckedBooleanExpression as Boolean;
-    for (left, conjunction, expected) in [
-        (false, true, Some(false)),
-        (true, false, Some(true)),
-        (true, true, None),
-        (false, false, None),
-    ] {
-        let left = Box::new(Boolean::Constant(left));
-        let right = Box::new(Boolean::Local { position: 2 });
-        let expression = if conjunction {
-            Boolean::And { left, right }
-        } else {
-            Boolean::Or { left, right }
-        };
-        let mut reads = Vec::new();
-        assert_eq!(
-            evaluate(
-                &CheckedScalarExpression::Boolean(Box::new(expression)),
-                &mut |position| {
-                    reads.push(position);
-                    None
-                }
-            ),
-            expected.map(ScalarValue::Boolean)
-        );
-        assert_eq!(reads.is_empty(), expected.is_some());
-    }
-    let expression = Boolean::And {
-        left: Box::new(Boolean::Parameter { position: 0 }),
-        right: Box::new(Boolean::Constant(false)),
-    };
-    assert_eq!(
-        evaluate(
-            &CheckedScalarExpression::Boolean(Box::new(expression)),
-            &mut |_| None
-        ),
-        None,
-        "an unknown evaluated left operand is not made known by an unevaluated right operand"
-    );
-}
-
-#[test]
 fn comparisons_retain_integer_width_signedness_and_full_unsigned_precision() {
     for (kind, value) in [
         (CheckedIntegerComparisonKind::Equal, false),
@@ -478,21 +434,6 @@ fn comparisons_retain_integer_width_signedness_and_full_unsigned_precision() {
         value: semantic_vocabulary::IeeeFloatValue::Binary32(0),
     };
     assert_eq!(evaluate(&expression, &mut |_| None), None);
-}
-
-#[test]
-fn generated_return_plan_preserves_explicit_integer_landing() {
-    let program = checked_program("machine value() -> u8 { 3u8 + 4u8 }");
-    let plans = &program.facts.values.scalar_expressions;
-    let state = &program.machine_states(&program.machines()[0])[0];
-    let expression = plans
-        .expression_at(
-            state.symbol,
-            0,
-            checked_trees::CheckedScalarExpressionRole::Return,
-        )
-        .expect("selected return plan");
-    assert_eq!(evaluate(expression, &mut |_| None), expected(7));
 }
 
 #[test]

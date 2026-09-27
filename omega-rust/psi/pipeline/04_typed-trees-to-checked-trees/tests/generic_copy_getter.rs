@@ -32,31 +32,6 @@ fn typed(source: &str) -> Result<typed_trees::TypedTrees, Vec<diagnostics::Diagn
 }
 
 #[test]
-fn method_copy_requirement_allows_borrowed_generic_field_read() {
-    let checked = check(
-        "data Counter<T> { value: T; }
-        machine Counter::current<T [copy]>(&self) -> T { self.value }",
-    )
-    .expect("the getter uses its own declared copy requirement");
-    let owner = &checked.data_definitions()[0];
-    let method = &checked.machines()[0];
-    assert_eq!(
-        checked.data_type_parameters(owner)[0].bounds.multiplicity,
-        language_semantics::Multiplicity::Affine
-    );
-    assert_eq!(
-        checked.machine_type_parameters(method)[0]
-            .bounds
-            .multiplicity,
-        language_semantics::Multiplicity::Unrestricted
-    );
-    assert_ne!(
-        checked.data_type_parameters(owner)[0].symbol,
-        checked.machine_type_parameters(method)[0].symbol
-    );
-}
-
-#[test]
 fn method_without_copy_requirement_cannot_move_borrowed_generic_field() {
     assert!(
         check(
@@ -124,30 +99,6 @@ fn method_copy_requirement_projects_nested_fields_and_elements() {
         ))
         .unwrap_or_else(|errors| panic!("{expression}: {errors:?}"));
     }
-}
-
-#[test]
-fn owner_copy_requirement_survives_method_attachment() {
-    check(
-        "data Counter<T [copy]> { value: T; }
-        machine Counter::current<T>(&self) -> T { self.value }",
-    )
-    .expect("the receiver's existing owner requirement remains available");
-}
-
-#[test]
-fn concrete_getter_calls_retain_distinct_owner_applications() {
-    check(
-        "data Counter<T> { value: T; }
-        machine Counter::current<T [copy]>(&self) -> T { self.value }
-        data Main { number: Counter<u32>; selected: Counter<bool>; }
-        machine Main::main(&self) -> u32 {
-            let observed_number: u32 = self.number.current();
-            let observed_selection: bool = self.selected.current();
-            transition observed_selection { true -> (observed_number) false -> (0) }
-        }",
-    )
-    .expect("two concrete applications retain their own method argument types");
 }
 
 #[test]

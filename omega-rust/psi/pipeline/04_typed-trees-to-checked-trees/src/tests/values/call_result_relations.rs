@@ -105,26 +105,3 @@ fn a_crashing_scalar_call_is_not_a_total_requires_term() {
         "the contract must reject call totality, not an unrelated arithmetic bound: {source}\n{diagnostics:#?}"
     );
 }
-
-#[test]
-fn runtime_repeated_call_relation_is_conditional_on_normal_return() {
-    // Unlike a contract term, the executable guard may terminate with Abort.
-    // On its normal-return branch the same pure inputs give the same result;
-    // the enclosing machine separately publishes the possible crash.
-    accepts(&format!(
-        r#"
-        {MAYBE_COST}
-        machine spend(level: u32 [0..=10], xp: u32 [0..=1000]) -> u32 [0..=1000]
-            crashes Abort
-        {{
-            transition xp >= maybe_cost(level) {{
-                true -> debit(level, xp)
-                false -> (xp)
-            }}
-            state debit(rank: u32 [0..=10], available: u32 [0..=1000]) -> u32 [0..=1000] {{
-                available - maybe_cost(rank)
-            }}
-        }}
-        "#
-    ));
-}

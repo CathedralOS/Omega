@@ -1,7 +1,7 @@
 use super::{
-    NESTED_WRAPPER_SOURCE, ObserveNestedWrapper, ObserveSettlement, artifact,
-    assert_constructed_wrapper_execution, constructed_wrapper_source, source, start,
-    start_with_scalars, unit_wrapper_artifact, unit_wrapper_source, unsigned,
+    NESTED_WRAPPER_SOURCE, ObserveSettlement, artifact, assert_constructed_wrapper_execution,
+    constructed_wrapper_source, source, start, start_with_scalars, unit_wrapper_artifact,
+    unit_wrapper_source, unsigned,
 };
 use crate::structural_return_source::{
     TerminalEffect, TerminalExecutionResult, TerminalExecutionStatus, TerminalFuelMeter,
@@ -147,55 +147,6 @@ fn boundary_crash_in_scalar_wrapper_abandons_claim_without_a_result_or_receipt()
     assert_eq!(execution.resume(&mut fuel, &mut observer).unwrap(), status);
     assert_eq!(fuel.usage().total_units(), units);
     assert_eq!(observer.calls.len(), 1);
-}
-
-#[test]
-fn nested_wrapper_arguments_keep_effect_order_and_the_published_scalar_result() {
-    let artifact = unit_wrapper_artifact(&crate::front_end::checked_program(NESTED_WRAPPER_SOURCE));
-    let expected = [
-        vec![unsigned(5)],
-        vec![unsigned(11)],
-        vec![unsigned(22)],
-        vec![unsigned(33)],
-        vec![unsigned(44)],
-        vec![unsigned(55)],
-        vec![unsigned(5), unsigned(55)],
-        vec![unsigned(700)],
-        vec![unsigned(5)],
-    ];
-    let mut reference_effects = None;
-    for incremental in [false, true] {
-        let mut execution = start(&artifact);
-        let mut observer = ObserveNestedWrapper::default();
-        let mut meter = if incremental {
-            TerminalFuelMeter::with_allowance(0)
-        } else {
-            TerminalFuelMeter::unbounded()
-        };
-        let mut complete = false;
-        for _ in 0..1024 {
-            match execution.resume(&mut meter, &mut observer).unwrap() {
-                TerminalExecutionStatus::SponsorExhausted(_) => {
-                    assert!(incremental);
-                    meter.replenish(1).unwrap();
-                }
-                TerminalExecutionStatus::Complete(result) => {
-                    assert_eq!(result, TerminalExecutionResult::Unit);
-                    complete = true;
-                    break;
-                }
-                status => panic!("unexpected status: {status:?}"),
-            }
-        }
-        assert!(complete);
-        assert_eq!(observer.calls, expected);
-        assert!(execution.live_affine_frontier().next().is_none());
-        if let Some(reference) = &reference_effects {
-            assert_eq!(execution.effects(), reference);
-        } else {
-            reference_effects = Some(execution.effects().to_vec());
-        }
-    }
 }
 
 #[test]

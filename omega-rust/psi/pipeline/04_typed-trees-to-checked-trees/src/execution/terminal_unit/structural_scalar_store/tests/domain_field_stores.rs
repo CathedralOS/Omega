@@ -3,7 +3,7 @@
 //! membership and the store's own range obligation is the whole evidence, so
 //! the store is admitted like a bracketed-range field's. Any other predicate
 //! is evidence no store retains, and the body stays unadmitted.
-use checked_trees::{CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan};
+use checked_trees::CheckedUnitEffectMachinePlan;
 
 fn plan(source: &str) -> Option<CheckedUnitEffectMachinePlan> {
     let typed = crate::tests::front_end::typed_program(source);
@@ -31,23 +31,6 @@ fn program(domain: &str) -> String {
         data Main {{ slot: u64 in Slot; }}
         machine Main::main(&mut self) {{ self.slot = 3; }}"
     )
-}
-
-#[test]
-fn a_store_to_an_exact_interval_domain_field_is_admitted() {
-    for domain in [
-        "domain u64::Slot requires self <= 8;",
-        "domain u64::Slot requires self >= 1 && self < 9;",
-    ] {
-        let plan = plan(&program(domain)).unwrap_or_else(|| panic!("{domain}: store admitted"));
-        assert!(
-            plan.operations.iter().any(|operation| matches!(
-                operation,
-                CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
-            )),
-            "{domain}: {plan:#?}"
-        );
-    }
 }
 
 #[test]

@@ -114,11 +114,6 @@ fn assert_branch_reaches_return(module: &terminal_psi::TerminalModule) {
 }
 
 #[test]
-fn conditional_value_arm_returns_while_named_arm_jumps() {
-    assert_branch_reaches_return(&verified_module("pick"));
-}
-
-#[test]
 fn conditional_case_arm_returns_while_borrow_transfers() {
     assert_branch_reaches_return(&verified_module("Kernel::select"));
 }

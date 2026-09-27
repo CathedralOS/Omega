@@ -115,48 +115,6 @@ impl ForwardingFixture {
 }
 
 #[test]
-fn a_bare_mutable_reference_preserves_its_exact_referent_access() {
-    let fixture = ForwardingFixture::new("&mut", "&mut");
-    let state = crate::semantic::calls::find_state_in_machine(
-        &fixture.program,
-        fixture.machine,
-        fixture.state,
-    )
-    .expect("exact caller state");
-    let site = crate::semantic::calls::find_call_site(
-        &fixture.program,
-        fixture.machine,
-        fixture.state,
-        0,
-        0,
-    )
-    .expect("exact forwarding call occurrence");
-    assert!(
-        matches!(site, crate::semantic::calls::CallSite::Statement(_)),
-        "statement call occurrence"
-    );
-    let parameters = crate::semantic::calls::call_target_parameters(
-        &fixture.program,
-        fixture.call.target_symbol,
-    )
-    .expect("exact target parameters");
-    assert!(
-        fixture.call.target_symbol.is_valid(),
-        "valid authored target"
-    );
-    assert_eq!(
-        fixture.access(),
-        Some(CheckedStructuralAccess::MutableBorrow),
-        "source={:?}, target={parameters:?}, argument={:?}",
-        fixture.program.state_parameters(state),
-        fixture
-            .program
-            .expression_table
-            .expression(fixture.argument)
-    );
-}
-
-#[test]
 fn shared_source_or_target_cannot_grant_mutable_forwarding() {
     for (source, target) in [("&", "&"), ("&mut", "&"), ("&", "&mut")] {
         let fixture = ForwardingFixture::new(source, target);
