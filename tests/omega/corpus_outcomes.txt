@@ -1157,6 +1157,7 @@ pass/data/runtime_mixed_shape_exit checked 173ms
 pass/data/runtime_proof_only_data_declared_exit checked 151ms
 pass/data/runtime_record_field_value_pattern_exit checked 177ms
 pass/dependent/boundary_equality_recast_witness_compile checked 1ms
+pass/dependent/boundary_requires_caller_field_extent_compile checked 350ms
 pass/dependent/call_requires_saved_local_arithmetic_bound_compile checked 2ms
 pass/dependent/case_where_common_field_window checked 1ms
 pass/dependent/case_where_generic_type_bound_coverage checked 1ms
