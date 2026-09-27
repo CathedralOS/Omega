@@ -192,6 +192,36 @@ backend-visible; full corpus runs only at the end of an item.
   generalizing it is the likely shape. Acceptance: the pending fixture checks,
   all the omitting forms above check, and the sample leaves the cluster.
 
+- **BYTE-CARRIER-STORE-LITERAL-ONLY.** (new-scope) An owned, domain-carrying
+  `[u8; N]` field store admits ONLY a bare string literal; anything else on the
+  right declines silently with no diagnostic. `"Hello, " + "Ada!"` omits --
+  two ADJACENT literals, no runtime operand, and `"a" + "b"` is not folded into
+  a String node -- and so does a plain carrier-to-carrier copy
+  `self.greeting = self.name` with no concatenation at all. So the store admits
+  the `String` node and nothing else; concatenation is not the subject. Three
+  samples, one cause: `cli/basics/text_greeting`, `cli/systems/status_report`,
+  `cli/text/string_catalog`, each confirmed by replacing only its concat with
+  the literal it computes and watching it check. Pinned at
+  `tests/omega/pending/text/byte_carrier_store_literal_only`.
+  The decline is the `let ... else { return None; }` requiring
+  `ExpressionNode::String` in
+  `04_typed-trees-to-checked-trees/src/execution/terminal_unit/structural_scalar_store/byte_stores.rs`;
+  `field_store` sets no `trace.phase`, so the label names the ROUTE entered
+  before the call, not the decliner. Ruled out with controls: the `Utf8` domain
+  shell (it is what puts the store on this route, not what declines it -- a
+  plain `[u8; N]` never reaches it and omits elsewhere even for a literal),
+  capacity and length (an overflowing literal gives a proper diagnostic),
+  operand count, a runtime operand, nested carrier paths, and where the store
+  sits. Acceptance: the pending fixture checks, a carrier-to-carrier copy
+  checks, and the three samples leave the omission cluster.
+
+  MEASUREMENT HAZARD found here and applying to every reduction in the tree: a
+  machine with NO TERMINAL EFFECT demands no unit plan, so checking it is
+  VACUOUSLY GREEN. The body above, stripped of its `Binding<Console>`,
+  `reaches Console` and console call, CHECKS while the same body with the
+  effect restored omits. Keep one effect in any program you shrink, or it
+  measures nothing.
+
 - **COMPOSITE-STATE-PARAMETER.** (new-scope) A state parameter whose type is
   not a scalar has no route, at
   `state graph: terminator: jump successor: parameter transfer`. A sum, a
@@ -305,6 +335,16 @@ backend-visible; full corpus runs only at the end of an item.
   build-time route at all. That fixture is reverted to `operator` until this
   reader moves; migrating it again before then silently stops it testing
   provider execution.
+
+  Three samples are waiting customers, one operator each, all measured at
+  `de525cf687d`: `sensor_min_max` (`F64::minimum`), `vector_distance`
+  (`F64::maximum`) and `fibonacci_golden` (`F64::from_i32`) -- a CONVERSION,
+  not a binary operator, so confirm it separately rather than assuming the
+  binary route covers it. A fourth group sits one step earlier: float
+  arithmetic and float comparison have no route at all without
+  `core::float_operations` imported, pinned at
+  `tests/omega/pending/arithmetic/float_computation_no_route`, and with it
+  imported they omit at `a missing boundary target` here.
 
   `samples/cli/arithmetic/sensor_min_max`
   is a waiting customer: it reaches `applies boundary operator `F64::minimum``
@@ -833,7 +873,8 @@ the complete product bar; focused successes below do not establish that baseline
   `structural field store: byte sequence carrier` (3:
   `cli/{basics/text_greeting, systems/status_report, text/string_catalog}`)
   and `call operation: boundary arguments` (3: `gui/{image_viewer, window_app,
-  window_demo}`), neither diagnosed. The two `other` rows are
+  window_demo}`). The byte-sequence group is now diagnosed as
+  BYTE-CARRIER-STORE-LITERAL-ONLY; the boundary-arguments group is not. The two `other` rows are
   `cli/simulation/cellular_automaton` and `cli/systems/file_permissions`, both
   now taking the anonymous-bitwise diagnostic rather than omitting -- that is
   the check added earlier the same day doing its job, and both are sample
