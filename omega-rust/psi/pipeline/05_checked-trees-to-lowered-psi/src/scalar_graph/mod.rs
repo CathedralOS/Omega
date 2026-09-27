@@ -18,8 +18,10 @@ use checked_trees::{
 use language_semantics::{Multiplicity, PermissionClaimIdentity};
 use lowered_psi::LoweredPsi;
 use proof_admission::{EvidenceRoute, PrimitiveJudgment};
+#[cfg(test)]
+use semantic_vocabulary::IntegerType;
 use semantic_vocabulary::{
-    BlockId, ClaimId, IeeeFloatFormat, IntegerType, IntegerValue, MachineId, PlaceId, Proposition,
+    BlockId, ClaimId, IeeeFloatFormat, IntegerValue, MachineId, PlaceId, Proposition,
     QualifiedScalarType, ScalarTerm, ScalarType, StructuralFieldId, StructuralPlaceKind,
     StructuralTypeId,
 };
@@ -75,7 +77,6 @@ pub(crate) mod scalar_contracts;
 pub(crate) mod scalar_graph_effects;
 pub(crate) mod scalar_graph_lowering;
 pub(crate) mod scalar_graph_module;
-pub(crate) mod shared_runtime_parameters;
 
 pub(crate) fn scalar_carriers(types: &[QualifiedScalarType]) -> Vec<ScalarType> {
     types.iter().map(|value| value.scalar_type).collect()

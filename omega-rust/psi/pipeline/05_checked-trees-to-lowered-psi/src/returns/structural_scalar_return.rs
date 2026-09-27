@@ -28,6 +28,7 @@ use crate::returns::structural_scalar_return::expressions::{
 mod effects;
 mod expressions;
 mod nominal;
+pub(crate) mod shared_convergence;
 mod shared_types;
 use nominal::lower_nominal_structural_scalar_return_machine;
 

@@ -44,13 +44,13 @@ fn primitive_read_values_cannot_be_recovered_from_known_ssa_inputs() {
         None
     );
     assert!(
-        crate::scalar_graph::shared_runtime_parameters::shared_boolean_runtime_parameters(
+        crate::returns::structural_scalar_return::shared_convergence::shared_boolean_runtime_parameters(
             &equality
         )
         .is_none()
     );
     assert!(
-        crate::scalar_graph::shared_runtime_parameters::normalize_shared_boolean_comparison_leaves(
+        crate::returns::structural_scalar_return::shared_convergence::normalize_shared_boolean_comparison_leaves(
             &equality
         )
         .is_none()
