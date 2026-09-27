@@ -41,8 +41,17 @@ machine Main::main(&mut self) reaches Console {
     self.first.label = "A1";
     self.second.id = CellId::A2;
     self.second.label = "A2";
-    scan(self.first, CellId::A2, &mut self.selected);
-    scan(self.second, CellId::A2, &mut self.selected);
+    // `scan`'s `cell` parameter takes ownership of its argument, and these
+    // calls sit inside a machine that reaches Console: a move out of `&mut
+    // self` storage must be repaired before any service-reaching call or exit
+    // edge. Each cell therefore crosses to the call through a local while an
+    // equal value reseats its field, keeping `self` complete throughout.
+    let first_cell: Cell = self.first;
+    self.first = Cell { id: CellId::A1, label: "A1" };
+    let second_cell: Cell = self.second;
+    self.second = Cell { id: CellId::A2, label: "A2" };
+    scan(first_cell, CellId::A2, &mut self.selected);
+    scan(second_cell, CellId::A2, &mut self.selected);
     self.line.text = self.selected.label;
     self.console.write_line(self.line.text);
 
