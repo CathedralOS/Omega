@@ -1,0 +1,43 @@
+// A local declared WITHOUT an initializer and completed afterwards. The four
+// combinations disagree in a way neither axis explains alone, and two of them
+// omit. Reduced from `pass/wire/runtime_wire_utf8_edge_verdicts_exit`, which
+// spells `let decoded: LabelSample;` and then assigns its fields.
+//
+//                              scalar                      record
+//   no `mut`      DIAGNOSTIC (not mutable)      OMITTED  `statement sequence:
+//                                                         unsupported statement kind`
+//   `mut`         OMITTED  `structural field    checks
+//                 store: destination parameter`
+//
+// Both controls with an initializer check: `let mut x: i32 = 0; x = 1;` and
+// `let mut p: Plain = Plain { n: 0 }; p.n = 1;`.
+//
+// Two separate problems fall out of that table.
+//
+// (1) WITHOUT `mut`, the same authoring mistake is reported two ways. A scalar
+//     gets the correct, actionable "cannot write `x` because it is not mutable
+//     in this state". A record gets a unit-plan omission instead -- no mention
+//     of mutability, and the reader is sent to the Terminal planner for what is
+//     a missing keyword. The record should take the scalar's diagnostic.
+//
+// (2) WITH `mut`, the RECORD form works and the SCALAR form does not, which is
+//     the reverse of every other gap measured in this corpus, where composites
+//     are the unsupported side. `let mut x: i32;` followed by `x = 1;` has no
+//     route, while the record equivalent plans. This fixture pins that one.
+//
+// The phase on (2) names a `structural field store: destination parameter` for
+// a plain scalar local that is neither a field nor a parameter -- another label
+// that describes the route entered rather than what declined. Do not pin a
+// repair on it.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let mut total: i32;
+    total = 1;
+    self.console.exit_process(total);
+}
