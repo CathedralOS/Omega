@@ -1,0 +1,53 @@
+// Binding a CALL RESULT that is a reference into a `let` local has no route.
+// The same call returning a scalar binds fine. Found by attributing the macOS
+// arm64 native roster, where four fixtures sit at `statement sequence: call:
+// flow call` -- `pass/dependent/runtime_sibling_len_index_exit` spells it
+// `let view: &[u8] = self.buf.as_slice();`.
+//
+//   let v: u32   = self.plain();            checks   (scalar result)
+//   let v: &u32  = self.borrow_it();        OMITTED  (this fixture)
+//   let v: &[u8] = self.buf.as_slice();     OMITTED  (a std method)
+//
+// A STATEMENT call with a `&mut` argument checks, so it is not calls, and not
+// references in argument position -- it is a reference in RESULT position
+// reaching a local binding.
+//
+// SAME GAP as `tests/omega/pending/borrows/reference_local_binding_routes`,
+// which found that a reference binding routes ONLY for a `&mut` of a
+// self-rooted place named directly. A call result is one more producer that
+// does not route. The label is not the cause and the phase varies with the
+// PRODUCER, which is why this gap looks like several unrelated clusters:
+//
+//   `&self.size`, `&self.buf[0]`, `&mut self.buf[off]`, a reference recast
+//                       -> `statement sequence: local data: structural call binding`
+//   a borrow of a plain local, with a transition following
+//                       -> `state graph: result custody accounting`
+//   `self.buf.as_slice()`
+//                       -> `statement sequence: call: flow call`
+//   an own machine returning `&u32`   (this fixture)
+//                       -> `state graph: operation custody: reference custody`
+//   `&self.buf[0]` in a single-body machine with no transition
+//                       -> `statement sequence: unsupported statement kind`
+//
+// Seven labels, one capability. The last row also shows the phase depends on
+// the SURROUNDING program, not only the statement: the identical borrow
+// reports a different phase once a transition follows it. Do not split this
+// into separate items by label, and do not pin a repair on any of the strings.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    count: u32;
+}
+
+machine Main::borrow_count(&self) -> &u32 {
+    transition { _ -> out() }
+    state out(&self) -> &u32 { &self.count }
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.count = 3;
+    let borrowed: &u32 = self.borrow_count();
+    self.console.exit_process(0);
+}
