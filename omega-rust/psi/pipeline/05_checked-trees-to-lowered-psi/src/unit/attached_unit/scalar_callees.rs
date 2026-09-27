@@ -368,6 +368,7 @@ pub(super) fn emit(
         );
         let views = crate::scalar_graph::scalar_contracts::ContractViewNamespace {
             parameters: &graph_parameters.1,
+            structural_types: catalog.structural_types,
             element_views: &element_views,
         };
         if !machine.scalar_qualifications.domains.is_empty() {

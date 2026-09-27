@@ -145,6 +145,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     };
     let mut state_ids = Vec::new();
     let mut state_views = Vec::new();
+    let mut state_contract_rosters = Vec::new();
     let mut state_values = Vec::new();
     let mut state_erased = Vec::new();
     let mut state_erased_proof = Vec::new();
@@ -153,6 +154,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         if !admitted.live[position] {
             // Dead positions keep roster alignment but own no emitted block.
             state_views.push(Vec::new());
+            state_contract_rosters.push(Vec::new());
             state_values.push(Vec::new());
             state_erased.push(Vec::new());
             state_erased_proof.push(Vec::new());
@@ -224,6 +226,17 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
                         },
                     }),
             );
+            // A retained `requires` resolves member operands through the
+            // block's structural decls; `seal` drains this roster into the
+            // block, so the contract namespace keeps its own copy.
+            state_contract_rosters.push(
+                state
+                    .structural_parameters
+                    .iter()
+                    .zip(block_parameters.iter())
+                    .map(|(source, parameter)| (source.position, parameter.clone()))
+                    .collect(),
+            );
             state_views.push(block_parameters);
             state_values.push(
                 state
@@ -246,6 +259,14 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             );
             state_erased_proof.push(state.erased_proof_parameters.clone());
         } else {
+            state_contract_rosters.push(
+                state
+                    .structural_parameters
+                    .iter()
+                    .zip(parameters.iter())
+                    .map(|(source, parameter)| (source.position, parameter.clone()))
+                    .collect(),
+            );
             state_views.push(parameters.clone());
             state_values.push(scalar_parameters.clone());
             // A plain entry shares the machine contract formals; the block
@@ -359,7 +380,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         content_entry_claims,
         content_identity_reshuffles,
         state_ids,
-        state_views,
+        state_views: _,
         state_values,
         state_erased,
         state_erased_proof: _,
@@ -395,16 +416,13 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         if case_arrival {
             return unsupported("Unit graph requires header reached by case dispatch");
         }
-        // A state's `requires` cites its own parameter positions; the block's
-        // structural decls pair them with their terminal places.
-        let view_roster: Vec<(u32, StructuralParameterDeclaration)> = state
-            .structural_parameters
-            .iter()
-            .zip(state_views[position].iter())
-            .map(|(source, parameter)| (source.position, parameter.clone()))
-            .collect();
+        // A state's `requires` cites its own parameter positions; the roster
+        // pairs them with the terminal places each block view carried at
+        // seal (the receiver entry points at the original invocation
+        // storage).
+        let view_roster = &state_contract_rosters[position];
         let element_views = crate::expression_preparation::bindings::element_views(
-            &view_roster,
+            view_roster,
             &catalogs.structural_types,
         );
         let Some(predicate) = crate::scalar_graph::scalar_contracts::clauses(
@@ -412,7 +430,8 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             &state_values[position],
             &state_erased[position],
             &crate::scalar_graph::scalar_contracts::ContractViewNamespace {
-                parameters: &view_roster,
+                parameters: view_roster,
+                structural_types: &catalogs.structural_types,
                 element_views: &element_views,
             },
         )?

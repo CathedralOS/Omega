@@ -1,7 +1,9 @@
 //! Closed scalar contracts use only the supplied entry/result namespace.
 //! A nested body local cannot borrow an equally numbered parameter slot.
 
-use super::super::{CheckedBooleanExpression, CheckedScalarExpression, LoweringError};
+use super::super::{
+    CheckedBooleanExpression, CheckedScalarExpression, LoweringError, PrimitiveType,
+};
 
 pub(super) fn validate(predicate: &CheckedBooleanExpression) -> Result<(), LoweringError> {
     match predicate {
@@ -78,8 +80,23 @@ fn scalar(expression: &CheckedScalarExpression) -> Result<(), LoweringError> {
         CheckedScalarExpression::StructuralParameterByteLength { path, .. } if path.is_empty() => {
             Ok(())
         }
-        CheckedScalarExpression::StructuralParameterByteLength { .. }
-        | CheckedScalarExpression::StructuralParameterField { .. } => {
+        // A member leaf roots at a declared structural parameter; the
+        // structural signature lowering names its retained place and field
+        // path. An empty path would name the whole parameter — never a
+        // scalar leaf — and an address member has no fixed-integer carrier.
+        CheckedScalarExpression::StructuralParameterField {
+            path,
+            primitive_type,
+            ..
+        } => {
+            if path.is_empty() || *primitive_type == PrimitiveType::Addr {
+                return Err(LoweringError::Unsupported(
+                    "closed scalar contract operand requires a scalar namespace",
+                ));
+            }
+            crate::emission::scalar_types::integer_scalar_type(*primitive_type).map(|_| ())
+        }
+        CheckedScalarExpression::StructuralParameterByteLength { .. } => {
             Err(LoweringError::Unsupported(
                 "closed scalar contract operand requires a scalar namespace",
             ))
@@ -140,7 +157,9 @@ mod tests {
     }
 
     #[test]
-    fn structural_predicates_do_not_acquire_a_closed_scalar_namespace() {
+    fn structural_member_leaves_join_the_closed_scalar_namespace() {
+        // A Boolean member leaf still needs an occurrence-bound crash
+        // predicate; the closed namespace admits integer leaves only.
         assert!(
             validate(&CheckedBooleanExpression::StructuralParameterField {
                 parameter_position: 0,
@@ -148,12 +167,38 @@ mod tests {
             })
             .is_err()
         );
+        // An empty member path names the whole parameter, never a scalar leaf.
         assert!(
             validate(&comparison(
                 CheckedScalarExpression::StructuralParameterField {
                     parameter_position: 0,
                     path: Vec::new(),
                     primitive_type: PrimitiveType::I32,
+                }
+            ))
+            .is_err()
+        );
+        assert!(
+            validate(&comparison(
+                CheckedScalarExpression::StructuralParameterField {
+                    parameter_position: 0,
+                    path: vec![checked_trees::CheckedStructuralPredicatePathSegment::Field(
+                        "rows".to_owned(),
+                    )],
+                    primitive_type: PrimitiveType::I32,
+                }
+            ))
+            .is_ok()
+        );
+        // Address members have no fixed-integer contract carrier.
+        assert!(
+            validate(&comparison(
+                CheckedScalarExpression::StructuralParameterField {
+                    parameter_position: 0,
+                    path: vec![checked_trees::CheckedStructuralPredicatePathSegment::Field(
+                        "address".to_owned(),
+                    )],
+                    primitive_type: PrimitiveType::Addr,
                 }
             ))
             .is_err()
