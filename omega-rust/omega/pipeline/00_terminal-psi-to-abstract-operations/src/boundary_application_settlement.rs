@@ -1,43 +1,69 @@
-//! Rejoin every Terminal boundary application to its checked realization:
-//! a nongeneric or specialized checked body, or the exact compiler intrinsic.
+//! Settle exact source-free boundary demands and their selected realizations.
+//!
+//! The sealed Psi scope binds the occurrence roster to the canonical artifact.
+//! This Omega-side operation assigns the checked-body or intrinsic realization,
+//! replays provider provenance, and retains opaque ABI evidence for the same edges.
+//! Inputs borrow source-side selection evidence from the current checked build
+//! route; they are not a replacement for canonical native artifact admission.
 
-use crate::checked::CheckedCompilation;
+use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use typed_trees::type_identity::ExactOwnerTypeIdentityRequest;
 
-pub(crate) fn project_terminal_boundary_application_coverage(
-    checked: &CheckedCompilation,
-    artifact: &terminal_codec::CanonicalTerminalArtifact,
-    checked_scope: &lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
-) -> Result<boundary_applications::TerminalBoundaryApplicationCoverage, Vec<Diagnostic>> {
-    let demands = project_terminal_boundary_application_demands(checked, artifact, checked_scope)?;
-    let realizations =
-        project_terminal_boundary_application_realizations(checked, checked_scope, &demands)?;
-    // Selected opaque applications belong to the same boundary-edge custody:
-    // the checked compilation's canonical commitment set is bound into the
-    // coverage so downstream artifacts compare it at each actual edge.
-    let opaque_applications = checked
-        .boundary_opaque_applications()
-        .map_err(|message| vec![Diagnostic::error(message)])?;
-    boundary_applications::TerminalBoundaryApplicationCoverage::new(demands, realizations)
-        .map_err(|message| vec![Diagnostic::error(message)])
-        .map(|coverage| coverage.with_opaque_applications(opaque_applications))
+#[cfg(test)]
+mod tests;
+
+/// Evidence needed to settle boundary applications for one selected target.
+/// No compiler coordinator or mutable checking context is retained.
+pub struct BoundaryApplicationSettlement<'input> {
+    pub checked: &'input CheckedTrees,
+    pub selected_provider_plans: &'input effects::SelectedProviderPlanFacts,
+    pub selected_provider_provenance:
+        &'input [provider_planning::SelectedProviderReviewProvenance],
+    pub exact_toolchain_sources: &'input [(source::SourceId, [u8; 32])],
+    pub target_profile: Option<target::TargetProfile>,
+    pub console_exit_binding: Option<&'input selected_dispatch::ResolvedAcceptedSemanticBinding>,
+    pub process_exit_binding: Option<&'input selected_dispatch::ResolvedAcceptedSemanticBinding>,
+    pub calling_plan_realizations:
+        &'input [provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
+}
+
+impl BoundaryApplicationSettlement<'_> {
+    /// Rejoin the artifact-bound occurrence roster to exact selected realizations.
+    /// Demand, realization and opaque-edge errors retain that evaluation order.
+    pub fn settle(
+        &self,
+        artifact: &terminal_codec::CanonicalTerminalArtifact,
+        checked_scope: &lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
+    ) -> Result<boundary_applications::TerminalBoundaryApplicationCoverage, Vec<Diagnostic>> {
+        checked_scope
+            .validate_for_artifact(artifact)
+            .map_err(|message| vec![Diagnostic::error(message)])?;
+        let demands = project_terminal_boundary_application_demands(self, artifact, checked_scope)?;
+        let realizations =
+            project_terminal_boundary_application_realizations(self, checked_scope, &demands)?;
+        let opaque_applications = project_opaque_applications(self.calling_plan_realizations)
+            .map_err(|message| vec![Diagnostic::error(message)])?;
+        boundary_applications::TerminalBoundaryApplicationCoverage::new(demands, realizations)
+            .map_err(|message| vec![Diagnostic::error(message)])
+            .map(|coverage| coverage.with_opaque_applications(opaque_applications))
+    }
 }
 
 fn project_terminal_boundary_application_realizations(
-    checked: &CheckedCompilation,
+    settlement: &BoundaryApplicationSettlement<'_>,
     checked_scope: &lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
     demands: &boundary_applications::TerminalBoundaryApplicationDemands,
 ) -> Result<boundary_applications::TerminalBoundaryApplicationRealizations, Vec<Diagnostic>> {
     let nongeneric =
         selected_dispatch::derive_checked_nongeneric_operator_application_realizations(
-            checked,
-            checked.selected_provider_plans(),
+            settlement.checked,
+            settlement.selected_provider_plans,
         )?;
     let specialized =
         selected_dispatch::derive_checked_specialized_operator_application_realizations(
-            checked,
-            checked.selected_provider_plans(),
+            settlement.checked,
+            settlement.selected_provider_plans,
         )?;
     let mut rows = Vec::with_capacity(demands.rows().len());
     for (demand, occurrence) in demands.rows().iter().zip(checked_scope.occurrences()) {
@@ -64,12 +90,12 @@ fn project_terminal_boundary_application_realizations(
                 *row.provider_plan_commitment.as_bytes(),
                 boundary_applications::BoundaryApplicationRealization::NongenericCheckedBody {
                     realization_machine: canonical_boundary_nominal_identity(
-                        checked,
+                        settlement,
                         row.realization_machine,
                         "nongeneric realization machine",
                     )?,
                     realization_state: canonical_boundary_nominal_identity(
-                        checked,
+                        settlement,
                         row.realization_state,
                         "nongeneric realization state",
                     )?,
@@ -80,17 +106,17 @@ fn project_terminal_boundary_application_realizations(
                 *row.provider_plan_commitment.as_bytes(),
                 boundary_applications::BoundaryApplicationRealization::SpecializedCheckedBody {
                     realization_template: canonical_boundary_nominal_identity(
-                        checked,
+                        settlement,
                         row.realization_template,
                         "specialized realization template",
                     )?,
                     realization_machine: canonical_boundary_nominal_identity(
-                        checked,
+                        settlement,
                         row.realization_machine,
                         "specialized realization machine",
                     )?,
                     realization_state: canonical_boundary_nominal_identity(
-                        checked,
+                        settlement,
                         row.realization_state,
                         "specialized realization state",
                     )?,
@@ -98,7 +124,9 @@ fn project_terminal_boundary_application_realizations(
                     realization_contract_commitment: row.realization_contract_commitment.as_bytes(),
                 },
             ),
-            ([], []) => project_compiler_intrinsic_application_realization(checked, application)?,
+            ([], []) => {
+                project_compiler_intrinsic_application_realization(settlement, application)?
+            }
             _ => {
                 return Err(vec![Diagnostic::error(
                     "Terminal boundary application rejoins multiple checked-body realizations",
@@ -119,7 +147,7 @@ fn project_terminal_boundary_application_realizations(
 }
 
 fn project_compiler_intrinsic_application_realization(
-    checked: &CheckedCompilation,
+    settlement: &BoundaryApplicationSettlement<'_>,
     application: &checked_trees::CheckedBoundaryOperatorApplicationDemand,
 ) -> Result<
     (
@@ -144,59 +172,57 @@ fn project_compiler_intrinsic_application_realization(
             )]);
         }
     };
-    let uses = checked
-        .facts
-        .operators
-        .named_uses
-        .iter()
-        .filter_map(|(_, operator_use)| {
-            (matches!(
-                application.site,
-                checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression { .. }
-            ) && operator_use.expression == expression
-                && operator_use.origin == origin
-                && operator_use.selected_operator_symbol == application.requirement_symbol)
-                .then_some(operator_use.origin)
-        })
-        .chain(
-            checked
-                .facts
-                .operators
-                .uses
-                .iter()
-                .filter_map(|(_, operator_use)| {
+    let uses =
+        settlement
+            .checked
+            .facts
+            .operators
+            .named_uses
+            .iter()
+            .filter_map(|(_, operator_use)| {
+                (matches!(
+                    application.site,
+                    checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression { .. }
+                ) && operator_use.expression == expression
+                    && operator_use.origin == origin
+                    && operator_use.selected_operator_symbol == application.requirement_symbol)
+                    .then_some(operator_use.origin)
+            })
+            .chain(settlement.checked.facts.operators.uses.iter().filter_map(
+                |(_, operator_use)| {
                     (operator_use.application_site() == application.site
                         && operator_use.selected_operator_symbol == application.requirement_symbol
                         && operator_use.status
                             == checked_trees::CheckedOperatorResolutionStatus::Resolved)
                         .then_some(operator_use.origin)
-                }),
-        )
-        .chain(
-            checked
-                .facts
-                .operators
-                .named_requirement_uses
-                .iter()
-                .filter_map(|(_, requirement_use)| {
-                    (matches!(
+                },
+            ))
+            .chain(
+                settlement
+                    .checked
+                    .facts
+                    .operators
+                    .named_requirement_uses
+                    .iter()
+                    .filter_map(|(_, requirement_use)| {
+                        (matches!(
                         application.site,
                         checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression { .. }
                     ) && requirement_use.expression == expression
                         && requirement_use.origin == origin
                         && requirement_use.requirement_symbol == application.requirement_symbol)
                         .then_some(requirement_use.origin)
-                }),
-        )
-        .collect::<Vec<_>>();
+                    }),
+            )
+            .collect::<Vec<_>>();
     let [use_origin] = uses.as_slice() else {
         return Err(vec![Diagnostic::error(format!(
             "Terminal intrinsic application retains {} exact selected uses; expected one",
             uses.len(),
         ))]);
     };
-    let plans = checked.selected_provider_plans().plans();
-    let provenance = checked.selected_provider_provenance();
+    let plans = settlement.selected_provider_plans.plans();
+    let provenance = settlement.selected_provider_provenance;
     if plans.len() != provenance.len() {
         return Err(vec![Diagnostic::error(
             "Terminal intrinsic application has misaligned selected-plan provenance",
@@ -204,7 +230,7 @@ fn project_compiler_intrinsic_application_realization(
     }
     // This target's selected plan joins the use by requirement identity.
     let Some((plan_index, plan)) = provider_planning::selected_use_plan(
-        checked,
+        settlement.checked,
         plans,
         application.requirement_symbol,
         *use_origin,
@@ -251,21 +277,17 @@ fn project_compiler_intrinsic_application_realization(
     }
     let derived =
         selected_dispatch::derive_selected_compiler_intrinsic_execution_identity_for_row_with_resolved_binding(
-            checked,
+            settlement.checked,
             plan,
             retained.provider.schema,
             row,
             **requirement,
             **realization,
-            checked
-                .selected_target_profile()
+            settlement
+                .target_profile
                 .map(target::TargetProfile::target_name),
-            checked.resolved_semantic_binding(
-                package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
-            ),
-            checked.resolved_semantic_binding(
-                package_compilation::AcceptedSemanticBindingRole::ProcessExitExitProcessI32,
-            ),
+            settlement.console_exit_binding,
+            settlement.process_exit_binding,
         )
         .map_err(|diagnostic| vec![diagnostic])?;
     let execution = match (derived, **retained_execution) {
@@ -286,7 +308,7 @@ fn project_compiler_intrinsic_application_realization(
 }
 
 fn project_terminal_boundary_application_demands(
-    checked: &CheckedCompilation,
+    settlement: &BoundaryApplicationSettlement<'_>,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     checked_scope: &lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
 ) -> Result<boundary_applications::TerminalBoundaryApplicationDemands, Vec<Diagnostic>> {
@@ -304,7 +326,7 @@ fn project_terminal_boundary_application_demands(
         // requirement; the coverage row keys on the same declaration identity
         // and overload coordinate for either species.
         let requirement_view = provider_planning::IntrinsicRequirement::by_symbol(
-            &checked.typed,
+            &settlement.checked.typed,
             application.requirement_symbol,
         )
         .filter(|view| {
@@ -317,7 +339,7 @@ fn project_terminal_boundary_application_demands(
             )]
         })?;
         let declaration = canonical_boundary_nominal_identity(
-            checked,
+            settlement,
             application.requirement_symbol,
             "operator requirement",
         )?;
@@ -325,7 +347,7 @@ fn project_terminal_boundary_application_demands(
         let requirement =
             boundary_applications::BoundaryOperatorRequirement::new(declaration, overload)
                 .map_err(|message| vec![Diagnostic::error(message)])?;
-        let projected_application = project_boundary_application(checked, application)?;
+        let projected_application = project_boundary_application(settlement, application)?;
         rows.push(
             boundary_applications::TerminalBoundaryApplicationDemand::new(
                 occurrence.terminal_operation(),
@@ -342,7 +364,7 @@ fn project_terminal_boundary_application_demands(
 }
 
 fn project_boundary_application(
-    checked: &CheckedCompilation,
+    settlement: &BoundaryApplicationSettlement<'_>,
     application: &checked_trees::CheckedBoundaryOperatorApplicationDemand,
 ) -> Result<boundary_applications::BoundaryApplication, Vec<Diagnostic>> {
     if application.arguments.is_empty() {
@@ -367,7 +389,7 @@ fn project_boundary_application(
                 arguments.push(
                     boundary_applications::BoundaryApplicationArgument::type_argument(
                         *binder_ordinal,
-                        canonical_boundary_type_identity(checked, *type_reference)?,
+                        canonical_boundary_type_identity(settlement, *type_reference)?,
                     ),
                 );
             }
@@ -381,7 +403,7 @@ fn project_boundary_application(
                 && *binder_ordinal == expected_ordinal =>
             {
                 validation::validate_exact_const_value_encoding(
-                    &checked.typed,
+                    &settlement.checked.typed,
                     *declared_carrier,
                     value.encoding.as_str(),
                 )
@@ -393,7 +415,7 @@ fn project_boundary_application(
                 arguments.push(
                     boundary_applications::BoundaryApplicationArgument::const_argument(
                         *binder_ordinal,
-                        canonical_boundary_type_identity(checked, *declared_carrier)?,
+                        canonical_boundary_type_identity(settlement, *declared_carrier)?,
                         value.type_name.clone(),
                         value.encoding.clone(),
                     )
@@ -412,12 +434,13 @@ fn project_boundary_application(
 }
 
 fn canonical_boundary_nominal_identity(
-    checked: &CheckedCompilation,
+    settlement: &BoundaryApplicationSettlement<'_>,
     symbol: symbols::SymbolHandle,
     role: &str,
 ) -> Result<boundary_applications::BoundaryNominalIdentity, Vec<Diagnostic>> {
-    let identity = checked
-        .exact_owner_nominal_identity(symbol, checked.exact_toolchain_sources())
+    let identity = settlement
+        .checked
+        .exact_owner_nominal_identity(symbol, settlement.exact_toolchain_sources)
         .ok_or_else(|| {
             vec![Diagnostic::error(format!(
                 "Terminal boundary {role} has no exact package or toolchain owner",
@@ -428,15 +451,16 @@ fn canonical_boundary_nominal_identity(
 }
 
 fn canonical_boundary_type_identity(
-    checked: &CheckedCompilation,
+    settlement: &BoundaryApplicationSettlement<'_>,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Result<boundary_applications::BoundaryTypeIdentity, Vec<Diagnostic>> {
-    let identity = checked
+    let identity = settlement
+        .checked
         .exact_owner_type_identity(ExactOwnerTypeIdentityRequest {
             type_reference,
             binders: &[],
             substitutions: &[],
-            exact_toolchain_sources: checked.exact_toolchain_sources(),
+            exact_toolchain_sources: settlement.exact_toolchain_sources,
         })
         .ok_or_else(|| {
             vec![Diagnostic::error(
@@ -445,4 +469,54 @@ fn canonical_boundary_type_identity(
         })?;
     boundary_applications::BoundaryTypeIdentity::new(identity.into_string())
         .map_err(|message| vec![Diagnostic::error(message)])
+}
+
+/// Retain one strong application commitment per requirement edge and shape
+/// coordinate. Producer and consumer artifacts compare this source-free set;
+/// arena identities are deliberately absent.
+fn project_opaque_applications(
+    calling_plan_realizations: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
+) -> Result<boundary_applications::BoundaryOpaqueRepresentationApplications, &'static str> {
+    let rows = calling_plan_realizations
+        .iter()
+        .flat_map(|realization| {
+            let signature = realization.materialized_signature();
+            signature.opaque_representation_uses().iter().map(|use_| {
+                boundary_applications::BoundaryOpaqueRepresentationApplication {
+                    requirement_identity: signature.owner_requirement_identity().to_owned(),
+                    shape_root: use_.shape_root(),
+                    application_report_fingerprint: use_.application_report_fingerprint(),
+                    selected_application_commitment: use_.selected_application_commitment(),
+                }
+            })
+        })
+        .collect();
+    boundary_applications::BoundaryOpaqueRepresentationApplications::new(rows)
+}
+
+/// Replay retained source-free demands against their sealed artifact-bound scope.
+/// A public demand roster cannot substitute its own occurrence count or identities.
+pub fn validate_terminal_boundary_application_coverage(
+    artifact: &terminal_codec::CanonicalTerminalArtifact,
+    checked_scope: &lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
+    coverage: &boundary_applications::TerminalBoundaryApplicationCoverage,
+) -> Result<(), &'static str> {
+    checked_scope.validate_for_artifact(artifact)?;
+    coverage.validate_for_terminal(artifact.manifest().semantic())?;
+    if coverage.demands().rows().len() != checked_scope.occurrences().len()
+        || !coverage
+            .demands()
+            .rows()
+            .iter()
+            .zip(checked_scope.occurrences())
+            .all(|(demand, occurrence)| {
+                demand.terminal_operation() == occurrence.terminal_operation()
+            })
+    {
+        return Err(
+            "Terminal native proposal source-free boundary demands differ from checked occurrence custody",
+        );
+    }
+
+    Ok(())
 }

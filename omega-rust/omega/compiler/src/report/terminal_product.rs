@@ -156,9 +156,6 @@ impl TerminalCompilerBuiltinProposal {
     }
 }
 
-mod integer_comparisons;
-use integer_comparisons::validate_integer_comparison_coverage;
-
 pub use boundary_applications::{
     TerminalIeeeFloatComparisonOccurrenceProposal, TerminalIntegerComparisonOccurrenceProposal,
 };
@@ -346,26 +343,11 @@ impl TerminalNativeRealizationProposal {
                 "Terminal native proposal optimization phases do not reconstruct the complete build selection",
             );
         }
-        self.checked_boundary_operator_scope
-            .validate_for_artifact(artifact)?;
-        self.boundary_application_coverage
-            .validate_for_terminal(artifact.manifest().semantic())?;
-        if self.boundary_application_coverage.demands().rows().len()
-            != self.checked_boundary_operator_scope.occurrences().len()
-            || !self
-                .boundary_application_coverage
-                .demands()
-                .rows()
-                .iter()
-                .zip(self.checked_boundary_operator_scope.occurrences())
-                .all(|(demand, occurrence)| {
-                    demand.terminal_operation() == occurrence.terminal_operation()
-                })
-        {
-            return Err(
-                "Terminal native proposal source-free boundary demands differ from checked occurrence custody",
-            );
-        }
+        terminal_psi_to_abstract_operations::validate_terminal_boundary_application_coverage(
+            artifact,
+            &self.checked_boundary_operator_scope,
+            &self.boundary_application_coverage,
+        )?;
         if self.target_profile.native_target() != self.native_target
             || self.program_entry.source_signature().target_slot().owner != self.target_profile
         {
@@ -521,36 +503,14 @@ impl TerminalNativeRealizationProposal {
                 return Err("Terminal callback occurrence does not name a boundary call");
             }
         }
-        TerminalIeeeFloatComparisonOccurrenceProposal::validate_coverage(
+        terminal_psi_to_abstract_operations::validate_terminal_comparison_coverage(
             &module,
             self.selected_provider_plans.plans(),
             &self.ieee_float_comparison_occurrences,
-            self.boundary_application_coverage.realizations(),
-        )?;
-        validate_integer_comparison_coverage(
-            &module,
-            self.selected_provider_plans.plans(),
             &self.integer_comparison_occurrences,
             self.boundary_application_coverage.realizations(),
             &self.checked_boundary_operator_scope,
         )?;
-        let terminal_fma_operations = module
-            .machines
-            .iter()
-            .flat_map(|machine| &machine.blocks)
-            .flat_map(|block| &block.operations)
-            .filter(|operation| {
-                matches!(
-                    operation.kind,
-                    terminal_psi::OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. }
-                )
-            })
-            .collect::<Vec<_>>();
-        // Settlement no longer produces a selected nearest-FMA occurrence, so no
-        // Terminal operation of that kind has provider custody to realize.
-        if !terminal_fma_operations.is_empty() {
-            return Err("Terminal nearest-FMA operation has no selected-provider custody");
-        }
         Ok(())
     }
 
