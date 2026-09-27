@@ -84,9 +84,7 @@ count or directory depth. Subsystem folders expose their coordinators and
 supporting packages without merging their APIs or dependency boundaries.
 Directory names are not a requirement to retain the former `build/` or
 `packages/` buckets. A draft, cleanup campaign, or rewritten placement table does not
-authorize removing these boundaries. The rejected
-[fat-stages proposal](../wiki/drafts/designs/fat_stages_consolidation.md) is
-historical evidence only and must not be implemented.
+authorize removing these boundaries.
 
 
 | Responsibility | Owner |
