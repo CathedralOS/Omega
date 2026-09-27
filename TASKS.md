@@ -20,37 +20,19 @@ does not earn another paragraph. Delete completed work and duplicate aliases;
 Git preserves history. Keep a revision-bound failure only when it changes
 where to resume, and prefer stable symbols/tests over line numbers.
 
-The compiler crate's Rust test targets (`canary_suite`, `samples_compile` and
-the per-feature `compiler --test ...` targets) were deleted; compiler behavior
-is tested through `tests/omega` fixtures and `tools/corpus_gate.py`. Where an
-item's acceptance names one of those tests, the acceptance is the named
-fixture's corpus-gate outcome, plus its `--native` outcome where the item needs
-a native build or run. Rewrite such an item's acceptance when you next touch it.
+Compiler behavior is exercised through `tests/omega` fixtures and
+`tools/corpus_gate.py`. The old `canary_suite`, `samples_compile` and most
+per-feature compiler targets were deleted; the current Cargo manifest still
+registers `callback_terminal_custody`. Check the manifest and test body before
+using a Rust test name as acceptance. When replacing a deleted target, retain
+its source customer and required corpus/native outcome; a similarly named
+fixture or a checked-only result does not establish native execution.
 
-Items here cite `.rs` paths that no longer resolve -- 40 on this board and
-one on the optimizer board when last measured. Do not maintain that count by
-hand; the checker below derives it. `912b490c8f1` merged the stage crates
-into the binary and moved their files wholesale, which doubled the count to
-73; `--apply-moves` rewrote the 32 whose file merely moved, leaving the ones
-whose claim a reader has to restate. Re-measure one of these before planning against it; a gone
-anchor file usually means the claim around it needs restating, not a path
-substitution. `python3 tools/board_paths.py` re-derives the list rather than
-trusting this paragraph, understands the directory-relative and
-brace-alternative citation forms, and exits nonzero while any path is dead;
-`--hints` names real files sharing a dead path's basename. It reports a
-citation that only misses a pipeline stage's numeric prefix separately, as a
-substitution rather than a dead anchor.
-`TASKS_OPTIMIZER.md` carries one of its own, `tests/linw4_translation_probe.rs`,
-whose basename matches nothing in the tree. AP-BRINGUP, ASM-INSTRUCTION-CATALOG-EXPANSION, BLOCKEXEC,
-BOUNDED-INSTALLATION-REACH-ROWS, BUILD-PRODUCT-REFERENCES,
-BUILD-SEMANTIC-EXCLUSIONS, CML4, CRASH-CONTRACT, EXCEPTION-ROOTS-AND-TIMER,
-FILESYSTEM-RELEASE-CONTRACT, GENERAL-CYCLIC-EXECUTION,
-LOWERING-ROUTE-CONSOLIDATION, MACOS-APPLICATION-PUBLICATION,
-OPAQUE-BY-VALUE-BOUNDARY-ABI, PCC-PRODUCT-PUBLICATION, PLAN-LAID-VIEWS,
-PROOF-CERTIFICATION-BRIDGE, PROOF-KERNEL-CORE, RC-BUILD-AND-PACKAGES,
-SAMPLE-CORPUS, SYMBOLIC-MATERIALIZATION, TERMINATION-RANKING-CHECKS,
-TOP-LEVEL-BOUNDARY-REQUIREMENTS, TWO-AXIS-TERMINAL-AUTHORITY-REVIEW and
-WIRE-RUNTIME-AND-INSTALLATION.
+Run `python3 tools/board_paths.py` to identify stale source citations;
+`--hints` suggests matching basenames and `--apply-moves` handles recognized
+moves. The checker understands relative and brace-alternative citations and
+exits nonzero while dead paths remain. A missing anchor needs its surrounding
+claim audited against current code, not merely a path substitution.
 
 [CONTRIBUTING.md](CONTRIBUTING.md#workflow) governs task provenance, scoped checks, claims,
 strategy pauses and publication. Live assignments belong in the
@@ -5830,418 +5812,168 @@ timeout or exhausted capacity leaves the affected gate open.
 Retain applicable checked/cross-target coverage when a runner is unavailable,
 but report the missing runtime leg explicitly; it does not close that host row.
 
-- **RC-RELEASE-RECORD-AND-CLOSURE.** Finish the existing release recorder and
-  assemble the complete same-commit evidence. Owners:
-  `tools/release/release_record.py`, its tests, and the completion contract.
-  Two committed JSON records under `tools/release/records/` contain only
-  RC-PORTABLE-PSI gate passes and explicitly open closure; do not recreate the
-  recorder or claim records are absent.
+- **RC-RELEASE-RECORD-AND-CLOSURE.** Complete the existing release-evidence
+  route and assemble all eight gates and four matching-host rows at one clean
+  commit. Owners: `tools/release/release_record.py`,
+  `tools/release_matrix.py`, their tests and the
+  [completion contract](wiki/drafts/reference/rust_compiler_completion.md#release-matrix).
+  Both runners exist; they emit different record formats and neither joins
+  independent host records into complete same-commit closure. Reconcile their
+  evidence rather than introduce another recorder. The committed macOS records
+  remain open; their native observation names the deleted `canary_suite`
+  target. Historical records are not current release evidence.
 
-  The remaining deliverable is complete same-commit evidence, not another
-  recorder implementation. Preserve bidirectional command-coverage checks in
-  `tools.tests.test_release_record` and `tools.tests.test_release_matrix`,
-  the portable formatting command, and required `--native-execution` input.
+  Finish validation before trusting a passing label. `validate_record`
+  currently accepts a gate marked pass with a nonzero command exit, a nonzero
+  skip count without named skips, and an empty `closure.open_rows` despite
+  open platform rows. Neither runner proves that an exit-zero test command
+  completed a nonempty, unfiltered run; inherited environment filters also
+  need accounting. Derive gate/closure status from complete command evidence,
+  reconcile named expected skips with observed counts, and reject omitted,
+  stale, filtered, empty, interrupted or contradictory results. Preserve
+  bidirectional command-manifest coverage, the portable formatting route and
+  explicit native-execution evidence. A valid open record may be retained;
+  it must not count as release closure.
 
-  Acceptance: recorder tests detect omitted commands, stale filters,
-  incomplete runs and inconsistent closure. Produce and revalidate records
-  containing the commit, pinned toolchain, host OS/architecture, exact commands,
-  outcomes, elapsed time and expected skips, plus emulator/version when used.
-  Close only after all eight gates and four platform rows pass as the contract
-  requires. RC-PORTABLE-PSI remains the cross-process reload/tamper gate even
-  though its implementation task is complete; RC-DIAGNOSTICS remains the full
-  negative corpus, not a rerun of the old repaired eleven-fixture subset.
-  Preserve release evidence and maintained regression gates with their owners
-  before deleting the temporary completion plan. Rust remains a comparator;
-  bootstrap/product-source work has its own board.
+  Acceptance: produce and revalidate the same-commit collection with pinned
+  toolchain, host OS/architecture, exact commands/arguments, outcomes, elapsed
+  time and expected skips; include emulator/version where admitted. Close only
+  when the full contract passes, with actual execution on each required host.
+  The current RC-PORTABLE-PSI commands run library tests in one process; restore
+  the required separate-process reload/tamper witness through a maintained
+  harness. RC-DIAGNOSTICS covers the full negative corpus. Sample refresh
+  builds artifacts; the native rows and **SAMPLE-CORPUS** still owe execution
+  and their behavioral oracles. Preserve release records and maintained
+  regression gates with their owners before retiring the temporary completion
+  plan. Rust remains a comparator; bootstrap work stays on its own board.
 
-- **RC-REPOSITORY-CLOSURE.** Establish one clean-commit pass of the repository
-  gate: whole-workspace formatting, all-target Clippy with warnings denied,
-  all-target check, and workspace library tests. Use the
-  completion contract's full scope and current portable formatting route;
-  do not exclude failing crates. Owners: repository gates and each failing
-  crate. Repair attributed failures through their capability owners, then
-  record the complete result through RC-RELEASE-RECORD-AND-CLOSURE.
-  [Failure attribution](wiki/drafts/measurements/known_baseline_failures.md) is dated
-  starting evidence, not a reason to repeat fixed lint/fixture repairs or
-  combine results across revisions/hosts. Acceptance: all five commands pass
-  at the release commit, with failures and skips accounted for by exact test
-  names rather than another chronology on this board.
+- **RC-REPOSITORY-CLOSURE.** Establish one clean-commit pass of all four
+  repository commands in the
+  [completion contract](wiki/drafts/reference/rust_compiler_completion.md#release-matrix):
+  portable formatting, whole-workspace all-target Clippy with warnings denied,
+  all-target check, and workspace library nextest with no fail-fast.
+  Owners: repository gates and each failing crate. Use the full scope without
+  crate exclusions, attribute current failures to their capability owners, and
+  retain the complete result through **RC-RELEASE-RECORD-AND-CLOSURE**.
+  [Dated failure attribution](wiki/drafts/measurements/known_baseline_failures.md)
+  is a starting lead, not a current baseline. Acceptance: all four commands
+  pass at the release commit with exact failure/skip attribution and complete
+  test-run evidence; do not combine results from different revisions or hosts.
 
-  Formatting is clean as of `f3b2955238`, except
-  `02_abstract-operations-to-target-operations/src/lib.rs`, held by another
-  lane. The Clippy leg cannot finish until the stage-04 tail compiles, but
-  on the 20 crates that build independently of it `-D warnings` leaves two
-  findings: `symbols/src/table.rs`'s loop counter, held by another lane, and
-  `clippy::module_inception`. The second is not a local repair -- the fold
-  produced 22 `X/X` module nestings (`omega/src/package_manager/
-  package_manager`, `provider_planning/provider_planning`,
-  `typed_trees/typed_trees` and so on), so it wants one decision for the
-  folded layout, an allow or a rename, from POST-FOLD-REPAIR rather than 22
-  separate edits. Clippy halts at the first failing crate, so expect more
-  behind these.
+- **RC-BUILD-AND-PACKAGES.** Close both build/package commands in the
+  [completion contract](wiki/drafts/reference/rust_compiler_completion.md#release-matrix):
+  nextest and doctests for `build-declarations`, `build-evaluation`,
+  `package-compilation`, `package-source`, `resolver-execution`,
+  `package-evidence` and `package-manager`. Owners: build evaluation,
+  package resolution/review/manager and compiler handoff. The old six compiler
+  integration targets are deleted and are not release commands. Preserve their
+  distinct source/package customers in maintained harnesses; passing the two
+  package commands alone does not establish compiler integration.
 
-- **RC-BUILD-AND-PACKAGES.** Close all three build/package command blocks in
-  the [completion contract](wiki/drafts/reference/rust_compiler_completion.md#release-matrix):
-  the seven-package nextest run, those packages' doctests, and the six compiler
-  integration targets (`build_config_granted`, `build_log_facet`,
-  `build_target_activation`, `checked_build_machine_identity`,
-  `evaluated_via_binding`, `package_compilation_inputs`).
-  Owners: build evaluation, package resolution/review/manager and compiler
-  handoff. The remaining failure families are FMA transport, exact
-  checked-call/review identity, provider-schema agreement and fixture
-  rosters. Reproduce a named
-  remaining failure on the selected base before assigning its repair; do not
-  suppress review requirements or stale-service diagnostics to make fixtures
-  pass. Acceptance: all three complete blocks pass and retain their evidence
-  at the release commit; recorder coverage depends on RC-RELEASE-RECORD-AND-CLOSURE.
-  Historical package-input failure probes are
-  `free_process_exit_helper_lowers_without_a_synthetic_attachment`,
-  `accepted_package_uefi_binding_selects_exact_ordinary_schema` and
-  `instantiated_methods_keep_each_package_use_authority`. Fixture/provider and
-  name-collision repairs have since landed: reproduce before assigning more
-  repair, retaining exact selection and package-use authority checks.
-  Package command fixtures: reproduce `fixture module path ends in ::fixture`
-  in `named_workspace_install::cases`. Fix caller-specific child-test selection
-  in `omega-rust/omega/package-manager/tests/support/named_workspace.rs` and exercise all four
-  consumers, including `package_inspection`, `offline_package_commands`, and
-  `source_diff_commands`.
+  Acceptance: both complete commands pass at the release commit and their
+  evidence validates under **RC-RELEASE-RECORD-AND-CLOSURE**. Reproduce current
+  failures before assigning repairs; do not suppress review requirements or
+  stale-service diagnostics. The named-workspace fixture now selects children
+  from each caller's module path and asserts one test passed; its former
+  shared-module selection failure is repaired.
 
-  THE INTEGRATION TARGETS FAIL WHERE THEY SHOULD SKIP. Correcting an earlier
-  version of this note, which blamed a gate: the documented full baseline is
-  GREEN. `mbx nextest run --workspace --lib --no-fail-fast` is **17265 passed,
-  0 failed, 3 skipped** at `a934945572b` on macOS arm64. Nothing is wrong with
-  the gate, and `--lib` is deliberate -- tools/testing.md puts integration tests
-  outside the portable subset and requires that "platform integration tests
-  are separate and must report an explicit skip when the host cannot run
-  them".
+  Retain these integration requirements with the existing capability owners:
 
-  That requirement is what is actually broken. Swept at `869021cf9c7` and
-  completed at `670cba3ee9`: of the 110 `-p compiler` targets outside
-  `canary_suite`, `samples_compile` and `corpus_runner`, 28 carried 243
-  failing tests -- failing, not skipping. **16 targets carry 87 now**, of
-  which 89 -- `native_filesystem_canaries` -- needs a host provider and
-  should skip rather than fail.
+  - **Package and selection identity:** carry exact checked-call, review,
+    package-use and accepted provider-schema identity through compiler handoff.
+    Keep the free process-exit helper without a synthetic attachment, the
+    ordinary accepted UEFI schema and distinct instantiated package-use
+    authorities as source/package customers. Preliminary selection finalization
+    still permits unresolved toolchain-origin selections in
+    `04_typed-trees-to-checked-trees/src/authored_selections/finalization.rs`
+    (with separate target-sibling handling). Recover the package-owned std,
+    targetless UEFI-handoff witness: dependency late binding must behave
+    consistently with bundled std while unresolved root calls still reject.
+    Do not widen the allowance to every `CheckedCall` or infer ownership from
+    a path. **MODULE-NAMESPACE-RESOLUTION** owns exact package/declaration
+    identity; **PROVIDER-SELECTION-AFTER-TERMINAL** owns provider placement,
+    and **X86-FMA-PROVIDER-TRANSPORT** owns FMA transport.
 
-  A METHOD WARNING for whoever re-measures. An earlier pass reported 178
-  across 23, and that was an undercount: three of its ten batches never ran,
-  because one target in each failed to COMPILE when this host ran out of disk,
-  and `nextest` reports that as `error: could not compile` with no `Summary`
-  line. Grepping only for `FAIL` and `Summary` silently drops the whole batch
-  -- 36 targets, 65 further failures, including the second-largest cluster. A
-  sweep must check that every batch produced a `Summary`, and must watch free
-  space: each test binary is around 350 MB and this host has died under 1 GB
-  free three times in one session. RE-MEASURE BEFORE WORKING A TARGET:
-  twenty-one of the targets once listed here were already green when re-run.
+  - **Private progress premises:** under
+    [termination](wiki/spec/language/termination.md), **TPR6** owns finite
+    sets of exact externally dischargeable subjects, including eligible premises
+    not declared by the private caller. Recover source witnesses
+    for two independent WeakFair premises, a private wrapper around a cycle,
+    and recursively growing subject projections that must not become a finite
+    promise. Follow `checks/contracts/calls.rs` and
+    `checks/termination/progress/components.rs`; the latter still maps an
+    unavailable derivation to `NoGuarantee`, but the deleted test failures
+    need fresh reproduction. Preserve exact entry-rooted lineage through
+    nested wrappers and stable component convergence. Private visibility alone
+    cannot waive a ProgressProfile requirement: retain reference-operand
+    mutation, later loop-arrival and same-named-formal negative controls.
+    Coverage discharges the retained premise at the specified public,
+    receipt or build-bound provider boundary.
 
-  Dead source citations are widespread in this file, not only in this table.
-  Of 255 `.rs` paths cited across `TASKS.md`, 34 resolve to nothing in
-  `omega-rust`. Eleven are under `compiler/tests/`, removed by `c60792d7bd`
-  ("repo: the compiler is tested through the corpus gate alone"); four name a
-  `selected_operator.rs` removed with the selected-operator plan vocabulary.
-  An earlier revision of this note reported those citations as clean; that
-  measurement only covered paths written from a repository root and missed
-  every crate-relative one, which is most of them. Resolve a cited path before
-  planning against it.
+  - **Demanded imports and callback custody:** provider planning and
+    `omega-rust/omega/compiler/src/native/retained_native_product.rs` must
+    refuse an actually called import without supplied execution/stack custody,
+    including retained native reentry that returns the exact dynamic
+    interpreter on refusal. The guard exists, but
+    `exact_demanded_import_plans` omits requirements with no matching import
+    row, so recover a source witness that follows demand through planning and
+    settlement. Preserve a supplied-custody positive that authenticates the
+    exact imported image. **CALLBACK-PRIVATE-MATERIALIZATION** owns callback
+    calling/fragment custody; the explicit `callback_terminal_custody` target
+    survives and includes native-image replay checks. Image validation alone
+    does not prove execution of the callback.
 
-  This table predates `c60792d7bd` ("repo: the compiler is tested through the
-  corpus gate alone"), which deleted the compiler test suites most of it was
-  measured from. Eight of its thirteen targets no longer appear anywhere in
-  `omega-rust` or as a `tests/omega` fixture directory:
-  `native_filesystem_canaries` (its largest entry, 89),
-  `plan_laid_repeated_runtime`, `build_target_activation`,
-  `subslice_runtime_end_bounds`, `service_operational_contracts`,
-  `callback_terminal_custody`, `module_machine_indices` and
-  `rank_remainder_endpoints`. `source_evaluated_native_realization` survives
-  only inside a doc comment. Four still appear in sources: `recast_views`,
-  `private_joint_progress`, `optimizer_opt_in` and
-  `package_compilation_inputs` -- and `recast_views` names no fixture
-  directory, so the `tests/omega/{pass,fail}/recast` corpus it was read as is
-  green (14 pass, 12 fail, 0 unsatisfied). Re-measure a target before working
-  it; most of these counts describe tests that are gone.
+  - **Foreign-domain mutable recasts:** **MODULE-NAMESPACE-RESOLUTION** /
+    **RECAST-SOURCE-POSITIONS** must preserve a qualification when declaration
+    and mutable view name the same exact foreign package domain, and reject
+    exchange between different packages' same-named domains. The maintained
+    `tests/omega/pass/recast/runtime_mutable_equivalent_domain_recast_exit`
+    is only a same-file control; recover the separate-package customer before
+    treating the old routing diagnosis as current. Keep routed establishment,
+    exact selected identity and mutable write-through; spelling equality
+    cannot grant the domain.
 
-  Remaining, re-measured on macOS arm64 after the repairs below:
+  - **Borrowed suspension and terminal arms:** **TR3-TR8**, checked loan/carry
+    analysis and Terminal emission/verification own
+    [borrow carry](wiki/spec/resources/carry.md#borrows-across-suspension) and
+    [terminal calls](wiki/spec/language/state_contracts.md#terminal-calls-in-transition-arms).
+    Restore a maintained source witness after deletion of the service test.
+    A machine-target arm uses ordinary call/completion with exact
+    `suspend`/`block` markers; a local-state jump is marker-free. Retain
+    caller-local backing and shared, mutable, write-only, aggregate-carried and
+    service-receiver loans, with exact parents, through nested parked calls.
+    Borrowed/service types neither categorically reject nor waive evidence.
+    Statement, terminal-expression and terminal-arm calls must agree on
+    values/Unit, mutation, postconditions, crash/no-return behavior, cleanup
+    and suspension in checked execution, reloaded verified Terminal and native
+    execution. Cover repeated park/resume without repeated effects or cleanup,
+    cancellation outcomes, and completion after resumption. Reject early parent
+    access/backing release, missing carry/affinity, forbidden live resources,
+    bad return contracts, underreported frontiers and missing/redundant
+    markers. Preserve tail-recursion/WCSU rules; helper-only plans do not
+    establish a working suspension runtime.
 
-  | n | target | what it is |
-  | --- | --- | --- |
-  | 89 | `native_filesystem_canaries` | host provider; should skip, not fail |
-  | 17 | `recast_views` | ProgramEntry/Terminal attachment |
-  | 9 | `plan_laid_repeated_runtime` | claimed elsewhere |
-  | 6 | `build_target_activation` | ProgramEntry/Terminal attachment |
-  | 3 | `private_joint_progress` | undeclared premise retention (below) |
-  | 3 | `subslice_runtime_end_bounds` | claimed elsewhere |
-  | 2 | `service_operational_contracts` (recorded, module since removed) | Implementation under [borrow carry](wiki/spec/resources/carry.md#borrows-across-suspension) and [terminal arm calls](wiki/spec/language/state_contracts.md#terminal-calls-in-transition-arms); recover a source witness |
-  | 2 | `source_evaluated_native_realization` | demanded-import custody no longer refuses |
-  | 2 | `callback_terminal_custody` | calling plans, fragment import custody |
-  | 2 | `optimizer_opt_in` | claimed elsewhere |
-  | 1 | `module_machine_indices` | foreign-domain mutable recast |
-  | 1 | `package_compilation_inputs` | late-bound selection keyed on provenance |
-  | 1 | `rank_remainder_endpoints` | ranked-cycle evidence mismatch |
+  - **Host-provider execution:** **SAMPLE-CORPUS** / **CANARY-CORPUS** own
+    application and fixture outcomes; provider settlement and native
+    realization own exact selected providers. Current
+    `build-evaluation/src/provider_settlement/canonical_filesystem_host.rs`
+    and `canonical_time_host.rs` supply limited Linux x86-64 syscall rows;
+    they do not establish Darwin coverage or every host boundary. Darwin
+    imports/adapters must retain locator receipts, argument choreography
+    (including clock identifiers/selectors), result transport and time
+    constants. `ProviderBinding::Import` exists and its receipt must commit
+    to the exact locator; a syscall table cannot invent import authority.
+    Use the ordinary authorized binding route. Current Objective-C fixtures
+    already declare public domains and their reached services; remove those
+    repaired visibility/reach diagnoses. Prove their selected-provider native
+    outcomes, including GUI and multi-library calls, rather than resurrect
+    the deleted filesystem test census or treat a missing host as a pass.
 
-  Read that table before picking work. 89 need a host and 23 --
-  `recast_views` and `build_target_activation` together -- are ONE cause, the
-  "selected ProgramEntry establishment rejoins 0 Terminal attachment
-  identities" frontier this file names at the top; none of those 23 is a test
-  defect. Fourteen more were assigned to other lanes or the recorded borrowed-service
-  suspension gap; the latter needs a fresh witness. What is
-  left unclaimed and unblocked is nine tests across seven targets.
-
-  Cleared: `access_plans`, `application_type_equations`,
-  `bounded_slice_selectors`, `build_named_inputs`, `build_snapshot_outputs`,
-  `byte_field_replacement`, `callable_entry_custody`, `calling_policy_plans`,
-  `composed_internal_unit_arguments`, `constant_expression_casts`,
-  `constant_float_tables`, `cyclic_receiver_execution`,
-  `guarded_operator_execution`, `layout_plans`, `machine_type_equations`,
-  `native_crash_execution`, `no_selection_golden`, `object_artifact_custody`,
-  `object_container_custody`, `owned_case_state_transport`,
-  `pcc_publication`, `runtime_value_generics`, `terminal_authority`.
-
-  Four causes accounted for nearly all of it, and each recurs: a fixture that
-  does not declare what it reaches or invokes; the snake_case package-name
-  migration reaching a declared package or application identity; an
-  expectation that outlived its behavior (target-qualified provider plan
-  names, and a custody matrix substituting the literal that had since become
-  the current vocabulary marker); and two real compiler defects -- a selected
-  transition arm's machine-storage guard conjunct discarded whenever a
-  state-parameter conjunct shared the `&&`, and runtime ranking admission not
-  recognizing `-> (callee(..))`, the spelling `ac52bc4114` now requires of an
-  attached machine, as the tail arrival its bare form was.
-
-  `private_joint_progress` keeps three, and they are ONE missing rule: a
-  private call component does not retain an UNDECLARED external requirement as
-  a premise. The four that pass do so because the caller DECLARES the
-  requirement it forwards -- `Main::b` declares `requires forwarded.scheduler
-  in WeakFair` and calls `wait`, which requires exactly that. The three that
-  fail call something whose requirement the caller does not declare, and the
-  contract checker rejects at `checks/contracts/calls.rs` before the progress
-  machinery in `checks/termination/progress/` can retain anything:
-
-  - `independent_external_premises_converge_as_a_set` calls `wait_backup`,
-    needing `forwarded.backup in WeakFair`; the test asserts the component
-    retains BOTH premises (`premises.len() == 2`).
-  - `recursively_projected_requirements_do_not_become_a_finite_promise` needs
-    a nested projection, `forwarded.next.scheduler in WeakFair`.
-  - `private_external_wrapper_can_be_solved_after_the_cycle` compiles but
-    `Main::a` retains `NoGuarantee` where the test expects the external
-    premise with the caller's parameter root.
-
-  `WeakFair` is ROUTED (`established by SchedulerAdmission::grant`), so this is
-  not the predicate-only gap; the requirement genuinely cannot be proved inside
-  the component and is meant to become the component's own published premise
-  for its caller to discharge. An independent survey of every
-  `TransitionTargetNode::Named` reader reached the same place: no
-  ProgressProfile-aware rule exists under `checks/contracts/`, and `FactOrigin`
-  has no premise-derived variant. The three tests are the acceptance
-  specification.
-
-  WHO DISCHARGES IS ALREADY SETTLED, in
-  [termination](wiki/spec/language/termination.md): the obligation sits at
-  three levels -- a public schema authors its profile-qualified subjects, a
-  checked dependency instantiates the selected operation's premises, and
-  COVERAGE resolves each instance at an authored public schema, an admitted
-  receipt, or a build-bound provider premise discharged at composition. "Private
-  mutual components propagate finite sets of exact subject-qualified premises."
-  A private caller is none of those boundaries, so the call site is not where
-  the requirement is proved.
-
-  What is NOT settled is which requirements are ELIGIBLE to become premises,
-  and that is where the naive rule fails. Admitting every
-  `DomainClassification::ProgressProfile` membership whose calling machine is
-  not `is_public` (one `satisfied ||` arm in `checks/contracts/calls.rs`) turns
-  six of this target's seven tests green and moves
-  `pass/generics/runtime_const_data_machine_call_exit` rejected -> checked, but
-  it also turns at least five `typed-trees-to-checked-trees
-  tests::termination::progress_lineage` tests red, including
-  `a_reference_argument_requires_its_fact_to_survive_later_operands`,
-  `a_late_unqualified_loop_arrival_retires_the_initial_membership` and
-  `a_same_named_formal_does_not_take_another_actuals_membership`. Those pin that
-  reference identity, a same-named formal and a re-entered loop arrival cannot
-  establish the fact -- exactly the cases where the premise is NOT retainable.
-  The contract check therefore has to ask the qualification/lineage machinery
-  the question `derive_machine_summary` asks (does this instance resolve to an
-  entry-parameter-rooted subject under `origins`/`lineage`?), not merely look at
-  the domain's classification and the caller's visibility.
-
-  `private_external_wrapper_can_be_solved_after_the_cycle` needs a second,
-  independent repair, and it is not in `checks/contracts/`: even with the naive
-  rule it stays red. With a private wrapper (`wait_for_scheduler`) between the
-  cycle and the public `wait`, the component fixed point in
-  `checks/termination/progress/components.rs` REGRESSES -- `Main::a` and
-  `Main::b` both reach `Terminates` with their one premise, then
-  `origins::at_call` returns `None` resolving the value origin of
-  `Main::b`'s own `forwarded.scheduler` at its `self.a(count - 1, forwarded)`
-  call, `derive_machine_summary`'s `unwrap_or_else(no_guarantee)` turns that
-  analysis failure into a judgment, and the cycle collapses over the next two
-  rounds. The identical place resolves at the same call in
-  `exact_external_premise_survives_private_cycle_propagation`, which differs
-  only in calling public `wait` there, so the walk is sensitive to program
-  content it should not read. Two separable defects: the origin walk, and a
-  fixed point that must not let `None` move a summary downward.
-
-  `source_evaluated_native_realization` keeps two, both NEGATIVE tests that
-  now pass their subject instead of refusing it.
-  `rejected_native_reentry_returns_the_exact_dynamic_interpreter` and
-  `retained_source_evaluated_import_realizes_exact_macho_image` each realize a
-  program whose boundary import has no supplied execution, with `imports: &[]`,
-  and each expects the refusal
-  `retained_native_product.rs`'s "demanded import `...` has no supplied
-  execution and stack custody" still spells. That guard scans `exact_plans`,
-  so an empty plan set makes it unreachable: the demand is no longer reaching
-  settlement rather than the check being wrong. Making the import actually
-  CALLED (`include_marker: true`) does not restore the refusal, so it is not
-  the fixture eliding an uncalled binding. Look upstream of the guard: the
-  question is why provider planning no longer produces an exact plan for that
-  import, not why the scan finds nothing. Owner: `native-realization` and
-  provider planning; unclaimed at the time of writing.
-
-  `package_compilation_inputs` keeps one, diagnosed: the preliminary
-  finalization allowance is keyed on SOURCE PROVENANCE, not on whether the
-  selection belongs to a dependency. `accepted_package_uefi_binding_selects_
-  exact_ordinary_schema` compiles semantic-only with std supplied as an
-  ordinary PACKAGE, and `source/library/std/targets/uefi_x86_64/handoff.omg`
-  then carries origin `User`, so `finalize_checked_authored_selections_with_
-  policy`'s `allow_unresolved_toolchain` does not cover its late-bound
-  `CheckedCall` and checking rejects with "authored Call declaration selection
-  occurrence ... remained unresolved". The same file bundled by the toolchain
-  is allowed. A targetless compile cannot resolve a UEFI handoff call either
-  way, so the test's expectation -- that a package-owned std behaves as the
-  bundled one -- is the direction the samples already take
-  (`builder.depend(Source::Path { location: ".../std" })`).
-
-  The fix needs a key that does not exist at that point: `source::SourceOrigin`
-  has only `User` and `Toolchain`, and "belongs to a dependency package" would
-  have to reach Psi's finalization. Broadening the allowance to every
-  late-bound `CheckedCall` instead would stop the gate catching an unresolved
-  call in the ROOT's own code. Owner: the selection/package-review lane, since
-  the choice is which key the allowance uses, not language surface.
-
-  `module_machine_indices` keeps one: a MUTABLE RECAST TO A FOREIGN
-  PACKAGE'S DOMAIN. In
-  `separate_packages_cannot_exchange_mutable_domain_qualifications`, a field
-  declared `value: u64 in library::bounds::u64::Tag` cannot initialize
-  `let local: &mut u64 in library::bounds::u64::Tag = &mut self.value as
-  &mut u64;` -- "cannot prove initializer of `local` in Main::exchange is in
-  domain `u64::Tag`; an annotation cannot establish routed qualification"
-  (`checks/contracts/writes.rs`). The identical shape over a SAME-FILE domain
-  is a green pass canary,
-  `tests/omega/pass/recast/runtime_mutable_equivalent_domain_recast_exit`, and
-  dropping the `as &mut u64` strip changes nothing, so the gap is the foreign
-  domain path's routing, not the recast spelling. The test's other half, which
-  rejects exchanging two DIFFERENT packages' domains, still passes.
-
-  Finish [borrowed suspension](wiki/spec/resources/carry.md#borrows-across-suspension)
-  and [terminal arm calls](wiki/spec/language/state_contracts.md#terminal-calls-in-transition-arms).
-  Recover or replace the removed `service_operational_contracts` source witness;
-  its old diagnostics are not current test commands. Owners: transition parsing
-  and resolution, checked loan/carry frontiers, Terminal emission/verification,
-  interpreter and runtime preservation. A machine-target arm accepts exact
-  `suspend`/`block` markers and forwards its normal result through enclosing
-  completion; a local-state target remains a marker-free jump. Use ordinary call
-  representation, not another asynchronous transfer or callback mechanism.
-  Retain argument and aggregate-carried loans through parked nested calls;
-  borrowed/service types neither categorically reject nor bypass carry evidence.
-  Acceptance: statement, terminal-expression and terminal-arm calls agree on
-  values/Unit, mutation, postconditions, cleanup and parked/resumed behavior in
-  checked execution, reloaded verified Terminal and admitted native execution.
-  A caller-local buffer survives a final borrowed call; shared/mutable reborrows
-  and service receiver loans retain exact parents and close only when permitted.
-  Cover repeated park/resume without repeated effects or cleanup, and checked
-  cancellation outcomes. Reject early parent access/backing release, missing
-  carry/affinity evidence, forbidden live resources, inconsistent result/return
-  contracts, and missing/redundant markers or markers on local-state jumps.
-  Preserve tail-recursion/WCSU rules and reject underreported loan frontiers;
-  do not hide a missing native suspension runtime behind a helper-only pass.
-
-  `native_filesystem_canaries` is half the total and fails UNIFORMLY -- 89 of
-  89, none passing -- so it is one cause, not eighty-nine. PEELED, by fixing
-  each layer locally and reading the next diagnostic; the edits were reverted
-  because only the third layer decides anything, and a half-migrated fixture
-  set helps nobody.
-
-  1. `public interface selects private domain [u8]::CString`
-     (`omega-rust/psi/checking/src/declarations/declaration_visibility.rs`). Not the
-     `pub domain` at `source/library/std/macos_gui.omg:32` -- `pub domain`
-     records `is_public = true`, verified directly on the lowered trees. The
-     ELEVEN fixtures under `tests/omega/pass/objc/` declare their OWN
-     `domain [u8]::CString` with no `pub`, and their public interfaces select
-     that one. Marking them `pub` clears this layer.
-  2. `machine Main::main publishes service reach Console but its checked body
-     reaches undeclared service ObjectiveC`. Sixteen objc fixtures declare
-     `reaches Console` while their bodies reach `ObjectiveC` too; the same
-     under-declaration that stopped `composed_internal_unit_arguments`.
-     Declaring `reaches Console + ObjectiveC` clears this layer.
-  3. `selected ProgramEntry Binding field Main::objc requires a selected Fused
-     provider for boundary ObjectiveC`. This is the real blocker, and it is
-     the provider-absence family already recorded on this row for
-     `Console`/`Filesystem`/`Input` on macOS -- not a fixture problem. Layers
-     1 and 2 are worth landing WITH a provider, not before one, since nothing
-     turns green until `ObjectiveC` has a selected Fused provider on
-     macos_arm64.
-
-  AND THE GAP HAS A NAMED SHAPE. The canonical toolchain provider-settlement
-  mechanism exists and is the right one -- `build-evaluation`'s
-  `provider_settlement/` mints a plan per selected target from a reviewed
-  table, joined through `with_toolchain_settled_plan` -- but it covers exactly
-  TWO boundaries (`canonical_filesystem_host.rs`, `canonical_time_host.rs`)
-  and each maps exactly ONE target:
-
-      fn toolchain_*_leaves(target_name) { "linux_x86_64" => ..., _ => &[] }
-
-  There is no settlement at all for `Console`, `ObjectiveC`, `Gui`, `Input`,
-  `Clock` or `Disk`, and none for macos_arm64 on the two that exist. So every
-  macOS host boundary fails the same way by construction, which is why 89
-  canaries fail uniformly.
-
-  Adding darwin rows is not filling in a table, and the reason is sharper than
-  "no representation exists". Both leaf types are `{ method: &str, number: i64 }`
-  -- a SYSCALL NUMBER -- and darwin's realizations are dylib symbol imports,
-  several needing an injected constant argument (`_clock_gettime_nsec_np` with
-  a clockid, `objc_msgSend` with a selector).
-  `ProviderBinding::Import` DOES already exist, so do not go looking for a
-  missing variant. It carries an `EvaluatedForeignImport`, and that type will
-  only construct `from_retained_evidence` when an `EvaluatedBindingReceipt`
-  COMMITS to the locator it names -- evidence produced by evaluating an
-  authored binding machine, exactly as `providers/external_leaf_dllimport_compile`
-  does with its `leaf_binding()`. A toolchain settlement table has no authored
-  machine and therefore no receipt, which is the same honesty rule these
-  modules state for themselves: they mint only what they can name honestly and
-  leave the rest uncovered. So the question is not which enum to add but where
-  a toolchain-settled import's receipt comes from -- an owner decision about
-  what authorizes a compiler-minted foreign binding. The three per-target time
-  constants are a separate hole: they carry no kernel mechanism at all, and
-  `canonical_time_host.rs` says they "stay uncovered until a constant binding
-  kind exists".
-
-  That single missing representation is the root of: these 89
-  `native_filesystem_canaries`, the 9 `Binding field` corpus members,
-  `time/runtime_time_host_native_darwin_exit`, and the macOS half of the
-  release-gate targets on this row. `e76de8e15f2` (2026-09-19) did not cause
-  any of it -- it replaced the zero-attachment symptom with a diagnosis naming
-  the missing selection, and said so.
-
-  So the 89 are one gap, and it is the same gap the 9 `Binding field` corpus
-  members name. Fixing provider selection for these host boundaries is worth
-  far more than its row currently suggests: it is 89 tests here plus 9 in the
-  corpus.
-
-  `build_named_inputs`, `build_snapshot_outputs` and `build_target_activation`
-  are release-gate commands on this very row, so 14 of these sit directly
-  under release closure.
-  EIGHT of those 14 are now fixed, by one change:
-  `04f74670ff5` bound the write root's overlap key at admission, but ordinary
-  compilation REPLACES that root before establishing -- `preparation.rs`
-  provisions a fresh private staging root whenever there is no session sponsor
-  -- so establishment compared two unrelated directories and refused every
-  ordinary build that reached it. The baseline now follows the root it
-  describes, re-bound at that provisioning, while every caller-supplied
-  spelling keeps the original alias comparison. `build_snapshot_outputs` is
-  41/41, `build_named_inputs` passes, and one of `build_target_activation`'s
-  six went with them. Bisected: `04f74670ff5` first bad, parent `0f75a052f09`
-  green.
-
-  The package-name snake_case migration that `runtime_value_generics` waited on
-  is finished: `grep -rhoE '(package|application)\("[a-z0-9]+(-[a-z0-9]+)+"\)'
-  omega-rust/omega/compiler/tests/` now returns nothing. Reobserve that
-  target before attributing its failures again.
+  Plan-laid repeated runtime, dynamic subslice endpoints and ranked-cycle
+  evidence remain with **PLAN-LAID-VIEWS**, **TERMINAL-SLICE-VIEW-VOCABULARY** and
+  **TERMINATION-RANKING-CHECKS** respectively; optimizer integration stays on
+  `TASKS_OPTIMIZER.md`. Their deleted test targets are leads to recover
+  behavior, not extra package commands or passing evidence.
 
 - **RC-PCC-REPLAY.** Close the release gate for artifact/`.proof` pairs:
   round-trip valid evidence, reject hostile/substituted evidence before
