@@ -1,0 +1,80 @@
+// A boundary-call parameter whose declared type is a fixed array of PRIMITIVE
+// elements has no lowering route, and neither does such a result. Reduced from
+// three GUI samples that all stop at the same call,
+// `self.gui.window_create(self.cls, self.title, ...)`, whose boundary declares
+// `class_name: [u8; 7], title: [u8; 10]`:
+// `gui/{window_app, window_demo, image_viewer}`.
+//
+//   machine take(&mut self, values: [u8; 4])        OMITTED (this fixture)
+//   machine take(&mut self, value: u8)              checks   (the near-twin)
+//   machine take(&mut self, values: &mut [u8; 4])   checks   (a reference)
+//   machine take(&mut self, values: [i32; 4096])    OMITTED
+//
+// at `call operation: boundary arguments`; a boundary machine RETURNING such
+// an array declines symmetrically at `call operation: boundary result`.
+//
+// Nothing about the call site matters -- not the element type (`u8`, `i32`,
+// `u64` alike), not the length (1, 4, 6, 7, 4096 alike), not the argument
+// count (eight scalar arguments pass), not the argument's provenance (a self
+// field and a byte-string literal both decline), and not the return direction
+// (a void-returning boundary machine declines the same way). Declaring such a
+// method and never CALLING it is fine. Only the declared parameter type at a
+// boundary call matters.
+//
+// It is narrower than "any composite by value". A record by value, and
+// `[Point; 2]` by value, also fail at a boundary -- but at a DIFFERENT phase,
+// `completion`, which is a separate decline site not isolated here. A
+// composite by value at an ORDINARY machine call passes. So the samples' gap
+// is specifically a fixed-array-of-primitive at a boundary call.
+//
+// The guards are unconditional and read directly:
+// `04_typed-trees-to-checked-trees/src/execution/terminal_unit/calls/trait_boundary_call.rs`
+// has `if validation::is_closed_primitive_array_type(program, formal) { return
+// None; }` inside the loop opened by the `boundary arguments` phase, and the
+// same guard on the substituted return type just after the `boundary result`
+// phase. `is_closed_primitive_array_type` is true exactly for a literal-length
+// `FixedArray` whose possibly-nested element is `Bool | I8..I64 | U8..U64 |
+// F32 | F64`, which matches the measured predicate including why `[Point; 2]`
+// escapes it and declines later instead. The argument guard sits BEFORE the
+// byte-sequence-literal and subslice admissions, which is why a string-literal
+// argument declines too.
+//
+// Untested prediction from that code, worth one line when repairing: a nested
+// `[[u8; 2]; 2]` should decline identically.
+//
+// Why the samples look inconsistent: `image_viewer`'s
+// `self.raw.read(self.fd, &mut self.buffer, 16384)` already checks, because it
+// passes a REFERENCE. Converting every array-typed boundary parameter in
+// `window_app` and `window_demo` to `&mut` makes both check clean; doing it
+// for `image_viewer` clears the omission and leaves only honest
+// provider-absence diagnostics.
+use omega::language::core::binding;
+
+pub boundary trait Thing {
+    machine take(&mut self, values: [u8; 4]) -> u64;
+}
+
+data ThingProvider {
+    code: u64;
+}
+
+macos_arm64 machine ThingProvider::provider_defaults(defaults: &mut ThingProvider) {
+    defaults.select_provider<Thing, ThingProvider>();
+}
+
+macos_arm64 machine ThingProvider::take(&mut self, values: [u8; 4]) -> u64 satisfies Thing::take {
+    self.code = 7;
+    transition { _ -> ret() }
+    state ret(&mut self) -> u64 { self.code }
+}
+
+data Main {
+    thing: Binding<Thing>;
+    buffer: [u8; 4];
+    result: u64;
+}
+
+machine Main::main(&mut self) reaches Thing {
+    self.buffer[0] = 1;
+    self.result = self.thing.take(self.buffer);
+}
