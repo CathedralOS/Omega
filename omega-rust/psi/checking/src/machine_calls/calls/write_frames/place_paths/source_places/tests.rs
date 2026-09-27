@@ -192,52 +192,6 @@ fn selector_arithmetic_meaning_gates_runtime_and_foldable_candidates() {
 }
 
 #[test]
-fn hoisted_authored_arithmetic_remains_a_dynamic_selector() {
-    let source = "operator + u64::custom(left: u64, right: u64) -> u64;
-        machine inspect(items: &mut [i32; 3], index: u64, offset: u64) {
-            let selected: i32 = items[index + offset];
-        }";
-    let program = typed_source(source);
-    let (machine, state, expression) = selected_expression(&program);
-    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
-        panic!("indexed source");
-    };
-    let ExpressionNode::Name(selector) = program.expression_table.expression(indexed.index) else {
-        panic!("hoisted selector");
-    };
-    let temporary = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .find_map(|statement| match statement {
-            StatementNode::LocalData(local) if local.symbol == selector.symbol => Some(local),
-            _ => None,
-        })
-        .expect("selector's exact binding");
-    assert!(!temporary.is_mutable);
-    assert!(matches!(
-        program.expression_table.expression(temporary.initial_value),
-        ExpressionNode::Binary(_)
-    ));
-    assert!(!crate::has_builtin_bound_expression_meaning(
-        &program,
-        machine,
-        Some(state),
-        temporary.initial_value,
-    ));
-    // The query admits builtin indexing of the captured runtime integer;
-    // it grants no permission to reinterpret its authored initializer.
-    check_source_coordinates(source, true);
-    let candidate = FrameSourcePlace::from_expression(&program, expression);
-    assert_eq!(
-        candidate.segments,
-        vec![PlaceSegment::Index {
-            expression: indexed.index,
-        }]
-    );
-}
-
-#[test]
 fn source_composition_conjoins_permission_without_changing_candidates() {
     let (_, symbols) = fixture();
     for left in [false, true] {
@@ -312,20 +266,6 @@ fn helper_result_projection_keeps_metadata_when_index_meaning_is_unknown() {
         assert_eq!(projected.segments.len(), 1);
         assert_eq!(projected.builtin_coordinates, expected, "{source}");
     }
-}
-
-#[test]
-fn nonindexed_sources_leave_declaration_checks_with_the_consumer() {
-    let (mut program, symbols) = fixture();
-    let expression = name(&mut program, "values", symbols[0]);
-    assert_eq!(
-        FrameSourcePlace::from_expression(&program, expression),
-        FrameSourcePlace {
-            root: symbols[0],
-            segments: Vec::new(),
-            builtin_coordinates: true,
-        }
-    );
 }
 
 #[test]

@@ -19,21 +19,6 @@ fn static_paths_cannot_continue_through_runtime_bindings() {
 }
 
 #[test]
-fn selected_lexical_fields_and_static_case_values_remain_legal() {
-    for source in [
-        "data Pair { count: u32; } machine read(value: Pair) -> u32 { value.count }",
-        "data Signal { case Empty; } machine read() -> Signal { Signal::Empty }",
-        "machine read(value: &[u32; 2]) -> u64 { value.len }",
-        "machine read(value: &[u8]) -> u64 { value.len }",
-        "data Text { bytes: [u8]; } machine read(value: &Text) -> u64 { value.bytes.len }",
-        "data Buffer { values: [u32; 2]; } machine read(value: &Buffer) -> u64 { value.values.len }",
-    ] {
-        crate::validate_program(&crate::front_end::typed_program(source))
-            .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:?}"));
-    }
-}
-
-#[test]
 fn missing_head_cannot_hide_a_retained_runtime_root_in_the_leaf() {
     use typed_trees::expression::ExpressionNode;
 

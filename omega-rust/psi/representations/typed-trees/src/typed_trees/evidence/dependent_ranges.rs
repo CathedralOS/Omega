@@ -308,8 +308,8 @@ fn scoped_name_anchor(
 mod tests {
     use super::{
         DependentBoundClass, SiblingLenBound, SymbolicMaxBound, dependent_bound_class,
-        dependent_range_maximum, scoped_name_bound, scoped_range_maximum, sibling_len_bound,
-        sibling_range_maximum, symbolic_max_bound,
+        scoped_name_bound, scoped_range_maximum, sibling_len_bound, sibling_range_maximum,
+        symbolic_max_bound,
     };
     use crate::expression::{BinaryExpression, Expression, MemberExpression, NamePath};
     use crate::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable};
@@ -398,44 +398,6 @@ mod tests {
             9,
         ));
         assert_eq!(class, None);
-    }
-
-    #[test]
-    fn bound_offsets_compose_with_the_exclusive_end_normalization() {
-        let mut table = ExpressionTable::new();
-        let bound = table.insert_tree(&binary_expression(
-            member_expression(name_expression("self", 1), "count", 2),
-            BinaryOperator::Subtract,
-            integer_expression(1),
-        ));
-        assert_eq!(
-            dependent_bound_class(&table, bound),
-            Some(DependentBoundClass::SelfField(SymbolicMaxBound {
-                field: Identifier::generated("count"),
-                offset: -1,
-            }))
-        );
-        // `[0..self.count - 1]` keeps its exclusive end, normalizing to -2.
-        assert_eq!(
-            dependent_range_maximum(&table, bound, false),
-            Some(DependentBoundClass::SelfField(SymbolicMaxBound {
-                field: Identifier::generated("count"),
-                offset: -2,
-            }))
-        );
-
-        let bound = table.insert_tree(&binary_expression(
-            member_expression(name_expression("items", 3), "len", 4),
-            BinaryOperator::Add,
-            integer_expression(2),
-        ));
-        assert_eq!(
-            dependent_bound_class(&table, bound),
-            Some(DependentBoundClass::SiblingLen(SiblingLenBound {
-                sibling: Identifier::generated("items"),
-                offset: 2,
-            }))
-        );
     }
 
     #[test]

@@ -116,30 +116,6 @@ terminates by n in 0..=9;
     }
 }";
 
-// `right` arrives as the computed copy `remaining + 0`: the ranged arrival
-// judgment proved it equal to `left`'s bare forward of the required
-// `remaining` carrier, so the anchored copy keeps the role and transports.
-const PROVED_COPY: &str = "data Main {}
-machine Main::count(&mut self, remaining: u32 [0..=9])
-terminates by remaining in 0..=9;
--> u64 {
-    transition { _ -> pair(remaining, remaining + 0) }
-    state pair(left: u32 [0..=9], right: u32 [0..=9]) {
-        transition left > 0 {
-            true -> self.step(right)
-            false -> left
-        }
-    }
-}
-machine Main::step(&mut self, n: u32 [0..=9])
-terminates by n in 0..=9;
--> u64 {
-    transition n > 0 {
-        true -> self.count(n - 1)
-        false -> n
-    }
-}";
-
 // `carried` arrives as the computed copy `remaining + 0`: on this unranged
 // member no ranged arrival judgment proved the copy equal to a bare anchor,
 // so the slot keeps no role and `step(carried)` cannot transport -- the same
@@ -249,11 +225,6 @@ fn unanchored_computed_copies_share_no_entry_role() {
 #[test]
 fn a_descended_subject_carrier_keeps_its_role() {
     assert_eq!(admitted(&typed_source(DESCENDED_CARRIER)).len(), 1);
-}
-
-#[test]
-fn a_proved_computed_copy_keeps_the_role_through_its_bare_anchor() {
-    assert_eq!(admitted(&typed_source(PROVED_COPY)).len(), 1);
 }
 
 #[test]

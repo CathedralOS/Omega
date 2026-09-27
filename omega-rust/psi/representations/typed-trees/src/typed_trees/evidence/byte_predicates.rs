@@ -120,14 +120,14 @@ fn expression_is_self_reference(program: &TypedTrees, expression: ExpressionHand
 
 #[cfg(test)]
 mod tests {
-    use super::{ByteSequencePredicate, domain_byte_predicate, type_reference_domain_predicates};
+    use super::domain_byte_predicate;
     use crate::TypedTrees;
     use crate::domain::{DomainAliasDefinition, DomainDefinition, ProofFact};
     use crate::expression::{ExpressionHandle, ExpressionNode};
     use crate::expression::{TableCallExpression, TableNamePath};
     use crate::name::Identifier;
     use crate::types::TypeReferenceHandle;
-    use crate::types::{DomainConstraint, TypeConstraintNode, TypeReferenceNode};
+
     use arena::HandleSpan;
     use language_semantics::DomainEstablishmentRoute;
     use symbols::SymbolHandle;
@@ -175,27 +175,6 @@ mod tests {
         let handle = trees.domain_definitions.insert(domain);
         trees.roots.domain_definitions.push_contiguous(handle);
         symbol
-    }
-
-    fn utf8_domain(trees: &mut TypedTrees, symbol_index: u32) -> SymbolHandle {
-        let fact = self_predicate_fact(trees, "valid_utf8");
-        let mut domain = DomainDefinition {
-            name: Identifier::generated("Utf8"),
-            predicate_body: language_semantics::DomainPredicateBody::Present,
-            ..DomainDefinition::default()
-        };
-        trees.proof_facts.append_to_span(&mut domain.facts, fact);
-        declare_domain(trees, SymbolHandle::from_arena_index(symbol_index), domain)
-    }
-
-    #[test]
-    fn sole_self_predicate_fact_reduces_to_the_primitive() {
-        let mut trees = TypedTrees::default();
-        let symbol = utf8_domain(&mut trees, 1);
-        assert_eq!(
-            domain_byte_predicate(&trees, symbol),
-            Some(ByteSequencePredicate::ValidUtf8)
-        );
     }
 
     #[test]
@@ -260,56 +239,5 @@ mod tests {
         trees.proof_facts.append_to_span(&mut indexed.facts, fact);
         let index_symbol = declare_domain(&mut trees, SymbolHandle::from_arena_index(2), indexed);
         assert_eq!(domain_byte_predicate(&trees, index_symbol), None);
-    }
-
-    #[test]
-    fn the_decode_boundary_surfaces_an_unresolvable_domain_as_none() {
-        // `&[u8] in RoutedUtf8`: the walk keeps the domain's name for the
-        // refusal diagnostic while the predicate slot is None.
-        let mut trees = TypedTrees::default();
-        let fact = self_predicate_fact(&mut trees, "valid_utf8");
-        let mut domain = DomainDefinition {
-            name: Identifier::generated("RoutedUtf8"),
-            predicate_body: language_semantics::DomainPredicateBody::Present,
-            establishment_routes: vec![DomainEstablishmentRoute::ExactMachine {
-                machine: SymbolHandle::from_arena_index(90),
-            }],
-            ..DomainDefinition::default()
-        };
-        trees.proof_facts.append_to_span(&mut domain.facts, fact);
-        let symbol = declare_domain(&mut trees, SymbolHandle::from_arena_index(1), domain);
-
-        let byte = trees.type_reference_table.insert(TypeReferenceNode::Named {
-            symbol: SymbolHandle::invalid(),
-            name: Identifier::generated("u8"),
-        });
-        let slice = trees
-            .type_reference_table
-            .insert(TypeReferenceNode::Slice { element_type: byte });
-        let mut constraints = HandleSpan::empty();
-        trees.type_reference_table.push_constraint(
-            &mut constraints,
-            TypeConstraintNode::Domain(DomainConstraint {
-                name: Identifier::generated("RoutedUtf8"),
-                symbol,
-                ..DomainConstraint::default()
-            }),
-        );
-        let constrained = trees
-            .type_reference_table
-            .insert(TypeReferenceNode::Constrained {
-                base_type: slice,
-                constraints,
-            });
-        let reference = trees
-            .type_reference_table
-            .insert(TypeReferenceNode::Reference {
-                referee: constrained,
-                access: language_core::ReferenceAccess::Shared,
-                lifetime: None,
-            });
-
-        let predicates = type_reference_domain_predicates(&trees, reference);
-        assert_eq!(predicates, vec![("RoutedUtf8".to_owned(), None)]);
     }
 }

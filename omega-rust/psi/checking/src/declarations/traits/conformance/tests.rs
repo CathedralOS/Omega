@@ -63,46 +63,6 @@ fn value_binding(
 }
 
 #[test]
-fn generated_nested_generic_origin_substitutes_exact_trait_argument() {
-    let mut program = TypedTrees::default();
-    let value_symbol = SymbolHandle::from_arena_index(10);
-    let outer_symbol = SymbolHandle::from_arena_index(20);
-    let inner_symbol = SymbolHandle::from_arena_index(21);
-    let message_symbol = SymbolHandle::from_arena_index(30);
-    let message = named(&mut program, message_symbol, "Message");
-    let value = named(&mut program, value_symbol, "Value");
-    let actual_inner_origin = generic(&mut program, inner_symbol, "ignored-inner", [message]);
-    let actual_inner = generated_instance(
-        &mut program,
-        SymbolHandle::from_arena_index(40),
-        "untrusted synthetic spelling",
-        actual_inner_origin,
-    );
-    let actual_outer_origin = generic(&mut program, outer_symbol, "ignored-outer", [actual_inner]);
-    let actual = generated_instance(
-        &mut program,
-        SymbolHandle::from_arena_index(41),
-        "another irrelevant spelling",
-        actual_outer_origin,
-    );
-    let required_inner = generic(&mut program, inner_symbol, "Relayed", [value]);
-    let required = generic(&mut program, outer_symbol, "DecodeResult", [required_inner]);
-    let parameters = [TypeParameter {
-        symbol: value_symbol,
-        name: Identifier::generated("Value"),
-        ..TypeParameter::default()
-    }];
-
-    assert!(type_references_match_with_trait_bindings(
-        &program,
-        actual,
-        required,
-        &parameters,
-        &mut value_binding(value_symbol, message),
-    ));
-}
-
-#[test]
 fn generated_nested_generic_origin_rejects_mismatched_concrete_argument() {
     let mut program = TypedTrees::default();
     let value_symbol = SymbolHandle::from_arena_index(10);

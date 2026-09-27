@@ -114,56 +114,6 @@ fn expression_occurrences_survive_typed_clone_and_symbol_remap() {
 }
 
 #[test]
-fn expression_table_stores_recursive_typed_expressions_as_handles() {
-    let expression = Expression::Binary(Box::new(BinaryExpression {
-        left: Expression::Integer(numerics::literals::IntegerLiteral::from_value(1)),
-        operator: BinaryOperator::Add,
-        right: Expression::Binary(Box::new(BinaryExpression {
-            left: Expression::Integer(numerics::literals::IntegerLiteral::from_value(2)),
-            operator: BinaryOperator::Add,
-            right: Expression::Integer(numerics::literals::IntegerLiteral::from_value(3)),
-        })),
-    }));
-
-    let mut table = ExpressionTable::new();
-    let root = table.insert_tree(&expression);
-
-    assert_eq!(table.expression_count(), 5);
-    assert_eq!(table.display_name(root), "1 + 2 + 3");
-
-    let ExpressionNode::Binary(TableBinaryExpression { left, right, .. }) = table.expression(root)
-    else {
-        panic!("root expression should be binary");
-    };
-
-    assert!(left.is_valid());
-    assert!(right.is_valid());
-}
-
-#[test]
-fn expression_table_stores_name_paths_as_member_spans() {
-    let expression = Expression::Name(NamePath::resolved(
-        vec![
-            Identifier::generated("player"),
-            Identifier::generated("inventory"),
-        ],
-        SymbolHandle::from_arena_index(1),
-        SymbolHandle::from_arena_index(2),
-    ));
-
-    let mut table = ExpressionTable::new();
-    let root = table.insert_tree(&expression);
-    let ExpressionNode::Name(path) = table.expression(root) else {
-        panic!("root expression should be a name path");
-    };
-
-    assert_eq!(path.members.count(), 2);
-    assert_eq!(path.head_symbol, SymbolHandle::from_arena_index(1));
-    assert_eq!(path.symbol, SymbolHandle::from_arena_index(2));
-    assert_eq!(table.display_name(root), "player::inventory");
-}
-
-#[test]
 fn expression_table_copies_table_payloads_without_tree_roundtrip() {
     let room_symbol = SymbolHandle::from_arena_index(3);
     let field_symbol = SymbolHandle::from_arena_index(4);

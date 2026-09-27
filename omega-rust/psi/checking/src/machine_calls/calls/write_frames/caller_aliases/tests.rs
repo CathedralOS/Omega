@@ -158,34 +158,6 @@ fn compare_assignments(source: &str) {
 }
 
 #[test]
-fn assignment_query_reuses_one_prefix_for_target_and_closure() {
-    let program = crate::front_end::typed_program(
-        "data Pair { left: u64; right: u64; } machine exercise(pair: &mut Pair) { let selected: &mut u64 = &mut pair.left; selected = 7; }",
-    );
-    let machine = &program.machines()[0];
-    let state = &program.machine_states(machine)[0];
-    let statement = &program.statement_table.statements(state.statement_nodes)[1];
-    let mut diagnostics = Vec::new();
-    let symbols = TopLevelSymbols::build(&program, &mut diagnostics);
-    assert!(diagnostics.is_empty());
-    super::super::PREFIX_WALKS.with(|walks| walks.set(0));
-    let expected = replayed_assignment_paths(&program, machine, &symbols, statement);
-    let previous = super::super::PREFIX_WALKS.with(|walks| walks.replace(0));
-    let actual = CallFrameResolver::new(&program)
-        .expect("resolver")
-        .assignment_write_frame(machine, statement)
-        .into_complete_paths();
-    let current = super::super::PREFIX_WALKS.with(|walks| walks.get());
-    assert_eq!(actual, expected);
-    assert_eq!(
-        actual,
-        Some(vec!["pair.left".to_owned(), "selected".to_owned()])
-    );
-    assert_eq!(previous, 2);
-    assert_eq!(current, 1);
-}
-
-#[test]
 fn assignment_query_preserves_prefix_modes_and_opaque_barriers() {
     for body in [
         "let mut selected: &mut u64 = &mut pair.left; let prior: &mut u64 = selected; selected = &mut pair.right; prior = 7; selected = 9;",

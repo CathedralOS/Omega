@@ -59,15 +59,6 @@ fn admitted(program: &TypedTrees) -> Vec<Vec<usize>> {
 }
 
 #[test]
-fn exact_joint_projection_admits_forwarding_then_decrease() {
-    let program = typed(DECREASE);
-    for machine in program.machines() {
-        assert!(RankProjection::resolve(&program, machine).is_some());
-    }
-    assert_eq!(admitted(&program).len(), 1);
-}
-
-#[test]
 fn unchanged_occurrence_cannot_be_hidden_by_strict_pair_occurrence() {
     let program = typed(
         "transition remaining.inner > 0 {

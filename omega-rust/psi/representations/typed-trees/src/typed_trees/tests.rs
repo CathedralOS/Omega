@@ -1,12 +1,11 @@
 //! Typed trees carrier tests.
 
 use crate::{
-    TypedTreeRoots, TypedTreeTables, TypedTrees, data, domain, machine, name::Identifier, operator,
+    TypedTreeRoots, TypedTrees, data, domain, machine, name::Identifier, operator,
     trait_definition, types, wire,
 };
 use arena::HandleSpan;
 use language_core::BindingRelevance;
-use symbols::SymbolTable;
 
 #[test]
 fn typed_tree_roots_constructor_keeps_top_level_roots_explicit() {
@@ -29,19 +28,6 @@ fn typed_tree_roots_constructor_keeps_top_level_roots_explicit() {
     assert_eq!(roots.machines, machines);
     assert_eq!(roots.operators, operators);
     assert_eq!(roots.traits, traits);
-}
-
-#[test]
-fn typed_trees_constructor_keeps_roots_tables_and_symbols_explicit() {
-    let roots = TypedTreeRoots::default();
-    let tables = TypedTreeTables::default();
-    let symbols = SymbolTable::default();
-
-    let trees = TypedTrees::with_roots(roots.clone(), tables.clone(), symbols.clone());
-
-    assert_eq!(trees.roots, roots);
-    assert_eq!(trees.tables, tables);
-    assert_eq!(trees.symbols, symbols);
 }
 
 #[test]

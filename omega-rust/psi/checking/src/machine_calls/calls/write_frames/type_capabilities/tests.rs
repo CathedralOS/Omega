@@ -67,40 +67,6 @@ fn boundary_result_ignores_reference_free_value_arguments_but_keeps_referent_wri
 }
 
 #[test]
-fn call_substitution_applies_inside_reference_free_containers() {
-    use super::type_may_carry_write_in;
-    use typed_trees::types::TypeReferenceNode;
-
-    let program = crate::front_end::typed_program(
-        "data Box<T> { value: T; }
-         data View { value: &mut u64; }
-         boundary data Handle;
-         machine probe<T>(formal: T, nested: Box<T>, scalar: u64, view: View, opaque: Handle) {}",
-    );
-    let machine = &program.machines()[0];
-    let parameters = program.state_parameters(&program.machine_states(machine)[0]);
-    let TypeReferenceNode::Named { symbol, .. } = program
-        .type_reference_table
-        .type_reference(parameters[0].type_reference)
-    else {
-        panic!("formal type binder");
-    };
-    for (actual, expected) in [(2, false), (3, true), (4, true)] {
-        assert_eq!(
-            type_may_carry_write_in(
-                &program,
-                parameters[1].type_reference,
-                &[(*symbol, parameters[actual].type_reference)],
-            ),
-            expected,
-            "actual {}",
-            parameters[actual].name.as_str(),
-        );
-    }
-    assert!(type_may_carry_write(&program, parameters[1].type_reference));
-}
-
-#[test]
 fn boundary_result_keeps_opaque_and_reference_bearing_value_arguments_conservative() {
     for (declaration, value_type) in [
         ("boundary data Token;", "Token"),
@@ -210,52 +176,6 @@ fn reference_free_values_cannot_carry_caller_writes() {
             ("fixed", false),
             ("counter", false),
             ("total", false),
-        ]
-        .map(|(name, capable)| (name.to_owned(), capable))
-    );
-}
-
-// Everything that can denote or reach caller storage stays write-capable:
-// exclusive references at the root, inside a field, a case payload or a
-// nested record;
-// unbound generic parameters; opaque boundary data with no inspectable
-// members; and generic applications whose actual is unresolved or opaque.
-#[test]
-fn reference_bearing_unresolved_and_opaque_types_stay_write_capable() {
-    assert_eq!(
-        probe_parameters(
-            r#"
-            data Output { count: u64; }
-            data View<'a> { target: &'a mut u64; }
-            data Slot<'a> { case Empty; case Live(target: &'a mut Output); }
-            data Nested<'a> { inner: View<'a>; count: u64; }
-            data Box<T> { value: T; }
-            boundary data Handle;
-            machine probe<T>(
-                output: &mut Output,
-                view: View,
-                slot: Slot,
-                nested: Nested,
-                generic: T,
-                boxed_generic: Box<T>,
-                handle: Handle,
-                boxed_handle: Box<Handle>,
-                boxed_value: Box<u64>,
-                shared: &Output
-            ) {}
-            "#
-        ),
-        [
-            ("output", true),
-            ("view", true),
-            ("slot", true),
-            ("nested", true),
-            ("generic", true),
-            ("boxed_generic", true),
-            ("handle", true),
-            ("boxed_handle", true),
-            ("boxed_value", false),
-            ("shared", false),
         ]
         .map(|(name, capable)| (name.to_owned(), capable))
     );

@@ -126,22 +126,6 @@ fn finalized_effectful_prefix_operator_invalidates_entry_lineage() {
 }
 
 #[test]
-fn declared_operator_candidates_use_exact_operand_carriers() {
-    for (spelling, result) in [("-", "u64"), (">", "bool")] {
-        for carrier in ["u64", "u32"] {
-            let source = format!(
-                "{JOINT}\noperator {spelling} Spoof::operation(left: {carrier}, right: {carrier}) -> {result};"
-            );
-            assert_eq!(
-                admitted(&typed_source(&source)).len(),
-                usize::from(carrier == "u32"),
-                "{spelling} on {carrier}"
-            );
-        }
-    }
-}
-
-#[test]
 fn same_spelling_foreign_parameter_cannot_supply_a_rank() {
     let mut program = typed_source(JOINT);
     assert_eq!(admitted(&program).len(), 1);

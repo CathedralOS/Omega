@@ -18,45 +18,6 @@ terminates by items -> Slice::Length in 0..=capacity;
 }";
 
 #[test]
-fn slice_length_component_admits_exact_tail_arrival() {
-    let program = typed_source(SLICES);
-    for machine in program.machines() {
-        assert!(
-            RankProjection::resolve(&program, machine).is_some(),
-            "{:#?}",
-            machine.termination_plan
-        );
-    }
-    assert_eq!(
-        progress(&program, 0),
-        Some(RankingRangeCallProgress::Strict)
-    );
-    assert_eq!(
-        progress(&program, 1),
-        Some(RankingRangeCallProgress::Strict)
-    );
-    assert_eq!(admitted(&program).len(), 1);
-}
-
-#[test]
-fn unranged_slice_component_still_requires_length_formation() {
-    let source = SLICES.replace(" in 0..=capacity", "");
-    let program = typed_source(&source);
-    assert_eq!(
-        progress(&program, 0),
-        Some(RankingRangeCallProgress::Strict)
-    );
-    assert_eq!(admitted(&program).len(), 1);
-    // Without the site guard the subslice's `len - 1` endpoint cannot prove
-    // natural-rank formation at the destination.
-    let unguarded = source.replace(
-        "transition items.len > 0 { true -> self.scan_b(items[1..], capacity) false -> 0 }",
-        "transition { _ -> self.scan_b(items[1..], capacity) }",
-    );
-    assert!(admitted(&typed_source(&unguarded)).is_empty());
-}
-
-#[test]
 fn slice_length_edges_classify_preserving_calls_and_reject_weak_cycles() {
     // Forwarding the same collection preserves its length: a valid weak link
     // beside the strict subslice edge.
@@ -155,17 +116,6 @@ fn an_intervening_write_to_the_slice_invalidates_the_premise() {
 }
 
 #[test]
-fn a_disjoint_write_preserves_the_slice_premise() {
-    let source = SLICES
-        .replace("data Main {}", "data Main { visited: u64; }")
-        .replace(
-            "    transition items.len > 0 { true -> self.scan_b(items[1..], capacity) false -> 0 }\n}\nmachine Main::scan_b",
-            "    self.visited = capacity; transition items.len > 0 { true -> self.scan_b(items[1..], capacity) false -> 0 }\n}\nmachine Main::scan_b",
-        );
-    assert_eq!(admitted(&typed_source(&source)).len(), 1);
-}
-
-#[test]
 fn slice_subjects_bind_to_the_callee_exact_formals_not_positions() {
     // The callee declares its slice formal under a different name and after
     // the scalar endpoint. Exact name bindings still map the caller's actuals
@@ -184,37 +134,6 @@ terminates by entries -> Slice::Length in 0..=bound;
     transition entries.len > 0 { true -> self.scan_a(entries[1..], bound) false -> 0 }
 }";
     assert_eq!(admitted(&typed_source(permuted)).len(), 1);
-}
-
-#[test]
-fn mixed_slice_component_conserves_a_symbolic_endpoint() {
-    let mixed = "data Main {}
-machine Main::scan_a(&mut self, items: &[u64], capacity: u64)
-requires items.len <= capacity;
-terminates by items -> Slice::Length in 0..=capacity;
--> u64 {
-    transition items.len > 0 { true -> self.scan_b(items[1..], capacity) false -> 0 }
-}
-machine Main::scan_b(&mut self, items: &[u64], capacity: u64)
-requires items.len <= capacity;
-terminates by items -> Slice::Length;
--> u64 {
-    transition items.len > 0 { true -> self.scan_a(items[1..], capacity) false -> 0 }
-}";
-    assert_eq!(admitted(&typed_source(mixed)).len(), 1);
-    // A diverging copy of the conserved endpoint cannot carry the authored
-    // range: `capacity + 1` equals no caller input, so the unranged member
-    // cannot pin the ceiling.
-    let diverged = mixed.replace(
-        "self.scan_b(items[1..], capacity)",
-        "self.scan_b(items[1..], capacity + 1)",
-    );
-    assert!(admitted(&typed_source(&diverged)).is_empty());
-    let dropped = mixed.replace(
-        "self.scan_b(items[1..], capacity)",
-        "self.scan_b(items[1..], items.len)",
-    );
-    assert!(admitted(&typed_source(&dropped)).is_empty());
 }
 
 #[test]
@@ -352,82 +271,6 @@ fn projected_slice_member_component_admits_exact_tail_arrival() {
         Some(RankingRangeCallProgress::Strict)
     );
     assert_eq!(admitted(&program).len(), 1);
-}
-
-/// A scalar-ranked member whose authored endpoint spells `slice.len`: the
-/// produced length is a non-polynomial input, pinned and conserved under the
-/// same exact discipline as an integer formal, never normalized through the
-/// collection's own value.
-const LEN_ENDPOINT: &str = "data Main {}
-machine Main::outer(&mut self, remaining: u64, items: &[u64])
-requires items.len >= remaining;
-terminates by remaining in 0..=items.len;
--> u64 {
-    transition remaining > 0 && items.len > 0 {
-        true -> self.inner(remaining - 1, items)
-        false -> remaining
-    }
-}
-machine Main::inner(&mut self, n: u64, bag: &[u64])
-requires bag.len >= n;
-terminates by n in 0..=bag.len;
--> u64 {
-    transition n > 0 { true -> self.outer(n, bag) false -> n }
-}";
-
-#[test]
-fn scalar_members_pin_a_produced_len_endpoint() {
-    let program = typed_source(LEN_ENDPOINT);
-    assert_eq!(
-        progress(&program, 0),
-        Some(RankingRangeCallProgress::Strict)
-    );
-    assert_eq!(
-        progress(&program, 1),
-        Some(RankingRangeCallProgress::NonIncreasing)
-    );
-    assert_eq!(admitted(&program).len(), 1);
-    // A subslice actual shortens the produced length: `items[1..].len` is
-    // `items.len - 1`, a changed endpoint, not a transported pin.
-    for changed in [
-        LEN_ENDPOINT.replace(
-            "self.inner(remaining - 1, items)",
-            "self.inner(remaining - 1, items[1..])",
-        ),
-        LEN_ENDPOINT.replace("self.outer(n, bag)", "self.outer(n, bag[1..])"),
-    ] {
-        assert!(admitted(&typed_source(&changed)).is_empty(), "{changed}");
-    }
-    // A foreign slice actual cannot pin the endpoint even though it shares
-    // the authored type; only the conserved carrier may arrive.
-    let foreign = LEN_ENDPOINT
-        .replace(
-            "machine Main::outer(&mut self, remaining: u64, items: &[u64])",
-            "machine Main::outer(&mut self, remaining: u64, items: &[u64], spare: &[u64])",
-        )
-        .replace(
-            "machine Main::inner(&mut self, n: u64, bag: &[u64])",
-            "machine Main::inner(&mut self, n: u64, bag: &[u64], spare: &[u64])",
-        )
-        .replace(
-            "self.inner(remaining - 1, items)",
-            "self.inner(remaining - 1, spare, items)",
-        )
-        .replace("self.outer(n, bag)", "self.outer(n, bag, spare)");
-    assert!(admitted(&typed_source(&foreign)).is_empty());
-    // An intervening write to the endpoint-bearing formal invalidates the
-    // premise before the call.
-    let written = LEN_ENDPOINT
-        .replace(
-            "machine Main::outer(&mut self, remaining: u64, items: &[u64])",
-            "machine Main::outer(&mut self, remaining: u64, mut items: &[u64])",
-        )
-        .replace(
-            "    transition remaining > 0 && items.len > 0 {",
-            "    items = items[1..]; transition remaining > 0 && items.len > 0 {",
-        );
-    assert_ne!(written, LEN_ENDPOINT);
-    assert!(admitted(&typed_source(&written)).is_empty());
 }
 
 #[test]

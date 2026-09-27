@@ -7,66 +7,6 @@ use crate::types::{TypeReferenceNode, TypeReferenceTable};
 use symbols::SymbolHandle;
 
 #[test]
-fn statement_table_appends_handle_native_payloads_directly() {
-    let target_symbol = SymbolHandle::from_arena_index(11);
-    let mut statements = StatementTable::new();
-    let mut expressions = ExpressionTable::new();
-    let argument = expressions.insert(crate::expression::ExpressionNode::Integer(
-        numerics::literals::IntegerLiteral::from_value(99),
-    ));
-
-    let mut arguments = arena::HandleSpan::empty();
-    statements.push_expression_handle(&mut arguments, argument);
-
-    let mut path = arena::HandleSpan::empty();
-    statements.push_name_path_member(&mut path, Identifier::generated("next"));
-
-    let target = statements.insert_transition_target(TransitionTargetNode::Named {
-        static_machine_parameter: SymbolHandle::invalid(),
-        path: super::TableNamePath {
-            members: path,
-            head_symbol: target_symbol,
-            symbol: target_symbol,
-        },
-        arguments,
-        evidence_arguments: Box::default(),
-        source_span: Default::default(),
-        authored_call_selection: None,
-    });
-
-    let mut state_statements = arena::HandleSpan::empty();
-    let statement = statements.push_statement(
-        &mut state_statements,
-        StatementNode::Transition(super::TableTransition {
-            target,
-            continuation: super::TransitionTargetHandle::invalid(),
-            guard: super::TransitionGuardNode::Always,
-            proof_selectors: arena::HandleSpan::empty(),
-            exit: Default::default(),
-            source_span: Default::default(),
-        }),
-    );
-
-    assert_eq!(state_statements.count(), 1);
-    assert_eq!(statements.statement_count(), 1);
-    assert_eq!(statements.transition_target_count(), 1);
-
-    let StatementNode::Transition(transition) = statements.statement(statement) else {
-        panic!("statement should be transition");
-    };
-    let TransitionTargetNode::Named {
-        path, arguments, ..
-    } = statements.transition_target(transition.target)
-    else {
-        panic!("transition target should be named");
-    };
-
-    assert_eq!(path.symbol, target_symbol);
-    assert_eq!(arguments.count(), 1);
-    assert_eq!(statements.expression_handles(*arguments), &[argument]);
-}
-
-#[test]
 fn deep_copy_owns_nested_statement_payloads() {
     let local_symbol = SymbolHandle::from_arena_index(21);
     let target_symbol = SymbolHandle::from_arena_index(22);

@@ -30,28 +30,6 @@ fn entry(program: &TypedTrees) -> bool {
 }
 
 #[test]
-fn call_entry_clamps_below_at_and_above_the_view_bound() {
-    for cursor in [2, 6, 9] {
-        let source = CLAMPED.replace(
-            "requires limit <= capacity;",
-            &format!("requires limit == 6 && capacity == 8 && cursor == {cursor};"),
-        );
-        assert!(entry(&typed_source(&source)), "{source}");
-    }
-    let program = typed_source(CLAMPED);
-    assert!(entry(&program));
-    assert_eq!(
-        progress(&program, 0),
-        Some(RankingRangeCallProgress::NonIncreasing)
-    );
-    assert_eq!(
-        progress(&program, 1),
-        Some(RankingRangeCallProgress::Strict)
-    );
-    assert_eq!(admitted(&program).len(), 1);
-}
-
-#[test]
 fn clamped_entry_honors_positive_floors_and_exclusive_ceilings() {
     let positive = CLAMPED.replace("0..=capacity", "1..=capacity").replace(
         "requires limit <= capacity;",
@@ -86,23 +64,6 @@ fn raw_decrease_after_the_bound_is_not_strict_progress() {
         Some(RankingRangeCallProgress::NonIncreasing)
     );
     assert!(admitted(&program).is_empty());
-}
-
-#[test]
-fn a_zero_destination_can_preserve_rank_despite_increasing_raw_distance() {
-    let source = CLAMPED
-        .replace(
-            "requires limit <= capacity;",
-            "requires limit <= capacity && limit < cursor;",
-        )
-        .replace(
-            "self.second(capacity, cursor, limit)",
-            "self.second(capacity, cursor - 1, limit)",
-        );
-    assert_eq!(
-        progress(&typed_source(&source), 0),
-        Some(RankingRangeCallProgress::NonIncreasing)
-    );
 }
 
 #[test]

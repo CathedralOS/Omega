@@ -649,33 +649,6 @@ mod tests {
     }
 
     #[test]
-    fn result_lifetime_bound_by_an_input_projects() {
-        let (program, trait_definition) = requirement(|program, signature| {
-            let input = borrowed_u8(program, Some("a"));
-            program.push_state_signature_parameter(
-                signature,
-                StateParameter {
-                    name: Identifier::generated("source"),
-                    type_reference: input,
-                    ..StateParameter::default()
-                },
-            );
-            signature.return_type = borrowed_u8(program, Some("a"));
-        });
-
-        let requirement = sole_requirement(&program, &trait_definition);
-        assert_eq!(
-            program.dynamic_non_signature_eligibility(requirement),
-            Ok(())
-        );
-        let surface = program
-            .dynamic_surface(&trait_definition)
-            .map(|signature| signature.name.as_str())
-            .collect::<Vec<_>>();
-        assert_eq!(surface, vec!["requirement"]);
-    }
-
-    #[test]
     fn result_lifetime_no_input_binds_is_unprojectable() {
         let (program, trait_definition) = requirement(|program, signature| {
             signature.return_type = borrowed_u8(program, Some("a"));

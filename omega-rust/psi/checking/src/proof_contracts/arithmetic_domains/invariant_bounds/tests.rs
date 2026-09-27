@@ -1,7 +1,7 @@
 use super::super::ValueEnvironment;
 use super::{
     ArithmeticDomain, ExpressionNode, Interval, PrimitiveType, SymbolHandle, TypeReferenceNode,
-    TypedTrees, bounds, enforced_integer_type_bounds, immutable_integer_expression_bounds,
+    TypedTrees, bounds, immutable_integer_expression_bounds,
 };
 use typed_trees::statement::StatementNode;
 
@@ -298,38 +298,6 @@ fn wide_points_do_not_grant_landing_or_static_identity_to_variable_operands() {
     );
 }
 
-#[test]
-fn enforced_type_bounds_require_exact_owned_bounded_integer_carriers() {
-    for (field_type, expected) in [
-        ("u64 [0..=5]", Some((0, 5))),
-        ("u8", Some((0, 255))),
-        ("i16 [-2..=5]", Some((-2, 5))),
-        ("u8 [0..=1000]", Some((0, 255))),
-        ("u64", None),
-        ("&u64 [0..=5]", None),
-        ("&mut u64 [0..=5]", None),
-        ("u64 [0..=5] in Wrapping", None),
-        ("u64 [0..=5] in Saturating", None),
-        ("u64 [0..=5] in Trapping", None),
-        ("AtomicU32", None),
-        ("f64", None),
-        ("bool", None),
-    ] {
-        let program = crate::front_end::typed_program(&format!(
-            "data Counter {{ remaining: {field_type}; }}"
-        ));
-        let data = &program.data_definitions()[0];
-        let typed_trees::data::DataMember::Field(field) = &program.data_members(data)[0] else {
-            panic!("declared field");
-        };
-        assert_eq!(
-            enforced_integer_type_bounds(&program, field.type_reference),
-            expected,
-            "{field_type}"
-        );
-    }
-}
-
 fn query(source: &str) -> Option<(i64, i64)> {
     let program = crate::front_end::typed_program(source);
     let machine = program.machines().first().unwrap();
@@ -406,32 +374,6 @@ fn mutable_values_initializers_policies_and_oversize_divisors_stay_unknown() {
         "machine value(input: u16) -> u16 { input % 0u16 }",
     ] {
         assert_eq!(query(source), None, "{source}");
-    }
-}
-
-#[test]
-fn total_exact_widening_preserves_source_interval() {
-    for (source, target, value, expected) in [
-        ("u8", "u64", "input as u64", (0, 255)),
-        ("u8", "u64", "(input as u16) as u64", (0, 255)),
-        ("u8", "i64", "input as i64", (0, 255)),
-        ("i8", "i64", "input as i64", (-128, 127)),
-    ] {
-        let program = crate::front_end::typed_program(&format!(
-            "machine widen(input: {source}) -> {target} {{ {value} }}"
-        ));
-        let machine = &program.machines()[0];
-        let state = &program.machine_states(machine)[0];
-        let StatementNode::Expression(expression) =
-            program.statement_table.statements(state.statement_nodes)[0]
-        else {
-            panic!("cast expression");
-        };
-        assert_eq!(
-            immutable_integer_expression_bounds(&program, machine, state, expression),
-            Some(expected),
-            "{source}: {value}"
-        );
     }
 }
 

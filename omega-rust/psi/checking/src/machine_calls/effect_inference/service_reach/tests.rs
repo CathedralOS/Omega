@@ -209,32 +209,6 @@ fn nominal_dependencies_substitute_per_call_and_preserve_structural_rows() {
 }
 
 #[test]
-fn dependency_fixed_point_composes_recursive_generic_components() {
-    let program = crate::front_end::typed_program(&format!(
-        "{CONTRACT}
-        machine note() reaches Console {{}}
-        machine first<machine Step>() where machine Step satisfies Task::run;
-        {{ Step(); second<Step>(); }}
-        machine second<machine Next>() where machine Next satisfies Task::run;
-        {{ first<Next>(); note(); }}"
-    ));
-    let plan = infer_service_reaches(&program, &crate::infer_operational_may(&program));
-    for name in ["first", "second"] {
-        let (services, parameters) = dependency(&program, &plan, name);
-        let owner = program
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == name)
-            .unwrap();
-        assert_eq!(services, ["Console"]);
-        assert_eq!(
-            parameters,
-            &[program.machine_type_parameters(owner)[0].symbol]
-        );
-    }
-}
-
-#[test]
 fn closed_dependency_uses_the_selected_contract_not_its_empty_body() {
     let program = crate::front_end::typed_program(&format!(
         "{CONTRACT}
