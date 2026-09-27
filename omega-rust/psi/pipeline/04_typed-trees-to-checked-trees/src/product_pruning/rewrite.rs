@@ -61,9 +61,12 @@ pub(super) fn apply_typed_pruning(
     program
         .proof_output_calls
         .retain(|row| retained.contains(&row.machine_symbol));
+    // Calling plans also belong to trait requirement signatures, which never
+    // enter the machine roster. Keep their evaluated commitments; only a
+    // plan whose requirement was actually pruned loses its identity.
     program
         .boundary_calling_plans
-        .retain(|row| retained.contains(&row.requirement_machine));
+        .retain(|row| !pruned.contains(&row.requirement_machine));
     program
         .ranking_expression_custody
         .retain(|row| retained.contains(&row.machine));
