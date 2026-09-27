@@ -21,7 +21,7 @@ machine Random::next_u32(
     state.calls = state.calls + 1;
 
     transition {
-        _ -> (narrow_u64_to_u32_wrapping(state.seed >> 32))
+        _ -> (narrow_u64_to_u32_wrapping((state.seed >> 32) as u64))
     }
 }
 
@@ -33,7 +33,7 @@ machine Random::range(
     let raw: u32 in Wrapping = self.next_u32(state);
 
     transition {
-        _ -> (raw % exclusive_max)
+        _ -> ((raw % exclusive_max) as u32)
     }
 }
 

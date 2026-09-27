@@ -65,14 +65,14 @@ data Main {
 // Value-returning machine that reads self.st.multiplier.
 machine Main::scale(&mut self, n: i32 in Wrapping) -> i32 {
     transition {
-        _ -> (n * self.st.multiplier)
+        _ -> ((n * self.st.multiplier) as i32)
     }
 }
 
 // Value-returning machine that reads self.st.addend.
 machine Main::offset_add(&mut self, n: i32 in Wrapping) -> i32 {
     transition {
-        _ -> (n + self.st.addend)
+        _ -> ((n + self.st.addend) as i32)
     }
 }
 
