@@ -17,6 +17,7 @@ installed-writer = [
 ]
 
 [dependencies]
+terminal-psi = { path = "../../../../psi/representations/terminal-psi" }
 calling-conventions = { path = "../../calling-conventions" }
 executable-installation = { path = "../../runtime/executable-installation", optional = true }
 post-handoff-writer-plan = { path = "../post-handoff-writer-plan", optional = true }
@@ -33,5 +34,6 @@ language-semantics = { path = "../../../../psi/foundation/language-semantics" }
 sha2 = "0.10.9"
 
 [dev-dependencies]
+semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 arena = { path = "../../../../psi/foundation/arena" }
 checked-trees = { path = "../../../../psi/representations/checked-trees" }
