@@ -592,8 +592,14 @@ machines are inert until granted. A package cannot grant its own claims on
 behalf of its consumers. Development use is not consumer or release acceptance.
 
 A boundary statement the checker can refute against established bounds, domains,
-or another accepted statement rejects despite a grant. This is not a guarantee
-that the complete assumption set is consistent. These rules belong to
+or another accepted statement rejects despite an ordinary grant. An explicitly
+accepted [root-assumed runtime binding](chapter_19_capabilities_effects_boundaries.md#root-assumed-binding-contracts)
+may assume a refutable connection between two separately checked contracts;
+the contradiction remains audit-visible and every dependent guarantee remains
+conditional. This exception supplies neither an ordinary checked conformance
+nor an assumption usable for build-time computation. It does not relax
+mathematical axiom admission. None of these checks guarantees that the complete
+assumption set is consistent. These rules belong to
 [receiving policy](../spec/proofs/contracts.md#axioms-and-receiving-policy).
 
 Admission means trusting the claim, not trusting it only after a runtime check.

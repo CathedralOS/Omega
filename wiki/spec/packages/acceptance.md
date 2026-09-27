@@ -85,6 +85,15 @@ admitted difference and any authority introduced, runtime scope, dependency
 path, and old/new acceptance. It is never an ordinary provider-selection change
 that merely recommends review.
 
+The root may explicitly assume the semantic connection even when the checker
+can refute it. Audit must show the exact conflicting statements, mapped subjects
+and supporting refutation facts, not describe a known contradiction as only a
+missing proof. It remains the same extremely-high-risk relationship and requires
+the same exact acceptance, not a second override facility. Acceptance records
+the consumer's trust decision; it neither proves the connection nor makes
+resulting conditional guarantees unconditional. Ordinary refutable grants and
+structural/operational incompatibilities remain rejected.
+
 Root authorization is not itself package acceptance. Require an explicit project
 decision for the exact relationship and its selected implementation/dependency
 identity. Changed contracts, mapping, selected code or semantic dependency closure
