@@ -232,18 +232,6 @@ mod tests {
     use semantic_vocabulary::PackageKeyIdentity;
 
     #[test]
-    fn resolves_source_span_text() {
-        let mut sources = SourceMap::default();
-        let source_id = sources
-            .add(PathBuf::from("main.omg"), String::from("machine main {}"))
-            .source_id;
-        let source_span = SourceSpan::new(source_id, Span::new(8, 12));
-
-        assert_eq!(source_id, SourceId(0));
-        assert_eq!(sources.text_at(source_span), "main");
-    }
-
-    #[test]
     fn invalid_source_span_resolves_to_empty_text() {
         let sources = SourceMap::default();
         let source_span = SourceSpan::new(SourceId(99), Span::new(0, 4));

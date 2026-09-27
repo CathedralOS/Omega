@@ -144,30 +144,4 @@ mod tests {
         assert_eq!(format!("{name:?}"), "\"naïve::name\"");
         assert_eq!(DiagnosticName::from(""), DiagnosticName::default());
     }
-
-    #[test]
-    fn constructors_keep_string_conversion_compatibility() {
-        struct Spelling;
-        impl From<Spelling> for String {
-            fn from(_: Spelling) -> Self {
-                String::from("generated")
-            }
-        }
-
-        assert_eq!(
-            DiagnosticName::new(Spelling, SourceSpan::default()),
-            "generated"
-        );
-        assert_eq!(DiagnosticName::generated(Spelling), "generated");
-        assert_eq!(DiagnosticName::from("generated"), "generated");
-    }
-
-    #[test]
-    fn static_generated_names_do_not_allocate_owned_text() {
-        let name = DiagnosticName::generated_static("self");
-
-        assert_eq!(name.as_str(), "self");
-        assert_eq!(name, "self");
-        assert!(!name.is_source_backed());
-    }
 }

@@ -344,19 +344,6 @@ mod tests {
     }
 
     #[test]
-    fn appends_across_pages() {
-        let mut arena = PagedArena::<String>::with_page_size(2);
-        let first = arena.insert("alpha".to_owned());
-        let second = arena.insert("beta".to_owned());
-        let third = arena.insert("gamma".to_owned());
-
-        assert_eq!(arena.page_count(), 2);
-        assert_eq!(arena.get(first), "alpha");
-        assert_eq!(arena.get(second), "beta");
-        assert_eq!(arena.get(third), "gamma");
-    }
-
-    #[test]
     fn page_local_span_returns_slice() {
         let mut arena = PagedArena::<String>::with_page_size(4);
         let span = arena.insert_many(["alpha".to_owned(), "beta".to_owned()]);

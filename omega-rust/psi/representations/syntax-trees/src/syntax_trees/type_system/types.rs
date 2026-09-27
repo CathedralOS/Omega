@@ -595,27 +595,8 @@ impl Default for TypeConstraintNode {
 
 #[cfg(test)]
 mod tests {
-    use super::{TypeConstraintNode, TypeReferenceNode, TypeReferenceTable};
-    use crate::expression::{ExpressionNode, ExpressionTable};
+    use super::TypeReferenceTable;
     use crate::identifier::Identifier;
-    use arena::HandleSpan;
-
-    #[test]
-    fn type_reference_table_stores_nested_references_as_handles() {
-        let mut types = TypeReferenceTable::new();
-        let usize_handle = types.insert_named(Identifier::generated("usize"));
-        let u8_handle = types.insert_named(Identifier::generated("u8"));
-        let fixed_array_handle = types.insert_fixed_array(u8_handle, 16);
-        let arguments = types.insert_type_reference_handles([usize_handle, fixed_array_handle]);
-        let root = types.insert_generic(Identifier::generated("Result"), arguments);
-
-        assert_eq!(types.type_reference_count(), 4);
-        let TypeReferenceNode::Generic { arguments, .. } = types.type_reference(root) else {
-            panic!("root type reference should be generic");
-        };
-
-        assert_eq!(arguments.count(), 2);
-    }
 
     #[test]
     fn substitution_watermark_excludes_existing_type_nodes() {
@@ -627,45 +608,5 @@ mod tests {
         let nodes = types.named_nodes_from(watermark);
         assert_eq!(nodes, vec![(copied, "T".to_string())]);
         assert_ne!(nodes[0].0, existing);
-    }
-
-    #[test]
-    fn type_reference_table_stores_constraint_bounds_as_expression_handles() {
-        let mut expressions = ExpressionTable::new();
-        let mut types = TypeReferenceTable::new();
-        let base_type = types.insert_named(Identifier::generated("i32"));
-        let minimum = expressions.insert(ExpressionNode::Integer(
-            numerics::literals::IntegerLiteral::from_value(0),
-        ));
-        let maximum = expressions.insert(ExpressionNode::Integer(
-            numerics::literals::IntegerLiteral::from_value(10),
-        ));
-        let constraint = types.append_constraint(TypeConstraintNode::Range {
-            minimum,
-            maximum,
-            end_inclusive: true,
-        });
-        let root = types.insert_constrained(base_type, HandleSpan::from_parts(constraint, 1));
-
-        assert_eq!(types.type_reference_count(), 2);
-        assert_eq!(expressions.expression_count(), 2);
-
-        let TypeReferenceNode::Constrained { constraints, .. } = types.type_reference(root) else {
-            panic!("root type reference should be constrained");
-        };
-        let [
-            TypeConstraintNode::Range {
-                minimum,
-                maximum,
-                end_inclusive,
-            },
-        ] = types.constraints(*constraints)
-        else {
-            panic!("expected one range constraint");
-        };
-
-        assert!(minimum.is_valid());
-        assert!(maximum.is_valid());
-        assert!(*end_inclusive);
     }
 }

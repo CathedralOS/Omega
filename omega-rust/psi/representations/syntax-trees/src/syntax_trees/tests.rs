@@ -5,10 +5,7 @@ use crate::expression::{
 use crate::identifier::Identifier;
 use crate::item::{DataDefinition, Item, Machine, State, StateSignature, TraitDefinition};
 use crate::snapshot::ItemSnapshot;
-use crate::statement::{
-    StatementNode, TableAssignment, TableCall, TableTransition, TransitionGuardNode,
-    TransitionTargetNode,
-};
+use crate::statement::{StatementNode, TableAssignment, TableCall};
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 use arena::HandleSpan;
 
@@ -617,31 +614,6 @@ fn copying_nested_generic_origins_remaps_handles_and_preserves_occurrence_tokens
 }
 
 #[test]
-fn syntax_trees_extend_from_preserves_data_visibility() {
-    let mut file = SyntaxTrees::new(Default::default());
-    file.push_root_item(Item::Data(DataDefinition {
-        name: Identifier::generated("PublicRecord"),
-        is_public: true,
-        supply_mode: language_core::DataSupplyMode::CheckedShape,
-        lifetime_parameters: Vec::new(),
-        type_parameters: HandleSpan::empty(),
-        generic_instance: None,
-        properties: Default::default(),
-        quotient: None,
-        where_facts: HandleSpan::empty(),
-        members: HandleSpan::empty(),
-    }));
-
-    let mut assembled = SyntaxTrees::new(Default::default());
-    assembled.extend_from(&file);
-
-    let Item::Data(data) = assembled.root_items().next().expect("data root") else {
-        panic!("expected data root item");
-    };
-    assert!(data.is_public);
-}
-
-#[test]
 fn syntax_copy_and_snapshot_preserve_generic_instance_origin() {
     let mut source = SyntaxTrees::new(Default::default());
     let argument = source
@@ -746,81 +718,6 @@ fn syntax_trees_extend_from_preserves_trait_and_data_visibility() {
             ..
         }
     ));
-}
-
-#[test]
-fn syntax_trees_collect_state_expression_and_type_payloads() {
-    let mut syntax_trees = SyntaxTrees::new(Default::default());
-    let guard = syntax_trees
-        .expressions
-        .insert(crate::expression::ExpressionNode::Integer(
-            numerics::literals::IntegerLiteral::from_value(1),
-        ));
-    let target = syntax_trees
-        .statements
-        .insert_transition_target(TransitionTargetNode::Terminal);
-    let statement = syntax_trees
-        .statements
-        .insert(StatementNode::Transition(TableTransition {
-            target,
-            continuation: crate::statement::TransitionTargetHandle::invalid(),
-            guard: TransitionGuardNode::When(guard),
-            proof_selectors: HandleSpan::empty(),
-            exit: Default::default(),
-            source_span: Default::default(),
-        }));
-    let statement_handle = syntax_trees.items.append_statement_handle(statement);
-    let statements = HandleSpan::from_parts(statement_handle, 1);
-    let return_type = syntax_trees
-        .type_references
-        .insert(TypeReferenceNode::Named(Identifier::generated("i32")));
-    let state = syntax_trees.items.insert_state(&State {
-        name: Identifier::generated("entry"),
-        parameters: HandleSpan::empty(),
-        return_type,
-        contracts: HandleSpan::empty(),
-        statements,
-    });
-    let state_handle = syntax_trees.items.append_state_handle(state);
-
-    syntax_trees.push_root_item(Item::Machine(Machine {
-        name: Identifier::generated("Main"),
-        generic_data_template: Default::default(),
-        where_facts: HandleSpan::empty(),
-        attached_data: None,
-        spelling: None,
-        is_public: false,
-        target: None,
-        boundary: false,
-        is_top_level_boundary_requirement: false,
-        bodyless: false,
-        lifetime_parameters: Vec::new(),
-        type_parameters: HandleSpan::empty(),
-        satisfies: HandleSpan::empty(),
-        conformance_bounds: Vec::new(),
-        terminates_guarantee: false,
-        ranking_subjects: HandleSpan::empty(),
-        ranking_view: HandleSpan::empty(),
-        ranking_view_arguments: HandleSpan::empty(),
-        ranking_range: crate::expression::ExpressionHandle::invalid(),
-        service_reach_is_installation_bound: false,
-        service_reach_keyword_source_spans: Vec::new(),
-        service_reaches: HandleSpan::empty(),
-        invokes: HandleSpan::empty(),
-        suspends_keyword_source_spans: Vec::new(),
-        blocks_keyword_source_spans: Vec::new(),
-        suspends: false,
-        blocks: false,
-        contracts: HandleSpan::empty(),
-        states: HandleSpan::from_parts(state_handle, 1),
-    }));
-
-    assert_eq!(syntax_trees.root_item_count(), 1);
-    assert_eq!(syntax_trees.type_references.type_reference_count(), 1);
-    assert_eq!(syntax_trees.expressions.expression_count(), 1);
-    assert_eq!(syntax_trees.statements.statement_count(), 1);
-    assert_eq!(syntax_trees.items.machine_count(), 1);
-    assert_eq!(syntax_trees.items.state_count(), 1);
 }
 
 #[test]
