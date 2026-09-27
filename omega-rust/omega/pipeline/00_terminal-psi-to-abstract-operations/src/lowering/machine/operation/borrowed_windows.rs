@@ -149,16 +149,15 @@ fn lower_store(
 /// `borrowed_field_store_root_type` apply. The abstract operation carries the
 /// authority the verifier admitted rather than a bare place.
 fn borrowed_window_root(machine: &TerminalMachine, place: PlaceId) -> Option<StructuralWindowRoot> {
-    if let Some(parameter) = exact_parameter(machine, place) {
-        if parameter.access == StructuralAccess::MutableBorrow
-            && matches!(
-                parameter.multiplicity,
-                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-            )
-            && has_empty_structural_custody(machine, place)
-        {
-            return Some(StructuralWindowRoot::BorrowedParameter(parameter));
-        }
+    if let Some(parameter) = exact_parameter(machine, place)
+        && parameter.access == StructuralAccess::MutableBorrow
+        && matches!(
+            parameter.multiplicity,
+            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+        )
+        && has_empty_structural_custody(machine, place)
+    {
+        return Some(StructuralWindowRoot::BorrowedParameter(parameter));
     }
     machine
         .blocks

@@ -1016,10 +1016,13 @@ pub(super) fn structural_scalar_graph_signature(
             || !matches!(
                 (parameter.access, parameter.multiplicity),
                 (_, Multiplicity::Unrestricted)
-                    | (CheckedStructuralAccess::Owned
-                    | CheckedStructuralAccess::SharedBorrow
-                    | CheckedStructuralAccess::MutableBorrow
-                    | CheckedStructuralAccess::WriteOnlyBorrow, Multiplicity::Affine)
+                    | (
+                        CheckedStructuralAccess::Owned
+                            | CheckedStructuralAccess::SharedBorrow
+                            | CheckedStructuralAccess::MutableBorrow
+                            | CheckedStructuralAccess::WriteOnlyBorrow,
+                        Multiplicity::Affine
+                    )
             )
             || !parameter.qualifications.is_empty()
     }) {

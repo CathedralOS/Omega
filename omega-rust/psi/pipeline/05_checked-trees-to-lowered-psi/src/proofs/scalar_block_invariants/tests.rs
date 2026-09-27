@@ -251,4 +251,3 @@ fn an_exhausted_roster_round_budget_declines_inference_without_rejecting() {
     )
     .expect("the module still verifies");
 }
-
