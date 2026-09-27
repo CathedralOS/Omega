@@ -1391,6 +1391,7 @@ version = "0.1.0"
 dependencies = [
  "bounded-process",
  "cap-fs-ext",
+ "cap-primitives",
  "cap-std",
  "nix",
  "platform-custody",
@@ -1420,6 +1421,7 @@ name = "platform-custody"
 version = "0.1.0"
 dependencies = [
  "cap-fs-ext",
+ "cap-primitives",
  "cap-std",
 ]
 
