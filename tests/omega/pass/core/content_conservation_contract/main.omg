@@ -22,6 +22,7 @@
 // `main` drives it and disposes of what comes back.
 use omega::language::core::content;
 use omega::language::core::binding;
+use omega::language::core::external_binding;
 
 pub data ByteUnit {}
 
@@ -57,6 +58,29 @@ pub boundary trait RegionSplit {
 pub boundary trait RegionSink {
     machine accept(piece: Region in Owned);
 }
+
+// The selected provider pair the entry's `Binding` fields demand. A
+// conservation boundary's provider is a trust anchor: `split`'s partition
+// and `accept`'s custody exit are admitted leaves the checker cannot derive
+// in ordinary code -- the `separate` law is authored contract, never a
+// construction a checked body could prove.
+data RegionSplitProvider { }
+
+machine RegionSplitProvider::split(whole: Region in Owned) -> SplitResult
+satisfies RegionSplit::split
+via ForeignBinding::CompilerIntrinsic
+ensures
+    Owned::content(old(&whole))
+    == separate(
+        Owned::content(&result.left),
+        Owned::content(&result.right),
+    );
+
+data RegionSinkProvider { }
+
+machine RegionSinkProvider::accept(piece: Region in Owned)
+satisfies RegionSink::accept
+via ForeignBinding::CompilerIntrinsic;
 
 data Main {
     partition: Binding<RegionSplit>;
