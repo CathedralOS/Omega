@@ -170,6 +170,30 @@ debt to burn down. Never allowed: a fail fixture that stops rejecting
 (unsound acceptance), a crash, or a native program that builds and exits
 differently from its golden. Those block landing.
 
+## Sample check gate
+
+`tools/sample_gate.py` is the samples' cheap counterpart to the corpus gate.
+`omega refresh-samples` builds every sample natively, which is the release
+gate; this one runs `omega --check` over each `samples/**` project carrying a
+`build.omg` (except `apps/squalr`), in parallel, into a scratch build
+directory, and groups the first diagnostic per sample by cause.
+
+```bash
+python3 tools/sample_gate.py                        # the whole tree
+python3 tools/sample_gate.py --filter text,gui/     # matching paths
+python3 tools/sample_gate.py --cli target/debug/omega --write-results out.json
+```
+
+It writes nothing into the working tree and needs no native toolchain, so it
+is the sweep to run before reporting sample coverage. About twelve minutes
+on eight workers for all 148 projects.
+
+A sample is the product's own customer, so a cluster names a capability the
+language owes rather than a fixture to repair. Read the
+`provider absent on this host` cluster before treating a refusal as
+breakage: a sample declaring a provider this host does not supply is
+reporting the host.
+
 ## Bootstrap gates
 
 Bootstrap gates are `sh` scripts, not Cargo tests, and self-skip when `python3`

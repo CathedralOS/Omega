@@ -622,14 +622,59 @@ the complete product bar; focused successes below do not establish that baseline
   target that is gone. Its cohort was also 33 of the 148 sample projects that
   carry a `build.omg`, so it never measured the tree.
 
-  A direct CLI slice of the whole tree, every seventh project in path order,
-  all 22 measured: 9 check clean and 13 refuse -- 7 at the unit-plan
-  omission, 5 at "selected ProgramEntry Binding field `Main::clock` requires
-  a selected Fused provider for boundary `Clock`", and 1 at
-  IMPLICIT-STORE-CONVERSION's new refusal. The unit-plan omission still
-  leads over the whole tree, as it does over the curated cohort, though by a
-  smaller margin; the Clock provider is the second cause and is not named in
-  the sweep below at all.
+  **The complete sweep exists now, and so does a route to refresh it.**
+  `tools/sample_gate.py` replaces the deleted test target: it runs
+  `omega --check` over every `samples/**` project carrying a `build.omg`
+  except `apps/squalr`, in parallel, into a scratch build directory, and
+  groups the first diagnostic per sample. About twelve minutes on eight
+  workers, no native build and no writes to the tree.
+
+  Measured on macOS arm64 at `cf9d37120c6`: **148 projects, 85 check, 63
+  refuse**, in seven causes. The earlier one-in-seven slice guessed the
+  ordering right but not the shape -- IMPLICIT-STORE-CONVERSION is the
+  SECOND cause over the whole tree, not a singleton, and the Clock provider
+  is third.
+
+  - **unit-plan omission, 27** -- "rejoins 0 Terminal attachment
+    identities": `cli/{algorithms/dutch_flag, arithmetic/dual_float,
+    basics/{brightness_control,text_greeting,unit_converter},
+    collections/{entity_list,matrix_multiply}, probes/value_call_in_expr,
+    rendering/bouncing_particles, simulation/{grid_walk,particle_sim},
+    systems/{descriptor_walk,elapsed_timer,file_journal,file_permissions,
+    note_vault,status_report,vending_machine,wire_protocol},
+    text/{parse_int,roman_numeral,string_catalog,string_hash,text_padding}}`
+    and `gui/{image_viewer,window_app,window_demo}`. Route to
+    **STATE-LOCAL-VALUE-FRONTIER** by the operation each names, not by the
+    shared symptom.
+  - **implicit store conversion, 17** -- **IMPLICIT-STORE-CONVERSION**'s
+    acceptance says every sample storing across integer types or policies
+    spells the cast, and these do not: `cli/{algorithms/{longest_run,
+    maze_flood}, arithmetic/{collatz_sequence,prime_sieve},
+    basics/multiplication_table, collections/heat_grid,
+    games/{dice_histogram,dungeon_crawler_cli},
+    interpreters/{rpn_calculator,stack_calculator},
+    probes/self_mutation_between_calls, rendering/histogram,
+    simulation/{game_of_life,rule_30}, text/{luhn_checksum,
+    substring_search}}` and `gui/windowed_calculator`. Mechanical repair;
+    `samples/cli` and `samples/gui` are **RC-NATIVE-MATRIX-MACOS-ARM64**'s
+    right now.
+  - **provider absent on this host, 9** -- every one is
+    `Main::clock` wanting a Fused `Clock`: `cli/{algorithms/
+    {binary_search_viz,sort_visualizer}, rendering/{bouncing_console,
+    ripple_field,tick_marquee}, simulation/{cellular_automaton,
+    game_of_life_glider,langtons_ant,random_walk}}`. Not sample defects.
+  - **nested value call, 4** -- the `operator` to `machine` migration
+    reaching authored arithmetic:
+    `cli/{basics/temperature_convert, rendering/{bouncing_ball_2d,
+    mandelbrot,mandelbrot_zoom}}`. **OPERATOR-BOUNDARY-CALLS**.
+  - **boundary provider route unimplemented, 3** --
+    `cli/arithmetic/{fibonacci_golden,sensor_min_max,vector_distance}` on
+    `F64::{from_i32,minimum,maximum}`. **OPERATOR-BOUNDARY-CALLS**.
+  - **default-domain field requirement, 2** -- `cli/basics/print_number`
+    ("return from `Main::main`: `self.out` requires `[u8; N]::Utf8`") and
+    `cli/rendering/dungeon_render`.
+  - **non-tail self recursion, 1** -- `cli/arithmetic/stats_compute`.
+
   `cli/simulation/game_of_life_glider` alone took over two minutes to check,
   which belongs with `windowed_calculator`'s stall below rather than with
   its own refusal.
