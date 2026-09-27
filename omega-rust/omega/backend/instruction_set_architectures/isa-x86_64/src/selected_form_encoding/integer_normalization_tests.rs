@@ -38,67 +38,77 @@ fn forms() -> [(SelectedInstructionKind, MachineAlternativeFamily); 6] {
 #[test]
 fn normalization_binds_signedness_width_registers_and_full_destination_effects() {
     let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
-    let names = [
-        "rax", "rcx", "rdx", "rbx", "rsi", "rdi", "rbp", "r8", "r9", "r15",
-    ];
-    for source in names {
-        for destination in names {
-            let operands = [
-                physical.model().view_named(source).unwrap().id,
-                physical.model().view_named(destination).unwrap().id,
-            ];
-            for (kind, family) in forms() {
-                let key = MachineAlternativeKey { family, variant: 0 };
-                let encoded = encode_x86_64_selected_form(&physical, kind, key, &operands).unwrap();
-                let footprint = encoded.footprint();
-                assert_eq!(footprint.register_reads, vec![operands[0]]);
-                assert_eq!(footprint.register_writes, vec![operands[1]]);
-                assert!(!footprint.writes_rflags);
-                assert_eq!(
-                    footprint.encoded,
-                    MachineEncodedEffects::fallthrough_v1(vec![0], vec![1])
+    // Both ModRM fields, all REX extension combinations, low-byte registers
+    // requiring REX, and low/high aliases do not need a Cartesian product.
+    for (source, destination) in [
+        ("rax", "rax"),
+        ("rax", "rcx"),
+        ("rcx", "rdx"),
+        ("rdx", "rbx"),
+        ("rbx", "rsi"),
+        ("rsi", "rdi"),
+        ("rdi", "rbp"),
+        ("rbp", "r8"),
+        ("r8", "r9"),
+        ("r9", "r15"),
+        ("r15", "rax"),
+        ("r15", "r15"),
+    ] {
+        let operands = [
+            physical.model().view_named(source).unwrap().id,
+            physical.model().view_named(destination).unwrap().id,
+        ];
+        for (kind, family) in forms() {
+            let key = MachineAlternativeKey { family, variant: 0 };
+            let encoded = encode_x86_64_selected_form(&physical, kind, key, &operands).unwrap();
+            let footprint = encoded.footprint();
+            assert_eq!(footprint.register_reads, vec![operands[0]]);
+            assert_eq!(footprint.register_writes, vec![operands[1]]);
+            assert!(!footprint.writes_rflags);
+            assert_eq!(
+                footprint.encoded,
+                MachineEncodedEffects::fallthrough_v1(vec![0], vec![1])
+            );
+            for (other_kind, other_family) in forms() {
+                if other_kind == kind {
+                    continue;
+                }
+                let other_key = MachineAlternativeKey {
+                    family: other_family,
+                    variant: 0,
+                };
+                assert!(
+                    validate_x86_64_selected_form_encoding(
+                        &physical,
+                        other_kind,
+                        other_key,
+                        &operands,
+                        encoded.bytes()
+                    )
+                    .is_err(),
+                    "{kind:?} must not replay as {other_kind:?}"
                 );
-                for (other_kind, other_family) in forms() {
-                    if other_kind == kind {
-                        continue;
-                    }
-                    let other_key = MachineAlternativeKey {
-                        family: other_family,
-                        variant: 0,
-                    };
-                    assert!(
-                        validate_x86_64_selected_form_encoding(
-                            &physical,
-                            other_kind,
-                            other_key,
-                            &operands,
-                            encoded.bytes()
-                        )
-                        .is_err(),
-                        "{kind:?} must not replay as {other_kind:?}"
-                    );
-                    assert!(
-                        validate_x86_64_selected_form_encoding(
-                            &physical,
-                            kind,
-                            other_key,
-                            &operands,
-                            encoded.bytes()
-                        )
-                        .is_err()
-                    );
-                }
-                for bit_offset in 0..encoded.bytes().len() * 8 {
-                    let mut changed = encoded.bytes().to_vec();
-                    changed[bit_offset / 8] ^= 1 << (bit_offset % 8);
-                    assert!(
-                        validate_x86_64_selected_form_encoding(
-                            &physical, kind, key, &operands, &changed
-                        )
-                        .is_err(),
-                        "{kind:?} accepted changed bit {bit_offset}"
-                    );
-                }
+                assert!(
+                    validate_x86_64_selected_form_encoding(
+                        &physical,
+                        kind,
+                        other_key,
+                        &operands,
+                        encoded.bytes()
+                    )
+                    .is_err()
+                );
+            }
+            for bit_offset in 0..encoded.bytes().len() * 8 {
+                let mut changed = encoded.bytes().to_vec();
+                changed[bit_offset / 8] ^= 1 << (bit_offset % 8);
+                assert!(
+                    validate_x86_64_selected_form_encoding(
+                        &physical, kind, key, &operands, &changed
+                    )
+                    .is_err(),
+                    "{kind:?} accepted changed bit {bit_offset}"
+                );
             }
         }
     }

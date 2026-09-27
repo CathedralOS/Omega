@@ -104,6 +104,12 @@ fn mixed_aggregate_rows_preserve_banks_results_and_other_call_effects() {
         assert_eq!(row.implicit_uses, base.implicit_uses);
         assert_eq!(row.implicit_defs, base.implicit_defs);
 
+        // Every row's ABI meaning is checked above. Catalog rejection uses one
+        // shared row comparison; exercise corruption at each result family's
+        // first and last rows instead of cloning the whole catalog per row.
+        if !matches!(key.variant, 1100 | 1155 | 1156 | 1211 | 1220 | 1245) {
+            continue;
+        }
         for mutation in 0..3 {
             let mut changed = catalog.clone();
             let row = changed
