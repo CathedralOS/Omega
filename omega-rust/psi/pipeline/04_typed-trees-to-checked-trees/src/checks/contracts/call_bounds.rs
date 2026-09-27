@@ -8,6 +8,7 @@ use typed_trees::{
 };
 
 mod context;
+mod guard_implication;
 #[cfg(test)]
 mod tests;
 pub(super) use context::proves as proves_in_context;
@@ -133,6 +134,22 @@ fn prove(
         caller.machine_symbol,
         caller.state_symbol,
     )?;
+    if guard.is_some_and(|guard| {
+        guard_implication::proves(
+            program,
+            facts,
+            machine,
+            state,
+            callee,
+            callee_state,
+            parameters,
+            arguments,
+            expression,
+            guard,
+        )
+    }) {
+        return Some(true);
+    }
     let operand = |expression| match program.expression_table.expression(expression) {
         ExpressionNode::Integer(literal) => literal
             .value_i64()
