@@ -1,0 +1,22 @@
+// A `let mut` record local with no initializer owns its zeroed shape: a
+// scalar member store finds the declaration-established root as the record
+// home, so `made.x = 7` writes through and reading it back observes the
+// stored value. Exits 77.
+
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Point {
+    x: i32;
+    y: i32;
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let mut made: Point;
+    made.x = 7;
+    self.console.exit_process(70 + made.x as i32);
+}

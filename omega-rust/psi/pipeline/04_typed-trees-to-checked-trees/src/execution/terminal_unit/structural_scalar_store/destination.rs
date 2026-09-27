@@ -266,12 +266,25 @@ fn owned_local_root<'a>(
             _ => None,
         });
     let (local_ordinal, local) = locals.next()?;
+    // A declared-zeroed local has no initializer but owns its zeroed shape:
+    // the declaration established the affine root, so the store resolves its
+    // live home place the same way an initialized owned local does.
+    let declared_zeroed = local.is_mutable
+        && !local.initial_value.is_valid()
+        && matches!(
+            program
+                .type_reference_table
+                .type_reference(local.type_reference),
+            TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
+        )
+        && validation::zeroed_structural_parts(program, local.type_reference);
     if locals.next().is_some()
         || local_ordinal >= ordinal
         || dynamic_index.is_some()
-        || !program
+        || !(program
             .expression_table
             .expression_is_valid(local.initial_value)
+            || declared_zeroed)
         || program
             .primitive_type_reference(local.type_reference)
             .is_some()

@@ -731,6 +731,7 @@ pub(super) fn validate_structural_scalar_field_store(
                 matches!(
                     producer.kind,
                     OperationKind::EstablishRecord { .. }
+                        | OperationKind::EstablishZeroedStructural { .. }
                         | OperationKind::CallStructural { .. }
                         | OperationKind::CallStructuralWithScalarArguments { .. }
                 )
@@ -926,9 +927,7 @@ fn window_field_type(
     ) {
         let field_position = path
             .iter()
-            .rposition(|segment| {
-                matches!(segment, terminal_psi::StructuralPathSegment::Field(_))
-            });
+            .rposition(|segment| matches!(segment, terminal_psi::StructuralPathSegment::Field(_)));
         let Some(field_position) = field_position else {
             return malformed("structural field move does not select a structural field");
         };
