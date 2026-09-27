@@ -101,7 +101,7 @@ machine Main::main(&mut self) reaches Console {
         self.console.write_line("result: (3 + 4) * 5 = 35 at the bottom of the stack (the exit code)");
         self.console.write_line("[press Enter to close]");
         _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.stack[0]);
+        self.console.exit_process(self.stack[0] as i32);
     }
     state bad(&mut self) {
         self.console.write_line("FAIL: a stack-pointer bounds guard tripped (exit 71)");

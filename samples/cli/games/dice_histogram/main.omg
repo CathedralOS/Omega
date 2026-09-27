@@ -54,13 +54,13 @@ machine Main::main(&mut self) reaches Console {
         self.st = self.st ^ self.sc;
         self.sc = self.st << 5;
         self.st = self.st ^ self.sc;
-        self.v = self.st % 6;
+        self.v = (self.st % 6) as i32 in Wrapping;
         transition self.v >= 0 && self.v < 6 { true -> tally() _ -> bad() }
     }
     state tally(&mut self) {
         // Read-modify-write straight into the runtime-indexed element (`counts[v] += 1`).
         // The face `v` is proven `>= 0 && < 6` by the guard that reaches this state.
-        self.counts[self.v] = self.counts[self.v] + 1;
+        self.counts[self.v] = (self.counts[self.v] + 1) as i32;
         self.n = self.n + 1;
         transition { _ -> roll_loop() }
     }

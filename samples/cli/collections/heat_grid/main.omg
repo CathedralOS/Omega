@@ -38,10 +38,10 @@ machine Main::main(&mut self) reaches Console {
     }
     state cell(&mut self, y: u32 [0..=self.max_y], x: u32 [0..=self.max_x]) {
         let bump: u8 =
-            (narrow_u32_to_u8_trapping(y) as u8 in Wrapping)
-            + (narrow_u32_to_u8_trapping(x) as u8 in Wrapping);
+            ((narrow_u32_to_u8_trapping(y) as u8 in Wrapping)
+            + (narrow_u32_to_u8_trapping(x) as u8 in Wrapping)) as u8;
         let cur: u8 = self.cells[y * 4 + x];
-        let next: u8 = (cur as u8 in Wrapping) + (bump as u8 in Wrapping);
+        let next: u8 = ((cur as u8 in Wrapping) + (bump as u8 in Wrapping)) as u8;
         self.cells[y * 4 + x] = next;
         let heat: u32 = widen_u8_to_u32(next);
         transition heat > self.hottest {
