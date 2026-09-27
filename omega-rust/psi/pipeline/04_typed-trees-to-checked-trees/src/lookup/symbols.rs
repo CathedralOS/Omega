@@ -88,7 +88,7 @@ thread_local! {
             typed_trees::ProgramIdentity,
             u64,
             u64,
-            std::collections::HashMap<
+            symbols::SymbolKeyMap<
                 (SymbolHandle, SymbolHandle),
                 Option<usize>,
             >,
@@ -122,7 +122,7 @@ pub(crate) fn state_index_by_symbol(
                 program.identity,
                 machines_revision,
                 states_revision,
-                std::collections::HashMap::new(),
+                symbols::SymbolKeyMap::default(),
             ));
         }
         let Some((_, _, _, verdicts)) = &mut *slot else {
@@ -145,7 +145,7 @@ thread_local! {
         Option<(
             typed_trees::ProgramIdentity,
             u64,
-            std::collections::HashMap<SymbolHandle, Option<usize>>,
+            symbols::SymbolKeyMap<SymbolHandle, Option<usize>>,
         )>,
     > = const { RefCell::new(None) };
 }
@@ -165,7 +165,7 @@ fn data_definition_index_by_symbol(
             None => true,
         };
         if stale {
-            *slot = Some((program.identity, revision, std::collections::HashMap::new()));
+            *slot = Some((program.identity, revision, symbols::SymbolKeyMap::default()));
         }
         let Some((_, _, verdicts)) = &mut *slot else {
             return None;
@@ -196,7 +196,7 @@ thread_local! {
         Option<(
             typed_trees::ProgramIdentity,
             u64,
-            std::collections::HashMap<SymbolHandle, bool>,
+            symbols::SymbolKeyMap<SymbolHandle, bool>,
         )>,
     > = const { RefCell::new(None) };
 }
@@ -216,7 +216,7 @@ pub(crate) fn attached_drop_machine_exists(
             None => true,
         };
         if stale {
-            *slot = Some((program.identity, revision, std::collections::HashMap::new()));
+            *slot = Some((program.identity, revision, symbols::SymbolKeyMap::default()));
         }
         let Some((_, _, verdicts)) = &mut *slot else {
             return false;

@@ -15,7 +15,8 @@ use language_semantics::declaration_selection::{
     BuildOperation, CompilerDerivedSelectionPartition,
 };
 use source::SourceSpan;
-use std::collections::HashMap;
+/// Handle-keyed maps take the integer hasher; none is iterated for output order.
+type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>;
 use symbol_resolved_trees::{
     SymbolResolvedTrees,
     expression::{ExpressionHandle, ExpressionNode},
@@ -433,7 +434,7 @@ fn statement_call_selection_index(
 ) -> HashMap<CallSelectionKey, Vec<usize>> {
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure as Exposure;
 
-    let mut index = HashMap::new();
+    let mut index = HashMap::default();
     for (row, selection) in program.authored_declaration_selections().iter().enumerate() {
         if selection.exposure() != Exposure::PrivateImplementation || selection.kind() != Kind::Call
         {
@@ -898,8 +899,8 @@ fn collect_statement_static_argument_candidates(
 /// cannot assume a callee symbol exists for it.
 fn contract_clause_expression_handles(
     program: &SymbolResolvedTrees,
-) -> std::collections::HashSet<ExpressionHandle> {
-    let mut handles = std::collections::HashSet::new();
+) -> std::collections::HashSet<ExpressionHandle, symbols::BuildSymbolHasher> {
+    let mut handles = std::collections::HashSet::default();
     for (_, contract) in program.tables.declarations.signature_contracts.iter() {
         for fact in program
             .tables
@@ -922,7 +923,7 @@ fn contract_clause_expression_handles(
 fn collect_expression_subtree(
     program: &SymbolResolvedTrees,
     root: ExpressionHandle,
-    handles: &mut std::collections::HashSet<ExpressionHandle>,
+    handles: &mut std::collections::HashSet<ExpressionHandle, symbols::BuildSymbolHasher>,
 ) {
     if !root.is_valid() || !handles.insert(root) {
         return;
@@ -996,7 +997,10 @@ fn collect_expression_subtree(
 fn expression_candidates(
     program: &SymbolResolvedTrees,
     expression: ExpressionHandle,
-    contract_clause_expressions: &std::collections::HashSet<ExpressionHandle>,
+    contract_clause_expressions: &std::collections::HashSet<
+        ExpressionHandle,
+        symbols::BuildSymbolHasher,
+    >,
 ) -> Result<Vec<Candidate>, Diagnostic> {
     let expressions = &program.tables.bodies.expressions;
     let expression_span = expressions.source_span(expression);
@@ -1382,7 +1386,7 @@ fn finalize_expression_groups(
     // Groups stay in first-seen order; the index only replaces the linear
     // search for a candidate's group, which made this pass quadratic in the
     // number of authored selections a large package carries.
-    let mut group_index: HashMap<_, usize> = HashMap::new();
+    let mut group_index: HashMap<_, usize> = HashMap::default();
     for (expression, exposure) in authored_expressions {
         let compiler_partition = program
             .tables

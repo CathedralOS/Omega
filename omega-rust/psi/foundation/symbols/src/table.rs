@@ -115,8 +115,8 @@ enum TopLevelSelection {
 
 #[derive(Clone, Default)]
 struct RootNameIndex {
-    by_name: std::collections::HashMap<Box<str>, Vec<(u32, SymbolHandle)>>,
-    by_leaf: std::collections::HashMap<Box<str>, Vec<(u32, SymbolHandle)>>,
+    by_name: crate::SymbolKeyMap<Box<str>, Vec<(u32, SymbolHandle)>>,
+    by_leaf: crate::SymbolKeyMap<Box<str>, Vec<(u32, SymbolHandle)>>,
 }
 
 /// The table's root children bucketed by full name and by leaf, built on the
@@ -147,7 +147,7 @@ impl std::fmt::Debug for RootNameIndexCache {
 
 #[derive(Clone, Default)]
 struct BindingSourceIndex {
-    by_source: std::collections::HashMap<SourceId, Vec<SourceScopedTopLevelBinding>>,
+    by_source: crate::SymbolKeyMap<SourceId, Vec<SourceScopedTopLevelBinding>>,
 }
 
 /// `source_scoped_top_level_bindings` bucketed by `reference_source`, built on
@@ -165,7 +165,7 @@ impl BindingSourceIndexCache {
 
 #[derive(Clone, Default)]
 struct ModulePathIndex {
-    paths: std::collections::HashMap<SymbolHandle, Arc<str>>,
+    paths: crate::SymbolKeyMap<SymbolHandle, Arc<str>>,
 }
 
 /// `display_path("::")` per root child and module symbol, snapshotted on the
@@ -195,12 +195,12 @@ impl PartialEq for ModulePathIndexCache {
 #[derive(Clone, Default)]
 struct ModuleScopeIndex {
     /// `name` → (order, handle).
-    by_name: std::collections::HashMap<Box<str>, Vec<(u32, SymbolHandle)>>,
+    by_name: crate::SymbolKeyMap<Box<str>, Vec<(u32, SymbolHandle)>>,
     /// `display_path("::")` → (order, handle).
-    by_path: std::collections::HashMap<Box<str>, Vec<(u32, SymbolHandle)>>,
+    by_path: crate::SymbolKeyMap<Box<str>, Vec<(u32, SymbolHandle)>>,
     /// Declared leaf name → (order, handle), for Domain-kind candidates
     /// only: the carrier-qualified arm is the sole leaf-shaped selector.
-    domain_leaves: std::collections::HashMap<Box<str>, Vec<(u32, SymbolHandle)>>,
+    domain_leaves: crate::SymbolKeyMap<Box<str>, Vec<(u32, SymbolHandle)>>,
 }
 
 /// The module-qualified roster index is built on the first
@@ -1342,7 +1342,7 @@ impl SymbolTable {
     /// miss the map and fall back to the parent walk.
     pub(super) fn indexed_display_path(&self, symbol: SymbolHandle) -> std::borrow::Cow<'_, str> {
         let index = self.module_path_index.0.get_or_init(|| {
-            let mut paths = std::collections::HashMap::new();
+            let mut paths = crate::SymbolKeyMap::default();
             for candidate in self
                 .child_handles(self.root)
                 .into_iter()

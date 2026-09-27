@@ -1397,7 +1397,7 @@ fn owned_storage_may_hold(
         referent,
         &mut Vec::new(),
         bindings,
-        &mut TypeIdentityMemo::new(),
+        &mut TypeIdentityMemo::default(),
     )
 }
 
@@ -1545,7 +1545,7 @@ fn storage_holds_referent_only_at_root(
     else {
         return false;
     };
-    let mut identities = TypeIdentityMemo::new();
+    let mut identities = TypeIdentityMemo::default();
     aggregate_storage_types_match_in(program, container, referent, bindings, &mut identities)
         && storage_member_may_hold(
             program,

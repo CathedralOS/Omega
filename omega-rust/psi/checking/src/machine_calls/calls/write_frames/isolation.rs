@@ -10,7 +10,8 @@ use super::type_instantiation::{
 };
 use crate::value_custody::struct_literals::construction_field_type;
 use std::cell::RefCell;
-use std::collections::HashMap;
+/// Handle-keyed maps take the integer hasher; none is iterated for output order.
+type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
@@ -102,8 +103,8 @@ pub(super) fn with_isolation_cache<R>(
                 && *seen == revision
                 && *seen_lengths == vector_lengths);
         if !fresh {
-            let mut by_symbol: HashMap<SymbolHandle, Vec<u32>> = HashMap::new();
-            let mut by_name: HashMap<String, Vec<u32>> = HashMap::new();
+            let mut by_symbol: HashMap<SymbolHandle, Vec<u32>> = HashMap::default();
+            let mut by_name: HashMap<String, Vec<u32>> = HashMap::default();
             for (index, definition) in program.data_definitions().iter().enumerate() {
                 if definition.symbol.is_valid() {
                     by_symbol
@@ -121,11 +122,11 @@ pub(super) fn with_isolation_cache<R>(
                 revision,
                 vector_lengths,
                 IsolationCache {
-                    isolation: HashMap::new(),
-                    storage_match: HashMap::new(),
-                    definitions: HashMap::new(),
-                    reference_free: HashMap::new(),
-                    carry_write: HashMap::new(),
+                    isolation: HashMap::default(),
+                    storage_match: HashMap::default(),
+                    definitions: HashMap::default(),
+                    reference_free: HashMap::default(),
+                    carry_write: HashMap::default(),
                     by_symbol,
                     by_name,
                 },
@@ -218,7 +219,7 @@ pub(super) fn aggregate_storage_types_match(
     }) {
         return verdict;
     }
-    let mut identities = TypeIdentityMemo::new();
+    let mut identities = TypeIdentityMemo::default();
     let verdict = aggregate_storage_types_match_in(program, actual, expected, &[], &mut identities);
     with_isolation_cache(program, |cache| {
         cache.storage_match.insert((actual, expected), verdict);
@@ -352,7 +353,7 @@ pub(super) fn type_is_caller_isolated_local(
         false,
         &mut Vec::new(),
         &mut Vec::new(),
-        &mut TypeIdentityMemo::new(),
+        &mut TypeIdentityMemo::default(),
     );
     with_isolation_cache(program, |cache| {
         cache.isolation.insert((handle, false), verdict);
@@ -376,7 +377,7 @@ pub(super) fn type_is_caller_isolated_local_in(
         false,
         &mut Vec::new(),
         &mut bindings.to_vec(),
-        &mut TypeIdentityMemo::new(),
+        &mut TypeIdentityMemo::default(),
     )
 }
 
@@ -399,7 +400,7 @@ pub(super) fn type_is_caller_isolated_proof_value(
         true,
         &mut Vec::new(),
         &mut Vec::new(),
-        &mut TypeIdentityMemo::new(),
+        &mut TypeIdentityMemo::default(),
     );
     with_isolation_cache(program, |cache| {
         cache.isolation.insert((handle, true), verdict);
@@ -616,7 +617,7 @@ pub(super) fn struct_literal_type_is_caller_isolated(
             false,
             &mut Vec::new(),
             &mut Vec::new(),
-            &mut TypeIdentityMemo::new(),
+            &mut TypeIdentityMemo::default(),
         )
 }
 
@@ -638,7 +639,7 @@ pub(super) fn data_definition_has_only_owned_storage(
         false,
         &mut Vec::new(),
         &mut Vec::new(),
-        &mut TypeIdentityMemo::new(),
+        &mut TypeIdentityMemo::default(),
     );
     with_isolation_cache(program, |cache| {
         cache.definitions.insert(key, verdict);
