@@ -439,6 +439,37 @@ fn bounds(
                 ..declared
             })
         }
+        ExpressionNode::Cast(cast) => {
+            // A total exact widening changes the carrier, not the value or
+            // its established interval. It cannot erase the operand's own
+            // operation meaning, qualify a domain, or reinterpret a policy.
+            if cast.form.is_recast()
+                || cast.domain != ArithmeticDomain::Exact
+                || !cast.semantic_domain.is_empty()
+                || !cast.semantic_domain_arguments.is_empty()
+                || cast.semantic_domain_symbol.is_valid()
+                || cast.semantic_domain_id.is_valid()
+                || (cast.result_type.is_valid() && cast.result_type != cast.target_type)
+                || !matches!(
+                    program
+                        .type_reference_table
+                        .type_reference(cast.target_type),
+                    TypeReferenceNode::Named { .. }
+                )
+            {
+                return None;
+            }
+            let source = bounds(program, machine, state, cast.value, declared_mutable_leaves)?;
+            let target = exact_integer_primitive(program, cast.target_type)?;
+            if !super::integer_ranges::integer_widen_is_total(source.primitive?, target) {
+                return None;
+            }
+            Some(Bounds {
+                primitive: Some(target),
+                type_reference: Some(cast.target_type),
+                ..source
+            })
+        }
         // A call term's value carries the callee's contract: the declared
         // return range and the `ensures` conjuncts bounding `result` are
         // proven at every exit, so the interval holds of the produced value
