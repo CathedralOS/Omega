@@ -212,6 +212,7 @@ fn conditional(
         [
             StatementNode::Transition(_),
             StatementNode::Transition(fallback),
+            rest @ ..,
         ] => !*is_continuation
             && !guard.continuation.is_valid()
             && !fallback.continuation.is_valid()
@@ -221,7 +222,20 @@ fn conditional(
                     checked,
                     state_symbol,
                     *guard_statement_ordinal,
-                )?),
+                )?)
+            // Reachable arms end at the second transition. Trailing arms are
+            // the authored catch-alls an exhaustive pair leaves unreachable;
+            // each must stay an ordinary, unconditioned, non-continuing
+            // transfer exactly as the terminator's mint required.
+            && rest.iter().all(|statement| {
+                matches!(
+                    statement,
+                    StatementNode::Transition(dead)
+                        if dead.guard == TransitionGuardNode::Always
+                            && dead.exit == TransitionExit::Ordinary
+                            && !dead.continuation.is_valid()
+                )
+            }),
         _ => false,
     };
     if !shape_matches {
