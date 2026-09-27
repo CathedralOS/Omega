@@ -980,16 +980,14 @@ impl RetainedTerminalArtifact {
                         "Terminal native proposal does not uniquely bind a retained callback placement",
                     );
                 };
-                let expected_application =
-                    placement
-                        .private_materialization
-                        .as_ref()
-                        .and_then(|materialization| {
-                            materialization
-                                .direct_registrar_parameter_application
-                                .as_ref()
-                                .or(materialization.root_parameter_application.as_ref())
-                        });
+                let expected_application = placement
+                    .private_materialization
+                    .as_ref()
+                    .map(|materialization| materialization.destination_parameter_application())
+                    .transpose()
+                    .map_err(
+                        |_| "retained Terminal product contains an invalid callback placement",
+                    )?;
                 if occurrence.destination_parameter_application() != expected_application {
                     return Err(
                         "Terminal callback occurrence native parameter application drifted from its retained placement",

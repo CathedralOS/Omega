@@ -312,71 +312,15 @@ pub(crate) fn admitted_native_callbacks(
                 "callback placement has no private registrar materialization",
             )
         })?;
-        // A direct parameter destination applies the callback's own telescope
-        // row; a field destination applies the record parameter the private
-        // slot write flows through. Neither may coexist with the other form.
-        let application = match &materialization.destination {
-            calling_conventions::NativePlace::Parameter(parameter) => {
-                if materialization.root_parameter_application.is_some()
-                    || materialization.field_byte_offset.is_some()
-                {
-                    return Err(diagnostic(
-                        "Terminal callback custody",
-                        "direct callback destination retains field-destination custody",
-                    ));
-                }
-                let application =
-                    occurrence
-                        .destination_parameter_application()
-                        .ok_or_else(|| {
-                            diagnostic(
-                                "Terminal callback custody",
-                                "direct callback materialization lacks its parameter application",
-                            )
-                        })?;
-                if materialization
-                    .direct_registrar_parameter_application
-                    .as_ref()
-                    != Some(application)
-                    || application.parameter != *parameter
-                {
-                    return Err(diagnostic(
-                        "Terminal callback custody",
-                        "direct callback application drifted from its retained registrar materialization",
-                    ));
-                }
-                application
-            }
-            calling_conventions::NativePlace::Field { parameter, .. } => {
-                if materialization
-                    .direct_registrar_parameter_application
-                    .is_some()
-                    || materialization.field_byte_offset.is_none()
-                {
-                    return Err(diagnostic(
-                        "Terminal callback custody",
-                        "field callback destination lacks or mixes parameter-destination custody",
-                    ));
-                }
-                let application = occurrence.destination_parameter_application().ok_or_else(
-                    || {
-                        diagnostic(
-                            "Terminal callback custody",
-                            "field callback materialization lacks its root parameter application",
-                        )
-                    },
-                )?;
-                if materialization.root_parameter_application.as_ref() != Some(application)
-                    || application.parameter != *parameter
-                {
-                    return Err(diagnostic(
-                        "Terminal callback custody",
-                        "field callback root application drifted from its retained registrar materialization",
-                    ));
-                }
-                application
-            }
-        };
+        let application = materialization
+            .destination_parameter_application()
+            .map_err(|error| diagnostic("Terminal callback custody", error.0))?;
+        if occurrence.destination_parameter_application() != Some(application) {
+            return Err(diagnostic(
+                "Terminal callback custody",
+                "callback occurrence parameter application drifted from its retained registrar materialization",
+            ));
+        }
         admitted.push(
             abstract_operations_to_target_operations::AdmittedNativeCallbackArgument {
                 terminal_operation: occurrence.terminal_operation(),

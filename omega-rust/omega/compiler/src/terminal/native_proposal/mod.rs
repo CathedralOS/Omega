@@ -202,12 +202,9 @@ pub(crate) fn project_callback_occurrences(
                 placement
                     .private_materialization
                     .as_ref()
-                    .and_then(|materialization| {
-                        materialization
-                            .direct_registrar_parameter_application
-                            .clone()
-                            .or_else(|| materialization.root_parameter_application.clone())
-                    }),
+                    .map(|materialization| materialization.destination_parameter_application().cloned())
+                    .transpose()
+                    .map_err(|error| vec![Diagnostic::error(error.0)])?,
                 callback_thunk_identity,
                 callback_thunk_artifact,
             ))
