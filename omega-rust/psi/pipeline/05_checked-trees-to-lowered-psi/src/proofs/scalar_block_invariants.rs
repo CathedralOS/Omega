@@ -348,24 +348,27 @@ fn retain_provable_roster_bounded(
                 }
             }
         }
-        if prune_refuted_members(&mut module.scalar_block_invariants, &refuted, &mut rejected)
-            && rejected.is_empty()
-        {
-            // The surviving members are new proposals: prove every arrival again.
-            continue;
-        }
         if rejected.is_empty() {
             // Previously supplied source certificates can carry exact axiom
             // indexes. Optional inference must not make them stale. If a changed
             // question cannot replay its retained certificate, keep the original
             // module rather than silently discard its source-derived evidence.
-            if !retained_evidence::replays(module, original, &questions, &lowered.proof_bundle)? {
+            // `validated` covers this module state: a rejected-empty round
+            // reaches here without the member pruning below having run.
+            if !retained_evidence::replays(validated, original, &questions, &lowered.proof_bundle)?
+            {
                 if restore_seeds(&mut module.scalar_block_invariants, &mut seeds) {
                     continue;
                 }
                 module.scalar_block_invariants.clear();
             }
             return Ok(());
+        }
+        if prune_refuted_members(&mut module.scalar_block_invariants, &refuted, &mut rejected)
+            && rejected.is_empty()
+        {
+            // The surviving members are new proposals: prove every arrival again.
+            continue;
         }
         // A failed strengthening must not erase a useful original assertion.
         // Restore the whole seed transaction: another seed can depend on this
