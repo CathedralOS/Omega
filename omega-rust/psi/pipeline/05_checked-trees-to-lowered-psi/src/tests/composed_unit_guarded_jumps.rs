@@ -33,7 +33,14 @@ fn stale_arm_guard_rejects_lowering() {
     else {
         panic!("literal dispatch chain is an ordered guarded jump tail");
     };
-    arms[0].guard = arms[1].guard.clone();
+    let checked_trees::CheckedGuardedJumpArmPlan::Jump(second) = &arms[1] else {
+        panic!("literal dispatch chain arms are named-state jumps");
+    };
+    let replacement = second.guard.clone();
+    let checked_trees::CheckedGuardedJumpArmPlan::Jump(first) = &mut arms[0] else {
+        panic!("literal dispatch chain arms are named-state jumps");
+    };
+    first.guard = replacement;
     assert!(
         lower_machine(&corrupted, TerminalMachineSelection::Name("Root::enter")).is_err(),
         "an arm guard that disagrees with the checked guarded-exit roster must reject"

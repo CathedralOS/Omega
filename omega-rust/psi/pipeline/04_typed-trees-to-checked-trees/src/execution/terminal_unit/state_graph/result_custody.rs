@@ -145,7 +145,7 @@ pub(super) fn account(
             CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, fallback } => {
                 let successors = arms
                     .iter()
-                    .map(|arm| &arm.successor)
+                    .filter_map(|arm| arm.successor())
                     .chain(match fallback {
                         checked_trees::CheckedGuardedJumpFallbackPlan::Successor(successor) => {
                             Some(successor)

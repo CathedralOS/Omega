@@ -197,15 +197,16 @@ pub enum CheckedComposedUnitControlTerminatorPlan {
         return_arm: CheckedConditionalReturnArm,
         return_when_true: bool,
     },
-    /// Ordered Boolean guards each select a named-state edge. Guards evaluate
-    /// in authored order — the same sequencing the shared scalar tail roster
-    /// records — and the authored `_` arm is the fallback holding where
-    /// every guard fails: an ordinary successor edge, or an authored
-    /// `(expression)` target that returns like a conditional's return arm.
-    /// Each successor carries the same per-edge custody plan as a conditional
-    /// edge.
+    /// Ordered Boolean guards each select their arm's edge: a named-state
+    /// transfer, or an authored `(expression)` arm that returns its value
+    /// like a conditional's return arm. Guards evaluate in authored order —
+    /// the same sequencing the shared scalar tail roster records — and the
+    /// authored `_` arm is the fallback holding where every guard fails: an
+    /// ordinary successor edge, or an authored `(expression)` target that
+    /// returns like a conditional's return arm. Each successor carries the
+    /// same per-edge custody plan as a conditional edge.
     GuardedJumps {
-        arms: Vec<CheckedGuardedJumpPlan>,
+        arms: Vec<CheckedGuardedJumpArmPlan>,
         fallback: CheckedGuardedJumpFallbackPlan,
     },
     /// Consume one whole owned parameter or exact result from this state's
@@ -254,13 +255,25 @@ impl CheckedComposedUnitControlStatePlan {
                 return_arm: CheckedConditionalReturnArm::Structural(operation),
                 ..
             } => vec![operation],
-            CheckedComposedUnitControlTerminatorPlan::GuardedJumps {
-                fallback:
-                    CheckedGuardedJumpFallbackPlan::Return(CheckedConditionalReturnArm::Structural(
-                        operation,
-                    )),
-                ..
-            } => vec![operation],
+            CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, fallback } => {
+                let mut selected: Vec<&CheckedUnitEffectOperationPlan> = arms
+                    .iter()
+                    .filter_map(|arm| match arm {
+                        CheckedGuardedJumpArmPlan::Return(CheckedGuardedJumpReturnPlan {
+                            return_arm: CheckedConditionalReturnArm::Structural(operation),
+                            ..
+                        }) => Some(operation),
+                        _ => None,
+                    })
+                    .collect();
+                if let CheckedGuardedJumpFallbackPlan::Return(
+                    CheckedConditionalReturnArm::Structural(operation),
+                ) = fallback
+                {
+                    selected.push(operation);
+                }
+                selected
+            }
             CheckedComposedUnitControlTerminatorPlan::ClosedSum { cases, .. } => cases
                 .iter()
                 .filter_map(|case| match &case.outcome {
@@ -294,7 +307,7 @@ impl CheckedComposedUnitControlStatePlan {
             CheckedComposedUnitControlTerminatorPlan::ConditionalReturn { jump, .. } => vec![jump],
             CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, fallback } => arms
                 .iter()
-                .map(|arm| &arm.successor)
+                .filter_map(|arm| arm.successor())
                 .chain(match fallback {
                     CheckedGuardedJumpFallbackPlan::Successor(successor) => Some(successor),
                     CheckedGuardedJumpFallbackPlan::Return(_) => None,
@@ -362,6 +375,63 @@ pub struct CheckedGuardedJumpPlan {
     /// computation root.
     pub guard: CheckedCallScalarArgument,
     pub successor: CheckedStructuralControlSuccessorPlan,
+}
+
+/// One arm of an ordered `GuardedJumps` chain — selected by its guard, the
+/// arm either transfers to its named state or returns its authored
+/// `(expression)` value exactly like the chain's fallback does.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedGuardedJumpArmPlan {
+    /// A guarded transfer to the arm's selected named state.
+    Jump(CheckedGuardedJumpPlan),
+    /// A guarded arm whose authored `(expression)` target returns the
+    /// established value — the same completion a `ConditionalReturn` arm
+    /// carries, still observed only on this arm's true edge.
+    Return(CheckedGuardedJumpReturnPlan),
+}
+
+/// A guarded chain arm that returns its authored `(expression)` value: the
+/// Boolean value observed at `statement_ordinal` under the `Guard` role and
+/// the arm's returned-value plan share the one coordinate.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedGuardedJumpReturnPlan {
+    /// Exact checked Boolean value at `statement_ordinal` under the `Guard`
+    /// role: the retained pure expression or that coordinate's unique
+    /// computation root — the same record `CheckedGuardedJumpPlan::guard`
+    /// names.
+    pub guard: CheckedCallScalarArgument,
+    /// This arm's authored transition ordinal; the arm's guard row and its
+    /// returned value share it.
+    pub statement_ordinal: u32,
+    /// The arm's returned value, structural or scalar as the state's result is.
+    pub return_arm: CheckedConditionalReturnArm,
+}
+
+impl CheckedGuardedJumpArmPlan {
+    /// The exact Boolean guard this arm is selected under.
+    pub fn guard(&self) -> &CheckedCallScalarArgument {
+        match self {
+            CheckedGuardedJumpArmPlan::Jump(plan) => &plan.guard,
+            CheckedGuardedJumpArmPlan::Return(plan) => &plan.guard,
+        }
+    }
+
+    /// The authored transition ordinal this arm answers.
+    pub fn statement_ordinal(&self) -> u32 {
+        match self {
+            CheckedGuardedJumpArmPlan::Jump(plan) => plan.successor.statement_ordinal,
+            CheckedGuardedJumpArmPlan::Return(plan) => plan.statement_ordinal,
+        }
+    }
+
+    /// The arm's named-state successor plan, when it transfers; a return arm
+    /// has no successor edge.
+    pub fn successor(&self) -> Option<&CheckedStructuralControlSuccessorPlan> {
+        match self {
+            CheckedGuardedJumpArmPlan::Jump(plan) => Some(&plan.successor),
+            CheckedGuardedJumpArmPlan::Return(_) => None,
+        }
+    }
 }
 
 /// The closing arm of a `GuardedJumps` tail — the edge every prior guard

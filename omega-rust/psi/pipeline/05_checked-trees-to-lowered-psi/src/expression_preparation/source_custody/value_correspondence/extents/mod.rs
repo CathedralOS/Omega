@@ -550,7 +550,9 @@ impl Context<'_> {
             }
             Plan::GuardedJumps { arms, fallback } => {
                 for arm in arms {
-                    self.composed_successor_subslice_views(&arm.successor, views);
+                    if let Some(successor) = arm.successor() {
+                        self.composed_successor_subslice_views(successor, views);
+                    }
                 }
                 if let checked_trees::CheckedGuardedJumpFallbackPlan::Successor(fallback) = fallback
                 {
