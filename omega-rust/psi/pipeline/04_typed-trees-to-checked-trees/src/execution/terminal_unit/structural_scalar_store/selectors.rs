@@ -101,18 +101,6 @@ impl TargetSelectors {
 /// The statement's `AssignmentIndex { depth }` coordinate retains exactly this
 /// authored selector at an integer carrier: a bound pure expression, or the
 /// computation root the ordinary scalar evaluator completes.
-///
-/// One admission limit is about proof cost, not meaning. A selector narrower
-/// than Terminal's `u64` coordinate reaches the store through a widening or
-/// exact cast, and re-proving `index < extent` through that conversion *and*
-/// the selector's own arithmetic outgrows the c2l integer proof producers:
-/// an unprovable goal such as `widen(y * 4 + x) < 12` searches for minutes
-/// before failing (C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT). Until that search
-/// is bounded, a narrower selector must be a parameter or a stored field
-/// read, whose published or stored bound crosses the conversion in one step;
-/// a local (including the temporary the front end hoists `a[y * 4 + x]`
-/// into) carries its initializer's arithmetic into the goal. A `u64`
-/// selector needs no conversion and composes freely.
 fn retained(
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
@@ -144,10 +132,7 @@ fn retained(
             .bound_expression_at(state.symbol, statement_index, role)
     {
         let primitive_type = crate::values::scalar_expression_type(value);
-        return (binding.expression == index
-            && integer(primitive_type)
-            && (primitive_type == Some(PrimitiveType::U64) || direct_selector(value)))
-        .then_some(());
+        return (binding.expression == index && integer(primitive_type)).then_some(());
     }
     let computations = &facts.values.scalar_computations;
     let root = computations.root_at(state.symbol, statement_index, role)?;
@@ -155,23 +140,5 @@ fn retained(
         return None;
     }
     let node = computations.nodes.get(root.root);
-    (node.authored_root == index
-        && integer(Some(node.primitive_type))
-        && (node.primitive_type == PrimitiveType::U64
-            || match &node.kind {
-                checked_trees::CheckedScalarComputationKind::StructuralField { .. } => true,
-                checked_trees::CheckedScalarComputationKind::Value(value) => direct_selector(value),
-                _ => false,
-            }))
-    .then_some(())
-}
-
-/// A selector value that is passed or read from a stored field, not
-/// computed in this body.
-fn direct_selector(value: &checked_trees::CheckedScalarExpression) -> bool {
-    matches!(
-        value,
-        checked_trees::CheckedScalarExpression::Parameter { .. }
-            | checked_trees::CheckedScalarExpression::StructuralParameterField { .. }
-    )
+    (node.authored_root == index && integer(Some(node.primitive_type))).then_some(())
 }
