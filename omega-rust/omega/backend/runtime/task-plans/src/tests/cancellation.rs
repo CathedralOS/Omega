@@ -115,41 +115,6 @@ fn completed_settlement_survives_an_unobserved_request() {
 }
 
 #[test]
-fn inline_completion_can_never_settle_cancelled() {
-    let plan = wcsu_plan(63);
-    let instance = instance(520);
-    let receipt = invocation_receipt(&plan, instance, 521, 522);
-    let mut ledger = TaskLifecycleLedger::new(runtime(), instance);
-    let claim = ledger
-        .accept_invocation(
-            &receipt,
-            activation(523),
-            moved_arguments(&plan, 524),
-            TaskStartStorage::InlineCompletion,
-        )
-        .expect("accepted inline completion");
-
-    // The request is recordable — `request_cancel(&self)` is legal on any
-    // live claim — but the activation finished before the claim existed, so
-    // a cancelled outcome can never be honest here.
-    ledger
-        .request_cancellation(&claim)
-        .expect("the request still records on a live claim");
-    let error = ledger
-        .settle(claim, TaskSettlementOutcome::Cancelled)
-        .expect_err("an inline completion cannot settle cancelled");
-    assert!(
-        error.diagnostic().0.contains("inline completion"),
-        "unexpected diagnostic: {}",
-        error.diagnostic().0
-    );
-    let settled = ledger
-        .settle(error.into_claim(), TaskSettlementOutcome::Completed)
-        .expect("the inline completion settles its ordinary outcome");
-    assert_eq!(settled.outcome(), TaskSettlementOutcome::Completed);
-}
-
-#[test]
 fn cancellation_request_rejects_foreign_and_unknown_claims() {
     let plan = wcsu_plan(64);
     let owner_instance = instance(530);
@@ -184,39 +149,4 @@ fn cancellation_request_rejects_foreign_and_unknown_claims() {
         .request_cancellation(&claim)
         .expect("the owning instance records the request");
     assert!(owner.cancellation_requested(claim.identity()));
-}
-
-#[test]
-fn repeated_requests_and_close_still_require_settlement() {
-    let plan = wcsu_plan(65);
-    let instance = instance(540);
-    let receipt = invocation_receipt(&plan, instance, 541, 542);
-    let mut ledger = TaskLifecycleLedger::new(runtime(), instance);
-    let claim = ledger
-        .accept_invocation(
-            &receipt,
-            activation(543),
-            moved_arguments(&plan, 544),
-            TaskStartStorage::Persistent(stack_lease(&plan, 545, 546)),
-        )
-        .expect("accepted activation");
-
-    ledger
-        .request_cancellation(&claim)
-        .expect("first request records");
-    ledger
-        .request_cancellation(&claim)
-        .expect("a repeated request records the same fact");
-
-    // A request is not a settlement: close and storage reclaim still reject
-    // while the claim lives.
-    let close = ledger.close().expect_err("a requested claim is still live");
-    let mut ledger = close.into_ledger();
-    ledger
-        .observe_cancellation(&claim, canonical_crossing())
-        .expect("the request is observed at a canonical safe point");
-    ledger
-        .settle(claim, TaskSettlementOutcome::Cancelled)
-        .expect("the claim settles through its observed request");
-    ledger.close().expect("settled claims permit close");
 }

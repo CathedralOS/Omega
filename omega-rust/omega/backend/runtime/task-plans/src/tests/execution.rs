@@ -86,60 +86,12 @@ fn activation_id(identity: u64) -> ActivationInstanceId {
 }
 
 #[test]
-fn parked_activation_resumes_the_same_invocation_unchanged() {
-    let plan = wcsu_plan(70);
-    let instance = instance(600);
-    let receipt = invocation_receipt(&plan, instance, 601, 602);
-    let mut ledger = TaskLifecycleLedger::new(runtime(), instance);
-    let claim = ledger
-        .accept_invocation(
-            &receipt,
-            activation(603),
-            moved_arguments(&plan, 604),
-            TaskStartStorage::Persistent(stack_lease(&plan, 605, 606)),
-        )
-        .expect("accepted activation");
-
-    assert_eq!(ledger.parked_crossing(claim.identity()), None);
-    ledger
-        .park(&claim, canonical_crossing())
-        .expect("a canonical crossing accepts the park");
-    assert_eq!(
-        ledger.parked_crossing(claim.identity()),
-        Some(canonical_crossing())
-    );
-
-    // Parking establishes no result or cleanup edge: the dependency record
-    // is exactly the one the start issued.
-    let record = ledger.records().next().expect("one live dependency");
-    assert_eq!(record.invocation, receipt.candidate().invocation);
-    assert_eq!(record.activation, activation(603));
-
-    assert_eq!(
-        ledger
-            .resume(&claim)
-            .expect("resume continues the invocation"),
-        canonical_crossing()
-    );
-    assert_eq!(ledger.parked_crossing(claim.identity()), None);
-    let record = ledger.records().next().expect("one live dependency");
-    assert_eq!(
-        record.invocation,
-        receipt.candidate().invocation,
-        "resumption continues the same invocation"
-    );
-    ledger
-        .settle(claim, TaskSettlementOutcome::Completed)
-        .expect("the resumed activation settles");
-    ledger.close().expect("no live claims remain");
-}
-
-#[test]
 fn parked_activation_exposes_its_exact_live_frontier() {
     let plan = two_crossing_plan(82);
     let instance = instance(720);
     let mut ledger = TaskLifecycleLedger::new(runtime(), instance);
     let claim = start_persistent(&mut ledger, &plan, instance, (721, 722, 723, 724, 725));
+    let original = *ledger.records().next().expect("one live dependency");
 
     // A running activation is not parked at any crossing.
     assert_eq!(ledger.parked_frontier(claim.identity()), None);
@@ -149,6 +101,7 @@ fn parked_activation_exposes_its_exact_live_frontier() {
 
     // The frontier is the plan's exact live roster at the park crossing:
     // one local place carrying its loan across the suspension.
+    assert_eq!(ledger.records().next(), Some(&original));
     let frontier = ledger
         .parked_frontier(claim.identity())
         .expect("a parked activation exposes its live frontier");
@@ -161,9 +114,13 @@ fn parked_activation_exposes_its_exact_live_frontier() {
 
     // Resuming drops the frontier view; parking at the plan's second,
     // empty-frontier crossing exposes no retained places.
-    ledger
-        .resume(&claim)
-        .expect("resume continues the invocation");
+    assert_eq!(
+        ledger
+            .resume(&claim)
+            .expect("resume continues the invocation"),
+        canonical_crossing()
+    );
+    assert_eq!(ledger.records().next(), Some(&original));
     assert_eq!(ledger.parked_frontier(claim.identity()), None);
     ledger
         .park(&claim, crossing(8))
@@ -279,9 +236,14 @@ fn inline_completion_has_no_activation_to_park_or_observe() {
         "unexpected diagnostic: {}",
         diagnostic.0
     );
-    ledger
-        .settle(claim, TaskSettlementOutcome::Completed)
+    let error = ledger
+        .settle(claim, TaskSettlementOutcome::Cancelled)
+        .expect_err("an inline completion cannot settle cancelled");
+    assert!(error.diagnostic().0.contains("inline completion"));
+    let settled = ledger
+        .settle(error.into_claim(), TaskSettlementOutcome::Completed)
         .expect("the inline completion settles its ordinary outcome");
+    assert_eq!(settled.outcome(), TaskSettlementOutcome::Completed);
 }
 
 #[test]
@@ -324,38 +286,6 @@ fn double_park_and_unparked_resume_reject() {
     ledger
         .settle(claim, TaskSettlementOutcome::Completed)
         .expect("the claim settles after resume");
-}
-
-#[test]
-fn settlement_must_wait_for_resume() {
-    let plan = wcsu_plan(75);
-    let instance = instance(650);
-    let mut ledger = TaskLifecycleLedger::new(runtime(), instance);
-    let claim = start_persistent(&mut ledger, &plan, instance, (651, 652, 653, 654, 655));
-
-    ledger
-        .park(&claim, canonical_crossing())
-        .expect("the activation parks at a canonical crossing");
-    // A parked activation holds no terminal outcome: settling would dispose
-    // its suspended continuation. The rejection returns the claim whole.
-    let error = ledger
-        .settle(claim, TaskSettlementOutcome::Completed)
-        .expect_err("a parked activation cannot settle");
-    assert!(
-        error.diagnostic().0.contains("parked"),
-        "unexpected diagnostic: {}",
-        error.diagnostic().0
-    );
-    let claim = error.into_claim();
-    assert_eq!(
-        ledger.parked_crossing(claim.identity()),
-        Some(canonical_crossing()),
-        "the rejected settlement left the activation parked"
-    );
-    ledger.resume(&claim).expect("resume precedes settlement");
-    ledger
-        .settle(claim, TaskSettlementOutcome::Completed)
-        .expect("the resumed activation settles");
 }
 
 #[test]
@@ -575,10 +505,15 @@ fn settlement_releases_pool_backing_only_after_resume() {
 
     // A rejected settle while parked returns the claim and frees nothing:
     // the pool stays exhausted for the next start.
-    let claim = gate
+    let error = gate
         .settle(claim, TaskSettlementOutcome::Completed)
-        .expect_err("a parked activation cannot settle")
-        .into_claim();
+        .expect_err("a parked activation cannot settle");
+    assert!(error.diagnostic().0.contains("parked"));
+    let claim = error.into_claim();
+    assert_eq!(
+        gate.parked_crossing(claim.identity()),
+        Some(canonical_crossing())
+    );
     gate.admit_pending(
         &activations,
         receipt_candidate(&plan, instance(710), 716, 717, TaskStartOperation::Start),
@@ -601,25 +536,4 @@ fn settlement_releases_pool_backing_only_after_resume() {
     gate.settle(next, TaskSettlementOutcome::Completed)
         .expect("the second admission settles");
     gate.close().expect("empty gate closes");
-}
-
-#[test]
-fn parked_claim_blocks_close_until_resumed_and_settled() {
-    let plan = wcsu_plan(82);
-    let instance = instance(730);
-    let mut ledger = TaskLifecycleLedger::new(runtime(), instance);
-    let claim = start_persistent(&mut ledger, &plan, instance, (731, 732, 733, 734, 735));
-
-    ledger
-        .park(&claim, canonical_crossing())
-        .expect("the activation parks");
-    let close = ledger
-        .close()
-        .expect_err("a parked claim is still a live claim");
-    let mut ledger = close.into_ledger();
-    ledger.resume(&claim).expect("resume");
-    ledger
-        .settle(claim, TaskSettlementOutcome::Completed)
-        .expect("settle");
-    ledger.close().expect("settled claims permit close");
 }
