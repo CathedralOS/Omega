@@ -1449,8 +1449,7 @@ pass/proofs/ring_full_polynomial_compile checked 432ms
 pass/proofs/ring_law_conformance checked 177ms
 pass/proofs/runtime_decreases_u64_measure_exit checked 179ms
 pass/proofs/runtime_nat_structural_recursion_exit checked 492ms
-pass/proofs/runtime_ranked_accumulator_guarantee_exit rejected 89ms
-	provider selection operand does not resolve to one visible product declaration
+pass/proofs/runtime_ranked_accumulator_guarantee_exit checked 430ms
 pass/providers/boundary_scalar_field_store checked 333ms
 pass/providers/checked_boundary_operator_const_application_alternate_exit checked 10662ms
 pass/providers/checked_boundary_operator_physical_custody checked 3478ms
