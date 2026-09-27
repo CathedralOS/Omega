@@ -737,16 +737,19 @@ the complete product bar; focused successes below do not establish that baseline
   not a fabricated runtime installation grant or mandatory Rust supervisor.
 
   The published application pin is
-  `5fd89ec0a100e214a8bc45ba8874b106875b4928`, including canonical scalar
-  requires/ensures. With compiler `210c832a7b37` on macOS ARM64,
+  `be5c4c5546e645109697a29a85b8f8c96b3ebcc6`, including canonical scalar
+  contracts and a native harness that executes on the matching host. Explicit
+  `--target` on `omega run` only emits; the harness validates its requested host
+  and omits that compiler flag for execution. With compiler `210c832a7b37` on
+  macOS ARM64 and application source `5fd89ec0a100`,
   `RUST_MIN_STACK=67108864 OMEGA_REVIEW_TIMINGS=1 omega update --project
-  samples/apps/squalr/squalr-tests --target macos_arm64` completes discovery
-  for all 17 package occurrences. Final binding review and lock publication
-  remain unverified; discovery is not complete package or native acceptance.
-  The earlier engine subslice count rejection no longer stops discovery.
-  Continue the full update with `--target linux_x86_64`, complete ordinary
-  review/resume, then run the harness on a matching Linux x86-64 host: the
-  actual `Main::main` and filesystem/time realizations currently target Linux.
+  samples/apps/squalr/squalr-tests --target linux_x86_64` completes discovery
+  and binding for all 17 package occurrences in about 59 minutes, then exits 3
+  at ordinary review with 130 pending decisions. The earlier engine subslice
+  count rejection is cleared. Complete exact review/resume and lock publication,
+  then native compilation and execution; checked packages are not native
+  acceptance. Run the harness on Linux x86-64: the actual `Main::main` and
+  filesystem/time realizations currently target Linux.
   The macOS build declaration alone does not provide a macOS entry/provider.
 
   Restore the full acceptance route in `squalr-tests/main.omg` and
@@ -757,8 +760,14 @@ the complete product bar; focused successes below do not establish that baseline
   element-scan, repeat, delete and list executors before success. The command
   fixture's eight-byte-spaced address oracle requires explicit `Alignment8`;
   keep the production `Alignment1` default. Also assert exact RLE ranges and
-  a genuinely zero-length input: current tails/overlap checks assert addresses,
-  and `verify_empty` means nonmatching bytes. Executing the command helpers
+  a genuinely empty input: current tails/overlap checks assert addresses,
+  and `verify_empty` means nonmatching bytes. The so-called overlap fixture
+  actually scans one-byte values at stride two. True overlapping multi-byte
+  scanning still needs raw-byte storage: `SnapshotRegion::read_current_elements`
+  indexes decoded values with `(base_delta + position * stride) / unit`, which
+  repeats a value instead of reading overlapping bytes when stride is smaller
+  than width. Preserve this production gap alongside growable storage work.
+  Executing the command helpers
   does not establish coverage of the privileged-command dispatcher.
 
   Whole-graph checking remains expensive: the successful discovery above took
