@@ -1034,22 +1034,10 @@ fn same_relocated_node(
     };
     if carries_routes {
         let callee = match &operation {
-            abstract_operations::AbstractOperation::Call {
-                callee,
-                ..
-            }
-            | abstract_operations::AbstractOperation::CallUnit {
-                callee,
-                ..
-            }
-            | abstract_operations::AbstractOperation::CallStructuralScalar {
-                callee,
-                ..
-            }
-            | abstract_operations::AbstractOperation::CallStructural {
-                callee,
-                ..
-            } => *callee,
+            abstract_operations::AbstractOperation::Call { callee, .. }
+            | abstract_operations::AbstractOperation::CallUnit { callee, .. }
+            | abstract_operations::AbstractOperation::CallStructuralScalar { callee, .. }
+            | abstract_operations::AbstractOperation::CallStructural { callee, .. } => *callee,
             _ => return false,
         };
         let Some(callee_function) = functions.iter().find(|function| function.machine == callee)

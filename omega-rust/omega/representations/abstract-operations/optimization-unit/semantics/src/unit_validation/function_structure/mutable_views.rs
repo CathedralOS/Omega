@@ -171,13 +171,12 @@ pub(super) fn validate(
                     if !mutable.contains(&place) {
                         continue;
                     }
-                    if let Some(prior) = seen.insert(place, binding.argument.access) {
-                        if descriptor_views.contains(&place)
+                    if let Some(prior) = seen.insert(place, binding.argument.access)
+                        && (descriptor_views.contains(&place)
                             || prior != StructuralAccess::SharedBorrow
-                            || binding.argument.access != StructuralAccess::SharedBorrow
-                        {
-                            return Err(invalid(place));
-                        }
+                            || binding.argument.access != StructuralAccess::SharedBorrow)
+                    {
+                        return Err(invalid(place));
                     }
                 }
             }
