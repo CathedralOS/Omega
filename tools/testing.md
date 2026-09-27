@@ -63,6 +63,33 @@ python3 tools/corpus_gate.py --record             # re-pin the golden
 `OMEGA_CORPUS_FIXTURE_FILTER`); `--shard k/N` selects a
 deterministic hash slice for splitting the run across sessions.
 
+### Attributing a move
+
+The printed summary cuts each field at 300 columns, which is usually exactly
+where the diagnostic that moved is. `--write-moves` gives you every moved
+fixture's before and after records as JSON, untruncated, in the same pass:
+
+```bash
+python3 tools/corpus_gate.py --write-moves build/moves.json
+python3 -c "import json; [print(r['fixture'], r['after']['diagnostics']) \
+    for r in json.load(open('build/moves.json'))]"
+```
+
+Then rerun ONLY the moved names against the base you suspect
+(`--filter <comma list>` from a worktree detached at that commit). A row that
+moves there too is not yours. Attribute every row before re-pinning any of
+them: a bulk `--record` pins whatever another lane broke as expected.
+
+Two measurement hazards, both of which have produced a wrong mechanism here.
+The compiler caches resolved package snapshots under its user cache
+directory, so a probe COUNTING how many times a front-end pass runs answers
+about the cache, not the program — probe what a later stage observes, and
+alternate the two versions rather than running each once. And `--record`
+restamps `millis` on every row it touches, so after a filtered re-record,
+restore the previous timing on any row whose status, expected-fragment
+verdict, facts and diagnostics are unchanged; otherwise a four-row movement
+lands as a forty-row diff in a file every lane edits.
+
 To measure what your own change moved, record a baseline once per base commit
 and diff against it, rather than running the corpus twice per measurement:
 
