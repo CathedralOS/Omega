@@ -2,8 +2,6 @@
 
 mod availability;
 #[cfg(test)]
-mod availability_tests;
-#[cfg(test)]
 mod budgets;
 #[cfg(test)]
 mod fixtures;

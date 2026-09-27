@@ -264,21 +264,29 @@ fn domain_all_alias_roles_routes_and_presence_roundtrip() {
 
 #[test]
 fn conformance_all_subjects_keep_complete_evidence_interfaces() {
+    let mut shape = PackageReviewConformanceShape {
+        identity: nominal("Conformance"),
+        lifetime_parameter_count: 2,
+        type_parameters: parameters(),
+        subject: PackageReviewConformanceSubject::Subjectless,
+        interface: interface(),
+    };
     for subject in [
         PackageReviewConformanceSubject::Subjectless,
         PackageReviewConformanceSubject::TypeParameter(2),
         PackageReviewConformanceSubject::Nominal(nominal("Carrier")),
     ] {
-        let shape = PackageReviewConformanceShape {
-            identity: nominal("Conformance"),
-            lifetime_parameter_count: 2,
-            type_parameters: parameters(),
-            subject,
-            interface: interface(),
-        };
+        shape.subject = subject;
         roundtrip(&shape, encode_conformance_shape, conformance_shape);
         text_test_support::meaning(|encoder| encode_conformance_shape(encoder, &shape));
     }
+    shape.type_parameters.clear();
+    let mut encoded = bytes(&shape, encode_conformance_shape);
+    // Nominal owner/path, lifetime count, then the empty parameter sequence.
+    let subject_offset = 1 + 32 + 8 + shape.identity.path.len() + 8 + 8;
+    encoded[subject_offset] = 3;
+    let mut reader = Reader::new(&encoded, PackagePolicyRecoveryLimits::default()).unwrap();
+    assert_eq!(conformance_shape(&mut reader), Err(Error::InvalidTag));
 }
 
 #[test]

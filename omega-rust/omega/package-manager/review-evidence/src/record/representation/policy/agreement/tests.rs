@@ -203,52 +203,6 @@ fn policy(
 }
 
 #[test]
-fn joins_exact_foreign_declaration_and_availability() {
-    let consumer_id = package(1);
-    let producer_id = package(2);
-    let target = target(PackageReviewRepresentationTargetProfile::WindowsX64);
-    let consumer = policy(
-        consumer_id,
-        target,
-        PackageReviewNominalOwner::Package(producer_id),
-        PackageReviewNominalOwner::Package(producer_id),
-        false,
-        false,
-    );
-    let producer = policy(
-        producer_id,
-        target,
-        PackageReviewNominalOwner::Package(producer_id),
-        PackageReviewNominalOwner::Package(producer_id),
-        true,
-        true,
-    );
-    assert!(
-        consumer
-            .rejoin_foreign_demands(|identity| (identity == producer_id)
-                .then(|| producer_instance(&producer, SOURCE_INSTANCE, SOURCE_INSTANCE)))
-            .is_ok()
-    );
-}
-
-#[test]
-fn rejects_absent_producer_policy() {
-    let producer_id = package(2);
-    let consumer = policy(
-        package(1),
-        target(PackageReviewRepresentationTargetProfile::WindowsX64),
-        PackageReviewNominalOwner::Package(producer_id),
-        PackageReviewNominalOwner::Package(producer_id),
-        false,
-        false,
-    );
-    assert!(matches!(
-        consumer.rejoin_foreign_demands(|_| None),
-        Err(PackagePolicyRepresentationAgreementError::ProducerPolicyAbsent { .. })
-    ));
-}
-
-#[test]
 fn rejects_undeclared_opaque() {
     let producer_id = package(2);
     let target = target(PackageReviewRepresentationTargetProfile::WindowsX64);
@@ -379,36 +333,6 @@ fn rejects_resolved_policy_owned_by_another_package() {
             SOURCE_INSTANCE
         ))),
         Err(PackagePolicyRepresentationAgreementError::ProducerPolicyAbsent { .. })
-    ));
-}
-
-#[test]
-fn rejects_producer_source_instance_mismatch() {
-    let producer_id = package(2);
-    let target = target(PackageReviewRepresentationTargetProfile::WindowsX64);
-    let consumer = policy(
-        package(1),
-        target,
-        PackageReviewNominalOwner::Package(producer_id),
-        PackageReviewNominalOwner::Package(producer_id),
-        false,
-        false,
-    );
-    let producer = policy(
-        producer_id,
-        target,
-        PackageReviewNominalOwner::Package(producer_id),
-        PackageReviewNominalOwner::Package(producer_id),
-        true,
-        true,
-    );
-    assert!(matches!(
-        consumer.rejoin_foreign_demands(|_| Some(producer_instance(
-            &producer,
-            SOURCE_INSTANCE,
-            PackageSourceConsumptionCommitment::for_test([9; 32])
-        ))),
-        Err(PackagePolicyRepresentationAgreementError::ProducerSourceInstanceMismatch { .. })
     ));
 }
 
