@@ -67,6 +67,12 @@ use std::{env, fs, process};
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
+/// The diagnostic prefix terminal production emits when a refusal is a named
+/// proof-search capacity exhaustion — the publication contract's
+/// `Incomplete` outcome rather than a defect of the program. A record reads
+/// `incomplete` only when every emitted diagnostic carries the marker.
+const INCOMPLETE_DIAGNOSTIC_PREFIX: &str = "incomplete:";
+
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 use fixture_package_inputs::{repo_root, reviewed_repository_fixture_package_inputs};
@@ -633,6 +639,18 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
     let status = match (&outcome, realized) {
         (Ok(()), true) => "built",
         (Ok(()), false) => "checked",
+        // A refusal whose every diagnostic carries the `incomplete:` marker
+        // is the publication contract's `Incomplete` outcome — a named
+        // resource/search limit declined, never a disproof of the source.
+        // Any ordinary refusal in the set keeps the record `rejected`.
+        (Err(errors), _)
+            if !errors.is_empty()
+                && errors
+                    .iter()
+                    .all(|error| error.message.starts_with(INCOMPLETE_DIAGNOSTIC_PREFIX)) =>
+        {
+            "incomplete"
+        }
         (Err(_), _) => "rejected",
     };
     let diagnostics = errors

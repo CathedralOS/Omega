@@ -469,6 +469,22 @@ capacity:
 | 24 | `coverage_empty_subject` | 0 | 0 none | zero |
 | 25 | `coverage_request_semantics` | 0 | 0 none | zero |
 | 26 | `request_staging_bytes` | 65,536 | 1 request | first request byte the entry could not stage |
+| 27 | `proof_search_roster_rounds` | 128 | 3 internal row | identity of the obligation left unproved |
+| 28 | `proof_search_candidate_work` | 4,096 | 3 internal row | identity of the obligation left unproved |
+| 29 | `proof_search_cyclic_guarantee_work` | 4,096 | 3 internal row | identity of the obligation left unproved |
+
+Codes 27–29 are the optional proof-search provisions of the lowering stage.
+`proof_search_roster_rounds` bounds the scalar block-invariant pass's
+aggregate whole-module discovery and proof rounds;
+`proof_search_candidate_work` bounds the shared candidate-transport pool the
+pass's field-bound and join producers draw from;
+`proof_search_cyclic_guarantee_work` bounds the cyclic-guarantee
+strengthening pass's separate transport pool. A refusal names the obligation
+left unproved — an internal row identity — as its coordinate and reports
+the declined draw as `requested`: one past the provisioned limit for a unit
+draw, or the refused amount for a bulk check. A decline is a search bound,
+not a disproof of the module: the unproved obligation publishes
+`Incomplete`, and no artifact carrying the request may publish `checked`.
 
 The request-extent provisions bound the declared subject and invocation
 section lengths; both sit inside the fixed request header and are checked at

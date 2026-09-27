@@ -168,7 +168,24 @@ fn produce_admitted_entry_artifact<C>(
             vec![Diagnostic::error(
                 match error.error().unimplemented_report() {
                     Some(report) => report.to_owned(),
-                    None => format!("{product_label} production failed: {error}"),
+                    // A named proof-search capacity that declined during
+                    // optional inference is an `Incomplete` outcome, not a
+                    // defect of the program: name the resource and the
+                    // obligation left unproved instead of reporting the
+                    // module as rejected. The `incomplete:` prefix is the
+                    // outcome marker the corpus records against its
+                    // `incomplete` status.
+                    None => match error.error().incomplete_capacity() {
+                        Some((capacity, obligation)) => format!(
+                            "incomplete: {product_label} production stopped at the private \
+                             `{}` proof-search capacity (provision {}) with obligation {} \
+                             unproved; the module is not shown invalid",
+                            capacity.resource_name(),
+                            capacity.limit(),
+                            obligation,
+                        ),
+                        None => format!("{product_label} production failed: {error}"),
+                    },
                 },
             )]
         })?;
