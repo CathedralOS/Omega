@@ -815,6 +815,13 @@ fn bound_pass_compiles_only_the_occurrences_its_bindings_changed() {
         bound_compilations, 2,
         "the bound pass recompiled the two binding-consuming occurrences only"
     );
+    assert_eq!(
+        bound.carried, 1,
+        "the binding-free plain_marks occurrence carried its whole discovery \
+         compile forward; both binding-consuming occurrences recompiled \
+         because every accepted binding reaches provider and execution \
+         settlement"
+    );
     let bound_frontier_reuses = compiler::typed_frontier_reuse_count() - frontiers_before;
     assert_eq!(
         bound_frontier_reuses, 2,

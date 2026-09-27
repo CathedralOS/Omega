@@ -59,6 +59,11 @@ pub(super) struct CompiledPackageReviews {
     /// carries an occurrence forward — check, build evaluation, and review —
     /// only when it arrives at these same inputs under the same entry.
     pub(super) occurrences: Vec<RetainedOccurrenceCompile>,
+    /// Occurrences this pass carried forward from `prior` without compiling:
+    /// the occurrences whose complete inputs were identical to a retained
+    /// earlier compile. Timing notes report it beside the compiled count so a
+    /// bound pass's remaining compiles are distinguishable from its carries.
+    pub(super) carried: usize,
 }
 
 /// One package occurrence's compile, retained with the complete inputs that
@@ -187,6 +192,7 @@ pub(super) fn compile_dependency_closure(
     // it was.
     let mut session_usages = Vec::<Option<build_evaluation::BuildEvaluationUsage>>::new();
     let mut occurrences = Vec::<RetainedOccurrenceCompile>::new();
+    let mut carried_occurrences = 0usize;
     let mut retained_policy_canonical_total = 0usize;
     let mut target_entry_candidates =
         Vec::<(DependencyPurpose, SemanticBindingReviewCandidate)>::new();
@@ -413,6 +419,17 @@ pub(super) fn compile_dependency_closure(
             // Consumed evaluation usage stays on the carried review but was
             // reconciled by the pass that ran it, so none of it enters this
             // session's accounting.
+            // The reuse key is the occurrence's complete compile input, not a
+            // binding-normalized projection of it: `typed_trees_to_checked_trees`
+            // provider settlement and selected-execution settlement read every
+            // accepted semantic binding — canonical host bindings mint
+            // toolchain plans and authorize fused-service erasures, entry and
+            // exit bindings resolve into the review's resolved-binding rows —
+            // so a pass difference in any binding produces a genuinely
+            // different checked product and review. The only field that ever
+            // differs between the discovery and bound passes is exactly that
+            // map; normalizing it out of this key would replay a review that
+            // never consumed this pass's authority.
             let reused = prior.and_then(|prior| {
                 prior
                     .occurrences
@@ -483,6 +500,7 @@ pub(super) fn compile_dependency_closure(
                         .insert((key.identity(), purpose), (entry.to_path_buf(), checked));
                 }
                 occurrences.push(carried);
+                carried_occurrences += 1;
                 verify_selected_source_custody(
                     &scope,
                     PackageSourceVerificationPhase::AfterCompilation,
@@ -797,6 +815,7 @@ pub(super) fn compile_dependency_closure(
         reviews: CompilerIssuedPackageReviewSet { reviews },
         checked_root,
         occurrences,
+        carried: carried_occurrences,
     })
 }
 
