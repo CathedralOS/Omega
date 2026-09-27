@@ -1,0 +1,59 @@
+// An owned, domain-carrying `[u8; N]` field store admits ONLY a bare string
+// literal. Any other expression on the right declines silently, with no
+// diagnostic. Reduced from three samples that share this one cause:
+// `cli/basics/text_greeting`, `cli/systems/status_report`,
+// `cli/text/string_catalog`.
+//
+//   self.greeting = "Hello, Ada!";          checks
+//   self.greeting = ("Hello, Ada!");        checks   (parens are transparent)
+//   self.greeting = "Hello, " + "Ada!";     OMITTED  (this fixture)
+//   self.greeting = "Hello, " + self.name;  OMITTED
+//   self.greeting = self.name;              OMITTED  (a plain copy, no `+`)
+//
+// Two ADJACENT LITERALS are enough -- there is no runtime operand and no field
+// read, and the compiler does not fold `"a" + "b"` into a single String node.
+// A carrier-to-carrier copy with no concatenation at all omits too, so this is
+// not about concatenation either: the store admits the String node and nothing
+// else.
+//
+// The decline is the `let ... else { return None; }` at
+// `psi/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/
+// structural_scalar_store/byte_stores.rs`, where `field_store` requires
+// `ExpressionNode::String`. That function sets no `trace.phase` of its own, so
+// the label reports the phase entered just before the call and names the ROUTE,
+// not the decliner.
+//
+// Ruled out, each against its control: the `Utf8` DOMAIN shell (a domained
+// carrier with a literal checks -- the domain is what puts the store on this
+// route, not what declines it; a plain `[u8; N]` never reaches this route and
+// omits at `structural field store: scalar field type` for a literal too);
+// CAPACITY and array length (8, 16 and 32 behave alike, and a literal that
+// genuinely overflows produces a proper diagnostic rather than an omission);
+// OPERAND COUNT (two and three operands omit alike); a RUNTIME operand (two
+// literals suffice); NESTED carrier paths (`self.catalog.label` behaves as
+// `self.greeting` does); and WHERE the store sits (entry body, a sub-state, and
+// a separate callee machine all decline at the same site).
+//
+// MEASUREMENT HAZARD, and the reason this fixture keeps a `write_line` it does
+// not otherwise need: A MACHINE WITH NO TERMINAL EFFECT DEMANDS NO UNIT PLAN,
+// so every check of it is VACUOUSLY GREEN. The exact body above, stripped of
+// its `Binding<Console>`, its `reaches Console` and its console call, CHECKS --
+// while the same body with the effect restored omits. A reduction in this area
+// that drops the effect while shrinking measures nothing and will report a
+// repair that has not happened.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+domain [u8; 32]::Utf8
+requires
+    valid_utf8(self);
+
+data Main {
+    console: Binding<Console>;
+    greeting: [u8; 32] in Utf8;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.greeting = "Hello, " + "Ada!";
+    self.console.write_line("done");
+}
