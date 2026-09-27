@@ -826,8 +826,8 @@ fail/slices/window_shrink_index_out_of_length rejected 1ms expected
 	cannot prove index `3` is within length 3
 fail/targets/sibling_body_type_error_rejected rejected 209ms expected
 	machine `Helper::paradigm_internal` state `paradigm_internal` local `wrong` stores a boolean into a `i32` local, which holds a numeric value
-fail/targets/single_target_internal_caller_rejected rejected 180ms expected
-	machine `Main::main` state `main` calls `Helper::paradigm_internal`, which is declared only for target `uefi_x86_64`. This build realizes `macos_arm64`, so that body is an inert sibling and the call has no implementation; scope the caller to `uefi_x86_64` as well, or declare `Helper::paradigm_internal` for the target being built.
+fail/targets/single_target_internal_caller_rejected rejected 2541ms expected
+	machine `Main::main` state `main` calls `Helper::paradigm_internal`, which is declared only for target `uefi_x86_64`. This build realizes `<selected target>`, so that body is an inert sibling and the call has no implementation; scope the caller to `uefi_x86_64` as well, or declare `Helper::paradigm_internal` for the target being built.
 fail/targets/target_machine_duplicate_rejected rejected 1ms expected
 	machine `Helper::pick` is implemented twice for the selected target -- a target supplies exactly one implementation of a contract machine
 fail/targets/target_machine_missing_rejected rejected 1ms expected
@@ -1548,7 +1548,7 @@ pass/structural/element_store checked 1515ms
 pass/structural/local_record_receivers checked 8ms
 pass/targets/aarch64_hfa_entry_argument checked 2256ms
 pass/targets/efi_vtable_call checked 55ms
-pass/targets/single_target_internal_machine_skipped checked 157ms
+pass/targets/single_target_internal_machine_skipped checked 6706ms
 pass/targets/sysv_mixed_aggregate_entry checked 2339ms
 pass/targets/target_machine_gating_exit checked 160ms
 pass/tasks/task_runtime_machine_selection_compile checked 4ms

@@ -97,6 +97,29 @@ fn escape_diagnostic(text: &str) -> String {
     out
 }
 
+/// The `This build realizes ...` clause names the selected target, which is
+/// the machine this corpus runs on -- the same diagnostic spells differently
+/// on every host, so a golden row recorded on one moved on all the others.
+/// Record the clause with the name abstracted; fragment matching keeps
+/// weighing the unmodified diagnostic.
+fn host_free_diagnostic_text(text: &str) -> String {
+    const CLAUSE: &str = "This build realizes ";
+    const STOP: &str = ", so ";
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(start) = rest.find(CLAUSE) {
+        let clause_start = start + CLAUSE.len();
+        let Some(end) = rest[clause_start..].find(STOP) else {
+            break;
+        };
+        out.push_str(&rest[..clause_start]);
+        out.push_str("`<selected target>`");
+        rest = &rest[clause_start + end..];
+    }
+    out.push_str(rest);
+    out
+}
+
 /// One fixture's record: its header line, then one tab-indented line per
 /// diagnostic.
 fn record_text(
@@ -491,7 +514,7 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
     };
     let diagnostics = errors
         .iter()
-        .map(|error| error.message.clone())
+        .map(|error| host_free_diagnostic_text(&error.message))
         .collect::<Vec<_>>();
     let satisfied = expected_fragment_satisfied(&fixture_dir, errors);
     let millis = started.elapsed().as_millis();
