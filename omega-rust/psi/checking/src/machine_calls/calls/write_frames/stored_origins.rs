@@ -110,6 +110,19 @@ pub(super) fn declaration_origins_for_query(
     {
         return None;
     }
+    // A declared-zeroed local (`let room: Room;`) has no initializer to walk.
+    // Its declaration frontier is the type-derived symbolic may-set — the same
+    // seed a by-value state parameter receives — so a later field store to its
+    // own storage still enumerates exact places instead of going opaque.
+    if !local.initial_value.is_valid() {
+        return type_origins::declared_origins_for_query(
+            program,
+            local.symbol,
+            local.name.as_str(),
+            local.type_reference,
+            include_shared,
+        );
+    }
     let leaves = reference_leaves_with_origins(
         program,
         machine,
