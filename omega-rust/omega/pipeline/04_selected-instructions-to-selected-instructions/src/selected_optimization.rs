@@ -5,6 +5,9 @@ pub(crate) mod optimization_output;
 #[cfg(test)]
 mod catalog_route_tests;
 
+#[cfg(test)]
+mod evidence_matrix;
+
 use crate::analyses::stage_optimized_allocation_legality_for_frameless_leaf;
 use crate::{
     SELECTED_STAGE_RULE_CATALOG, SelectedInstructionOptimizationError,

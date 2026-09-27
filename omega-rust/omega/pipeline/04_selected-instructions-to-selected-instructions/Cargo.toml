@@ -31,3 +31,7 @@ sha2 = "0.10.9"
 
 [dev-dependencies]
 mimalloc = { version = "0.1", default-features = false }
+abstract-operations-to-abstract-operations = { path = "../01_abstract-operations-to-abstract-operations" }
+terminal-psi-to-abstract-operations = { path = "../00_terminal-psi-to-abstract-operations" }
+terminal-verifier = { path = "../../../psi/representations/terminal-psi/verification" }
+proof-admission = { path = "../../../psi/proof/admission" }

@@ -17,7 +17,7 @@ pub(super) fn derive_action(
     function: &SelectedFunction,
     candidate: &register_homes::PressureRecoveryClassification,
     rows: &AdmittedPairs<'_>,
-) -> Result<LiteralFoldAction, LiteralFoldError> {
+) -> Result<Option<LiteralFoldAction>, LiteralFoldError> {
     if candidate.role != RecoveryVictimRole::Incoming {
         return Err(LiteralFoldError::UnsupportedVictimRole {
             function: function_index,
@@ -31,9 +31,10 @@ pub(super) fn derive_action(
         ..
     } = &candidate.classification
     else {
-        return Err(LiteralFoldError::ClassificationNotAdmitted {
-            function: function_index,
-        });
+        // A non-candidate classification is a real row — the classifier
+        // minted it to say no recovery applies — not a foldable record
+        // the selection declined. No fold; the spill decision stands.
+        return Ok(None);
     };
     let literal_u64 =
         u64::try_from(*value).map_err(|_| LiteralFoldError::UnsupportedImmediate {
@@ -66,43 +67,64 @@ pub(super) fn derive_action(
             function: function_index,
         })?;
     let literal = &block.instructions[literal_index];
-    let consumer = block
+    // The folded consumer is the victim's single recorded use, anywhere
+    // later in the same block: the spill chooser only names the literal
+    // the incoming victim when its interval out-lives every reclaimable
+    // resident, which a just-materialized pair can never satisfy — the
+    // victim's use lands past the intervening live ranges that lost the
+    // victim race. An adjacent materialize–consumer pair still matches
+    // here; the position lookup just stops requiring it.
+    let consumer_index = block
         .instructions
-        .get(literal_index + 1)
-        .filter(|instruction| instruction.id == future_use.instruction)
+        .iter()
+        .position(|instruction| instruction.id == future_use.instruction)
+        .filter(|index| *index > literal_index)
         .ok_or(LiteralFoldError::ConsumerMismatch {
             function: function_index,
         })?;
+    let consumer = &block.instructions[consumer_index];
     // The consumer kind, the folded literal's operand position, and the
     // literal's value together select the grammar: a family may admit the
     // same kind under disjoint operand shapes, and disjoint families may
     // admit the same kind at the same position under disjoint literal
     // bounds — the bitwise-and annihilator and identity selections both
-    // fold `BitwiseAndI64` at either `Use` position. An unadmitted kind is
-    // a consumer mismatch; an admitted kind whose literal sits at a
-    // position no enabled grammar covers is a future-use mismatch; an
-    // admitted position whose literal lies outside every enabled bound is
-    // an unsupported immediate.
-    let pair = rows
-        .for_consumer(consumer.kind, future_use.operand, literal_u64)
-        .ok_or_else(|| {
-            if !rows.admits_consumer_kind(consumer.kind) {
-                LiteralFoldError::ConsumerMismatch {
-                    function: function_index,
-                }
-            } else if rows
-                .for_position(consumer.kind, future_use.operand)
-                .is_none()
-            {
-                LiteralFoldError::FutureUseMismatch {
-                    function: function_index,
-                }
-            } else {
-                LiteralFoldError::UnsupportedImmediate {
-                    function: function_index,
-                }
+    // fold `BitwiseAndI64` at either `Use` position. The decline boundary
+    // is the consumer's family: a record whose `Use` claim is consistent
+    // — the claimed operand really is the victim's — while the consumer's
+    // kind-family is one no enabled pair admits at all is a coverage
+    // state, not an inconsistency, so the row declines and the spill
+    // decision stands. Within a covered family the admission errors name
+    // the axis: an unadmitted exact kind is a consumer mismatch, an
+    // admitted kind whose literal sits at a position no enabled grammar
+    // covers is a future-use mismatch, and an admitted position whose
+    // literal lies outside every enabled bound is an unsupported
+    // immediate.
+    let Some(pair) = rows.for_consumer(consumer.kind, future_use.operand, literal_u64) else {
+        if !rows.admits_consumer_kind(consumer.kind) {
+            let consistent_use = consumer.operands.iter().any(|operand| {
+                operand.operand == future_use.operand
+                    && operand.access == RegisterOperandAccess::Use
+                    && operand.virtual_register == candidate.victim
+            });
+            if consistent_use && !rows.admits_consumer_family(consumer.kind) {
+                return Ok(None);
             }
-        })?;
+            return Err(LiteralFoldError::ConsumerMismatch {
+                function: function_index,
+            });
+        }
+        if rows
+            .for_position(consumer.kind, future_use.operand)
+            .is_none()
+        {
+            return Err(LiteralFoldError::FutureUseMismatch {
+                function: function_index,
+            });
+        }
+        return Err(LiteralFoldError::UnsupportedImmediate {
+            function: function_index,
+        });
+    };
     let immediate =
         pair.rule
             .fold_immediate(literal_u64)
@@ -575,7 +597,7 @@ pub(super) fn derive_action(
         consumer,
         function,
         block_index,
-        literal_index + 1,
+        consumer_index,
     ) {
         return Err(LiteralFoldError::EffectSurfaceMismatch {
             function: function_index,
@@ -623,7 +645,7 @@ pub(super) fn derive_action(
         }
     };
 
-    Ok(LiteralFoldAction {
+    Ok(Some(LiteralFoldAction {
         block: candidate.block,
         pressure_point: candidate.point,
         literal_instruction: *defining_instruction,
@@ -633,7 +655,7 @@ pub(super) fn derive_action(
         result,
         immediate,
         immediate_constraint: row.key,
-    })
+    }))
 }
 
 /// Whether `register` is defined in `function` only by `MaterializeI64`

@@ -42,8 +42,9 @@ use selected_instructions::{
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 pub(crate) use validate::validate_literal_fold;
 
-/// Fold one classified incoming literal into its immediately following enabled
-/// consumer: an unsigned-12-bit literal at either operand of the commutative
+/// Fold one classified incoming literal into the enabled consumer that is the
+/// literal's single recorded use later in its block: an unsigned-12-bit
+/// literal at either operand of the commutative
 /// exact-add, at the right operand of exact-subtract/compare, at the index
 /// operand of the indexed byte load, or at the offset operand of the
 /// byte-view address projection into the matching immediate or
