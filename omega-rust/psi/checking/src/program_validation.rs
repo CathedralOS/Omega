@@ -495,9 +495,19 @@ fn validate(
                         statement,
                     )
                 });
+                // Conflicting top-level declarations can prevent creating a
+                // resolver at all. That does not give a call-free statement
+                // unknown effects: preserve its incoming facts, as the
+                // resolver's empty value-call frame would. An unresolved
+                // value call still clears facts; direct writes and calls
+                // remain the statement validator's responsibility below.
                 if let Some(written) = value_written {
                     value_environment.invalidate_written_paths(&written);
-                } else {
+                } else if call_frames.is_some()
+                    || calls::statement_value_expression_roots(program, statement)
+                        .iter()
+                        .any(|expression| calls::expression_has_calls(program, *expression))
+                {
                     value_environment.clear();
                 }
                 // VALUE-position calls inside this statement's expression trees
