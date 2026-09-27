@@ -43,7 +43,7 @@ machine Main::main(&mut self) reaches Console {
     // compares a plain value, never inline arithmetic).
     state advance(&mut self) {
         self.collatz.steps = self.collatz.steps + 1;
-        let remainder: i32 = self.collatz.value % 2;
+        let remainder: i32 = (self.collatz.value % 2) as i32;
         transition remainder == 0 {
             true -> halve()
             _ -> climb()
