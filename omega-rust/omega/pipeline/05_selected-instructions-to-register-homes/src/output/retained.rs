@@ -19,6 +19,20 @@ mod tests;
 pub struct RetainedAllocation {
     current: super::current::CurrentAllocation,
     replay: ReplayInputs,
+    rejoined: ReplayRejoined,
+}
+
+/// Set once a replay has rejoined `current`. Both are immutable, so a later
+/// replay would reach the same verdict; consumers replay once per realized
+/// function, and each rejoin compared the whole program's allocation. Only a
+/// successful rejoin is recorded, so a mismatch fails on every replay.
+#[derive(Default)]
+struct ReplayRejoined(std::sync::OnceLock<()>);
+
+impl std::fmt::Debug for ReplayRejoined {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("ReplayRejoined")
+    }
 }
 
 #[derive(Debug)]
@@ -46,6 +60,9 @@ impl sealed::Sealed for RetainedAllocation {}
 
 impl AllocationSource for RetainedAllocation {
     fn replay_allocation(&self) -> Result<AllocationOutput<'_>, AllocationReplayError> {
+        if self.rejoined.0.get().is_some() {
+            return Ok(self.current());
+        }
         // Reuse admission of this exact privately owned, immutable source, not
         // a detached identity or a result from another allocation. Fresh source
         // inputs still take the full replay path in every TryFrom below. Rejoin
@@ -65,6 +82,7 @@ impl AllocationSource for RetainedAllocation {
         };
         validate_recovery_selection(&current, prefix_selection)?;
         self.current.validate_against(&current)?;
+        let _ = self.rejoined.0.set(());
         Ok(self.current())
     }
 }
@@ -79,6 +97,7 @@ impl TryFrom<StagedOptimizedRegisterHomes> for RetainedAllocation {
         Ok(Self {
             current,
             replay: ReplayInputs::Baseline(Box::new(source)),
+            rejoined: ReplayRejoined::default(),
         })
     }
 }
@@ -95,6 +114,7 @@ impl TryFrom<StagedOptimizedRegisterHomesAfterFixedViewCopies> for RetainedAlloc
         Ok(Self {
             current,
             replay: ReplayInputs::FixedView(Box::new(source)),
+            rejoined: ReplayRejoined::default(),
         })
     }
 }
@@ -111,6 +131,7 @@ impl TryFrom<StagedOptimizedRegisterHomesAfterLiteralFolds> for RetainedAllocati
         Ok(Self {
             current,
             replay: ReplayInputs::LiteralFolds(Box::new(source)),
+            rejoined: ReplayRejoined::default(),
         })
     }
 }
@@ -127,6 +148,7 @@ impl TryFrom<StagedOptimizedRegisterHomesAfterSelectedLowering> for RetainedAllo
         Ok(Self {
             current,
             replay: ReplayInputs::SelectedLowering(Box::new(source)),
+            rejoined: ReplayRejoined::default(),
         })
     }
 }
@@ -143,6 +165,7 @@ impl TryFrom<StagedOptimizedRegisterHomesAfterPreAllocation> for RetainedAllocat
         Ok(Self {
             current,
             replay: ReplayInputs::PreAllocation(Box::new(source)),
+            rejoined: ReplayRejoined::default(),
         })
     }
 }
@@ -159,6 +182,7 @@ impl TryFrom<StagedOptimizedActiveResidentRematerialization> for RetainedAllocat
         Ok(Self {
             current,
             replay: ReplayInputs::Rematerialization(Box::new(source)),
+            rejoined: ReplayRejoined::default(),
         })
     }
 }
@@ -238,6 +262,7 @@ impl TryFrom<crate::assignment::runtime_spill::RuntimeSpillAllocation> for Retai
         Ok(Self {
             current,
             replay: ReplayInputs::RuntimeSpill(Box::new(source)),
+            rejoined: ReplayRejoined::default(),
         })
     }
 }
