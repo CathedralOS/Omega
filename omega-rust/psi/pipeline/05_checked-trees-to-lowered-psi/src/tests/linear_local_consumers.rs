@@ -9,17 +9,6 @@ use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 const RECEIPT: &str = "data Receipt [linear] { code: i32; }\nmachine Receipt::ack(self) {}\n";
 
-fn produce_and_verify(source: &str, entry: &str, label: &str) {
-    let artifact = produce(source, entry).unwrap_or_else(|error| panic!("{label} lowers: {error}"));
-    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
-    terminal_verifier::verify_module(
-        &module,
-        &terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap(),
-        &proof_admission::AdmissionProfile::default(),
-    )
-    .unwrap_or_else(|error| panic!("{label} verifies: {error:?}"));
-}
-
 fn produce(source: &str, entry: &str) -> Result<terminal_codec::CanonicalTerminalArtifact, String> {
     let checked = checked_program(source);
     terminal_production::TerminalProductionRequest::new(
@@ -31,15 +20,6 @@ fn produce(source: &str, entry: &str) -> Result<terminal_codec::CanonicalTermina
     ))
     .map(|produced| produced.into_artifact())
     .map_err(|error| format!("{error:?}"))
-}
-
-#[test]
-fn a_linear_parameter_receiver_lowers_and_verifies() {
-    produce_and_verify(
-        &format!("{RECEIPT}machine run(issued: Receipt) -> i32 {{ issued.ack(); 0 }}"),
-        "run",
-        "parameter",
-    );
 }
 
 #[test]

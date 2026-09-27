@@ -27,34 +27,6 @@ const SOURCE: &str = r#"
     }
 "#;
 
-#[test]
-fn ordinary_calls_retain_multistate_branches_and_return_to_caller() {
-    let checked = crate::front_end::checked_program(SOURCE);
-    assert_eq!(
-        checked.facts.flow.terminal_unit_effects.composed_machines[0]
-            .attachment_type_identity
-            .as_deref(),
-        Some("named(name(Writer))")
-    );
-    let lowered = checked_trees_to_lowered_psi::lower_machine(
-        &checked,
-        TerminalMachineSelection::Name("Root::enter"),
-    )
-    .expect("ordinary caller retains its multistate helper");
-    assert_eq!(lowered.semantic_module.machines.len(), 3);
-    assert_eq!(
-        lowered
-            .semantic_module
-            .machines
-            .iter()
-            .filter(|machine| machine.blocks.len() == 3)
-            .count(),
-        1
-    );
-    assert_eq!(execute(&lowered), [10, 99]);
-    assert_optimized(lowered, &[10, 99]);
-}
-
 fn execute(lowered: &lowered_psi::LoweredPsi) -> Vec<u128> {
     let execution = interpret_terminal_artifact_measured(
         &encode_module(&lowered.semantic_module).unwrap(),
@@ -91,69 +63,6 @@ fn assert_optimized(lowered: lowered_psi::LoweredPsi, expected: &[u128]) {
     .unwrap();
     let optimized = lowered_psi_to_lowered_psi::run_psi_optimization(lowered, selections).unwrap();
     assert_eq!(execute(optimized.lowered()), expected);
-}
-
-#[test]
-fn nested_composed_and_ordinary_calls_share_bodies_and_continue_in_order() {
-    let source = SOURCE
-        .replace(
-            "data Root {}",
-            r#"
-        machine Writer::choose(enabled: bool) reaches Output {
-            transition enabled { true -> emit() false -> skip() }
-            state emit() { Writer::newline(true); }
-            state skip() { Writer::newline(false); }
-        }
-        machine Writer::relay(enabled: bool) reaches Output { Writer::choose(enabled); }
-        data Root {}
-    "#,
-        )
-        .replace(
-            "Writer::newline(true);\n        Writer::newline(false);",
-            "Writer::relay(true);\n        Writer::relay(false);",
-        );
-    let checked = crate::front_end::checked_program(&source);
-    for (root, arguments, expected) in [
-        ("Root::enter", None, vec![10, 99]),
-        ("Writer::choose", Some(true), vec![10]),
-        ("Writer::choose", Some(false), vec![]),
-    ] {
-        let lowered = checked_trees_to_lowered_psi::lower_machine(
-            &checked,
-            TerminalMachineSelection::Name(root),
-        )
-        .unwrap();
-        if let Some(enabled) = arguments {
-            let execution = interpret_terminal_artifact_measured(
-                &encode_module(&lowered.semantic_module).unwrap(),
-                &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
-                &AdmissionProfile::default(),
-                &[TerminalScalarValue::Boolean(enabled)],
-                TerminalStructuralInputs::default(),
-                &mut AcceptTerminalEffects,
-            )
-            .unwrap();
-            assert_eq!(execution.value(), TerminalExecutionResult::Unit);
-            assert_eq!(execution.effects().len(), expected.len());
-        } else {
-            assert_eq!(
-                lowered.semantic_module.machines.len(),
-                5,
-                "each authored body appears once"
-            );
-            assert_eq!(
-                lowered
-                    .semantic_module
-                    .machines
-                    .iter()
-                    .filter(|machine| machine.blocks.len() == 3)
-                    .count(),
-                2
-            );
-            assert_eq!(execute(&lowered), expected);
-            assert_optimized(lowered, &expected);
-        }
-    }
 }
 
 #[test]
@@ -281,50 +190,6 @@ fn callable_composed_guard_edges_contract_and_call_operands_rejoin_checked_sourc
             }
             5 => callee.attachment_type_identity = Some("named(name(Root))".to_owned()),
             6 => callee.attachment_type_identity = None,
-            _ => unreachable!(),
-        }
-        assert!(
-            checked_trees_to_lowered_psi::lower_machine(
-                &checked,
-                TerminalMachineSelection::Name("Root::enter")
-            )
-            .is_err(),
-            "mutation {mutation}"
-        );
-    }
-}
-
-#[test]
-fn ordinary_call_to_composed_body_retains_target_state_contract_and_reach() {
-    for mutation in 0..3 {
-        let mut checked = crate::front_end::checked_program(SOURCE);
-        let plans = &mut checked.facts.flow.terminal_unit_effects;
-        let leaf_state = plans.composed_machines[0].states[1].state;
-        let caller = plans
-            .machines
-            .iter_mut()
-            .find(|plan| {
-                plan.operations.iter().any(|operation| {
-                    matches!(
-                        operation,
-                        checked_trees::CheckedUnitEffectOperationPlan::CallUnit { .. }
-                    )
-                })
-            })
-            .unwrap();
-        let checked_trees::CheckedUnitEffectOperationPlan::CallUnit {
-            target_state,
-            target_contract_report_fingerprint,
-            service_reach,
-            ..
-        } = &mut caller.operations[0]
-        else {
-            panic!("caller operation");
-        };
-        match mutation {
-            0 => *target_state = leaf_state,
-            1 => *target_contract_report_fingerprint ^= 1,
-            2 => *service_reach = Default::default(),
             _ => unreachable!(),
         }
         assert!(

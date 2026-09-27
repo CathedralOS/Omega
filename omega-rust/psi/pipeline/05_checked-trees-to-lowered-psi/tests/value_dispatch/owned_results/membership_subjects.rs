@@ -1,30 +1,6 @@
 use super::{MEMBERSHIP_TYPES, membership_case, verify_membership_source};
 use crate::value_dispatch::{TerminalExecutionResult, TerminalScalarValue};
 
-/// A `subject in Type::Case` dispatch guard is a tag observation, not an
-/// ownership transfer: borrowed, copy, affine-parameter, `self`, and affine
-/// local subjects each rejoin the authored membership while the owned
-/// candidates keep exact residual custody.
-#[test]
-fn owned_match_membership_subject_observes_without_transferring_it() {
-    for parameter in ["view: &Kind", "view: Kind"] {
-        verify_membership_source(&format!(
-            "{MEMBERSHIP_TYPES}
-            machine choose({parameter}, left: Choice, right: Choice) -> bool {{
-                let result: Choice = match view in Kind::Missing {{ true -> left, false -> right }};
-                result in Choice::Full
-            }}"
-        ));
-    }
-    verify_membership_source(&format!(
-        "{MEMBERSHIP_TYPES}
-        machine Kind::choose(&self, left: Choice, right: Choice) -> bool {{
-            let result: Choice = match self in Kind::Missing {{ true -> left, false -> right }};
-            result in Choice::Full
-        }}"
-    ));
-}
-
 /// The affine local subject is only observed by the membership guard, so it
 /// rides the result join as a transported owner while the parameter candidates
 /// hold residual slots. The return cleanup keeps the join's

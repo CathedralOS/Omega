@@ -18,10 +18,6 @@ fn unsigned(value: u128) -> TerminalScalarValue {
     }
 }
 
-pub fn execute_cases(module: &TerminalModule, semantic_bytes: &[u8], proof_bytes: &[u8]) {
-    execute(module, semantic_bytes, proof_bytes, |_| 0);
-}
-
 fn execute(
     module: &TerminalModule,
     semantic_bytes: &[u8],

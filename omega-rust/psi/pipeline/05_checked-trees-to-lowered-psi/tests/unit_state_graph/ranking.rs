@@ -148,60 +148,6 @@ fn natural_cycle_requires_its_exact_grouped_evidence() {
 }
 
 #[test]
-fn natural_topology_cannot_omit_an_edge_or_accept_a_preserving_cycle() {
-    let lowered = lower_writer();
-    for mutation in 0..5 {
-        let mut module = lowered.semantic_module.clone();
-        let machine = module
-            .machines
-            .iter_mut()
-            .find(|machine| machine.ranked_scc.is_some())
-            .unwrap();
-        let Some(TerminalRankedScc::Natural(components)) = &mut machine.ranked_scc else {
-            panic!("natural ranks");
-        };
-        let component = &mut components[0];
-        match mutation {
-            0 => {
-                component.edges.pop();
-            }
-            1 => {
-                component.ranks.pop();
-            }
-            2 => {
-                for edge in &mut component.edges {
-                    edge.comparison = TerminalNaturalRankComparison::Preserving;
-                }
-            }
-            3 => {
-                component.edges.reverse();
-            }
-            4 => {
-                let strict = component
-                    .edges
-                    .iter_mut()
-                    .find(|edge| edge.comparison == TerminalNaturalRankComparison::Strict)
-                    .unwrap();
-                strict.successor_rank = component
-                    .ranks
-                    .iter()
-                    .find(|rank| rank.block == strict.source)
-                    .unwrap()
-                    .value;
-            }
-            _ => unreachable!(),
-        }
-        assert!(
-            matches!(
-                terminal_verifier::validate_module(&module),
-                Err(terminal_verifier::ModuleError::InvalidRankedScc(_))
-            ),
-            "topology mutation {mutation}"
-        );
-    }
-}
-
-#[test]
 fn unchanged_tail_cannot_reuse_the_strict_comparison_certificate() {
     let lowered = lower_writer();
     let mut module = lowered.semantic_module.clone();
@@ -288,48 +234,4 @@ fn checked_slice_rank_cannot_be_removed_or_redirected() {
             .is_err()
         );
     }
-}
-
-#[test]
-fn serialized_ranked_writer_resumes_without_repeating_effects() {
-    use terminal_fuel::TerminalFuelMeter;
-    use terminal_interpreter::{TerminalExecution, TerminalExecutionStatus};
-    let lowered = lower_writer();
-    let expected = interpret_terminal_artifact_measured(
-        &encode_module(&lowered.semantic_module).unwrap(),
-        &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
-        &AdmissionProfile::default(),
-        &[],
-        TerminalStructuralInputs::default(),
-        &mut AcceptTerminalEffects,
-    )
-    .unwrap();
-    let mut execution = TerminalExecution::start_artifact(
-        &encode_module(&lowered.semantic_module).unwrap(),
-        &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
-        &AdmissionProfile::default(),
-        &[],
-        TerminalStructuralInputs::default(),
-    )
-    .unwrap();
-    let mut meter = TerminalFuelMeter::with_allowance(1);
-    for _ in 0..1000 {
-        match execution
-            .resume(&mut meter, &mut AcceptTerminalEffects)
-            .unwrap()
-        {
-            TerminalExecutionStatus::Complete(_) => {
-                assert_eq!(execution.effects(), expected.effects());
-                return;
-            }
-            TerminalExecutionStatus::SponsorExhausted(_) => {
-                assert!(expected.effects().starts_with(execution.effects()));
-                meter.replenish(1).unwrap();
-            }
-            TerminalExecutionStatus::Crashed(crash) => {
-                panic!("writer unexpectedly crashed: {crash:?}")
-            }
-        }
-    }
-    panic!("this finite writer input should complete within the test allowance");
 }

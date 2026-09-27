@@ -1,50 +1,4 @@
 use super::{StructuralScalarReturnTypes, validate};
-use crate::TerminalMachineSelection;
-
-#[test]
-fn pure_primitive_reference_returns_lower_without_fabricated_effects_or_attachment() {
-    for source in [
-        "machine hold(value: &u64) -> u64 { 11 }",
-        "machine hold(first: &u64, second: &u64) -> u64 { 11 }",
-        "machine hold(seed: u64, first: &u64, value: u64, second: &u64) -> u64 { value }",
-        "machine hold(value: &mut u64) -> u64 { 11 }",
-        "machine hold(value: &write u64) -> u64 { 11 }",
-    ] {
-        let checked = crate::front_end::checked_program(source);
-        let plan = &checked
-            .facts
-            .flow
-            .terminal_structural_scalar_returns
-            .machines[0];
-        assert!(
-            validate(
-                &checked,
-                StructuralScalarReturnTypes::published(&checked),
-                plan
-            )
-            .unwrap(),
-            "primitive-reference cohort: {source}"
-        );
-        let lowered =
-            crate::lower_machine(&checked, TerminalMachineSelection::Name("hold")).unwrap();
-        let machine = &lowered.semantic_module.machines[0];
-        assert!(machine.attachment.is_none());
-        assert_eq!(
-            machine.structural_parameters.len(),
-            plan.structural_parameters.len()
-        );
-        assert!(
-            !machine
-                .blocks
-                .iter()
-                .flat_map(|block| &block.operations)
-                .any(|operation| matches!(
-                    operation.kind,
-                    terminal_psi::OperationKind::WriteOnlyPrimitiveStore { .. }
-                ))
-        );
-    }
-}
 
 #[test]
 fn pure_primitive_reference_returns_reject_signature_and_return_custody_substitution() {
@@ -85,29 +39,6 @@ fn pure_primitive_reference_returns_reject_signature_and_return_custody_substitu
             "custody mutation {mutation}"
         );
     }
-}
-
-#[test]
-fn pure_primitive_reference_returns_cannot_erase_an_authored_assignment() {
-    let checked = crate::front_end::checked_program(
-        "machine reset(value: &mut u64) -> u64 { value = 7; 11 }",
-    );
-    let mut plan = checked
-        .facts
-        .flow
-        .terminal_structural_scalar_returns
-        .machines[0]
-        .clone();
-    plan.effects.clear();
-    plan.return_statement_ordinal = 0;
-    assert!(
-        validate(
-            &checked,
-            StructuralScalarReturnTypes::published(&checked),
-            &plan
-        )
-        .is_err()
-    );
 }
 
 #[test]

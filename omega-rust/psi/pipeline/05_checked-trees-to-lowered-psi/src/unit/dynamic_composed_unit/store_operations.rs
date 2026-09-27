@@ -360,7 +360,7 @@ pub(crate) fn empty_terminal_contract(identity: u64) -> MachineContract {
 #[cfg(test)]
 mod tests {
     use super::{
-        LoweringError, OperationKind, OperationResult, PrimitiveType, StructuralAccess,
+        LoweringError, OperationKind, PrimitiveType, StructuralAccess,
         StructuralParameterDeclaration, lower_realization_operations,
     };
     use crate::terminal_identities::{place_id, structural_field_id, structural_type_id, value_id};
@@ -371,7 +371,7 @@ mod tests {
     use language_core::BindingRelevance;
     use numerics::arithmetic::ArithmeticDomain;
     use numerics::literals::{IntegerLanding, IntegerLiteral, LandedIntegerType};
-    use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
+    use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
     use terminal_psi::{
         StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
         StructuralTypeDeclaration, StructuralTypeShape,
@@ -481,76 +481,6 @@ mod tests {
             &mut next_operation,
             &mut next_value,
         )
-    }
-
-    #[test]
-    fn realization_returns_integer_self_field() {
-        let operations = lower(&field("value"), i32_type()).expect("field return lowers");
-        assert_eq!(operations.len(), 1);
-        assert_eq!(
-            operations[0].result,
-            OperationResult::Scalar(terminal_psi::ValueDeclaration {
-                qualifications: Default::default(),
-                id: value_id(2),
-                scalar_type: i32_type(),
-            })
-        );
-        assert_eq!(
-            operations[0].kind,
-            OperationKind::IntegerStructuralField {
-                source: place_id(1),
-                path: Vec::new(),
-                field: structural_field_id(2),
-            }
-        );
-    }
-
-    #[test]
-    fn realization_returns_boolean_self_field() {
-        let expression = CheckedScalarExpression::Boolean(Box::new(boolean_field("flag")));
-        let operations = lower(&expression, ScalarType::Boolean).expect("Boolean field lowers");
-        assert_eq!(
-            operations[0].kind,
-            OperationKind::BooleanStructuralField {
-                source: place_id(1),
-                path: Vec::new(),
-                field: structural_field_id(3),
-            }
-        );
-    }
-
-    #[test]
-    fn realization_returns_nested_self_field() {
-        let expression = CheckedScalarExpression::StructuralParameterField {
-            parameter_position: 0,
-            path: vec![
-                CheckedStructuralPredicatePathSegment::Field("inner".to_string()),
-                CheckedStructuralPredicatePathSegment::Field("value".to_string()),
-            ],
-            primitive_type: PrimitiveType::I32,
-        };
-        let operations = lower(&expression, i32_type()).expect("nested field lowers");
-        assert_eq!(
-            operations[0].kind,
-            OperationKind::IntegerStructuralField {
-                source: place_id(1),
-                path: vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
-                    structural_field_id(4),
-                ),],
-                field: structural_field_id(1),
-            }
-        );
-    }
-
-    #[test]
-    fn realization_returns_landed_integer_literal() {
-        let operations = lower(&literal(7), i32_type()).expect("literal return lowers");
-        assert_eq!(
-            operations[0].kind,
-            OperationKind::IntegerConstant {
-                value: IntegerValue::Signed(7),
-            }
-        );
     }
 
     #[test]

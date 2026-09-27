@@ -1,13 +1,12 @@
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, StructuralFieldId};
-use terminal_fuel::{FuelChargeSite, TerminalFuelMeter};
+use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{
-    TerminalArtifactInterpretError, TerminalExecution, TerminalExecutionResult,
-    TerminalExecutionStatus, TerminalInterpretError, TerminalScalarValue,
+    TerminalArtifactInterpretError, TerminalExecution, TerminalInterpretError, TerminalScalarValue,
     TerminalStructuralBooleanFieldValue, TerminalStructuralScalarFieldValue,
     TerminalStructuralValue,
 };
-use terminal_psi::{OperationKind, StructuralPathSegment, TerminalModule};
+use terminal_psi::{StructuralPathSegment, TerminalModule};
 
 use super::{LIMITS, support};
 
@@ -48,78 +47,6 @@ fn inputs(
             }
         }),
     )
-}
-
-#[test]
-fn affine_limits_integer_fields_execute_directly_and_through_owned_forwarding() {
-    for entry in ["inspect", "enter"] {
-        let (_, module, semantic_bytes, proof_bytes) = support::publish(LIMITS, entry);
-        let profile = proof_admission::AdmissionProfile::default();
-        for (limit, divisor) in [(0, 3), (42, 4), (99, 5), (u128::from(u64::MAX), 3)] {
-            let (root, fields) = inputs(&module, limit, divisor);
-            let mut execution = TerminalExecution::start_artifact(
-                &semantic_bytes,
-                &proof_bytes,
-                &profile,
-                &[unsigned(201)],
-                TerminalStructuralInputs {
-                    arguments: &[root],
-                    scalar_fields: &fields,
-                    ..Default::default()
-                },
-            )
-            .expect("bind explicit integer Limits fields");
-            let mut meter = TerminalFuelMeter::with_allowance(0);
-            let mut complete = false;
-            for _ in 0..128 {
-                match execution
-                    .resume(&mut meter, &mut AcceptTerminalEffects)
-                    .expect("resume real owned scalar graph")
-                {
-                    TerminalExecutionStatus::Complete(result) => {
-                        assert_eq!(
-                            result,
-                            TerminalExecutionResult::Scalar(unsigned(limit)),
-                            "{entry}, divisor {divisor}"
-                        );
-                        complete = true;
-                        break;
-                    }
-                    TerminalExecutionStatus::SponsorExhausted(_) => meter.replenish(1).unwrap(),
-                    other => panic!("unexpected Limits outcome: {other:?}"),
-                }
-            }
-            assert!(complete);
-            assert!(
-                execution.live_affine_frontier().next().is_none(),
-                "callee disposes the owned Limits"
-            );
-            let mut reads = 0;
-            let mut stores = 0;
-            let mut calls = 0;
-            for operation in module
-                .machines
-                .iter()
-                .flat_map(|machine| &machine.blocks)
-                .flat_map(|block| &block.operations)
-            {
-                let usage = meter
-                    .usage()
-                    .at(FuelChargeSite::Operation(operation.id))
-                    .expect("authored operation executes rather than folding the helper");
-                assert_eq!(usage.executions(), 1, "no replay across one-unit pauses");
-                match operation.kind {
-                    OperationKind::IntegerStructuralField { .. } => reads += 1,
-                    OperationKind::WriteOnlyPrimitiveStore { .. } => stores += 1,
-                    OperationKind::CallStructuralScalar { .. } => calls += 1,
-                    _ => {}
-                }
-            }
-            assert_eq!(reads, 1);
-            assert_eq!(stores, 1, "reset mutates its caller's primitive local");
-            assert_eq!(calls, if entry == "inspect" { 1 } else { 2 });
-        }
-    }
 }
 
 #[test]

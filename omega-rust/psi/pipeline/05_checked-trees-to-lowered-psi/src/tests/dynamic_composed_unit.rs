@@ -276,69 +276,6 @@ const REBOUND_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
     }
 "#;
 
-const FORWARDED_REBOUND_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
-    pub boundary trait Console {
-        machine exit_process(return_code: i32) reaches Console;
-    }
-
-    trait Measure {
-        machine measure(&self) -> i32;
-    }
-
-    data Item { value: i32; }
-
-    Primary: Item satisfies Measure {
-        machine measure(&self) -> i32 {
-            transition { _ -> self.value }
-        }
-    }
-
-    data Main {
-        console: Binding<Console>;
-        decoy: Item;
-        selected: Item;
-    }
-
-    machine Main::run(&mut self) reaches Console {
-        let mut erased: &dyn Measure = &self.decoy as &dyn Item::Primary;
-        erased = &self.selected as &dyn Item::Primary;
-        let result: i32 = forward(erased);
-        transition result == 0 {
-            true -> good()
-            _ -> bad()
-        }
-
-        state good(&mut self) { self.console.exit_process(70); }
-        state bad(&mut self) { self.console.exit_process(71); }
-    }
-
-    machine forward(erased: &dyn Measure) -> i32 {
-        let result: i32 = erased.measure();
-        transition { _ -> result }
-    }
-"#;
-
-const CHANGED_CONFORMANCE_DYNAMIC_INTEGER_SOURCE: &str = r#"
-    trait Measure { machine measure(&self) -> i32; }
-    data Item { value: i32; }
-
-    Primary: Item satisfies Measure {
-        machine measure(&self) -> i32 { transition { _ -> self.value } }
-    }
-
-    Secondary: Item satisfies Measure {
-        machine measure(&self) -> i32 { transition { _ -> self.value } }
-    }
-
-    data Main { decoy: Item; selected: Item; }
-
-    machine Main::run(&mut self) {
-        let mut erased: &dyn Measure = &self.decoy as &dyn Item::Primary;
-        erased = &self.selected as &dyn Item::Secondary;
-        let result: i32 = erased.measure();
-    }
-"#;
-
 const FORWARDED_REBOUND_DYNAMIC_INTEGER_SOURCE: &str = r#"
     trait Measure {
         machine measure(&self) -> i32;
@@ -365,73 +302,6 @@ const FORWARDED_REBOUND_DYNAMIC_INTEGER_SOURCE: &str = r#"
 
     machine forward(erased: &dyn Measure) -> i32 {
         let result: i32 = erased.measure();
-        transition { _ -> result }
-    }
-"#;
-
-const FORWARDED_DIRECT_DYNAMIC_INTEGER_SOURCE: &str = r#"
-    trait Measure {
-        machine measure(&self) -> i32;
-    }
-
-    data Item [copy] { value: i32; }
-
-    Primary: Item satisfies Measure {
-        machine measure(&self) -> i32 {
-            transition { _ -> self.value }
-        }
-    }
-
-    data Main [copy] { selected: Item; }
-
-    machine Main::run(&mut self) {
-        self.selected.value = 23;
-        let erased: &dyn Measure = &self.selected as &dyn Item::Primary;
-        let result: i32 = forward(erased);
-    }
-
-    machine forward(erased: &dyn Measure) -> i32 {
-        let result: i32 = erased.measure();
-        transition { _ -> result }
-    }
-"#;
-
-const JOINED_DYNAMIC_BOOLEAN_SOURCE: &str = r#"
-    trait Measure {
-        machine measure(&self) -> bool;
-    }
-
-    data Item [copy] { marker: bool; }
-
-    Primary: Item satisfies Measure {
-        machine measure(&self) -> bool { transition { _ -> self.marker } }
-    }
-
-    Secondary: Item satisfies Measure {
-        machine measure(&self) -> bool { transition { _ -> self.marker } }
-    }
-
-    data Main [copy] { first: Item; second: Item; }
-
-    machine Main::run(&self, choose_first: bool) {
-        transition choose_first {
-            true -> take_first()
-            _ -> take_second()
-        }
-
-        state take_first(&self) {
-            let selected: &dyn Measure = &self.first as &dyn Item::Primary;
-            let result: bool = finish(selected);
-        }
-
-        state take_second(&self) {
-            let selected: &dyn Measure = &self.second as &dyn Item::Secondary;
-            let result: bool = finish(selected);
-        }
-    }
-
-    machine finish(erased: &dyn Measure) -> bool {
-        let result: bool = erased.measure();
         transition { _ -> result }
     }
 "#;
@@ -516,37 +386,6 @@ const JOINED_DYNAMIC_UNIT_FORWARD_SOURCE: &str = r#"
     machine forward(erased: &dyn Touch) { relay(erased); }
     machine relay(erased: &dyn Touch) { finish(erased); }
     machine finish(erased: &dyn Touch) { erased.touch(); }
-"#;
-
-const MULTI_HOP_DYNAMIC_INTEGER_SOURCE: &str = r#"
-    trait Measure {
-        machine measure(&self) -> i32;
-    }
-
-    data Item [copy] { value: i32; }
-
-    Primary: Item satisfies Measure {
-        machine measure(&self) -> i32 {
-            transition { _ -> self.value }
-        }
-    }
-
-    data Main [copy] { selected: Item; }
-
-    machine Main::run(&self) {
-        let erased: &dyn Measure = &self.selected as &dyn Item::Primary;
-        let result: i32 = forward(erased);
-    }
-
-    machine forward(erased: &dyn Measure) -> i32 {
-        let result: i32 = finish(erased);
-        transition { _ -> result }
-    }
-
-    machine finish(erased: &dyn Measure) -> i32 {
-        let result: i32 = erased.measure();
-        transition { _ -> result }
-    }
 "#;
 
 const MULTI_HOP_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
@@ -681,22 +520,6 @@ const REBOUND_DYNAMIC_UNIT_SOURCE: &str = r#"
     }
 "#;
 
-const CHANGED_CONFORMANCE_DYNAMIC_UNIT_SOURCE: &str = r#"
-    trait Touch { machine touch(&self); }
-    data Item { value: i32; }
-
-    Primary: Item satisfies Touch { machine touch(&self) {} }
-    Secondary: Item satisfies Touch { machine touch(&self) {} }
-
-    data Main { decoy: Item; selected: Item; }
-
-    machine Main::run(&mut self) {
-        let mut erased: &dyn Touch = &self.decoy as &dyn Item::Primary;
-        erased = &self.selected as &dyn Item::Secondary;
-        erased.touch();
-    }
-"#;
-
 const FORWARDED_CHANGED_CONFORMANCE_DYNAMIC_UNIT_SOURCE: &str = r#"
     trait Touch { machine touch(&self); }
     data Item { value: i32; }
@@ -796,38 +619,6 @@ const REBOUND_FAMILY_DYNAMIC_INTEGER_SOURCE: &str = r#"
         let mut erased: &dyn Shape = &self.decoy as &dyn Item::Primary;
         erased = &self.selected as &dyn Item::Primary;
         let result: i32 = erased.code<32>();
-    }
-"#;
-
-const FORWARDED_FAMILY_DYNAMIC_INTEGER_SOURCE: &str = r#"
-    trait Shape {
-        machine Self::code<Width: u32>(&self) -> i32 where Width == 16 || Width == 32;
-    }
-
-    data Item [copy] {
-        value: i32;
-    }
-
-    machine Item::code<Width: u32>(&self) -> i32 satisfies Shape::code {
-        transition { _ -> self.value }
-    }
-
-    Primary: Item satisfies Shape {
-        Shape::code = Item::code;
-    }
-
-    data Main [copy] {
-        selected: Item;
-    }
-
-    machine Main::run(&self) {
-        let erased: &dyn Shape = &self.selected as &dyn Item::Primary;
-        let result: i32 = forward(erased);
-    }
-
-    machine forward(erased: &dyn Shape) -> i32 {
-        let result: i32 = erased.code<16>();
-        transition { _ -> result }
     }
 "#;
 

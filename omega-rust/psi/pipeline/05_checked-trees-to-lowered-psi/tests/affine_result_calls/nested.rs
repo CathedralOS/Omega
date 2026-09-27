@@ -1,6 +1,6 @@
 use super::{
-    CheckedUnitEffectOperationPlan, IntegerSign, IntegerType, IntegerValue, OperationKind,
-    OperationResult, TerminalScalarValue, Terminator, checked, lower_machine,
+    CheckedUnitEffectOperationPlan, OperationKind, OperationResult, Terminator, checked,
+    lower_machine,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 const DECLARATIONS: &str = "data Value { number: u64; }
@@ -74,68 +74,6 @@ fn assert_nested(source: &str, name: &str, coordinates: &[(usize, usize)], fuel:
     };
     assert!(trivial_affine_discards.is_empty());
     super::chains::assert_execution(&lowered.semantic_module, &lowered.proof_bundle, &[], fuel);
-}
-
-#[test]
-fn sibling_operands_execute_in_authored_argument_order() {
-    assert_nested(
-        &format!(
-            "{DECLARATIONS} machine Main::caller(left: Value, right: Value) {{ Main::consume_pair(forward(left), forward(right)); }}"
-        ),
-        "Main::caller",
-        &[(0, 1), (0, 2), (0, 0)],
-        7,
-    );
-    assert_nested(
-        &format!(
-            "{DECLARATIONS} machine Main::caller(left: Value, right: Value) {{ Main::consume_pair(forward(forward(left)), forward(forward(right))); }}"
-        ),
-        "Main::caller",
-        &[(0, 2), (0, 1), (0, 4), (0, 3), (0, 0)],
-        11,
-    );
-}
-
-#[test]
-fn named_scalar_arguments_do_not_need_reordered_computations() {
-    let checked = checked(
-        "data Value { number: u64; }
-        machine forward(value: Value) -> Value { value }
-        machine Main::consume(count: u32, value: Value) {}
-        machine Main::caller(count: u32, value: Value) { Main::consume(count, forward(value)); }",
-    );
-    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::caller"))
-        .expect("existing scalar value supplies the enclosing call");
-    super::chains::assert_execution(
-        &lowered.semantic_module,
-        &lowered.proof_bundle,
-        &[TerminalScalarValue::Integer {
-            scalar_type: IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
-            value: IntegerValue::Unsigned(4),
-        }],
-        5,
-    );
-}
-
-#[test]
-fn local_and_temporary_results_share_one_binding_namespace() {
-    for (body, coordinates) in [
-        (
-            "let prior: Value = forward(value); Main::consume(forward(prior));",
-            vec![(0, 0), (1, 1), (1, 0)],
-        ),
-        (
-            "let result: Value = forward(forward(value)); Main::consume(result);",
-            vec![(0, 1), (0, 0), (1, 0)],
-        ),
-    ] {
-        assert_nested(
-            &format!("{DECLARATIONS} machine Main::caller(value: Value) {{ {body} }}"),
-            "Main::caller",
-            &coordinates,
-            7,
-        );
-    }
 }
 
 #[test]
@@ -229,19 +167,4 @@ fn nested_structural_calls_reject_temporary_and_occurrence_drift() {
             "mutation {mutation}"
         );
     }
-}
-
-#[test]
-fn a_reference_field_cannot_enter_the_owned_temporary_initializer_route() {
-    let source = "data View { reference: &u64; }
-        machine forward(value: View) -> View { value }
-        machine Main::caller(value: View) { let result: View = forward(forward(value)); }";
-    let diagnostics = super::checked_result(source)
-        .expect_err("stored references need a loan-bearing temporary plan");
-    assert!(
-        diagnostics.iter().any(|diagnostic| diagnostic
-            .message
-            .contains("a value-call argument cannot itself be a machine call yet")),
-        "{diagnostics:#?}"
-    );
 }

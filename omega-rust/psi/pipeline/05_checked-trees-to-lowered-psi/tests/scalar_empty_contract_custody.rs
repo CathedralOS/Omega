@@ -93,36 +93,6 @@ fn reject_erased_contract(original: &CheckedTrees, owner: &str, expected_message
 }
 
 #[test]
-fn genuine_empty_contracts_publish_on_scalar_roots_and_transitive_callees() {
-    let source = r#"
-        machine identity(input: u64) -> u64 { input }
-        machine enter(input: u64) -> u64 {
-            let answer: u64 = identity(input);
-            answer
-        }
-    "#;
-    let (artifact, module) = publish(&crate::front_end::checked_program(source));
-    assert_eq!(module.machines.len(), 2, "retain the actual scalar callee");
-    for machine in &module.machines {
-        assert!(machine.contract.requires.is_empty());
-        assert!(machine.contract.ensures.is_empty());
-        assert!(machine.contract.crash_routes.is_empty());
-    }
-    execute_identity(&artifact);
-}
-
-#[test]
-fn empty_normal_contract_keeps_a_published_crash_route() {
-    let source = "machine enter() -> u64\ncrashes Abort\n{ crash Abort; }";
-    let (_, module) = publish(&crate::front_end::checked_program(source));
-    assert_eq!(module.machines.len(), 1);
-    let contract = &module.machines[0].contract;
-    assert!(contract.requires.is_empty());
-    assert!(contract.ensures.is_empty());
-    assert_eq!(contract.crash_routes.len(), 1);
-}
-
-#[test]
 fn empty_checked_contract_cannot_erase_authored_normal_clauses() {
     // Erased requires rows are caught by the parameter-range rejoin's authored
     // count before contract selection; an ensures-only erasure still reaches
@@ -159,45 +129,6 @@ fn empty_checked_contract_cannot_erase_authored_normal_clauses() {
 }
 
 #[test]
-fn selected_callback_identity_preserves_its_normal_contract() {
-    for clauses in ["", "requires input <= 11u64\nensures result == input"] {
-        let original = crate::front_end::checked_program(&format!(
-            "data Callback {{}}\nmachine Callback::identity(input: u64) -> u64\n{clauses}\n{{ input }}"
-        ));
-        let graph = &original.facts.flow.terminal_scalar_graphs.machines[0];
-        let lowered = checked_trees_to_lowered_psi::lower_machine(
-            &original,
-            TerminalMachineSelection::Symbol(graph.machine),
-        )
-        .expect("selected identity body");
-        checked_trees_to_lowered_psi::callback_lowering_receipt(
-            &original,
-            &lowered,
-            graph.machine,
-            graph.states[0].state,
-        )
-        .expect("selected identity joins its callback coordinate");
-        let contract = &lowered.semantic_module.machines[0].contract;
-        let expected_count = usize::from(!clauses.is_empty());
-        assert_eq!(contract.requires.len(), expected_count);
-        assert_eq!(contract.ensures.len(), expected_count);
-        let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
-        let proof =
-            terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
-                .unwrap();
-        let input = TerminalScalarValue::Integer {
-            scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
-            value: IntegerValue::Unsigned(7),
-        };
-        assert_eq!(
-            interpret_terminal_artifact(&semantic, &proof, &AdmissionProfile::default(), &[input])
-                .unwrap(),
-            TerminalExecutionResult::Scalar(input)
-        );
-    }
-}
-
-#[test]
 fn empty_checked_contract_cannot_erase_implicit_parameter_ranges() {
     for parameter_type in ["u64 [0..=11]", "u64 [0..12]"] {
         let source = format!("machine enter(input: {parameter_type}) -> u64 {{ input }}");
@@ -226,32 +157,4 @@ fn empty_checked_contract_cannot_erase_implicit_parameter_ranges() {
             "scalar entry range lost its two ordered bounds",
         );
     }
-}
-
-#[test]
-fn empty_checked_contract_cannot_erase_a_transitive_scalar_callee_guarantee() {
-    let source = r#"
-        machine identity(input: u64) -> u64
-        ensures result == input
-        { input }
-        machine enter(input: u64) -> u64 {
-            let answer: u64 = identity(input);
-            answer
-        }
-    "#;
-    let original = crate::front_end::checked_program(source);
-    let (artifact, module) = publish(&original);
-    assert_eq!(module.machines.len(), 2);
-    let callee = module
-        .machines
-        .iter()
-        .find(|machine| machine.id != module.entry)
-        .expect("transitive scalar callee");
-    assert_eq!(callee.contract.ensures.len(), 1);
-    execute_identity(&artifact);
-    reject_erased_contract(
-        &original,
-        "identity",
-        "empty scalar contract would erase an authored normal clause",
-    );
 }

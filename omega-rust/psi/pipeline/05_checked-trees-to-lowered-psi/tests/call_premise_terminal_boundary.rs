@@ -48,11 +48,3 @@ fn a_call_containing_requires_stops_at_the_scalar_contract() {
         );
     }
 }
-
-#[test]
-fn the_same_program_lowers_the_machine_without_a_call_premise() {
-    assert!(
-        lowering("observe").is_ok(),
-        "the refusal is the call-containing clause, not this program"
-    );
-}

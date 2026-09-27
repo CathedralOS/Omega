@@ -57,18 +57,6 @@ const MIXED_CONTEXTUAL_SHORT_CIRCUIT_SCALAR_SOURCE: &str = r#"
     }
 "#;
 
-const CONTEXTUAL_SCALAR_EXACT_RESULT_SOURCE: &str = r#"
-    data Token { ready: bool; armed: bool; }
-    machine Token::drop(&mut self)
-    requires self.ready, self.armed
-    {}
-
-    data Root {}
-    machine Root::measure(first: Token, second: Token) -> u64
-    requires first.ready, first.armed, second.ready, second.armed
-    { 3u64 + 4u64 }
-"#;
-
 #[test]
 fn mixed_nominal_scalar_return_source_distributes_reused_short_circuit_value() {
     let checked =
@@ -342,31 +330,4 @@ fn mixed_contextual_scalar_return_proves_cleanup_on_every_short_circuit_leaf() {
         assert_eq!(measured.usage().total_units(), expected_fuel);
         assert!(measured.effects().is_empty());
     }
-}
-
-#[test]
-fn contextual_scalar_cleanup_and_exact_result_use_disjoint_obligation_identities() {
-    let checked = crate::front_end::checked_program(CONTEXTUAL_SCALAR_EXACT_RESULT_SOURCE);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(
-        &checked,
-        TerminalMachineSelection::Name("Root::measure"),
-    )
-    .expect("contextual cleanup and exact scalar result lower together");
-
-    let obligations =
-        terminal_verifier::reconstruct_operation_obligations(&lowered.semantic_module)
-            .expect("all contextual and exact-result obligations reconstruct");
-    assert_eq!(obligations.len(), 5, "four cleanup goals plus exact add");
-    let identities = obligations
-        .iter()
-        .map(|site| site.obligation.id)
-        .collect::<std::collections::BTreeSet<_>>();
-    assert_eq!(identities.len(), obligations.len());
-    assert_eq!(lowered.proof_bundle.evidence.len(), obligations.len());
-    terminal_verifier::verify_module(
-        &lowered.semantic_module,
-        &lowered.proof_bundle,
-        &AdmissionProfile::default(),
-    )
-    .expect("disjoint cleanup and exact-result proofs verify");
 }

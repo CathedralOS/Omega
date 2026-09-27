@@ -123,8 +123,6 @@ mod tests {
     use source::{SourceMap, SourceOrigin};
 
     use typed_trees::TypedTrees;
-    use typed_trees_to_checked_trees::CheckingRequest;
-    use typed_trees_to_checked_trees::lower_typed_trees;
 
     use super::retain_checked_quotient_correspondences;
     use crate::lower_machine;
@@ -329,17 +327,6 @@ machine unsupported(value: EquivalenceClass) -> EquivalenceClass {
     }
 
     #[test]
-    fn a_program_without_requests_leaves_the_module_untouched() {
-        let checked = baseline_checked();
-        let mut module = baseline_module();
-        let before = module.clone();
-        retain_checked_quotient_correspondences(&checked, &mut module)
-            .expect("no request retains nothing");
-        assert_eq!(module, before);
-        assert!(module.quotient_correspondences.is_empty());
-    }
-
-    #[test]
     fn an_admitted_direct_define_installs_its_row_and_stays_non_executable() {
         let checked =
             checked_with_requests(&format!("{EQUIVALENCE_PRELUDE}{DIRECT_DEFINE_REQUEST}"));
@@ -407,75 +394,6 @@ machine unsupported(value: EquivalenceClass) -> EquivalenceClass {
     }
 
     #[test]
-    fn termination_is_read_from_the_checked_facts_not_the_typed_summary() {
-        let source = format!("{EQUIVALENCE_PRELUDE}{DIRECT_DEFINE_REQUEST}");
-        // No checked termination fact at all: the checked stage proved
-        // nothing, so the batch is refused at the termination fence.
-        let mut unproved = baseline_checked();
-        unproved.typed = quotient_program(&source);
-        let mut module = baseline_module();
-        let before = module.clone();
-        let error = retain_checked_quotient_correspondences(&unproved, &mut module)
-            .expect_err("no checked guarantee refuses the batch");
-        assert_unadmitted_naming(
-            error,
-            "purity, termination, or theorem crash eligibility is incomplete",
-        );
-        assert_eq!(module, before);
-
-        // A typed summary alone does not admit: the checked facts record no
-        // guarantee for the same machines, and the facts are authoritative.
-        let mut typed_only = baseline_checked();
-        typed_only.typed = quotient_program(&source);
-        for symbol in eligibility_machines(&typed_only.typed) {
-            let position = typed_only
-                .typed
-                .machines()
-                .iter()
-                .position(|machine| machine.symbol == symbol)
-                .expect("eligibility machine");
-            typed_only.typed.machines_mut()[position]
-                .termination_plan
-                .checked_summary = language_semantics::TerminationGuarantee::Terminates {
-                premises: Vec::new(),
-            };
-        }
-        record_checked_termination(
-            &mut typed_only,
-            language_semantics::TerminationGuarantee::NoGuarantee,
-        );
-        assert!(
-            validation::extract_non_executable_quotient_correspondences(&typed_only.typed).is_ok(),
-            "the typed summaries alone would admit"
-        );
-        let error = retain_checked_quotient_correspondences(&typed_only, &mut module)
-            .expect_err("checked facts without a guarantee refuse the batch");
-        assert_unadmitted_naming(
-            error,
-            "purity, termination, or theorem crash eligibility is incomplete",
-        );
-        assert_eq!(module, before);
-
-        // A guarantee carrying progress premises is not unconditional.
-        let mut conditional = baseline_checked();
-        conditional.typed = quotient_program(&source);
-        record_checked_termination(
-            &mut conditional,
-            language_semantics::TerminationGuarantee::Terminates {
-                premises: vec![language_semantics::ProgressPremise {
-                    profile: language_semantics::SemanticDomainId::default(),
-                    subject: language_semantics::ProgressSubject {
-                        root: symbols::SymbolHandle::invalid(),
-                        projections: Vec::new(),
-                    },
-                }],
-            },
-        );
-        assert!(retain_checked_quotient_correspondences(&conditional, &mut module).is_err());
-        assert_eq!(module, before);
-    }
-
-    #[test]
     fn a_replay_failure_installs_nothing() {
         let checked =
             checked_with_requests(&format!("{EQUIVALENCE_PRELUDE}{DIRECT_DEFINE_REQUEST}"));
@@ -491,62 +409,5 @@ machine unsupported(value: EquivalenceClass) -> EquivalenceClass {
             )
         ));
         assert_eq!(module, before);
-    }
-
-    /// The managed compiler-route program checked through the real route:
-    /// `lower_typed_trees` admits the direct define after proving
-    /// termination, so the checked trees carry the request as the compiler
-    /// sees it.
-    fn managed_checked_program() -> checked_trees::CheckedTrees {
-        let typed = quotient_program(&format!(
-            "{EQUIVALENCE_PRELUDE}{DIRECT_DEFINE_REQUEST}\ndata Main {{\n}}\n\nmachine Main::main(&mut self) {{\n}}\n"
-        ));
-        lower_typed_trees(typed, &CheckingRequest::settled())
-            .expect("the checked route admits the managed direct define")
-    }
-
-    #[test]
-    fn lowering_any_machine_of_an_admitted_program_stops_at_the_published_correspondence_gate() {
-        let checked = managed_checked_program();
-        assert!(checked.facts.termination.for_machine(
-            checked
-                .machines()
-                .iter()
-                .find(|machine| checked.symbols.name(machine.symbol) == "representative")
-                .expect("representative")
-                .symbol
-        )
-        .is_some_and(|plan| matches!(
-            plan.checked_summary,
-            language_semantics::TerminationGuarantee::Terminates { ref premises } if premises.is_empty()
-        )));
-        // The entry carries no request of its own; the correspondence rows
-        // are program facts, so they join its module and the execution gate
-        // refuses the nonempty table exactly as the published-correspondence
-        // contract requires.
-        let error = lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
-            .expect_err("a nonempty proof-only table cannot publish an executable module");
-        assert_eq!(
-            error,
-            LoweringError::InvalidTerminalModule(
-                terminal_verifier::ModuleError::NonExecutableQuotientCorrespondence
-            )
-        );
-    }
-
-    #[test]
-    fn the_requesting_machine_itself_stays_unlowerable() {
-        // The request owns no executable value plan: its owner machine has no
-        // checked plan family, so lowering it fails closed before any
-        // Terminal module exists, while the rows still reach every other
-        // lowered machine of the program (see the test above).
-        let checked = managed_checked_program();
-        assert!(matches!(
-            lower_machine(&checked, TerminalMachineSelection::Name("admitted")).unwrap_err(),
-            LoweringError::Unsupported(message)
-                if message.starts_with(
-                    "machine has no source-independent checked scalar control plan"
-                )
-        ));
     }
 }

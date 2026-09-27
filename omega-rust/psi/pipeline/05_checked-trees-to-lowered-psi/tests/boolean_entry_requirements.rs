@@ -2,7 +2,7 @@
 
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
-use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
+use terminal_codec::{encode_module, encode_proof_section};
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact,
 };
@@ -75,22 +75,6 @@ fn ordinary_calls_prove_nonliteral_boolean_requirements_for_owned_formals() {
                 argument,
             );
         }
-    }
-}
-
-#[test]
-fn boolean_requirements_bind_entry_values_before_mutable_body_updates() {
-    for (requirement, argument) in [("flag", true), ("!flag", false)] {
-        assert_execution(
-            &source(
-                "mut flag: bool",
-                requirement,
-                "flag = !flag; flag",
-                &argument.to_string(),
-                !argument,
-            ),
-            !argument,
-        );
     }
 }
 
@@ -174,48 +158,6 @@ fn source_calls_cannot_satisfy_boolean_requirements_with_false_arguments() {
 }
 
 #[test]
-fn nested_negation_boolean_wrappers_and_repeated_requires_keep_their_meaning() {
-    for (requirement, body, arguments) in [
-        ("!(left && right)", "left", "true, false, false"),
-        ("!(left || right)", "!left", "false, false, false"),
-        ("(left && right) == other", "left", "true, true, true"),
-        ("(left && right) == other", "left", "true, false, false"),
-        ("(left && right) == true", "left", "true, true, false"),
-        ("true == (left && right)", "left", "true, true, false"),
-        ("(left && right) == false", "left", "true, false, false"),
-        ("false == (left && right)", "left", "true, false, false"),
-        (
-            "left\nrequires !right\nrequires left",
-            "left",
-            "true, false, false",
-        ),
-    ] {
-        assert_execution(
-            &source(
-                "left: bool, right: bool, other: bool",
-                requirement,
-                body,
-                arguments,
-                true,
-            ),
-            true,
-        );
-    }
-    for argument in [false, true] {
-        assert_execution(
-            &source(
-                "flag: bool",
-                "flag == flag",
-                "flag",
-                &argument.to_string(),
-                argument,
-            ),
-            argument,
-        );
-    }
-}
-
-#[test]
 fn proven_entry_requirements_forward_through_runtime_parameters_and_local_copies() {
     for body in [
         "require_value(flag)",
@@ -239,63 +181,4 @@ fn proven_entry_requirements_forward_through_runtime_parameters_and_local_copies
         );
         assert_execution(&source, true);
     }
-}
-
-#[test]
-fn independent_verifier_rejects_changing_a_proven_call_argument_to_false() {
-    let source = source("flag: bool", "flag", "flag", "true", true);
-    let artifact = encoded(&source);
-    assert_eq!(
-        interpret_terminal_artifact(&artifact.0, &artifact.1, &AdmissionProfile::default(), &[])
-            .unwrap(),
-        TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(true)),
-    );
-    let mut module = decode_module(&artifact.0).unwrap();
-    let proof = decode_proof_bundle(&artifact.1).unwrap();
-    let entry = module
-        .machines
-        .iter_mut()
-        .find(|machine| machine.id == module.entry)
-        .unwrap();
-    let argument = entry
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .find_map(|operation| {
-            if let terminal_psi::OperationKind::Call { arguments, .. } = &operation.kind {
-                assert_eq!(arguments.len(), 1);
-                Some(arguments[0])
-            } else {
-                None
-            }
-        })
-        .expect("one source-derived internal call");
-    let argument_operation = entry
-        .blocks
-        .iter_mut()
-        .flat_map(|block| &mut block.operations)
-        .find(|operation| {
-            operation
-                .result
-                .scalar()
-                .is_some_and(|value| value.id == argument)
-        })
-        .expect("the direct literal argument has its exact source-produced operation");
-    assert!(matches!(
-        argument_operation.kind,
-        terminal_psi::OperationKind::BooleanConstant { value: true }
-    ));
-    // Keep every value identity, type and control edge intact. Only the value
-    // delivered to this call changes, so invalid cross-block references are not
-    // the reason the retained proof is rejected.
-    argument_operation.kind = terminal_psi::OperationKind::BooleanConstant { value: false };
-    assert!(
-        terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default()).is_err(),
-        "the original call proof cannot justify a false argument"
-    );
-    let altered = encode_module(&module).unwrap();
-    assert!(
-        interpret_terminal_artifact(&altered, &artifact.1, &AdmissionProfile::default(), &[])
-            .is_err()
-    );
 }

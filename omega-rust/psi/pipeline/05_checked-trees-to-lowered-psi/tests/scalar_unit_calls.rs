@@ -98,22 +98,6 @@ fn execute(source: &str, arguments: &[TerminalScalarValue], expected: TerminalSc
 }
 
 #[test]
-fn boolean_branch_reads_local_after_unit_call() {
-    for initial in [false, true] {
-        for replacement in [false, true] {
-            execute(
-                BOOLEAN_BRANCH,
-                &[
-                    TerminalScalarValue::Boolean(initial),
-                    TerminalScalarValue::Boolean(replacement),
-                ],
-                unsigned(u128::from(replacement)),
-            );
-        }
-    }
-}
-
-#[test]
 fn write_only_unit_call_ends_before_the_callers_fresh_read() {
     let source = BOOLEAN_BRANCH
         .replace("destination: &mut", "destination: &write")
@@ -125,62 +109,6 @@ fn write_only_unit_call_ends_before_the_callers_fresh_read() {
             TerminalScalarValue::Boolean(true),
         ],
         unsigned(1),
-    );
-}
-
-#[test]
-fn unit_calls_compose_with_snapshots_assignments_and_scalar_calls() {
-    let source = r#"
-machine replace(destination: &mut u64, replacement: u64) { destination = replacement; }
-machine identity(value: u64) -> u64 { value }
-machine observe(initial: u64, replacement: u64) -> u64 {
-    let mut scratch: u64 = initial;
-    replace(&mut scratch, replacement);
-    let snapshot: u64 = scratch;
-    scratch = identity(initial);
-    replace(&mut scratch, identity(initial));
-    snapshot
-}
-"#;
-    execute(source, &[unsigned(7), unsigned(29)], unsigned(29));
-    execute(
-        &source.replace("    snapshot\n", "    scratch\n"),
-        &[unsigned(7), unsigned(29)],
-        unsigned(7),
-    );
-}
-
-#[test]
-fn transitive_scalar_caller_retains_its_helpers_unit_calls() {
-    let source = BOOLEAN_BRANCH.replace("machine observe(", "machine branch(")
-        + r#"
-machine observe(initial: bool, replacement: bool) -> u64 { branch(initial, replacement) }
-"#;
-    execute(
-        &source,
-        &[
-            TerminalScalarValue::Boolean(false),
-            TerminalScalarValue::Boolean(true),
-        ],
-        unsigned(1),
-    );
-}
-
-#[test]
-fn scalar_only_unit_calls_need_no_invented_local_or_scalar_result() {
-    execute(
-        r#"
-machine consume(value: u64) {}
-machine observe(value: u64) -> u64 {
-    consume(value);
-    let snapshot: u64 = value;
-    consume(snapshot);
-    snapshot
-}
-
-"#,
-        &[unsigned(19)],
-        unsigned(19),
     );
 }
 

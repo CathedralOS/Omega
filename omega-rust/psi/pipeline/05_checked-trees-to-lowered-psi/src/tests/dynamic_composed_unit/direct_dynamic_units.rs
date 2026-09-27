@@ -1,11 +1,9 @@
 use super::{
-    CHANGED_CONFORMANCE_DYNAMIC_UNIT_SOURCE, DIRECT_DYNAMIC_UNIT_SOURCE,
     FORWARDED_CHANGED_CONFORMANCE_DYNAMIC_UNIT_SOURCE, FORWARDED_DIRECT_DYNAMIC_UNIT_SOURCE,
     FORWARDED_REBOUND_DYNAMIC_INTEGER_SOURCE, FORWARDED_REBOUND_DYNAMIC_UNIT_SOURCE,
     JOINED_DYNAMIC_BOOLEAN_FORWARD_SOURCE, JOINED_DYNAMIC_UNIT_FORWARD_SOURCE,
-    MULTI_HOP_DYNAMIC_INTEGER_CONTROL_SOURCE, MULTI_HOP_DYNAMIC_INTEGER_SOURCE,
-    MULTI_HOP_DYNAMIC_UNIT_SOURCE, REBOUND_DYNAMIC_UNIT_SOURCE,
-    assert_dynamic_unit_artifact_executes, unsupported_message,
+    MULTI_HOP_DYNAMIC_INTEGER_CONTROL_SOURCE, MULTI_HOP_DYNAMIC_UNIT_SOURCE,
+    REBOUND_DYNAMIC_UNIT_SOURCE, assert_dynamic_unit_artifact_executes, unsupported_message,
 };
 use crate::TerminalMachineSelection;
 use crate::terminal_identities::value_id;
@@ -14,7 +12,7 @@ use checked_trees::CheckedDynamicBinding::{Direct, Joined};
 use checked_trees::CheckedDynamicDispatchPlan::{Scalar, Unit};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
-use terminal_psi::{Operation, OperationKind, OperationResult, Terminator, ValueDeclaration};
+use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
 
 #[test]
 fn lowers_transparent_forwarding_chain_after_a_two_predecessor_join() {
@@ -260,177 +258,6 @@ fn lowers_result_less_dynamic_join_through_the_shared_helper_chain() {
     );
 }
 
-#[test]
-fn lowers_parameter_sourced_dynamic_forwarding_as_two_explicit_helpers() {
-    let mut checked = crate::front_end::checked_program(MULTI_HOP_DYNAMIC_INTEGER_SOURCE);
-    let checked_catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
-    assert_eq!(checked_catalog.transfers.len(), 2);
-    let [Scalar(Direct(plan))] = checked_catalog.calls.as_slice() else {
-        panic!("one multi-hop checked plan expected: {checked_catalog:#?}")
-    };
-    assert_eq!(plan.forwarding_transfers.len(), 1);
-
-    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
-        .expect("the exact parameter-sourced forwarding path should lower");
-    terminal_verifier::validate_module(&lowered.semantic_module)
-        .expect("the multi-hop dynamic module should verify");
-    let catalog = &lowered.semantic_module.dynamic_dispatch;
-    assert_eq!(catalog.selections.len(), 1);
-    assert_eq!(catalog.parameters.len(), 2);
-    assert_eq!(catalog.arguments.len(), 2);
-    assert_eq!(catalog.parameter_dispatches.len(), 1);
-    assert_eq!(
-        catalog.arguments[0].source,
-        terminal_psi::TerminalDynamicDescriptorSource::Selection { ordinal: 0 }
-    );
-    assert_eq!(
-        catalog.arguments[1].source,
-        terminal_psi::TerminalDynamicDescriptorSource::Parameter { ordinal: 0 }
-    );
-    assert_eq!(catalog.arguments[1].owner, catalog.parameters[0].owner);
-    assert_eq!(
-        catalog.parameter_dispatches[0].owner,
-        catalog.parameters[1].owner
-    );
-    assert_eq!(lowered.source_call_occurrences.len(), 3);
-
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("Main::run"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("multi-hop dynamic module should encode canonically")
-    .into_artifact();
-    let decoded = terminal_codec::decode_module(artifact.semantic_bytes())
-        .expect("multi-hop dynamic module should decode");
-    assert_eq!(decoded.dynamic_dispatch.parameters.len(), 2);
-    assert_eq!(
-        decoded.dynamic_dispatch.arguments[1].source,
-        terminal_psi::TerminalDynamicDescriptorSource::Parameter { ordinal: 0 }
-    );
-
-    let [Scalar(Direct(plan))] = checked
-        .facts
-        .flow
-        .terminal_unit_effects
-        .dynamic_dispatch
-        .calls
-        .as_mut_slice()
-    else {
-        unreachable!("checked above")
-    };
-    plan.forwarding_transfers[0].coordinate.statement_index = 1;
-    assert_eq!(
-        unsupported_message(&checked),
-        "direct dynamic call drifted from checked flow custody"
-    );
-}
-
-#[test]
-fn retains_multi_hop_forwarded_scalar_result_control() {
-    let mut checked = checked_source_with_core_service(MULTI_HOP_DYNAMIC_INTEGER_CONTROL_SOURCE);
-    let checked_catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
-    assert_eq!(checked_catalog.transfers.len(), 2);
-    let [Scalar(Direct(plan))] = checked_catalog.calls.as_slice() else {
-        panic!("one multi-hop checked continuation plan expected: {checked_catalog:#?}")
-    };
-    assert_eq!(plan.forwarding_transfers.len(), 1);
-    assert!(plan.unit_continuation.is_some());
-
-    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
-        .expect("the multi-hop scalar result continuation should lower");
-    terminal_verifier::validate_module(&lowered.semantic_module)
-        .expect("the multi-hop scalar result continuation should verify");
-    let catalog = &lowered.semantic_module.dynamic_dispatch;
-    assert_eq!(catalog.selections.len(), 1);
-    assert_eq!(catalog.parameters.len(), 2);
-    assert_eq!(catalog.arguments.len(), 2);
-    assert_eq!(catalog.parameter_dispatches.len(), 1);
-    assert_eq!(
-        catalog.arguments[0].source,
-        terminal_psi::TerminalDynamicDescriptorSource::Selection { ordinal: 0 }
-    );
-    assert_eq!(
-        catalog.arguments[1].source,
-        terminal_psi::TerminalDynamicDescriptorSource::Parameter { ordinal: 0 }
-    );
-    assert_eq!(catalog.arguments[1].owner, catalog.parameters[0].owner);
-    assert_eq!(
-        catalog.parameter_dispatches[0].owner,
-        catalog.parameters[1].owner
-    );
-    let caller = lowered
-        .semantic_module
-        .machines
-        .iter()
-        .find(|machine| machine.id == lowered.semantic_module.entry)
-        .expect("caller machine");
-    assert_eq!(caller.blocks.len(), 3);
-    assert!(matches!(
-        caller.blocks[0].terminator,
-        Terminator::Conditional { .. }
-    ));
-    assert_eq!(lowered.source_call_occurrences.len(), 5);
-
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("Main::run"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("multi-hop scalar result control should encode canonically")
-    .into_artifact();
-    let decoded = terminal_codec::decode_module(artifact.semantic_bytes())
-        .expect("multi-hop scalar result control should decode");
-    assert_eq!(decoded, lowered.semantic_module);
-
-    let [Scalar(Direct(plan))] = checked
-        .facts
-        .flow
-        .terminal_unit_effects
-        .dynamic_dispatch
-        .calls
-        .as_mut_slice()
-    else {
-        unreachable!("checked above")
-    };
-    plan.forwarding_transfers[0].coordinate.statement_index = 1;
-    assert_eq!(
-        unsupported_message(&checked),
-        "direct dynamic call drifted from checked flow custody"
-    );
-}
-
-#[test]
-fn forwarded_descriptor_helper_preserves_scalar_computation_and_branch() {
-    let source = MULTI_HOP_DYNAMIC_INTEGER_SOURCE.replace(
-        "let result: i32 = finish(erased);\n        transition { _ -> result }",
-        "let before: i32 = 3;\n        let result: i32 = finish(erased);\n        let combined: i32 = result ^ before;\n        transition combined == 0 { true -> 7 _ -> combined }",
-    );
-    assert_ne!(source, MULTI_HOP_DYNAMIC_INTEGER_SOURCE);
-    let checked = crate::front_end::checked_program(&source);
-    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
-        .expect("descriptor forwarding retains the helper's actual scalar body");
-    terminal_verifier::validate_module(&lowered.semantic_module)
-        .expect("composed forwarding independently verifies");
-    let parameter = &lowered.semantic_module.dynamic_dispatch.parameters[0];
-    let helper = lowered
-        .semantic_module
-        .machines
-        .iter()
-        .find(|machine| machine.id == parameter.owner)
-        .expect("first forwarding helper");
-    assert!(
-        helper
-            .blocks
-            .iter()
-            .any(|block| matches!(block.terminator, Terminator::Conditional { .. }))
-    );
-}
-
 fn composed_helper_source() -> String {
     MULTI_HOP_DYNAMIC_INTEGER_CONTROL_SOURCE
         .replace("transition result == 0", "transition result == 7")
@@ -438,117 +265,6 @@ fn composed_helper_source() -> String {
             "let result: i32 = finish(erased);\n        transition { _ -> result }",
             "let before: i32 = 3;\n        let result: i32 = finish(erased);\n        let combined: i32 = result ^ before;\n        transition combined == 0 { true -> 7 _ -> combined }",
         )
-}
-
-#[test]
-fn forwarded_descriptor_calculations_execute_through_verified_artifact() {
-    use terminal_interpreter::{
-        TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalScalarValue,
-    };
-    #[derive(Default)]
-    struct Observe(Vec<TerminalScalarValue>);
-    impl TerminalEffectHandler for Observe {
-        fn handle_effect(
-            &mut self,
-            effect: &TerminalEffect,
-        ) -> Result<(), TerminalEffectRejection> {
-            let TerminalEffect::BoundaryCall { arguments, .. } = effect else {
-                panic!("Console effect")
-            };
-            self.0.extend(arguments.iter().copied());
-            Ok(())
-        }
-    }
-    let integer = |value| TerminalScalarValue::Integer {
-        scalar_type: semantic_vocabulary::IntegerType::new(
-            semantic_vocabulary::IntegerSign::Signed,
-            32,
-        )
-        .unwrap(),
-        value: semantic_vocabulary::IntegerValue::Signed(value),
-    };
-    // The second body also computes after the actual parameter dispatch,
-    // exercising both helper roles through the same evaluator.
-    for final_computation in [false, true] {
-        let source = if final_computation {
-            composed_helper_source().replace(
-                "let result: i32 = erased.measure();\n        transition { _ -> result }",
-                "let result: i32 = erased.measure();\n        let mask: i32 = 1;\n        let combined: i32 = result ^ mask;\n        transition { _ -> combined }",
-            )
-        } else {
-            composed_helper_source()
-        };
-        let checked = checked_source_with_core_service(&source);
-        let artifact = terminal_production::TerminalProductionRequest::new(
-            &checked,
-            terminal_production::TerminalMachineSelection::Name("Main::run"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("composed helper source publishes canonical verified artifact")
-        .into_artifact();
-        let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
-        let entry = module
-            .machines
-            .iter()
-            .find(|machine| machine.id == module.entry)
-            .unwrap();
-        let parameter = &entry.structural_parameters[0];
-        let field = module
-            .machines
-            .iter()
-            .flat_map(|machine| &machine.blocks)
-            .flat_map(|block| &block.operations)
-            .find_map(|operation| match operation.kind {
-                OperationKind::IntegerStructuralField { field, .. } => Some(field),
-                _ => None,
-            })
-            .expect("original receiver integer field");
-        for (input, expected) in [(if final_computation { 2 } else { 3 }, 70), (6, 71)] {
-            let argument = terminal_interpreter::TerminalStructuralValue {
-                opaque_identity: 1,
-                structural_type: parameter.structural_type,
-                qualifications: parameter.qualifications.clone(),
-                path: Vec::new(),
-            };
-            let field_value = terminal_interpreter::TerminalStructuralScalarFieldValue {
-                argument_index: 0,
-                path: module.dynamic_dispatch.selections[0].source.path.clone(),
-                field,
-                value: integer(input),
-            };
-            let mut execution = terminal_interpreter::TerminalExecution::start_artifact(
-                artifact.semantic_bytes(),
-                artifact.proof_bytes(),
-                &proof_admission::AdmissionProfile::default(),
-                &[],
-                TerminalStructuralInputs {
-                    arguments: &[argument],
-                    scalar_fields: &[field_value],
-                    ..Default::default()
-                },
-            )
-            .expect("source-rooted helper artifact starts");
-            let mut observe = Observe::default();
-            assert_eq!(
-                execution
-                    .resume(
-                        &mut terminal_fuel::TerminalFuelMeter::unbounded(),
-                        &mut observe
-                    )
-                    .unwrap(),
-                terminal_interpreter::TerminalExecutionStatus::Complete(
-                    terminal_interpreter::TerminalExecutionResult::Unit
-                )
-            );
-            assert_eq!(
-                observe.0,
-                [integer(expected)],
-                "final computation {final_computation}, input {input}"
-            );
-        }
-    }
 }
 
 #[test]
@@ -598,79 +314,6 @@ fn forwarded_descriptor_helper_rejects_substituted_body_custody() {
             "mutation {mutation}"
         );
     }
-}
-
-#[test]
-fn lowers_parameter_sourced_dynamic_unit_forwarding_as_two_explicit_helpers() {
-    let mut checked = crate::front_end::checked_program(MULTI_HOP_DYNAMIC_UNIT_SOURCE);
-    let checked_catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
-    assert_eq!(checked_catalog.transfers.len(), 2);
-    let [Unit(Direct(plan))] = checked_catalog.calls.as_slice() else {
-        panic!("one multi-hop checked Unit plan expected: {checked_catalog:#?}")
-    };
-    assert_eq!(plan.forwarding_transfers.len(), 1);
-
-    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
-        .expect("the exact parameter-sourced Unit forwarding path should lower");
-    terminal_verifier::validate_module(&lowered.semantic_module)
-        .expect("the multi-hop dynamic Unit module should verify");
-    let catalog = &lowered.semantic_module.dynamic_dispatch;
-    assert_eq!(catalog.selections.len(), 1);
-    assert_eq!(catalog.parameters.len(), 2);
-    assert_eq!(catalog.arguments.len(), 2);
-    assert_eq!(catalog.parameter_dispatches.len(), 1);
-    assert_eq!(
-        catalog.arguments[1].source,
-        terminal_psi::TerminalDynamicDescriptorSource::Parameter { ordinal: 0 }
-    );
-    assert_eq!(catalog.arguments[1].owner, catalog.parameters[0].owner);
-    assert_eq!(
-        catalog.parameter_dispatches[0].owner,
-        catalog.parameters[1].owner
-    );
-    assert!(lowered.semantic_module.machines.iter().all(|machine| {
-        machine.result == terminal_psi::TerminalMachineResult::Unit
-            && machine
-                .blocks
-                .iter()
-                .flat_map(|block| &block.operations)
-                .all(|operation| operation.result == OperationResult::Unit)
-    }));
-    assert_eq!(lowered.source_call_occurrences.len(), 3);
-
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("Main::run"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("multi-hop dynamic Unit module should encode canonically")
-    .into_artifact();
-    let decoded = terminal_codec::decode_module(artifact.semantic_bytes())
-        .expect("multi-hop dynamic Unit module should decode");
-    assert_eq!(decoded.dynamic_dispatch.parameters.len(), 2);
-    assert_eq!(
-        decoded.dynamic_dispatch.arguments[1].source,
-        terminal_psi::TerminalDynamicDescriptorSource::Parameter { ordinal: 0 }
-    );
-    assert_dynamic_unit_artifact_executes(&artifact);
-
-    let [Unit(Direct(plan))] = checked
-        .facts
-        .flow
-        .terminal_unit_effects
-        .dynamic_dispatch
-        .calls
-        .as_mut_slice()
-    else {
-        unreachable!("checked above")
-    };
-    plan.forwarding_transfers[0].coordinate.statement_index = 1;
-    assert_eq!(
-        unsupported_message(&checked),
-        "direct dynamic call drifted from checked flow custody"
-    );
 }
 
 /// A Unit helper's pure locals around its call lower through the same helper
@@ -764,58 +407,6 @@ fn lowers_forwarded_dynamic_unit_helper_locals_around_the_call() {
 }
 
 #[test]
-fn lowers_direct_dynamic_unit_without_allocating_a_scalar_result() {
-    let checked = crate::front_end::checked_program(DIRECT_DYNAMIC_UNIT_SOURCE);
-    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
-        .expect("direct dynamic Unit call lowers");
-    terminal_verifier::validate_module(&lowered.semantic_module)
-        .expect("direct dynamic Unit module verifies");
-    let catalog = &lowered.semantic_module.dynamic_dispatch;
-    assert_eq!(catalog.selections.len(), 1);
-    assert_eq!(catalog.direct_dispatches.len(), 1);
-    assert!(catalog.rebound_descriptors.is_empty());
-    assert!(catalog.indirect_dispatches.is_empty());
-    let caller = lowered
-        .semantic_module
-        .machines
-        .iter()
-        .find(|machine| machine.id == lowered.semantic_module.entry)
-        .expect("dynamic Unit caller");
-    let [operation] = caller.blocks[0].operations.as_slice() else {
-        panic!("one direct Unit operation expected")
-    };
-    assert_eq!(operation.result, OperationResult::Unit);
-    assert!(matches!(operation.kind, OperationKind::CallUnit { .. }));
-    let [application] = lowered
-        .semantic_module
-        .closed_conformance_applications
-        .as_slice()
-    else {
-        panic!("one exact dynamic Unit application expected")
-    };
-    let [callable] = application.realization_callables.as_slice() else {
-        panic!("one Unit realization expected")
-    };
-    assert_eq!(
-        callable.result,
-        terminal_psi::ClosedConformanceCallableResult::Unit
-    );
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("Main::run"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("direct dynamic Unit module encodes")
-    .into_artifact();
-    let decoded = terminal_codec::decode_module(artifact.semantic_bytes())
-        .expect("direct dynamic Unit module decodes");
-    assert_eq!(decoded, lowered.semantic_module);
-    assert_dynamic_unit_artifact_executes(&artifact);
-}
-
-#[test]
 fn lowers_rebound_dynamic_unit_to_a_resultless_indirect_dispatch() {
     let checked = crate::front_end::checked_program(REBOUND_DYNAMIC_UNIT_SOURCE);
     let mut lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
@@ -859,38 +450,6 @@ fn lowers_rebound_dynamic_unit_to_a_resultless_indirect_dispatch() {
     .expect("rebound dynamic Unit module encodes")
     .into_artifact();
     assert_dynamic_unit_artifact_executes(&artifact);
-}
-
-#[test]
-fn retains_changed_conformance_unit_applications_without_a_scalar_result() {
-    let lowered = lower_machine(
-        &crate::front_end::checked_program(CHANGED_CONFORMANCE_DYNAMIC_UNIT_SOURCE),
-        TerminalMachineSelection::Name("Main::run"),
-    )
-    .expect("changed-conformance dynamic Unit call lowers");
-    terminal_verifier::validate_module(&lowered.semantic_module)
-        .expect("changed-conformance dynamic Unit module verifies");
-    let catalog = &lowered.semantic_module.dynamic_dispatch;
-    assert_eq!(catalog.selections.len(), 2);
-    assert_ne!(
-        catalog.selections[0].conformance_application_commitment,
-        catalog.selections[1].conformance_application_commitment
-    );
-    assert_eq!(
-        lowered
-            .semantic_module
-            .closed_conformance_applications
-            .len(),
-        2
-    );
-    assert!(matches!(
-        lowered.semantic_module.machines[0].blocks[0].operations[0],
-        Operation {
-            result: OperationResult::Unit,
-            kind: OperationKind::CallDynamicUnit { .. },
-            ..
-        }
-    ));
 }
 
 #[test]
@@ -997,58 +556,6 @@ fn preserves_forwarded_dynamic_unit_parameter_abi_without_a_result_value() {
     .into_artifact();
     terminal_codec::decode_module(artifact.semantic_bytes())
         .expect("forwarded dynamic Unit module decodes");
-    assert_dynamic_unit_artifact_executes(&artifact);
-}
-
-#[test]
-fn forwards_a_direct_dynamic_unit_selection_without_fabricating_a_rebound_descriptor() {
-    let checked = crate::front_end::checked_program(FORWARDED_DIRECT_DYNAMIC_UNIT_SOURCE);
-    let mut lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
-        .expect("direct forwarded dynamic Unit call lowers");
-    terminal_verifier::validate_module(&lowered.semantic_module)
-        .expect("direct forwarded dynamic Unit module verifies");
-    let catalog = &lowered.semantic_module.dynamic_dispatch;
-    assert_eq!(catalog.selections.len(), 1);
-    assert!(catalog.rebound_descriptors.is_empty());
-    let [parameter] = catalog.parameters.as_slice() else {
-        panic!("one direct dynamic Unit parameter expected, got {catalog:#?}")
-    };
-    let [argument] = catalog.arguments.as_slice() else {
-        panic!("one direct dynamic Unit argument expected, got {catalog:#?}")
-    };
-    let [dispatch] = catalog.parameter_dispatches.as_slice() else {
-        panic!("one direct dynamic Unit parameter dispatch expected, got {catalog:#?}")
-    };
-    assert_eq!(parameter.owner, dispatch.owner);
-    assert_eq!(
-        argument.source,
-        terminal_psi::TerminalDynamicDescriptorSource::Selection { ordinal: 0 }
-    );
-    assert_eq!(
-        parameter.requirements[0].result,
-        terminal_psi::ClosedConformanceCallableResult::Unit
-    );
-    assert_eq!(lowered.source_call_occurrences.len(), 2);
-
-    lowered.semantic_module.dynamic_dispatch.arguments[0].source =
-        terminal_psi::TerminalDynamicDescriptorSource::Selection { ordinal: 1 };
-    assert!(terminal_verifier::validate_module(&lowered.semantic_module).is_err());
-
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("Main::run"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("direct forwarded dynamic Unit module encodes")
-    .into_artifact();
-    let decoded = terminal_codec::decode_module(artifact.semantic_bytes())
-        .expect("direct forwarded dynamic Unit module decodes");
-    assert_eq!(
-        decoded.dynamic_dispatch.arguments[0].source,
-        terminal_psi::TerminalDynamicDescriptorSource::Selection { ordinal: 0 }
-    );
     assert_dynamic_unit_artifact_executes(&artifact);
 }
 

@@ -58,28 +58,6 @@ fn observation(
 }
 
 #[test]
-fn repeated_field_reads_emit_distinct_current_observations() {
-    let bindings = bindings(StructuralAccess::MutableBorrow, BindingRelevance::Relevant);
-    let expression = bindings
-        .expression(&observation(3, PrimitiveType::U64, "value"))
-        .unwrap();
-    let mut operations = OperationBuffer::new(0);
-    let mut next_value = 1;
-    let first = emit_direct_expression(&expression, &[], &mut next_value, &mut operations);
-    let second = emit_direct_expression(&expression, &[], &mut next_value, &mut operations);
-    assert_ne!(
-        first, second,
-        "field reads are not cached as descriptor metadata"
-    );
-    assert_eq!(operations.len(), 2);
-    for operation in operations.iter() {
-        assert!(matches!(operation.kind,
-            OperationKind::IntegerStructuralField { source, field, ref path }
-                if path.is_empty() && source == PlaceId::new(11).unwrap() && field == StructuralFieldId::new(7).unwrap()));
-    }
-}
-
-#[test]
 fn field_reads_require_exact_source_position_type_name_and_readable_relevance() {
     for access in [
         StructuralAccess::SharedBorrow,

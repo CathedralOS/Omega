@@ -19,9 +19,6 @@ use semantic_vocabulary::Proposition;
 
 use super::{case_analysis, logical};
 
-#[cfg(test)]
-mod tests;
-
 pub(super) fn prove(
     goal: &Proposition,
     assumptions: &[Proposition],

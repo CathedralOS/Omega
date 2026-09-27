@@ -9,8 +9,6 @@ use super::{
 };
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::emission::scalar_types::terminal_scalar_type;
-#[cfg(test)]
-use crate::proofs::contract_predicates::canonical_equality;
 use crate::proofs::contract_predicates::{PredicateTerms, connective};
 use crate::terminal_identities::{allocate_dense, value_id};
 use checked_trees::{

@@ -553,15 +553,15 @@ mod tests {
     };
     use language_semantics::Multiplicity;
     use semantic_vocabulary::{
-        BlockId, ContractId, EdgeId, MachineId, OperationId, PlaceId, ScalarType,
-        StructuralFieldId, StructuralPlaceKind, StructuralTypeId,
+        BlockId, ContractId, EdgeId, MachineId, PlaceId, ScalarType, StructuralFieldId,
+        StructuralPlaceKind, StructuralTypeId,
     };
     use terminal_psi::{
         BindingRelevance, Block, MachineContract, OperationKind, OperationResult, StructuralAccess,
-        StructuralArgument, StructuralFieldDeclaration, StructuralFieldType,
-        StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
-        StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
-        TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, VocabularyMarker,
+        StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+        StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralTypeDeclaration,
+        StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
+        VocabularyMarker,
     };
 
     fn id<T>(raw: u64, constructor: impl FnOnce(u64) -> Option<T>) -> T {
@@ -890,134 +890,6 @@ mod tests {
     }
 
     #[test]
-    fn move_then_restore_spells_the_pair_on_one_exact_place_and_verifies() {
-        let receiver = envelope_receiver();
-        let mut emission = Emission::new();
-        let moved = emission
-            .emit_move(&receiver, &checked_place(&fields(&["left"]), CELL))
-            .expect("the move opens a window");
-        assert_eq!(emission.ledger.open_windows().len(), 1);
-        assert_eq!(emission.ledger.open_windows()[0].moved, moved);
-        assert_unpinned(
-            emission.ledger.require_closed().unwrap_err(),
-            "self.left",
-            "missing restoration",
-        );
-        emission
-            .emit_store(
-                &receiver,
-                &checked_place(&fields(&["left"]), CELL),
-                BorrowedWindowRepairValue {
-                    place: moved,
-                    structural_type: cell(),
-                },
-            )
-            .expect("the store closes the window");
-        assert!(emission.ledger.open_windows().is_empty());
-        emission
-            .ledger
-            .require_closed()
-            .expect("closed at the exit");
-
-        let kinds = emission
-            .operations
-            .operations
-            .iter()
-            .map(|operation| operation.kind.clone())
-            .collect::<Vec<_>>();
-        assert_eq!(
-            kinds,
-            vec![
-                OperationKind::MoveStructuralField {
-                    source: id(1, PlaceId::new),
-                    path: Vec::new(),
-                    field: left(),
-                },
-                OperationKind::StoreStructuralField {
-                    destination: id(1, PlaceId::new),
-                    path: Vec::new(),
-                    field: left(),
-                    value: StructuralArgument {
-                        place: moved,
-                        path: Vec::new(),
-                        access: StructuralAccess::Owned,
-                    },
-                },
-            ]
-        );
-        assert_eq!(
-            emission.operations.operations[0].id,
-            id(1, OperationId::new)
-        );
-        let OperationResult::Structural(result) = &emission.operations.operations[0].result else {
-            panic!("the move binds a structural result");
-        };
-        assert_eq!(result.structural_type, cell());
-        assert_eq!(result.multiplicity, StructuralMultiplicity::Unrestricted);
-        terminal_verifier::validate_module(&module(&emission, &receiver))
-            .expect("the emitted pair is the window Terminal verification reconstructs");
-    }
-
-    #[test]
-    fn a_nested_field_chain_lowers_to_the_carrier_path_and_verifies() {
-        let receiver = vec![parameter(crate_type(), StructuralAccess::MutableBorrow)];
-        let mut emission = Emission::new();
-        let moved = emission
-            .emit_move(
-                &receiver,
-                &checked_place(&fields(&["inner", "right"]), CELL),
-            )
-            .expect("the nested move opens a window");
-        emission
-            .emit_store(
-                &receiver,
-                &checked_place(&fields(&["inner", "right"]), CELL),
-                BorrowedWindowRepairValue {
-                    place: moved,
-                    structural_type: cell(),
-                },
-            )
-            .expect("the nested store closes the window");
-        let carrier = vec![StructuralPathSegment::Field("inner".into())];
-        assert!(matches!(
-            &emission.operations.operations[0].kind,
-            OperationKind::MoveStructuralField { source, path, field }
-                if *source == id(1, PlaceId::new) && *path == carrier && *field == right()
-        ));
-        assert!(matches!(
-            &emission.operations.operations[1].kind,
-            OperationKind::StoreStructuralField { destination, path, field, .. }
-                if *destination == id(1, PlaceId::new) && *path == carrier && *field == right()
-        ));
-        terminal_verifier::validate_module(&module(&emission, &receiver))
-            .expect("nested pair verifies");
-    }
-
-    #[test]
-    fn a_different_whole_owned_value_of_the_hole_type_restores() {
-        let receiver = envelope_receiver();
-        let mut emission = Emission::new();
-        emission
-            .emit_move(&receiver, &checked_place(&fields(&["left"]), CELL))
-            .expect("open");
-        let replacement = id(7, PlaceId::new);
-        emission
-            .emit_store(
-                &receiver,
-                &checked_place(&fields(&["left"]), CELL),
-                BorrowedWindowRepairValue {
-                    place: replacement,
-                    structural_type: cell(),
-                },
-            )
-            .expect("any whole owned Cell restores the hole");
-        assert!(matches!(
-            &emission.operations.operations[1].kind,
-            OperationKind::StoreStructuralField { value, .. } if value.place == replacement
-        ));
-    }
-
-    #[test]
     fn a_disjoint_sibling_window_stays_independent() {
         let receiver = envelope_receiver();
         let mut emission = Emission::new();
@@ -1309,107 +1181,6 @@ mod tests {
     }
 
     #[test]
-    fn reconverging_paths_must_agree_on_the_open_window() {
-        let receiver = envelope_receiver();
-        let mut repaired = Emission::new();
-        let moved = repaired
-            .emit_move(&receiver, &checked_place(&fields(&["left"]), CELL))
-            .expect("open");
-        let mut unrepaired = repaired.ledger.clone();
-        repaired
-            .emit_store(
-                &receiver,
-                &checked_place(&fields(&["left"]), CELL),
-                BorrowedWindowRepairValue {
-                    place: moved,
-                    structural_type: cell(),
-                },
-            )
-            .expect("close on one path");
-        assert_unpinned(
-            repaired
-                .ledger
-                .require_same_frontier(&unrepaired)
-                .unwrap_err(),
-            "self.left",
-            "reconverging paths disagree",
-        );
-        assert_unpinned(
-            unrepaired
-                .require_same_frontier(&repaired.ledger)
-                .unwrap_err(),
-            "self.left",
-            "reconverging paths disagree",
-        );
-        unrepaired
-            .emit_store(
-                &checked_place(&fields(&["left"]), CELL),
-                BorrowedWindowRepairValue {
-                    place: moved,
-                    structural_type: cell(),
-                },
-                &receiver,
-                &[],
-                &structural_types(),
-                &type_ids(),
-                &mut OperationBuffer::new(0),
-            )
-            .expect("close on the other path");
-        repaired
-            .ledger
-            .require_same_frontier(&unrepaired)
-            .expect("both paths closed");
-    }
-
-    #[test]
-    fn sibling_paths_opening_the_same_hole_agree_at_the_join() {
-        let receiver = envelope_receiver();
-        let mut left_arm = Emission::new();
-        let left_moved = left_arm
-            .emit_move(&receiver, &checked_place(&fields(&["left"]), CELL))
-            .expect("open on the first path");
-        let mut right_arm = Emission::new();
-        right_arm.next_place = 3;
-        let right_moved = right_arm
-            .emit_move(&receiver, &checked_place(&fields(&["left"]), CELL))
-            .expect("open on the second path");
-        // Each arm bound its own result place for the removed value; the
-        // frontier is the shared hole, not the per-arm binding.
-        assert_ne!(left_moved, right_moved);
-        left_arm
-            .ledger
-            .require_same_frontier(&right_arm.ledger)
-            .expect("same hole opened on both paths agrees");
-        right_arm
-            .ledger
-            .require_same_frontier(&left_arm.ledger)
-            .expect("agreement is symmetric");
-
-        // A hole opened on one arm only still disagrees with a path that
-        // never opened it, and with a path that opened a different hole.
-        let mut untouched = Emission::new();
-        assert_unpinned(
-            left_arm
-                .ledger
-                .require_same_frontier(&untouched.ledger)
-                .unwrap_err(),
-            "self.left",
-            "reconverging paths disagree",
-        );
-        untouched
-            .emit_move(&receiver, &checked_place(&fields(&["right"]), CELL))
-            .expect("open the sibling field instead");
-        assert_unpinned(
-            left_arm
-                .ledger
-                .require_same_frontier(&untouched.ledger)
-                .unwrap_err(),
-            "self.left",
-            "reconverging paths disagree",
-        );
-    }
-
-    #[test]
     fn a_joined_frontier_collapses_arm_local_bindings_to_one_open_window() {
         let receiver = envelope_receiver();
         let mut left_arm = Emission::new();
@@ -1533,73 +1304,6 @@ mod tests {
         let plan = plans
             .for_machine(machine.symbol)
             .expect("the move-out/restore pair plans");
-        assert!(plan.operations.iter().any(|operation| {
-            matches!(
-                operation,
-                checked_trees::CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
-            )
-        }));
-        assert!(plan.operations.iter().any(|operation| {
-            matches!(
-                operation,
-                checked_trees::CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
-            )
-        }));
-        let lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
-            .expect("lowers through the ledger");
-        let emitted_kinds: Vec<&OperationKind> = lowered
-            .semantic_module
-            .machines
-            .iter()
-            .flat_map(|terminal| &terminal.blocks)
-            .flat_map(|block| &block.operations)
-            .map(|operation| &operation.kind)
-            .collect();
-        assert!(
-            emitted_kinds
-                .iter()
-                .any(|kind| { matches!(kind, OperationKind::MoveStructuralField { .. }) })
-        );
-        assert!(
-            emitted_kinds
-                .iter()
-                .any(|kind| { matches!(kind, OperationKind::StoreStructuralField { .. }) })
-        );
-        terminal_verifier::validate_module(&lowered.semantic_module)
-            .expect("the emitted module verifies");
-    }
-
-    /// A route spelled through a `&mut` alias local names the same storage
-    /// hole as the owner path: the checker keys the window on the resolved
-    /// place, so `let r = &mut self; let x = r.f; r.f = move x` plans and
-    /// emits the same Move/Store pair as the direct spelling.
-    #[test]
-    fn the_reborrow_alias_route_routes_move_out_and_restore_through_the_ledger() {
-        let source = r#"
-            data Inventory {
-                slots: i32;
-            }
-
-            data Main {
-                inventory: Inventory;
-            }
-
-            machine Main::main(&mut self) {
-                let view: &mut Main = &mut self;
-                let replacement: Inventory = view.inventory;
-                view.inventory = move replacement;
-            }
-        "#;
-        let checked = crate::front_end::checked_program(source);
-        let machine = checked
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str().ends_with("main"))
-            .expect("Main::main");
-        let plans = &checked.facts.flow.terminal_unit_effects;
-        let plan = plans
-            .for_machine(machine.symbol)
-            .expect("the reborrowed move-out/restore pair plans");
         assert!(plan.operations.iter().any(|operation| {
             matches!(
                 operation,

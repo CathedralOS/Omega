@@ -66,23 +66,6 @@ pub(super) fn fork_join(sign: IntegerSign, bits: u16, lower: bool, commute_join:
     graph(integer_type, values, lower, commute_join, false)
 }
 
-pub(super) fn shared_join(sign: IntegerSign, bits: u16, lower: bool) -> Fixture {
-    let integer_type = IntegerType::new(sign, bits).expect("fixed integer type");
-    let values = match sign {
-        IntegerSign::Signed => [
-            IntegerValue::Signed(-3),
-            IntegerValue::Signed(5),
-            IntegerValue::Signed(7),
-        ],
-        IntegerSign::Unsigned => [
-            IntegerValue::Unsigned(3),
-            IntegerValue::Unsigned(5),
-            IntegerValue::Unsigned(7),
-        ],
-    };
-    graph(integer_type, values, lower, false, true)
-}
-
 pub(super) fn outer_fork_join(
     sign: IntegerSign,
     bits: u16,
@@ -106,23 +89,6 @@ pub(super) fn outer_fork_join(
     } else {
         set_top(&mut fixture, root, join);
     }
-    fixture
-}
-
-pub(super) fn two_computed_joins(sign: IntegerSign, bits: u16, lower: bool) -> Fixture {
-    let mut fixture = outer_fork_join(sign, bits, lower, false);
-    let second_join = value(8, fixture.integer_type);
-    fixture.axioms.push(Proposition::Equal(
-        second_join.clone(),
-        ScalarTerm::exact_integer_add(
-            fixture.integer_type,
-            value(7, fixture.integer_type),
-            value(5, fixture.integer_type),
-        )
-        .expect("second computed join"),
-    ));
-    let root = value(1, fixture.integer_type);
-    set_top(&mut fixture, root, second_join);
     fixture
 }
 

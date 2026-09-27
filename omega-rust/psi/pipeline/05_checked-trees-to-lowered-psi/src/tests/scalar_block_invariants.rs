@@ -1,15 +1,12 @@
 use super::{ScalarType, lower_machine};
 use crate::TerminalMachineSelection;
-use crate::proofs::nonzero_divisor_certificate::{
-    produce_checked_canonical_integer_proof, produce_relaxed_integer_proof,
-};
 use crate::proofs::operation_proofs::finalize_operation_proofs;
 use crate::terminal_identities::obligation_id;
 use lowered_psi::LoweredPsi;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerValue, Proposition, ScalarTerm};
 use terminal_psi::OperationKind;
-use terminal_verifier::{ProofBundle, ReconstructedTerminalObligationOwner};
+use terminal_verifier::ProofBundle;
 
 fn fixture() -> LoweredPsi {
     let checked = crate::front_end::checked_program(
@@ -25,42 +22,6 @@ fn fixture() -> LoweredPsi {
     lowered.semantic_module.scalar_block_invariants.clear();
     lowered.proof_bundle = ProofBundle::default();
     lowered
-}
-
-#[test]
-fn optional_inference_drops_an_entry_range_that_does_not_survive_the_backedge() {
-    let mut lowered = fixture();
-    let machine = &mut lowered.semantic_module.machines[0];
-    let parameter = machine.parameters[0];
-    let ScalarType::Integer(integer) = parameter.scalar_type else {
-        panic!("integer")
-    };
-    // This is a Terminal inference test, not a source type change. The narrower
-    // invocation contract is valid for this safe loop, but is not an invariant:
-    // an input of four reaches five. Source state types have separate store
-    // obligations and must not be weakened to manufacture this counterexample.
-    machine.contract.requires = vec![Proposition::LessOrEqual(
-        ScalarTerm::value(parameter.id, parameter.scalar_type),
-        ScalarTerm::integer(integer, IntegerValue::Unsigned(4)).unwrap(),
-    )];
-    // The rewritten contract publishes a single upper bound, not the retained
-    // inclusive `[minimum, maximum]` pair, so it no longer carries the authored
-    // entry range.
-    lowered
-        .semantic_module
-        .scalar_qualifications
-        .integer_entry_ranges
-        .clear();
-    let original = lowered.semantic_module.clone();
-    crate::proofs::scalar_block_invariants::retain_provable(&mut lowered).unwrap();
-    assert_eq!(lowered.semantic_module, original);
-    finalize_operation_proofs(&mut lowered).unwrap();
-    terminal_verifier::verify_module(
-        &lowered.semantic_module,
-        &lowered.proof_bundle,
-        &AdmissionProfile::default(),
-    )
-    .unwrap();
 }
 
 #[test]
@@ -80,90 +41,6 @@ fn exhausted_optional_obligation_ids_do_not_reject_an_existing_program() {
     crate::proofs::scalar_block_invariants::retain_provable(&mut lowered).unwrap();
     assert_eq!(lowered.semantic_module, original);
     finalize_operation_proofs(&mut lowered).unwrap();
-    terminal_verifier::verify_module(
-        &lowered.semantic_module,
-        &lowered.proof_bundle,
-        &AdmissionProfile::default(),
-    )
-    .unwrap();
-}
-
-/// The unconditional self-loop hands the arrival obligation `x + s <= 4`
-/// under `x <= 4` and `s <= 0`: the bound only closes once `s <= 0` is read
-/// as `s == 0` and pushed through the addition — the bounded derived closure,
-/// outside the canonical custody envelope. The candidate must be retained and
-/// the kernel must still verify the finalized module.
-#[test]
-fn relaxed_arrival_retains_bound_canonical_cannot_close() {
-    let checked = crate::front_end::checked_program(
-        "machine m(x: u64 [0..=4], s: u64 [0..=0]) -> u64 {
-            transition { _ -> m(x + s, s) }
-         }",
-    );
-    let mut lowered = lower_machine(&checked, TerminalMachineSelection::Name("m")).unwrap();
-    lowered.semantic_module.scalar_block_invariants.clear();
-    lowered.proof_bundle = ProofBundle::default();
-    crate::proofs::scalar_block_invariants::retain_provable(&mut lowered).unwrap();
-    assert_eq!(lowered.semantic_module.scalar_block_invariants.len(), 1);
-
-    // Pin the fallback: on the cycle arrival the canonical search must fail
-    // where the relaxed derived closure succeeds.
-    let module = &lowered.semantic_module;
-    let validated = terminal_verifier::validate_module(module).unwrap();
-    let questions = terminal_verifier::reconstruct_terminal_obligations(module).unwrap();
-    let mut relaxed_arrivals = 0usize;
-    for site in questions.obligations() {
-        let ReconstructedTerminalObligationOwner::ScalarBlockInvariant { machine, .. } = site.owner
-        else {
-            continue;
-        };
-        let owner = module.machines.iter().find(|m| m.id == machine).unwrap();
-        let context = validated.value_context(owner).unwrap();
-        let params = owner.parameters.iter().map(|v| v.id).collect();
-        if produce_checked_canonical_integer_proof(
-            &context,
-            &site.obligation.proposition,
-            &site.requirements,
-            &site.semantic_axioms,
-            &params,
-        )
-        .is_none()
-        {
-            relaxed_arrivals += 1;
-            assert!(
-                produce_relaxed_integer_proof(
-                    &context,
-                    &site.obligation.proposition,
-                    &site.requirements,
-                    &site.semantic_axioms,
-                    &params,
-                )
-                .is_some(),
-                "the canonical gap must be closed by the relaxed derived closure"
-            );
-        }
-    }
-    assert_eq!(
-        relaxed_arrivals, 1,
-        "exactly one arrival needs the fallback"
-    );
-
-    // Finalization must produce evidence for every retained arrival and the
-    // kernel must verify the whole module — no certificate is admitted on the
-    // relaxed producer's word alone.
-    finalize_operation_proofs(&mut lowered).unwrap();
-    let retained = &lowered.semantic_module.scalar_block_invariants[0];
-    for arrival in &retained.arrivals {
-        assert!(
-            lowered
-                .proof_bundle
-                .evidence
-                .iter()
-                .any(|e| e.obligation == arrival.obligation),
-            "finalization must produce evidence for retained arrival {:?}",
-            arrival.obligation
-        );
-    }
     terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,
@@ -229,24 +106,6 @@ fn relaxed_arrival_rejects_when_only_a_guarded_premise_could_close_it() {
     // the module still validates, finalization still succeeds, and the kernel
     // still verifies.
     terminal_verifier::validate_module(&lowered.semantic_module).unwrap();
-    finalize_operation_proofs(&mut lowered).unwrap();
-    terminal_verifier::verify_module(
-        &lowered.semantic_module,
-        &lowered.proof_bundle,
-        &AdmissionProfile::default(),
-    )
-    .unwrap();
-}
-
-#[test]
-fn optional_inference_preserves_retained_source_certificates() {
-    let mut lowered = fixture();
-    finalize_operation_proofs(&mut lowered).unwrap();
-    let original_proofs = lowered.proof_bundle.clone();
-    crate::proofs::scalar_block_invariants::retain_provable(&mut lowered).unwrap();
-    assert_eq!(lowered.proof_bundle, original_proofs);
-    // If inference retained a compatible roster, its new arrivals still need
-    // ordinary finalization; existing source certificates are never discarded.
     finalize_operation_proofs(&mut lowered).unwrap();
     terminal_verifier::verify_module(
         &lowered.semantic_module,

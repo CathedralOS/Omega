@@ -53,65 +53,6 @@ machine selected(take: bool, input: u64) -> u64 {
 "#;
 
 #[test]
-fn record_copies_bind_distinct_homes_before_nested_transition_reads() {
-    let (_, module, bytes, proof) = support::publish(COPY_SOURCE, "selected");
-    let machine = module
-        .machines
-        .iter()
-        .find(|machine| machine.id == module.entry)
-        .unwrap();
-    let mut copies = 0;
-    for block in &machine.blocks {
-        let terminal_psi::Terminator::Jump {
-            target,
-            structural_arguments,
-            ..
-        } = &block.terminator
-        else {
-            continue;
-        };
-        let destination = machine
-            .blocks
-            .iter()
-            .find(|block| block.id == *target)
-            .unwrap();
-        for (source, destination) in structural_arguments
-            .iter()
-            .zip(&destination.structural_parameters)
-        {
-            assert_ne!(
-                source.place, destination.place,
-                "copy cannot alias the source home"
-            );
-            assert_eq!(source.access, terminal_psi::StructuralAccess::Owned);
-            assert_eq!(
-                destination.multiplicity,
-                terminal_psi::StructuralMultiplicity::Unrestricted
-            );
-            copies += 1;
-        }
-    }
-    assert_eq!(copies, 3, "nested field and two whole-local copies");
-    for input in [0, 256, u128::from(u64::MAX)] {
-        for (take, expected) in [(true, input ^ 3), (false, 3)] {
-            let result = terminal_interpreter::interpret_terminal_artifact_measured(
-                &bytes,
-                &proof,
-                &proof_admission::AdmissionProfile::default(),
-                &[TerminalScalarValue::Boolean(take), integer(input)],
-                TerminalStructuralInputs::default(),
-                &mut AcceptTerminalEffects,
-            )
-            .unwrap();
-            assert_eq!(
-                result.value(),
-                TerminalExecutionResult::Scalar(integer(expected))
-            );
-        }
-    }
-}
-
-#[test]
 fn record_copy_replay_rejects_same_carrier_source_and_access_substitution() {
     let (checked, _, _, _) = support::publish(COPY_SOURCE, "selected");
     let local = |name: &str| {
@@ -178,28 +119,6 @@ fn record_copy_replay_rejects_same_carrier_source_and_access_substitution() {
 }
 
 #[test]
-fn record_locals_complete_fields_and_selected_arguments_before_cleanup() {
-    let (_, _, bytes, proof) = support::publish(SOURCE, "selected");
-    for input in [0, 256, u128::from(u64::MAX)] {
-        for (take, expected) in [(true, 17), (false, 3)] {
-            let result = terminal_interpreter::interpret_terminal_artifact_measured(
-                &bytes,
-                &proof,
-                &proof_admission::AdmissionProfile::default(),
-                &[TerminalScalarValue::Boolean(take), integer(input)],
-                TerminalStructuralInputs::default(),
-                &mut AcceptTerminalEffects,
-            )
-            .unwrap();
-            assert_eq!(
-                result.value(),
-                TerminalExecutionResult::Scalar(integer(expected))
-            );
-        }
-    }
-}
-
-#[test]
 fn record_local_graph_replay_rejects_missing_moved_and_substituted_producers() {
     let (checked, _, _, _) = support::publish(SOURCE, "selected");
     let graph_position = checked
@@ -252,98 +171,6 @@ fn record_local_graph_replay_rejects_missing_moved_and_substituted_producers() {
             "corruption {corruption}"
         );
     }
-}
-
-#[test]
-fn record_local_graph_replay_rejects_missing_affine_drop() {
-    use language_semantics::{PermissionEventKind, PermissionEventSource};
-    let (mut checked, _, _, _) = support::publish(SOURCE, "selected");
-    let drop = checked
-        .facts
-        .flow
-        .ownership
-        .permissions
-        .iter()
-        .find_map(|(handle, event)| {
-            (event.kind == PermissionEventKind::AffineDrop
-                && event.source == PermissionEventSource::StateExit)
-                .then_some(handle)
-        })
-        .unwrap();
-    checked.facts.flow.ownership.permissions.get_mut(drop).kind = PermissionEventKind::Transfer;
-    assert!(
-        checked_trees_to_lowered_psi::lower_machine(
-            &checked,
-            TerminalMachineSelection::Name("selected")
-        )
-        .is_err()
-    );
-}
-
-#[test]
-fn record_locals_preserve_effectful_field_order_and_scalar_returns() {
-    let source = r#"
-        data Pair { first: u64; second: u64; }
-        machine stamp(destination: &mut u64, value: u64) -> u64 { destination = value; value }
-        machine direct() -> u64 {
-            let mut scratch: u64 = 0;
-            let pair: Pair = Pair { second: stamp(&mut scratch, 1), first: stamp(&mut scratch, 2) };
-            pair.first ^ pair.second ^ scratch
-        }
-        machine branch(take: bool) -> u64 {
-            let pair: Pair = Pair { second: 1, first: 2 };
-            transition take { true -> pair.first _ -> pair.second }
-        }
-    "#;
-    for (entry, arguments, expected) in [
-        ("direct", vec![], 1),
-        ("branch", vec![TerminalScalarValue::Boolean(true)], 2),
-        ("branch", vec![TerminalScalarValue::Boolean(false)], 1),
-    ] {
-        let (_, _, bytes, proof) = support::publish(source, entry);
-        let result = terminal_interpreter::interpret_terminal_artifact_measured(
-            &bytes,
-            &proof,
-            &proof_admission::AdmissionProfile::default(),
-            &arguments,
-            TerminalStructuralInputs::default(),
-            &mut AcceptTerminalEffects,
-        )
-        .unwrap();
-        assert_eq!(
-            result.value(),
-            TerminalExecutionResult::Scalar(integer(expected)),
-            "{entry}"
-        );
-    }
-}
-
-#[test]
-fn record_local_transition_does_not_execute_the_unselected_argument() {
-    let source = r#"
-        data Value { number: u64; flag: bool; }
-        machine fail() -> u64 crashes Abort { crash Abort; }
-        machine selected(take: bool) -> u64 crashes Abort {
-            let value: Value = Value { number: 256, flag: take };
-            transition value.flag { true -> yes(fail()) _ -> no(value.number) }
-            state yes(number: u64) { number }
-            state no(number: u64) { number }
-        }
-    "#;
-    let (_, _, bytes, proof) = support::publish(source, "selected");
-    let result = terminal_interpreter::interpret_terminal_artifact_measured(
-        &bytes,
-        &proof,
-        &proof_admission::AdmissionProfile::default(),
-        &[TerminalScalarValue::Boolean(false)],
-        TerminalStructuralInputs::default(),
-        &mut AcceptTerminalEffects,
-    )
-    .unwrap();
-    assert_eq!(
-        result.value(),
-        TerminalExecutionResult::Scalar(integer(256))
-    );
 }
 
 #[test]

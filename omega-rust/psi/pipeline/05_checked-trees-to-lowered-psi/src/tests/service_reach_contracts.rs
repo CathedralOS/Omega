@@ -41,7 +41,6 @@ fn nominal_schema_forwarding_module() -> terminal_psi::TerminalModule {
 
 struct ReachFixture {
     rows: language_semantics::ServiceReachRowTable,
-    console: ServiceReachId,
     console_row: ServiceReachRowId,
     console_and_network_row: ServiceReachRowId,
     terminal_services: Vec<(ServiceReachId, ServiceId)>,
@@ -71,7 +70,6 @@ fn reach_fixture() -> ReachFixture {
     let console_and_network_row = rows.intern(vec![console, network]);
     ReachFixture {
         rows,
-        console,
         console_row,
         console_and_network_row,
         terminal_services: vec![(console, service_id(1)), (network, service_id(2))],
@@ -83,16 +81,4 @@ fn summary(row: ServiceReachRowId) -> ServiceReachSummary {
         direct: row,
         transitive: row,
     }
-}
-
-fn checked_public_reach_wrapper() -> checked_trees::CheckedTrees {
-    crate::front_end::checked_program(
-        r#"
-            pub boundary trait Audit { machine record() reaches Audit; }
-            pub boundary trait Host { machine ping() reaches Host + Audit; }
-            pub data Root {}
-            machine Root::helper() reaches Host + Audit { Host::ping(); }
-            pub machine Root::enter() invokes Host; { Root::helper(); }
-        "#,
-    )
 }

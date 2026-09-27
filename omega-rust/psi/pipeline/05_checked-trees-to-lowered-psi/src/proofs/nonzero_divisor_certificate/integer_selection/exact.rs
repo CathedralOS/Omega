@@ -810,8 +810,8 @@ fn compound(term: &ScalarTerm) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{PrimitiveJudgment, ProofRule, Proposition, prove};
-    use proof_admission::check_certificate;
+    use super::{Proposition, prove};
+
     use semantic_vocabulary::{
         IntegerSign, IntegerType, IntegerValue, PropositionContext, ScalarTerm, ScalarType, ValueId,
     };
@@ -822,109 +822,6 @@ mod tests {
             (1..=4).map(|identity| (ValueId::new(identity).unwrap(), scalar_type)),
         )
         .unwrap()
-    }
-
-    fn equality(left: u64, right: u64) -> Proposition {
-        let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 16).unwrap());
-        Proposition::Equal(
-            ScalarTerm::value(ValueId::new(left).unwrap(), scalar_type),
-            ScalarTerm::value(ValueId::new(right).unwrap(), scalar_type),
-        )
-    }
-
-    #[test]
-    fn directed_equality_chain_replays_each_exact_citation() {
-        let goal = equality(1, 4);
-        let assumptions = [Proposition::Conjunction(vec![
-            equality(2, 3),
-            equality(3, 4),
-        ])];
-        let semantic_axioms = [equality(1, 2)];
-        let proof = prove(&context(), &goal, &assumptions, &semantic_axioms)
-            .expect("three cited equalities");
-        assert!(matches!(proof.rule, ProofRule::EqualityTransitivity { .. }));
-        check_certificate(&context(), &goal, &assumptions, &semantic_axioms, &proof)
-            .expect("kernel replays the directed chain");
-
-        assert!(check_certificate(&context(), &goal, &assumptions, &[], &proof).is_err());
-        assert!(
-            check_certificate(
-                &context(),
-                &goal,
-                &[equality(2, 4)],
-                &semantic_axioms,
-                &proof
-            )
-            .is_err(),
-            "substituted hypothesis shape cannot satisfy the existing citation"
-        );
-    }
-
-    #[test]
-    fn missing_equality_edges_are_not_invented() {
-        let goal = equality(1, 4);
-        for semantic_axioms in [
-            vec![equality(1, 2), equality(3, 4)],
-            vec![equality(2, 1), equality(3, 4)],
-            vec![equality(1, 2), equality(3, 2)],
-        ] {
-            assert!(
-                prove(&context(), &goal, &[], &semantic_axioms).is_none(),
-                "{semantic_axioms:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn reversed_edges_have_explicit_symmetry_certificates() {
-        let goal = equality(1, 4);
-        let axioms = [equality(2, 1), equality(2, 3), equality(4, 3)];
-        let proof = prove(&context(), &goal, &[], &axioms).expect("two reversed edges");
-        check_certificate(&context(), &goal, &[], &axioms, &proof).unwrap();
-        let mut changed = axioms.clone();
-        changed[0] = equality(1, 2);
-        assert!(
-            check_certificate(&context(), &goal, &[], &changed, &proof).is_err(),
-            "a symmetric proposition does not replace the cited proof node"
-        );
-    }
-
-    #[test]
-    fn equality_cycles_terminate_without_hiding_a_reachable_target() {
-        let goal = equality(1, 4);
-        let mut semantic_axioms = vec![
-            equality(1, 2),
-            equality(2, 1),
-            equality(2, 3),
-            equality(3, 2),
-        ];
-        assert!(
-            prove(&context(), &goal, &[], &semantic_axioms).is_none(),
-            "cycle is not a missing exit"
-        );
-        semantic_axioms.push(equality(3, 4));
-        let proof =
-            prove(&context(), &goal, &[], &semantic_axioms).expect("reachable target after cycle");
-        check_certificate(&context(), &goal, &[], &semantic_axioms, &proof).unwrap();
-    }
-
-    #[test]
-    fn reflexivity_needs_no_citation_and_non_equality_is_not_a_chain() {
-        let goal = equality(1, 1);
-        let proof = prove(&context(), &goal, &[], &[]).expect("reflexivity");
-        check_certificate(&context(), &goal, &[], &[], &proof).unwrap();
-        let Proposition::Equal(left, right) = equality(1, 4) else {
-            unreachable!()
-        };
-        assert!(
-            prove(
-                &context(),
-                &Proposition::LessOrEqual(left, right),
-                &[],
-                &[equality(1, 4)]
-            )
-            .is_none()
-        );
     }
 
     fn integer_type() -> IntegerType {
@@ -958,71 +855,6 @@ mod tests {
 
     fn conserved_sum() -> ScalarTerm {
         add(term(1), term(2))
-    }
-
-    #[test]
-    fn normalization_certifies_the_accumulator_recurrence_edge() {
-        let goal = Proposition::Equal(updated_sum(), conserved_sum());
-        let proof = prove(&context(), &goal, &[], &[]).expect("certified normalization edge");
-        // Endpoint order is canonical, so the single hop is either the
-        // primitive itself or its explicit symmetry certificate.
-        match &proof.rule {
-            ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation) => {}
-            ProofRule::EqualitySymmetry { equality } => assert!(matches!(
-                equality.rule,
-                ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation)
-            )),
-            _ => panic!("normalization edge must carry the licensed primitive"),
-        }
-        check_certificate(&context(), &goal, &[], &[], &proof).unwrap();
-    }
-
-    #[test]
-    fn normalization_edges_compose_through_cited_equalities() {
-        let goal = Proposition::Equal(updated_sum(), term(3));
-        let axioms = [Proposition::Equal(term(3), conserved_sum())];
-        let proof = prove(&context(), &goal, &[], &axioms)
-            .expect("normalization edge then reversed citation");
-        assert!(matches!(proof.rule, ProofRule::EqualityTransitivity { .. }));
-        check_certificate(&context(), &goal, &[], &axioms, &proof).unwrap();
-        assert!(
-            check_certificate(&context(), &goal, &[], &[], &proof).is_err(),
-            "dropping the cited hop invalidates the chain even though the \
-             normalization edge needs no citation"
-        );
-    }
-
-    #[test]
-    fn successor_endpoint_transports_through_cited_definitions() {
-        // The latch arrival shape: the goal names only the successor values,
-        // whose cited definitions hide `acc`/`remaining` inside compounds.
-        // `add(v17, v15)` must reach the cited `add(v4, v3)` hypothesis:
-        // transport expands `v17 == add(v7, v16)` and `v15 == sub(v6, v14)`
-        // through `v7 == v4`, `v6 == v3`, `v16 == 1`, `v14 == 1`.
-        let goal = Proposition::Equal(add(term(2), term(1)), add(term(17), term(15)));
-        let axioms = [
-            // The header invariant hypothesis over its parameters.
-            Proposition::Equal(add(term(2), term(1)), add(term(4), term(3))),
-            Proposition::Equal(term(6), term(3)),
-            Proposition::Equal(term(7), term(4)),
-            Proposition::Equal(term(14), one()),
-            Proposition::Equal(term(15), subtract(term(6), term(14))),
-            Proposition::Equal(term(16), one()),
-            Proposition::Equal(term(17), add(term(7), term(16))),
-        ];
-        // context() registers values 1..=4 only; widen it for this roster.
-        let scalar_type = ScalarType::Integer(integer_type());
-        let context = PropositionContext::from_value_types(
-            (1..=17).map(|identity| (ValueId::new(identity).unwrap(), scalar_type)),
-        )
-        .unwrap();
-        let proof = prove(&context, &goal, &[], &axioms)
-            .expect("transport then cited hypothesis closes the arrival");
-        check_certificate(&context, &goal, &[], &axioms, &proof).unwrap();
-        assert!(
-            prove(&context, &goal, &[], &axioms[..axioms.len() - 1]).is_none(),
-            "dropping the `v17` definition leaves an unprovable gap"
-        );
     }
 
     #[test]

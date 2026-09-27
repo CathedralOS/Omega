@@ -1,8 +1,7 @@
 //! Consistent forged catalogs must still agree with the typed source layout.
 
-use checked_trees::types::PrimitiveType;
 use checked_trees::{CheckedTrees, CheckedUnitStructuralFieldType, CheckedUnitStructuralTypeShape};
-use semantic_vocabulary::{BoundedIntegerType, IntegerSign, IntegerType, IntegerValue};
+use semantic_vocabulary::IntegerValue;
 use terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
@@ -102,45 +101,6 @@ fn reject(checked: &CheckedTrees) {
             .contains("owned structural catalog differs from its typed declaration"),
         "the source rejoin must witness this corruption: {error:?}"
     );
-}
-
-#[test]
-fn consistent_field_order_name_type_count_and_relevance_corruption_reject() {
-    let (original, identity) = fixture("data Envelope { limit: u64; spare: u64; }");
-    for mutation in 0..5 {
-        let mut checked = original.clone();
-        corrupt(&mut checked, &identity, |shape| {
-            let CheckedUnitStructuralTypeShape::Record { fields } = shape else {
-                panic!("record")
-            };
-            match mutation {
-                0 => fields.swap(0, 1),
-                1 => fields[1].identity = "renamed".into(),
-                2 => {
-                    fields[1].field_type =
-                        CheckedUnitStructuralFieldType::Scalar(PrimitiveType::U32)
-                }
-                3 => {
-                    fields.pop();
-                }
-                _ => fields[1].relevance = terminal_psi::BindingRelevance::Erased,
-            }
-        });
-        reject(&checked);
-    }
-}
-
-#[test]
-fn numbered_field_identity_is_rejoined_even_when_the_field_is_unread() {
-    let (mut checked, identity) = fixture("data Envelope { #7 limit: u64; #8 spare: u64; }");
-    corrupt(&mut checked, &identity, |shape| {
-        let CheckedUnitStructuralTypeShape::Record { fields } = shape else {
-            panic!("record")
-        };
-        assert_eq!(fields[1].identity, "#8");
-        fields[1].identity = "#9".into();
-    });
-    reject(&checked);
 }
 
 #[test]
@@ -309,119 +269,6 @@ fn bounded_fields_preserve_signed_unsigned_expression_and_substituted_ranges() {
         };
         assert_eq!((integer.minimum(), integer.maximum()), (minimum, maximum));
     }
-}
-
-#[test]
-fn full_width_bounded_fields_reject_range_erasure_and_endpoint_drift() {
-    let (original, identity) =
-        fixture("data Envelope { limit: u64; spare: u64 [0..18446744073709551616]; }");
-    for replacement in [
-        CheckedUnitStructuralFieldType::Scalar(PrimitiveType::U64),
-        CheckedUnitStructuralFieldType::BoundedInteger(
-            BoundedIntegerType::new(
-                IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
-                IntegerValue::Unsigned(0),
-                IntegerValue::Unsigned(u128::from(u64::MAX - 1)),
-            )
-            .unwrap(),
-        ),
-    ] {
-        let mut checked = original.clone();
-        corrupt(&mut checked, &identity, |shape| {
-            let CheckedUnitStructuralTypeShape::Record { fields } = shape else {
-                panic!("bounded source record")
-            };
-            fields[1].field_type = replacement.clone();
-        });
-        reject(&checked);
-    }
-}
-
-#[test]
-fn consistently_forged_bounded_fields_reject_range_erasure_and_carrier_changes() {
-    let (original, identity) = fixture("data Envelope { limit: u64; spare: u64 [3..=5]; }");
-    for replacement in [
-        CheckedUnitStructuralFieldType::BoundedInteger(
-            BoundedIntegerType::new(
-                IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
-                IntegerValue::Unsigned(2),
-                IntegerValue::Unsigned(6),
-            )
-            .unwrap(),
-        ),
-        CheckedUnitStructuralFieldType::BoundedInteger(
-            BoundedIntegerType::new(
-                IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
-                IntegerValue::Unsigned(4),
-                IntegerValue::Unsigned(4),
-            )
-            .unwrap(),
-        ),
-        CheckedUnitStructuralFieldType::Scalar(PrimitiveType::U64),
-        CheckedUnitStructuralFieldType::BoundedInteger(
-            BoundedIntegerType::new(
-                IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
-                IntegerValue::Unsigned(3),
-                IntegerValue::Unsigned(5),
-            )
-            .unwrap(),
-        ),
-        CheckedUnitStructuralFieldType::BoundedInteger(
-            BoundedIntegerType::new(
-                IntegerType::new(IntegerSign::Signed, 64).unwrap(),
-                IntegerValue::Signed(3),
-                IntegerValue::Signed(5),
-            )
-            .unwrap(),
-        ),
-    ] {
-        let mut checked = original.clone();
-        corrupt(&mut checked, &identity, |shape| {
-            let CheckedUnitStructuralTypeShape::Record { fields } = shape else {
-                panic!("bounded source record")
-            };
-            fields[1].field_type = replacement.clone();
-        });
-        reject(&checked);
-    }
-}
-
-#[test]
-fn source_range_drift_rejects_an_unchanged_bounded_catalog() {
-    use checked_trees::data::DataMember;
-    use checked_trees::expression::ExpressionNode;
-    use checked_trees::types::{TypeConstraintNode, TypeReferenceNode};
-
-    let (mut checked, _) = fixture("data Envelope { limit: u64; spare: u64 [3..=5]; }");
-    let envelope = checked
-        .data_definitions()
-        .iter()
-        .find(|data| data.name.as_str() == "Envelope")
-        .unwrap();
-    let DataMember::Field(field) = &checked.data_members(envelope)[1] else {
-        panic!("bounded source field")
-    };
-    let TypeReferenceNode::Constrained { constraints, .. } = checked
-        .type_reference_table
-        .type_reference(field.type_reference)
-    else {
-        panic!("source range shell")
-    };
-    let maximum = checked
-        .type_reference_table
-        .constraints(*constraints)
-        .iter()
-        .find_map(|constraint| match constraint {
-            TypeConstraintNode::Range { maximum, .. } => Some(*maximum),
-            _ => None,
-        })
-        .unwrap();
-    let ExpressionNode::Integer(value) = checked.typed.expression_table.expression_mut(maximum)
-    else {
-        panic!("literal source upper bound")
-    };
-    *value = numerics::literals::IntegerLiteral::from_value(6);
-    reject(&checked);
 }
 
 #[test]

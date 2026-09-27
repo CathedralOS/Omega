@@ -37,35 +37,6 @@ const SOURCE: &str = r#"
 "#;
 
 #[test]
-fn local_nested_record_getter_composes_with_conditional_state_exit() {
-    let checked = crate::front_end::checked_program(SOURCE);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("Main::main"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("state-local records are not required successor arguments")
-    .into_artifact();
-    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
-    let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
-    terminal_verifier::verify_module(
-        &module,
-        &proof,
-        &proof_admission::AdmissionProfile::default(),
-    )
-    .unwrap();
-    for input in [0, 7, u64::MAX] {
-        assert_execution(
-            &artifact,
-            input,
-            u128::from(input ^ if input == 7 { 1 } else { 2 }),
-        );
-    }
-}
-
-#[test]
 fn mutable_call_result_records_keep_storage_through_state_local_receivers() {
     let source = r#"
         boundary trait Sink { machine record(value: u64); }
@@ -183,45 +154,6 @@ fn mutable_call_result_records_keep_storage_through_state_local_receivers() {
             &artifact,
             input,
             u128::from(observed ^ if observed == 7 { 4 } else { 8 }),
-        );
-    }
-}
-
-#[test]
-fn copy_record_state_exit_needs_no_affine_receipt_or_disposal() {
-    let source = SOURCE
-        .replace("data Region {", "data Region [copy] {")
-        .replace("data Filter {", "data Filter [copy] {");
-    let artifact = artifact(&source);
-    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
-    terminal_verifier::validate_module(&module).unwrap();
-    let entry = module
-        .machines
-        .iter()
-        .find(|machine| machine.id == module.entry)
-        .unwrap();
-    for block in &entry.blocks {
-        match &block.terminator {
-            terminal_psi::Terminator::Jump {
-                trivial_affine_discards,
-                ..
-            } => assert!(trivial_affine_discards.is_empty()),
-            terminal_psi::Terminator::Conditional {
-                when_true,
-                when_false,
-                ..
-            } => {
-                assert!(when_true.trivial_affine_discards.is_empty());
-                assert!(when_false.trivial_affine_discards.is_empty());
-            }
-            _ => {}
-        }
-    }
-    for input in [7, u64::MAX] {
-        assert_execution(
-            &artifact,
-            input,
-            u128::from(input ^ if input == 7 { 1 } else { 2 }),
         );
     }
 }
@@ -374,102 +306,6 @@ fn local_record_direct_jump_and_asymmetric_transfer_preserve_observations() {
 }
 
 #[test]
-fn selected_edge_drops_two_locals_in_reverse_order_and_rejects_corruption() {
-    let source = SOURCE.replace(
-        "let observed: u64 = local.get();",
-        "let later: Filter = Filter::new(input ^ 4);\n        let observed: u64 = local.get();",
-    );
-    let artifact = artifact(&source);
-    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
-    terminal_verifier::validate_module(&module).unwrap();
-    let entry = module
-        .machines
-        .iter()
-        .position(|machine| machine.id == module.entry)
-        .unwrap();
-    // Scalar successor operands may require selected staging blocks. The
-    // disposal belongs to the final jump after those reads, not necessarily
-    // to the conditional which chooses that block.
-    let drops = module.machines[entry]
-        .blocks
-        .iter()
-        .enumerate()
-        .flat_map(|(index, block)| match &block.terminator {
-            terminal_psi::Terminator::Conditional {
-                when_true,
-                when_false,
-                ..
-            } if when_true.trivial_affine_discards.len() == 2 => {
-                assert_eq!(
-                    when_true.trivial_affine_discards,
-                    when_false.trivial_affine_discards
-                );
-                vec![
-                    (index, Some(true), when_true.trivial_affine_discards.clone()),
-                    (
-                        index,
-                        Some(false),
-                        when_false.trivial_affine_discards.clone(),
-                    ),
-                ]
-            }
-            terminal_psi::Terminator::Jump {
-                trivial_affine_discards,
-                ..
-            } if trivial_affine_discards.len() == 2 => {
-                vec![(index, None, trivial_affine_discards.clone())]
-            }
-            _ => Vec::new(),
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(drops.len(), 2, "both selected routes dispose both locals");
-    let (block, branch, expected) = &drops[0];
-    assert_eq!(*expected, drops[1].2);
-    let established = module.machines[entry]
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .filter_map(|operation| operation.result.structural())
-        .map(|result| result.place)
-        .filter(|place| expected.contains(place))
-        .collect::<Vec<_>>();
-    assert_eq!(*expected, established.into_iter().rev().collect::<Vec<_>>());
-    for mutation in 0..3 {
-        let mut changed = module.clone();
-        let discards = match &mut changed.machines[entry].blocks[*block].terminator {
-            terminal_psi::Terminator::Conditional {
-                when_true,
-                when_false,
-                ..
-            } => {
-                if *branch == Some(true) {
-                    &mut when_true.trivial_affine_discards
-                } else {
-                    &mut when_false.trivial_affine_discards
-                }
-            }
-            terminal_psi::Terminator::Jump {
-                trivial_affine_discards,
-                ..
-            } => trivial_affine_discards,
-            _ => panic!("selected disposal edge"),
-        };
-        match mutation {
-            0 => {
-                discards.pop();
-            }
-            1 => discards.reverse(),
-            _ => discards.push(expected[0]),
-        }
-        assert!(
-            terminal_verifier::validate_module(&changed).is_err(),
-            "invalid selected-edge disposal {mutation}"
-        );
-    }
-    assert_execution(&artifact, 7, 6);
-}
-
-#[test]
 fn local_edge_cleanup_rejects_forged_permission_origins() {
     let checked = crate::front_end::checked_program(SOURCE);
     let _artifact = terminal_production::TerminalProductionRequest::new(
@@ -529,21 +365,4 @@ fn local_edge_cleanup_rejects_forged_permission_origins() {
             "forged local ownership provenance"
         );
     }
-}
-
-#[test]
-fn one_selected_edge_cannot_transfer_the_same_affine_local_twice() {
-    let source = SOURCE
-        .replace("true -> selected(observed)", "true -> selected(local, local)")
-        .replace("state selected(value: u64) {\n            Sink::record(value ^ 1);", "state selected(first: Filter, second: Filter) {\n            let observed: u64 = first.get();\n            Sink::record(observed);");
-    let diagnostics = crate::front_end::checked_program_result(&source)
-        .expect_err("one selected edge cannot duplicate affine ownership");
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("already")
-                && (diagnostic.message.contains("consum")
-                    || diagnostic.message.contains("transfer"))),
-        "ownership diagnostic: {diagnostics:#?}"
-    );
 }

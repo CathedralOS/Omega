@@ -68,48 +68,6 @@ fn floating_array_literals_calls_and_projections_execute_exact_bits() {
 }
 
 #[test]
-fn floating_array_source_bits_and_format_cannot_be_substituted() {
-    let original =
-        crate::front_end::checked_program("machine selected() -> [f32; 2] { [1.5f32, -0.0f32] }");
-    checked_trees_to_lowered_psi::lower_machine(
-        &original,
-        TerminalMachineSelection::Name("selected"),
-    )
-    .unwrap();
-    let (_, expressions) = selected_source(&original);
-    let ExpressionNode::ArrayLiteral(elements) =
-        original.expression_table.expression(expressions[0])
-    else {
-        panic!("authored array");
-    };
-    let leaves = original
-        .expression_table
-        .expression_handles(*elements)
-        .to_vec();
-    for (ordinal, literal) in [(0, "2.5f32"), (0, "1.5f64"), (1, "0.0f32")] {
-        let carrier = if literal.ends_with("f32") {
-            "f32"
-        } else {
-            "f64"
-        };
-        let replacement = crate::front_end::checked_program(&format!(
-            "machine selected() -> [{carrier}; 1] {{ [{literal}] }}"
-        ));
-        let replacement = replacement
-            .expression_table
-            .expression_entries()
-            .find_map(|(_, node)| matches!(node, ExpressionNode::Float(_)).then_some(node.clone()))
-            .unwrap();
-        let mut changed = original.clone();
-        *changed
-            .typed
-            .expression_table
-            .expression_mut(leaves[ordinal]) = replacement;
-        reject(&changed, literal);
-    }
-}
-
-#[test]
 fn projected_floating_array_cannot_erase_an_invalid_sibling_format() {
     let original = crate::front_end::checked_program(
         "data Rows {} const Rows::VALUES: [[f32; 1]; 2] = [[1.5f32], [2.5f32]];

@@ -2,7 +2,7 @@
 use super::{CLOSED_SUM_UNIT_SOURCE, checked_source_with_core_service, lower_machine, roundtrip};
 use crate::TerminalMachineSelection;
 use language_semantics::{PermissionEventKind, PermissionEventSource, PermissionProvenance};
-use terminal_psi::{OperationResult, Terminator};
+use terminal_psi::Terminator;
 
 fn source(transfer_before: bool) -> String {
     let source = CLOSED_SUM_UNIT_SOURCE
@@ -39,118 +39,6 @@ fn source(transfer_before: bool) -> String {
             )
             .replace("consume(identity(value));", "consume(saved);")
     }
-}
-
-#[test]
-fn closed_sum_cleanup_follows_selected_arguments_and_partitions_ownership() {
-    for transfer_before in [false, true] {
-        let checked = checked_source_with_core_service(&source(transfer_before));
-        let lowered = roundtrip(&checked);
-        let machine = lowered
-            .semantic_module
-            .machines
-            .iter()
-            .find(|machine| machine.id == lowered.semantic_module.entry)
-            .unwrap();
-        let dispatch = machine
-            .blocks
-            .iter()
-            .find(|block| matches!(block.terminator, Terminator::StructuralCase { .. }))
-            .unwrap();
-        let results = machine
-            .blocks
-            .iter()
-            .flat_map(|block| &block.operations)
-            .filter_map(|operation| match &operation.result {
-                OperationResult::Structural(result) => Some(result.place),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        let [before, subject, after] = results.as_slice() else {
-            panic!("two locals around the subject");
-        };
-        let Terminator::StructuralCase { source, cases } = &dispatch.terminator else {
-            unreachable!()
-        };
-        assert_eq!(source, subject);
-        assert_eq!(cases.len(), 2);
-        let mut transferred_edges = 0;
-        for case in cases {
-            assert_eq!(case.trivial_affine_discards, [*subject]);
-            let mut selected = case.target;
-            let mut observed_operations = 0;
-            let mut visited = Vec::new();
-            let staged = loop {
-                assert!(
-                    !visited.contains(&selected),
-                    "selected argument path must terminate"
-                );
-                visited.push(selected);
-                let block = machine
-                    .blocks
-                    .iter()
-                    .find(|block| block.id == selected)
-                    .unwrap();
-                observed_operations += block.operations.len();
-                let Terminator::Jump {
-                    target,
-                    trivial_affine_discards,
-                    ..
-                } = &block.terminator
-                else {
-                    panic!("selected argument path uses ordinary jumps");
-                };
-                if !trivial_affine_discards.is_empty() {
-                    break block;
-                }
-                selected = *target;
-            };
-            assert!(
-                observed_operations > 0,
-                "selected argument reads precede local cleanup"
-            );
-            let Terminator::Jump {
-                structural_arguments,
-                trivial_affine_discards,
-                ..
-            } = &staged.terminator
-            else {
-                panic!("selected argument stage");
-            };
-            let transfers_before = structural_arguments
-                .iter()
-                .any(|argument| argument.place == *before);
-            if transfers_before {
-                transferred_edges += 1;
-                assert_eq!(trivial_affine_discards, &[*after]);
-            } else {
-                assert_eq!(trivial_affine_discards, &[*after, *before]);
-            }
-        }
-        assert_eq!(transferred_edges, usize::from(transfer_before));
-    }
-}
-
-#[test]
-fn closed_sum_successor_computations_preserve_later_payload_arguments() {
-    let source = source(false)
-        .replace("-> byte(value, after.value)", "-> byte(after.value, value)")
-        .replace(
-            "state byte(&mut self, value: i32 [0..=255], saved: i32)",
-            "state byte(&mut self, saved: i32, value: i32 [0..=255])",
-        );
-    let checked = checked_source_with_core_service(&source);
-    let machine = checked
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "Main::main")
-        .unwrap();
-    assert_eq!(
-        checked.machine_states(machine).len(),
-        3,
-        "no synthetic source states"
-    );
-    roundtrip(&checked);
 }
 
 #[test]

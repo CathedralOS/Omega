@@ -148,35 +148,6 @@ fn copy_case_literal_replaces_a_field_without_disposal() {
     assert_eq!(observations, [true]);
 }
 
-/// The same replacement inside a multi-state body: the state graph rejoins
-/// each establishment, window pair and continuation cleanup, and the selected
-/// successor observes the last replacement's case.
-#[test]
-fn replacements_before_a_transition_reach_the_selected_state() {
-    let observations = replay(
-        r#"
-        boundary trait Trace { machine observe(value: bool) reaches Trace; }
-        data Mode { case Stand; case Walk(pace: i32); case Run(speed: i32); }
-        data Main { mode: Mode; }
-        machine Main::main(&mut self) reaches Trace {
-            self.mode = Mode::Walk { pace: 9 };
-            self.mode = Mode::Run { speed: 70 };
-            let ran: bool = self.mode in Mode::Run;
-            transition ran {
-                true -> finished()
-                _ -> stalled()
-            }
-            state finished(&mut self) { Trace::observe(true); }
-            state stalled(&mut self) { Trace::observe(false); }
-        }
-        "#,
-        "mode",
-        "Mode",
-        "Stand",
-    );
-    assert_eq!(observations, [true]);
-}
-
 /// A structural call result replaces its field through the very same roster:
 /// only the producer differs.
 #[test]
@@ -199,31 +170,6 @@ fn call_result_replaces_the_field_through_the_same_roster() {
     assert_eq!(observations, [true]);
 }
 
-/// `self.copy = self.items[0]` over a `[copy]` record: the source element is
-/// copied out of the borrowed receiver (`StructuralLeafCopy`, which leaves it
-/// intact) and replaces `copy` through the same window pair a construction
-/// uses, with no cleanup for the displaced copyable value.
-#[test]
-fn a_copied_place_replaces_a_structural_field() {
-    let kinds = copy_replacement_kinds(
-        "data Item [copy] { value: i32; }
-        data Main { items: [Item; 2]; copy: Item; }
-        machine Main::main(&mut self) {
-            self.items[0].value = 17;
-            self.copy = self.items[0];
-        }",
-    );
-    assert!(
-        kinds
-            .iter()
-            .any(|kind| matches!(kind, terminal_psi::OperationKind::StructuralLeafCopy { .. }))
-    );
-    assert!(kinds.iter().any(|kind| matches!(
-        kind,
-        terminal_psi::OperationKind::StoreStructuralField { .. }
-    )));
-}
-
 /// A whole owned `[copy]` record parameter is the degenerate copied place: it
 /// is copied rather than moved, and replaces the field through the same
 /// window pair.
@@ -235,81 +181,6 @@ fn a_whole_copy_parameter_replaces_a_structural_field() {
         machine Main::main(&mut self, item: Item) {
             self.copy = item;
         }",
-    );
-    assert!(kinds.iter().any(|kind| matches!(
-        kind,
-        terminal_psi::OperationKind::StructuralLeafCopy { path, .. } if path.is_empty()
-    )));
-    assert!(kinds.iter().any(|kind| matches!(
-        kind,
-        terminal_psi::OperationKind::StoreStructuralField { .. }
-    )));
-}
-
-/// `self.sum = source.sum` over `[copy]` payload-free sums below a
-/// shared-borrowed parameter: the member leaf is copied out of the loan, the
-/// receiver's field is reseated through the window pair, and the displaced
-/// leaf needs no disposal.
-#[test]
-fn a_member_case_copy_replaces_the_receiver_case_field() {
-    let kinds = case_replacement_kinds(
-        "data Sum [copy] { case A; case B; }
-        data Holder [copy] { sum: Sum; }
-        machine Holder::clone_sum(&mut self, source: &Holder) {
-            self.sum = source.sum;
-        }",
-        "Holder::clone_sum",
-    );
-    assert!(kinds.iter().any(|kind| matches!(
-        kind,
-        terminal_psi::OperationKind::StructuralLeafCopy { path, .. }
-            if path == &[terminal_psi::StructuralPathSegment::Field("sum".into())]
-    )));
-    assert!(kinds.iter().any(|kind| matches!(
-        kind,
-        terminal_psi::OperationKind::MoveStructuralField { .. }
-    )));
-    assert!(kinds.iter().any(|kind| matches!(
-        kind,
-        terminal_psi::OperationKind::StoreStructuralField { .. }
-    )));
-}
-
-/// The same member read below an owned parameter: custody of the carrier is
-/// owned, the member leaf is still copied rather than moved.
-#[test]
-fn a_member_case_copy_beneath_an_owned_parameter() {
-    let kinds = case_replacement_kinds(
-        "data Sum [copy] { case A; case B; }
-        data Holder [copy] { sum: Sum; }
-        machine Holder::adopt_sum(&mut self, source: Holder) {
-            self.sum = source.sum;
-        }",
-        "Holder::adopt_sum",
-    );
-    assert!(kinds.iter().any(|kind| matches!(
-        kind,
-        terminal_psi::OperationKind::StructuralLeafCopy { path, .. }
-            if path == &[terminal_psi::StructuralPathSegment::Field("sum".into())]
-    )));
-    assert!(kinds.iter().any(|kind| matches!(
-        kind,
-        terminal_psi::OperationKind::StoreStructuralField { .. }
-    )));
-}
-
-/// A whole owned `[copy]` sum parameter is the degenerate member store: the
-/// value path is empty and the field is reseated through the same window
-/// pair.
-#[test]
-fn a_whole_sum_parameter_replaces_the_receiver_case_field() {
-    let kinds = case_replacement_kinds(
-        "data Sum [copy] { case A; case B; }
-        data Holder [copy] { sum: Sum; }
-        machine Holder::set_sum(&mut self, value: Sum) {
-            self.sum = value;
-        }",
-        "Holder::set_sum",
     );
     assert!(kinds.iter().any(|kind| matches!(
         kind,

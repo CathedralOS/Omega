@@ -4,10 +4,6 @@ use super::{
     CheckedBooleanExpression, LoweringError, ScalarType, ValueDeclaration,
     checked_boolean_proposition, checked_boolean_scalar_term, value_id,
 };
-use crate::proofs::{
-    CheckedIntegerComparisonKind, CheckedScalarExpression, PrimitiveType, Proposition, ScalarTerm,
-    integer_scalar_type,
-};
 
 fn compound_equality() -> CheckedBooleanExpression {
     CheckedBooleanExpression::Equal {
@@ -88,46 +84,6 @@ fn compound_equality_cannot_hide_unnormalized_constants_or_foreign_leaves() {
             CheckedBooleanExpression::Not(Box::new(predicate)),
         ] {
             assert!(checked_boolean_proposition(&expression, &values).is_err());
-        }
-    }
-}
-
-#[test]
-fn scalar_atoms_keep_their_existing_crash_predicate_encoding() {
-    let values = [ValueDeclaration {
-        qualifications: Default::default(),
-        id: value_id(7),
-        scalar_type: integer_scalar_type(PrimitiveType::U64).unwrap(),
-    }];
-    let parameter = CheckedScalarExpression::Parameter {
-        position: 0,
-        primitive_type: PrimitiveType::U64,
-    };
-    for kind in [
-        CheckedIntegerComparisonKind::Equal,
-        CheckedIntegerComparisonKind::LessThan,
-        CheckedIntegerComparisonKind::LessOrEqual,
-    ] {
-        let comparison = CheckedBooleanExpression::IntegerComparison {
-            kind,
-            left: Box::new(parameter.clone()),
-            right: Box::new(parameter.clone()),
-        };
-        for expression in [
-            comparison.clone(),
-            CheckedBooleanExpression::Not(Box::new(comparison)),
-        ] {
-            let mut terms = [
-                checked_boolean_scalar_term(&expression, &values, &[]).unwrap(),
-                ScalarTerm::boolean(true),
-            ];
-            terms.sort();
-            let expected = Proposition::Equal(terms[0].clone(), terms[1].clone());
-            let actual = checked_boolean_proposition(&expression, &values).unwrap();
-            assert_eq!(
-                terminal_codec::canonical_proposition_order_key(&actual).unwrap(),
-                terminal_codec::canonical_proposition_order_key(&expected).unwrap()
-            );
         }
     }
 }

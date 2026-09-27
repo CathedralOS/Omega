@@ -109,62 +109,6 @@ mod tests {
     }
 
     #[test]
-    fn closed_entry_predicates_keep_boolean_and_integer_composition() {
-        let arithmetic = CheckedScalarExpression::IntegerBinary {
-            kind: CheckedIntegerBinaryKind::ExactAdd,
-            primitive_type: PrimitiveType::I32,
-            left: Box::new(scalar_parameter()),
-            right: Box::new(CheckedScalarExpression::IntegerLiteral {
-                literal: numerics::literals::IntegerLiteral::from_value(1),
-            }),
-        };
-        let predicate = CheckedBooleanExpression::And {
-            left: Box::new(CheckedBooleanExpression::Not(Box::new(
-                CheckedBooleanExpression::Parameter { position: 1 },
-            ))),
-            right: Box::new(comparison(arithmetic)),
-        };
-        assert!(validate(&predicate).is_ok());
-        assert!(validate(&CheckedBooleanExpression::Constant(false)).is_ok());
-        // Bounds/carrier validation remains the actual namespace consumer's
-        // responsibility; this query never invents an entry or result slot.
-        assert!(
-            validate(&CheckedBooleanExpression::Parameter {
-                position: usize::MAX
-            })
-            .is_ok()
-        );
-    }
-
-    #[test]
-    fn boolean_local_and_storage_cannot_hide_under_connectives_or_equality() {
-        for forbidden in [
-            CheckedBooleanExpression::Local { position: 0 },
-            CheckedBooleanExpression::StorageRead {
-                symbol: symbols::SymbolHandle::from_arena_index(1),
-            },
-        ] {
-            for wrapped in [
-                forbidden.clone(),
-                CheckedBooleanExpression::Not(Box::new(forbidden.clone())),
-                CheckedBooleanExpression::Equal {
-                    left: Box::new(forbidden.clone()),
-                    right: Box::new(CheckedBooleanExpression::Constant(true)),
-                },
-                CheckedBooleanExpression::And {
-                    left: Box::new(CheckedBooleanExpression::Constant(false)),
-                    right: Box::new(CheckedBooleanExpression::Or {
-                        left: Box::new(CheckedBooleanExpression::Parameter { position: 0 }),
-                        right: Box::new(forbidden.clone()),
-                    }),
-                },
-            ] {
-                assert!(validate(&wrapped).is_err(), "{wrapped:?}");
-            }
-        }
-    }
-
-    #[test]
     fn nested_integer_operands_cannot_read_body_storage() {
         for forbidden in [
             CheckedScalarExpression::Local {

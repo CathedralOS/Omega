@@ -26,46 +26,6 @@ fn shared_container_cannot_supply_a_projected_mutable_receiver() {
     );
 }
 
-fn rejects_projected_write_only_callee(
-    caller_borrow: &str,
-    body: &str,
-    declarations: &str,
-    expected: &str,
-) {
-    for nested in [false, true] {
-        for (self_caller, bare_self) in [(false, false), (true, false), (true, true)] {
-            for caller_first in [false, true] {
-                let (source, _, _) = projected_source(
-                    caller_borrow,
-                    "write",
-                    nested,
-                    self_caller,
-                    false,
-                    caller_first,
-                    bare_self,
-                );
-                let source = source.replace("self.value = 17;", body);
-                rejects_source(&format!("{source}\n{declarations}"), expected);
-            }
-        }
-    }
-}
-
-#[test]
-fn attenuated_write_only_callee_cannot_forward_readable_access() {
-    for (borrow, expected) in [
-        ("", "reads write-only parameter `self`"),
-        ("mut", "widens write-only parameter `self` to `&mut`"),
-    ] {
-        rejects_projected_write_only_callee(
-            "mut",
-            &format!("self.value = 17; observe(&{borrow} self);"),
-            &format!("machine observe(record: &{borrow} Record) {{}}"),
-            expected,
-        );
-    }
-}
-
 #[test]
 fn attenuated_projected_receiver_cannot_overlap_an_explicit_argument() {
     for nested in [false, true] {

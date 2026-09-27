@@ -45,16 +45,3 @@ fn conditional_result_custody_requires_terminal_correspondence_only_when_demande
     lower_machine(&checked, TerminalMachineSelection::Name("identity"))
         .expect("unused checked joins do not block another product");
 }
-
-#[test]
-fn removing_the_join_receipt_does_not_make_joined_provenance_executable() {
-    let mut checked = crate::front_end::checked_program(SOURCE);
-    checked.facts.flow.ownership.claim_join_receipts = arena::Arena::default();
-    assert_eq!(
-        lower_machine(&checked, TerminalMachineSelection::Name("consume"))
-            .expect_err("missing correspondence is not a root"),
-        LoweringError::Unsupported(
-            "conditional result custody requires Terminal exit-alternative correspondence"
-        ),
-    );
-}

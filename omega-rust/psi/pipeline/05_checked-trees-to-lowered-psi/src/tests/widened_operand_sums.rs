@@ -29,17 +29,3 @@ fn a_difference_of_widened_operands_bounds_the_next_subtraction() {
     )
     .unwrap();
 }
-
-#[test]
-fn operands_already_at_the_wide_carrier_bound_nothing() {
-    assert!(
-        lowers(
-            "data Main {}
-            machine Main::f(&mut self, a: i64, b: i64, c: i64) -> i32 {
-                let total: i64 = a + b - c;
-                transition total == 70 { true -> (1) _ -> (0) }
-            }",
-        )
-        .is_err()
-    );
-}

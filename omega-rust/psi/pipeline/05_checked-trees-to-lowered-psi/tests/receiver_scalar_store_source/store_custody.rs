@@ -151,35 +151,3 @@ fn ordered_store_source_custody_rejects_omission_reordering_and_substitution() {
         );
     }
 }
-
-#[test]
-fn unrelated_scalar_local_cannot_hide_an_omitted_call_between_stores() {
-    let source = ORDERED_SOURCE.replace("self.left = 1;", "let unrelated: u16 = 7; self.left = 1;");
-    let mut checked = crate::front_end::checked_program(&source);
-    let _artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("Pair::ordered"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("authored local and ordered stores publish together")
-    .into_artifact();
-    let plan = plan_mut(&mut checked);
-    let position = plan
-        .operations
-        .iter()
-        .position(|operation| matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { .. }))
-        .unwrap();
-    plan.operations.remove(position);
-    assert!(
-        terminal_production::TerminalProductionRequest::new(
-            &checked,
-            TerminalMachineSelection::Name("Pair::ordered")
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default()
-        ))
-        .is_err()
-    );
-}

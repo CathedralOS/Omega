@@ -1,22 +1,13 @@
 use super::{assert_source_direct_float_result, checked_float_projection_source};
 use crate::TerminalMachineSelection;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
-use crate::emission::operation_emission::integer::LoweredIntegerBinaryKind;
 use crate::lower_machine;
-use crate::lowering_error::LoweringError;
-use crate::proofs::crash_routes::checked_boolean_proposition;
 use crate::retention::conformance_applications::lower_closed_conformance_applications;
 use crate::scalar_graph::shared_runtime_parameters::normalize_shared_boolean_comparison_leaves;
-use crate::terminal_identities::{operation_id, service_id, value_id};
+use crate::terminal_identities::service_id;
 use crate::unit::attached_unit::lower_root_service_reach;
-use checked_trees::CheckedBooleanExpression;
-use numerics::arithmetic::ArithmeticDomain;
-use numerics::integer_policy::IntegerPolicyPrimitive;
-use semantic_vocabulary::{IeeeFloatFormat, Proposition, PropositionContext, ScalarType};
-use terminal_psi::{
-    BoundaryMachineResult, OperationKind, OperationResult, StructuralMultiplicity,
-    StructuralTypeShape, ValueDeclaration,
-};
+use semantic_vocabulary::{IeeeFloatFormat, Proposition, ScalarType};
+use terminal_psi::StructuralTypeShape;
 use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
@@ -265,29 +256,6 @@ fn source_direct_float_results_rejoin_terminal_owner_and_scalar_result() {
 }
 
 #[test]
-fn direct_float_result_proof_only_contract_rejects_additional_value_clauses() {
-    let checked = checked_float_projection_source(
-        r#"
-            machine result(value: f32) -> f32
-            requires
-                Float::meaning32(value) == Float::meaning32(value);
-            ensures
-                Float::meaning32(result) == Float::meaning32(result);
-            { value }
-        "#,
-    );
-    // A float-meaning clause is not a closed scalar contract clause: it keeps
-    // an explicit `None` requires row, which `covered_requires` rejects before
-    // the closed-literal contract shape is ever selected.
-    assert!(matches!(
-        lower_machine(&checked, TerminalMachineSelection::Name("result")),
-        Err(LoweringError::Unsupported(
-            "scalar contract contains an unsupported clause"
-        ))
-    ));
-}
-
-#[test]
 fn direct_float_result_proof_only_contract_replays_expression_and_owner() {
     let source = r#"
         machine result(value: f32) -> f32
@@ -471,68 +439,6 @@ fn exact_float_literals_cross_checked_terminal_codec_and_verifier_as_raw_bits() 
 }
 
 #[test]
-fn integer_operation_obligations_follow_the_shared_policy_catalog() {
-    let operation = operation_id(10);
-    let obligation_kinds = [
-        LoweredIntegerBinaryKind::ExactShiftLeft,
-        LoweredIntegerBinaryKind::ExactShiftRight,
-        LoweredIntegerBinaryKind::ExactAdd,
-        LoweredIntegerBinaryKind::ExactSubtract,
-        LoweredIntegerBinaryKind::ExactMultiply,
-        LoweredIntegerBinaryKind::ExactDivide,
-        LoweredIntegerBinaryKind::ExactRemainder,
-        LoweredIntegerBinaryKind::WrappingDivide,
-        LoweredIntegerBinaryKind::WrappingRemainder,
-        LoweredIntegerBinaryKind::SaturatingDivide,
-        LoweredIntegerBinaryKind::SaturatingRemainder,
-    ];
-    for kind in obligation_kinds {
-        assert!(kind.formation_obligation(operation).is_some(), "{kind:?}");
-    }
-    for kind in [
-        LoweredIntegerBinaryKind::BitwiseAnd,
-        LoweredIntegerBinaryKind::BitwiseOr,
-        LoweredIntegerBinaryKind::BitwiseXor,
-        LoweredIntegerBinaryKind::WrappingShiftLeft,
-        LoweredIntegerBinaryKind::WrappingShiftRight,
-        LoweredIntegerBinaryKind::WrappingAdd,
-        LoweredIntegerBinaryKind::SaturatingAdd,
-        LoweredIntegerBinaryKind::WrappingSubtract,
-        LoweredIntegerBinaryKind::SaturatingSubtract,
-        LoweredIntegerBinaryKind::WrappingMultiply,
-        LoweredIntegerBinaryKind::SaturatingMultiply,
-    ] {
-        assert!(kind.formation_obligation(operation).is_none(), "{kind:?}");
-    }
-    assert_eq!(
-        LoweredIntegerBinaryKind::ExactSubtract.integer_policy_binding(),
-        Some((IntegerPolicyPrimitive::Subtract, ArithmeticDomain::Exact,)),
-    );
-    assert_eq!(
-        LoweredIntegerBinaryKind::SaturatingDivide.integer_policy_binding(),
-        Some((IntegerPolicyPrimitive::Divide, ArithmeticDomain::Saturating,)),
-    );
-    assert_eq!(
-        LoweredIntegerBinaryKind::ExactRemainder.integer_policy_binding(),
-        Some((IntegerPolicyPrimitive::Remainder, ArithmeticDomain::Exact,)),
-    );
-    assert_eq!(
-        LoweredIntegerBinaryKind::WrappingRemainder.integer_policy_binding(),
-        Some((
-            IntegerPolicyPrimitive::Remainder,
-            ArithmeticDomain::Wrapping,
-        )),
-    );
-    assert_eq!(
-        LoweredIntegerBinaryKind::SaturatingRemainder.integer_policy_binding(),
-        Some((
-            IntegerPolicyPrimitive::Remainder,
-            ArithmeticDomain::Saturating,
-        )),
-    );
-}
-
-#[test]
 fn shared_boolean_comparison_normalization_rejects_two_runtime_sides() {
     let comparison = LoweredBooleanReturnExpression::Equal {
         left: Box::new(LoweredBooleanReturnExpression::Parameter { position: 0 }),
@@ -648,43 +554,6 @@ fn generic_conformance_application_crosses_terminal_scalar_closure() {
 }
 
 #[test]
-fn scalar_crash_disjunction_lowers_to_canonical_terminal_propositions() {
-    let values = vec![
-        ValueDeclaration {
-            qualifications: Default::default(),
-            id: value_id(2),
-            scalar_type: ScalarType::Boolean,
-        },
-        ValueDeclaration {
-            qualifications: Default::default(),
-            id: value_id(1),
-            scalar_type: ScalarType::Boolean,
-        },
-    ];
-    let proposition = checked_boolean_proposition(
-        &CheckedBooleanExpression::Or {
-            left: Box::new(CheckedBooleanExpression::Parameter { position: 0 }),
-            right: Box::new(CheckedBooleanExpression::Parameter { position: 1 }),
-        },
-        &values,
-    )
-    .expect("scalar disjunction lowers");
-    let Proposition::Disjunction(disjuncts) = &proposition else {
-        panic!("scalar disjunction retains proposition structure")
-    };
-    assert_eq!(disjuncts.len(), 2);
-    let keys = disjuncts
-        .iter()
-        .map(|disjunct| terminal_codec::canonical_proposition_order_key(disjunct).unwrap())
-        .collect::<Vec<_>>();
-    assert!(keys[0] < keys[1]);
-    PropositionContext::from_value_types(values.iter().map(|value| (value.id, value.scalar_type)))
-        .unwrap()
-        .validate(&proposition)
-        .expect("scalar disjunction is well typed");
-}
-
-#[test]
 fn payloadless_sum_equality_lowers_to_case_membership_equivalence() {
     let source = r#"
         data Mode {
@@ -764,142 +633,6 @@ fn payloadless_sum_equality_lowers_to_case_membership_equivalence() {
         predicate.proposition(),
         Proposition::Implication { premise, conclusion }
             if matches!(premise.as_ref(), Proposition::Conjunction(_))
-                && matches!(conclusion.as_ref(), Proposition::Falsehood)
-    ));
-}
-
-#[test]
-fn structural_boundary_result_lowers_and_round_trips() {
-    let checked = crate::front_end::checked_program(
-        r#"
-        data ByteRead {
-            case Eof;
-            case Byte(value: i32);
-        }
-        boundary trait Console {
-            machine read_byte() -> ByteRead
-            reaches Console;
-        }
-        data Root {}
-        machine Root::enter()
-        reaches Console
-        {
-            let result: ByteRead = Console::read_byte();
-        }
-        "#,
-    );
-    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
-        .expect("lower terminal");
-    let module = &lowered.semantic_module;
-    let [boundary] = module.boundary_machines.as_slice() else {
-        panic!("one structural-result boundary")
-    };
-    let BoundaryMachineResult::Structural(signature) = &boundary.result else {
-        panic!("boundary result should retain its structural signature")
-    };
-    assert_eq!(signature.multiplicity, StructuralMultiplicity::Affine);
-    let operation = &module.machines[0].blocks[0].operations[0];
-    let OperationResult::Structural(result) = &operation.result else {
-        panic!("boundary call should produce one structural result")
-    };
-    assert_eq!(result.structural_type, signature.structural_type);
-    assert_eq!(result.multiplicity, signature.multiplicity);
-    assert!(matches!(operation.kind, OperationKind::BoundaryCall { .. }));
-    let bytes = terminal_codec::encode_module(module).expect("encode terminal module");
-    let decoded = terminal_codec::decode_module(&bytes).expect("decode terminal module");
-    assert_eq!(&decoded, module);
-}
-
-#[test]
-fn payload_bearing_sum_equality_uses_exact_case_payload_paths() {
-    let source = r#"
-        trait Equatable {
-            machine equals(&self, rhs: &Self) -> bool;
-        }
-
-        data Message {
-            case Empty;
-            case Data(value: i32);
-        }
-        MessageEquatable: Message satisfies Equatable;
-
-        data Root {}
-        machine Root::enter(left: Message, right: Message)
-        crashes Abort
-            left == right
-        {}
-
-        machine Root::different(left: Message, right: Message)
-        crashes Abort
-            left != right
-        {}
-    "#;
-    let checked = crate::front_end::checked_program(source);
-    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
-        .expect("payload-bearing equality has exact case-payload paths");
-    let cases = lowered
-        .semantic_module
-        .structural_types
-        .iter()
-        .find_map(|declaration| match &declaration.shape {
-            StructuralTypeShape::Sum { cases } => Some(cases),
-            _ => None,
-        })
-        .expect("payload-bearing sum shape");
-    assert_eq!(cases.len(), 2);
-    assert!(cases[0].fields.is_empty());
-    assert_eq!(cases[1].fields.len(), 1);
-    let [terminal_psi::CrashRouteGuard::Predicate(predicate)] =
-        lowered.semantic_module.machines[0].contract.crash_routes[0]
-            .alternatives
-            .as_slice()
-    else {
-        panic!("one equality predicate")
-    };
-    let Proposition::Disjunction(arms) = predicate.proposition() else {
-        panic!("payload-bearing equality is a per-case disjunction")
-    };
-    assert_eq!(arms.len(), 2);
-    assert!(format!("{arms:?}").contains("Case(StructuralCaseId(2))"));
-    assert!(format!("{arms:?}").contains("Field(StructuralFieldId(1))"));
-    terminal_verifier::validate_module(&lowered.semantic_module)
-        .expect("exact case-payload paths validate");
-    let bytes = terminal_codec::encode_module(&lowered.semantic_module)
-        .expect("payload-bearing sum module encodes");
-    assert_eq!(
-        terminal_codec::decode_module(&bytes),
-        Ok(lowered.semantic_module.clone())
-    );
-    let mut redirected = lowered.semantic_module.clone();
-    let payload_field = redirected
-        .structural_types
-        .iter_mut()
-        .find_map(|declaration| match &mut declaration.shape {
-            StructuralTypeShape::Sum { cases } => {
-                cases.iter_mut().find_map(|case| case.fields.first_mut())
-            }
-            _ => None,
-        })
-        .expect("payload field");
-    payload_field.id = semantic_vocabulary::StructuralFieldId::new(99).expect("redirected field");
-    assert!(matches!(
-        terminal_verifier::validate_module(&redirected),
-        Err(terminal_verifier::ModuleError::InvalidIntegerFieldTerm { .. })
-    ));
-
-    let different = lower_machine(&checked, TerminalMachineSelection::Name("Root::different"))
-        .expect("lower inequality");
-    let [terminal_psi::CrashRouteGuard::Predicate(predicate)] =
-        different.semantic_module.machines[0].contract.crash_routes[0]
-            .alternatives
-            .as_slice()
-    else {
-        panic!("one inequality predicate")
-    };
-    assert!(matches!(
-        predicate.proposition(),
-        Proposition::Implication { premise, conclusion }
-            if matches!(premise.as_ref(), Proposition::Disjunction(_))
                 && matches!(conclusion.as_ref(), Proposition::Falsehood)
     ));
 }

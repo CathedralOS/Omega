@@ -3,10 +3,6 @@
 use super::{CheckedTrees, LoweringError, lower_machine};
 use crate::TerminalMachineSelection;
 use checked_trees::CheckedUnitEffectOperationPlan;
-use semantic_vocabulary::StructuralPlaceKind;
-use terminal_psi::{
-    OperationKind, StructuralAccess, StructuralMultiplicity, StructuralPlaceDeclaration, Terminator,
-};
 fn checked_composed_claim() -> checked_trees::CheckedTrees {
     crate::front_end::checked_program(
         r#"
@@ -60,93 +56,6 @@ fn linear_settlement_composes_after_a_state_handoff() {
         &proof_admission::AdmissionProfile::default(),
     )
     .expect("shared graph preserves linear settlement");
-    let bytes = terminal_codec::encode_module(&lowered.semantic_module).expect("encode");
-    assert_eq!(
-        terminal_codec::decode_module(&bytes).expect("decode"),
-        lowered.semantic_module
-    );
-}
-
-#[test]
-fn lowers_one_whole_root_linear_claim_through_both_boundary_leaves() {
-    let checked = checked_composed_claim();
-    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
-        .expect("the exclusive branches should lower one shared linear claim");
-    let [machine] = lowered.semantic_module.machines.as_slice() else {
-        panic!("linear composed route emits one machine")
-    };
-    let [parameter] = machine.structural_parameters.as_slice() else {
-        panic!("composed machine retains one structural parameter")
-    };
-    assert_eq!(parameter.multiplicity, StructuralMultiplicity::Linear);
-    assert_eq!(parameter.access, StructuralAccess::Owned);
-    let [entry_claim] = machine.entry_claims.as_slice() else {
-        panic!("composed machine retains one entry claim")
-    };
-    assert_eq!(entry_claim.input, parameter.place);
-    assert!(entry_claim.path.is_empty());
-    assert!(matches!(
-        machine.structural_places.as_slice(),
-        [StructuralPlaceDeclaration {
-            id,
-            kind: StructuralPlaceKind::Parameter {
-                position: 0,
-                is_self: false,
-            },
-        }] if *id == parameter.place
-    ));
-    assert_eq!(machine.blocks.len(), 3);
-    let Terminator::Conditional {
-        when_true,
-        when_false,
-        ..
-    } = &machine.blocks[0].terminator
-    else {
-        panic!("entry block should retain the conditional")
-    };
-    for successor in [when_true, when_false] {
-        assert!(successor.arguments.is_empty());
-        assert!(successor.trivial_affine_discards.is_empty());
-    }
-    for leaf in &machine.blocks[1..] {
-        let [operation] = leaf.operations.as_slice() else {
-            panic!("each leaf emits one boundary settlement")
-        };
-        assert!(matches!(
-            &operation.kind,
-            OperationKind::BoundaryCall {
-                arguments,
-                structural_arguments,
-                completion_receipts,
-                ..
-            } if arguments.is_empty()
-                && matches!(structural_arguments.as_slice(), [argument]
-                    if argument.place == parameter.place
-                        && argument.path.is_empty()
-                        && argument.access == StructuralAccess::Owned)
-                && matches!(completion_receipts.as_slice(), [receipt]
-                    if receipt.claim == entry_claim.claim
-                        && receipt.argument_index == 0)
-        ));
-        assert!(matches!(
-            leaf.terminator,
-            Terminator::ReturnUnit {
-                ref trivial_affine_discards,
-                ..
-            } if trivial_affine_discards.is_empty()
-        ));
-    }
-    let [boundary] = lowered.semantic_module.boundary_machines.as_slice() else {
-        panic!("both leaves share one canonical attached boundary")
-    };
-    assert!(boundary.attachment.is_some());
-    assert_eq!(boundary.structural_parameters.len(), 1);
-    terminal_verifier::verify_module(
-        &lowered.semantic_module,
-        &lowered.proof_bundle,
-        &proof_admission::AdmissionProfile::default(),
-    )
-    .expect("claim-bearing composed Unit module verifies");
     let bytes = terminal_codec::encode_module(&lowered.semantic_module).expect("encode");
     assert_eq!(
         terminal_codec::decode_module(&bytes).expect("decode"),

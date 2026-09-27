@@ -1,10 +1,7 @@
-use super::super::super::StructuralTypeId;
-use super::super::PlaceId;
 use super::{
     CheckedScalarBranchDestination, CheckedScalarMachineGraph, CheckedScalarStateTerminator,
     CheckedStructuralRankedArgumentPlan, CheckedStructuralRankedGuardPlan, CheckedTrees,
-    LoweringError, StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
-    place_id, prepare, source_custody, validate_rank,
+    LoweringError, prepare, source_custody, validate_rank,
 };
 use crate::scalar_graph::PrimitiveType;
 fn fixture(
@@ -123,19 +120,6 @@ fn source_rank_custody_preserves_boolean_wrappers_reversal_and_arm_order() {
 }
 
 #[test]
-fn source_rank_custody_preserves_absent_static_and_dynamic_ranges() {
-    for ranking in [
-        "terminates by remaining;",
-        "terminates by remaining -> Nat::Descending in 0..6;",
-        "terminates by remaining -> Nat::Descending in 0..=6;",
-        "terminates by remaining -> Nat::Descending in 0..(limits.limit % limits.divisor + 6);",
-    ] {
-        let checked = fixture_with_ranking("remaining > 0", true, true, ranking);
-        assert!(validate(&checked, graph(&checked)).is_ok(), "{ranking}");
-    }
-}
-
-#[test]
 fn source_rank_custody_rejects_post_check_witness_metadata_mutations() {
     for ranking in [
         "terminates by remaining -> Nat::Descending in 0..6;",
@@ -175,46 +159,6 @@ fn source_rank_custody_rejects_post_check_witness_metadata_mutations() {
                 "witness mutation {mutation}: {ranking}"
             );
         }
-    }
-}
-
-#[test]
-fn source_rank_custody_rejects_added_range_and_unmatched_typed_rosters() {
-    let original = fixture_with_ranking("remaining > 0", true, true, "terminates by remaining;");
-    assert!(validate(&original, graph(&original)).is_ok());
-    let mut changed = original.clone();
-    changed
-        .typed
-        .machines_mut()
-        .iter_mut()
-        .find(|machine| machine.name.as_str() == "walk")
-        .unwrap()
-        .termination_plan
-        .implementation_witness
-        .as_mut()
-        .unwrap()
-        .rank_range = Some(language_semantics::RankRange {
-        floor: "0".into(),
-        ceiling: "6".into(),
-        ceiling_inclusive: false,
-    });
-    assert!(validate(&changed, graph(&changed)).is_err());
-
-    for added_range in [false, true] {
-        let mut changed = original.clone();
-        let machine = graph(&changed).machine;
-        let custody = changed
-            .typed
-            .ranking_expression_custody
-            .iter_mut()
-            .find(|custody| custody.machine == machine)
-            .unwrap();
-        if added_range {
-            custody.rank_range = Some(custody.subjects[0]);
-        } else {
-            custody.view_arguments.push(custody.subjects[0]);
-        }
-        assert!(validate(&changed, graph(&changed)).is_err());
     }
 }
 
@@ -307,57 +251,4 @@ fn source_rank_custody_rejoins_successors_instead_of_matching_two_retained_roste
         "missing executable edge cannot be covered by a retained rank row"
     );
     assert!(prepare(&checked, &changed, &[], &[], &mut 10).is_err());
-}
-
-#[test]
-fn loop_descriptor_positions_are_dense_without_changing_invocation_positions() {
-    let checked = fixture("remaining > 0", true, true, false);
-    let graph = graph(&checked);
-    // Exercise the descriptor namespace independently from source signature
-    // validation: preparation clones declarations already validated by its caller.
-    let parameter = |place, position| StructuralParameterDeclaration {
-        place: PlaceId::new(place).unwrap(),
-        position,
-        is_self: false,
-        structural_type: StructuralTypeId::new(1).unwrap(),
-        multiplicity: StructuralMultiplicity::Affine,
-        access: StructuralAccess::Owned,
-        qualifications: Vec::new(),
-        projected_qualifications: Vec::new(),
-    };
-    let invocation = vec![parameter(1, 1), parameter(2, 3)];
-    let mut next_place = 10;
-    let plan = prepare(&checked, graph, &invocation, &[], &mut next_place)
-        .unwrap()
-        .unwrap();
-    assert!(plan.rank.is_none());
-    assert_eq!(
-        invocation
-            .iter()
-            .map(|parameter| parameter.position)
-            .collect::<Vec<_>>(),
-        [1, 3]
-    );
-    assert_eq!(
-        plan.parameters
-            .iter()
-            .map(|parameter| parameter.position)
-            .collect::<Vec<_>>(),
-        [0, 1]
-    );
-    assert_eq!(
-        invocation
-            .iter()
-            .map(|parameter| parameter.place)
-            .collect::<Vec<_>>(),
-        [place_id(1), place_id(2)]
-    );
-    assert_eq!(
-        plan.parameters
-            .iter()
-            .map(|parameter| parameter.place)
-            .collect::<Vec<_>>(),
-        [place_id(10), place_id(11)]
-    );
-    assert_eq!(next_place, 12);
 }

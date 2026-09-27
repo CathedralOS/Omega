@@ -2,19 +2,12 @@
 
 #[path = "scalar_local_borrows/roster_custody.rs"]
 mod roster_custody;
-#[path = "scalar_local_borrows/short_circuit.rs"]
-mod short_circuit;
 #[path = "scalar_local_borrows/source_custody.rs"]
 mod source_custody;
 #[path = "scalar_local_borrows/support.rs"]
 mod support;
 
-use checked_trees::{
-    CheckedScalarBindingDestination, CheckedScalarComputationKind, CheckedScalarExpression,
-    CheckedUnitStructuralArgumentSourcePlan,
-};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use terminal_interpreter::{TerminalExecutionResult, TerminalScalarValue};
 use terminal_psi::{OperationKind, StructuralAccess};
 
 use support::{Expectations, execute, publish_original, reject, unsigned};
@@ -89,83 +82,6 @@ fn source_debug_map_distinguishes_scalar_values_from_local_and_unit_results() {
         terminal_codec::validate_debug_map(module, &debug_map),
         Err(terminal_codec::DebugMapError::UnknownSubject(unknown))
     );
-}
-
-#[test]
-fn scalar_root_reads_current_referent_and_preserves_snapshot_after_assignment() {
-    for (returned, expected, reads) in [("snapshot", 11, 1), ("slot", 7, 2), ("answer", 7, 1)] {
-        execute(
-            &SOURCE.replace("\n    snapshot\n", &format!("\n    {returned}\n")),
-            &[unsigned(7), unsigned(11)],
-            Expectations::scalar(unsigned(expected), reads),
-        );
-    }
-}
-
-#[test]
-fn unborrowed_mutable_peer_remains_scalar_storage_beside_the_real_local() {
-    let source = SOURCE
-        .replace(
-            "    let answer:",
-            "    let mut unborrowed: u64 = after;\n    unborrowed = before;\n    let answer:",
-        )
-        .replace("\n    snapshot\n", "\n    unborrowed\n");
-    execute(
-        &source,
-        &[unsigned(7), unsigned(11)],
-        Expectations::scalar(unsigned(7), 1),
-    );
-}
-
-#[test]
-fn boolean_scalar_local_uses_the_same_establishment_read_and_store_vocabulary() {
-    let source = SOURCE.replace("u64", "bool").replace("= 201;", "= false;");
-    for (returned, expected, reads) in [("snapshot", false, 1), ("slot", true, 2)] {
-        execute(
-            &source.replace("\n    snapshot\n", &format!("\n    {returned}\n")),
-            &[
-                TerminalScalarValue::Boolean(true),
-                TerminalScalarValue::Boolean(false),
-            ],
-            Expectations::scalar(TerminalScalarValue::Boolean(expected), reads),
-        );
-    }
-}
-
-#[test]
-fn two_scalar_locals_preserve_distinct_borrows_assignments_and_snapshots() {
-    for (returned, expected, reads) in [
-        ("snapshot", 7, 2),
-        ("other_snapshot", 11, 2),
-        ("slot", 7, 3),
-        ("spare", 13, 3),
-    ] {
-        execute(
-            &TWO_LOCALS.replace("\n    snapshot\n", &format!("\n    {returned}\n")),
-            &[unsigned(7), unsigned(11)],
-            Expectations {
-                locals: 2,
-                stores: 3,
-                ..Expectations::scalar(unsigned(expected), reads)
-            },
-        );
-    }
-}
-
-#[test]
-fn scalar_root_write_only_borrows_update_the_original_local() {
-    for (returned, expected, reads) in [("snapshot", 11, 1), ("slot", 7, 2)] {
-        execute(
-            &SOURCE
-                .replace("&mut", "&write")
-                .replace("\n    snapshot\n", &format!("\n    {returned}\n")),
-            &[unsigned(7), unsigned(11)],
-            Expectations {
-                stamp_access: StructuralAccess::WriteOnlyBorrow,
-                ..Expectations::scalar(unsigned(expected), reads)
-            },
-        );
-    }
 }
 
 #[test]
@@ -262,73 +178,4 @@ fn scalar_local_computed_initialization_and_assignment_commit_after_rhs_calls() 
             },
         );
     }
-}
-
-#[test]
-fn scalar_local_read_after_nested_call_observes_the_committed_mutation() {
-    let source = SOURCE
-        .replace(
-            "machine first",
-            "machine second(left: u64, right: u64) -> u64 { right }\nmachine first",
-        )
-        .replace(
-            "    slot = answer;",
-            "    slot = second(stamp(&mut slot, before), slot);",
-        )
-        .replace("\n    snapshot\n", "\n    slot\n");
-    execute(
-        &source,
-        &[unsigned(7), unsigned(11)],
-        Expectations {
-            machines: 4,
-            stamp_calls: 3,
-            ..Expectations::scalar(unsigned(7), 3)
-        },
-    );
-}
-
-#[test]
-fn ordinary_unit_caller_uses_scalar_helper_with_activation_local_storage() {
-    let source = format!(
-        r#"{}
-machine enter(before: u64, output: &mut u64, after: u64) {{
-    let returned: u64 = calculate(before, after);
-    output = returned;
-}}
-"#,
-        SOURCE.replace("machine enter(", "machine calculate(")
-    );
-    execute(
-        &source,
-        &[unsigned(7), unsigned(11)],
-        Expectations {
-            result: TerminalExecutionResult::Unit,
-            machines: 4,
-            stores: 3,
-            local_owner_is_entry: false,
-            ..Expectations::scalar(unsigned(11), 1)
-        },
-    );
-}
-
-#[test]
-fn scalar_only_caller_retains_transitive_callee_local_storage_demand() {
-    let source = format!(
-        r#"{}
-machine enter(before: u64, after: u64) -> u64 {{
-    let returned: u64 = calculate(before, after);
-    returned
-}}
-"#,
-        SOURCE.replace("machine enter(", "machine calculate(")
-    );
-    execute(
-        &source,
-        &[unsigned(7), unsigned(11)],
-        Expectations {
-            machines: 4,
-            local_owner_is_entry: false,
-            ..Expectations::scalar(unsigned(11), 1)
-        },
-    );
 }

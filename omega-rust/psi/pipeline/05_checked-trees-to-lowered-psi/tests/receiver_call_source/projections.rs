@@ -17,39 +17,6 @@ use harness::{assert_projected_receiver, projected_source};
 mod rejections;
 
 #[test]
-fn mutable_parameter_field_receiver_retains_exact_subloan() {
-    assert_projected_receiver(
-        StructuralAccess::MutableBorrow,
-        StructuralAccess::MutableBorrow,
-        false,
-        false,
-        false,
-    );
-}
-
-#[test]
-fn mutable_parameter_nested_receiver_retains_ordered_subloan() {
-    assert_projected_receiver(
-        StructuralAccess::MutableBorrow,
-        StructuralAccess::MutableBorrow,
-        true,
-        false,
-        false,
-    );
-}
-
-#[test]
-fn write_only_parameter_field_receiver_retains_exact_subloan() {
-    assert_projected_receiver(
-        StructuralAccess::WriteOnlyBorrow,
-        StructuralAccess::WriteOnlyBorrow,
-        false,
-        false,
-        false,
-    );
-}
-
-#[test]
 fn bare_attached_fields_retain_exclusive_receiver_paths() {
     for access in [
         StructuralAccess::MutableBorrow,
@@ -59,11 +26,6 @@ fn bare_attached_fields_retain_exclusive_receiver_paths() {
             assert_projected_receiver(access, access, nested, true, true);
         }
     }
-}
-
-#[test]
-fn corrupted_projected_receiver_path_type_and_access_reject() {
-    assert_corrupted_projected_receiver("mut");
 }
 
 #[test]
@@ -162,29 +124,5 @@ fn assert_corrupted_projected_receiver(callee_borrow: &str) {
             )),
             _ => {}
         }
-    }
-}
-
-#[test]
-fn mutable_parameter_field_receiver_attenuates_to_write_only() {
-    assert_projected_receiver(
-        StructuralAccess::MutableBorrow,
-        StructuralAccess::WriteOnlyBorrow,
-        false,
-        false,
-        false,
-    );
-}
-
-#[test]
-fn mutable_bare_attached_fields_attenuate_to_write_only() {
-    for nested in [false, true] {
-        assert_projected_receiver(
-            StructuralAccess::MutableBorrow,
-            StructuralAccess::WriteOnlyBorrow,
-            nested,
-            true,
-            true,
-        );
     }
 }

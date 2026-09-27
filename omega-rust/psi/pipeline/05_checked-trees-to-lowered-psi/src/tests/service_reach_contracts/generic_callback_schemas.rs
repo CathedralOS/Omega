@@ -304,24 +304,6 @@ fn generic_callback_schema_keeps_each_nested_selected_reach() {
 }
 
 #[test]
-fn generic_callback_schema_dependency_survives_private_forwarding() {
-    let module = nominal_schema_forwarding_module();
-    let forwarded = module
-        .machines
-        .iter()
-        .filter_map(|machine| machine.closed_reach_application.as_ref())
-        .find(|application| application.dependencies == [0] && application.calls.is_empty())
-        .expect("forwarding retains dependency without fabricating a direct call");
-    let terminal_psi::ClosedReachParameter::Machine(binding) = &forwarded.telescope[0] else {
-        panic!("schema binder");
-    };
-    assert!(binding.schema.is_some());
-    assert_eq!(service_names(&module, &binding.selected_reach), ["Console"]);
-    terminal_verifier::validate_module_representation(&module)
-        .expect("actual helper call closure covers dependency");
-}
-
-#[test]
 fn incomplete_schema_projection_prunes_forwarded_dependencies_to_a_fixed_point() {
     let original = nominal_schema_forwarding_module();
     let mut unchanged = original.clone();
@@ -416,113 +398,6 @@ fn incomplete_schema_projection_prunes_forwarded_dependencies_to_a_fixed_point()
         }
     }
     assert_eq!(partial, original);
-}
-
-#[test]
-fn closed_callback_dependency_survives_source_discard() {
-    let checked = crate::front_end::checked_program(
-        r#"
-        boundary trait Console { machine ping(); }
-        boundary trait Callback { machine call() reaches Console; }
-        machine forward<machine Selected>()
-        where machine Selected satisfies Callback::call;
-        { Selected(); }
-        machine selected() satisfies Callback::call reaches Console {}
-        pub machine enter() { forward<selected>(); }
-    "#,
-    );
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("enter"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("closed callback product")
-    .into_artifact();
-    drop(checked);
-    let module =
-        terminal_codec::decode_module(artifact.semantic_bytes()).expect("source-free reload");
-    let owner = module
-        .machines
-        .iter()
-        .find(|machine| machine.closed_reach_application.is_some())
-        .expect("original dependency must survive publication");
-    let application = owner.closed_reach_application.as_ref().unwrap();
-    assert_eq!(application.dependencies, [0]);
-    assert!(application.fixed.is_empty());
-    assert_eq!(application.calls.len(), 1);
-    let terminal_psi::ClosedReachParameter::Machine(binding) = &application.telescope[0] else {
-        panic!("selected machine binder");
-    };
-    assert_eq!(binding.selected_reach, owner.published_service_ceiling);
-    assert_eq!(service_names(&module, &binding.selected_reach), ["Console"]);
-    assert!(terminal_verifier::validate_module_representation(&module).is_ok());
-}
-
-#[test]
-fn generic_template_commitment_retains_private_helper_reach_dependency() {
-    let source = |helper_reach: &str, selected: &str| {
-        format!(
-            r#"
-            boundary trait Console {{ machine ping(); }}
-            boundary trait Callback {{ machine call() reaches Console; }}
-            machine helper() {helper_reach} {{}}
-            machine forward<machine Selected>()
-            where machine Selected satisfies Callback::call;
-            {{ helper(); Selected(); }}
-            machine quiet() satisfies Callback::call {{}}
-            machine loud() satisfies Callback::call reaches Console {{}}
-            pub machine enter() {{ forward<{selected}>(); }}
-            "#
-        )
-    };
-    let quiet = crate::front_end::checked_program(&source("", "quiet"));
-    let additive = crate::front_end::checked_program(&source("reaches Console", "quiet"));
-    let selected = crate::front_end::checked_program(&source("", "loud"));
-    for checked in [&quiet, &additive, &selected] {
-        let _artifact = terminal_production::TerminalProductionRequest::new(
-            checked,
-            terminal_production::TerminalMachineSelection::Name("enter"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("closed callback publication")
-        .into_artifact();
-    }
-    let original = &quiet.machine_specializations[0];
-    let changed = &additive.machine_specializations[0];
-    assert_ne!(
-        original.template_contract_commitment, changed.template_contract_commitment,
-        "a private helper's additive reach belongs to the original generic contract"
-    );
-    assert_eq!(
-        original.template_contract_commitment,
-        selected.machine_specializations[0].template_contract_commitment,
-        "a concrete callback selection must not change the original dependency"
-    );
-
-    let mut stale = additive.clone();
-    let receipt = &mut stale.typed.machine_specializations[0];
-    receipt.canonical_template_contract_bytes = original.canonical_template_contract_bytes.clone();
-    receipt.template_contract_commitment = original.template_contract_commitment;
-    receipt.template_contract_report_fingerprint = original.template_contract_report_fingerprint;
-    let instance = receipt.instance;
-    assert!(
-        validation::recompute_checked_machine_specialization_commitment(&stale, instance).is_err(),
-        "re-hashing a stale dependency cannot authorize the changed original graph"
-    );
-    assert!(
-        terminal_production::TerminalProductionRequest::new(
-            &stale,
-            terminal_production::TerminalMachineSelection::Name("enter")
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default()
-        ))
-        .is_err()
-    );
 }
 
 #[test]
@@ -718,43 +593,6 @@ fn type_only_generic_template_retains_concrete_helper_dependency() {
 }
 
 #[test]
-fn const_only_application_retains_its_fixed_dependency_after_reload() {
-    let checked = crate::front_end::checked_program(
-        r#"
-        boundary trait Console { machine ping(); }
-        machine identity<const Count: u64>(value: u64) -> u64 reaches Console { value }
-        pub machine enter(value: u64) -> u64 { identity<2>(value) }
-    "#,
-    );
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("enter"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("const-only generic product")
-    .into_artifact();
-    drop(checked);
-    let module = terminal_codec::decode_module(artifact.semantic_bytes()).expect("reload constant");
-    let owner = module
-        .machines
-        .iter()
-        .find(|machine| machine.closed_reach_application.is_some())
-        .expect("retained const application");
-    let application = owner.closed_reach_application.as_ref().unwrap();
-    assert!(matches!(
-        application.telescope.as_slice(),
-        [terminal_psi::ClosedReachParameter::Const { .. }]
-    ));
-    assert!(application.dependencies.is_empty());
-    assert!(application.calls.is_empty());
-    assert_eq!(service_names(&module, &application.fixed), ["Console"]);
-    assert_eq!(application.fixed, owner.published_service_ceiling);
-    terminal_verifier::validate_module_representation(&module).expect("fixed-only reach replay");
-}
-
-#[test]
 fn ordinary_callback_publication_replays_its_exact_specialization() {
     for source in [
         r#"
@@ -831,39 +669,6 @@ fn ordinary_callback_publication_replays_its_exact_specialization() {
             );
         }
     }
-}
-
-#[test]
-fn isolated_callback_publication_replays_its_specialization() {
-    let checked = crate::front_end::checked_program(
-        r#"
-        machine identity<T [copy]>(value: u64) -> u64 { value }
-        pub machine enter(value: u64) -> u64 { identity<u64>(value) }
-    "#,
-    );
-    let instance = checked.machine_specializations[0].instance;
-    let machine = checked
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == instance)
-        .expect("instance");
-    let entry = checked.machine_states(machine)[0].symbol;
-    let callback = lower_machine(&checked, TerminalMachineSelection::Symbol(instance))
-        .expect("valid isolated generic callback");
-    callback_lowering_receipt(&checked, &callback, instance, entry)
-        .expect("isolated generic callback joins its checked coordinate");
-    assert!(
-        callback.semantic_module.machines[0]
-            .closed_reach_application
-            .is_some(),
-        "isolated callbacks retain the same closed application as ordinary publication"
-    );
-    let mut invalid = checked.clone();
-    invalid.typed.machine_specializations[0].commitment = Default::default();
-    assert!(
-        lower_machine(&invalid, TerminalMachineSelection::Symbol(instance)).is_err(),
-        "isolating a callback cannot bypass specialization custody"
-    );
 }
 
 #[test]

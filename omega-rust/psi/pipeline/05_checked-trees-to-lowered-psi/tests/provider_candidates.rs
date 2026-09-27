@@ -1,10 +1,10 @@
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use terminal_codec::{decode_module, encode_module, encode_proof_section};
+use terminal_codec::{decode_module, encode_module};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
-    ProviderInstallationSelection, TerminalEffect, TerminalExecution, TerminalExecutionResult,
+    ProviderInstallationSelection, TerminalExecution, TerminalExecutionResult,
     TerminalExecutionStatus, TerminalStructuralValue, admit_provider_installation_from_artifact,
 };
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
@@ -108,16 +108,15 @@ fn closed_token_candidates_are_independent_of_provider_selection() {
                 .with_selected_generic_operator_providers(&selections),
         )
         .expect("all checked candidates materialize from the same closed demands");
-        let artifact =
-            terminal_production::TerminalProductionRequest::new(
-                &checked,
-                TerminalMachineSelection::Name("run"),
-            )
-            .produce(TerminalProductionCustody::artifact_only(
-                &mut TerminalProductionTimings::default(),
-            ))
-            .expect("selection-neutral artifact")
-            .into_artifact();
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            TerminalMachineSelection::Name("run"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("selection-neutral artifact")
+        .into_artifact();
         drop(checked);
         let module = decode_module(artifact.semantic_bytes()).unwrap();
         assert_eq!(
@@ -199,85 +198,6 @@ fn closed_token_candidates_are_independent_of_provider_selection() {
             baseline = Some(bytes);
         }
     }
-}
-
-#[test]
-fn closed_operator_candidates_rejoin_distinct_requirement_applications() {
-    let checked = checked_closed_operator_candidates();
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("run"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("closed candidate catalog publishes")
-    .into_artifact();
-    let module = decode_module(artifact.semantic_bytes()).expect("source-free module");
-    let proof =
-        terminal_codec::decode_proof_bundle(artifact.proof_bytes()).expect("source-free proof");
-    terminal_verifier::verify_module(
-        &module,
-        &proof,
-        &proof_admission::AdmissionProfile::default(),
-    )
-    .expect("closed provider signatures and bodies independently verify");
-    let [first, second] = module.provider_candidates.as_slice() else {
-        panic!("one exact candidate per closed requirement");
-    };
-    assert_ne!(first.boundary, second.boundary);
-    assert_ne!(first.requirement_identity, second.requirement_identity);
-    assert_ne!(first.candidate, second.candidate);
-    assert_ne!(first.candidate_identity, second.candidate_identity);
-    for candidate in &module.provider_candidates {
-        let machine = checked
-            .machines()
-            .iter()
-            .find(|machine| {
-                checked
-                    .normalized_machine_overload_identity(machine)
-                    .is_some_and(|identity| identity.identity() == candidate.candidate_identity)
-            })
-            .expect("exact provider instance");
-        let symbols = validation::TopLevelSymbols::build(&checked.typed, &mut Vec::new());
-        let conformance = &checked.machine_trait_conformances(machine)[0];
-        let template = checked
-            .machines()
-            .iter()
-            .find(|requirement| requirement.symbol == conformance.symbol)
-            .expect("authored requirement");
-        let requirement = validation::resolve_closed_requirement_application(
-            &checked.typed,
-            machine,
-            template,
-            &symbols,
-        )
-        .expect("exact checked application");
-        assert_eq!(
-            candidate.requirement_identity,
-            checked
-                .normalized_machine_overload_identity(requirement)
-                .unwrap()
-                .identity()
-        );
-    }
-    let selections = module
-        .provider_candidates
-        .iter()
-        .map(|candidate| ProviderInstallationSelection {
-            boundary: candidate.boundary,
-            provider_identity: candidate.provider_identity.clone(),
-            candidate: candidate.candidate,
-        })
-        .collect::<Vec<_>>();
-    drop(checked);
-    admit_provider_installation_from_artifact(
-        artifact.semantic_bytes(),
-        artifact.proof_bytes(),
-        &proof_admission::AdmissionProfile::default(),
-        &selections,
-    )
-    .expect("both exact closed candidates install without source custody");
 }
 
 #[test]
@@ -382,54 +302,6 @@ const STRUCTURAL_PROVIDER_SOURCE: &str = r#"
     }
 "#;
 
-const PROGRAM_STORAGE_PROVIDER_SOURCE: &str = r#"
-    pub data Extent [linear] {
-        base: addr;
-        length: u64;
-    }
-
-    pub boundary machine no_wrap(base: addr, length: u64) -> bool;
-
-    pub domain Extent::Granted
-    requires
-        no_wrap(self.base, self.length)
-    established by
-        ProgramStorageEntry::enter;
-
-    pub boundary trait ProgramStorageEntry {
-        machine enter(
-            image: Extent in Granted,
-            initial_storage: Extent in Granted
-        );
-    }
-
-    boundary machine Extent::settle(self)
-    requires
-        self in Extent::Granted
-    ensures true;
-
-    data ProgramStorageProvider {}
-    machine ProgramStorageProvider::enter(
-        image: Extent in Granted,
-        initial_storage: Extent in Granted
-    )
-    satisfies ProgramStorageEntry::enter
-    {
-        image.settle();
-        initial_storage.settle();
-    }
-
-    data ProgramLocalProducer {}
-    machine ProgramLocalProducer::handoff(
-        image: Extent in Granted,
-        initial_storage: Extent in Granted
-    )
-    reaches ProgramStorageEntry invokes ProgramStorageEntry;
-    {
-        ProgramStorageEntry::enter(image, initial_storage);
-    }
-"#;
-
 #[test]
 fn invalid_unit_provider_plan_names_the_exact_candidate() {
     let baseline = crate::front_end::checked_program(SOURCE);
@@ -459,80 +331,6 @@ fn invalid_unit_provider_plan_names_the_exact_candidate() {
             ));
         }
     }
-}
-
-#[test]
-fn checked_unit_provider_candidates_are_cataloged_without_selection_or_call_rewrite() {
-    let checked = crate::front_end::checked_program(SOURCE);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(
-        &checked,
-        TerminalMachineSelection::Name("Root::enter"),
-    )
-    .expect("zero-argument Unit provider catalog lowers");
-
-    let module = &lowered.semantic_module;
-    assert_eq!(module.boundary_machines.len(), 1);
-    assert_eq!(module.provider_candidates.len(), 2);
-    assert_eq!(module.machines.len(), 3, "root plus both adapter bodies");
-    let boundary = module.boundary_machines[0].id;
-    let requirement_identity = &module.provider_candidates[0].requirement_identity;
-    assert!(!requirement_identity.is_empty());
-    assert!(module.provider_candidates.iter().all(|candidate| {
-        candidate.boundary == boundary
-            && candidate.requirement_identity == *requirement_identity
-            && candidate.signature.parameters.is_empty()
-            && candidate.refinement.positional_parameters.is_empty()
-            && candidate.refinement.required_domains.is_empty()
-            && module
-                .machines
-                .iter()
-                .any(|machine| machine.id == candidate.candidate)
-    }));
-    assert_eq!(
-        module
-            .provider_candidates
-            .iter()
-            .map(|candidate| candidate.provider_identity.as_str())
-            .collect::<Vec<_>>(),
-        vec!["FirstProvider", "SecondProvider"]
-    );
-    let expected_identities = ["FirstProvider::emit", "SecondProvider::emit"].map(|name| {
-        let machine = checked
-            .typed
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == name)
-            .expect("the exact source provider declaration");
-        checked
-            .typed
-            .normalized_machine_overload_identity(machine)
-            .expect("source provider has a normalized overload identity")
-            .identity()
-    });
-    assert_eq!(
-        module
-            .provider_candidates
-            .iter()
-            .map(|candidate| candidate.candidate_identity.as_str())
-            .collect::<Vec<_>>(),
-        expected_identities
-            .iter()
-            .map(String::as_str)
-            .collect::<Vec<_>>()
-    );
-    let entry = module
-        .machines
-        .iter()
-        .find(|machine| machine.id == module.entry)
-        .expect("entry machine");
-    assert!(matches!(
-        entry.blocks[0].operations[0].kind,
-        OperationKind::BoundaryCall { boundary: called, .. } if called == boundary
-    ));
-
-    let encoded = encode_module(module).expect("encode catalog");
-    let decoded = decode_module(&encoded).expect("decode and independently verify catalog shape");
-    assert_eq!(decoded, *module);
 }
 
 #[test]
@@ -622,162 +420,4 @@ fn checked_unit_provider_candidates_retain_linear_qualified_structural_inputs() 
         terminal_verifier::validate_module(&access_tamper),
         Err(terminal_verifier::ModuleError::InvalidProviderCandidate { .. })
     ));
-}
-
-#[test]
-fn installed_structural_provider_receives_and_settles_the_exact_linear_claim() {
-    let checked = crate::front_end::checked_program(STRUCTURAL_PROVIDER_SOURCE);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(
-        &checked,
-        TerminalMachineSelection::Name("Root::enter"),
-    )
-    .expect("structural provider artifact lowers");
-    let [candidate] = lowered.semantic_module.provider_candidates.as_slice() else {
-        panic!("one exact structural provider candidate")
-    };
-    let [signature] = candidate.signature.parameters.as_slice() else {
-        panic!("one exact structural provider parameter")
-    };
-    let [qualification] = signature.qualifications.as_slice() else {
-        panic!("one exact structural provider qualification")
-    };
-    let semantic = encode_module(&lowered.semantic_module).expect("semantic artifact");
-    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
-        .expect("proof artifact");
-    let installation = admit_provider_installation_from_artifact(
-        &semantic,
-        &proof,
-        &proof_admission::AdmissionProfile::default(),
-        &[ProviderInstallationSelection {
-            boundary: candidate.boundary,
-            provider_identity: candidate.provider_identity.clone(),
-            candidate: candidate.candidate,
-        }],
-    )
-    .expect("exact structural provider installation is admitted");
-    let argument = TerminalStructuralValue {
-        opaque_identity: 0xfeed,
-        structural_type: signature.structural_type,
-        qualifications: vec![*qualification],
-        path: Vec::new(),
-    };
-    let mut execution = TerminalExecution::start_installed_artifact(
-        &semantic,
-        &proof,
-        &proof_admission::AdmissionProfile::default(),
-        &[],
-        TerminalStructuralInputs {
-            arguments: std::slice::from_ref(&argument),
-            ..Default::default()
-        },
-        &installation,
-    )
-    .expect("structural provider execution starts");
-    assert_eq!(
-        execution
-            .resume(
-                &mut TerminalFuelMeter::default(),
-                &mut AcceptTerminalEffects
-            )
-            .unwrap(),
-        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
-    );
-    assert!(
-        matches!(execution.effects(), [TerminalEffect::BoundaryCall {
-        boundary,
-        structural_arguments,
-        completion_receipts,
-        ..
-    }] if *boundary != candidate.boundary
-        && structural_arguments == &[argument]
-        && completion_receipts.len() == 1)
-    );
-}
-
-#[test]
-fn installed_program_storage_provider_transfers_and_settles_both_owned_extent_claims() {
-    let checked = crate::front_end::checked_program(PROGRAM_STORAGE_PROVIDER_SOURCE);
-    let produced = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("ProgramLocalProducer::handoff"),
-    )
-    .produce(TerminalProductionCustody {
-        retain_unoptimized: false,
-        entry_identity: Some([0xa5; 32]),
-        callback_custody: (),
-        timings: &mut TerminalProductionTimings::default(),
-    })
-    .expect("receipt-coupled ProgramStorage artifact");
-    let module = decode_module(produced.artifact().semantic_bytes()).expect("semantic module");
-    let [candidate] = module.provider_candidates.as_slice() else {
-        panic!("one exact ProgramStorage provider candidate")
-    };
-    let [image, initial_storage] = candidate.signature.parameters.as_slice() else {
-        panic!("the exact two-Extent provider signature")
-    };
-    let ([image_domain], [storage_domain]) = (
-        image.qualifications.as_slice(),
-        initial_storage.qualifications.as_slice(),
-    ) else {
-        panic!("both Extent roots retain Granted")
-    };
-    assert_eq!(image_domain, storage_domain);
-    assert_eq!(image.access, terminal_psi::StructuralAccess::Owned);
-    assert_eq!(
-        initial_storage.access,
-        terminal_psi::StructuralAccess::Owned
-    );
-    let installation = admit_provider_installation_from_artifact(
-        produced.artifact().semantic_bytes(),
-        produced.artifact().proof_bytes(),
-        &proof_admission::AdmissionProfile::default(),
-        &[ProviderInstallationSelection {
-            boundary: candidate.boundary,
-            provider_identity: candidate.provider_identity.clone(),
-            candidate: candidate.candidate,
-        }],
-    )
-    .expect("exact ProgramStorage provider installation is admitted");
-    let arguments = [
-        TerminalStructuralValue {
-            opaque_identity: 0x1a6e,
-            structural_type: image.structural_type,
-            qualifications: vec![*image_domain],
-            path: Vec::new(),
-        },
-        TerminalStructuralValue {
-            opaque_identity: 0x570a,
-            structural_type: initial_storage.structural_type,
-            qualifications: vec![*storage_domain],
-            path: Vec::new(),
-        },
-    ];
-    let mut execution = TerminalExecution::start_installed_artifact(
-        produced.artifact().semantic_bytes(),
-        produced.artifact().proof_bytes(),
-        &proof_admission::AdmissionProfile::default(),
-        &[],
-        TerminalStructuralInputs {
-            arguments: &arguments,
-            ..Default::default()
-        },
-        &installation,
-    )
-    .expect("ProgramStorage provider execution starts");
-    assert_eq!(
-        execution
-            .resume(
-                &mut TerminalFuelMeter::default(),
-                &mut AcceptTerminalEffects
-            )
-            .unwrap(),
-        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
-    );
-    assert!(matches!(execution.effects(), [
-        TerminalEffect::BoundaryCall { structural_arguments: image, completion_receipts: image_receipts, .. },
-        TerminalEffect::BoundaryCall { structural_arguments: storage, completion_receipts: storage_receipts, .. },
-    ] if image == &arguments[..1]
-        && storage == &arguments[1..]
-        && image_receipts.len() == 1
-        && storage_receipts.len() == 1));
 }

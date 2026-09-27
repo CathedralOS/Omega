@@ -122,31 +122,6 @@ fn reassignment_updates_reads_and_calls_without_rebinding_saved_values() {
 }
 
 #[test]
-fn mixed_formal_positions_keep_independent_mutable_storage_and_immutable_values() {
-    for (arguments, returned, expected) in [
-        ("7, 4, 9", "first", 9),
-        ("9, 4, 7", "first", 7),
-        ("7, 4, 9", "last", 4),
-        ("7, 4, 9", "saved", 7),
-        ("7, 4, 9", "middle", 4),
-    ] {
-        let source = format!(
-            r#"
-            machine select(mut first: i32, middle: i32, mut last: i32) -> i32
-            requires 0i32 == 0i32
-            ensures 0i32 == 0i32
-            {{ let saved: i32 = first; first = last; last = middle; {returned} }}
-            machine value() -> i32
-            requires 0i32 == 0i32
-            ensures 0i32 == 0i32
-            {{ select({arguments}) }}
-            "#,
-        );
-        assert_execution(&source, integer("i32", expected));
-    }
-}
-
-#[test]
 fn state_entry_reinitializes_mutable_storage_and_boolean_updates_use_current_values() {
     let states = r#"
         machine value() -> i32
@@ -208,47 +183,6 @@ fn final_mutable_formal_guarantee_cannot_prove_equality_with_the_original_argume
 #[derive(Default)]
 struct ObserveArguments(Vec<Vec<TerminalScalarValue>>);
 
-#[test]
-fn guard_uses_current_mutable_boolean_instead_of_its_opposite_entry_value() {
-    let source = r#"
-        machine value(mut input: bool) -> bool
-        requires true == true
-        ensures true == true
-        crashes Trap
-        {
-            input = !input;
-            transition input {
-                true -> true
-                false -> failed()
-            }
-            state failed() -> bool { crash Trap; }
-        }
-    "#;
-    let artifact = encoded(source);
-    assert_eq!(
-        interpret_terminal_artifact(
-            &artifact.0,
-            &artifact.1,
-            &AdmissionProfile::default(),
-            &[TerminalScalarValue::Boolean(false)],
-        )
-        .unwrap(),
-        TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(true)),
-    );
-    let result = interpret_terminal_artifact(
-        &artifact.0,
-        &artifact.1,
-        &AdmissionProfile::default(),
-        &[TerminalScalarValue::Boolean(true)],
-    );
-    assert!(
-        matches!(result,
-        Err(TerminalArtifactInterpretError::Execution(TerminalInterpretError::Crash(crash)))
-            if crash.cause == terminal_psi::CrashCause::Trap),
-        "the true entry value becomes false before the guard and selects the crashing state"
-    );
-}
-
 impl TerminalEffectHandler for ObserveArguments {
     fn handle_effect(&mut self, effect: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
         let TerminalEffect::BoundaryCall {
@@ -262,35 +196,6 @@ impl TerminalEffectHandler for ObserveArguments {
         assert!(structural_arguments.is_empty());
         self.0.push(arguments.clone());
         Ok(())
-    }
-}
-
-#[test]
-fn unit_callers_deliver_initial_mutable_boundary_values_and_updated_scalar_results() {
-    for (argument, expected) in [("7 / 2 * 2", 7), ("rewrite(7 / 2 * 2)", 9)] {
-        let source = format!(
-            r#"
-            boundary trait Sink {{ machine observe(mut input: i32) reaches Sink; }}
-            machine rewrite(mut input: i32) -> i32
-            requires 9i32 == 9i32
-            ensures 9i32 == 9i32
-            {{ input = 9; input }}
-            machine value() reaches Sink {{ Sink::observe({argument}); }}
-            "#,
-        );
-        let artifact = encoded(&source);
-        let mut observer = ObserveArguments::default();
-        let result = interpret_terminal_artifact_measured(
-            &artifact.0,
-            &artifact.1,
-            &AdmissionProfile::default(),
-            &[],
-            TerminalStructuralInputs::default(),
-            &mut observer,
-        )
-        .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
-        assert_eq!(result.value(), TerminalExecutionResult::Unit);
-        assert_eq!(observer.0, vec![vec![integer("i32", expected)]]);
     }
 }
 

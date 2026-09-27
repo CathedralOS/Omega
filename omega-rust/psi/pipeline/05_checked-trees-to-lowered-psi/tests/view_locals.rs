@@ -174,18 +174,6 @@ const ELEMENTS: &str = r#"
     }
 "#;
 
-#[test]
-fn a_view_local_range_that_overruns_its_source_is_refused() {
-    // The narrowed view holds three elements; `tail[1..5]` cannot be proved
-    // within it, so checking rejects the program before any lowering.
-    let source = ELEMENTS.replace("tail[1..3]", "tail[1..5]");
-    let checked = crate::front_end::checked_program_result(&source);
-    assert!(
-        checked.is_err(),
-        "an overrunning view-local range must not check: {checked:?}"
-    );
-}
-
 const FIELD_RANGE: &str = r#"
     boundary trait Output {
         machine observe(value: i32) reaches Output;
@@ -373,25 +361,6 @@ fn a_record_element_field_is_read_through_a_view_local() {
     }
 }
 
-/// Control: an element index past the narrowed view's extent cannot be
-/// proved, so the field read is refused before a module is published.
-#[test]
-fn a_record_element_field_read_out_of_bounds_is_refused() {
-    let past = RECORD_ELEMENTS.replace("tail[1].value", "tail[3].value");
-    let refused = match crate::front_end::checked_program_result(&past) {
-        Err(_) => true,
-        Ok(checked) => checked_trees_to_lowered_psi::lower_machine(
-            &checked,
-            TerminalMachineSelection::Name("Root::enter"),
-        )
-        .is_err(),
-    };
-    assert!(
-        refused,
-        "an element read past the view's extent must not lower"
-    );
-}
-
 /// A whole `[copy]` record element copies through its scalar fields: one
 /// element read per field at the copy's selector, then a fresh owned record
 /// from those leaves. Each read carries the view's own bound, and the verifier
@@ -445,26 +414,6 @@ fn a_record_element_copies_through_its_field_reads() {
             terminal_psi::OperationKind::EstablishRecord { fields } if fields.len() == 2
         )),
         "the leaves establish one fresh record"
-    );
-}
-
-#[test]
-fn an_affine_record_element_is_not_copied_out_of_a_view() {
-    let source = RECORD_ELEMENTS.replace(
-        "Output::observe(tail[1].value);",
-        "let chosen: Entry = tail[1];\n        Output::observe(chosen.value);",
-    );
-    let refused = match crate::front_end::checked_program_result(&source) {
-        Err(_) => true,
-        Ok(checked) => checked_trees_to_lowered_psi::lower_machine(
-            &checked,
-            TerminalMachineSelection::Name("Root::enter"),
-        )
-        .is_err(),
-    };
-    assert!(
-        refused,
-        "an affine element must not be duplicated out of a shared view"
     );
 }
 

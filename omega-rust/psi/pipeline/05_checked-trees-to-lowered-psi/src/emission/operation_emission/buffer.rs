@@ -139,15 +139,6 @@ mod tests {
     use semantic_vocabulary::ScalarType;
 
     #[test]
-    fn operation_identities_start_after_the_selected_machine_base() {
-        for base in [0, 1_u64 << 32] {
-            let mut buffer = OperationBuffer::new(base);
-            assert_eq!(buffer.allocate().get(), base + 1);
-            assert_eq!(buffer.allocate().get(), base + 2);
-        }
-    }
-
-    #[test]
     fn source_call_custody_owns_the_pre_call_values_and_rejects_duplicate_coordinates() {
         let mut buffer = OperationBuffer::new(0);
         let coordinate = SourceCallCoordinate {

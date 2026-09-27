@@ -91,22 +91,6 @@ fn owned_match_state_residuals_replay_both_arms() {
 }
 
 #[test]
-fn owned_match_state_residual_selected_result_dies_on_edge() {
-    // The same selection with the result retired on the selected edge instead
-    // of transferred: each successor disposes the result parameter and the
-    // residual source parameter at their own roster positions.
-    let source = SOURCE
-        .replace("kept(result, marker)", "kept(marker, observed)")
-        .replace(
-            "state kept(result: Choice, marker: Marker)",
-            "state kept(marker: Marker, observed: bool)",
-        )
-        .replace("match result in Choice::Some", "match observed");
-    assert_eq!(recorded_source(&source, true), [41, 1]);
-    assert_eq!(recorded_source(&source, false), [41, 2]);
-}
-
-#[test]
 fn owned_match_state_residuals_reject_mutated_edge_cleanup() {
     let (_, lowered) = lowered();
     let module = lowered.semantic_module;

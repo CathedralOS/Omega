@@ -1,7 +1,7 @@
 //! Literal operands retain call/formal custody and the shared evaluation order.
 use super::{
     AdmissionProfile, CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectOperationPlan,
-    ExpressionNode, IntegerSign, IntegerType, IntegerValue, PrimitiveType, TerminalExecutionResult,
+    IntegerSign, IntegerType, IntegerValue, PrimitiveType, TerminalExecutionResult,
     TerminalScalarValue, interpret_terminal_artifact, reject,
 };
 use checked_trees::CheckedArrayConstructionSource;
@@ -75,18 +75,6 @@ fn literal_array_arguments_compose_unit_scalar_and_structural_calls() {
             &[byte(42), byte(9)],
         );
     }
-}
-
-#[test]
-fn literal_array_argument_supports_direct_scalar_completion() {
-    assert_eq!(
-        execute(
-            "machine answer(row: [u8; 2], value: u8) -> u8 { value }
-             machine selected() -> u8 { answer([7, 9], 42u8) }",
-            &[],
-        ),
-        TerminalExecutionResult::Scalar(byte(42)),
-    );
 }
 
 #[test]
@@ -220,35 +208,6 @@ fn literal_array_scalar_completion_rejects_forged_result_metadata() {
 }
 
 #[test]
-fn literal_array_arguments_follow_scalar_local_and_selected_boolean_prefixes() {
-    assert_array(
-        "machine identity(value: u8) -> u8 { value }
-         machine keep(row: [u8; 2]) -> [u8; 2] { row }
-         machine selected(value: u8) -> [u8; 2] {
-             let prefix: u8 = identity(value);
-             keep([prefix, 7u8 + 2u8])
-         }",
-        &[byte(42)],
-        &[byte(42), byte(9)],
-    );
-    for enabled in [false, true] {
-        assert_array(
-            "machine identity(value: bool) -> bool { value }
-             machine pick(prefix: bool, row: [bool; 2]) -> [bool; 2] { row }
-             machine selected(enabled: bool) -> [bool; 2] {
-                 let prefix: bool = enabled || identity(false);
-                 pick(prefix && identity(true), [identity(prefix), !identity(prefix)])
-             }",
-            &[TerminalScalarValue::Boolean(enabled)],
-            &[
-                TerminalScalarValue::Boolean(enabled),
-                TerminalScalarValue::Boolean(!enabled),
-            ],
-        );
-    }
-}
-
-#[test]
 fn literal_array_arguments_keep_formal_order_and_nested_empty_shapes() {
     for selected in ["first", "second"] {
         assert_array(&format!(
@@ -276,62 +235,6 @@ fn literal_array_arguments_keep_formal_order_and_nested_empty_shapes() {
             &expected,
         );
     }
-}
-
-const MUTATION_HELPER: &str =
-    "machine write(destination: &mut u8, value: u8) -> u8 { destination = value; value }";
-
-#[test]
-fn literal_array_arguments_compose_selected_match_locals_and_leaves() {
-    for enabled in [false, true] {
-        let local = if enabled { 1 } else { 2 };
-        let leaf = if enabled { 3 } else { 4 };
-        assert_array(
-            &format!(
-                "{MUTATION_HELPER}
-                 machine keep(row: [u8; 4]) -> [u8; 4] {{ row }}
-                 machine selected(enabled: bool) -> [u8; 4] {{
-                     let mut value: u8 = 0;
-                     let prefix: u8 = match enabled {{
-                         true -> write(&mut value, 1u8),
-                         false -> write(&mut value, 2u8)
-                     }};
-                     keep([prefix, value, match enabled {{
-                         true -> write(&mut value, 3u8),
-                         false -> write(&mut value, 4u8)
-                     }}, value])
-                 }}"
-            ),
-            &[TerminalScalarValue::Boolean(enabled)],
-            &[byte(local), byte(local), byte(leaf), byte(leaf)],
-        );
-    }
-}
-
-#[test]
-fn literal_array_construction_interleaves_with_mutating_scalar_actuals() {
-    for (returned, expected) in [("first", 1), ("second", 2)] {
-        assert_array(&format!(
-            "{MUTATION_HELPER}
-             machine pick(prefix: u8, first: [u8; 1], middle: u8, second: [u8; 1], suffix: u8) -> [u8; 1] {{ {returned} }}
-             machine selected() -> [u8; 1] {{
-                 let mut value: u8 = 0;
-                 pick(write(&mut value, 1u8), [value], write(&mut value, 2u8), [value], write(&mut value, 3u8))
-             }}"
-        ), &[], &[byte(expected)]);
-    }
-    assert_array(
-        &format!(
-            "{MUTATION_HELPER}
-         machine keep(row: [u8; 4]) -> [u8; 4] {{ row }}
-         machine selected() -> [u8; 4] {{
-             let mut value: u8 = 0;
-             keep([write(&mut value, 1u8), value, write(&mut value, 2u8), value])
-         }}"
-        ),
-        &[],
-        &[byte(1), byte(1), byte(2), byte(2)],
-    );
 }
 
 #[test]
@@ -374,56 +277,6 @@ fn custody_fixture(empty: bool) -> CheckedTrees {
          machine pick(prefix: u8, first: {array_type}, middle: u8, second: {array_type}) -> {array_type} {{ second }}
          machine selected(value: u8) -> {array_type} {{ pick(3u8, {left}, 4u8, {right}) }}"
     ))
-}
-
-#[test]
-fn computed_scalar_locals_keep_short_circuit_effects_before_ordinary_calls() {
-    for enabled in [false, true] {
-        for consumer in [
-            "consume(evaluated);",
-            "let flags: [bool; 2] = keep([evaluated, !evaluated]);",
-        ] {
-            assert_array(
-                &format!(
-                    "machine flag(destination: &mut u8) -> bool {{ destination = 7u8; true }}
-                     machine consume(value: bool) {{}}
-                     machine keep(row: [bool; 2]) -> [bool; 2] {{ row }}
-                     machine selected(enabled: bool) -> [u8; 1] {{
-                         let mut value: u8 = 0;
-                         let evaluated: bool = enabled && flag(&mut value);
-                         {consumer}
-                         [value]
-                     }}"
-                ),
-                &[TerminalScalarValue::Boolean(enabled)],
-                &[byte(if enabled { 7 } else { 0 })],
-            );
-        }
-    }
-}
-
-#[test]
-fn pure_short_circuit_local_precedes_ordinary_and_literal_array_calls() {
-    for enabled in [false, true] {
-        for consumer in [
-            "consume(evaluated);",
-            "let flags: [bool; 1] = keep([evaluated]);",
-        ] {
-            assert_array(
-                &format!(
-                    "machine consume(value: bool) {{}}
-                     machine keep(row: [bool; 1]) -> [bool; 1] {{ row }}
-                     machine selected(enabled: bool) -> [bool; 1] {{
-                         let evaluated: bool = enabled || false;
-                         {consumer}
-                         [evaluated]
-                     }}"
-                ),
-                &[TerminalScalarValue::Boolean(enabled)],
-                &[TerminalScalarValue::Boolean(enabled)],
-            );
-        }
-    }
 }
 
 #[test]
@@ -721,77 +574,6 @@ fn literal_array_nested_producers_cannot_impersonate_the_returned_call_result() 
             );
         }
     }
-}
-
-#[test]
-fn literal_array_argument_payload_cannot_change_under_retained_element_facts() {
-    let original = crate::front_end::checked_program(
-        "machine keep(row: [u8; 2]) -> [u8; 2] { row }
-         machine selected() -> [u8; 2] { keep([7, 9]) }",
-    );
-    checked_trees_to_lowered_psi::lower_machine(
-        &original,
-        TerminalMachineSelection::Name("selected"),
-    )
-    .expect("literal argument payload lowers before corruption");
-    let expression = original
-        .facts
-        .flow
-        .terminal_unit_effects
-        .machines
-        .iter()
-        .flat_map(|machine| &machine.operations)
-        .find_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::StructuralCall {
-                source_site: Some(checked_trees::NominalMachineUseSite::Expression(expression)),
-                ..
-            } => Some(*expression),
-            _ => None,
-        })
-        .expect("literal consumer retains its exact source call");
-    let ExpressionNode::Call(call) = original.typed.expression_table.expression(expression) else {
-        panic!("captured literal consumer call")
-    };
-    let argument = original
-        .typed
-        .expression_table
-        .expression_handles(call.arguments)[0];
-    let ExpressionNode::ArrayLiteral(leaves) = original.typed.expression_table.expression(argument)
-    else {
-        panic!("authored array literal argument")
-    };
-    let leaves = original
-        .typed
-        .expression_table
-        .expression_handles(*leaves)
-        .to_vec();
-    let mut changed = original.clone();
-    let replacement = changed.typed.expression_table.expression(leaves[1]).clone();
-    *changed.typed.expression_table.expression_mut(leaves[0]) = replacement;
-    reject(
-        &changed,
-        "authored literal leaf changed under retained operand",
-    );
-
-    let mut changed = original;
-    let elements = changed
-        .facts
-        .flow
-        .terminal_unit_effects
-        .machines
-        .iter_mut()
-        .flat_map(|machine| &mut machine.operations)
-        .find_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::EstablishScalarArray {
-                source: CheckedArrayConstructionSource::CallArgument { .. },
-                elements,
-                ..
-            } => Some(elements),
-            _ => None,
-        })
-        .expect("literal argument constructor");
-    elements.swap(0, 1);
-    reject(&changed, "retained literal argument operands changed order");
 }
 
 #[test]

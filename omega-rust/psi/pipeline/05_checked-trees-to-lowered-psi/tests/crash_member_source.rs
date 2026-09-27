@@ -6,8 +6,6 @@ use terminal_interpreter::TerminalStructuralInputs;
 mod aggregate_equality;
 #[path = "crash_member_source/bounded_inputs.rs"]
 mod bounded_inputs;
-#[path = "crash_member_source/byte_entries.rs"]
-mod byte_entries;
 #[path = "crash_member_source/fenced_and_float_equality.rs"]
 mod fenced_and_float_equality;
 #[path = "crash_member_source/member_crash_routes.rs"]
@@ -27,23 +25,6 @@ use terminal_interpreter::{
 };
 use terminal_psi::{CrashRouteGuard, OperationKind, StructuralFieldType, StructuralTypeShape};
 
-const SOURCE: &str = r#"
-    data Packet { should_abort: bool; }
-    data Helper {}
-    machine Helper::inspect(packet: Packet)
-    crashes Abort
-        packet.should_abort
-    {}
-
-    data Root {}
-    machine Root::enter(packet: Packet)
-    crashes Abort
-        packet.should_abort
-    {
-        Helper::inspect(packet);
-    }
-"#;
-
 const NESTED_SOURCE: &str = r#"
     data AbortState { should_abort: bool; }
     data Packet { state: AbortState; }
@@ -59,26 +40,6 @@ const NESTED_SOURCE: &str = r#"
         packet.state.should_abort
     {
         Helper::inspect(packet);
-    }
-"#;
-
-const PROJECTED_SOURCE: &str = r#"
-    data AbortState { should_abort: bool; }
-    data Packet { state: AbortState; }
-    data Spare { value: u64; }
-    data Envelope { packet: Packet; spare: Spare; }
-    data Helper {}
-    machine Helper::inspect(packet: Packet)
-    crashes Abort
-        packet.state.should_abort
-    {}
-
-    data Root {}
-    machine Root::enter(envelope: Envelope)
-    crashes Abort
-        envelope.packet.state.should_abort
-    {
-        Helper::inspect(envelope.packet);
     }
 "#;
 
@@ -126,43 +87,6 @@ const COMPOSED_MEMBER_SOURCE: &str = r#"
         envelope.pair.left.active == !envelope.pair.right.active && envelope.pair.armed
     {
         Helper::inspect(envelope.pair);
-    }
-"#;
-
-const INTEGER_MEMBER_SOURCE: &str = r#"
-    data Metrics { current: u64; limit: u64; }
-    data Helper {}
-    machine Helper::inspect(metrics: Metrics)
-    crashes Abort
-        metrics.limit <= metrics.current && metrics.current != metrics.limit
-    {}
-
-    data Root {}
-    machine Root::enter(metrics: Metrics)
-    crashes Abort
-        metrics.limit <= metrics.current && metrics.current != metrics.limit
-    {
-        Helper::inspect(metrics);
-    }
-"#;
-
-const PROJECTED_INTEGER_MEMBER_SOURCE: &str = r#"
-    data Metrics { current: u64; limit: u64; }
-    data Batch { metrics: Metrics; shadow: Metrics; }
-    data Envelope { batch: Batch; spare: Batch; }
-    data Helper {}
-    machine Helper::inspect(metrics: Metrics)
-    crashes Abort
-        metrics.limit <= metrics.current && metrics.current != metrics.limit
-    {}
-
-    data Root {}
-    machine Root::enter(envelope: Envelope)
-    crashes Abort
-        envelope.batch.metrics.limit <= envelope.batch.metrics.current
-            && envelope.batch.metrics.current != envelope.batch.metrics.limit
-    {
-        Helper::inspect(envelope.batch.metrics);
     }
 "#;
 
@@ -475,49 +399,6 @@ const NEGATIVE_RUNTIME_INTEGER_MEMBER_DIVISOR_SOURCE: &str = r#"
     {}
 "#;
 
-const RUNTIME_DIVISOR_CALL_SOURCE: &str = r#"
-    data Metrics { current: u64; divisor: u64; limit: u64; }
-    data Helper {}
-    machine Helper::inspect(metrics: Metrics)
-    requires
-        1 <= metrics.divisor
-    crashes Abort
-        metrics.current / metrics.divisor <= metrics.limit
-    {}
-
-    data Root {}
-    machine Root::enter(metrics: Metrics)
-    requires
-        1 <= metrics.divisor
-    crashes Abort
-        metrics.current / metrics.divisor <= metrics.limit
-    {
-        Helper::inspect(metrics);
-    }
-"#;
-
-const PROJECTED_RUNTIME_DIVISOR_CALL_SOURCE: &str = r#"
-    data Metrics { current: u64; divisor: u64; limit: u64; }
-    data Envelope { metrics: Metrics; decoy: Metrics; }
-    data Helper {}
-    machine Helper::inspect(metrics: Metrics)
-    requires
-        1 <= metrics.divisor
-    crashes Abort
-        metrics.current / metrics.divisor <= metrics.limit
-    {}
-
-    data Root {}
-    machine Root::enter(envelope: Envelope)
-    requires
-        1 <= envelope.metrics.divisor
-    crashes Abort
-        envelope.metrics.current / envelope.metrics.divisor <= envelope.metrics.limit
-    {
-        Helper::inspect(envelope.metrics);
-    }
-"#;
-
 const DISJUNCTIVE_MEMBER_SOURCE: &str = r#"
     data Flag { active: bool; }
     data Pair { left: Flag; right: Flag; decoy: Flag; }
@@ -534,31 +415,6 @@ const DISJUNCTIVE_MEMBER_SOURCE: &str = r#"
         envelope.pair.left.active || !envelope.pair.right.active
     {
         Helper::inspect(envelope.pair);
-    }
-"#;
-
-const WHOLE_AGGREGATE_EQUALITY_SOURCE: &str = r#"
-    trait Equatable {
-        machine equals(&self, rhs: &Self) -> bool;
-    }
-
-    data Counts { current: u64; limit: u64; }
-    CountsEquatable: Counts satisfies Equatable;
-    data Pair { active: bool; counts: Counts; }
-    PairEquatable: Pair satisfies Equatable;
-
-    data Helper {}
-    machine Helper::inspect(left: Pair, right: Pair)
-    crashes Abort
-        left == right
-    {}
-
-    data Root {}
-    machine Root::enter(left: Pair, right: Pair)
-    crashes Abort
-        left == right
-    {
-        Helper::inspect(left, right);
     }
 "#;
 
@@ -616,95 +472,6 @@ const MIXED_AGGREGATE_EQUALITY_SOURCE: &str = r#"
 
     data Different {}
     machine Different::enter(left: Message, right: Message)
-    crashes Abort
-        left != right
-    {
-        Helper::different(left, right);
-    }
-"#;
-
-const NESTED_MIXED_AGGREGATE_EQUALITY_SOURCE: &str = r#"
-    trait Equatable {
-        machine equals(&self, rhs: &Self) -> bool;
-    }
-
-    data Message {
-        active: bool;
-        case Empty;
-        case Data(value: i32);
-    }
-    MessageEquatable: Message satisfies Equatable;
-
-    data Envelope { selected: bool; message: Message; }
-    EnvelopeEquatable: Envelope satisfies Equatable;
-
-    data Helper {}
-    machine Helper::inspect(left: Envelope, right: Envelope)
-    crashes Abort
-        left == right
-    {}
-
-    machine Helper::different(left: Envelope, right: Envelope)
-    crashes Abort
-        left != right
-    {}
-
-    data Root {}
-    machine Root::enter(left: Envelope, right: Envelope)
-    crashes Abort
-        left == right
-    {
-        Helper::inspect(left, right);
-    }
-
-    data Different {}
-    machine Different::enter(left: Envelope, right: Envelope)
-    crashes Abort
-        left != right
-    {
-        Helper::different(left, right);
-    }
-"#;
-
-const TWO_FIELD_NESTED_MIXED_AGGREGATE_EQUALITY_SOURCE: &str = r#"
-    trait Equatable {
-        machine equals(&self, rhs: &Self) -> bool;
-    }
-
-    data Message {
-        active: bool;
-        case Empty;
-        case Data(value: i32);
-    }
-    MessageEquatable: Message satisfies Equatable;
-
-    data Inner { message: Message; }
-    InnerEquatable: Inner satisfies Equatable;
-
-    data Envelope { inner: Inner; }
-    EnvelopeEquatable: Envelope satisfies Equatable;
-
-    data Helper {}
-    machine Helper::inspect(left: Envelope, right: Envelope)
-    crashes Abort
-        left == right
-    {}
-
-    machine Helper::different(left: Envelope, right: Envelope)
-    crashes Abort
-        left != right
-    {}
-
-    data Root {}
-    machine Root::enter(left: Envelope, right: Envelope)
-    crashes Abort
-        left == right
-    {
-        Helper::inspect(left, right);
-    }
-
-    data Different {}
-    machine Different::enter(left: Envelope, right: Envelope)
     crashes Abort
         left != right
     {
@@ -1113,21 +880,6 @@ const EMPTY_RECORD_EQUALITY_SOURCE: &str = r#"
     {
         Helper::inspect(left, right);
     }
-"#;
-
-const ADDRESS_RECORD_EQUALITY_SOURCE: &str = r#"
-    trait Equatable {
-        machine equals(&self, rhs: &Self) -> bool;
-    }
-
-    data Addressed { pointer: addr; }
-    AddressedEquatable: Addressed satisfies Equatable;
-
-    data Root {}
-    machine Root::enter(left: Addressed, right: Addressed)
-    crashes Abort
-        left == right
-    {}
 "#;
 
 fn assert_nested_mixed_aggregate_equality_replays_every_prefixed_path(

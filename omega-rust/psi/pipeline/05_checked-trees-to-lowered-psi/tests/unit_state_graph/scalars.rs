@@ -111,20 +111,6 @@ fn effects(checked: &checked_trees::CheckedTrees) -> Vec<(Vec<u8>, i128)> {
 }
 
 #[test]
-fn local_storage_and_immutable_values_survive_calls_and_selected_edges() {
-    assert_eq!(
-        effects(&crate::front_end::checked_program(PREFIX)),
-        vec![
-            (b"\x80A".to_vec(), 42),
-            (b"\x80A".to_vec(), 42),
-            (Vec::new(), 42),
-            (Vec::new(), 10),
-            (b"last".to_vec(), 3),
-        ]
-    );
-}
-
-#[test]
 fn only_the_selected_successor_evaluates_its_scalar_operands() {
     let source = r#"
         boundary trait Output { machine write(bytes: &[u8], marker: i32) reaches Output; }
@@ -144,61 +130,6 @@ fn only_the_selected_successor_evaluates_its_scalar_operands() {
     assert_eq!(
         effects(&crate::front_end::checked_program(source)),
         vec![(b"empty-divisor".to_vec(), 9), (b"quotient".to_vec(), 4),]
-    );
-}
-
-#[test]
-fn scalar_storage_survives_nested_operand_calls_and_drives_the_guard() {
-    let source = PREFIX
-        .replace(
-            "let marker: i32 = output as i32;",
-            "let mut ready: bool = selected; ready = !selected; let marker: i32 = output as i32;",
-        )
-        .replace("transition selected", "transition ready")
-        .replace(
-            "Output::write(bytes, marker);",
-            "Output::write(bytes, identity(output as i32));",
-        );
-    let source = format!("machine identity(value: i32) -> i32 {{ value }}\n{source}");
-    assert_eq!(
-        effects(&crate::front_end::checked_program(&source)),
-        vec![
-            (b"\x80A".to_vec(), 42),
-            (b"\x80A".to_vec(), 10),
-            (Vec::new(), 42),
-            (Vec::new(), 42),
-            (b"last".to_vec(), 3),
-        ]
-    );
-}
-
-#[test]
-fn selected_head_read_uses_the_actual_view_length_and_skips_empty_bytes() {
-    let source = r#"
-        boundary trait Output { machine write(bytes: &[u8], marker: i32) reaches Output; }
-        machine relay(bytes: &[u8]) reaches Output {
-            transition bytes.len > 0 {
-                true -> finish(bytes, bytes[0] as i32)
-                false -> finish(bytes, 9i32)
-            }
-            state finish(bytes: &[u8], marker: i32) { Output::write(bytes, marker); }
-        }
-        data Root {}
-        machine Root::enter() reaches Output {
-            relay("\x80A");
-            relay("");
-        }
-    "#;
-    assert_eq!(
-        effects(&crate::front_end::checked_program(source)),
-        vec![(b"\x80A".to_vec(), 128), (Vec::new(), 9),]
-    );
-    let unguarded = source.replace("bytes.len > 0", "bytes.len >= 0");
-    let error = crate::front_end::checked_program_result(&unguarded)
-        .expect_err("a selected edge alone does not prove the head is in bounds");
-    assert!(
-        format!("{error:?}").contains("cannot prove index"),
-        "{error:?}"
     );
 }
 

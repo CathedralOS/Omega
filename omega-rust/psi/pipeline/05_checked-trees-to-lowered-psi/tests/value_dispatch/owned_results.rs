@@ -19,16 +19,8 @@ use checked_trees_to_lowered_psi::TerminalMachineSelection;
 const SOURCE: &str =
     include_str!("../../../../../../tests/omega/pass/expressions/owned_match_values/main.omg");
 
-const MIXED_SOURCE: &str = include_str!(
-    "../../../../../../tests/omega/pass/expressions/owned_match_mixed_values/main.omg"
-);
-
 const RECORD_SOURCE: &str = include_str!(
     "../../../../../../tests/omega/pass/expressions/owned_match_record_values/main.omg"
-);
-
-const INTERLEAVED_SOURCE: &str = include_str!(
-    "../../../../../../tests/omega/pass/expressions/owned_match_interleaved_values/main.omg"
 );
 
 const PROJECTED_FIELD_SOURCE: &str = include_str!(

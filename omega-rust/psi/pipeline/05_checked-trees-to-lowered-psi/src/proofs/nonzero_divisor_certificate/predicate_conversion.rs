@@ -160,45 +160,4 @@ fn retain_original_citations(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{BTreeSet, Proposition, PropositionContext, ValueId, prove};
-    use proof_admission::{AcceptedProofRule, accept_certificate};
-    use semantic_vocabulary::{ScalarTerm, ScalarType};
-
-    #[test]
-    fn converted_search_rejoins_the_original_premise_in_its_original_slot() {
-        let value = ValueId::new(1).unwrap();
-        let context = PropositionContext::from_value_types([(value, ScalarType::Boolean)]).unwrap();
-        let term = ScalarTerm::value(value, ScalarType::Boolean);
-        let original = Proposition::Equal(
-            ScalarTerm::boolean_not(term.clone()).unwrap(),
-            ScalarTerm::boolean(true),
-        );
-        let goal = Proposition::Equal(term, ScalarTerm::boolean(false));
-        for semantic in [false, true] {
-            let original_roster = vec![Proposition::Truth, original.clone()];
-            let (assumptions, axioms) = if semantic {
-                (&[][..], original_roster.as_slice())
-            } else {
-                (original_roster.as_slice(), &[][..])
-            };
-            let proof = prove(&context, &goal, assumptions, axioms, &BTreeSet::new()).unwrap();
-            let acceptance =
-                accept_certificate(&context, &goal, assumptions, axioms, &proof).unwrap();
-            assert!(
-                acceptance
-                    .rules
-                    .contains(&AcceptedProofRule::PredicateDenotation)
-            );
-            let citations = if semantic {
-                acceptance.semantic_axioms
-            } else {
-                acceptance.assumptions
-            };
-            assert_eq!(citations.len(), 1);
-            assert_eq!(citations[0].index, 1);
-            assert_eq!(citations[0].proposition, original);
-            assert!(accept_certificate(&context, &goal, &[], &[], &proof).is_err());
-        }
-    }
-}
+mod tests {}

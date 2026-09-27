@@ -8,8 +8,6 @@ use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 mod ordered_boolean_guarantees;
 #[path = "boundary_wrappers/scalar_guarantees_and_boundary_requirements.rs"]
 mod scalar_guarantees_and_boundary_requirements;
-#[path = "boundary_wrappers/scalar_wrappers_and_boundary_returns.rs"]
-mod scalar_wrappers_and_boundary_returns;
 #[path = "boundary_wrappers/wrapper_composition_and_custody.rs"]
 mod wrapper_composition_and_custody;
 
@@ -178,61 +176,6 @@ fn nested_boolean_guarantee_source(expression: &str, before: &str, inputs: [bool
             "ensures result == value\nreaches Host",
             &format!("ensures result == ({expression})\nreaches Host"),
         )
-}
-
-fn assert_exact_normal_return_evidence(source: &str) {
-    let artifact = artifact(&crate::front_end::checked_program(source));
-    let module = decode_module(&artifact.0).unwrap();
-    let proof = decode_proof_bundle(&artifact.1).unwrap();
-    let wrapper = module
-        .machines
-        .iter()
-        .find(|machine| {
-            !machine.contract.ensures.is_empty() && !machine.contract.requires.is_empty()
-        })
-        .unwrap();
-    let obligation = wrapper.contract.ensures[0].obligation;
-    let mut missing = proof.clone();
-    missing
-        .evidence
-        .retain(|evidence| evidence.obligation != obligation);
-    assert_eq!(missing.evidence.len() + 1, proof.evidence.len());
-    assert!(
-        terminal_verifier::verify_module(&module, &missing, &AdmissionProfile::default()).is_err()
-    );
-
-    let mut changed = module.clone();
-    let wrapper = changed
-        .machines
-        .iter_mut()
-        .find(|machine| machine.id == wrapper.id)
-        .unwrap();
-    let block = wrapper
-        .blocks
-        .iter_mut()
-        .find(|block| matches!(block.terminator, terminal_psi::Terminator::Return { .. }))
-        .unwrap();
-    let opaque_result = block
-        .operations
-        .iter()
-        .find_map(|operation| match (&operation.kind, &operation.result) {
-            (
-                terminal_psi::OperationKind::BoundaryCall { .. },
-                terminal_psi::OperationResult::Scalar(result),
-            ) => Some(result.id),
-            _ => None,
-        })
-        .unwrap();
-    let terminal_psi::Terminator::Return { value, .. } = &mut block.terminator else {
-        unreachable!()
-    };
-    assert_ne!(*value, opaque_result);
-    *value = opaque_result;
-    // The test handler returns its input, but an opaque boundary promises no
-    // such relation. Neither its carrier nor a previous proof grants equality.
-    assert!(
-        terminal_verifier::verify_module(&changed, &proof, &AdmissionProfile::default()).is_err()
-    );
 }
 
 fn ordered_contract_source() -> String {

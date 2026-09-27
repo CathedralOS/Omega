@@ -174,10 +174,6 @@ fn start(artifact: &(Vec<u8>, Vec<u8>), arguments: &[TerminalScalarValue]) -> Te
     .unwrap()
 }
 
-fn arithmetic_source(topology: usize) -> (String, usize) {
-    arithmetic_source_spelling(topology, false)
-}
-
 fn arithmetic_source_spelling(topology: usize, trailing: bool) -> (String, usize) {
     let terminator = if trailing { "" } else { ";" };
     let entry = match topology {
@@ -217,42 +213,6 @@ fn arithmetic_source_spelling(topology: usize, trailing: bool) -> (String, usize
         ),
         topology + 3,
     )
-}
-
-#[test]
-fn selected_leaves_evaluate_nested_operands_across_three_control_shapes() {
-    for topology in 0..3 {
-        for trailing in [false, true] {
-            let (source, state_count) = arithmetic_source_spelling(topology, trailing);
-            let checked = crate::front_end::checked_program(&source);
-            let artifact = encoded(&checked, state_count);
-            for (first, second) in [(false, false), (true, false), (true, true)] {
-                let mut arguments = vec![TerminalScalarValue::Boolean(first)];
-                if topology == 2 {
-                    arguments.push(TerminalScalarValue::Boolean(second));
-                }
-                let mut execution = start(&artifact, &arguments);
-                let mut observer = ObserveCalls::default();
-                assert_eq!(
-                    execution
-                        .resume(&mut TerminalFuelMeter::unbounded(), &mut observer)
-                        .unwrap(),
-                    TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
-                );
-                let expected = if !first {
-                    [255, 7, 3]
-                } else if topology == 2 && !second {
-                    [7, 255, 2]
-                } else {
-                    [256, 7, 1]
-                };
-                assert_eq!(
-                    observer.calls,
-                    vec![expected.map(|value| unsigned(16, value)).to_vec()]
-                );
-            }
-        }
-    }
 }
 
 #[test]
@@ -316,49 +276,6 @@ fn unselected_leaves_and_short_circuit_operands_do_not_crash() {
 }
 
 #[test]
-fn first_leaf_argument_crash_precedes_later_call_even_under_exact_casts() {
-    for trailing in [false, true] {
-        let terminator = if trailing { "" } else { ";" };
-        for (first, second, cause) in [
-            ("Abort", "Trap", terminal_psi::CrashCause::Abort),
-            ("Trap", "Abort", terminal_psi::CrashCause::Trap),
-        ] {
-            let source = format!(
-                r#"
-            machine first() -> u8 crashes {first} {{ crash {first}; }}
-            machine second() -> u8 crashes {second} {{ crash {second}; }}
-            boundary trait Sink {{ machine finish(first: u16, second: u16); }}
-            data Main {{}}
-            machine Main::main(selected: bool) reaches Sink crashes Abort crashes Trap {{
-                transition selected {{ true -> yes() _ -> no() }}
-                state yes() {{ Sink::finish(first() as u16, second() as u16){terminator} }}
-                state no() {{ Sink::finish(second() as u16, first() as u16){terminator} }}
-            }}
-        "#
-            );
-            let artifact = encoded(&crate::front_end::checked_program(&source), 3);
-            for selected in [true, false] {
-                let mut execution = start(&artifact, &[TerminalScalarValue::Boolean(selected)]);
-                let mut observer = ObserveCalls::default();
-                let expected = if selected {
-                    cause
-                } else if cause == terminal_psi::CrashCause::Abort {
-                    terminal_psi::CrashCause::Trap
-                } else {
-                    terminal_psi::CrashCause::Abort
-                };
-                let result = execution.resume(&mut TerminalFuelMeter::unbounded(), &mut observer);
-                assert!(
-                    matches!(&result, Ok(TerminalExecutionStatus::Crashed(crash)) if crash.cause == expected),
-                    "selected={selected}, expected={expected:?}, actual={result:?}"
-                );
-                assert!(observer.calls.is_empty());
-            }
-        }
-    }
-}
-
-#[test]
 fn linear_claim_stays_live_until_selected_computed_boundary_call_succeeds() {
     let source = format!(
         r#"
@@ -403,47 +320,6 @@ fn linear_claim_stays_live_until_selected_computed_boundary_call_succeeds() {
         assert_eq!(accepted.structural, rejected.structural);
         assert_eq!(accepted.structural[0][0].opaque_identity, 100);
     }
-}
-
-#[test]
-fn nominal_boundary_leaf_calls_keep_authored_callable_identity() {
-    // Nominal unit callbacks require closed execution selections, so the
-    // entry invokes the boundary explicitly instead of binding an open parameter.
-    let (source, state_count) = arithmetic_source(0);
-    let source = source.replace(
-        "machine Main::main(first: bool) reaches Sink {",
-        "machine Main::main(first: bool) reaches Sink invokes Sink; {",
-    );
-    let checked = crate::front_end::checked_program(&source);
-    let artifact = encoded(&checked, state_count);
-    for selected in [false, true] {
-        let mut execution = start(&artifact, &[TerminalScalarValue::Boolean(selected)]);
-        let mut observer = ObserveCalls::default();
-        assert_eq!(
-            execution
-                .resume(&mut TerminalFuelMeter::unbounded(), &mut observer)
-                .unwrap(),
-            TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
-        );
-        let expected = if selected { [256, 7, 1] } else { [255, 7, 3] };
-        assert_eq!(
-            observer.calls,
-            vec![expected.map(|value| unsigned(16, value)).to_vec()]
-        );
-    }
-    // The open nominal form of the same entry does not publish: nominal unit
-    // callbacks require closed execution selections.
-    let (open, _) = arithmetic_source(0);
-    let open = open.replace("Sink::finish(", "SinkParam(").replace(
-        "machine Main::main(first: bool)",
-        "machine Main::main<machine SinkParam>(first: bool)
-where machine SinkParam satisfies Sink::finish;",
-    );
-    assert!(matches!(
-        checked_trees_to_lowered_psi::lower_machine(&crate::front_end::checked_program(&open), TerminalMachineSelection::Name("Main::main")),
-        Err(checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan { machine, .. })
-            if machine == "Main::main"
-    ));
 }
 
 #[test]

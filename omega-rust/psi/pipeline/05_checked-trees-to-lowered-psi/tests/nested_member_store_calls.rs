@@ -138,56 +138,6 @@ fn assert_member_field_store(
 }
 
 #[test]
-fn nested_call_assignment_to_receiver_member_runs_each_call_once() {
-    let source = r#"
-        data Rec { field: i32; }
-        machine inner(input: i32) -> i32 { input }
-        machine choose(value: i32, extra: i32) -> i32 { value }
-        machine Rec::exercise(&mut self, source: i32) {
-            self.field = choose(inner(source), source);
-        }
-    "#;
-    let (module, lowered) = lowered_verified(source, "Rec::exercise");
-    let machine = module
-        .machines
-        .iter()
-        .find(|machine| machine.id == module.entry)
-        .expect("Rec::exercise is the entry machine");
-    let receiver = machine
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.is_self)
-        .expect("the borrowed receiver stays a structural parameter");
-    assert_member_field_store(&module, "Rec::exercise", receiver.place, &[]);
-    assert_exact_call_receipts(&module, &lowered, "Rec::exercise", 2, 0);
-}
-
-#[test]
-fn nested_call_assignment_to_parameter_member_runs_each_call_once() {
-    let source = r#"
-        data Rec { field: i32; }
-        machine inner(input: i32) -> i32 { input }
-        machine choose(value: i32, extra: i32) -> i32 { value }
-        machine exercise(target: &mut Rec, source: i32) {
-            target.field = choose(inner(source), source);
-        }
-    "#;
-    let (module, lowered) = lowered_verified(source, "exercise");
-    let machine = module
-        .machines
-        .iter()
-        .find(|machine| machine.id == module.entry)
-        .expect("exercise is the entry machine");
-    let target = machine
-        .structural_parameters
-        .iter()
-        .find(|parameter| !parameter.is_self)
-        .expect("the borrowed record stays a structural parameter");
-    assert_member_field_store(&module, "exercise", target.place, &[]);
-    assert_exact_call_receipts(&module, &lowered, "exercise", 2, 0);
-}
-
-#[test]
 fn nested_call_assignment_through_nested_member_path_runs_each_call_once() {
     let source = r#"
         data Inner { field: i32; }

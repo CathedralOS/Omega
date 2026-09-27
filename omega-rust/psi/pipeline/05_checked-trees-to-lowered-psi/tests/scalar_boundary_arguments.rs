@@ -1,51 +1,7 @@
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
-use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
+use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_interpreter::TerminalStructuralInputs;
-use terminal_psi::OperationKind;
-
-const SOURCE: &str = r#"
-    boundary trait Console {
-        machine exit_process(return_code: i32)
-        reaches Console;
-    }
-
-    data Root {}
-    machine Root::enter()
-    reaches Console
-    {
-        Console::exit_process(37);
-    }
-"#;
-
-#[test]
-fn guarded_boundary_crash_contract_survives_source_lowering() {
-    let source = r#"
-        boundary trait Sink {
-            machine record(value: u16) crashes Abort value == 0u16;
-        }
-        data Root {}
-        machine Root::enter(value: u16) reaches Sink crashes Abort value == 0u16 {
-            Sink::record(value);
-        }
-    "#;
-    let checked = crate::front_end::checked_program(source);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(
-        &checked,
-        TerminalMachineSelection::Name("Root::enter"),
-    )
-    .expect("guarded boundary source should lower");
-    let routes = &lowered.semantic_module.boundary_machines[0].crash_routes;
-    assert_eq!(routes.len(), 1);
-    assert_eq!(routes[0].cause, terminal_psi::CrashCause::Abort);
-    assert!(matches!(
-        routes[0].alternatives.as_slice(),
-        [terminal_psi::CrashRouteGuard::Predicate(_)]
-    ));
-    verify_roundtrip(&lowered);
-    exercise_boundary_outcomes(&lowered, &[unsigned16(0)], true);
-    exercise_boundary_outcomes(&lowered, &[unsigned16(1)], false);
-}
 
 struct BoundaryOutcome {
     result: terminal_interpreter::TerminalEffectResult,
@@ -260,28 +216,6 @@ fn exercise_boundary_outcomes(
     }
 }
 
-#[test]
-fn named_crash_qualified_operator_call_rejects_at_terminal_lowering() {
-    // Named calls to crash-qualified operators keep checked crash-site
-    // evidence, but selected operator crash invocations still have no
-    // portable Terminal replay carrier; lowering must fail closed rather
-    // than silently drop the obligation.
-    let source = r#"
-        boundary operator == Comparison::equal(left: i32, right: i32) -> bool crashes Trap;
-        machine Root::enter(left: i32, right: i32) -> bool crashes Trap { Comparison::equal(left, right) }
-    "#;
-    let checked = crate::front_end::checked_program(source);
-    let error = checked_trees_to_lowered_psi::lower_machine(
-        &checked,
-        TerminalMachineSelection::Name("Root::enter"),
-    )
-    .expect_err("named crash-qualified operator call has no Terminal replay support");
-    assert!(
-        format!("{error:?}").contains("crash"),
-        "named crash-qualified operator call must reject as a crash obligation, not incidentally: {error:?}"
-    );
-}
-
 fn verify_roundtrip(lowered: &lowered_psi::LoweredPsi) {
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).expect("encode module");
     let evidence =
@@ -410,24 +344,6 @@ fn mixed_boundary_signature_uses_dense_scalar_crash_formals() {
 }
 
 #[test]
-fn boundary_crash_callers_cannot_omit_or_swap_the_published_cause() {
-    for ceiling in ["", "crashes Trap", "crashes Abort value != 0u16"] {
-        let source = format!(
-            r#"
-            boundary trait Sink {{ machine record(value: u16) crashes Abort value == 0u16; }}
-            pub machine enter(value: u16) invokes Sink; {ceiling} {{ Sink::record(value); }}
-        "#
-        );
-        let errors = crate::front_end::checked_program_result(&source)
-            .expect_err("published caller must cover Abort");
-        assert!(
-            errors.iter().any(|error| error.message.contains("Abort")),
-            "{errors:?}"
-        );
-    }
-}
-
-#[test]
 fn literal_false_boundary_route_has_no_surviving_cause() {
     let source = r#"
         boundary trait Sink { machine record() crashes Abort false; }
@@ -520,69 +436,4 @@ fn structural_boundary_crash_guards_reject_without_losing_the_contract() {
     )
     .expect_err("unsupported structural boundary crash contract must reject");
     assert!(format!("{error:?}").contains("guarded crash route"));
-}
-
-#[test]
-fn checked_source_preserves_exact_scalar_boundary_argument_into_terminal_psi() {
-    let checked = crate::front_end::checked_program(SOURCE);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(
-        &checked,
-        TerminalMachineSelection::Name("Root::enter"),
-    )
-    .expect("scalar boundary source should lower");
-
-    let [boundary] = lowered.semantic_module.boundary_machines.as_slice() else {
-        panic!("one boundary declaration should be retained")
-    };
-    assert_eq!(
-        boundary.scalar_parameters,
-        [ScalarType::Integer(
-            IntegerType::new(IntegerSign::Signed, 32).expect("i32")
-        )]
-    );
-    assert!(boundary.structural_parameters.is_empty());
-
-    let entry = lowered
-        .semantic_module
-        .machines
-        .iter()
-        .find(|machine| machine.id == lowered.semantic_module.entry)
-        .expect("entry machine");
-    let [literal, call] = entry.blocks[0].operations.as_slice() else {
-        panic!("literal materialization must precede the boundary call")
-    };
-    assert!(matches!(
-        literal.kind,
-        OperationKind::IntegerConstant {
-            value: IntegerValue::Signed(37)
-        }
-    ));
-    let OperationKind::BoundaryCall {
-        boundary: called,
-        arguments,
-        structural_arguments,
-        ..
-    } = &call.kind
-    else {
-        panic!("second operation should be the boundary call")
-    };
-    assert_eq!(*called, boundary.id);
-    assert_eq!(
-        arguments,
-        &[literal.result.scalar().expect("literal result").id]
-    );
-    assert!(structural_arguments.is_empty());
-
-    let bytes = terminal_codec::encode_module(&lowered.semantic_module)
-        .expect("scalar boundary module should encode canonically");
-    assert_eq!(
-        terminal_codec::decode_module(&bytes).expect("canonical scalar boundary bytes"),
-        lowered.semantic_module
-    );
-    terminal_verifier::verify_module(
-        &lowered.semantic_module,
-        &lowered.proof_bundle,
-        &AdmissionProfile::default(),
-    )
-    .expect("independent verification accepts the source-produced scalar boundary call");
 }

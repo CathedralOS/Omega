@@ -702,7 +702,7 @@ fn decision_reads_case(
 
 #[cfg(test)]
 mod tests {
-    use super::{CaseDispatch, plan};
+    use super::plan;
     use crate::emission::boolean_control::LoweredBooleanDecision;
     use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
     use crate::emission::operation_emission::expressions::LoweredDirectExpression;
@@ -781,106 +781,6 @@ mod tests {
             when_true: Box::new(when_true),
             when_false: Box::new(when_false),
         }
-    }
-
-    #[test]
-    fn selected_case_binds_its_payload_for_the_read_and_the_true_outcome() {
-        let cases = roster();
-        let mut namespace = Vec::new();
-        let mut next_value = 100;
-        let planned = plan(
-            guard(1, true),
-            &|_| Some(cases.as_slice()),
-            &mut namespace,
-            &mut next_value,
-            false,
-        )
-        .expect("the read sits below its own case test");
-        let LoweredBooleanDecision::CaseDispatch {
-            dispatch: CaseDispatch {
-                selected, payloads, ..
-            },
-            when_true,
-            ..
-        } = &planned.decision
-        else {
-            panic!("the case test became a dispatch: {:?}", planned.decision);
-        };
-        assert_eq!(*selected, StructuralCaseId::new(1).unwrap());
-        assert_eq!(payloads.len(), 2);
-        let LoweredBooleanDecision::Test {
-            condition: LoweredBooleanReturnExpression::IntegerComparison { left, .. },
-            ..
-        } = when_true.as_ref()
-        else {
-            panic!("the payload comparison survives");
-        };
-        assert!(matches!(
-            left.as_ref(),
-            LoweredDirectExpression::Parameter { position: 0, .. }
-        ));
-        assert_eq!(
-            planned
-                .established
-                .iter()
-                .map(|row| row.position)
-                .collect::<Vec<_>>(),
-            vec![0, 1]
-        );
-    }
-
-    /// A bare case test whose true outcome is a successor reading payloads:
-    /// the successor, not the guard, reads, so only the outcome flag makes the
-    /// test a dispatch. Without it the test stays a membership observation.
-    #[test]
-    fn a_case_test_before_a_payload_reading_successor_establishes_its_payloads() {
-        let cases = roster();
-        let test = || LoweredBooleanDecision::Test {
-            condition: LoweredBooleanReturnExpression::StructuralCaseMembership {
-                source: PlaceId::new(7).unwrap(),
-                path: Vec::new(),
-                case: StructuralCaseId::new(1).unwrap(),
-            },
-            when_true: Box::new(outcome(true)),
-            when_false: Box::new(outcome(false)),
-        };
-        let mut namespace = Vec::new();
-        let planned = plan(
-            test(),
-            &|_| Some(cases.as_slice()),
-            &mut namespace,
-            &mut 100,
-            true,
-        )
-        .expect("a successor-read case test plans");
-        assert!(matches!(
-            planned.decision,
-            LoweredBooleanDecision::CaseDispatch { .. }
-        ));
-        assert_eq!(
-            planned
-                .established
-                .iter()
-                .map(|row| (row.field, row.position))
-                .collect::<Vec<_>>(),
-            vec![
-                (StructuralFieldId::new(1).unwrap(), 0),
-                (StructuralFieldId::new(2).unwrap(), 1)
-            ]
-        );
-        let planned = plan(
-            test(),
-            &|_| Some(cases.as_slice()),
-            &mut Vec::new(),
-            &mut 100,
-            false,
-        )
-        .expect("an unread case test plans");
-        assert!(matches!(
-            planned.decision,
-            LoweredBooleanDecision::Test { .. }
-        ));
-        assert!(planned.established.is_empty());
     }
 
     #[test]

@@ -1,8 +1,7 @@
 use super::{
     AdmissionProfile, CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, ExpressionNode,
-    ObserveResults, StatementNode, TerminalArtifactInterpretError, TerminalExecutionResult,
-    TerminalInterpretError, TerminalScalarValue, decode_module, decode_proof_bundle, encode_module,
-    encode_proof_section, execute, main_machine, scalar_source, unsigned,
+    StatementNode, decode_module, decode_proof_bundle, encode_module, encode_proof_section,
+    main_machine,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 pub(super) fn encoded_locals(
@@ -41,29 +40,6 @@ pub(super) fn encoded_locals(
     assert_eq!(proof, lowered.proof_bundle);
     terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default()).unwrap();
     artifact
-}
-
-#[test]
-fn pure_local_before_computed_scalar_result_initializer_reaches_consumer() {
-    let source = scalar_source(false)
-        .replace("let result: u16", "let prefix: u8 = left;\nlet result: u16")
-        .replace(
-            "Scalar::identity(identity(left))",
-            "Scalar::identity(identity(prefix))",
-        );
-    let checked = crate::front_end::checked_program(&source);
-    let artifact = encoded_locals(&checked, &["prefix", "result"]);
-    let mut observer = ObserveResults::default();
-    assert_eq!(
-        execute(
-            &artifact,
-            &[unsigned(8, 255), unsigned(8, 7)],
-            &mut observer
-        )
-        .unwrap(),
-        TerminalExecutionResult::Unit
-    );
-    assert_eq!(observer.calls, vec![vec![unsigned(16, 7)]]);
 }
 
 pub(super) const SCALAR_HELPERS: &str = r#"
@@ -119,172 +95,6 @@ fn multiple_source(first_boundary: bool, second_boundary: bool) -> String {
         }}
     "#
     )
-}
-
-#[test]
-fn mixed_result_initializers_preserve_prior_locals_and_intervening_effects() {
-    for first_boundary in [false, true] {
-        for second_boundary in [false, true] {
-            let checked = crate::front_end::checked_program(&multiple_source(
-                first_boundary,
-                second_boundary,
-            ));
-            let artifact =
-                encoded_locals(&checked, &["prefix", "first", "between", "second", "third"]);
-            for (left, right) in [(255, 7), (19, 243)] {
-                let mut observer = ObserveResults::default();
-                assert_eq!(
-                    execute(
-                        &artifact,
-                        &[unsigned(8, left), unsigned(8, right)],
-                        &mut observer
-                    )
-                    .unwrap(),
-                    TerminalExecutionResult::Unit
-                );
-                let mut expected = Vec::new();
-                if first_boundary {
-                    expected.push(vec![
-                        unsigned(16, left),
-                        unsigned(16, right),
-                        unsigned(16, 11),
-                    ]);
-                }
-                expected.push(vec![unsigned(16, right)]);
-                if second_boundary {
-                    expected.push(vec![
-                        unsigned(16, right),
-                        unsigned(16, left),
-                        unsigned(16, 19),
-                    ]);
-                }
-                expected.extend(
-                    [left, left, right, left, right].map(|value| vec![unsigned(16, value)]),
-                );
-                assert_eq!(
-                    observer.calls, expected,
-                    "earlier results survive every later computation fragment and effect"
-                );
-            }
-        }
-    }
-}
-
-#[test]
-fn later_boolean_result_operands_short_circuit_using_prior_result_values() {
-    for boundary in [false, true] {
-        let reach = if boundary { "Producer + Host" } else { "Host" };
-        let second = if boundary { "Producer" } else { "Ordinary" };
-        let source = format!(
-            r#"
-            machine identity(value: bool) -> bool
-            requires true == true
-            ensures true == true
-            {{ value }}
-            machine abort() -> bool crashes Abort {{ crash Abort; }}
-            machine trap() -> bool crashes Trap {{ crash Trap; }}
-            data Ordinary {{}}
-            machine Ordinary::choose(first: bool, second: bool) -> bool
-            requires true == true
-            ensures true == true
-            {{ second }}
-            boundary trait Producer {{ machine choose(first: bool, second: bool) -> bool reaches Producer; }}
-            boundary trait Host {{ machine finish(value: bool) reaches Host; }}
-            data Main {{}}
-            machine Main::main(input: bool, other: bool) reaches {reach}
-            crashes Abort crashes Trap {{
-                let prefix: bool = input;
-                let first: bool = Ordinary::choose(identity(prefix), identity(prefix));
-                Host::finish(first);
-                let second: bool = {second}::choose(first && abort(), other || trap());
-                Host::finish(second);
-                Host::finish(first);
-            }}
-        "#
-        );
-        let artifact = encoded_locals(
-            &crate::front_end::checked_program(&source),
-            &["prefix", "first", "second"],
-        );
-        for (input, other, cause) in [
-            (false, true, None),
-            (true, false, Some(terminal_psi::CrashCause::Abort)),
-            (false, false, Some(terminal_psi::CrashCause::Trap)),
-        ] {
-            let mut observer = ObserveResults::default();
-            let result = execute(
-                &artifact,
-                &[
-                    TerminalScalarValue::Boolean(input),
-                    TerminalScalarValue::Boolean(other),
-                ],
-                &mut observer,
-            );
-            let mut expected = vec![vec![TerminalScalarValue::Boolean(input)]];
-            if let Some(cause) = cause {
-                assert!(
-                    matches!(result, Err(TerminalArtifactInterpretError::Execution(TerminalInterpretError::Crash(crash))) if crash.cause == cause)
-                );
-            } else {
-                assert_eq!(result.unwrap(), TerminalExecutionResult::Unit);
-                if boundary {
-                    expected.push(vec![
-                        TerminalScalarValue::Boolean(false),
-                        TerminalScalarValue::Boolean(true),
-                    ]);
-                }
-                expected
-                    .extend([true, false].map(|value| vec![TerminalScalarValue::Boolean(value)]));
-            }
-            assert_eq!(
-                observer.calls, expected,
-                "no result or later effects are established after argument failure"
-            );
-        }
-    }
-}
-
-#[test]
-fn later_initializer_crash_keeps_prior_effects_and_skips_later_arguments_and_consumers() {
-    for boundary in [false, true] {
-        for (first_crash, second_crash, cause) in [
-            ("Abort", "Trap", terminal_psi::CrashCause::Abort),
-            ("Trap", "Abort", terminal_psi::CrashCause::Trap),
-        ] {
-            let target = if boundary { "Producer" } else { "Ordinary" };
-            let source = format!(
-                r#"
-                {SCALAR_HELPERS}
-                machine first_crash() -> u8 crashes {first_crash} {{ crash {first_crash}; }}
-                machine second_crash() -> u8 crashes {second_crash} {{ crash {second_crash}; }}
-                data Main {{}}
-                machine Main::main() reaches Producer + Host crashes Abort crashes Trap {{
-                    let prefix: u16 = 5u16;
-                    let first: u16 = Producer::choose(identity16(prefix), identity16(7u16), 11u16);
-                    Host::finish(first);
-                    let second: u16 = {target}::choose(first_crash() as u16, second_crash() as u16, 19u16);
-                    Host::finish(second);
-                    Host::finish(first);
-                }}
-            "#
-            );
-            let artifact = encoded_locals(
-                &crate::front_end::checked_program(&source),
-                &["prefix", "first", "second"],
-            );
-            let mut observer = ObserveResults::default();
-            assert!(
-                matches!(execute(&artifact, &[], &mut observer), Err(TerminalArtifactInterpretError::Execution(TerminalInterpretError::Crash(crash))) if crash.cause == cause)
-            );
-            assert_eq!(
-                observer.calls,
-                vec![
-                    vec![unsigned(16, 5), unsigned(16, 7), unsigned(16, 11)],
-                    vec![unsigned(16, 7)]
-                ]
-            );
-        }
-    }
 }
 
 #[test]

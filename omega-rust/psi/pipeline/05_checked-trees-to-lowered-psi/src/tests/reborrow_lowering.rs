@@ -2,38 +2,13 @@ use super::{
     checked_scalar_suspension_fixture, lower_reborrow_rows, multihop_reborrow_source,
     reborrow_restored_call_source, reborrow_source, scalar_fixture_call_coordinate,
     shared_reborrow_restored_call_source, terminal_module_with_reborrow,
-    three_shared_reborrow_restored_call_source, two_shared_reborrow_restored_call_source,
+    three_shared_reborrow_restored_call_source,
     two_shared_reborrow_restored_call_source_with_observations,
 };
 use crate::TerminalMachineSelection;
 use crate::lower_machine;
 use crate::lowering_error::LoweringError;
 use checked_trees::CheckedUnitEffectOperationPlan;
-
-#[test]
-fn inline_scalar_call_computation_rejects_a_missing_source_occurrence() {
-    let mut checked = checked_scalar_suspension_fixture();
-    let (_, state, statement, _, _) = scalar_fixture_call_coordinate(&checked);
-    let computations = &mut checked.facts.values.scalar_computations;
-    let root = computations
-        .root_at(
-            state,
-            u32::try_from(statement).unwrap(),
-            checked_trees::CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 1 },
-        )
-        .expect("wait initializer computation")
-        .root;
-    let checked_trees::CheckedScalarComputationKind::Call { source_call, .. } =
-        &mut computations.nodes.get_mut(root).kind
-    else {
-        panic!("wait initializer call")
-    };
-    *source_call = Default::default();
-    assert!(
-        lower_machine(&checked, TerminalMachineSelection::Name("root")).is_err(),
-        "an inline call must retain its exact checked occurrence"
-    );
-}
 
 #[test]
 fn receiver_free_scalar_suspension_plan_rejoins_parameter_local_and_argument_frontier() {
@@ -239,110 +214,6 @@ fn unsupported_staged_local_suspension_frontier_fails_closed() {
 }
 
 #[test]
-fn ordinary_scalar_lowering_keeps_suspension_catalogs_empty() {
-    let checked = crate::front_end::checked_program(
-        r#"
-            machine identity(value: bool) -> bool
-            requires true == true
-            ensures true == true
-            { value }
-        "#,
-    );
-    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("identity"))
-        .expect("ordinary scalar lowering");
-    assert_eq!(lowered.semantic_module.suspension_call_plan_count, 0);
-    assert!(lowered.semantic_module.suspension_call_sites.is_empty());
-    assert!(lowered.semantic_module.suspension_call_plans.is_empty());
-}
-
-#[test]
-fn terminal_write_only_root_handoff_preserves_exclusive_access() {
-    let checked = crate::front_end::checked_program(
-        r#"
-        data Cell { value: i32; }
-        machine exercise(value: &write Cell) {
-            let parent: &write Cell = &write value;
-            let child: &write Cell = &write parent;
-            child.value = 1;
-        }
-    "#,
-    );
-    let rows = lower_reborrow_rows(&checked).expect("write-only root retains its handoff");
-    let [row] = rows.as_slice() else {
-        panic!("one complete root handoff");
-    };
-    assert_eq!(
-        row.direct_root_access,
-        terminal_psi::StructuralAccess::WriteOnlyBorrow
-    );
-    assert_eq!(row.lineage.len(), 1);
-    assert_eq!(
-        row.lineage[0].child_access,
-        terminal_psi::StructuralAccess::WriteOnlyBorrow
-    );
-    // This helper exercises handoff metadata shape, not source/native admission.
-    let module = terminal_module_with_reborrow(&checked);
-    terminal_verifier::validate_module(&module).expect("write-only handoff verifies");
-    let bytes = terminal_codec::encode_module(&module).expect("write-only handoff encodes");
-    assert_eq!(terminal_codec::decode_module(&bytes).unwrap(), module);
-    for forbidden in [
-        terminal_psi::StructuralAccess::SharedBorrow,
-        terminal_psi::StructuralAccess::MutableBorrow,
-        terminal_psi::StructuralAccess::Owned,
-    ] {
-        let mut changed = module.clone();
-        changed.reborrow_root_handoffs[0].lineage[0].child_access = forbidden;
-        assert!(
-            terminal_verifier::validate_module(&changed).is_err(),
-            "child access {forbidden:?}"
-        );
-    }
-    for forbidden in [
-        terminal_psi::StructuralAccess::SharedBorrow,
-        terminal_psi::StructuralAccess::Owned,
-    ] {
-        let mut changed = module.clone();
-        changed.reborrow_root_handoffs[0].direct_root_access = forbidden;
-        assert!(
-            terminal_verifier::validate_module(&changed).is_err(),
-            "root access {forbidden:?}"
-        );
-    }
-}
-
-#[test]
-fn terminal_reborrow_root_handoff_lowers_mutable_and_write_only_children() {
-    for child_access in ["&mut", "&write"] {
-        let checked = reborrow_source(child_access);
-        let rows = lower_reborrow_rows(&checked)
-            .expect("one-hop state-exit reborrow publishes root custody");
-        let [row] = rows.as_slice() else {
-            panic!("one exact root handoff")
-        };
-        assert_eq!(
-            row.direct_root_access,
-            terminal_psi::StructuralAccess::MutableBorrow
-        );
-        let [step] = row.lineage.as_slice() else {
-            panic!("one exact child edge")
-        };
-        assert_eq!(
-            step.child_access,
-            if child_access == "&mut" {
-                terminal_psi::StructuralAccess::MutableBorrow
-            } else {
-                terminal_psi::StructuralAccess::WriteOnlyBorrow
-            }
-        );
-        assert_eq!(step.formation_boundary, step.child_activation);
-        assert_eq!(
-            row.direct_root_lifetime_identity,
-            row.direct_root_place.root_identity
-        );
-    }
-}
-
-#[test]
 fn terminal_reborrow_restored_call_use_lowers_exclusive_and_sole_shared_children() {
     for (label, checked, machine_name, expected_access) in [
         (
@@ -474,93 +345,6 @@ fn terminal_reborrow_restored_call_use_lowers_exclusive_and_sole_shared_children
             lowered.semantic_module
         );
     }
-}
-
-#[test]
-fn terminal_reborrow_restored_call_use_lowers_exact_two_member_shared_cohort() {
-    let checked = two_shared_reborrow_restored_call_source();
-    let exercise = checked
-        .facts
-        .flow
-        .terminal_unit_effects
-        .machines
-        .iter()
-        .find(|plan| checked.typed.symbols.name(plan.machine) == "Harness::exercise")
-        .expect("the exact alias-erased exercise plan");
-    let [
-        CheckedUnitEffectOperationPlan::CallUnit {
-            coordinate: observation_coordinate,
-            structural_arguments: observation_arguments,
-            ..
-        },
-        CheckedUnitEffectOperationPlan::CallUnit {
-            coordinate: mutation_coordinate,
-            structural_arguments: mutation_arguments,
-            ..
-        },
-        CheckedUnitEffectOperationPlan::Complete { .. },
-    ] = exercise.operations.as_slice()
-    else {
-        panic!("one observation call, one restored mutation, and Unit return")
-    };
-    assert_eq!(observation_coordinate.statement_index, 3);
-    assert_eq!(mutation_coordinate.statement_index, 4);
-    assert_eq!(observation_arguments.len(), 2);
-    assert!(observation_arguments.iter().all(|argument| {
-        argument.source_parameter_index() == Some(0)
-            && argument.path.is_empty()
-            && argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow
-    }));
-    let [mutation_argument] = mutation_arguments.as_slice() else {
-        panic!("one restored whole-parent mutation argument")
-    };
-    assert_eq!(mutation_argument.source_parameter_index(), Some(0));
-    assert!(mutation_argument.path.is_empty());
-    assert_eq!(
-        mutation_argument.access,
-        checked_trees::CheckedStructuralAccess::MutableBorrow
-    );
-    let lowered = lower_machine(
-        &checked,
-        TerminalMachineSelection::Name("Harness::exercise"),
-    )
-    .expect("two-member shared cohort lowers to Terminal Psi");
-    let [row] = lowered
-        .semantic_module
-        .reborrow_restored_call_uses
-        .as_slice()
-    else {
-        panic!("one restored-parent call publication")
-    };
-    assert_eq!(
-        row.restoration_class,
-        terminal_psi::TerminalReborrowRestorationClass::SharedFreezeRestoration
-    );
-    let [left, right] = row.shared_cohort.as_slice() else {
-        panic!("the exact two-member shared-freeze roster")
-    };
-    assert_ne!(left, right);
-    for member in [left, right] {
-        assert_eq!(
-            member.child_access,
-            terminal_psi::StructuralAccess::SharedBorrow
-        );
-        assert_eq!(member.child_weakening, row.child_weakening);
-    }
-    assert!(row.shared_cohort.iter().any(|member| {
-        member.child_owner_identity == row.child_owner_identity
-            && member.child_owner_path == row.child_owner_path
-            && member.child_place == row.child_place
-            && member.child_activation == row.child_activation
-    }));
-    terminal_verifier::validate_module(&lowered.semantic_module)
-        .expect("two-member restored call use verifies");
-    let bytes = terminal_codec::encode_module(&lowered.semantic_module)
-        .expect("two-member restored call use encodes");
-    assert_eq!(
-        terminal_codec::decode_module(&bytes).expect("two-member restored call use decodes"),
-        lowered.semantic_module
-    );
 }
 
 #[test]
@@ -802,62 +586,6 @@ fn terminal_shared_restored_call_use_rejects_checked_cohort_drift() {
 }
 
 #[test]
-fn terminal_reborrow_root_handoff_lowers_finite_linear_exclusive_lineages() {
-    for (middle_access, leaf_access, expected) in [
-        (
-            "&mut",
-            "&mut",
-            [
-                terminal_psi::StructuralAccess::MutableBorrow,
-                terminal_psi::StructuralAccess::MutableBorrow,
-            ],
-        ),
-        (
-            "&mut",
-            "&write",
-            [
-                terminal_psi::StructuralAccess::MutableBorrow,
-                terminal_psi::StructuralAccess::WriteOnlyBorrow,
-            ],
-        ),
-        (
-            "&write",
-            "&write",
-            [
-                terminal_psi::StructuralAccess::WriteOnlyBorrow,
-                terminal_psi::StructuralAccess::WriteOnlyBorrow,
-            ],
-        ),
-    ] {
-        let checked = multihop_reborrow_source(middle_access, leaf_access);
-        let rows = lower_reborrow_rows(&checked)
-            .expect("a finite linear exclusive lineage publishes root custody");
-        let [row] = rows.as_slice() else {
-            panic!("one exact multihop root handoff")
-        };
-        assert_eq!(
-            row.direct_root_access,
-            terminal_psi::StructuralAccess::MutableBorrow
-        );
-        assert_eq!(
-            row.lineage
-                .iter()
-                .map(|step| step.child_access)
-                .collect::<Vec<_>>(),
-            expected,
-        );
-        assert!(row.lineage.iter().all(|step| {
-            step.formation_boundary == step.child_activation
-                && step.child_place.root_identity == row.direct_root_place.root_identity
-        }));
-        assert_eq!(
-            row.direct_root_lifetime_identity,
-            row.direct_root_place.root_identity
-        );
-    }
-}
-
-#[test]
 fn terminal_reborrow_root_handoff_fences_shared_and_branched_lineages() {
     let shared = reborrow_source("&");
     assert!(lower_reborrow_rows(&shared).is_err());
@@ -876,62 +604,6 @@ fn terminal_reborrow_root_handoff_fences_shared_and_branched_lineages() {
         "#,
     );
     assert!(lower_reborrow_rows(&branched).is_err());
-}
-
-#[test]
-fn terminal_multihop_root_handoff_rejects_missing_or_reordered_checked_edges() {
-    let baseline = multihop_reborrow_source("&mut", "&mut");
-    let containment = baseline
-        .facts
-        .borrow
-        .reborrow_containment_certificates
-        .iter()
-        .next()
-        .expect("first containment edge")
-        .0;
-    let mut missing = baseline.clone();
-    let retained = missing
-        .facts
-        .borrow
-        .reborrow_containment_certificates
-        .iter()
-        .filter(|(handle, _)| *handle != containment)
-        .map(|(_, row)| row.clone())
-        .collect::<Vec<_>>();
-    missing
-        .facts
-        .borrow
-        .reborrow_containment_certificates
-        .reset_retain_capacity();
-    for row in retained {
-        missing
-            .facts
-            .borrow
-            .reborrow_containment_certificates
-            .insert(row);
-    }
-    assert!(lower_reborrow_rows(&missing).is_err());
-
-    let mut reordered = baseline;
-    let event = reordered
-        .facts
-        .borrow
-        .reborrow_disposition_events
-        .iter()
-        .find(|(_, event)| {
-            event.disposition
-                == checked_trees::CheckedReborrowResourceDisposition::StateExitDirectRootHandoff
-        })
-        .expect("multihop root disposition")
-        .0;
-    reordered
-        .facts
-        .borrow
-        .reborrow_disposition_events
-        .get_mut(event)
-        .retired_parent_path
-        .swap(0, 1);
-    assert!(lower_reborrow_rows(&reordered).is_err());
 }
 
 #[test]

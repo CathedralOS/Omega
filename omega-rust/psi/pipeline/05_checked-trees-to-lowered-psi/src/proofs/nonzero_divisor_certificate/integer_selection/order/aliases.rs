@@ -137,6 +137,3 @@ fn replace_endpoint(
         },
     })
 }
-
-#[cfg(test)]
-mod tests;

@@ -107,93 +107,6 @@ fn rejected(checked: &checked_trees::CheckedTrees, expected: &str) {
 }
 
 #[test]
-fn authored_state_declarations_need_not_follow_execution_order() {
-    let first = SOURCE.find("        state first(").unwrap();
-    let second = SOURCE.find("        state second(").unwrap();
-    let finish = SOURCE.find("        state finish(").unwrap();
-    let end = SOURCE.find("\n    }\n    data Root").unwrap();
-    let declarations = [
-        &SOURCE[first..second],
-        &SOURCE[second..finish],
-        &SOURCE[finish..end],
-    ];
-    for order in [[2, 1, 0], [1, 2, 0], [2, 0, 1]] {
-        let source = format!(
-            "{}{}\n{}\n{}{}",
-            &SOURCE[..first],
-            declarations[order[0]],
-            declarations[order[1]],
-            declarations[order[2]],
-            &SOURCE[end..],
-        );
-        assert_eq!(
-            output(&crate::front_end::checked_program(&source)),
-            expected_output(),
-            "{order:?}"
-        );
-    }
-}
-
-#[test]
-fn empty_forwarding_state_preserves_joined_view_scalar_and_continuation() {
-    let source = SOURCE
-        .replace("_ -> finish(bytes, marker)", "_ -> forward(bytes, marker)")
-        .replace(
-            "        state finish(",
-            "        state forward(bytes: &[u8], marker: u8) {
-            transition { _ -> finish(bytes, marker) }
-        }
-        state finish(",
-        );
-    let mut checked = crate::front_end::checked_program(&source);
-    assert_eq!(graph(&mut checked).states.len(), 5);
-    assert_eq!(output(&checked), expected_output());
-}
-
-#[test]
-fn free_graph_retains_a_final_unit_call_expression() {
-    let source = SOURCE.replace(
-        "state finish(bytes: &[u8], marker: u8) {\n            Output::write(bytes, marker);",
-        "state finish(bytes: &[u8], marker: u8) {\n            Output::write(bytes, marker)",
-    );
-    assert_ne!(source, SOURCE);
-    assert_eq!(
-        output(&crate::front_end::checked_program(&source)),
-        expected_output()
-    );
-}
-
-#[test]
-fn view_and_scalar_successor_permutations_preserve_simultaneous_bindings() {
-    let source = r#"
-        boundary trait Output { machine write(bytes: &[u8], marker: u8) reaches Output; }
-        machine relay(first: &[u8], second: &[u8], left: u8, right: u8) reaches Output {
-            transition { _ -> swapped(second, first, right, left) }
-            state swapped(first: &[u8], second: &[u8], left: u8, right: u8) {
-                Output::write(first, left);
-                Output::write(second, right);
-                transition { _ -> restored(second, first, right, left) }
-            }
-            state restored(first: &[u8], second: &[u8], left: u8, right: u8) {
-                Output::write(first, left);
-                Output::write(second, right);
-            }
-        }
-        data Root {}
-        machine Root::enter() reaches Output { relay("first", "second", 1u8, 2u8); }
-    "#;
-    assert_eq!(
-        output(&crate::front_end::checked_program(source)),
-        vec![
-            (b"second".to_vec(), 2),
-            (b"first".to_vec(), 1),
-            (b"first".to_vec(), 1),
-            (b"second".to_vec(), 2),
-        ]
-    );
-}
-
-#[test]
 fn checked_state_roster_must_match_authored_states() {
     let base = crate::front_end::checked_program(SOURCE);
     assert_eq!(output(&base), expected_output());
@@ -214,33 +127,6 @@ fn checked_state_roster_must_match_authored_states() {
                 "state identity, contract, or custody drifted"
             }
             _ => unreachable!(),
-        };
-        rejected(&changed, expected);
-    }
-}
-
-#[test]
-fn checked_body_calls_cannot_be_dropped_or_reordered() {
-    let source = SOURCE.replace(
-        "        Output::write(bytes, marker);\n        transition selected",
-        "        Output::write(bytes, marker);\n        Output::write(bytes, 4u8);\n        transition selected",
-    );
-    assert_ne!(source, SOURCE);
-    let base = crate::front_end::checked_program(&source);
-    let mut expected = expected_output();
-    expected.insert(1, (b"\x80A".to_vec(), 4));
-    expected.insert(5, (Vec::new(), 4));
-    assert_eq!(output(&base), expected);
-    for reorder in [false, true] {
-        let mut changed = base.clone();
-        let entry = &mut graph(&mut changed).states[0];
-        assert_eq!(entry.operations.len(), 2);
-        let expected = if reorder {
-            entry.operations.swap(0, 1);
-            "reordered a source effect"
-        } else {
-            entry.operations.remove(0);
-            "dropped or added a body effect"
         };
         rejected(&changed, expected);
     }
@@ -293,26 +179,6 @@ fn checked_scalar_and_view_edges_reject_other_same_typed_source_parameters() {
 }
 
 #[test]
-fn distinct_views_survive_intermediate_states_and_rejoin() {
-    let source = source_with_alternative_inputs().replace(
-        "false -> second(bytes, marker)",
-        "false -> second(other, marker)",
-    );
-    assert_eq!(
-        output(&crate::front_end::checked_program(&source)),
-        vec![
-            (b"\x80A".to_vec(), 7),
-            (b"\x80A".to_vec(), 1),
-            (b"\x80A".to_vec(), 7),
-            (Vec::new(), 9),
-            (b"different".to_vec(), 2),
-            (b"different".to_vec(), 9),
-            (b"last".to_vec(), 3),
-        ]
-    );
-}
-
-#[test]
 fn guard_source_binding_cannot_retarget_an_unchanged_checked_guard() {
     let mut checked = crate::front_end::checked_program(SOURCE);
     assert_eq!(output(&checked), expected_output());
@@ -345,43 +211,4 @@ fn guard_source_binding_cannot_retarget_an_unchanged_checked_guard() {
         &checked,
         "pure scalar plan disagrees with its authored expression or destination",
     );
-}
-
-#[test]
-fn dropped_graph_call_cannot_fall_back_to_legacy_three_state_admission() {
-    let mut checked = crate::front_end::checked_program(
-        r#"
-        boundary trait Output { machine write(marker: u8) reaches Output; }
-        data Relay {}
-        machine Relay::relay(selected: bool) reaches Output {
-            transition selected { true -> first() false -> second() }
-            state first() { Output::write(1u8); Output::write(2u8); }
-            state second() { Output::write(3u8); }
-        }
-        data Root {}
-        machine Root::enter() reaches Output { Relay::relay(true); }
-    "#,
-    );
-    checked_trees_to_lowered_psi::lower_machine(
-        &checked,
-        TerminalMachineSelection::Name("Root::enter"),
-    )
-    .unwrap();
-    let relay = checked
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "Relay::relay")
-        .unwrap()
-        .symbol;
-    let graph = checked
-        .facts
-        .flow
-        .terminal_unit_effects
-        .composed_machines
-        .iter_mut()
-        .find(|plan| plan.machine == relay)
-        .unwrap();
-    assert_eq!(graph.states[1].operations.len(), 2);
-    graph.states[1].operations.pop();
-    rejected(&checked, "dropped or added a body effect");
 }

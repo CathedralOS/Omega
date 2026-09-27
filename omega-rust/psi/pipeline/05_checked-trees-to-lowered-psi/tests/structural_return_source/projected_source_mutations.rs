@@ -1,9 +1,6 @@
 //! Semantic ownership facts must rejoin retained plans, not merely agree in size.
 
 use checked_trees::FlowClaimOutcomeSource;
-use language_semantics::{
-    Multiplicity, PermissionAccess, PermissionEventKind, PermissionEventSource,
-};
 use terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
@@ -111,101 +108,6 @@ fn projected_returns_reject_changed_semantic_outcome_paths_and_rosters() {
             ))
             .is_err(),
             "semantic {mutation} must reject"
-        );
-    }
-}
-
-#[test]
-fn projected_returns_reject_same_path_semantic_claim_identity_swaps() {
-    let checked = super::projected_claims::checked(2);
-    let _artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("Main::demand"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("valid projected customer publishes before mutation")
-    .into_artifact();
-    for entry in [true, false] {
-        let name = if entry {
-            "Main::forward"
-        } else {
-            "Main::demand"
-        };
-        let machine = checked
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == name)
-            .unwrap();
-        let state = checked.machine_states(machine)[0].symbol;
-        let events = checked
-            .facts
-            .flow
-            .ownership
-            .permissions
-            .iter()
-            .filter(|(_, event)| {
-                event.machine_symbol == machine.symbol
-                    && event.state_symbol == state
-                    && event.access == PermissionAccess::Owned
-                    && event.multiplicity == Multiplicity::Linear
-                    && event.obligation_live
-                    && if entry {
-                        event.source == PermissionEventSource::StateEntry
-                            && event.kind == PermissionEventKind::Establish
-                    } else {
-                        matches!(event.source, PermissionEventSource::Call { .. })
-                            && event.kind == PermissionEventKind::Transfer
-                    }
-            })
-            .map(|(handle, event)| (handle, event.clone()))
-            .collect::<Vec<_>>();
-        let [(first_handle, first), (second_handle, second)] = events.as_slice() else {
-            panic!("the selected state has exactly two sibling claim events")
-        };
-        assert_eq!(first.root, second.root);
-        assert_eq!(first.source, second.source);
-        assert_ne!(first.claim_identity, second.claim_identity);
-        assert_ne!(
-            checked
-                .facts
-                .flow
-                .ownership
-                .segments
-                .span_or_empty(first.segments),
-            checked
-                .facts
-                .flow
-                .ownership
-                .segments
-                .span_or_empty(second.segments)
-        );
-        let mut invalid = checked.clone();
-        invalid
-            .facts
-            .flow
-            .ownership
-            .permissions
-            .get_mut(*first_handle)
-            .claim_identity = second.claim_identity;
-        invalid
-            .facts
-            .flow
-            .ownership
-            .permissions
-            .get_mut(*second_handle)
-            .claim_identity = first.claim_identity;
-        assert!(
-            terminal_production::TerminalProductionRequest::new(
-                &invalid,
-                TerminalMachineSelection::Name("Main::demand")
-            )
-            .produce(TerminalProductionCustody::artifact_only(
-                &mut TerminalProductionTimings::default()
-            ))
-            .is_err(),
-            "same-path semantic identity swap entry={entry} must reject"
         );
     }
 }

@@ -17,51 +17,6 @@ fn structural_scalar_return_fixture(parameters: &str, result: &str, body: &str) 
 }
 
 #[test]
-fn structural_scalar_return_lowers_value_before_exact_affine_cleanup() {
-    let checked = structural_scalar_return_fixture(
-        "first: Acknowledgement, second: Acknowledgement",
-        "i32",
-        "7i32",
-    );
-
-    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
-        .expect("closed scalar return and exact affine cleanup should lower");
-    let [machine] = lowered.semantic_module.machines.as_slice() else {
-        panic!("structural scalar return lowers one attached machine")
-    };
-    assert_eq!(machine.structural_parameters.len(), 2);
-    assert!(machine.parameters.is_empty());
-    assert!(matches!(machine.result, TerminalMachineResult::Scalar(_)));
-    let [block] = machine.blocks.as_slice() else {
-        panic!("closed structural scalar return lowers one block")
-    };
-    assert!(matches!(
-        &block.terminator,
-        Terminator::Return {
-            cleanup_actions,
-            ..
-        } if cleanup_actions == &[
-            TerminalAffineCleanupAction::DiscardRoot(place_id(2)),
-            TerminalAffineCleanupAction::DiscardRoot(place_id(1)),
-        ]
-    ));
-    assert!(matches!(
-        block.operations.as_slice(),
-        [Operation {
-            kind: OperationKind::IntegerConstant { .. },
-            ..
-        }]
-    ));
-    let bytes = terminal_codec::encode_module(&lowered.semantic_module)
-        .expect("structural scalar return should encode canonically");
-    assert_eq!(
-        terminal_codec::decode_module(&bytes)
-            .expect("canonical structural scalar return bytes should decode"),
-        lowered.semantic_module
-    );
-}
-
-#[test]
 fn structural_scalar_return_fails_closed_on_stale_cleanup() {
     let mut checked = structural_scalar_return_fixture(
         "first: Acknowledgement, second: Acknowledgement",

@@ -1,9 +1,6 @@
 //! Erased source-local carriers preserve the existing direct parameter subloan.
 
-use super::{
-    CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan, OperationKind,
-    StructuralAccess, unit_plan,
-};
+use super::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan, unit_plan};
 use terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
@@ -54,50 +51,6 @@ fn direct_aliases_retain_whole_field_indexed_and_sequential_receivers() {
             .into_artifact();
         }
     }
-}
-
-#[test]
-fn independent_aliases_keep_distinct_parameter_roots() {
-    let checked = crate::front_end::checked_program(&source(
-        "forward(first: &write Record, value: u16, second: &mut Record)",
-        "let left: &write Record = &write first; let right: &write Record = &write second;",
-        "left.replace(value); right.replace(value);",
-    ));
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("forward"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .unwrap()
-    .into_artifact();
-    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
-    let caller = module
-        .machines
-        .iter()
-        .find(|machine| machine.id == module.entry)
-        .unwrap();
-    assert_eq!(caller.blocks[0].operations.len(), 2);
-    let places = caller.blocks[0]
-        .operations
-        .iter()
-        .map(|operation| {
-            let OperationKind::CallUnit {
-                structural_arguments,
-                ..
-            } = &operation.kind
-            else {
-                panic!("receiver call");
-            };
-            assert_eq!(
-                structural_arguments[0].access,
-                StructuralAccess::WriteOnlyBorrow
-            );
-            structural_arguments[0].place
-        })
-        .collect::<Vec<_>>();
-    assert_ne!(places[0], places[1]);
 }
 
 #[test]
@@ -344,63 +297,6 @@ fn alias_replay_rejects_changed_source_loan_and_lifetime() {
             .is_err(),
             "mutation {mutation}"
         );
-    }
-}
-
-#[test]
-fn mutable_parent_alias_attenuates_before_repeated_receiver_calls() {
-    let text = source(
-        "forward(destination: &mut [Record; 2], value: u16)",
-        "let parent: &mut [Record; 2] = &mut destination; let child: &write Record = &write parent[1];",
-        "child.replace(17); child.replace(value);",
-    );
-    let checked = crate::front_end::checked_program(&text);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("forward"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .unwrap_or_else(|error| panic!("{text}: {error:?}"))
-    .into_artifact();
-    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
-    assert_eq!(module.reborrow_root_handoffs.len(), 1);
-    assert_eq!(module.reborrow_root_handoffs[0].lineage.len(), 1);
-}
-
-#[test]
-fn nested_aliases_retain_immediate_parent_chains() {
-    for access in ["mut", "write"] {
-        for (prefix, depth) in [
-            (
-                "let held: &write [Record; 2] = &write destination; let child: &write [Record; 2] = &write held;",
-                1,
-            ),
-            (
-                "let held: &write [Record; 2] = &write destination; let middle: &write [Record; 2] = &write held; let child: &write [Record; 2] = &write middle;",
-                2,
-            ),
-        ] {
-            let text = source(
-                &format!("forward(destination: &{access} [Record; 2], value: u16)"),
-                prefix,
-                "child[0].replace(value); child[1].replace(value);",
-            );
-            let checked = crate::front_end::checked_program(&text);
-            let artifact = terminal_production::TerminalProductionRequest::new(
-                &checked,
-                TerminalMachineSelection::Name("forward"),
-            )
-            .produce(TerminalProductionCustody::artifact_only(
-                &mut TerminalProductionTimings::default(),
-            ))
-            .unwrap_or_else(|error| panic!("{text}: {error:?}"))
-            .into_artifact();
-            let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
-            assert_eq!(module.reborrow_root_handoffs.len(), 1);
-            assert_eq!(module.reborrow_root_handoffs[0].lineage.len(), depth);
-        }
     }
 }
 

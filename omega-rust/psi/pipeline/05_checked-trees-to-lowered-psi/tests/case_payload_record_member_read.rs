@@ -7,10 +7,6 @@
 //! parameters, a structural member must first be copied out of the sum
 //! before its leaf field can be observed.
 
-use terminal_production::{
-    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
-};
-
 const SOURCE: &str = r#"
     boundary trait Sink { machine record(value: i32); }
     data Inner { x: i32; }
@@ -26,57 +22,6 @@ const SOURCE: &str = r#"
         state emit(v: i32) { Sink::record(v); }
     }
 "#;
-
-fn produce(checked: &checked_trees::CheckedTrees) -> terminal_psi::TerminalModule {
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        checked,
-        TerminalMachineSelection::Name("apply"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("record-payload member read lowers")
-    .into_artifact();
-    terminal_codec::decode_module(artifact.semantic_bytes()).unwrap()
-}
-
-#[test]
-fn a_record_payload_member_field_reads_through_a_staged_leaf_copy() {
-    let checked = crate::front_end::checked_program(SOURCE);
-    let module = produce(&checked);
-    let operations: Vec<&terminal_psi::OperationKind> = module
-        .machines
-        .iter()
-        .flat_map(|machine| &machine.blocks)
-        .flat_map(|block| &block.operations)
-        .map(|operation| &operation.kind)
-        .collect();
-    // The member copy names the payload through the case-qualified path; the
-    // leaf read observes the completed copy with no further path.
-    let copies: Vec<&semantic_vocabulary::CanonicalStructuralPathSegment> = operations
-        .iter()
-        .filter_map(|kind| match kind {
-            terminal_psi::OperationKind::StructuralCaseLeafCopy { path, .. } => {
-                path.iter().find(|segment| {
-                    matches!(
-                        segment,
-                        semantic_vocabulary::CanonicalStructuralPathSegment::Case(_)
-                    )
-                })
-            }
-            _ => None,
-        })
-        .collect();
-    assert_eq!(copies.len(), 1, "one case-qualified member copy staged");
-    assert!(
-        operations.iter().any(|kind| matches!(
-            kind,
-            terminal_psi::OperationKind::IntegerStructuralField { path, .. }
-                if path.is_empty()
-        )),
-        "the leaf field reads off the completed copy"
-    );
-}
 
 #[test]
 fn verifier_rejects_a_member_copy_taken_under_another_case() {

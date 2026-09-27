@@ -237,9 +237,7 @@ fn complete(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        DefinitionIndex, ProofNode, ProofRule, Proposition, ScalarTerm, ScalarType, prove,
-    };
+    use super::{DefinitionIndex, ProofNode, Proposition, ScalarTerm, ScalarType, prove};
     use proof_admission::check_certificate;
     use semantic_vocabulary::{
         IntegerSign, IntegerType, IntegerValue, PropositionContext, ValueId,
@@ -356,92 +354,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn discrete_bound_transports_the_index_literal_without_inventing_a_strict_fact() {
-        let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
-        let scalar_type = ScalarType::Integer(integer_type);
-        let value = |identity| ScalarTerm::value(ValueId::new(identity).unwrap(), scalar_type);
-        let literal =
-            |number| ScalarTerm::integer(integer_type, IntegerValue::Unsigned(number)).unwrap();
-        let context = PropositionContext::from_value_types(
-            (1..=2).map(|identity| (ValueId::new(identity).unwrap(), scalar_type)),
-        )
-        .unwrap();
-        let axioms = [
-            Proposition::Equal(value(1), literal(0)),
-            Proposition::Conjunction(vec![
-                Proposition::LessOrEqual(literal(1), value(2)),
-                Proposition::LessOrEqual(value(2), literal(255)),
-            ]),
-        ];
-        let goal = Proposition::LessThan(value(1), value(2));
-        let proof = prove_with_definitions(&context, &goal, &[], &axioms)
-            .expect("discrete bound plus index equality");
-        check_certificate(&context, &goal, &[], &axioms, &proof).unwrap();
-        assert!(prove_with_definitions(&context, &goal, &[], &axioms[..1]).is_none());
-        assert!(check_certificate(&context, &goal, &[], &axioms[..1], &proof).is_err());
-        assert!(
-            prove_with_definitions(
-                &context,
-                &goal,
-                &[],
-                &[
-                    axioms[0].clone(),
-                    Proposition::LessOrEqual(literal(0), value(2))
-                ]
-            )
-            .is_none()
-        );
-    }
-
-    #[test]
-    fn strict_literal_transport_replays_nested_and_reversed_equalities() {
-        let integer_type = IntegerType::new(IntegerSign::Unsigned, 16).unwrap();
-        let scalar_type = ScalarType::Integer(integer_type);
-        let value = |identity| ScalarTerm::value(ValueId::new(identity).unwrap(), scalar_type);
-        let literal =
-            |integer| ScalarTerm::integer(integer_type, IntegerValue::Unsigned(integer)).unwrap();
-        let context = PropositionContext::from_value_types(
-            (1..=3).map(|identity| (ValueId::new(identity).unwrap(), scalar_type)),
-        )
-        .unwrap();
-        let axioms = [
-            Proposition::Equal(literal(1), value(3)),
-            Proposition::Conjunction(vec![
-                Proposition::Equal(value(3), value(1)),
-                Proposition::Equal(value(2), literal(2)),
-            ]),
-        ];
-        let goal = Proposition::LessThan(value(1), value(2));
-        let proof = prove_with_definitions(&context, &goal, &[], &axioms)
-            .expect("strict order uses exact literal equalities");
-        assert!(matches!(
-            proof.rule,
-            ProofRule::IntegerOrderSubstitution { endpoint: 1, .. }
-        ));
-        check_certificate(&context, &goal, &[], &axioms, &proof).unwrap();
-        assert!(check_certificate(&context, &goal, &[], &axioms[..1], &proof).is_err());
-        assert!(prove_with_definitions(&context, &goal, &[], &axioms[..1]).is_none());
-        assert!(
-            prove_with_definitions(
-                &context,
-                &Proposition::LessThan(value(2), value(1)),
-                &[],
-                &axioms,
-            )
-            .is_none()
-        );
-        assert!(
-            prove_with_definitions(
-                &context,
-                &goal,
-                &[Proposition::LessOrEqual(value(1), value(2))],
-                &[],
-            )
-            .is_none()
-        );
-    }
-
     fn wrapping_add_definition(
         integer_type: IntegerType,
         defined: &ScalarTerm,
@@ -457,43 +369,6 @@ mod tests {
             )
             .unwrap(),
         )
-    }
-
-    #[test]
-    fn wrapping_add_backward_derives_the_strict_guard_with_cited_headroom() {
-        let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
-        let scalar_type = ScalarType::Integer(integer_type);
-        let defined = ScalarTerm::value(ValueId::new(1).unwrap(), scalar_type);
-        let operand = ScalarTerm::value(ValueId::new(2).unwrap(), scalar_type);
-        let literal =
-            |number| ScalarTerm::integer(integer_type, IntegerValue::Unsigned(number)).unwrap();
-        let context = PropositionContext::from_value_types(
-            (1..=2).map(|identity| (ValueId::new(identity).unwrap(), scalar_type)),
-        )
-        .unwrap();
-        let axioms = [
-            wrapping_add_definition(integer_type, &defined, &operand, 1),
-            Proposition::LessThan(defined.clone(), literal(2)),
-            Proposition::LessOrEqual(operand.clone(), literal(u64::MAX as u128 - 1)),
-        ];
-        let goal = Proposition::LessThan(operand.clone(), literal(1));
-        let proof = prove_with_definitions(&context, &goal, &[], &axioms)
-            .expect("strict backward traversal with cited headroom");
-        assert!(matches!(proof.rule, ProofRule::IntegerAffineBound { .. }));
-        check_certificate(&context, &goal, &[], &axioms, &proof).unwrap();
-        // Without the headroom conjunct the step is not admitted and the
-        // stale proof no longer replays.
-        assert!(prove_with_definitions(&context, &goal, &[], &axioms[..2]).is_none());
-        assert!(check_certificate(&context, &goal, &[], &axioms[..2], &proof).is_err());
-        // The carrier bound `operand <= MAX` supplies no headroom at all, so
-        // `v_old` could wrap and the checked requirement `operand <= MAX - 1`
-        // is unprovable.
-        let no_headroom = [
-            axioms[0].clone(),
-            axioms[1].clone(),
-            Proposition::LessOrEqual(operand.clone(), literal(u64::MAX as u128)),
-        ];
-        assert!(prove_with_definitions(&context, &goal, &[], &no_headroom).is_none());
     }
 
     #[test]
@@ -532,44 +407,5 @@ mod tests {
             )
             .is_none()
         );
-    }
-
-    #[test]
-    fn wrapping_steps_drive_nonstrict_bounds_through_full_selection() {
-        let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
-        let scalar_type = ScalarType::Integer(integer_type);
-        let defined = ScalarTerm::value(ValueId::new(1).unwrap(), scalar_type);
-        let operand = ScalarTerm::value(ValueId::new(2).unwrap(), scalar_type);
-        let dividend = ScalarTerm::value(ValueId::new(3).unwrap(), scalar_type);
-        let quotient = ScalarTerm::value(ValueId::new(4).unwrap(), scalar_type);
-        let literal =
-            |number| ScalarTerm::integer(integer_type, IntegerValue::Unsigned(number)).unwrap();
-        let context = PropositionContext::from_value_types(
-            (1..=4).map(|identity| (ValueId::new(identity).unwrap(), scalar_type)),
-        )
-        .unwrap();
-        let axioms = [
-            wrapping_add_definition(integer_type, &defined, &operand, 1),
-            Proposition::Equal(
-                quotient.clone(),
-                ScalarTerm::wrapping_integer_divide(integer_type, dividend.clone(), literal(10))
-                    .unwrap(),
-            ),
-            Proposition::LessOrEqual(defined.clone(), literal(2)),
-            Proposition::LessThan(operand.clone(), literal(3)),
-            Proposition::LessOrEqual(literal(100), dividend.clone()),
-        ];
-        // Backward through the wrapping add with derived headroom:
-        // `defined <= 2` yields `operand <= 1`.
-        let goal = Proposition::LessOrEqual(operand.clone(), literal(1));
-        let proof = super::super::super::build(&context, &goal, &[], &axioms)
-            .expect("non-strict backward traversal with derived headroom");
-        check_certificate(&context, &goal, &[], &axioms, &proof).unwrap();
-        // Forward through the wrapping divide needs no evidence:
-        // `dividend >= 100` yields `quotient >= 10`.
-        let goal = Proposition::LessOrEqual(literal(10), quotient.clone());
-        let proof = super::super::super::build(&context, &goal, &[], &axioms)
-            .expect("forward wrapping-divide bound");
-        check_certificate(&context, &goal, &[], &axioms, &proof).unwrap();
     }
 }

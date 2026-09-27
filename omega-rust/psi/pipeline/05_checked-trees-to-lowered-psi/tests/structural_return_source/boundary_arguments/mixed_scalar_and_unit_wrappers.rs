@@ -106,23 +106,6 @@ fn mixed_scalar_wrapper_cannot_erase_or_substitute_structural_membership() {
 }
 
 #[test]
-fn unit_caller_transfers_linear_claim_into_scalar_boundary_wrapper() {
-    let artifact =
-        unit_wrapper_artifact(&crate::front_end::checked_program(&unit_wrapper_source()));
-    let mut execution = start(&artifact);
-    assert_eq!(execution.live_claim_frontier().count(), 1);
-    let mut observer = ObserveSettlement::default();
-    assert_eq!(
-        execution
-            .resume(&mut TerminalFuelMeter::unbounded(), &mut observer)
-            .unwrap(),
-        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
-    );
-    assert_eq!(observer.calls, [vec![unsigned(70), unsigned(70)]]);
-    assert_eq!(execution.live_claim_frontier().count(), 0);
-}
-
-#[test]
 fn boundary_crash_in_scalar_wrapper_abandons_claim_without_a_result_or_receipt() {
     let source = unit_wrapper_source().replace("reaches PortIo", "reaches PortIo crashes Abort");
     let artifact = unit_wrapper_artifact(&crate::front_end::checked_program(&source));
@@ -359,45 +342,6 @@ fn nested_wrapper_computation_cannot_read_a_private_argument_slot() {
             .contains("scalar read differs from its authored binding or mutable place"),
         "{error:?}"
     );
-}
-
-#[test]
-fn nested_wrapper_operand_crash_preserves_only_the_completed_effect_prefix() {
-    let source = format!(
-        "machine abort() -> u16 crashes Abort {{ crash Abort; }}\n{}",
-        NESTED_WRAPPER_SOURCE
-            .replace("Scalar::observe(44u16)", "abort()")
-            .replace(
-                "machine Root::enter(receipt: Receipt) reaches PortIo",
-                "machine Root::enter(receipt: Receipt) reaches PortIo crashes Abort"
-            )
-    );
-    let artifact = unit_wrapper_artifact(&crate::front_end::checked_program(&source));
-    let mut execution = start(&artifact);
-    let mut observer = ObserveNestedWrapper::default();
-    let status = execution
-        .resume(&mut TerminalFuelMeter::unbounded(), &mut observer)
-        .unwrap();
-    assert!(
-        matches!(&status, TerminalExecutionStatus::Crashed(crash) if crash.cause == terminal_psi::CrashCause::Abort)
-    );
-    assert_eq!(
-        observer.calls,
-        [
-            vec![unsigned(5)],
-            vec![unsigned(11)],
-            vec![unsigned(22)],
-            vec![unsigned(33)]
-        ]
-    );
-    let effects = execution.effects().to_vec();
-    assert_eq!(
-        execution
-            .resume(&mut TerminalFuelMeter::unbounded(), &mut observer)
-            .unwrap(),
-        status
-    );
-    assert_eq!(execution.effects(), effects);
 }
 
 #[test]

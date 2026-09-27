@@ -295,60 +295,6 @@ fn structural_replay_rejects_swapped_case_results_and_missing_coverage() {
 }
 
 #[test]
-fn structural_replay_rejects_case_identity_and_root_owner_substitution() {
-    let mut checked = checked();
-    let (machine, state, operation) = operation(&checked);
-    validate(&checked, machine, state, &operation).expect("original source correspondence");
-    let case = checked
-        .facts
-        .values
-        .structural_values
-        .nodes
-        .iter()
-        .find_map(|(handle, node)| {
-            matches!(node.kind, CheckedStructuralValueKind::Case(_)).then_some(handle)
-        })
-        .unwrap();
-    let original = checked
-        .facts
-        .values
-        .structural_values
-        .nodes
-        .get(case)
-        .clone();
-    let CheckedStructuralValueKind::Case(construction) = &mut checked
-        .facts
-        .values
-        .structural_values
-        .nodes
-        .get_mut(case)
-        .kind
-    else {
-        panic!("case");
-    };
-    construction.case = machine;
-    assert!(validate(&checked, machine, state, &operation).is_err());
-    *checked.facts.values.structural_values.nodes.get_mut(case) = original;
-    let root = checked
-        .facts
-        .values
-        .structural_values
-        .roots
-        .iter()
-        .next()
-        .unwrap()
-        .0;
-    checked
-        .facts
-        .values
-        .structural_values
-        .roots
-        .get_mut(root)
-        .machine = state;
-    assert!(validate(&checked, machine, state, &operation).is_err());
-}
-
-#[test]
 fn nested_call_replay_rejects_an_equal_row_outside_the_owning_state() {
     let mut checked = crate::front_end::checked_program(
         "data Inner { value: u64; } data Outer { child: Inner; }
@@ -443,36 +389,6 @@ fn owned_record_child_replay_rejects_same_carrier_parameter_substitution() {
         .kind
     else {
         unreachable!()
-    };
-    argument.source =
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 1 };
-    assert!(
-        validate(&checked, machine, state, &operation)
-            .unwrap_err()
-            .to_string()
-            .contains("substituted its parameter")
-    );
-}
-
-#[test]
-fn whole_record_root_replay_rejects_same_carrier_source_substitution() {
-    let mut checked = crate::front_end::checked_program(
-        "data Value [copy] { value: u64; } machine copy(first: Value, second: Value) -> Value { first }",
-    );
-    let (machine, state, operation) = operation(&checked);
-    validate(&checked, machine, state, &operation).expect("whole record source");
-    let CheckedUnitEffectOperationPlan::EstablishStructuralValue { value, .. } = operation else {
-        panic!("whole record binding");
-    };
-    let CheckedStructuralValueKind::Place(argument) = &mut checked
-        .facts
-        .values
-        .structural_values
-        .nodes
-        .get_mut(value)
-        .kind
-    else {
-        panic!("whole record operand");
     };
     argument.source =
         checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 1 };

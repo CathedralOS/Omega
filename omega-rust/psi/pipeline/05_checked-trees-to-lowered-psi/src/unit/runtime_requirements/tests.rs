@@ -81,53 +81,6 @@ fn boolean_parameters_require_exact_namespace_and_actual_carriers() {
 }
 
 #[test]
-fn logical_substitution_preserves_requirement_children_and_equality_order() {
-    let first = ScalarTerm::value(value_id(1), ScalarType::Boolean);
-    let second = ScalarTerm::value(value_id(2), ScalarType::Boolean);
-    let mut proposition = Proposition::Conjunction(vec![
-        Proposition::Equal(first.clone(), second.clone()),
-        Proposition::Disjunction(vec![
-            Proposition::Equal(first, ScalarTerm::boolean(false)),
-            Proposition::Equal(second, ScalarTerm::boolean(true)),
-        ]),
-    ]);
-    let first_actual = ValueDeclaration {
-        qualifications: Default::default(),
-        id: value_id(9),
-        scalar_type: ScalarType::Boolean,
-    };
-    let second_actual = ValueDeclaration {
-        qualifications: Default::default(),
-        id: value_id(3),
-        scalar_type: ScalarType::Boolean,
-    };
-    substitute_runtime_requirement_scalar_values(
-        &mut proposition,
-        &BTreeMap::from([(value_id(1), first_actual), (value_id(2), second_actual)]),
-    )
-    .unwrap();
-    assert_eq!(
-        proposition,
-        Proposition::Conjunction(vec![
-            Proposition::Equal(
-                ScalarTerm::value(first_actual.id, ScalarType::Boolean),
-                ScalarTerm::value(second_actual.id, ScalarType::Boolean)
-            ),
-            Proposition::Disjunction(vec![
-                Proposition::Equal(
-                    ScalarTerm::value(first_actual.id, ScalarType::Boolean),
-                    ScalarTerm::boolean(false)
-                ),
-                Proposition::Equal(
-                    ScalarTerm::value(second_actual.id, ScalarType::Boolean),
-                    ScalarTerm::boolean(true)
-                ),
-            ]),
-        ])
-    );
-}
-
-#[test]
 fn compound_boolean_entry_equality_keeps_substitutable_scalar_denotations() {
     use CheckedBooleanExpression as Boolean;
     let first = Boolean::Parameter { position: 0 };

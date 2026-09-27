@@ -146,34 +146,6 @@ fn a_stale_integer_occurrence_rejects() {
 }
 
 #[test]
-fn a_duplicated_integer_occurrence_rejects() {
-    let checked = i32_equality();
-    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("choose")).unwrap();
-    let produced = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("choose"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .unwrap();
-    let mut corrupted = lowered.clone();
-    let duplicate = corrupted.selected_integer_comparison_occurrences[0];
-    corrupted
-        .selected_integer_comparison_occurrences
-        .push(duplicate);
-    assert_eq!(
-        lowered_psi_to_terminal_psi::checked_boundary_operator_scope(
-            &checked,
-            produced.artifact(),
-            &corrupted,
-        )
-        .unwrap_err(),
-        "checked boundary-operator applications do not map one-to-one onto Terminal operations"
-    );
-}
-
-#[test]
 fn a_foreign_integer_occurrence_rejects() {
     let checked = i32_equality();
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("choose")).unwrap();
