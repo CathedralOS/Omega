@@ -129,9 +129,62 @@ pub(super) fn build(
             [StatementNode::Transition(transition)]
                 if transition.guard == TransitionGuardNode::Always =>
             {
-                trace.phase("state graph: terminator: jump successor");
-                CheckedComposedUnitControlTerminatorPlan::Jump {
-                    successor: edge(operations, transition, ordinal, SuccessorEdge::Jump)?,
+                match program.statement_table.transition_target(transition.target) {
+                    // An unconditional `(expression)` arm closes the state
+                    // with its value: the same establishment a bare tail
+                    // expression plans, produced at the transition's ordinal.
+                    TransitionTargetNode::Value(expression)
+                        if result != checked_trees::CheckedControlResultPlan::Unit
+                            && transition.exit == TransitionExit::Ordinary
+                            && !transition.continuation.is_valid() =>
+                    {
+                        trace.phase("state graph: terminator: return expression");
+                        if let Some(result) = structural_result.cloned() {
+                            CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result }
+                        } else {
+                            let mut count = returns::next_result_ordinal(operations)?;
+                            let (operation, operand_calls) = returns::return_value_operation(
+                                program,
+                                facts,
+                                scalar_callees,
+                                shapes,
+                                machine,
+                                state,
+                                structural,
+                                entry_claims,
+                                &mut count,
+                                ordinal,
+                                *expression,
+                                trace,
+                            )?;
+                            let result = match &operation {
+                                CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                                    result,
+                                    ..
+                                }
+                                | CheckedUnitEffectOperationPlan::EstablishReference {
+                                    result,
+                                    ..
+                                }
+                                | CheckedUnitEffectOperationPlan::EstablishViewSubslice {
+                                    result,
+                                    ..
+                                } => checked_trees::CheckedUnitStructuralReturnPlan::from(
+                                    result.clone(),
+                                ),
+                                _ => return None,
+                            };
+                            operations.extend(operand_calls);
+                            operations.push(operation);
+                            CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result }
+                        }
+                    }
+                    _ => {
+                        trace.phase("state graph: terminator: jump successor");
+                        CheckedComposedUnitControlTerminatorPlan::Jump {
+                            successor: edge(operations, transition, ordinal, SuccessorEdge::Jump)?,
+                        }
+                    }
                 }
             }
             [
