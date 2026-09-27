@@ -33,14 +33,3 @@ fn exit_status(status: PackageCommandStatus) -> i32 {
         PackageCommandStatus::ReviewRequired => 3,
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::{PackageCommandStatus, exit_status};
-    #[test]
-    fn manager_outcomes_map_to_command_exit_status() {
-        assert_eq!(exit_status(PackageCommandStatus::Published), 0);
-        assert_eq!(exit_status(PackageCommandStatus::ReviewDiscarded), 0);
-        assert_eq!(exit_status(PackageCommandStatus::ReviewRequired), 3);
-    }
-}

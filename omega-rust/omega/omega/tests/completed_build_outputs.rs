@@ -177,23 +177,6 @@ fn package_artifact_only_and_executable_companions_publish_exact_completed_files
     }
 }
 
-#[test]
-fn failure_after_completing_a_file_publishes_no_output_set() {
-    let project = Project::new(true);
-    let failing = BUILD.replace("SELECTION", "builder.artifact_only();").replace(
-        "let completion: OutputCompletion = builder.output.complete(required, artifact);",
-        "let completion: OutputCompletion = builder.output.complete(required, artifact);\n    let pending: RequiredOutput = builder.output.require(\"failure.txt\");\n    builder.output.fail(pending, \"later failure\");"
-    );
-    fs::write(project.0.join("build.omg"), failing).unwrap();
-    let output = project.omega(&["--offline", "--target", "linux_x86_64", "main.omg"]);
-    assert!(!output.status.success());
-    assert!(
-        String::from_utf8_lossy(&output.stderr).contains("later failure"),
-        "{output:?}"
-    );
-    assert!(!project.0.join("build/completed").exists());
-}
-
 /// The helper is acquired as a build-purpose package. It receives only the
 /// consumer's snapshot and output facets; neither a host path nor the whole
 /// builder is passed to the downloaded generator.

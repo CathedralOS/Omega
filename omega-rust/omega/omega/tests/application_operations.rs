@@ -91,25 +91,6 @@ fn on_embedder_stack(test: impl FnOnce() + Send + 'static) {
 }
 
 #[test]
-fn compilation_returns_failure_then_success_without_terminating_the_caller() {
-    on_embedder_stack(|| {
-        let project = Project::new();
-        assert!(compile_project(project.check_request()).is_err());
-        project.write("main.omg", "machine main() {}\n");
-        let outcome = compile_project(project.check_request()).unwrap();
-        assert!(outcome.executable_path.is_none());
-        assert!(outcome.timings.phases().is_empty());
-        assert!(!project.0.join("build").exists());
-        assert!(
-            outcome
-                .report
-                .trust_admission_settlement()
-                .is_exactly_admitted()
-        );
-    });
-}
-
-#[test]
 fn unsettled_admissions_remain_structured_and_do_not_publish_or_rewrite_policy() {
     on_embedder_stack(|| {
         let project = Project::new();

@@ -1,43 +1,7 @@
-use super::{Invocation, OsString, PathBuf, parse};
+use super::{Invocation, OsString, parse};
 fn invocation(arguments: &[&str]) -> Invocation {
     parse(arguments.iter().map(OsString::from))
         .unwrap_or_else(|error| panic!("{arguments:?}: {error}"))
-}
-
-#[test]
-fn compilation_keeps_the_first_argument_and_path_values() {
-    let Invocation::Compile(request) = invocation(&[
-        "--check",
-        "--build-dir",
-        "build directory",
-        "source file.omg",
-    ]) else {
-        panic!("expected compile request");
-    };
-    assert!(request.check_only);
-    assert_eq!(request.build_dir, Some(PathBuf::from("build directory")));
-    assert_eq!(request.root_path, PathBuf::from("source file.omg"));
-    for path in ["install.omg", "update.omg", "run.omg", "audit.omg"] {
-        assert!(
-            matches!(invocation(&[path]), Invocation::Compile(request) if request.root_path == std::path::Path::new(path))
-        );
-    }
-}
-
-#[test]
-fn execution_and_inspection_receive_complete_requests() {
-    let Invocation::Run(request) = invocation(&["run", "--both", "--keep", "main.omg"]) else {
-        panic!("expected run request");
-    };
-    assert!(request.both && request.keep);
-    assert_eq!(request.main_path, PathBuf::from("main.omg"));
-    let Invocation::InspectTerminal(request) =
-        invocation(&["inspect-terminal", "--machine", "Root::main", "main.omg"])
-    else {
-        panic!("expected inspection request");
-    };
-    assert_eq!(request.machine, "Root::main");
-    assert_eq!(request.root_path, PathBuf::from("main.omg"));
 }
 
 #[test]

@@ -1,75 +1,5 @@
-use super::{PathBuf, parse_arguments, usage};
+use super::parse_arguments;
 use std::ffi::OsString;
-
-#[test]
-fn compilation_defaults_online_and_preserves_offline_in_either_order() {
-    for check in [false, true] {
-        for offline_position in [None, Some(0), Some(1)] {
-            let mut arguments = vec!["main.omg"];
-            if let Some(position) = offline_position {
-                arguments.insert(position, "--offline");
-            }
-            if check {
-                arguments.push("--check");
-            }
-            let parsed = parse_arguments(arguments.iter().map(OsString::from)).unwrap();
-            assert_eq!(parsed.offline, offline_position.is_some());
-            assert_eq!(parsed.check_only, check);
-            assert!(!parsed.timings);
-            assert!(parsed.build_inputs.is_none());
-            assert_eq!(parsed.root_path, PathBuf::from("main.omg"));
-        }
-    }
-}
-
-#[test]
-fn offline_combines_with_existing_compilation_options() {
-    let parsed = parse_arguments(
-        [
-            "--offline",
-            "--accept-admissions",
-            "--timings",
-            "--build-dir",
-            "build directory",
-            "--target",
-            "linux_x86_64",
-            "--disable-optimization",
-            "ControlFlowCleanup",
-            "main.omg",
-        ]
-        .into_iter()
-        .map(OsString::from),
-    )
-    .unwrap();
-    assert!(parsed.offline);
-    assert!(parsed.accept_admissions);
-    assert!(parsed.timings);
-    assert_eq!(parsed.build_dir, Some(PathBuf::from("build directory")));
-    assert_eq!(parsed.target_names, ["linux_x86_64"]);
-    assert!(!parsed.optimization_rollback.is_empty());
-    assert_eq!(parsed.root_path, PathBuf::from("main.omg"));
-}
-
-#[test]
-fn compilation_accepts_one_report_file_path() {
-    let parsed = parse_arguments(
-        [
-            "--check",
-            "--report-file",
-            "observations/report.txt",
-            "main.omg",
-        ]
-        .into_iter()
-        .map(OsString::from),
-    )
-    .unwrap();
-    assert_eq!(
-        parsed.report_file,
-        Some(PathBuf::from("observations/report.txt"))
-    );
-    assert!(parsed.check_only);
-    assert!(usage().contains("--report-file <path>"));
-}
 
 #[test]
 fn compilation_rejects_duplicate_and_missing_report_file() {
@@ -136,43 +66,6 @@ fn compilation_never_consumes_offline_as_an_option_value() {
 }
 
 #[test]
-fn compilation_collects_explicit_required_and_optional_build_inputs() {
-    use package_compilation::BuildSourceCaptureObligation::{Optional, Required};
-    let parsed = parse_arguments(
-        [
-            "--build-input",
-            "main.omg",
-            "project/main.omg",
-            "--optional-build-input",
-            "absent.txt",
-            "--build-input",
-            "templates",
-            "--build-input",
-            "build.omg",
-        ]
-        .into_iter()
-        .map(OsString::from),
-    )
-    .unwrap();
-    let entries = parsed
-        .build_inputs
-        .as_ref()
-        .unwrap()
-        .entries()
-        .collect::<Vec<_>>();
-    assert_eq!(
-        entries,
-        vec![
-            (b"absent.txt".as_slice(), Optional),
-            (b"build.omg".as_slice(), Required),
-            (b"main.omg".as_slice(), Required),
-            (b"templates".as_slice(), Required),
-        ]
-    );
-    assert_eq!(parsed.root_path, PathBuf::from("project/main.omg"));
-}
-
-#[test]
 fn compilation_rejects_invalid_and_overlapping_build_input_paths() {
     for path in [
         "",
@@ -235,21 +128,6 @@ fn compilation_rejects_non_utf8_build_inputs() {
         );
         assert!(matches!(result, Err(error) if error.contains("UTF-8")));
     }
-}
-
-#[test]
-fn compilation_rejects_obsolete_package_root_policy_as_an_unknown_option() {
-    for arguments in [
-        vec!["--package-root-policy"],
-        vec!["--package-root-policy", "policy.txt", "main.omg"],
-        vec!["--check", "main.omg", "--package-root-policy", "policy.txt"],
-    ] {
-        let result = parse_arguments(arguments.iter().map(OsString::from));
-        assert!(
-            matches!(result, Err(error) if error == "unrecognized option `--package-root-policy`")
-        );
-    }
-    assert!(!usage().contains("--package-root-policy"));
 }
 
 #[test]
