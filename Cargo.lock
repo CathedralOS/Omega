@@ -671,6 +671,7 @@ dependencies = [
  "language-semantics",
  "layout-plans",
  "numerics",
+ "optimization-core",
  "post-handoff-writer-plan",
  "program-entry-plan",
  "proof-admission",

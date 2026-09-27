@@ -28,6 +28,7 @@ terminal-fixed-fuel = { path = "../../../../psi/representations/terminal-psi/fue
 sha2 = "0.10.9"
 
 [dev-dependencies]
+optimization-core = { path = "../../../../omega/foundation/optimization-core", features = ["test-support"] }
 proof-admission = { path = "../../../../psi/proof/admission" }
 symbols = { path = "../../../../psi/foundation/symbols" }
 terminal-verifier = { path = "../../../../psi/representations/terminal-psi/verification" }

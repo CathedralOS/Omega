@@ -14,17 +14,25 @@
 //! which nothing outside the provider could contradict; the ledger still
 //! covers it under the installed-set fingerprint honestly.
 
+#[path = "root_admission_custody_fields.rs"]
+mod root_admission_custody_fields;
+
 use super::boundary_fixtures::candidate_for_code_with_root;
 use super::{
     boundary, candidate_for_code, entry_id, installed_code,
     installed_code_with_fill_and_installation_identity, provider_execution, root_id, slot,
 };
 use crate::{
-    InstalledRootLedger, OpaqueProviderExitAssurance, ProviderExecution, ProviderExecutionId,
-    ProviderPlanId, RootAdmission, RootAdmissionId, RootInstallError, RootSlotAuthority,
-    RootSlotId, RootSlotOwnerId, TrustReceiptId, ValidatedExternalRoot, validate_external_root,
+    InstalledRootLedger, ProviderExecution, ProviderExecutionId, ProviderPlanId, RootAdmission,
+    RootAdmissionId, RootInstallError, RootSlotAuthority, RootSlotId, ValidatedExternalRoot,
+    validate_external_root,
 };
 use executable_installation::InstalledCode;
+use optimization_core::{OneFieldSubstitutionMatrix, run_one_field_substitution_matrix};
+use root_admission_custody_fields::{
+    RootAdmissionCheck, RootAdmissionFieldForTest, admission_snapshot, foreign_admission_donor,
+    root_admission_check_kind, root_admission_custody_outcome, substitute_root_admission_for_test,
+};
 
 /// The admission-binding join: copied coordinates that must equal the
 /// retained root, installed-code occurrence, slot, owner, and trust set.
@@ -34,10 +42,6 @@ const ROOT_BINDING: &str = "does not bind the exact root, code, slot, owner, and
 /// its exit assurance revalidates against it.
 const EVIDENCE_REPLAY: &str =
     "does not replay the exact validated root, its report identity, or its exit assurance";
-/// The reportable-copy join: the record's provider plan and exit assurance
-/// must equal the retained execution evidence's values.
-const EVIDENCE_COPY: &str =
-    "does not carry the admitted provider execution's exact provider plan and exit assurance";
 
 /// One coherent install scenario: installed code, the validated root over it,
 /// and the provider execution minted for that root.
@@ -122,93 +126,67 @@ fn reject_with(fragment: &str, mutate: impl FnOnce(&mut RootAdmission, &Admissio
     );
 }
 
+/// The family's independent checker: install the substituted admission into
+/// a fresh canonical ledger. The ledger replays every field against the
+/// retained validated root, installed-code occurrence, slot authority, and
+/// execution evidence the record claims; a rejection must leave the sealed
+/// report fingerprint untouched and hand the consumed root, slot, and
+/// admission back verbatim.
+fn install_replay(admission: &RootAdmission) -> Result<RootAdmission, RootAdmissionCheck> {
+    let mut fixture = admission_fixture();
+    let (authority, _honest) = honest_admission(&fixture);
+    let expected_slot = authority.slot();
+    let expected_owner = authority.owner();
+    let mut ledger = InstalledRootLedger::claim(&mut fixture.code).expect("canonical root ledger");
+    let baseline = ledger.report_fingerprint();
+    let error = ledger
+        .install(
+            &fixture.code,
+            fixture.validated.clone(),
+            authority,
+            admission_snapshot(admission),
+        )
+        .expect_err("a substituted admission must not install");
+    assert_eq!(
+        ledger.report_fingerprint(),
+        baseline,
+        "a rejected install leaves the ledger's sealed identity untouched"
+    );
+    assert!(ledger.live_external_roots_are_empty());
+    let kind = root_admission_check_kind(error.diagnostic());
+    let (returned_root, returned_slot, returned_admission) = error.into_parts();
+    assert_eq!(
+        returned_root, fixture.validated,
+        "a rejected install hands the consumed validated root back"
+    );
+    assert_eq!(returned_slot.slot(), expected_slot);
+    assert_eq!(returned_slot.owner(), expected_owner);
+    assert_eq!(
+        &returned_admission, admission,
+        "a rejected install hands the consumed admission back verbatim"
+    );
+    Err(kind)
+}
+
 #[test]
 fn installed_root_admission_rejects_every_one_field_substitution() {
-    // Every field the admission records beside the retained evidence is
-    // substituted independently; the ledger replays each against the exact
-    // validated root, installed-code occurrence, slot, and owner it claims.
-    reject_with(ROOT_BINDING, |admission, fixture| {
-        admission.root_evidence = foreign_root(fixture);
-    });
-    reject_with(ROOT_BINDING, |admission, fixture| {
-        admission.provider_execution_evidence = provider_execution(&foreign_root(fixture));
-    });
-    reject_with(ROOT_BINDING, |admission, _| {
-        admission.provider_execution_evidence.identity =
-            root_id(77, ProviderExecutionId::from_normalized_identity);
-    });
-    reject_with(ROOT_BINDING, |admission, fixture| {
-        admission.provider_execution_evidence.root_evidence = foreign_root(fixture);
-    });
-    reject_with(ROOT_BINDING, |admission, _| {
-        admission
-            .provider_execution_evidence
-            .normalized_report_identity += 1;
-    });
-    reject_with(ROOT_BINDING, |admission, _| {
-        admission.root_report_identity += 1;
-    });
-    reject_with(ROOT_BINDING, |admission, _| {
-        admission.provider_execution = root_id(78, ProviderExecutionId::from_normalized_identity);
-    });
-    reject_with(ROOT_BINDING, |admission, _| {
-        admission.provider_execution_report_fingerprint += 1;
-    });
-    // A distinct installation occurrence carries a distinct code identity
-    // and receipt context; a distinct artifact digest carries only a foreign
-    // artifact identity under the same occurrence.
-    reject_with(ROOT_BINDING, |admission, _| {
-        admission.installed_code =
-            installed_code_with_fill_and_installation_identity(1, entry_id(1001), 0, 400)
-                .identity();
-    });
-    reject_with(ROOT_BINDING, |admission, _| {
-        admission.installed_code_context =
-            installed_code_with_fill_and_installation_identity(1, entry_id(1001), 0, 400)
-                .receipt_context();
-    });
-    reject_with(ROOT_BINDING, |admission, _| {
-        admission.artifact = installed_code(9, entry_id(1001)).artifact();
-    });
-    reject_with(ROOT_BINDING, |admission, _| {
-        admission.slot = root_id(88, RootSlotId::from_normalized_identity);
-    });
-    reject_with(ROOT_BINDING, |admission, _| {
-        admission.owner = root_id(89, RootSlotOwnerId::from_normalized_identity);
-    });
-    reject_with(ROOT_BINDING, |admission, _| {
-        admission
-            .trust_receipts
-            .pop_first()
-            .expect("non-empty trust receipts");
-    });
-    reject_with(ROOT_BINDING, |admission, _| {
-        admission
-            .trust_receipts
-            .insert(root_id(90, TrustReceiptId::from_normalized_identity));
-    });
-
-    // The retained execution evidence's own internals replay against the
-    // validated root: the whole `matches_root` coordinate set, the honestly
-    // recomputed compact report identity, and the exit assurance's
-    // construction-time validation all run again at install.
-    reject_with(EVIDENCE_REPLAY, |admission, _| {
-        admission.provider_execution_evidence.provider_plan =
-            root_id(91, ProviderPlanId::from_normalized_identity);
-    });
-
-    // The record's reportable copies of the execution's plan and exit
-    // assurance must equal the retained evidence's values.
-    reject_with(EVIDENCE_COPY, |admission, _| {
-        admission.provider_plan = root_id(92, ProviderPlanId::from_normalized_identity);
-    });
-    reject_with(EVIDENCE_COPY, |admission, _| {
-        admission.provider_exit_assurance = OpaqueProviderExitAssurance::HardwareIsolation {
-            validation_receipt: root_id(4, TrustReceiptId::from_normalized_identity),
-        };
-    });
-    reject_with(EVIDENCE_COPY, |admission, _| {
-        admission.provider_exit_assurance_report_fingerprint += 1;
+    // Every declared field: the substitution changes the retained record
+    // (the custody view is an explicit field-for-field snapshot, since the
+    // record is deliberately not `Clone` — construction is provider
+    // admission), and the independent install replay names the join that
+    // refuses it. The donor is an authentic admission minted against a
+    // foreign validated root, so the nested-evidence legs borrow real
+    // foreign evidence.
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "installed root admission",
+        fields: RootAdmissionFieldForTest::INVENTORY,
+        honest: &|| honest_admission(&admission_fixture()).1,
+        donor: foreign_admission_donor(),
+        custody: &admission_snapshot,
+        substitute: &substitute_root_admission_for_test,
+        check: &install_replay,
+        outcome: &root_admission_custody_outcome,
+        joined_replay: None,
     });
 }
 
