@@ -2441,8 +2441,9 @@ syntax and other terminal services are not prerequisites.
 
 - **PCC-PRODUCT-PUBLICATION.** Deliver standalone native behavioral evidence
   under [optional proof products](wiki/spec/proofs/publication.md).
-  `compilation-report/src/pcc.rs` already publishes/verifies native sidecars,
-  including bundle placement, image/data inventories, entry/load-map custody and
+  `native-artifact/src/proof.rs` builds/verifies native sidecars; compiler
+  reporting owns publication and bundle placement. Checks cover image/data
+  inventories, entry/load-map custody and
   bounded import-thunk semantics. These coverage checks still end in
   `Incomplete(UnsupportedEvidence { product: Native })`, not behavioral success.
 
@@ -2457,7 +2458,7 @@ syntax and other terminal services are not prerequisites.
     evidence; unbuilt target legs remain `Incomplete`.
 
   Reuse the existing envelope rather than putting semantic checking in
-  `compilation-report`. Acceptance: artifact bytes, companion and the receiver's
+  compiler reporting. Acceptance: artifact bytes, companion and the receiver's
   pinned policy suffice after deleting source and Psi. Arbitrary native bytes
   paired with valid Psi/recomputed producer hashes, tampering, relabeled profiles
   and stale sidecars reject. Bind evidence after byte-changing finalization and

@@ -383,7 +383,7 @@ fn reidentify(inventory: &mut PlacedExecutableRegionInventory) {
 /// alone — see
 /// `placed_executable_region_classification_and_footprint_stay_identity_bound`.
 /// The record has no wire codec in this crate — the canonical section codec
-/// lives in `compilation-report`'s `NativePlacedImageEvidence` — so
+/// lives in `native-artifact`'s `NativePlacedImageEvidence` — so
 /// non-canonical shapes (zero width, overlaps, overruns, foreign digests,
 /// stale seals) reject at the replay admission itself, and the other side of
 /// the join — the final text bytes — rejects substituted, truncated, or

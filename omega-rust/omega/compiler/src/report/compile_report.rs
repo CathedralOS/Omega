@@ -3,20 +3,22 @@
 //! native artifacts into exact executable bytes with their custody receipts.
 
 use crate::report::executable_publication::{
-    ExecutablePublicationReceipt, appended_file_name_path, executable_container_digest,
-    executable_installation_evidence_digest, install_staged_products,
-    native_publication_certificate_digest, native_publication_evidence_digest,
-    publish_exact_file_bytes, remove_stale_companion, stage_exact_bytes, validate_native_pair,
-    validate_psi_pair,
+    ExecutablePublicationReceipt, executable_container_digest,
+    executable_installation_evidence_digest, native_publication_certificate_digest,
+    native_publication_evidence_digest, validate_native_pair,
 };
 use crate::report::package;
-use crate::report::pcc::build_native_proof_sidecar;
+use crate::report::publication::{
+    PreparedPsiProofPair, appended_file_name_path, install_staged_products, remove_stale_companion,
+    stage_exact_bytes,
+};
 use crate::report::{
     FinalRealizationEvidenceError, OptimizationRollbackReceipt, PccPublicationReceipt,
     ProductionArtifactIdentity, ProductionCompilationManifest, ProductionCompilationSubject,
     RetainedNativeArtifact, RetainedTerminalArtifact, TerminalNativeRealizationProposal,
 };
 use artifacts::compile_timings::PhaseTiming;
+use native_artifact::build_native_proof_sidecar;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -376,28 +378,16 @@ impl CompileReport {
             // beside the executable: one staged tree, one rename, so a failed
             // pair can never leave a certified-looking install.
             if self.pcc_requests.psi {
-                let psi_bytes = artifact.psi_artifact().to_bytes();
-                let psi_sidecar = terminal_codec::build_psi_proof_sidecar(
+                let pair = PreparedPsiProofPair::new(
                     artifact.psi_artifact(),
                     &self.terminal_admission_profile,
-                    &psi_bytes,
-                )
-                .map_err(|error| format!("cannot build the psi proof sidecar: {error}"))?;
-                let psi_sidecar_bytes = psi_sidecar.to_bytes();
-                validate_psi_pair(&psi_bytes, &psi_sidecar, &self.terminal_admission_profile)?;
-                companions.push((".psi".to_owned(), psi_bytes.clone()));
-                companions.push((".psi.proof".to_owned(), psi_sidecar_bytes.clone()));
+                )?;
+                companions.push((".psi".to_owned(), pair.artifact_bytes().to_vec()));
+                companions.push((".psi.proof".to_owned(), pair.sidecar_bytes().to_vec()));
                 let package_root = build_dir.join(format!("{application_name}.app"));
                 let macos_dir = std::path::Path::new("Contents").join("MacOS");
-                pcc_publications.push(PccPublicationReceipt {
-                    product: terminal_codec::PccProductKind::Psi,
-                    artifact_path: package_root
-                        .join(macos_dir.join(format!("{application_name}.psi"))),
-                    artifact_byte_len: psi_bytes.len() as u64,
-                    sidecar_path: package_root
-                        .join(macos_dir.join(format!("{application_name}.psi.proof"))),
-                    sidecar_byte_len: psi_sidecar_bytes.len() as u64,
-                });
+                let psi_path = package_root.join(macos_dir.join(format!("{application_name}.psi")));
+                pcc_publications.push(pair.receipt(&psi_path));
             }
             // The native companion sits beside the inner executable as
             // `Contents/MacOS/<name>.proof`; the staged rename makes its
@@ -436,34 +426,17 @@ impl CompileReport {
             // was the gap: a failure after the artifact and before its
             // companion left new bytes beside the previous run's `.proof`, and
             // "Publication must not associate a stale sidecar with newly
-            // written bytes" (spec, proofs/publication.md). Staging first means
-            // such a failure leaves the previous consistent pair untouched.
+            // written bytes" (spec, proofs/publication.md). A staging failure
+            // leaves the previous consistent pair untouched; an installation
+            // failure removes the members this attempt installed.
             let mut staged_products = Vec::new();
             if self.pcc_requests.psi {
-                let psi_bytes = artifact.psi_artifact().to_bytes();
-                let psi_sidecar = terminal_codec::build_psi_proof_sidecar(
+                let pair = PreparedPsiProofPair::new(
                     artifact.psi_artifact(),
                     &self.terminal_admission_profile,
-                    &psi_bytes,
-                )
-                .map_err(|error| format!("cannot build the psi proof sidecar: {error}"))?;
-                let psi_sidecar_bytes = psi_sidecar.to_bytes();
-                validate_psi_pair(&psi_bytes, &psi_sidecar, &self.terminal_admission_profile)?;
+                )?;
                 let psi_path = appended_file_name_path(&output_path, ".psi");
-                let psi_sidecar_path = appended_file_name_path(&psi_path, ".proof");
-                staged_products.push(stage_exact_bytes(&psi_path, &psi_bytes, false)?);
-                staged_products.push(stage_exact_bytes(
-                    &psi_sidecar_path,
-                    &psi_sidecar_bytes,
-                    false,
-                )?);
-                pcc_publications.push(PccPublicationReceipt {
-                    product: terminal_codec::PccProductKind::Psi,
-                    artifact_path: psi_path,
-                    artifact_byte_len: psi_bytes.len() as u64,
-                    sidecar_path: psi_sidecar_path,
-                    sidecar_byte_len: psi_sidecar_bytes.len() as u64,
-                });
+                pcc_publications.push(pair.stage(&psi_path, &mut staged_products)?);
             } else {
                 // An earlier Psi-requested publication's companions must not
                 // survive beside an executable they do not commit to; removing
@@ -493,8 +466,8 @@ impl CompileReport {
                 // survive beside executable bytes it does not commit to.
                 remove_stale_companion(&appended_file_name_path(&output_path, ".proof"))?;
             }
-            // The executable joins the same staged set, so its bytes and the
-            // companions committing to them become visible together.
+            // The executable joins the same staged set. Only after every member
+            // stages successfully does sequential installation begin.
             staged_products.push(stage_exact_bytes(&output_path, &output.bytes, true)?);
             install_staged_products(&staged_products)?;
             output_path
@@ -582,8 +555,8 @@ impl CompileReport {
 
     /// Publish the retained Terminal product as one `<root>.psi` artifact,
     /// plus its adjacent `.proof` companion when the normalized Build
-    /// requested Psi PCC. The artifact is staged, validated and replayed
-    /// before the pair is reported. A native proof request reports
+    /// requested Psi PCC. Both members are prepared, validated and staged
+    /// before either destination is installed. A native proof request reports
     /// `Incomplete` rather than downgrading to custody-only success, and an
     /// earlier publication's unrequested `.proof` is removed before the new
     /// artifact installs so no stale sidecar binds the new bytes.
@@ -632,39 +605,21 @@ impl CompileReport {
             )
         })?;
         let psi_path = build_dir.join(format!("{stem}.psi"));
-        let psi_bytes = artifact.artifact().to_bytes();
         let mut pcc_publications = Vec::new();
-        // The companion is built and validated before any pair bytes become
-        // visible, so a failed pair never leaves a certified-looking artifact.
-        let psi_sidecar_bytes = if self.pcc_requests.psi {
-            let psi_sidecar = terminal_codec::build_psi_proof_sidecar(
-                artifact.artifact(),
-                &self.terminal_admission_profile,
-                &psi_bytes,
-            )
-            .map_err(|error| format!("cannot build the psi proof sidecar: {error}"))?;
-            let psi_sidecar_bytes = psi_sidecar.to_bytes();
-            validate_psi_pair(&psi_bytes, &psi_sidecar, &self.terminal_admission_profile)?;
-            Some(psi_sidecar_bytes)
+        let mut staged_products = Vec::new();
+        if self.pcc_requests.psi {
+            let pair =
+                PreparedPsiProofPair::new(artifact.artifact(), &self.terminal_admission_profile)?;
+            pcc_publications.push(pair.stage(&psi_path, &mut staged_products)?);
         } else {
+            let psi_bytes = artifact.artifact().to_bytes();
             // Without a Psi proof request no `.proof` companion may remain
             // beside the artifact bytes about to be replaced: an earlier
             // publication's sidecar commits to bytes this run did not write.
             remove_stale_companion(&appended_file_name_path(&psi_path, ".proof"))?;
-            None
-        };
-        publish_exact_file_bytes(&psi_path, &psi_bytes)?;
-        if let Some(psi_sidecar_bytes) = psi_sidecar_bytes {
-            let psi_sidecar_path = appended_file_name_path(&psi_path, ".proof");
-            publish_exact_file_bytes(&psi_sidecar_path, &psi_sidecar_bytes)?;
-            pcc_publications.push(PccPublicationReceipt {
-                product: terminal_codec::PccProductKind::Psi,
-                artifact_path: psi_path.clone(),
-                artifact_byte_len: psi_bytes.len() as u64,
-                sidecar_path: psi_sidecar_path,
-                sidecar_byte_len: psi_sidecar_bytes.len() as u64,
-            });
+            staged_products.push(stage_exact_bytes(&psi_path, &psi_bytes, false)?);
         }
+        install_staged_products(&staged_products)?;
         Ok(Self {
             build_outputs: self.build_outputs,
             build_observation: self.build_observation,

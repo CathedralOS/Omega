@@ -20,7 +20,7 @@ inventory replay below that lane is NOT inert --
 image-emission's `validate_terminal_image_with_import_count`
 (`image-emission/src/final_image_validation.rs:30,60`) and from the PCC
 receiver's `NativePlacedImageEvidence::replay_against`
-(`compilation-report/src/pcc/native_evidence.rs:618`). Only the compiler-entry
+([native-artifact/src/proof/placed_image.rs](../../artifacts/native-artifact/src/proof/placed_image.rs)). Only the compiler-entry
 footprint binding still waits for a caller. Their tests and the
 architecture test's source-text assertions do not establish production coverage.
 Do not describe native output as carrying a complete replayed footprint until

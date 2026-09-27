@@ -106,10 +106,7 @@ impl RetainedBuildOutputs {
             self.tree
                 .materialize_into(&files)
                 .map_err(|error| error.to_string())?;
-            crate::report::executable_publication::publish_exact_file_bytes(
-                &manifest,
-                &self.manifest,
-            )?;
+            crate::report::publication::publish_exact_file_bytes(&manifest, &self.manifest)?;
         } else {
             let metadata =
                 std::fs::symlink_metadata(&directory).map_err(|error| error.to_string())?;
