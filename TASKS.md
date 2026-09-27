@@ -654,14 +654,9 @@ the complete product bar; focused successes below do not establish that baseline
   the essentially 1:1 Rust port; this item owns compiler integration and unchanged
   application acceptance.
 
-  Reconcile application publication before changing the parent gitlink. The
-  recorded pin `ef6682f75f48f9a750bc8f7594cc1f04e78ddf60` contains cumulative
-  geometry and scalar scan/RLE/dispatch work; preserve it rather than re-porting.
-  Fetch application `main`, publish any remaining local work without force-pushing,
-  then pin a tested published commit.
-
-  Run `python samples/apps/squalr/tools/verify.py native --timeout 600 --omega <binary>`
-  through ordinary package review on matching hosts. Connect
+  Run `python samples/apps/squalr/tools/verify.py native --target linux_x86_64
+  --timeout 600 --omega <binary>` through ordinary package review on a matching
+  host. Connect
   **VEC-NATIVE-GROWTH** to partitioned scan results and repeated filtering;
   **BUMP-ALLOCATOR-CANARY** and **PLAN-LAID-VIEWS** supply allocation and placed
   access. Follow the application's actual next missing operation rather than
@@ -671,9 +666,8 @@ the complete product bar; focused successes below do not establish that baseline
   in state patterns (`ScanFunctionScalar` and `SnapshotRegionFilter`), then fix
   any remaining resolution/lowering gap and restore the intended sum API.
   Boolean-plus-payload and package-local sum substitutions are not proof of
-  parity. Migrate index bounds through **CANONICALIZE-SCALAR-RANGE-CONTRACTS**;
-  ordinary marker-data namespaces are an implementation choice, not an owner
-  decision. Port work stays with this customer through native acceptance.
+  parity. Ordinary marker-data namespaces are an implementation choice, not an
+  owner decision. Port work stays with this customer through native acceptance.
 
   The pinned win64 frontier is
   `native_win64_write_byte_catalog_frontier`: the win64 x86-64 target package
@@ -686,9 +680,9 @@ the complete product bar; focused successes below do not establish that baseline
   and refusal/error-text parity, `set_alignment` calls, native clone/serialization
   (including case-bearing alignment values), and token/named ordering agreement:
   order by base address with equal-base equivalence while `equals` remains
-  size-sensitive. At the pin, parsing and named region ordering are absent;
-  clone/wire helpers exist but in-package checking does not close application
-  execution. Keep these mapped gaps explicit in the app-owned parity work.
+  size-sensitive. Existing parsing, ordering and clone/wire helpers need
+  application execution; in-package checking does not close those gates.
+  Keep remaining parity gaps explicit in the app-owned work.
   Debug-assertion parity uses the settled assertion/build contracts, not an
   invented implicit debug/release switch.
 
@@ -702,49 +696,36 @@ the complete product bar; focused successes below do not establish that baseline
   [conditional loading premises](wiki/spec/build/component_publication.md#products-and-authority),
   not a fabricated runtime installation grant or mandatory Rust supervisor.
 
-  Compiler integration at `301eca0a256` with application
-  `5fd89ec0a100e214a8bc45ba8874b106875b4928` (canonical-range migration,
-  not yet published), on macOS ARM64: ordinary `omega update --project
-  <application>/squalr-engine-targets-native --target linux_x86_64` and
-  `omega update --resume --project <application>/squalr-engine-targets-native`
-  now check all four source packages and publish the local lock after review.
-  `ProcName::byte_at` and `NormalizedModule::byte_at` retain the source interval
-  through exact integer widening; `NormalizedModule::contains_address` proves
-  its literal result bounds independently of the unrelated end-address call.
-  Existing API `StorageSizeConversions` guarantees remain closed. Fresh package
-  replay verifies these bodies without assumption certificates; stale guards,
-  invalid capture intervals, selected indexing and non-total casts still refuse.
-  The review preserves existing authority under local source/host replacement;
-  these checkout-local locks are not application publication.
+  The published application pin is
+  `5fd89ec0a100e214a8bc45ba8874b106875b4928`, including canonical scalar
+  requires/ensures. With compiler `210c832a7b37` on macOS ARM64,
+  `RUST_MIN_STACK=67108864 OMEGA_REVIEW_TIMINGS=1 omega update --project
+  samples/apps/squalr/squalr-tests --target macos_arm64` completes discovery
+  for all 17 package occurrences. Final binding review and lock publication
+  remain unverified; discovery is not complete package or native acceptance.
+  The earlier engine subslice count rejection no longer stops discovery.
+  Continue the full update with `--target linux_x86_64`, complete ordinary
+  review/resume, then run the harness on a matching Linux x86-64 host: the
+  actual `Main::main` and filesystem/time realizations currently target Linux.
+  The macOS build declaration alone does not provide a macOS entry/provider.
 
-  The complete start/validation executor prefix now checks all 15 imported
-  source packages on macOS ARM64 and reaches ordinary capability review.
-  Shared-only owned arrays retain their own storage writes without requiring
-  exclusive referent origins. Exact captured scalar bounds survive disjoint
-  storage writes when alias expansion is incomplete; reference and descriptor
-  facts remain conservative, and writes through exclusive aggregate fields
-  still retire the count bound. Rerun the unchanged full 17-package
-  `omega update --project <application>/squalr-tests --target macos_arm64`,
-  complete ordinary review, then run the application harness. The previous
-  full run's engine subslice failure is closed in the full prefix, but full
-  application acceptance remains unverified.
+  Restore the full acceptance route in `squalr-tests/main.omg` and
+  `squalr-tests/src/command_driver.omg`. The published entry skips expansion,
+  ordering and string-parsing states, leaves the six `FixtureKit` scalar
+  scan/repeat checks dormant, and prints PASS after seeded snapshot/tombstone
+  checks. Connect those existing checks and the production new-scan,
+  element-scan, repeat, delete and list executors before success. The command
+  fixture's eight-byte-spaced address oracle requires explicit `Alignment8`;
+  keep the production `Alignment1` default. Also assert exact RLE ranges and
+  a genuinely zero-length input: current tails/overlap checks assert addresses,
+  and `verify_empty` means nonmatching bytes. Executing the command helpers
+  does not establish coverage of the privileged-command dispatcher.
 
-  A native probe importing the actual `squalr_engine_api::NormalizedRegion`
-  now completes three-package review and exits 70 on macOS ARM64. It checks
-  shared cloning from a mutable local, later mutation of the original with
-  independent cloned values, retained-end region updates, and saturating
-  address overflow. The compiler now admits that exact shared local loan as
-  an ordinary structural result argument; owned and exclusive custody checks
-  remain enforced. This probe uses the same application revision and pinned
-  standard library, but does not establish the full geometry marker or scans.
-  `EnginePrivilegedState::copy_supplied_modules` now proves its returned count
-  interval from the exact immutable returning-state parameter's arrival
-  requirement. The compiler still checks every incoming edge and every normal
-  exit; invalid arrivals, mutable reassignment, and bad sibling returns reject.
-  The unchanged 15-package probe completes ordinary review and publishes its
-  local lock, as does the two-package reproducer. Continue the full application
-  run with this proof repair and preserve the 17-package/37-edge graph;
-  package acceptance does not establish full application native acceptance.
+  Whole-graph checking remains expensive: the successful discovery above took
+  roughly 42 minutes. **CHECK-CLOSURE-ONCE** owns repeated package/checked-stage
+  work. Preliminary and settled products have different authority receipts;
+  reuse requires exact inputs, not weakening the second check. Keep live runs
+  until a verdict and distinguish a timeout from a source rejection.
 
 - **VEC-NATIVE-GROWTH.** (split-of:BUMP-ALLOCATOR-CANARY) Implement ordinary
   library `Vec<T>` for Squalr's growable scan results. Owners:
