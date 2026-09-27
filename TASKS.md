@@ -3810,62 +3810,53 @@ syntax and other terminal services are not prerequisites.
   [value dispatch](wiki/spec/language/patterns.md) for owned/borrowed/linear
   results, structural/case/domain patterns and coverage. Owners: validation's
   `value_custody/expression_types/{match_dispatch,result_type}.rs`, checked
-  value continuations, Terminal production and package-review contract/index
-  projection. Preserve once-only subject evaluation, authored first-match
-  order, selected-arm-only execution, exact result/loan origins and death edges.
-
-  Remaining work:
+  value continuations, Terminal production and package-review's
+  `capture/contracts/expressions/projection/`. Preserve once-only subject
+  evaluation, authored first-match order, selected-arm-only execution, exact
+  result/loan origins and death edges.
 
   - Carry existing affine custody through branch-local calls/receivers and
-    effectful subjects; emit projected record fields and fixed-index leaves
-    through per-arm extraction and exact successor places. Resume from
-    `value_dispatch/owned_results/{call_product_arms,folded_index_projection,linear_child_carriers}.rs`:
-    checking record-child joins or literal/folded index equivalence does not
-    supply leaf emission or claim-bearing body plans.
+    effectful subjects. Complete projected fields inside record-construction
+    arms, heterogeneous residual custody and claim-bearing body plans;
+    ordinary projected-child selections already lower. Resume from stage 05's
+    `tests/value_dispatch/owned_results/{call_product_arms,interleaved_and_projected_sources,linear_child_carriers}.rs`.
     `folded_index_projection::folded_index_faces_the_literal_lowering_boundary`
-    is red since `c37c3dbd91`: the literal `items[1]` now gets a checked plan
-    and stops at "fixed array literal has no Terminal establishment", while
-    the folded `items[0 + 1]` still has no source-independent checked scalar
-    control plan. The folded index needs the same checked plan in
-    typed-trees-to-checked-trees before the pair meets one boundary again.
-  - Complete native shared-reference joins beyond plain shared referents.
-    Shared joins over primitive scalars and plain records
-    (`abstract_operations::control_flow::address_joins`) lower, replay and
-    execute natively. Remaining: exclusive and write-only joins (coordinate with
-    **WRITE-ONLY-BORROW**), referents that carry references or descriptors,
-    reads and projections through a join place, primitive-local origins, and
-    loan ends at the view's last use (Omega currently pins origins over the
-    join's whole dominated region). Separately, legalization's
-    single-provenance `branch_edges` rejects conditional edges threaded by
-    combined Psi rewrites, including scalar-only matches.
-  - Complete exclusive and case-bearing borrowed joins under their own custody,
-    and borrowed-subject successor lifecycle publication. Dynamic indexes,
-    ranges, case members and computed borrowed roots need real place/loan
-    evidence, not a wider unchecked carrier. Retain exact source-state loan
-    closure; checking a borrowed tag does not publish its lifecycle.
+    now expects literal and folded indices to meet the same fixed-array
+    establishment refusal. **RECORD-LITERAL-ARRAY-FIELD** owns that construction
+    gap; do not reopen folded-index planning.
+  - Complete borrowed joins through source production and native execution.
+    Reuse `abstract_operations::control_flow::address_joins`: shared primitive/
+    plain aggregate admission and mutable whole-record address carriers exist.
+    Primitive/projected exclusive arms, write-only joins (**WRITE-ONLY-BORROW**),
+    case-bearing or reference/descriptor-bearing referents, dynamic indexes,
+    ranges and computed roots still need exact place/loan evidence. Complete
+    join-place reads/projections, primitive-local origins and borrowed-subject
+    successor lifecycle publication. Retain source-state loan closure and end
+    loans at last use; Omega's `current_ownership/address_joins.rs` currently
+    pins origins through the whole dominated region.
+  - Carry combined Psi rewrite provenance through legalization's `branch_edges`
+    in `scalar_graph_input/control.rs`, which currently requires one Psi edge
+    identity per successor, including for scalar matches.
   - Instantiate composite/constrained result shells and exact static arguments
-    for indexed predicates/theorems and package memberships. Bare bound
-    operator `-> T` results already retain the operand's exact type; unresolved
-    dependent shells must not export declaration-local identities.
-    Qualifications, routed membership, callable signatures and erasure need
-    actual transport. **OPERATOR-MACHINE-SUPPLY** owns operation execution,
-    **CRASH-CONTRACT** crash-qualified equality, and
-    **STATE-LOCAL-VALUE-FRONTIER** numeric landing and sequencing.
+    for indexed predicates/theorems and package memberships, retaining
+    qualifications, routed membership, callable signatures and erasure.
+    Bare operator `-> T` binding exists; dependent shells cannot export
+    declaration-local identities. Package review already projects exact call
+    arguments but explicitly refuses `Match`; extend canonical projection.
+    **OPERATOR-MACHINE-SUPPLY** owns execution, **CRASH-CONTRACT** crash-qualified
+    equality, and **STATE-LOCAL-VALUE-FRONTIER** numeric landing/sequencing.
 
-  Generalize checked place/loan establishment across matches, locals and calls;
-  do not expand an arm-expression roster or flatten branch ownership into a
-  statement-wide move list. The old direct-borrow-local refusal is not a
-  remaining limitation.
-
-  Acceptance: close the `checked-trees-to-lowered-psi --test suite value_dispatch`
-  gaps and
+  Generalize place/loan establishment across matches, locals and calls; do not
+  expand an arm-expression roster or flatten ownership into statement-wide moves.
+  Acceptance: extend `checked-trees-to-lowered-psi --test suite value_dispatch`
+  through independent artifact replay and native execution, retaining
   [float Match customers](wiki/drafts/reference/float_realization.md#operation-and-control-custody).
-  Preserve effects, skipped trapping arms, overlapping patterns, full coverage,
-  and independent replay. Retain `match_anonymous_result_landing`,
-  `numeric_operand_destinations`, and `dutch_flag`'s native exit-70 oracle with
-  explicit copyable swaps. Wrong qualifications, ownership, result types and
-  incompatible arms reject before an outer bare-carrier cast. Checking or
-  interpretation alone does not close native execution.
+  Cover effects, skipped trapping arms, overlapping patterns and full coverage.
+  Preserve `match_anonymous_result_landing`, `numeric_operand_destinations` and
+  `collections/runtime_dutch_flag_partition_exit`'s exit-70 oracle with copyable
+  swaps. Wrong qualifications, ownership, result types and incompatible arms
+  reject before an outer bare-carrier cast. Checking, target lowering or
+  interpretation alone does not establish native execution.
 
 - **OPERATOR-MACHINE-SUPPLY.** Complete
   [declaration-owned executable supply](wiki/spec/language/expressions.md#executable-supply),
