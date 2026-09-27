@@ -603,9 +603,15 @@ pub fn unwrapped_type_reference(
 }
 
 /// Whether a declared type is wholly zero-constructible: a primitive scalar,
-/// a fixed array of literal extent whose element qualifies, or a named
-/// record whose fields all qualify recursively. Bounded integers (the
-/// restriction may exclude 0), sums, references, byte sequences, and erased
+/// a fixed array of literal extent whose element qualifies, a named record
+/// whose fields all qualify recursively, or a named sum whose first declared
+/// case exists and carries only plain scalar payload fields. Zeroed storage
+/// selects the first case (the tag stores the case ordinal and all-zero bits
+/// name ordinal 0), so only that case's payload contributes cells — and only
+/// when every field is an unrestricted integer, boolean, or address scalar:
+/// constrained or bounded carriers may exclude 0, floats spell their own
+/// terminal leaf, and nested composites have no case-aware leaf path.
+/// Bounded integers, mixed shapes, references, byte sequences, and erased
 /// members reject — matching the terminal-level `zeroed_structural_shape`
 /// admission rule.
 pub fn zeroed_structural_parts(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
@@ -630,14 +636,51 @@ pub fn zeroed_structural_parts(program: &TypedTrees, type_reference: TypeReferen
                 else {
                     return false;
                 };
-                for member in program.data_members(data) {
-                    let typed_trees::data::DataMember::Field(field) = member else {
-                        return false;
-                    };
-                    if field.relevance.is_erased() {
+                let members = program.data_members(data);
+                let mut variants = members.iter().filter_map(|member| match member {
+                    typed_trees::data::DataMember::Variant(variant) => Some(variant),
+                    _ => None,
+                });
+                let Some(first_case) = variants.next() else {
+                    for member in members {
+                        let typed_trees::data::DataMember::Field(field) = member else {
+                            return false;
+                        };
+                        if field.relevance.is_erased() {
+                            return false;
+                        }
+                        pending.push(field.type_reference);
+                    }
+                    continue;
+                };
+                // Fields beside variants lower to the terminal Mixed shape,
+                // which has no zero spelling.
+                if members
+                    .iter()
+                    .any(|member| matches!(member, typed_trees::data::DataMember::Field(_)))
+                {
+                    return false;
+                }
+                for field in program.data_payload_fields(first_case) {
+                    if field.relevance.is_erased()
+                        || matches!(
+                            program
+                                .type_reference_table
+                                .type_reference(field.type_reference),
+                            TypeReferenceNode::Reference { .. }
+                                | TypeReferenceNode::Constrained { .. }
+                        )
+                    {
                         return false;
                     }
-                    pending.push(field.type_reference);
+                    match program.primitive_type_reference(field.type_reference) {
+                        Some(
+                            typed_trees::types::PrimitiveType::F32
+                            | typed_trees::types::PrimitiveType::F64,
+                        )
+                        | None => return false,
+                        _ => {}
+                    }
                 }
             }
             _ => return false,

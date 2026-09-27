@@ -573,6 +573,25 @@ impl TerminalExecution {
                         zero(*scalar_type).ok_or_else(invalid)?,
                     );
                 }
+                terminal_semantics::ZeroedStructuralLeaf::SumSelection {
+                    path,
+                    structural_type,
+                    case,
+                    ..
+                } => {
+                    // The tag is not independently addressable storage — the
+                    // structural_cases entry IS the runtime discriminator.
+                    self.structural_cases.insert(
+                        StructuralRuntimePlace {
+                            opaque_identity: value.opaque_identity,
+                            path: path.clone(),
+                        },
+                        StructuralCaseContents {
+                            structural_type: *structural_type,
+                            case: *case,
+                        },
+                    );
+                }
             }
         }
         self.structural_values.insert(result.place, value);

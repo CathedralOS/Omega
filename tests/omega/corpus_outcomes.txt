@@ -333,8 +333,7 @@ pass/dependent/runtime_sibling_len_index_exit rejected 756ms
 pass/dependent/state_arrival_contract_guarded_compile checked 295ms
 pass/dependent/transitive_call_frame_preserves_disjoint_fact_compile checked 298ms
 pass/dependent/valuation_order_cycle checked 317ms
-pass/dependent/zero_case_absorbs_nested_gate_compile rejected 842ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding`
+pass/dependent/zero_case_absorbs_nested_gate_compile checked 1931ms
 pass/domains/bodyless_owner_establishment checked 303ms
 pass/domains/bounded_byte_domain_beside_toolchain_leaf checked 300ms
 pass/domains/call_requires_domain_intersection_preserved checked 302ms

@@ -1,4 +1,6 @@
-use semantic_vocabulary::{ScalarType, StructuralTypeId};
+use semantic_vocabulary::{
+    IntegerSign, IntegerType, ScalarType, StructuralCaseId, StructuralTypeId,
+};
 use terminal_psi::{
     StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
 };
@@ -23,6 +25,16 @@ pub enum ZeroedStructuralLeaf {
         path: Vec<StructuralPathSegment>,
         scalar_type: ScalarType,
     },
+    /// The case-tag cell of a sum whose zeroed image selects its first
+    /// declared case — the tag stores the case ordinal and all-zero bits
+    /// name ordinal 0. `structural_type` retains the sum's own identity so
+    /// the runtime registers the selected case beside the tag cell.
+    SumSelection {
+        path: Vec<StructuralPathSegment>,
+        structural_type: StructuralTypeId,
+        case: StructuralCaseId,
+        scalar_type: ScalarType,
+    },
 }
 
 impl ZeroedStructuralLeaf {
@@ -30,7 +42,8 @@ impl ZeroedStructuralLeaf {
     pub fn path(&self) -> &[StructuralPathSegment] {
         match self {
             ZeroedStructuralLeaf::RecordField { path, .. }
-            | ZeroedStructuralLeaf::ArrayScalar { path, .. } => path,
+            | ZeroedStructuralLeaf::ArrayScalar { path, .. }
+            | ZeroedStructuralLeaf::SumSelection { path, .. } => path,
         }
     }
 
@@ -38,18 +51,22 @@ impl ZeroedStructuralLeaf {
     pub fn scalar_type(&self) -> ScalarType {
         match self {
             ZeroedStructuralLeaf::RecordField { scalar_type, .. }
-            | ZeroedStructuralLeaf::ArrayScalar { scalar_type, .. } => *scalar_type,
+            | ZeroedStructuralLeaf::ArrayScalar { scalar_type, .. }
+            | ZeroedStructuralLeaf::SumSelection { scalar_type, .. } => *scalar_type,
         }
     }
 }
 
 /// Resolve whether a structural type's whole storage may begin zero: every
-/// leaf a plain primitive scalar and every aggregate a record or fixed array.
-/// References, views, byte sequences, sums, bounded integers, and erased
-/// members have no universally valid zero spelling (a bounded integer's
-/// restriction may exclude 0), so they reject. Unknown, cyclic, or recursive
-/// membership also rejects — the worklist bounds the walk at the module's
-/// declaration count.
+/// leaf a plain primitive scalar or sum case tag, and every aggregate a
+/// record, fixed array, or admissible sum. A sum admits only when its first
+/// declared case exists and every non-erased field of that case is a plain
+/// scalar: the tag's all-zero bits select that case (tag = case ordinal),
+/// while bounded integers could exclude 0 and nested composites would need
+/// case-aware leaf paths. References, views, byte sequences, mixed shapes,
+/// bounded integers, and erased members have no universally valid zero
+/// spelling, so they reject. Unknown, cyclic, or recursive membership also
+/// rejects — the worklist bounds the walk at the module's declaration count.
 pub fn zeroed_structural_shape<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
@@ -102,6 +119,42 @@ pub fn zeroed_structural_leaves<'types>(
                     pending.push((*element, element_path));
                 }
             }
+            StructuralTypeShape::Sum { cases } => {
+                visited_cells += 1;
+                if visited_cells > bound.saturating_mul(bound).max(1024) {
+                    return None;
+                }
+                // Zeroed storage selects the first declared case — the tag
+                // stores the case ordinal and zero names ordinal 0. Payload
+                // leaves mint for that case only; later cases carry no cells.
+                // Only a first case of plain scalar fields admits: bounded
+                // integers may exclude 0 and nested composites have no
+                // case-aware leaf path segment.
+                let Some(first) = cases.first() else {
+                    return None;
+                };
+                let tag_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).ok()?);
+                leaves.push(ZeroedStructuralLeaf::SumSelection {
+                    path: path.clone(),
+                    structural_type: declaration.id,
+                    case: first.id,
+                    scalar_type: tag_type,
+                });
+                for field in &first.fields {
+                    match &field.field_type {
+                        StructuralFieldType::Scalar(scalar_type)
+                            if !field.relevance.is_erased() =>
+                        {
+                            leaves.push(ZeroedStructuralLeaf::RecordField {
+                                path: path.clone(),
+                                field: field.id,
+                                scalar_type: *scalar_type,
+                            });
+                        }
+                        _ => return None,
+                    }
+                }
+            }
             StructuralTypeShape::Record { fields } => {
                 visited_cells += 1;
                 if visited_cells > bound.saturating_mul(bound).max(1024) {
@@ -132,4 +185,211 @@ pub fn zeroed_structural_leaves<'types>(
         }
     }
     Some(leaves)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use semantic_vocabulary::StructuralFieldId;
+    use terminal_psi::{BindingRelevance, StructuralCaseDeclaration, StructuralFieldDeclaration};
+
+    fn field(id: u64, field_type: StructuralFieldType) -> StructuralFieldDeclaration {
+        StructuralFieldDeclaration {
+            id: StructuralFieldId::new(id).unwrap(),
+            identity: format!("f{id}"),
+            relevance: BindingRelevance::Relevant,
+            field_type,
+        }
+    }
+
+    fn erased(field: &mut StructuralFieldDeclaration) {
+        field.relevance = BindingRelevance::Erased;
+    }
+
+    fn declaration(id: u64, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
+        StructuralTypeDeclaration {
+            id: StructuralTypeId::new(id).unwrap(),
+            identity: format!("T{id}"),
+            shape,
+        }
+    }
+
+    fn case(id: u64, fields: Vec<StructuralFieldDeclaration>) -> StructuralCaseDeclaration {
+        StructuralCaseDeclaration {
+            id: StructuralCaseId::new(id).unwrap(),
+            identity: format!("C{id}"),
+            fields,
+        }
+    }
+
+    fn unsigned_32() -> ScalarType {
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap())
+    }
+
+    fn signed_tag() -> ScalarType {
+        ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap())
+    }
+
+    #[test]
+    fn sum_with_empty_first_case_mints_tag_leaf_only() {
+        let sum = declaration(
+            1,
+            StructuralTypeShape::Sum {
+                cases: vec![
+                    case(7, vec![]),
+                    case(
+                        8,
+                        vec![field(3, StructuralFieldType::Scalar(unsigned_32()))],
+                    ),
+                ],
+            },
+        );
+        let leaves = zeroed_structural_leaves([&sum].into_iter(), sum.id).unwrap();
+        assert_eq!(
+            leaves,
+            vec![ZeroedStructuralLeaf::SumSelection {
+                path: vec![],
+                structural_type: sum.id,
+                case: StructuralCaseId::new(7).unwrap(),
+                scalar_type: signed_tag(),
+            }]
+        );
+    }
+
+    #[test]
+    fn sum_first_case_scalar_payloads_mint_record_field_leaves() {
+        let sum = declaration(
+            1,
+            StructuralTypeShape::Sum {
+                cases: vec![
+                    case(
+                        7,
+                        vec![
+                            field(3, StructuralFieldType::Scalar(unsigned_32())),
+                            field(4, StructuralFieldType::Scalar(ScalarType::Boolean)),
+                        ],
+                    ),
+                    // A later case's non-scalar payload does not reject: zeroed
+                    // storage never selects it, so it contributes no cells.
+                    case(
+                        8,
+                        vec![field(
+                            5,
+                            StructuralFieldType::Structural(StructuralTypeId::new(9).unwrap()),
+                        )],
+                    ),
+                ],
+            },
+        );
+        let leaves = zeroed_structural_leaves([&sum].into_iter(), sum.id).unwrap();
+        assert_eq!(
+            leaves,
+            vec![
+                ZeroedStructuralLeaf::SumSelection {
+                    path: vec![],
+                    structural_type: sum.id,
+                    case: StructuralCaseId::new(7).unwrap(),
+                    scalar_type: signed_tag(),
+                },
+                ZeroedStructuralLeaf::RecordField {
+                    path: vec![],
+                    field: StructuralFieldId::new(3).unwrap(),
+                    scalar_type: unsigned_32(),
+                },
+                ZeroedStructuralLeaf::RecordField {
+                    path: vec![],
+                    field: StructuralFieldId::new(4).unwrap(),
+                    scalar_type: ScalarType::Boolean,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn sum_first_case_non_scalar_payload_rejects() {
+        for field_type in [
+            StructuralFieldType::Structural(StructuralTypeId::new(9).unwrap()),
+            StructuralFieldType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32),
+        ] {
+            let sum = declaration(
+                1,
+                StructuralTypeShape::Sum {
+                    cases: vec![case(7, vec![field(3, field_type)])],
+                },
+            );
+            assert!(zeroed_structural_leaves([&sum].into_iter(), sum.id).is_none());
+        }
+    }
+
+    #[test]
+    fn sum_first_case_erased_payload_rejects() {
+        // Erased payload members surface with the `Erased` carrier; an erased
+        // relevance on a plain scalar is refused too, either spelling has no
+        // zeroed cell to write.
+        let mut payload = field(3, StructuralFieldType::Scalar(unsigned_32()));
+        erased(&mut payload);
+        for payload in [
+            payload,
+            field(
+                3,
+                StructuralFieldType::Erased {
+                    type_identity: "erased".to_string(),
+                },
+            ),
+        ] {
+            let sum = declaration(
+                1,
+                StructuralTypeShape::Sum {
+                    cases: vec![case(7, vec![payload])],
+                },
+            );
+            assert!(zeroed_structural_leaves([&sum].into_iter(), sum.id).is_none());
+        }
+    }
+
+    #[test]
+    fn sum_with_no_cases_rejects() {
+        let sum = declaration(1, StructuralTypeShape::Sum { cases: vec![] });
+        assert!(zeroed_structural_leaves([&sum].into_iter(), sum.id).is_none());
+    }
+
+    #[test]
+    fn sum_member_inside_record_mints_paths_below_member() {
+        let sum = declaration(
+            2,
+            StructuralTypeShape::Sum {
+                cases: vec![case(
+                    7,
+                    vec![field(3, StructuralFieldType::Scalar(unsigned_32()))],
+                )],
+            },
+        );
+        let record = declaration(
+            1,
+            StructuralTypeShape::Record {
+                fields: vec![field(
+                    1,
+                    StructuralFieldType::Structural(StructuralTypeId::new(2).unwrap()),
+                )],
+            },
+        );
+        let leaves = zeroed_structural_leaves([&record, &sum].into_iter(), record.id).unwrap();
+        let member_path = vec![StructuralPathSegment::Field("f1".to_string())];
+        assert_eq!(
+            leaves,
+            vec![
+                ZeroedStructuralLeaf::SumSelection {
+                    path: member_path.clone(),
+                    structural_type: sum.id,
+                    case: StructuralCaseId::new(7).unwrap(),
+                    scalar_type: signed_tag(),
+                },
+                ZeroedStructuralLeaf::RecordField {
+                    path: member_path,
+                    field: StructuralFieldId::new(3).unwrap(),
+                    scalar_type: unsigned_32(),
+                },
+            ]
+        );
+    }
 }
