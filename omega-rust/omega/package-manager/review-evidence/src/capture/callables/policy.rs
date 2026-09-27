@@ -139,6 +139,7 @@ pub fn project_checked_callable_policy<'a>(
             parameters: surface.parameters,
             conformances: surface.policy_conformances,
             operator_realizations: surface.operator_realizations,
+            requirement_realizations: surface.requirement_realizations,
             contracts: surface.contracts,
             declared_service_reach: surface.declared_service_reach,
             service_reach_dependency,

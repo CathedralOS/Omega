@@ -1,22 +1,23 @@
 // One Build selection covers both overloads. Both calls must use RightProvider,
-// not the competing LeftProvider and not primitive subtraction.
+// not the competing LeftProvider and not primitive subtraction. The public
+// requirements and suppliers must also survive the CLI's package review.
 use omega_language_std::console;
 use omega::language::core::binding;
 
-data Math {}
-boundary machine - Math::choose(left: i32, right: i32) -> i32;
-boundary machine - Math::choose(left: u32, right: u32) -> u32;
+pub data Math {}
+pub boundary machine - Math::choose(left: i32, right: i32) -> i32;
+pub boundary machine - Math::choose(left: u32, right: u32) -> u32;
 
-data LeftProvider {}
-machine LeftProvider::signed(left: i32, right: i32) -> i32
+pub data LeftProvider {}
+pub machine LeftProvider::signed(left: i32, right: i32) -> i32
 satisfies Math::choose { left }
-machine LeftProvider::unsigned(left: u32, right: u32) -> u32
+pub machine LeftProvider::unsigned(left: u32, right: u32) -> u32
 satisfies Math::choose { left }
 
-data RightProvider {}
-machine RightProvider::signed(left: i32, right: i32) -> i32
+pub data RightProvider {}
+pub machine RightProvider::signed(left: i32, right: i32) -> i32
 satisfies Math::choose { right }
-machine RightProvider::unsigned(left: u32, right: u32) -> u32
+pub machine RightProvider::unsigned(left: u32, right: u32) -> u32
 satisfies Math::choose { right }
 
 data Main { console: Binding<Console>; }

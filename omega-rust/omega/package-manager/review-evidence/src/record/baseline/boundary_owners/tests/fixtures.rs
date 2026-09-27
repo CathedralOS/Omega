@@ -153,6 +153,7 @@ pub(super) fn pair() -> (PackagePolicyBaseline, PackagePolicyBaseline) {
         return_type: None,
         conformances: vec![],
         operator_realizations: vec![],
+        requirement_realizations: vec![],
         contracts: vec![],
         declared_service_reach: Some(vec![]),
         service_reach_dependency: Default::default(),

@@ -6,7 +6,9 @@ use super::boundary_operators::{
     validate_selected_boundary_operator_checked_adapter,
     validate_selected_boundary_operator_external_supply,
 };
-use super::boundary_requirements::project_top_level_requirement_external_supply;
+use super::boundary_requirements::{
+    project_checked_requirement_realization, project_top_level_requirement_external_supply,
+};
 use super::external_supply::{
     project_evaluated_binding, project_external_binding,
     project_external_executable_supply_with_source,
@@ -40,6 +42,7 @@ pub(super) fn project_callable_conformances(
     (
         Vec<PackageReviewCallableConformance>,
         Vec<PackageReviewOperatorRealization>,
+        Vec<crate::record::PackageReviewRequirementRealization>,
         Vec<ProjectedReviewRow<PackageReviewExternalExecutableSupply>>,
     ),
     Vec<Diagnostic>,
@@ -131,6 +134,7 @@ pub(super) fn project_callable_conformances(
     };
     let mut projected = Vec::new();
     let mut operator_realizations = Vec::new();
+    let mut requirement_realizations = Vec::new();
     let mut external_executable_supply = Vec::new();
     for conformance in compilation.machine_trait_conformances(machine) {
         let carrier_is_exact = match expected_external.as_ref().map(|expected| &expected.0) {
@@ -175,10 +179,13 @@ pub(super) fn project_callable_conformances(
                 conformance,
             ) {
                 if expected_external.is_none() {
-                    return Err(vec![Diagnostic::error(format!(
-                        "reviewed callable `{}` realizes top-level requirement `{}` without external executable supply not yet represented by package review",
-                        machine.name, requirement.name
-                    ))]);
+                    requirement_realizations.push(project_checked_requirement_realization(
+                        compilation,
+                        machine,
+                        conformance,
+                        requirement,
+                    )?);
+                    continue;
                 }
                 let Some((_, binding, signature)) = expected_external.as_ref() else {
                     unreachable!("external supply was checked above")
@@ -505,8 +512,14 @@ pub(super) fn project_callable_conformances(
         machine.name.as_str(),
         &mut projected,
         &mut operator_realizations,
+        &mut requirement_realizations,
         &mut external_executable_supply,
         policy,
     )?;
-    Ok((projected, operator_realizations, external_executable_supply))
+    Ok((
+        projected,
+        operator_realizations,
+        requirement_realizations,
+        external_executable_supply,
+    ))
 }

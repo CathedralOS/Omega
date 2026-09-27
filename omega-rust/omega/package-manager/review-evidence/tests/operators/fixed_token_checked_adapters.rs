@@ -422,12 +422,10 @@ satisfies CheckedMath::subtract
 }
 
 #[test]
-fn boundary_machine_spelling_reviews_identically_to_the_operator_spelling() {
-    // `boundary machine - Owner::name(...);` is the same required operator
-    // slot as `boundary operator - Owner::name(...);`: symbol resolution
-    // lowers both to one boundary operator declaration, so the normalized
-    // policy and the checked review projection are byte-identical and a
-    // library respelling churns no retained lock row.
+fn boundary_machine_checked_realization_retains_its_requirement_identity() {
+    // A token machine is a machine requirement, not a legacy operator
+    // declaration. Both forms must review, but their distinct declaration
+    // roles and exact conformance associations must survive projection.
     if host_target_name().is_none() {
         return;
     }
@@ -458,12 +456,183 @@ fn boundary_machine_spelling_reviews_identically_to_the_operator_spelling() {
     let machine_policy =
         project_checked_package_policy(&machine_checked, target, package_identity())
             .expect("machine spelling policy");
+    assert_ne!(operator_policy, machine_policy);
+    let callables = machine_policy.callables();
+    let requirement = callables
+        .callables()
+        .iter()
+        .find(|callable| callable.supply() == PackageReviewCallableSupply::TopLevelRequirement)
+        .expect("top-level requirement");
+    let provider = callables
+        .callables()
+        .iter()
+        .find(|callable| !callable.requirement_realizations().is_empty())
+        .expect("checked provider association");
+    assert!(provider.operator_realizations().is_empty());
+    assert!(provider.conformances().is_empty());
+    let [realization] = provider.requirement_realizations() else {
+        panic!("one exact requirement")
+    };
+    let typed_requirement = machine_checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "CheckedMath::subtract")
+        .unwrap();
     assert_eq!(
-        operator_policy.canonical_text().unwrap(),
-        machine_policy.canonical_text().unwrap()
+        realization.requirement_identity().owner(),
+        requirement.identity().owner()
     );
     assert_eq!(
+        realization.requirement_identity().path(),
+        machine_checked
+            .typed
+            .normalized_machine_overload_identity(typed_requirement)
+            .unwrap()
+            .identity()
+    );
+    assert_eq!(realization.alias(), None);
+    let bytes = callables.canonical_bytes().unwrap();
+    assert_eq!(
+        package_evidence::record::PackagePolicyCallables::recover_canonical(
+            &bytes,
+            package_evidence::encoding::PackagePolicyRecoveryLimits::default(),
+        )
+        .unwrap(),
+        *callables,
+    );
+    let review = project_checked_package_review(&machine_checked).unwrap();
+    let provider = review
+        .callables()
+        .iter()
+        .find(|callable| !callable.requirement_realizations().is_empty())
+        .expect("fresh review includes checked association");
+    assert_eq!(
+        provider.requirement_realizations(),
+        std::slice::from_ref(realization)
+    );
+    assert_ne!(
         project_checked_package_review(&operator_checked).unwrap(),
-        project_checked_package_review(&machine_checked).unwrap()
+        review
     );
+}
+
+#[test]
+fn checked_requirement_review_revalidates_the_exact_edge_and_body() {
+    if host_target_name().is_none() {
+        return;
+    }
+    let source = BINARY_SUBTRACT.replace("boundary operator", "boundary machine");
+    let checked = compile_fixture(&source);
+    let provider_index = checked
+        .typed
+        .machines()
+        .iter()
+        .position(|machine| machine.name.as_str() == "CheckedMathProvider::subtract_impl")
+        .unwrap();
+    let requirement = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "CheckedMath::subtract")
+        .unwrap()
+        .symbol;
+    project_checked_package_review(&checked).expect("valid checked requirement");
+
+    let mut missing_body = checked.clone();
+    missing_body.typed.machines_mut()[provider_index].body_is_present = false;
+    assert!(project_checked_package_review(&missing_body).is_err());
+
+    let mut substituted = checked.clone();
+    let satisfies = substituted.typed.machines()[provider_index].satisfies;
+    substituted
+        .typed
+        .tables
+        .machine_trait_conformances
+        .span_mut_or_empty(satisfies)[0]
+        .requirement_symbol = substituted.typed.machines()[provider_index].symbol;
+    assert!(project_checked_package_review(&substituted).is_err());
+
+    let mut stronger_effect = checked.clone();
+    stronger_effect.typed.machines_mut()[provider_index].suspends = true;
+    assert!(project_checked_package_review(&stronger_effect).is_err());
+
+    let mut hidden = checked;
+    hidden
+        .typed
+        .machines_mut()
+        .iter_mut()
+        .find(|machine| machine.symbol == requirement)
+        .unwrap()
+        .is_public = false;
+    assert!(project_checked_package_review(&hidden).is_err());
+}
+
+#[test]
+fn named_generic_checked_requirement_reviews_without_an_operator_view() {
+    if host_target_name().is_none() {
+        return;
+    }
+    let checked = compile_fixture(
+        r#"
+pub data Choice {}
+pub boundary requirement Choice::choose<Element>(value: Element) -> Element;
+pub data Provider {}
+pub machine Provider::choose<Value>(value: Value) -> Value satisfies Choice::choose { value }
+"#,
+    );
+    let review = project_checked_package_review(&checked).expect("generic requirement association");
+    let provider = review
+        .callables()
+        .iter()
+        .find(|callable| !callable.requirement_realizations().is_empty())
+        .unwrap();
+    assert!(provider.operator_realizations().is_empty());
+    assert_eq!(provider.requirement_realizations().len(), 1);
+}
+
+#[test]
+fn overloaded_checked_requirements_have_distinct_canonical_review_rows() {
+    if host_target_name().is_none() {
+        return;
+    }
+    let checked = compile_fixture(
+        r#"
+pub data Choice {}
+pub boundary machine - Choice::choose(left: i32, right: i32) -> i32;
+pub boundary machine - Choice::choose(left: u32, right: u32) -> u32;
+pub data Provider {}
+pub machine Provider::signed(left: i32, right: i32) -> i32 satisfies Choice::choose { right }
+pub machine Provider::unsigned(left: u32, right: u32) -> u32 satisfies Choice::choose { right }
+"#,
+    );
+    let review = project_checked_package_review(&checked).unwrap();
+    let requirements = review
+        .callables()
+        .iter()
+        .filter(|callable| callable.supply() == PackageReviewCallableSupply::TopLevelRequirement)
+        .collect::<Vec<_>>();
+    assert_eq!(requirements.len(), 2);
+    assert_ne!(requirements[0].identity(), requirements[1].identity());
+    for provider in review
+        .callables()
+        .iter()
+        .filter(|callable| !callable.requirement_realizations().is_empty())
+    {
+        let [realization] = provider.requirement_realizations() else {
+            panic!("one exact requirement")
+        };
+        assert_eq!(
+            requirements
+                .iter()
+                .filter(|requirement| {
+                    requirement.identity() == realization.requirement_identity()
+                })
+                .count(),
+            1
+        );
+    }
+    review
+        .canonical_rows()
+        .expect("overloaded requirements must not collide in persisted rows");
 }

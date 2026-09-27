@@ -41,6 +41,7 @@ pub(super) struct CallableSurface {
     pub(super) conformances: Vec<PackageReviewCallableConformance>,
     pub(super) policy_conformances: Vec<PackagePolicyCallableConformance>,
     pub(super) operator_realizations: Vec<PackageReviewOperatorRealization>,
+    pub(super) requirement_realizations: Vec<crate::record::PackageReviewRequirementRealization>,
     pub(super) contracts: Vec<PackageReviewCallableContract>,
     /// `Some` preserves a published ceiling, including an explicitly empty
     /// one. `None` is retained for the current ordinary build-machine form;
@@ -149,36 +150,39 @@ pub(super) fn project<'a>(
     .then(|| project_external_callable_signature(compilation, machine, &binders))
     .transpose()?;
     let mut policy_conformances = Vec::new();
-    let (conformances, operator_realizations, external_executable_supply) = if policy_mode
-        && matches!(
-            machine.supply_mode,
-            MachineSupplyMode::ExternalRealization { .. }
-        ) {
-        let supplies = super::project_checked_external_supply_policy(compilation, machine.symbol)?;
-        let mut operators = Vec::new();
-        for supply in supplies {
-            match supply.requirement {
-                PackagePolicyExternalRequirement::Trait(conformance) => {
-                    policy_conformances.push(conformance);
+    let (conformances, operator_realizations, requirement_realizations, external_executable_supply) =
+        if policy_mode
+            && matches!(
+                machine.supply_mode,
+                MachineSupplyMode::ExternalRealization { .. }
+            )
+        {
+            let supplies =
+                super::project_checked_external_supply_policy(compilation, machine.symbol)?;
+            let mut operators = Vec::new();
+            for supply in supplies {
+                match supply.requirement {
+                    PackagePolicyExternalRequirement::Trait(conformance) => {
+                        policy_conformances.push(conformance);
+                    }
+                    PackagePolicyExternalRequirement::Operator { coordinate, alias } => {
+                        operators.push(PackageReviewOperatorRealization { coordinate, alias });
+                    }
+                    PackagePolicyExternalRequirement::TopLevelRequirement { .. } => {}
                 }
-                PackagePolicyExternalRequirement::Operator { coordinate, alias } => {
-                    operators.push(PackageReviewOperatorRealization { coordinate, alias });
-                }
-                PackagePolicyExternalRequirement::TopLevelRequirement { .. } => {}
             }
-        }
-        (Vec::new(), operators, Vec::new())
-    } else {
-        project_callable_conformances(
-            compilation,
-            machine,
-            &identity,
-            &binders,
-            external_signature.as_ref(),
-            true,
-            policy_mode.then_some(&mut policy_conformances),
-        )?
-    };
+            (Vec::new(), operators, Vec::new(), Vec::new())
+        } else {
+            project_callable_conformances(
+                compilation,
+                machine,
+                &identity,
+                &binders,
+                external_signature.as_ref(),
+                true,
+                policy_mode.then_some(&mut policy_conformances),
+            )?
+        };
     let contracts = if policy_mode && !publishes_interface {
         project_callable_contracts_with_exposure(compilation, machine, entry, &binders,
         language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
@@ -383,6 +387,7 @@ pub(super) fn project<'a>(
             conformances,
             policy_conformances,
             operator_realizations,
+            requirement_realizations,
             contracts,
             declared_service_reach,
             checked_service_reach,

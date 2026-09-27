@@ -48,9 +48,9 @@ pub(super) use values::providers::encode_compiler_intrinsic_execution;
 pub use policy_rows::restricted_build_request_acceptance_text;
 
 pub(crate) const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 134;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 135;
 pub(crate) const ROW_MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW-ROW\0";
-pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 92;
+pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 93;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PackageReviewEncodingLimits {

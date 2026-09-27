@@ -56,6 +56,15 @@ pub(crate) fn encode_callable(
             encoder.string(alias)
         })
     })?;
+    encoder.sequence(
+        &callable.requirement_realizations,
+        |encoder, realization| {
+            encode_nominal(encoder, &realization.requirement_identity)?;
+            encoder.option(realization.alias.as_deref(), |encoder, alias| {
+                encoder.string(alias)
+            })
+        },
+    )?;
     encoder.sequence(&callable.contracts, encode_callable_contract)?;
     encoder.option(
         callable.declared_service_reach.as_deref(),

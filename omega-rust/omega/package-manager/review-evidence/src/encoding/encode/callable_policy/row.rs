@@ -91,6 +91,21 @@ pub(in crate::encoding) fn encode_callable(
             })
         })
     })?;
+    encoder.field("requirement_realizations", |encoder| {
+        encoder.sequence(
+            &callable.requirement_realizations,
+            |encoder, realization| {
+                encoder.field("requirement_identity", |encoder| {
+                    encode_nominal(encoder, &realization.requirement_identity)
+                })?;
+                encoder.field("alias", |encoder| {
+                    encoder.option(realization.alias.as_deref(), |encoder, alias| {
+                        encoder.string(alias)
+                    })
+                })
+            },
+        )
+    })?;
     encoder.field("contracts", |encoder| {
         encoder.sequence(&callable.contracts, encode_callable_contract)
     })?;

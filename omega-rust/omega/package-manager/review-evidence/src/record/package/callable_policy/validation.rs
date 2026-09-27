@@ -105,6 +105,12 @@ impl PackagePolicyCallables {
             }
             ordered(&callable.conformances)?;
             ordered(&callable.operator_realizations)?;
+            ordered(&callable.requirement_realizations)?;
+            if !callable.requirement_realizations.is_empty()
+                && callable.supply != PackageReviewCallableSupply::CheckedBody
+            {
+                return Err("checked requirement realization has no checked callable supply");
+            }
             signature::validate(callable)?;
             behavior::validate(callable)?;
         }

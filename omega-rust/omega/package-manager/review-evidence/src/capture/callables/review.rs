@@ -55,6 +55,7 @@ pub(in crate::capture) fn project_callable(
             return_type: surface.return_type,
             conformances: surface.conformances,
             operator_realizations: surface.operator_realizations,
+            requirement_realizations: surface.requirement_realizations,
             contracts: surface.contracts,
             declared_service_reach: surface.declared_service_reach,
             checked_service_reach: surface.checked_service_reach,
@@ -114,7 +115,7 @@ pub(in crate::capture) fn project_private_external_executable_supply(
         &machine.lifetime_parameters,
     )?;
     let signature = project_external_callable_signature(compilation, machine, &binders)?;
-    let (_, _, supply) = project_callable_conformances(
+    let (_, _, _, supply) = project_callable_conformances(
         compilation,
         machine,
         identity,
