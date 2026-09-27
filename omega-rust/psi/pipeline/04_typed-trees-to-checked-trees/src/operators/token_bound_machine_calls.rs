@@ -36,11 +36,14 @@
 //! collection place as the call receiver when the entry state's first
 //! parameter is `self`, matching the loan a named `collection.at(index)`
 //! forms; a token binding whose first operand is an ordinary parameter keeps
-//! the operands as ordinary arguments. Open-ended range uses (`a[start..]`,
-//! `a[..]`), and any other resolved selection of a token-bearing machine -- a
-//! `==` folded into match-arm equality, say -- reject at this pass: leaving
-//! the selection fact without a body binding would let a later consumer treat
-//! the operand primitives as builtin arithmetic, which the contract forbids.
+//! the operands as ordinary arguments. Floating match equality already has an
+//! arm-local selected-comparison route: a bodyless requirement keeps that
+//! occurrence instead of becoming a call that would reevaluate its subject.
+//! Its provider still needs independent selection and realization. Body-bearing
+//! machines cannot use that route in place of executing their body. Open-ended
+//! range uses (`a[start..]`, `a[..]`) and other unsupported selections reject:
+//! leaving a selection without executable supply could silently substitute
+//! builtin arithmetic, which the contract forbids.
 
 use checked_trees::{
     CheckedOperatorOccurrence, CheckedOperatorResolutionStatus, CheckedValueOrigin,
@@ -79,12 +82,29 @@ pub(crate) fn bind_token_bound_machine_calls(
     crate::operators::select_pending_domain_operator_meanings(program, &mut facts);
     let mut diagnostics = Vec::new();
     let mut bindings: Vec<(ExpressionHandle, SymbolHandle, CheckedValueOrigin)> = Vec::new();
-    for operator_use in facts.uses_with_status(CheckedOperatorResolutionStatus::Resolved) {
+    for (use_handle, operator_use) in facts.uses.iter().filter(|(_, operator_use)| {
+        operator_use.status == CheckedOperatorResolutionStatus::Resolved
+    }) {
         let selected = operator_use.selected_operator_symbol;
         if !program
             .machine_token_bindings()
             .iter()
             .any(|view| view.symbol == selected)
+        {
+            continue;
+        }
+        // Match owns the saved subject and reached pattern. Its existing
+        // selected-comparison plan retains this exact arm and requirement;
+        // it is not a builtin-equality fallback or a machine-body execution.
+        if matches!(
+            operator_use.occurrence,
+            CheckedOperatorOccurrence::MatchEquality { .. }
+        ) && crate::lookup::machine_by_symbol(program, selected).is_some_and(|machine| {
+            machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
+                && !machine.body_is_present
+        }) && facts
+            .selected_float_comparison(program, use_handle)
+            .is_some()
         {
             continue;
         }

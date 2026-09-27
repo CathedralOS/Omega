@@ -1,4 +1,6 @@
 use omega::language::core::float_operations;
+use omega::language::core::binding;
+use omega_language_std::console;
 
 machine identity(value: f32) -> f32 { value }
 
@@ -10,8 +12,20 @@ machine choose(value: f32, first: f32, second: f32) -> u64 {
     }
 }
 
-// The reusable comparison remains testable with runtime arguments; this root
-// also requires the same call-bearing closure to publish as an application.
-machine launch() {
-    let result: u64 = choose(2.0f32, 1.0f32, 2.0f32);
+data Main { console: Binding<Console>; }
+
+// Preserve the reusable call-bearing comparison and observe first-match,
+// second-match, fallback and signed-zero behavior through the native product.
+machine Main::main(&mut self)
+reaches Console
+{
+    let first: u64 = choose(2.0f32, 2.0f32, 2.0f32);
+    let second: u64 = choose(2.0f32, 1.0f32, 2.0f32);
+    let fallback: u64 = choose(3.0f32, 1.0f32, 2.0f32);
+    let zeros: u64 = choose(-0.0f32, 0.0f32, 0.0f32);
+    let outcome: i32 = match first == 7 && second == 9 && fallback == 11 && zeros == 7 {
+        true -> 70,
+        false -> 71
+    };
+    self.console.exit_process(outcome);
 }

@@ -301,11 +301,10 @@ fn exact_application_uses(
     site: checked_trees::CheckedBoundaryOperatorApplicationUseSite,
     requirement: symbols::SymbolHandle,
 ) -> Vec<ExactApplicationUse> {
-    let operator = compilation
-        .typed
-        .operators()
-        .iter()
-        .find(|operator| operator.symbol == requirement);
+    // Implicit Match equality keeps its operator occurrence even when the
+    // requirement is authored as a token-bearing machine. Rejoin its exact
+    // declaration view, not just the legacy operator declaration collection.
+    let operator = typed_trees::operator::declaration_by_symbol(&compilation.typed, requirement);
     compilation
         .facts
         .operators

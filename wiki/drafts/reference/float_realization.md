@@ -44,9 +44,10 @@ Reproduce the portable boundary with:
 mbx run -p omega -- inspect-terminal --machine choose --target macos_arm64 tests/omega/pass/expressions/match_float_patterns/main.omg
 ```
 
-The same fixture has an ordinary free Unit application root; its original
-`choose` and `identity` machines remain callable with runtime arguments.
-The native build runs through the corpus gate:
+The same fixture has a `Main::main` application root; its original `choose`
+and `identity` machines remain callable with runtime arguments. The native
+exit-70 oracle checks first-match order, second-arm selection, fallback and
+signed-zero equality. Run it through the corpus gate:
 
 ```text
 python tools/corpus_gate.py --native --filter expressions/match_float_patterns

@@ -19,9 +19,29 @@ fn source(format: &str, declarations: &str, first_pattern: &str) -> String {
 }
 
 const EQUALITY: &str = r#"
-    boundary operator == Float::equal(left: f32, right: f32) -> bool;
-    boundary operator == Float::equal(left: f64, right: f64) -> bool;
+    boundary machine == Float::equal(left: f32, right: f32) -> bool;
+    boundary machine == Float::equal(left: f64, right: f64) -> bool;
 "#;
+
+#[test]
+fn implicit_float_equality_cannot_skip_a_machine_body() {
+    let mut typed = typed_program(&source("f32", EQUALITY, "identity(first)"));
+    for machine in typed.machines_mut() {
+        if machine.spelling == Some(OperatorSpelling::Equal) {
+            machine.body_is_present = true;
+        }
+    }
+    let diagnostics = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+        .expect_err("a selected machine body must not become intrinsic Match equality");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("body supply is not implemented")
+        }),
+        "{diagnostics:#?}"
+    );
+}
 
 #[test]
 fn ambiguous_float_pattern_equality_does_not_choose_a_provider() {

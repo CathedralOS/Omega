@@ -368,32 +368,11 @@ pass/expressions/explicit_scalar_tag_erasure checked 170ms
 pass/expressions/indexed_qualified_call_argument checked 181ms
 pass/expressions/match_anonymous_result_landing checked 217ms
 pass/expressions/match_domain_results checked 199ms
-pass/expressions/match_float_interpretation rejected 197ms
-	`Float::equal` was selected for its fixed operator token `==` in a position whose body supply is not implemented; only binary and indexed expression uses bind the declaration's own body
-	`Float::equal` was selected for its fixed operator token `==` in a position whose body supply is not implemented; only binary and indexed expression uses bind the declaration's own body
-	`Float::equal` was selected for its fixed operator token `==` in a position whose body supply is not implemented; only binary and indexed expression uses bind the declaration's own body
-	`Float::equal` was selected for its fixed operator token `==` in a position whose body supply is not implemented; only binary and indexed expression uses bind the declaration's own body
-	`Float::equal` was selected for its fixed operator token `==` in a position whose body supply is not implemented; only binary and indexed expression uses bind the declaration's own body
-	`Float::equal` was selected for its fixed operator token `==` in a position whose body supply is not implemented; only binary and indexed expression uses bind the declaration's own body
-	`Float::equal` was selected for its fixed operator token `==` in a position whose body supply is not implemented; only binary and indexed expression uses bind the declaration's own body
-	`Float::equal` was selected for its fixed operator token `==` in a position whose body supply is not implemented; only binary and indexed expression uses bind the declaration's own body
-	`Float::equal` was selected for its fixed operator token `==` in a position whose body supply is not implemented; only binary and indexed expression uses bind the declaration's own body
-	`Float::equal` was selected for its fixed operator token `==` in a position whose body supply is not implemented; only binary and indexed expression uses bind the declaration's own body
-	`Float::equal` was selected for its fixed operator token `==` in a position whose body supply is not implemented; only binary and indexed expression uses bind the declaration's own body
-	`Float::equal` was selected for its fixed operator token `==` in a position whose body supply is not implemented; only binary and indexed expression uses bind the declaration's own body
-pass/expressions/match_float_patterns rejected 182ms
-	`Float::equal` was selected for its fixed operator token `==` in a position whose body supply is not implemented; only binary and indexed expression uses bind the declaration's own body
-	`Float::equal` was selected for its fixed operator token `==` in a position whose body supply is not implemented; only binary and indexed expression uses bind the declaration's own body
+pass/expressions/match_float_interpretation checked 394ms
+pass/expressions/match_float_patterns built 1570ms exit:70
 pass/expressions/match_float_results checked 222ms
-pass/expressions/match_float_subjects rejected 206ms
-	`Float::equal` was selected for its fixed operator token `==` in a position whose body supply is not implemented; only binary and indexed expression uses bind the declaration's own body
-	`Float::equal` was selected for its fixed operator token `==` in a position whose body supply is not implemented; only binary and indexed expression uses bind the declaration's own body
-	`Float::equal` was selected for its fixed operator token `==` in a position whose body supply is not implemented; only binary and indexed expression uses bind the declaration's own body
-	`Float::equal` was selected for its fixed operator token `==` in a position whose body supply is not implemented; only binary and indexed expression uses bind the declaration's own body
-	`Float::equal` was selected for its fixed operator token `==` in a position whose body supply is not implemented; only binary and indexed expression uses bind the declaration's own body
-	`Float::equal` was selected for its fixed operator token `==` in a position whose body supply is not implemented; only binary and indexed expression uses bind the declaration's own body
-	`Float::equal` was selected for its fixed operator token `==` in a position whose body supply is not implemented; only binary and indexed expression uses bind the declaration's own body
-	`Float::equal` was selected for its fixed operator token `==` in a position whose body supply is not implemented; only binary and indexed expression uses bind the declaration's own body
+pass/expressions/match_float_subjects rejected 419ms
+	native-artifact Terminal production failed: Lowering(Unsupported("runtime scalar field observation requires an integer field"))
 pass/expressions/match_fresh_owned checked 181ms
 pass/expressions/match_ordered_duplicate_patterns checked 182ms
 pass/expressions/numeric_operand_destinations checked 184ms
