@@ -30,26 +30,6 @@ fn applied_decision_requires_independent_validator_and_round_trips() {
 }
 
 #[test]
-fn value_range_fact_reference_round_trips_in_decision_v5() {
-    let record = OptimizationDecisionRecord::new(
-        OptimizationUnitIdentity::from_canonical_bytes(b"range-input"),
-        OptimizationCandidateIdentity::from_canonical_bytes(b"range-candidate"),
-        rule(b"range-rule"),
-        OptimizationCandidateVerdict::Applied,
-        AnalysisSet::new([AnalysisKind::ScalarConstants, AnalysisKind::ValueRanges]),
-        vec![fact(b"literal"), range_fact(b"proof-range")],
-        Some(OptimizationValidatorIdentity::from_canonical_bytes(
-            b"range-validator",
-        )),
-    )
-    .unwrap();
-    assert_eq!(
-        OptimizationDecisionRecord::decode(&record.encode()).unwrap(),
-        record
-    );
-}
-
-#[test]
 fn decision_identity_binds_every_authoritative_field_and_rejects_tamper() {
     let validator = OptimizationValidatorIdentity::from_canonical_bytes(b"validator-a");
     let base = OptimizationDecisionRecord::new(
@@ -195,6 +175,7 @@ fn consumed_fact_references_must_be_canonical_and_known() {
         fact(b"operand"),
         obligation_fact(b"proof"),
         ownership_fact(b"ownership"),
+        range_fact(b"proof-range"),
     ];
     mixed.sort_unstable();
     let mixed_record = OptimizationDecisionRecord::new(
@@ -202,7 +183,7 @@ fn consumed_fact_references_must_be_canonical_and_known() {
         OptimizationCandidateIdentity::from_canonical_bytes(b"mixed-candidate"),
         rule(b"mixed-rule"),
         OptimizationCandidateVerdict::Applied,
-        AnalysisSet::new([AnalysisKind::ScalarConstants]),
+        AnalysisSet::new([AnalysisKind::ScalarConstants, AnalysisKind::ValueRanges]),
         mixed,
         Some(OptimizationValidatorIdentity::from_canonical_bytes(
             b"mixed-validator",

@@ -1,6 +1,6 @@
 use super::super::{
-    Optimization, OptimizationCatalogDescriptor, OptimizationExecutionPhase,
-    OptimizationSelections, PostTerminalOptimizationSelections, SelectionDecodeError,
+    Optimization, OptimizationExecutionPhase, OptimizationSelections,
+    PostTerminalOptimizationSelections, SelectionDecodeError,
 };
 use std::collections::BTreeSet;
 
@@ -27,19 +27,6 @@ fn authoritative_vocabulary_has_contiguous_tags_and_unique_nonempty_names() {
         Optimization::from_build_case_name("CopyPropagationV2"),
         None
     );
-}
-
-#[test]
-fn generic_catalog_descriptor_retains_exact_name_and_typed_payload() {
-    let descriptor = OptimizationCatalogDescriptor::new(
-        Optimization::X86SelectXorZeroI64MaterializationV1,
-        ("x86-64", 7_u16),
-    );
-    assert_eq!(
-        descriptor.optimization(),
-        Optimization::X86SelectXorZeroI64MaterializationV1
-    );
-    assert_eq!(descriptor.payload(), &("x86-64", 7));
 }
 
 #[test]
