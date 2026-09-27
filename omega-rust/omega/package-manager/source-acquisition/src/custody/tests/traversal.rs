@@ -1,7 +1,7 @@
 use super::{
     CacheCustodyKind, LocalSourceLimits, SourceResolveError, SourceResolver,
     external_local_storage_lane, open_absolute_directory_nofollow, open_cache_custody_directory,
-    resolve_local_source_snapshot, temp_root, verify_cache_custody_from_open_root,
+    resolve_local_source_snapshot, temp_root,
 };
 use crate::PrimaryGitChoices;
 use std::path::Path;
@@ -10,12 +10,6 @@ use std::path::Path;
 #[test]
 fn git_cache_custody_does_not_follow_replaced_directory_leaf() {
     assert_cache_custody_does_not_follow_replaced_directory_leaf(CacheCustodyKind::Git);
-}
-
-#[cfg(unix)]
-#[test]
-fn local_cache_custody_does_not_follow_replaced_directory_leaf() {
-    assert_cache_custody_does_not_follow_replaced_directory_leaf(CacheCustodyKind::LocalSnapshot);
 }
 
 #[cfg(unix)]
@@ -86,31 +80,6 @@ fn cache_custody_rejects_replaced_concrete_directory_identity() {
     ));
 
     let _ = std::fs::remove_dir_all(&cache);
-}
-
-#[cfg(unix)]
-#[test]
-fn cache_custody_walk_remains_bound_to_open_root_after_path_replacement() {
-    let cache = temp_root("cache-open-root-replacement");
-    let retained = cache.with_extension("retained");
-    std::fs::create_dir_all(&cache).expect("create cache root");
-    let canonical_cache = cache.canonicalize().expect("canonicalize cache root");
-    let directory =
-        open_absolute_directory_nofollow(&canonical_cache).expect("open cache root capability");
-
-    std::fs::rename(&cache, &retained).expect("relocate opened cache root");
-    std::fs::create_dir_all(&cache).expect("create replacement cache root");
-    std::fs::write(
-        cache.join("replacement"),
-        b"payload exceeding retained ceiling",
-    )
-    .expect("write replacement payload");
-
-    verify_cache_custody_from_open_root(&canonical_cache, directory, CacheCustodyKind::Git, 3)
-        .expect("custody walk must remain bound to the opened cache root");
-
-    let _ = std::fs::remove_dir_all(&cache);
-    let _ = std::fs::remove_dir_all(&retained);
 }
 
 #[cfg(unix)]

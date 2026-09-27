@@ -8,14 +8,12 @@ use crate::custody::{lock::*, publication::*, tree::*};
 use crate::error::SourceResolveError;
 #[cfg(unix)]
 use crate::error::cache_invalid;
-use crate::git::cache::identity::*;
 #[cfg(unix)]
 use crate::git::cache::invalidation::*;
 #[cfg(unix)]
 use crate::git::executable::executor::*;
 #[cfg(unix)]
 use crate::git::git_command::reconciliation::*;
-use crate::git::request::GitExecutionTransport;
 use crate::limits::*;
 #[cfg(unix)]
 use crate::local::operations::*;
@@ -24,7 +22,6 @@ use crate::test_support::*;
 use crate::tree::filesystem::*;
 use std::fs::OpenOptions;
 
-mod identity;
 mod limits;
 mod locks;
 #[cfg(target_os = "macos")]

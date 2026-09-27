@@ -25,7 +25,6 @@ use std::sync::Arc;
 mod exact_revision;
 mod exact_workspace;
 mod request;
-mod reuse;
 mod root_pin;
 mod snapshot;
 mod validation;

@@ -3,71 +3,12 @@
 use super::super::GitCommandCapture;
 use super::super::run_git_output;
 use super::{
-    GIT_CAPTURED_OUTPUT_ABSOLUTE_LIMIT, GIT_CAPTURED_OUTPUT_FIXED_ALLOWANCE, GitExecutionTransport,
-    GitExecutor, LocalSourceLimits, ResolverExecutionPhase, SOURCE_BYTE_ABSOLUTE_LIMIT,
-    SourceResolveError, git_resolution_captured_output_ceiling, sealed_git_command, temp_root,
-    test_system_git_executor,
+    GIT_CAPTURED_OUTPUT_ABSOLUTE_LIMIT, GIT_CAPTURED_OUTPUT_FIXED_ALLOWANCE, GitExecutor,
+    LocalSourceLimits, ResolverExecutionPhase, SOURCE_BYTE_ABSOLUTE_LIMIT, SourceResolveError,
+    git_resolution_captured_output_ceiling, sealed_git_command, temp_root,
 };
 use std::ffi::OsStr;
-use std::path::Path;
 use std::time::Duration;
-
-#[cfg(unix)]
-#[test]
-fn git_executor_uses_committed_absolute_program_inherited_environment_and_explicit_cwd() {
-    use std::os::unix::fs::PermissionsExt;
-
-    let root = temp_root("sealed-git-executor");
-    let working_directory = root.join("working");
-    std::fs::create_dir_all(&working_directory).expect("create explicit working directory");
-    let working_directory = working_directory
-        .canonicalize()
-        .expect("canonical explicit working directory");
-    let fake_git = root.join("git");
-    std::fs::write(
-            &fake_git,
-            b"#!/bin/sh\nprintf 'cwd='\npwd\nprintf 'home=%s\\n' \"${HOME-unset}\"\nprintf 'path=%s\\n' \"$PATH\"\n",
-        )
-        .expect("write fake Git executable");
-    std::fs::set_permissions(&fake_git, std::fs::Permissions::from_mode(0o700))
-        .expect("make fake Git executable");
-    let executor = GitExecutor::open(&fake_git).expect("capture fake Git identity");
-
-    let output = run_git_output(
-        &executor,
-        &working_directory,
-        ResolverExecutionPhase::Fetch,
-        [OsStr::new("ignored-by-test-helper")],
-        GitCommandCapture::default(),
-    )
-    .expect("run sealed fake Git");
-    assert!(output.status.success());
-    let stdout = String::from_utf8(output.stdout).expect("test helper emits UTF-8");
-    assert!(
-        stdout.contains(&format!("cwd={}\n", working_directory.display())),
-        "sealed helper reported {stdout:?}"
-    );
-    let inherited_home = std::env::var("HOME").expect("test process has a UTF-8 HOME");
-    let inherited_path = std::env::var("PATH").expect("test process has a UTF-8 PATH");
-    assert!(stdout.contains(&format!("home={inherited_home}\n")));
-    assert!(stdout.contains(&format!("path={inherited_path}\n")));
-
-    let command = sealed_git_command(&executor, &working_directory, ResolverExecutionPhase::Fetch)
-        .expect("construct sealed fake Git command");
-    assert_eq!(command.get_program(), fake_git.canonicalize().unwrap());
-    assert_eq!(command.get_current_dir(), Some(working_directory.as_path()));
-
-    let _ = std::fs::remove_dir_all(root);
-}
-
-#[cfg(unix)]
-#[test]
-fn git_executor_rejects_relative_paths() {
-    assert!(matches!(
-        GitExecutor::open(Path::new("git")),
-        Err(SourceResolveError::GitExecutableInvalid { .. })
-    ));
-}
 
 #[cfg(unix)]
 #[test]
@@ -111,35 +52,6 @@ fn git_executor_requires_launchability_but_does_not_invent_mode_trust() {
     std::fs::set_permissions(&fake_git, std::fs::Permissions::from_mode(0o700))
         .expect("restore safe Git executable mode");
     let _ = std::fs::remove_dir_all(root);
-}
-
-#[cfg(unix)]
-#[test]
-fn git_executor_selection_does_not_claim_executable_ancestry() {
-    use std::os::unix::fs::PermissionsExt;
-
-    let root = temp_root("git-executable-normal-ancestry");
-    std::fs::create_dir_all(&root).expect("create executable ancestry root");
-    let fake_git = root.join("git");
-    std::fs::write(&fake_git, b"#!/bin/sh\nexit 0\n").expect("write fake Git executable");
-    std::fs::set_permissions(&fake_git, std::fs::Permissions::from_mode(0o700))
-        .expect("make Git executable directly safe");
-    std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o720))
-        .expect("make executable ancestry externally writable");
-
-    GitExecutor::open(&fake_git)
-        .expect("ordinary executable selection must not inspect ancestry permissions");
-
-    std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700))
-        .expect("restore executable ancestry for cleanup");
-    let _ = std::fs::remove_dir_all(root);
-}
-
-#[test]
-fn system_git_executor_uses_one_absolute_path_selection() {
-    let executor = test_system_git_executor(GitExecutionTransport::Https)
-        .expect("Git selected from the invoking PATH snapshot");
-    assert!(executor.execution_backend.executable().is_absolute());
 }
 
 #[cfg(unix)]

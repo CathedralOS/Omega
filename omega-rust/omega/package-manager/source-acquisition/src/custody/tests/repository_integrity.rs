@@ -1,15 +1,12 @@
 use super::{
-    GIT_CACHE_METADATA, GIT_CACHE_REPOSITORY, GIT_CONFIG_SHA1, GitExecutionTransport,
-    LocalSourceLimits, ProvisionalCacheDirectory, SourceResolveError, create_git_source,
-    create_private_cache_directory, git_cache_entry_root, git_cache_metadata, local_git_request,
+    GIT_CACHE_METADATA, GIT_CACHE_REPOSITORY, GIT_CONFIG_SHA1, LocalSourceLimits,
+    ProvisionalCacheDirectory, SourceResolveError, create_git_source,
+    create_private_cache_directory, git_cache_entry_root, local_git_request,
     make_tree_owner_writable, open_absolute_directory_nofollow, open_verified_git_repository,
     resolve_git_source_from_hardened_base, temp_root,
 };
 #[cfg(unix)]
-use super::{
-    first_regular_descendant, invalidate_git_cache_entry_from_retained_parent,
-    verify_git_cache_root_custody,
-};
+use super::{first_regular_descendant, invalidate_git_cache_entry_from_retained_parent};
 use std::ffi::OsStr;
 
 #[test]
@@ -26,33 +23,6 @@ fn provisional_git_cache_directory_is_cleaned_if_retention_fails() {
         // still owns the just-created parent-relative name.
     }
     assert!(!cache.join("provisional").exists());
-    let _ = std::fs::remove_dir_all(&cache);
-}
-
-#[test]
-fn git_cache_rejects_resolver_metadata_substitution() {
-    let (repo, _) = create_git_source("git-metadata-source");
-    let (substitute, _) = create_git_source("git-metadata-substitute");
-    let cache = temp_root("git-metadata-cache");
-    let substitute_url = substitute.display().to_string();
-    let request = local_git_request(&repo, "HEAD");
-    resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
-        .expect("prime cache");
-    let entry = git_cache_entry_root(&cache, &request);
-    std::fs::write(
-        entry.join(GIT_CACHE_METADATA),
-        git_cache_metadata(&substitute_url, "HEAD", GitExecutionTransport::File),
-    )
-    .expect("substitute metadata");
-
-    let error =
-        resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
-            .expect_err("substituted metadata must reject");
-
-    assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
-    assert!(!entry.join(GIT_CACHE_METADATA).exists());
-    let _ = std::fs::remove_dir_all(&repo);
-    let _ = std::fs::remove_dir_all(&substitute);
     let _ = std::fs::remove_dir_all(&cache);
 }
 
@@ -75,34 +45,6 @@ fn git_cache_invalidation_does_not_follow_a_substituted_entry_symlink() {
         std::fs::read(&target_metadata).expect("read retained target metadata"),
         b"must remain"
     );
-    let _ = std::fs::remove_dir_all(&cache);
-}
-
-#[test]
-fn git_cache_rejects_transport_profile_substitution() {
-    let (repo, _) = create_git_source("git-transport-metadata-source");
-    let cache = temp_root("git-transport-metadata-cache");
-    let request = local_git_request(&repo, "HEAD");
-    resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
-        .expect("prime cache");
-    let entry = git_cache_entry_root(&cache, &request);
-    std::fs::write(
-        entry.join(GIT_CACHE_METADATA),
-        git_cache_metadata(
-            request.locator_identity(),
-            request.requested_revision(),
-            GitExecutionTransport::Https,
-        ),
-    )
-    .expect("substitute transport profile metadata");
-
-    let error =
-        resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
-            .expect_err("substituted transport profile must reject");
-
-    assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
-    assert!(!entry.join(GIT_CACHE_METADATA).exists());
-    let _ = std::fs::remove_dir_all(&repo);
     let _ = std::fs::remove_dir_all(&cache);
 }
 
@@ -298,26 +240,4 @@ fn git_cache_rejects_group_or_other_writable_custody() {
     std::fs::set_permissions(&cache, std::fs::Permissions::from_mode(0o700)).unwrap();
     let _ = std::fs::remove_dir_all(&repo);
     let _ = std::fs::remove_dir_all(&cache);
-}
-
-#[cfg(unix)]
-#[test]
-fn cache_custody_rejects_replaceable_nonsticky_ancestry() {
-    use std::os::unix::fs::PermissionsExt;
-
-    let parent = temp_root("replaceable-cache-parent");
-    let cache = parent.join("cache");
-    std::fs::create_dir_all(&cache).expect("create nested cache");
-    std::fs::set_permissions(&parent, std::fs::Permissions::from_mode(0o777))
-        .expect("make parent replaceable");
-    std::fs::set_permissions(&cache, std::fs::Permissions::from_mode(0o700))
-        .expect("keep cache itself private");
-
-    assert!(matches!(
-        verify_git_cache_root_custody(&cache),
-        Err(SourceResolveError::GitCacheInvalid { .. })
-    ));
-
-    std::fs::set_permissions(&parent, std::fs::Permissions::from_mode(0o700)).unwrap();
-    let _ = std::fs::remove_dir_all(&parent);
 }

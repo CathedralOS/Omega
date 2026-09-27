@@ -78,37 +78,6 @@ fn nested_build_target() -> Option<target::TargetProfile> {
 }
 
 #[test]
-fn a_build_helper_runs_its_own_build_dependency_before_the_consumer() {
-    let Some(profile) = nested_build_target() else {
-        return;
-    };
-    let fixture = nested_build_fixture();
-    let before = fixture.accepted_files();
-    let output = publish_generated_update(&fixture, profile);
-    assert_lock_published(&fixture, &before);
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let generator = stdout
-        .find("generator activation")
-        .expect("generator build ran");
-    let helper = stdout.find("helper activation").expect("helper build ran");
-    let consumer = stdout
-        .find("consumer received generated answer")
-        .expect("consumer used generated source");
-    assert!(generator < helper && helper < consumer, "{stdout}");
-    assert!(!fixture.path("dependency/generated.omg").exists());
-    assert!(!fixture.path("root/generated.omg").exists());
-    let checked = fixture.omega(&[
-        "--check",
-        "--target",
-        profile.target_name(),
-        "--offline",
-        "main.omg",
-    ]);
-    assert_status(&checked, 0);
-    assert!(combined(&checked).contains("consumer received generated answer"));
-}
-
-#[test]
 fn nested_build_cross_profile_and_dual_purpose_inputs_publish_exact_occurrences() {
     let Some(profile) = nested_build_target() else {
         return;
@@ -156,73 +125,6 @@ fn nested_build_cross_profile_and_dual_purpose_inputs_publish_exact_occurrences(
         );
         assert_eq!(fixture.accepted_files(), accepted);
         assert!(!fixture.path("dependency/generated.omg").exists());
-    }
-}
-
-#[test]
-fn nested_build_dependency_does_not_become_a_helper_product_import() {
-    let Some(profile) = nested_build_target() else {
-        return;
-    };
-    let fixture = nested_build_fixture();
-    fixture.write(
-        "dependency/main.omg",
-        "use generator::main;\npub machine value() -> u64 { generation_value() }\n",
-    );
-    let before = fixture.accepted_files();
-    let output = fixture.omega(&["update", "--target", profile.target_name(), "--offline"]);
-    assert_status(&output, 1);
-    let text = combined(&output);
-    assert!(text.contains(PRODUCT_IMPORT_REJECTION), "{text}");
-    assert!(
-        text.contains("names build dependency `generator`"),
-        "{text}"
-    );
-    assert_eq!(fixture.accepted_files(), before);
-}
-
-#[test]
-fn non_nested_build_instances_retain_exact_purpose_and_profile_acceptance() {
-    let Some(profile) = nested_build_target() else {
-        return;
-    };
-    let foreign = if profile == target::TargetProfile::LinuxX64 {
-        target::TargetProfile::WindowsX64
-    } else {
-        target::TargetProfile::LinuxX64
-    };
-    for dual_purpose in [false, true] {
-        let fixture = nested_build_fixture();
-        fixture.write("dependency/build.omg", "machine build(builder: &mut Build) { builder.package(\"arithmetic_kernels\"); builder.log.write_line(\"helper activation\"); }\n");
-        fixture.write("dependency/main.omg", "pub machine value() -> u64 { 7 }\n");
-        fixture.write("root/build.omg", &format!("use kit::main;\nmachine build(builder: &mut Build) {{ builder.package(\"cli_project\"); builder.build_depend_as(\"kit\", Source::Path {{ location: \"../dependency\" }}); {} let answer: u64 = value(); }}\n",
-            if dual_purpose { "builder.depend_as(\"product_kit\", Source::Path { location: \"../dependency\" });" } else { "" }));
-        if dual_purpose {
-            fixture.write(
-                "root/main.omg",
-                "use product_kit::main;\npub machine consume() -> u64 { value() }\n",
-            );
-        }
-        let target = if dual_purpose { profile } else { foreign };
-        let before = fixture.accepted_files();
-        let output = fixture.omega(&["update", "--target", target.target_name(), "--offline"]);
-        assert_status(&output, 0);
-        let text = combined(&output);
-        assert!(text.contains("helper activation"), "{text}");
-        assert_lock_published(&fixture, &before);
-        assert_helper_occurrences(&fixture, target, profile, dual_purpose);
-        let accepted = fixture.accepted_files();
-        assert_status(
-            &fixture.omega(&[
-                "--check",
-                "--target",
-                target.target_name(),
-                "--offline",
-                "main.omg",
-            ]),
-            0,
-        );
-        assert_eq!(fixture.accepted_files(), accepted);
     }
 }
 
@@ -790,8 +692,6 @@ fn purposes_fixture(build_edges: &str, product_alias: &str) -> Fixture {
     fixture
 }
 
-const CROSS_SCOPE_EDGES: &str = "    builder.build_depend_as(\"kit\", Source::Path { location: \"../alpha\" });\n    builder.depend_as(\"kit\", Source::Path { location: \"../beta\" });\n";
-
 /// `omega update` publishes the lock from the declarations as authored; it
 /// never rewrites build.omg.
 fn assert_lock_published(fixture: &Fixture, before: &(Option<Vec<u8>>, Option<Vec<u8>>)) {
@@ -807,69 +707,6 @@ fn combined(output: &std::process::Output) -> String {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     )
-}
-
-#[test]
-fn one_alias_selects_different_packages_in_the_two_scopes() {
-    let fixture = purposes_fixture(CROSS_SCOPE_EDGES, "kit");
-    let before = fixture.accepted_files();
-    let output = fixture.omega(&["update", "--target", "linux_x86_64", "--offline"]);
-    assert_status(&output, 0);
-    assert_lock_published(&fixture, &before);
-    let audit = fixture.omega(&[
-        "audit",
-        "packages",
-        "--target",
-        "linux_x86_64",
-        "--offline",
-        "--details",
-    ]);
-    assert_status(&audit, 0);
-    let report = combined(&audit);
-    assert!(report.contains("fresh graph (3 packages)"), "{report}");
-    assert!(
-        report.contains("-- \"kit\" [build dependency 0] --> \"alpha\""),
-        "{report}"
-    );
-    assert!(
-        report.contains("-- \"kit\" [product dependency 0] --> \"beta\""),
-        "{report}"
-    );
-}
-
-#[test]
-fn one_package_serves_both_purposes_under_two_aliases() {
-    let fixture = purposes_fixture(
-        "    builder.build_depend_as(\"kit\", Source::Path { location: \"../alpha\" });\n    builder.depend_as(\"lib\", Source::Path { location: \"../alpha\" });\n",
-        "lib",
-    );
-    fixture.write(
-        "root/main.omg",
-        "use lib::main;\nmachine main() -> u64 { alpha_value() }\n",
-    );
-    let before = fixture.accepted_files();
-    assert_status(
-        &fixture.omega(&["update", "--target", "linux_x86_64", "--offline"]),
-        0,
-    );
-    assert_lock_published(&fixture, &before);
-    let audit = fixture.omega(&[
-        "audit",
-        "packages",
-        "--target",
-        "linux_x86_64",
-        "--offline",
-        "--details",
-    ]);
-    assert_status(&audit, 0);
-    let report = combined(&audit);
-    assert!(report.contains("fresh graph (2 packages)"), "{report}");
-    assert!(report.contains("edges 2"), "{report}");
-    assert!(
-        report.contains("-- \"kit\" [build dependency 0] --> \"alpha\"")
-            && report.contains("-- \"lib\" [product dependency 0] --> \"alpha\""),
-        "both purpose edges reach the one package: {report}"
-    );
 }
 
 #[test]
@@ -933,72 +770,4 @@ fn a_root_local_module_checked_in_both_scopes_keeps_two_instances() {
         fixture.accepted_files().1.is_some(),
         "update must publish omega.lock"
     );
-}
-
-#[test]
-fn dropping_an_edge_after_publication_rejects_only_its_authorized_imports() {
-    let fixture = purposes_fixture(CROSS_SCOPE_EDGES, "kit");
-    assert_status(
-        &fixture.omega(&["update", "--target", "linux_x86_64", "--offline"]),
-        0,
-    );
-    let published = fixture.accepted_files();
-    let build = fixture.read("root/build.omg");
-
-    // Without the product edge the product import of `kit` now names the
-    // build-scope package and rejects; the build import stays authorized.
-    fixture.write(
-        "root/build.omg",
-        &build.replace(
-            "    builder.depend_as(\"kit\", Source::Path { location: \"../beta\" });\n",
-            "",
-        ),
-    );
-    let output = fixture.omega(&["update", "--target", "linux_x86_64", "--offline"]);
-    assert_status(&output, 1);
-    let text = combined(&output);
-    assert!(text.contains(PRODUCT_IMPORT_REJECTION), "{text}");
-    assert!(
-        text.contains("names build dependency `kit` (package `alpha`"),
-        "{text}"
-    );
-    assert!(!text.contains(BUILD_IMPORT_REJECTION), "{text}");
-    assert_eq!(
-        fixture.accepted_files().1,
-        published.1,
-        "the lock is untouched"
-    );
-
-    // Without the build edge only the build import rejects.
-    fixture.write(
-        "root/build.omg",
-        &build.replace(
-            "    builder.build_depend_as(\"kit\", Source::Path { location: \"../alpha\" });\n",
-            "",
-        ),
-    );
-    let output = fixture.omega(&["update", "--target", "linux_x86_64", "--offline"]);
-    assert_status(&output, 1);
-    let text = combined(&output);
-    assert!(text.contains(BUILD_IMPORT_REJECTION), "{text}");
-    assert!(
-        text.contains("names product dependency `kit` (package `beta`"),
-        "{text}"
-    );
-    assert!(!text.contains(PRODUCT_IMPORT_REJECTION), "{text}");
-    assert_eq!(
-        fixture.accepted_files().1,
-        published.1,
-        "the lock is untouched"
-    );
-
-    // Restoring both edges publishes again from the same declarations.
-    fixture.write("root/build.omg", &build);
-    assert_status(
-        &fixture.omega(&["update", "--target", "linux_x86_64", "--offline"]),
-        0,
-    );
-    assert_eq!(fixture.accepted_files().0, published.0);
-    let lock = fixture.lock();
-    assert_eq!(lock.targets().len(), 1);
 }

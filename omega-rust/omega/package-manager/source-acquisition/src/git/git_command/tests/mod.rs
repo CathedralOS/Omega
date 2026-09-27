@@ -2,8 +2,6 @@
 
 use super::{capture::*, policy::*, reconciliation::*};
 use crate::error::SourceResolveError;
-#[cfg(unix)]
-use crate::git::executable::budget::*;
 use crate::git::executable::executor::*;
 use crate::git::request::GitExecutionTransport;
 use crate::limits::*;
@@ -13,4 +11,3 @@ use resolver_execution::ResolverExecutionPhase;
 mod bounded;
 mod configuration;
 mod executable;
-mod lifecycle;

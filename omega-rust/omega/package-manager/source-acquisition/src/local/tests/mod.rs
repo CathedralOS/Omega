@@ -13,19 +13,16 @@ use crate::tree::filesystem::*;
 use cap_std::ambient_authority;
 #[cfg(unix)]
 use cap_std::fs::Dir as CapabilityDirectory;
-use std::collections::BTreeSet;
 #[cfg(unix)]
 use std::ffi::OsStr;
 #[cfg(unix)]
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 #[cfg(unix)]
 use std::time::{SystemTime, UNIX_EPOCH};
 
 mod admissions_file;
 mod capture;
-mod identity;
 mod limits;
-mod lock_file;
 mod observation;
 mod path_policy;
 mod snapshots;

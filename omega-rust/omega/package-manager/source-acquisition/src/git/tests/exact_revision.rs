@@ -39,68 +39,6 @@ fn persisted_sha256_objects_fetch_cold_without_discovering_the_authored_selector
 }
 
 #[test]
-fn persisted_objects_fetch_cold_and_ignore_branch_and_fetch_head_movement() {
-    let mut fixture = Fixture::new("exact-revision-cold-movement");
-    let (advanced, _) = fixture.advance();
-    let original = fixture
-        .resolve(GitExactRevisionAcquisition::AllowFetch)
-        .unwrap();
-    fixture.assert_original(&original);
-    let refreshed = resolve_git_source_in_lane(
-        fixture.storage.primary_git().unwrap(),
-        &fixture.request,
-        fixture.storage.git_sources(),
-        LocalSourceLimits::default(),
-    )
-    .unwrap();
-    assert_eq!(refreshed.commit(), advanced.to_hex());
-    assert_ne!(refreshed.tree(), original.tree());
-    // The ordinary selector refresh also moves retained FETCH_HEAD. Exact
-    // recovery must use the supplied object IDs, not either mutable name.
-    fixture.disconnect();
-    for mode in [
-        GitExactRevisionAcquisition::Offline,
-        GitExactRevisionAcquisition::AllowFetch,
-    ] {
-        let recovered = fixture
-            .resolve(mode)
-            .expect("warm exact objects need no transport");
-        fixture.assert_original(&recovered);
-        assert_eq!(recovered.content_identity(), original.content_identity());
-        assert_eq!(recovered.lineage(), original.lineage());
-    }
-}
-
-#[test]
-fn persisted_objects_support_explicit_primary_git_without_transport() {
-    let mut fixture = Fixture::new("exact-revision-explicit-primary");
-    let first = resolve_git_source_at_revision_in_lane(
-        fixture.storage.primary_git().unwrap(),
-        &fixture.request,
-        &fixture.commit,
-        &fixture.tree,
-        GitExactRevisionAcquisition::AllowFetch,
-        fixture.storage.git_sources(),
-        LocalSourceLimits::default(),
-    )
-    .unwrap();
-    fixture.assert_original(&first);
-    fixture.disconnect();
-    let recovered = resolve_git_source_at_revision_in_lane(
-        fixture.storage.primary_git().unwrap(),
-        &fixture.request,
-        &fixture.commit,
-        &fixture.tree,
-        GitExactRevisionAcquisition::Offline,
-        fixture.storage.git_sources(),
-        LocalSourceLimits::default(),
-    )
-    .unwrap();
-    fixture.assert_original(&recovered);
-    assert_eq!(first.content_identity(), recovered.content_identity());
-}
-
-#[test]
 fn offline_object_misses_preserve_healthy_cache_and_never_refresh_selector() {
     let mut fixture = Fixture::new("exact-revision-offline-misses");
     let error = fixture

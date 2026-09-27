@@ -68,11 +68,6 @@ pub(super) fn run_command_capture(
         .map_err(|error| project_error(operation, error))
 }
 
-#[cfg(all(test, unix))]
-pub(crate) fn command_cleanup_reserve(timeout: Duration) -> Duration {
-    GIT_COMMAND_CLEANUP_TIMEOUT.min(timeout / 4)
-}
-
 fn project_error(operation: &str, error: BoundedProcessRunError) -> SourceResolveError {
     match error {
         BoundedProcessRunError::Spawn(message) => SourceResolveError::Git {

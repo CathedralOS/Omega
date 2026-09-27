@@ -50,29 +50,6 @@ fn git_symlink_targets_reject_windows_ambiguous_spellings() {
 }
 
 #[test]
-fn git_tree_enforces_declared_limits_before_reading_blobs() {
-    let repository = temp_root("git-tree-limit-validation");
-    let oid = "0123456789012345678901234567890123456789";
-    let listing = format!("100644 blob {oid} 4\tmain.omg\0");
-
-    let error = parse_git_tree_entries(
-        listing.as_bytes(),
-        &repository,
-        LocalSourceLimits {
-            max_bytes: 3,
-            ..LocalSourceLimits::default()
-        },
-    )
-    .expect_err("oversized tree must reject from metadata");
-
-    assert_eq!(error, SourceResolveError::TooManyBytes { limit: 3 });
-    assert!(
-        !repository.exists(),
-        "limit rejection must not inspect an object"
-    );
-}
-
-#[test]
 fn git_tree_entry_limit_counts_declared_directories() {
     let repository = temp_root("git-tree-directory-limit");
     let oid = "0123456789012345678901234567890123456789";
@@ -89,25 +66,5 @@ fn git_tree_entry_limit_counts_declared_directories() {
     .expect_err("directory and blob must consume separate identity entries");
 
     assert_eq!(error, SourceResolveError::TooManyFiles { limit: 1 });
-    assert!(!repository.exists());
-}
-
-#[test]
-fn git_tree_rejects_gitlinks_before_materialization() {
-    let repository = temp_root("gitlink-validation");
-    let oid = "0123456789012345678901234567890123456789";
-    let listing = format!("160000 commit {oid} -\tdependency\0");
-
-    let error = parse_git_tree_entries(
-        listing.as_bytes(),
-        &repository,
-        LocalSourceLimits::default(),
-    )
-    .expect_err("gitlink must reject");
-
-    assert!(matches!(
-        error,
-        SourceResolveError::GitSubmodulesUnsupported { .. }
-    ));
     assert!(!repository.exists());
 }

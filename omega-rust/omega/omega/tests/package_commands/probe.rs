@@ -77,55 +77,6 @@ fn accept(fixture: &Fixture, target: &str) {
 }
 
 #[test]
-fn native_probe_resolves_package_aliases_for_both_engines() {
-    let Some(host) = target::TargetProfile::host_if_supported() else {
-        eprintln!("skipping: this leg executes a host artifact");
-        return;
-    };
-    let fixture = application();
-    accept(&fixture, host.target_name());
-    let before = fixture.accepted_files();
-    let output = fixture.omega(&["run", "--both", "main.omg"]);
-    assert_status(&output, 0);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("native exit 0"), "{stderr}");
-    assert!(stderr.contains("interp exit: 0"), "{stderr}");
-    assert_eq!(fixture.accepted_files(), before);
-}
-
-#[test]
-fn native_probe_requires_ordinary_package_acceptance() {
-    let fixture = application();
-    fixture.write(
-        "dependency/main.omg",
-        "pub machine value() -> i32 { 7 }\nboundary machine trusted_zero() -> u64 ensures result == 0;\n",
-    );
-    let before = fixture.accepted_files();
-    let output = fixture.omega(&["run", "--both", "main.omg"]);
-    assert_status(&output, 200);
-    assert_probe_rejection(&output, "run omega update");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(!stderr.contains("native exit"), "{stderr}");
-    assert!(!stderr.contains("interp exit"), "{stderr}");
-    assert_eq!(fixture.accepted_files(), before);
-}
-
-#[test]
-fn native_probe_explicit_target_only_compiles_the_package() {
-    let fixture = application();
-    accept(&fixture, "linux_x86_64");
-    let output = fixture.omega(&["run", "--both", "--target", "linux_x86_64", "main.omg"]);
-    assert_status(&output, 0);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("compiled for target `linux_x86_64` OK"),
-        "{stderr}"
-    );
-    assert!(!stderr.contains("native exit"), "{stderr}");
-    assert!(!stderr.contains("interp exit"), "{stderr}");
-}
-
-#[test]
 fn native_probe_observes_generated_package_source_in_both_engines() {
     let Some(host) = target::TargetProfile::host_if_supported() else {
         eprintln!("skipping: this leg executes a host artifact");

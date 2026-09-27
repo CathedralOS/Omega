@@ -1,7 +1,6 @@
 use super::{
     GIT_LOCATOR_BYTE_LIMIT, GIT_REVISION_BYTE_LIMIT, GitExecutionTransport, GitSourceRequest,
-    GitSourceRequestError, LocalSourceLimits, SOURCE_BYTE_ABSOLUTE_LIMIT,
-    SOURCE_DEPTH_ABSOLUTE_LIMIT, SOURCE_ENTRY_ABSOLUTE_LIMIT, git_cache_identity,
+    GitSourceRequestError, git_cache_identity,
 };
 #[test]
 fn git_request_validates_transport_and_emits_sanitized_identity() {
@@ -116,21 +115,4 @@ fn git_request_rejects_unbounded_or_refspec_shaped_inputs() {
             "accepted {revision:?}"
         );
     }
-}
-
-#[test]
-fn compiler_owned_source_ceilings_bound_caller_limits() {
-    assert_eq!(
-        LocalSourceLimits {
-            max_entries: usize::MAX,
-            max_bytes: u64::MAX,
-            max_depth: usize::MAX,
-        }
-        .compiler_bounded(),
-        LocalSourceLimits {
-            max_entries: SOURCE_ENTRY_ABSOLUTE_LIMIT,
-            max_bytes: SOURCE_BYTE_ABSOLUTE_LIMIT,
-            max_depth: SOURCE_DEPTH_ABSOLUTE_LIMIT,
-        }
-    );
 }

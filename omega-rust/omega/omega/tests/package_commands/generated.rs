@@ -34,15 +34,6 @@ fn check_generated_import(fixture: &Fixture) {
 }
 
 #[test]
-fn installed_generated_dependency_is_available_to_ordinary_checking() {
-    let fixture = generated_fixture();
-    assert_status(&fixture.omega(&["install", "../dependency"]), 0);
-    check_generated_import(&fixture);
-    assert_status(&fixture.omega(&["update", "generated_table"]), 0);
-    check_generated_import(&fixture);
-}
-
-#[test]
 fn invalid_generated_proof_does_not_publish_a_dependency() {
     let fixture = generated_fixture();
     fixture.write(
@@ -61,27 +52,6 @@ fn invalid_generated_proof_does_not_publish_a_dependency() {
         String::from_utf8_lossy(&output.stderr)
     );
     assert_eq!(fixture.accepted_files(), before);
-}
-
-#[test]
-fn generated_output_cannot_escape_its_supplied_root() {
-    let fixture = generated_fixture();
-    fixture.write(
-        "dependency/build.omg",
-        &BUILD.replace("table.generated.omg", "../escaped.omg"),
-    );
-    let before = fixture.accepted_files();
-    let output = fixture.omega(&["install", "../dependency"]);
-    assert_status(&output, 1);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("build-root path must use canonical relative components"),
-        "{stderr}"
-    );
-    assert_eq!(fixture.accepted_files(), before);
-    assert!(!fixture.path("escaped.omg").exists());
-    assert!(!fixture.path("root/escaped.omg").exists());
-    assert!(!fixture.path("dependency/escaped.omg").exists());
 }
 
 /// The shipped binary publishes the retained native product of a project

@@ -1,6 +1,6 @@
 //! Git resolution tests that require private acquisition and issuance seams.
 
-use super::{issuance::*, network::*, repository::*};
+use super::{issuance::*, repository::*};
 use crate::custody::tree::*;
 use crate::error::SourceResolveError;
 use crate::git::cache::{

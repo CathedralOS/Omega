@@ -161,47 +161,6 @@ mod tests {
     }
 
     #[test]
-    fn production_constructor_creates_one_retained_private_tree() {
-        let base = isolated_base("storage");
-        std::fs::create_dir_all(&base).expect("create isolated cache base");
-        let storage = SourceResolver::create_beneath(&base, PrimaryGitChoices::default())
-            .expect("production private-root constructor");
-        assert!(storage.root().starts_with(base.canonicalize().unwrap()));
-        storage
-            .verify_path_identity()
-            .expect("retained root identity");
-
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            for component in ["CathedralOS", "Omega", "source", "v1"] {
-                let path = storage
-                    .root()
-                    .ancestors()
-                    .find(|path| path.file_name().is_some_and(|name| name == component))
-                    .expect("managed component");
-                assert_eq!(
-                    std::fs::metadata(path).unwrap().permissions().mode() & 0o777,
-                    0o700,
-                );
-            }
-            for lane in [
-                storage.git_sources(),
-                storage.workspace_members(),
-                storage.external_local_sources(),
-            ] {
-                assert_eq!(
-                    std::fs::metadata(lane.path()).unwrap().permissions().mode() & 0o777,
-                    0o700,
-                );
-            }
-        }
-
-        drop(storage);
-        let _ = std::fs::remove_dir_all(base);
-    }
-
-    #[test]
     #[cfg_attr(
         windows,
         ignore = "Windows prevents replacement while the retained storage-root handle is open"

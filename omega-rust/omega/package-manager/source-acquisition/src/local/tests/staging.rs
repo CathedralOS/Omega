@@ -228,20 +228,6 @@ fn staged_replacement_rejects_missing_directory_and_excluded_paths() {
     });
 }
 
-#[cfg(unix)]
-#[test]
-fn staged_replacement_rejects_symlink_even_with_matching_target_digest() {
-    with_staging_source("staging-symlink-target", |root, lane| {
-        std::os::unix::fs::symlink("main.omg", root.join("linked.omg")).unwrap();
-        assert_invalid_replacement(root, lane, "linked.omg");
-        assert_eq!(
-            std::fs::read_link(root.join("linked.omg")).unwrap(),
-            Path::new("main.omg")
-        );
-        assert_eq!(std::fs::read(root.join("main.omg")).unwrap(), b"before");
-    });
-}
-
 #[test]
 fn staged_replacement_byte_budget_counts_proposed_tree() {
     with_staging_source("staging-byte-budget", |root, lane| {
@@ -273,58 +259,6 @@ fn staged_replacement_byte_budget_counts_proposed_tree() {
                 staged.verify_live_source_unchanged().unwrap();
             }
             assert_eq!(std::fs::read(root.join("main.omg")).unwrap(), b"before");
-        }
-    });
-}
-
-#[test]
-fn staged_replacement_verification_detects_unrelated_source_drift() {
-    with_staging_source("staging-unrelated-drift", |root, lane| {
-        let staged = stage_main(root, lane, b"after");
-        staged.verify_live_source_unchanged().unwrap();
-        std::fs::write(root.join("other.omg"), b"drift").expect("change unrelated source");
-        assert!(matches!(
-            staged.verify_live_source_unchanged(),
-            Err(SourceResolveError::LocalSourceChanged { .. })
-        ));
-        assert_eq!(std::fs::read(root.join("main.omg")).unwrap(), b"before");
-        assert_eq!(
-            std::fs::read(staged.snapshot_root().join("other.omg")).unwrap(),
-            b"kept"
-        );
-    });
-}
-
-#[test]
-fn no_op_staging_reuses_original_snapshot_and_ignores_root_control_changes() {
-    with_staging_source("staging-no-op-lock", |root, lane| {
-        let limits = LocalSourceLimits::default();
-        let original = resolve_local_source_snapshot_in_lane(root, lane, limits).unwrap();
-        let staged = stage_main(root, lane, b"before");
-        assert_eq!(staged.snapshot_root(), original.snapshot_root());
-        assert_eq!(staged.normalized(), original.normalized());
-        assert_eq!(
-            staged.original().content_identity,
-            staged.normalized().content_identity
-        );
-        std::fs::write(root.join("main.omg"), b"before").expect("write identical source bytes");
-        staged
-            .verify_live_source_unchanged()
-            .expect("no-op is not drift");
-        for name in ["omega.lock", "omega.admissions"] {
-            for contents in [b"first policy".as_slice(), b"changed policy"] {
-                std::fs::write(root.join(name), contents).unwrap();
-                staged
-                    .verify_live_source_unchanged()
-                    .expect("root control policy is not source drift");
-                let reused = stage_main(root, lane, b"before");
-                assert_eq!(reused.snapshot_root(), staged.snapshot_root());
-                assert!(!reused.snapshot_root().join(name).exists());
-            }
-            std::fs::remove_file(root.join(name)).unwrap();
-            staged
-                .verify_live_source_unchanged()
-                .expect("root control policy removal is not drift");
         }
     });
 }

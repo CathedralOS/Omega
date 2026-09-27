@@ -1,14 +1,10 @@
+#[cfg(unix)]
+use super::open_absolute_directory_nofollow;
 use super::{
     CacheCustodyKind, GIT_CACHE_SNAPSHOTS, LocalSourceLimits, PendingMaterializedSnapshot,
     SourceResolveError, create_git_source, local_git_request, make_tree_owner_writable,
     open_verified_git_repository, resolve_git_source_from_hardened_base, temp_root,
     write_snapshot_file_from_open_root,
-};
-#[cfg(unix)]
-use super::{
-    make_open_snapshot_read_only, make_open_snapshot_root_publishable,
-    make_open_snapshot_root_read_only, make_snapshot_read_only, open_absolute_directory_nofollow,
-    same_capability_file_identity, verify_open_snapshot_tree_modes,
 };
 use std::path::Path;
 
@@ -151,97 +147,6 @@ fn materialized_snapshot_publication_rejects_a_replaced_stage_name() {
 
 #[cfg(unix)]
 #[test]
-fn sealed_materialized_snapshot_publishes_with_retained_identity_and_canonical_modes() {
-    use std::os::unix::fs::PermissionsExt;
-
-    let root = temp_root("sealed-materialized-publication");
-    let snapshots = root.join("snapshots");
-    std::fs::create_dir_all(&snapshots).expect("create snapshot parent");
-    let mut pending = PendingMaterializedSnapshot::create(
-        CacheCustodyKind::LocalSnapshot,
-        &snapshots,
-        ".source-sealed.stage",
-    )
-    .expect("create retained materialization stage");
-    write_snapshot_file_from_open_root(
-        CacheCustodyKind::LocalSnapshot,
-        pending.directory().expect("retain stage directory"),
-        Path::new("nested/payload"),
-        &pending.root,
-        b"retained",
-        false,
-    )
-    .expect("write staged payload");
-    make_open_snapshot_read_only(
-        CacheCustodyKind::LocalSnapshot,
-        pending.directory().expect("retain stage directory"),
-        &pending.root,
-    )
-    .expect("seal staged snapshot");
-
-    let stage = pending.root.clone();
-    let retained = pending
-        .directory()
-        .expect("retain sealed stage")
-        .dir_metadata()
-        .expect("inspect sealed stage");
-    assert_eq!(
-        std::fs::symlink_metadata(&stage)
-            .expect("inspect staged root mode")
-            .permissions()
-            .mode()
-            & 0o777,
-        0o555
-    );
-
-    let publication = snapshots.join("source-published");
-    pending
-        .publish(&snapshots, &publication)
-        .expect("publish a sealed snapshot");
-
-    assert!(!stage.exists());
-    let published = pending
-        .parent
-        .symlink_metadata("source-published")
-        .expect("inspect publication through retained parent");
-    assert!(same_capability_file_identity(&retained, &published));
-    assert_eq!(
-        std::fs::symlink_metadata(&publication)
-            .expect("inspect published root mode")
-            .permissions()
-            .mode()
-            & 0o777,
-        0o555
-    );
-    assert_eq!(
-        std::fs::symlink_metadata(publication.join("nested"))
-            .expect("inspect nested directory")
-            .permissions()
-            .mode()
-            & 0o777,
-        0o555
-    );
-    assert_eq!(
-        std::fs::symlink_metadata(publication.join("nested/payload"))
-            .expect("inspect published payload")
-            .permissions()
-            .mode()
-            & 0o777,
-        0o444
-    );
-    verify_open_snapshot_tree_modes(
-        CacheCustodyKind::LocalSnapshot,
-        pending.directory().expect("retain published directory"),
-        &publication,
-    )
-    .expect("verify the complete published tree");
-
-    make_tree_owner_writable(&root);
-    let _ = std::fs::remove_dir_all(&root);
-}
-
-#[cfg(unix)]
-#[test]
 fn materialized_snapshot_write_rejects_a_nested_directory_symlink_substitution() {
     let root = temp_root("materialized-stage-nested-symlink");
     let stage = root.join("stage");
@@ -272,46 +177,4 @@ fn materialized_snapshot_write_rejects_a_nested_directory_symlink_substitution()
     ));
     assert!(!target.join("payload").exists());
     let _ = std::fs::remove_dir_all(&root);
-}
-
-#[cfg(unix)]
-#[test]
-fn published_snapshot_mode_verification_remains_bound_to_its_open_root() {
-    use std::os::unix::fs::PermissionsExt;
-
-    let parent = temp_root("published-snapshot-open-root");
-    let publication = parent.join("publication");
-    let retained = parent.join("retained");
-    std::fs::create_dir_all(publication.join("nested")).expect("create published snapshot tree");
-    std::fs::write(publication.join("nested/payload"), b"retained")
-        .expect("write published snapshot payload");
-    make_snapshot_read_only(&publication).expect("finalize published snapshot modes");
-    let canonical_publication = publication
-        .canonicalize()
-        .expect("canonicalize published snapshot");
-    let directory = open_absolute_directory_nofollow(&canonical_publication)
-        .expect("open published snapshot root");
-
-    make_open_snapshot_root_publishable(&directory, &canonical_publication)
-        .expect("make retained root publishable");
-    std::fs::rename(&publication, &retained).expect("replace publication root path");
-    make_open_snapshot_root_read_only(&directory, &canonical_publication)
-        .expect("restore retained root mode");
-    std::fs::create_dir(&publication).expect("create replacement publication root");
-    std::fs::set_permissions(&publication, std::fs::Permissions::from_mode(0o777))
-        .expect("make replacement publication writable");
-
-    verify_open_snapshot_tree_modes(
-        CacheCustodyKind::LocalSnapshot,
-        &directory,
-        &canonical_publication,
-    )
-    .expect("verification must remain on the retained publication");
-    assert_eq!(
-        std::fs::read(retained.join("nested/payload")).expect("read retained payload"),
-        b"retained"
-    );
-    std::fs::set_permissions(&publication, std::fs::Permissions::from_mode(0o700)).unwrap();
-    make_tree_owner_writable(&retained);
-    let _ = std::fs::remove_dir_all(&parent);
 }

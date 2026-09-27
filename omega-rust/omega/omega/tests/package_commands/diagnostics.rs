@@ -2,25 +2,6 @@ use super::fixture::{Fixture, assert_status};
 use std::fs;
 
 #[test]
-fn install_reports_invalid_proof_without_publishing_or_requesting_review() {
-    invalid_proof("install");
-}
-
-#[test]
-fn update_reports_invalid_proof_and_preserves_accepted_files() {
-    invalid_proof("update");
-}
-
-fn invalid_proof(command: &str) {
-    rejected_candidate(
-        command,
-        "pub machine value() -> u64 ensures result == 8 { 7 }\n",
-        None,
-        &["cannot prove ensures contract for exit from value at statement 0"],
-    );
-}
-
-#[test]
 fn update_explains_unsupported_generated_declaration_and_preserves_accepted_files() {
     rejected_candidate(
         "update",

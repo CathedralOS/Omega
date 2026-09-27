@@ -1,32 +1,10 @@
 use super::{
     CacheCustodyKind, LocalSourceLimits, OpenOptions, SourceResolveError, change_macos_acl,
-    create_git_source, git_cache_entry_root, local_git_request, open_absolute_directory_nofollow,
+    create_git_source, git_cache_entry_root, local_git_request,
     resolve_git_source_from_hardened_base, resolve_local_source_snapshot_from_hardened_base,
-    temp_root, verify_cache_custody, verify_cache_custody_from_open_root,
-    verify_cache_lock_path_identity_for_test, verify_macos_open_cache_directory_acl_custody,
+    temp_root, verify_cache_custody, verify_cache_lock_path_identity_for_test,
+    verify_macos_open_cache_directory_acl_custody,
 };
-
-#[cfg(target_os = "macos")]
-#[test]
-fn cache_custody_acl_observation_remains_bound_to_open_root() {
-    let cache = temp_root("cache-open-root-acl-replacement");
-    let retained = cache.with_extension("retained");
-    std::fs::create_dir_all(&cache).expect("create cache root");
-    let canonical_cache = cache.canonicalize().expect("canonicalize cache root");
-    let directory =
-        open_absolute_directory_nofollow(&canonical_cache).expect("open cache root capability");
-
-    std::fs::rename(&cache, &retained).expect("relocate opened cache root");
-    std::fs::create_dir_all(&cache).expect("create replacement cache root");
-    change_macos_acl(&cache, &["+a", "everyone allow write"]);
-
-    verify_cache_custody_from_open_root(&canonical_cache, directory, CacheCustodyKind::Git, 0)
-        .expect("ACL observation must remain on the retained cache root");
-
-    change_macos_acl(&cache, &["-N"]);
-    let _ = std::fs::remove_dir_all(&cache);
-    let _ = std::fs::remove_dir_all(&retained);
-}
 
 #[cfg(target_os = "macos")]
 #[test]

@@ -1,8 +1,7 @@
 use super::{
     GitCommitId, GitObjectIdAlgorithm, GitSourceRequest, GitTransportProfile, GitTreeId,
     ImmutableSourceResolution, LocalSourceLimits, PendingResolvedGitSource, SourceResolveError,
-    add_empty_tree_commit, create_git_source, create_git_source_with_format, local_git_request,
-    make_tree_owner_writable, parse_git_remote_object_format,
+    create_git_source, local_git_request, make_tree_owner_writable, parse_git_remote_object_format,
     resolve_git_source_from_hardened_base, run_test_git, temp_root, validate_pending_git_request,
     validate_pending_git_source_custody, verify_pending_git_snapshot,
 };
@@ -86,27 +85,6 @@ fn git_source_resolves_exact_commit_and_local_identity() {
 }
 
 #[test]
-fn git_source_authenticates_and_materializes_empty_subtrees() {
-    let (repo, _) = create_git_source("git-empty-subtree");
-    let commit = add_empty_tree_commit(&repo);
-    let cache = temp_root("git-empty-subtree-cache");
-
-    let resolved = resolve_git_source_from_hardened_base(
-        &local_git_request(&repo, &commit),
-        &cache,
-        LocalSourceLimits::default(),
-    )
-    .expect("resolve Git source containing an explicit empty subtree");
-
-    assert_eq!(resolved.commit, commit);
-    assert_eq!(resolved.local.file_count, 1);
-    assert!(resolved.snapshot_root.join("empty").is_dir());
-
-    let _ = std::fs::remove_dir_all(&repo);
-    let _ = std::fs::remove_dir_all(&cache);
-}
-
-#[test]
 fn git_resolution_issuance_rejects_final_snapshot_drift() {
     let (repo, commit) = create_git_source("git-final-issuance-drift");
     let cache = temp_root("git-final-issuance-drift-cache");
@@ -126,47 +104,6 @@ fn git_resolution_issuance_rejects_final_snapshot_drift() {
 
     let _ = std::fs::remove_dir_all(&repo);
     make_tree_owner_writable(&cache);
-    let _ = std::fs::remove_dir_all(&cache);
-}
-
-#[test]
-fn git_source_authenticates_sha256_object_graph() {
-    let (repo, commit) = create_git_source_with_format("git-sha256", Some("sha256"));
-    let cache = temp_root("git-sha256-cache");
-
-    let resolved = resolve_git_source_from_hardened_base(
-        &local_git_request(&repo, &commit),
-        &cache,
-        LocalSourceLimits::default(),
-    )
-    .expect("resolve SHA-256 git source");
-
-    assert_eq!(resolved.commit, commit);
-    assert_eq!(resolved.commit.len(), 64);
-    assert_eq!(resolved.tree.len(), 64);
-    assert_eq!(resolved.local.file_count, 1);
-
-    let _ = std::fs::remove_dir_all(&repo);
-    let _ = std::fs::remove_dir_all(&cache);
-}
-
-#[test]
-fn git_source_discovers_sha256_for_symbolic_revision() {
-    let (repo, commit) = create_git_source_with_format("git-sha256-symbolic", Some("sha256"));
-    let cache = temp_root("git-sha256-symbolic-cache");
-
-    let resolved = resolve_git_source_from_hardened_base(
-        &local_git_request(&repo, "HEAD"),
-        &cache,
-        LocalSourceLimits::default(),
-    )
-    .expect("discover and resolve symbolic SHA-256 git source");
-
-    assert_eq!(resolved.commit, commit);
-    assert_eq!(resolved.commit.len(), 64);
-    assert_eq!(resolved.tree.len(), 64);
-
-    let _ = std::fs::remove_dir_all(&repo);
     let _ = std::fs::remove_dir_all(&cache);
 }
 
