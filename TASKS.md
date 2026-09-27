@@ -679,13 +679,26 @@ the complete product bar; focused successes below do not establish that baseline
       one: a runtime-indexed record element's field
       (`entity_list`, `bouncing_particles` -- pinned at
       `tests/omega/pending/collections/runtime_indexed_record_field_store`,
-      and its route is mapped below),
+      and its route is mapped below; the runtime-indexed case dispatch
+      above is the SAME family -- a runtime index selecting a non-scalar
+      element -- so one Terminal answer serves both),
       a local record's field inside arithmetic (`grid_walk`,
       `self.px = self.px + v.dx` with `v` bound from a call), and a length
       inside arithmetic (`text_padding`,
       `self.padding = 16 - self.message.len`)
     - 3 `statement sequence: local data: structural call binding` --
-      `cli/{algorithms/dutch_flag, systems/{descriptor_walk,wire_protocol}}`
+      `cli/{algorithms/dutch_flag, systems/{descriptor_walk,wire_protocol}}`,
+      and this is the phase label to DISTRUST. `dutch_flag` carries no
+      `let` at all: its statement is
+      `transition self.items[self.w] { Color::Red -> ... }`, a case
+      dispatch on a RUNTIME-indexed element. `trace.phase` records the last
+      phase entered rather than the operation that declined, so a label can
+      name a site the program never reaches. Isolated in eighteen lines at
+      `tests/omega/pending/control_flow/runtime_indexed_case_dispatch`:
+      `self.items[0]` dispatches and `self.items[self.w]` omits.
+      `descriptor_walk`'s own statement is
+      `let d: &Desc = &self.buf[off] as &Desc;`, a recast of a borrow --
+      a local, and a third shape again
     - 3 `structural field store: byte sequence carrier` --
       `cli/{basics/text_greeting, systems/status_report,
       text/string_catalog}`, and the phase name misleads: the carrier IS
