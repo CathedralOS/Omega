@@ -63,6 +63,25 @@ python3 tools/corpus_gate.py --record             # re-pin the golden
 `OMEGA_CORPUS_FIXTURE_FILTER`); `--shard k/N` selects a
 deterministic hash slice for splitting the run across sessions.
 
+### One golden, every host
+
+`tests/omega/corpus_outcomes.txt` is a single checked-in file shared by
+Linux, macOS and Windows developers, so a row whose recorded diagnostic
+depends on the recording host can never be clean everywhere. Do not pin a
+fixture whose diagnostic names the realized target, and watch for the
+indirect form: a fixture that reaches a provider only some hosts supply
+records that provider's absence on the others. Pin such a rule in a Rust
+unit test, which fixes the target explicitly, or keep the fixture on a
+route that does not select a provider.
+
+The check-leg realization of entry-binding fixtures makes this easy to trip.
+A `pass/filesystem/native_*` fixture that recorded a unit-plan omission
+under the targetless route reports "selected ProgramEntry Binding field
+`Main::fs` requires a selected Fused provider for boundary `FilesystemHost`"
+on a host with no filesystem provider, and one row records
+`target: LinuxX64` outright. Re-record on the host you develop on and the
+other host's rows move instead; the gate cannot be clean on both.
+
 ### Attributing a move
 
 The printed summary cuts each field at 300 columns, which is usually exactly

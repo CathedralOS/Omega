@@ -851,6 +851,31 @@ _rejected` and `expressions/bool_numeric_operand_mixing_rejected` each gained
   Lowering(InvalidTerminalModule(InvalidBlockStructuralParameter { block:
   BlockId(6), place: PlaceId(7) }))", which is the gate named above.
 
+  **The golden is now host-dependent, measured on macOS arm64 at
+  c52f1d9b11d.** Realizing entry-binding fixtures on the check leg
+  (`0fec837bcf7`) is the right accounting, but it made fourteen rows record
+  something only the recording host produces. Twelve `pass/filesystem/*`
+  rows plus `pass/text/zii_default_string_equality_exit` hold a unit-plan
+  omission in the golden and report "selected ProgramEntry Binding field
+  `Main::fs` requires a selected Fused provider for boundary
+  `FilesystemHost`" on a host with no filesystem provider;
+  `pass/filesystem/native_close` records `target: LinuxX64` outright, and
+  `pass/providers/external_boundary_requirement_via_exit` names a host too.
+  `corpus_outcomes.txt` is one file for every developer, so re-recording
+  here would simply move the same rows for whoever recorded it -- the gate
+  cannot be clean on both hosts as things stand. Either keep those fixtures
+  on a route that selects no provider, or give them a per-host golden like
+  the native leg has. Four more rows (`arithmetic/saturating_signed_divide\
+_min_by_neg_one`, `blockexec/blocking_executor_custody_claims_compile`,
+  `expressions/runtime_flat_boolean_logic_exit`,
+  `traits/equatable_record_equality_exit`) simply IMPROVED after the
+  re-record and want re-pinning, and
+  `pass/structs/{copied_array_field_shared_record,nested_unused_provider_fields}`
+  are unrecorded additions. That is the whole 20-move report; the
+  seventeen pass-tier regressions below were folded into the re-record and
+  are no longer what the gate prints. **CANARY-CORPUS-ROSTER-ACCOUNTING**
+  owns both files.
+
   The PASS tier is where the red moved to, and it is now attributed. Measured
   unfiltered at 63c72b29128: 1144 fixtures, 22 moves, every one of them in
   the pass tier. Five were fixtures other lanes added without a golden row,
