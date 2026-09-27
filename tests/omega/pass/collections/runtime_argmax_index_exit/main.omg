@@ -6,11 +6,11 @@
 // best_idx == 3.
 use omega_language_std::console;
 use omega::language::core::binding;
-data Main {
+data Main where 0 <= i, i <= 6, 0 <= best_idx, best_idx <= 6 {
     console: Binding<Console>;
     arr: [i32; 6];
-    i: i32 [0..=6];
-    best_idx: i32 [0..=6];
+    i: i32;
+    best_idx: i32;
     best_val: i32;
     cur: i32;
 }

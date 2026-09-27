@@ -345,7 +345,6 @@ fn named_proof_constraints_reject_in_scalar_and_slice_type_positions() {
         "i32 [positive]",
         "i32 [non_negative]",
         "u32 [exact]",
-        "&[u8, [non_empty]]",
         "i32 [0..=10, magic]",
         "i32 [Example::Fact]",
     ] {
@@ -361,6 +360,22 @@ fn named_proof_constraints_reject_in_scalar_and_slice_type_positions() {
         );
         assert!(error.message.contains("in Domain"));
         assert!(error.message.contains("contracts"));
+    }
+}
+
+#[test]
+fn comma_constraint_slots_inside_type_brackets_reject() {
+    for source in [
+        "data Main { value: &[u8, [non_empty]]; }",
+        "data Main { value: [u8, x <= 10]; }",
+        "data Main { value: [i32, 0..=10]; }",
+        "machine m(x: [u8, nonzero]) { }",
+    ] {
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        assert!(
+            parse_syntax_trees(&tokens).is_err(),
+            "inside-bracket constraint slot must reject: {source}"
+        );
     }
 }
 
