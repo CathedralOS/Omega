@@ -1830,6 +1830,7 @@ pass/structural/case_payload_record_member_read rejected 4751ms
 pass/structural/element_store rejected 4870ms
 	native artifact canonical abstract optimization failed: explicit optimization pipeline failed: Run(InitialValidation(StructuralCallContractMismatch { machine: MachineId(1), block: BlockId(2), node: 1 }))
 pass/structural/local_record_receivers checked 1805ms
+pass/structural/sum_attachment_receiver_compile checked 1534ms
 pass/targets/aarch64_hfa_entry_argument checked 8026ms
 pass/targets/efi_vtable_call checked 2239ms
 pass/targets/single_target_internal_machine_skipped checked 5011ms

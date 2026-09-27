@@ -1,0 +1,39 @@
+// Regression: a composed Unit attached to a SUM (not a record) whose states
+// take `&self` receivers must lower — the attachment is the discriminated
+// value itself, not a manufactured record. `Transition::equals` mirrors the
+// Squalr `Endian::equals` family that declined at
+// `composed Unit attachment is not a record` when receiver use implied a
+// record shape.
+
+data Transition [copy] {
+    case First;
+    case Second;
+}
+
+data Main {
+    left: Transition;
+    right: Transition;
+}
+
+machine Transition::equals(&self, other: &Transition) -> bool {
+    transition self {
+        Transition::First -> first(other)
+        Transition::Second -> second(other)
+    }
+    state first(&self, other: &Transition) -> bool {
+        transition other {
+            Transition::First -> (true)
+            Transition::Second -> (false)
+        }
+    }
+    state second(&self, other: &Transition) -> bool {
+        transition other {
+            Transition::Second -> (true)
+            Transition::First -> (false)
+        }
+    }
+}
+
+machine Main::main(&mut self) {
+    let same: bool = self.left.equals(&self.right);
+}

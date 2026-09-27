@@ -245,22 +245,13 @@ pub(super) fn exact_attachment<'a>(
     if identity != retained_identity {
         return unsupported("composed Unit attachment disagrees with its authored owner");
     }
-    // A namespaced constructor can have an exact nominal owner without any
-    // runtime receiver storage. Only actual receiver/provider use requires a
-    // record attachment; never manufacture storage for a sum's namespace.
-    let requires_record_storage = !plan.provider_attachment_requirements.is_empty()
-        || program.machine_states(machine).iter().any(|state| {
-            program
-                .state_parameters(state)
-                .iter()
-                .any(|parameter| parameter.is_self)
-        })
-        || plan.states.iter().any(|state| {
-            state
-                .structural_parameters
-                .iter()
-                .any(|parameter| parameter.is_self)
-        });
+    // A receiver binds to the attachment place whatever its shape: a sum's
+    // `self` parameter is a view over the discriminated value itself, and
+    // `validate_receiver` already pins the parameter's type to the authored
+    // attachment identity. Only provider fields require record storage —
+    // requirements mint upstream exclusively from record shapes, so a
+    // non-empty set on another shape is pure drift.
+    let requires_record_storage = !plan.provider_attachment_requirements.is_empty();
     exact_attachment_identity(checked, retained_identity, requires_record_storage).map(Some)
 }
 
