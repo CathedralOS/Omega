@@ -497,9 +497,10 @@ pub(super) fn narrow_environment_by_condition(
         );
         return;
     }
-    let ExpressionNode::Binary(comparison) = program.expression_table.expression(condition) else {
+    let Some(comparison) = meaning::guard_comparison(program, machine, state, condition) else {
         return;
     };
+    let comparison = &comparison;
     if matches!(
         comparison.operator,
         BinaryOperator::Equal | BinaryOperator::NotEqual

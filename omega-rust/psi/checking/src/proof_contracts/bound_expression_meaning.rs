@@ -281,7 +281,7 @@ pub(super) fn builtin_boolean_equality(
 /// lookalike, or more than one matching candidate all fail closed and leave
 /// the builtin-meaning gate authoritative. This grants only the comparison
 /// relation; the float fact readers still owe their own operand checks.
-pub(super) fn sealed_float_comparison(
+pub(crate) fn sealed_float_comparison(
     program: &TypedTrees,
     machine: &Machine,
     state: Option<&State>,
@@ -321,6 +321,11 @@ pub(super) fn sealed_float_comparison(
         return false;
     };
     let operator = candidate.operator;
+    if let ExpressionNode::Call(call) = program.expression_table.expression(expression)
+        && !call_targets_declaration_entry(program, call.target_symbol, operator.symbol)
+    {
+        return false;
+    }
     if !operator.is_boundary
         || !matches!(
             typed_trees::operator::primitive_float_binary_semantics(program, operator),
@@ -362,6 +367,58 @@ pub(super) fn sealed_float_comparison(
                     _ => false,
                 }
             })
+}
+
+/// Read a guard's operation without assigning primitive meaning to an arbitrary
+/// call. Token lowering represents the sealed Float relations as calls; their
+/// exact selected declaration and source custody must survive that spelling
+/// change. Binary nodes retain their existing, caller-owned meaning checks.
+pub(crate) fn guard_comparison(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+) -> Option<typed_trees::expression::TableBinaryExpression> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Binary(binary) => Some(*binary),
+        ExpressionNode::Call(call)
+            if !call.receiver.is_valid()
+                && !call.static_machine_parameter.is_valid()
+                && call.static_requirement_dispatch.is_none()
+                && call.machine_arguments.is_empty()
+                && call.evidence_arguments.is_empty() =>
+        {
+            let operator = program.machine_token_bindings().iter().find(|operator| {
+                call_targets_declaration_entry(program, call.target_symbol, operator.symbol)
+            })?;
+            let (operation, _) =
+                typed_trees::operator::primitive_float_binary_semantics(program, operator)?;
+            let [left, right] = program.expression_table.expression_handles(call.arguments) else {
+                return None;
+            };
+            let comparison = typed_trees::expression::TableBinaryExpression {
+                operator: operation,
+                left: *left,
+                right: *right,
+            };
+            sealed_float_comparison(program, machine, state, expression, &comparison)
+                .then_some(comparison)
+        }
+        _ => None,
+    }
+}
+
+fn call_targets_declaration_entry(
+    program: &TypedTrees,
+    target: symbols::SymbolHandle,
+    declaration: symbols::SymbolHandle,
+) -> bool {
+    // Calls target the entry state, while token bindings and authored
+    // selection evidence name its owning machine declaration.
+    program
+        .machine_by_symbol(declaration)
+        .and_then(|machine| program.machine_states(machine).first())
+        .is_some_and(|entry| entry.symbol == target)
 }
 
 /// Rejoin authored or explicitly generated case membership with its exact

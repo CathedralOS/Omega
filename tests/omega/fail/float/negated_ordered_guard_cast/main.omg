@@ -1,0 +1,13 @@
+use omega::language::core::float_operations;
+
+// NaN satisfies both negated ordered comparisons. They cannot establish a
+// finite conversion interval by taking the integer-order complements.
+data Guarded { value: f64; converted: i32; }
+machine Guarded::convert(&mut self) {
+    transition !(self.value < 0.0) && !(self.value > 100.0) {
+        true -> bounded()
+        _ -> done()
+    }
+    state bounded(&mut self) { self.converted = self.value as i32; }
+    state done(&mut self) {}
+}

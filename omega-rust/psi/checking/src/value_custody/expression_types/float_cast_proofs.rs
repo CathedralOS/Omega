@@ -4,6 +4,35 @@ use typed_trees::types::{
     PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn false_float_comparison_does_not_prove_a_complementary_bound() {
+        let program = crate::front_end::typed_program(
+            "machine compare(value: f64) -> bool { value < 100.0 }",
+        );
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(machine)[0];
+        let expression = program
+            .expression_table
+            .iter_expressions()
+            .find_map(|(expression, node)| {
+                matches!(node, typed_trees::expression::ExpressionNode::Binary(binary)
+                if binary.operator == typed_trees::expression::BinaryOperator::Less)
+                .then_some(expression)
+            })
+            .expect("comparison");
+        let positive = super::float_guard_fact(&program, machine, state, expression, "value", true);
+        assert!(positive.finite);
+        assert!(positive.maximum.is_some());
+        let negative =
+            super::float_guard_fact(&program, machine, state, expression, "value", false);
+        assert!(!negative.finite, "NaN makes the ordered relation false");
+        assert!(negative.minimum.is_none());
+        assert!(negative.maximum.is_none());
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 struct FloatProofInterval {
     minimum: f64,
@@ -148,7 +177,8 @@ fn incoming_float_guard_interval(
                     let TransitionGuardNode::When(condition) = transition.guard else {
                         return None;
                     };
-                    let fact = float_guard_fact(program, condition, place, true);
+                    let fact =
+                        float_guard_fact(program, machine, source_state, condition, place, true);
                     if !fact.finite {
                         return None;
                     }
@@ -200,27 +230,64 @@ fn transition_target_names_state(
 
 fn float_guard_fact(
     program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     expression: ExpressionHandle,
     place: &str,
     polarity: bool,
 ) -> FloatGuardFact {
+    use crate::proof_contracts::bound_expression_meaning as meaning;
     use typed_trees::expression::BinaryOperator;
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = meaning::guard_comparison(program, machine, Some(state), expression) else {
         return FloatGuardFact::default();
     };
     if binary.operator == BinaryOperator::Equal
         && let ExpressionNode::Boolean(arm) = program.expression_table.expression(binary.right)
     {
-        return float_guard_fact(program, binary.left, place, polarity == *arm);
+        if !meaning::has_builtin_binary_expression_meaning(
+            program,
+            machine,
+            Some(state),
+            expression,
+        ) {
+            return FloatGuardFact::default();
+        }
+        return float_guard_fact(
+            program,
+            machine,
+            state,
+            binary.left,
+            place,
+            polarity == *arm,
+        );
     }
     if polarity && binary.operator == BinaryOperator::And {
-        let left = float_guard_fact(program, binary.left, place, true);
-        let right = float_guard_fact(program, binary.right, place, true);
+        let left = float_guard_fact(program, machine, state, binary.left, place, true);
+        let right = float_guard_fact(program, machine, state, binary.right, place, true);
         return FloatGuardFact {
             minimum: option_max(left.minimum, right.minimum),
             maximum: option_min(left.maximum, right.maximum),
             finite: left.finite || right.finite,
         };
+    }
+
+    // A false IEEE relation can mean NaN, not its complementary bound. Only
+    // positive primitive or exactly sealed comparisons contribute cast facts.
+    if !polarity
+        || !(meaning::has_builtin_binary_expression_meaning(
+            program,
+            machine,
+            Some(state),
+            expression,
+        ) || meaning::sealed_float_comparison(
+            program,
+            machine,
+            Some(state),
+            expression,
+            &binary,
+        ))
+    {
+        return FloatGuardFact::default();
     }
 
     let left_name = program.expression_table.display_name(binary.left);
@@ -242,17 +309,11 @@ fn float_guard_fact(
     let Some(literal) = literal.filter(|literal| literal.is_finite()) else {
         return FloatGuardFact::default();
     };
-    let mut operator = if name_on_left {
+    let operator = if name_on_left {
         binary.operator
     } else {
         flip_comparison(binary.operator)
     };
-    if !polarity {
-        let Some(negated) = negate_float_comparison(operator) else {
-            return FloatGuardFact::default();
-        };
-        operator = negated;
-    }
     match operator {
         BinaryOperator::Less => FloatGuardFact {
             maximum: Some(next_float_down(literal)),
@@ -294,19 +355,6 @@ fn flip_comparison(
         BinaryOperator::GreaterOrEqual => BinaryOperator::LessOrEqual,
         other => other,
     }
-}
-
-fn negate_float_comparison(
-    operator: typed_trees::expression::BinaryOperator,
-) -> Option<typed_trees::expression::BinaryOperator> {
-    use typed_trees::expression::BinaryOperator;
-    Some(match operator {
-        BinaryOperator::Less => BinaryOperator::GreaterOrEqual,
-        BinaryOperator::LessOrEqual => BinaryOperator::Greater,
-        BinaryOperator::Greater => BinaryOperator::LessOrEqual,
-        BinaryOperator::GreaterOrEqual => BinaryOperator::Less,
-        _ => return None,
-    })
 }
 
 fn option_max(left: Option<f64>, right: Option<f64>) -> Option<f64> {

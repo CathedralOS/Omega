@@ -1,0 +1,14 @@
+use omega::language::core::float_operations;
+
+// A source-proof regression, independent of native bounded-float record
+// lowering. The selected Float calls must retain their IEEE guard meaning.
+data Guarded { value: f64; converted: i32; }
+machine Guarded::convert(&mut self) {
+    transition self.value == self.value
+        && self.value >= 0.0 && self.value <= 100.0 {
+        true -> bounded()
+        _ -> done()
+    }
+    state bounded(&mut self) { self.converted = self.value as i32; }
+    state done(&mut self) {}
+}

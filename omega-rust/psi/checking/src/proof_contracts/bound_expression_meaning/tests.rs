@@ -3,6 +3,83 @@ use super::has_exact_parameter_case_membership_meaning;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
+#[test]
+fn float_call_guards_require_the_exact_sealed_declaration() {
+    let text = "boundary machine < Float::less(left: f64, right: f64) -> bool;
+                machine compare(value: f64) -> bool { value < 100.0 }";
+    for (origin, relative, accepted) in [
+        (
+            source::SourceOrigin::Toolchain,
+            "float_operations.omg",
+            true,
+        ),
+        (source::SourceOrigin::Toolchain, "lookalike.omg", false),
+        (source::SourceOrigin::User, "float_operations.omg", false),
+    ] {
+        let root = std::path::PathBuf::from("fixture");
+        let mut sources = source::SourceMap::default();
+        let source = sources
+            .add_with_metadata(root.join(relative), text.to_owned(), root, None, origin)
+            .source_id;
+        let mut program =
+            crate::front_end::typed_program_from_source_map(sources, &[(source, text)]);
+        let (expression, comparison) = program
+            .expression_table
+            .iter_expressions()
+            .find_map(|(expression, node)| match node {
+                ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::Less => {
+                    Some((expression, *binary))
+                }
+                _ => None,
+            })
+            .expect("token comparison");
+        let declaration = program.machine_token_bindings()[0].symbol;
+        let target =
+            program.machine_states(program.machine_by_symbol(declaration).unwrap())[0].symbol;
+        let arguments = program
+            .expression_table
+            .insert_expression_handles([comparison.left, comparison.right]);
+        *program.expression_table.expression_mut(expression) =
+            ExpressionNode::Call(typed_trees::expression::TableCallExpression {
+                receiver: ExpressionHandle::invalid(),
+                target_symbol: target,
+                static_machine_parameter: symbols::SymbolHandle::invalid(),
+                target: typed_trees::name::Identifier::generated("less"),
+                static_requirement_dispatch: None,
+                machine_arguments: Box::default(),
+                quotient_operation: None,
+                private_layout_operation: None,
+                arguments,
+                evidence_arguments: Box::default(),
+                operational_acknowledgement: Default::default(),
+            });
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "compare")
+            .unwrap();
+        let state = &program.machine_states(machine)[0];
+        assert_eq!(
+            super::guard_comparison(&program, machine, Some(state), expression).is_some(),
+            accepted,
+            "{origin:?} {relative}"
+        );
+        if accepted {
+            let machine = machine.clone();
+            let state = state.clone();
+            let ExpressionNode::Call(call) = program.expression_table.expression_mut(expression)
+            else {
+                panic!("retained call");
+            };
+            call.target_symbol = state.symbol;
+            assert!(
+                super::guard_comparison(&program, &machine, Some(&state), expression).is_none(),
+                "the same operands and token cannot authorize another entry"
+            );
+        }
+    }
+}
+
 fn result_bound_comparison(program: &TypedTrees, machine_index: usize) -> ExpressionHandle {
     let contract = &program.machine_contracts(&program.machines()[machine_index])[0];
     let typed_trees::domain::ProofFact::Expression(expression) =
