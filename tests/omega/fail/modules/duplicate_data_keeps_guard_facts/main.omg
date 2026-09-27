@@ -27,5 +27,14 @@ machine Probe::start(&self, x: u64) -> bool {
     state no() -> bool { false }
 }
 
+// The statement-level effect check must also retain a local's range across
+// a call-free initializer. A missing resolver is not an unknown call here.
+machine local_facts() -> bool {
+    let value: u64 = 7;
+    let other: u64 = 0;
+    transition { _ -> narrow(value) }
+    state narrow(value: u64 [0..=254]) -> bool { true }
+}
+
 data Main { }
 machine Main::main(&mut self) { }
