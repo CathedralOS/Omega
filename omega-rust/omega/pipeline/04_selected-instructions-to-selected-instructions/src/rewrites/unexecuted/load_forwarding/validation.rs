@@ -140,7 +140,10 @@ fn disturbs(
     use SelectedMemoryAccessRole::*;
     match access.role {
         WritePlace => access.place == read.place && read.overlaps(access),
-        WriteByteSpan { .. } | WriteByteSequence { .. } | WriteIndexedPrimitive { .. } => {
+        WriteByteSpan { .. }
+        | WriteByteSequence { .. }
+        | WriteIndexedPrimitive { .. }
+        | WriteIndexedStructural { .. } => {
             access.place == read.place && read.reaches(access, function)
         }
         WriteLocal { slot } => {

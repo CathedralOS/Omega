@@ -107,7 +107,7 @@ pub(super) fn emit(
         byte_offset,
         u32::from(byte_size),
         indices,
-        Some(value.value),
+        super::runtime_address::Written::Scalar(value.value),
     )?;
     builder.emit(
         SelectedInstructionKind::Store {

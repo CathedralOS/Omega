@@ -107,8 +107,7 @@ pub(super) fn project(
         AbstractOperation::EstablishZeroedStructural { result, .. } => {
             LegalizedScalarInstructionKind::EstablishZeroedStructural {
                 result: result.clone(),
-                shape: scalar_graph_input::aggregate_results::home_layout(result, plan)?
-                    .shape(),
+                shape: scalar_graph_input::aggregate_results::home_layout(result, plan)?.shape(),
             }
         }
         AbstractOperation::EstablishRecord { result, fields, .. } => {
@@ -158,7 +157,7 @@ pub(super) fn project(
         }
         AbstractOperation::MoveStructuralField { .. }
         | AbstractOperation::StoreStructuralField { .. } => {
-            storage_instructions::project_borrowed_window(node, optimized, plan)?
+            storage_instructions::project_borrowed_window(node, optimized, plan, unit)?
         }
         AbstractOperation::EstablishTrivialAffineLocal {
             place,

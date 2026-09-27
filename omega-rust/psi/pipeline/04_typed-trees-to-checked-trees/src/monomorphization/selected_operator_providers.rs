@@ -42,9 +42,13 @@ impl SelectedProviderTemplates {
                 if conformance.external_binding.is_some() || conformance.via_expression.is_valid() {
                     continue;
                 }
-                let Some(operator) = typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(
-                    program, machine, conformance,
-                ) else {
+                let Some(operator) =
+                    typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(
+                        program,
+                        machine,
+                        conformance,
+                    )
+                else {
                     continue;
                 };
                 if !operator.is_boundary
@@ -132,11 +136,17 @@ pub(crate) fn specialize_selected_generic_operator_providers(
             ));
             continue;
         };
-        if !templates.machine_trait_conformances(&template_machine).iter().any(|conformance| {
-            typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(
-                templates, &template_machine, conformance,
-            ).is_some_and(|resolved| resolved.symbol == operator.symbol)
-        })
+        if !templates
+            .machine_trait_conformances(&template_machine)
+            .iter()
+            .any(|conformance| {
+                typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(
+                    templates,
+                    &template_machine,
+                    conformance,
+                )
+                .is_some_and(|resolved| resolved.symbol == operator.symbol)
+            })
         {
             diagnostics.push(Diagnostic::error(format!(
                 "selected generic operator provider `{}` does not realize its exact requirement",

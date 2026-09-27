@@ -386,8 +386,7 @@ pub(super) fn validate(
             },
         ) if result == expected
             && *shape
-                == scalar_graph_input::aggregate_results::home_layout(result, plan)?.shape() => {
-        }
+                == scalar_graph_input::aggregate_results::home_layout(result, plan)?.shape() => {}
         // A window move replays as the leaf-copy byte copy of the vacated
         // field and its store as the inverse copy; both re-resolve the field
         // extent from the abstract row.
@@ -407,11 +406,13 @@ pub(super) fn validate(
                 field,
                 ..
             },
-        ) if result == expected && *source == root.place && indices.is_empty() && {
+        ) if result == expected && *source == root.place && {
             let extent = scalar_graph_input::borrowed_windows::moved(
                 optimized, root, spelled, *field, expected, plan,
             )?;
-            *path == extent.path && (*byte_offset, *shape) == (extent.byte_offset, extent.shape)
+            *path == extent.path
+                && (*byte_offset, *shape) == (extent.byte_offset, extent.shape)
+                && indices_rejoin(indices, &extent.elements)
         } => {}
         (
             LegalizedScalarInstructionKind::StoreStructuralField {
@@ -421,6 +422,7 @@ pub(super) fn validate(
                 value,
                 byte_offset,
                 shape,
+                indices,
             },
             AbstractOperation::StoreStructuralField {
                 destination: expected_destination,
@@ -444,6 +446,7 @@ pub(super) fn validate(
                     plan,
                 )?;
                 (*byte_offset, *shape) == (extent.byte_offset, extent.shape)
+                    && indices_rejoin(indices, &extent.elements)
             } => {}
         (
             LegalizedScalarInstructionKind::EstablishTrivialAffineLocal {
@@ -754,4 +757,21 @@ pub(super) fn validate(
         _ => return Err(invalid),
     }
     Ok(())
+}
+
+/// A legalized row's runtime index operands rejoin the extent's runtime
+/// elements one for one, in path order: same selector value, obligation,
+/// stride and extent. The accepted-fact join is the source projection's own
+/// certificate; replay re-derives the elements and checks the carried run.
+fn indices_rejoin(
+    indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
+    elements: &[crate::structural_inputs::structural_reference_input::RuntimeElement],
+) -> bool {
+    indices.len() == elements.len()
+        && indices.iter().zip(elements).all(|(index, element)| {
+            index.operand.value == element.index
+                && index.obligation == element.obligation
+                && index.stride == element.stride
+                && index.extent == element.extent
+        })
 }

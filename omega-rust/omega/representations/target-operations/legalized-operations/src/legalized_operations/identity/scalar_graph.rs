@@ -216,6 +216,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     value,
                     byte_offset,
                     shape,
+                    indices,
                 } => {
                     bytes.push(88);
                     super::structural_types::encode_structural_parameter(bytes, destination);
@@ -224,6 +225,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     bytes.extend_from_slice(&value.get().to_le_bytes());
                     bytes.extend_from_slice(&byte_offset.to_le_bytes());
                     super::calling::encode_shape(bytes, *shape);
+                    encode_runtime_indices(bytes, indices);
                 }
                 LegalizedScalarInstructionKind::EstablishZeroedStructural { result, shape } => {
                     bytes.push(91);

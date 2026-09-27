@@ -7,16 +7,18 @@
 //! consumed value's producer home, and the independently resolved field
 //! offset. See `scalar_graph_input::borrowed_windows`.
 use super::{
-    AbstractOperation, AbstractOperationPlan, PsiOptimizationFunction, TargetUnitOperation,
+    AbstractOperation, AbstractOperationPlan, PsiOptimizationFunction, TargetUnitOperation, ValueId,
 };
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
+use target_operations::TargetUnitScalarArgumentSource as Source;
 use terminal_psi::{StructuralAccess, StructuralMultiplicity};
 
 pub(super) fn validate(
     target: &TargetUnitOperation,
     abstracted: &AbstractOperation,
     optimized: &PsiOptimizationFunction,
+    sources: &[(ValueId, Source)],
     plan: &AbstractOperationPlan,
 ) -> Result<(), LegalizationError> {
     let invalid = LegalizationError::custody;
@@ -45,7 +47,7 @@ pub(super) fn validate(
                 || *source != root.place
                 || *path != extent.path
                 || *byte_offset != extent.byte_offset
-                || !indices.is_empty()
+                || !super::runtime_indices_rejoin(indices, &extent.elements, sources)
                 || *result_home
                     != scalar_graph_input::aggregate_results::result_home(
                         optimized,
@@ -65,6 +67,7 @@ pub(super) fn validate(
                 field,
                 value_home,
                 byte_offset,
+                indices,
             },
             AbstractOperation::StoreStructuralField {
                 psi_operation: expected_operation,
@@ -86,6 +89,7 @@ pub(super) fn validate(
                 || path != expected_path
                 || field != expected_field
                 || *byte_offset != extent.byte_offset
+                || !super::runtime_indices_rejoin(indices, &extent.elements, sources)
                 || value.access != StructuralAccess::Owned
                 || !value.path.is_empty()
                 || *value_home

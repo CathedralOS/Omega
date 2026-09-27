@@ -1536,6 +1536,7 @@ pass/structs/runtime_struct_array_literal_exit checked 197ms
 pass/structs/zeroed_record_members_exit checked 402ms
 pass/structural/case_field_local_store checked 762ms
 pass/structural/case_payload_record_member_read checked 441ms
+pass/structural/element_store checked 1515ms
 pass/structural/local_record_receivers checked 8ms
 pass/targets/aarch64_hfa_entry_argument checked 2256ms
 pass/targets/efi_vtable_call checked 55ms

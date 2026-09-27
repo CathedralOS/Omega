@@ -171,6 +171,33 @@ fn declared_window_field_type(
     path: &[StructuralPathSegment],
     field: StructuralFieldId,
 ) -> Option<StructuralTypeId> {
+    if matches!(
+        path.last(),
+        Some(StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. })
+    ) {
+        // An element leaf: `field` names the array's own field declaration in
+        // the last record the path crosses, and the hole's type is the
+        // element the spelled path selects.
+        let field_position = path
+            .iter()
+            .rposition(|segment| matches!(segment, StructuralPathSegment::Field(_)))?;
+        let owner = resolve_spelled_path(structural_types, root, &path[..field_position])?;
+        let declaration = structural_types
+            .iter()
+            .find(|candidate| candidate.id == owner)?;
+        let fields = match &declaration.shape {
+            StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. } => {
+                fields
+            }
+            _ => return None,
+        };
+        fields.iter().find(|candidate| {
+            candidate.id == field
+                && !candidate.relevance.is_erased()
+                && matches!(candidate.field_type, StructuralFieldType::Structural(_))
+        })?;
+        return resolve_spelled_path(structural_types, root, path);
+    }
     let parent_type = resolve_spelled_path(structural_types, root, path)?;
     let declaration = structural_types
         .iter()
@@ -221,6 +248,12 @@ pub(super) fn resolve_spelled_path(
                 StructuralPathSegment::FixedIndex(index),
                 StructuralTypeShape::FixedArray { element, length },
             ) if index < length => *element,
+            // A runtime element step resolves to the element type; its bound
+            // is the obligation the verifier discharged, not a path property.
+            (
+                StructuralPathSegment::RuntimeIndex { .. },
+                StructuralTypeShape::FixedArray { element, .. },
+            ) => *element,
             _ => return None,
         };
     }

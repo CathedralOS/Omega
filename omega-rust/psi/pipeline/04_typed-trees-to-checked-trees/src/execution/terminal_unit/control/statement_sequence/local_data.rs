@@ -150,6 +150,7 @@ pub(super) fn plan(
     local_phase("statement sequence: local data: borrowed window move");
     if let Some((operation, result)) = windows.move_out(
         program,
+        facts,
         shapes,
         machine,
         state,

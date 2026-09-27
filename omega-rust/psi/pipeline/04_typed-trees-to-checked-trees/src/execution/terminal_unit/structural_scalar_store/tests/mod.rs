@@ -22,6 +22,7 @@ mod indexed_stores;
 mod local_float_fields;
 mod record_literal_fields;
 mod reference_field_stores;
+mod value_root_stores;
 mod where_field_stores;
 
 #[test]

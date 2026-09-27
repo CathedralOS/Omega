@@ -111,6 +111,7 @@ pub(super) fn reseat(
         value,
         byte_offset,
         shape,
+        indices,
         ..
     } = &row.kind
     else {
@@ -145,6 +146,8 @@ pub(super) fn reseat(
     };
     let root = pointer_of(destination.place)?;
     let home = pointer_of(*value)?;
+    let root =
+        super::runtime_address::scale(replay, row, destination.place, *byte_offset, root, indices)?;
     copy_bytes(
         replay,
         row,
@@ -158,7 +161,7 @@ pub(super) fn reseat(
             place: destination.place,
             pointer: root,
             byte_offset: *byte_offset,
-            elements: &[],
+            elements: indices,
         },
         u32::from(shape.byte_size),
     )
@@ -195,7 +198,7 @@ fn copy_bytes(
             load_offset,
             u32::from(width),
             from.elements,
-            None,
+            super::runtime_address::Written::None,
         )?;
         let (kind, key) = match width {
             8 => (
@@ -230,13 +233,14 @@ fn copy_bytes(
             &provenance(row),
         )?;
         let store_offset = to.byte_offset + cursor;
-        memory(
+        super::runtime_address::footprint(
             replay,
             row,
             to.place,
             store_offset,
             u32::from(width),
-            SelectedMemoryAccessRole::WritePlace,
+            to.elements,
+            super::runtime_address::Written::Structural,
         )?;
         replay.check_instruction(
             SelectedInstructionKind::Store {

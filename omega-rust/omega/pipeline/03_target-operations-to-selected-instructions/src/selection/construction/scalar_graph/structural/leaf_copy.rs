@@ -120,6 +120,7 @@ pub(super) fn reseat(
         value,
         byte_offset,
         shape,
+        indices,
         ..
     } = &row.kind
     else {
@@ -154,6 +155,17 @@ pub(super) fn reseat(
     };
     let root = pointer_of(destination.place)?;
     let home = pointer_of(*value)?;
+    // The spelled path may end in a runtime element (`nodes[i] = node`): the
+    // destination pointer scales each selector by its stride, in path order,
+    // before the inverse copy lands the vacated extent.
+    let root = super::runtime_address::scale(
+        builder,
+        row,
+        destination.place,
+        *byte_offset,
+        root,
+        indices,
+    )?;
     copy_bytes(
         builder,
         row,
@@ -167,7 +179,7 @@ pub(super) fn reseat(
             place: destination.place,
             pointer: root,
             byte_offset: *byte_offset,
-            elements: &[],
+            elements: indices,
         },
         u32::from(shape.byte_size),
     )
@@ -209,7 +221,7 @@ fn copy_bytes(
             load_offset,
             u32::from(width),
             from.elements,
-            None,
+            super::runtime_address::Written::None,
         )?;
         let (kind, key) = match width {
             8 => (
@@ -244,13 +256,14 @@ fn copy_bytes(
             provenance(row),
         )?;
         let store_offset = to.byte_offset + cursor;
-        memory(
+        super::runtime_address::footprint(
             builder,
             row,
             to.place,
             store_offset,
             u32::from(width),
-            SelectedMemoryAccessRole::WritePlace,
+            to.elements,
+            super::runtime_address::Written::Structural,
         )?;
         builder.emit(
             SelectedInstructionKind::Store {
