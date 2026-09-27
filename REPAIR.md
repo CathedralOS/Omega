@@ -124,6 +124,14 @@ exists; admission declines or omits without diagnostic), not new-capability:
 - Fewer lanes than a feature wave; repair and basis lanes hold claims on the
   shared paths they touch so a concurrent feature landing cannot silently
   revert the fix (the `912b490c8f` failure mode).
+- **A slot idles rather than fills with churn.** Refill order is: named
+  residuals on the settled item, then unclaimed repair items, then
+  unclaimed basis items — and if none claim cleanly, the slot stays empty.
+  Coverage-migration and fixture-hygiene legs are not a reason to keep a
+  worker busy; they are what the wave does only while repair paths are
+  contested. (repair-local-r1 violated this — seven custody-matrix legs and
+  two evidence-matrix legs landed because the true repair pool was claimed
+  elsewhere; that output was defensible hygiene, not repair.)
 - No "repaired" claim without the item's witness command re-run at current
   HEAD. A red test that stopped rejecting needs an attribution (stale
   fixture vs. lost check), not a green by default.
