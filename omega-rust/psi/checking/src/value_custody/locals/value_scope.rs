@@ -32,9 +32,7 @@ impl StateValueScope<'_, '_> {
         let table = &self.program.expression_table;
         match table.expression(expression) {
             ExpressionNode::Match(dispatch) => {
-                for child in
-                    crate::value_custody::expression_types::match_children(self.program, *dispatch)
-                {
+                for child in crate::expression_traversal::match_children(self.program, *dispatch) {
                     self.expression(child, diagnostics);
                 }
             }
@@ -98,7 +96,7 @@ impl StateValueScope<'_, '_> {
                 self.expression(atomic.result, diagnostics);
             }
             ExpressionNode::Call(call) => {
-                if !crate::value_custody::locals::expression_call_has_operator_namespace(
+                if !crate::declarations::operators::namespaces::expression_call_has_operator_namespace(
                     self.program,
                     call,
                 ) {

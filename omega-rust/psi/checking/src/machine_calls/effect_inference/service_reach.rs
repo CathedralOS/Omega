@@ -164,7 +164,7 @@ pub fn infer_service_reaches(
     program: &TypedTrees,
     operational: &OperationalPlan,
 ) -> ServiceReachInferencePlan {
-    super::plan_scope::memoized_service_reach_plan(program, operational)
+    crate::program_scope::effects::memoized_service_reach_plan(program, operational)
 }
 
 pub(crate) fn infer_service_reaches_uncached(

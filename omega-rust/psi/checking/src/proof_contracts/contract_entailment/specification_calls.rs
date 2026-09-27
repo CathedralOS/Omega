@@ -8,8 +8,8 @@
 use super::refuted_requires::instantiated_fact_judgment;
 use super::structural_judgment::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use super::structural_terms::structural_term;
+use crate::expression_traversal::children;
 use crate::machine_calls::calls::machine_state_by_symbol;
-use crate::value_custody::literals::expression_children::children;
 use diagnostics::Diagnostic;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;

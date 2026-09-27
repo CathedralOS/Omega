@@ -103,61 +103,11 @@ fn record_expression_owner(
         return;
     }
     owners.insert(expression.arena_index(), source_span);
-    macro_rules! visit {
-        ($child:expr) => {
-            record_expression_owner(program, $child, source_span, owners)
-        };
-    }
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Match(dispatch) => {
-            for child in crate::value_custody::expression_types::match_children(program, *dispatch)
-            {
-                visit!(child);
-            }
-        }
-        ExpressionNode::ArrayLiteral(elements) => {
-            for element in program.expression_table.expression_handles(*elements) {
-                visit!(*element);
-            }
-        }
-        ExpressionNode::Atomic(atomic) => {
-            visit!(atomic.value);
-            visit!(atomic.result);
-        }
-        ExpressionNode::Binary(binary) => {
-            visit!(binary.left);
-            visit!(binary.right);
-        }
-        ExpressionNode::Cast(cast) => visit!(cast.value),
-        ExpressionNode::Call(call) => {
-            visit!(call.receiver);
-            for argument in program.expression_table.expression_handles(call.arguments) {
-                visit!(*argument);
-            }
-        }
-        ExpressionNode::Indexed(indexed) => {
-            visit!(indexed.collection);
-            visit!(indexed.index);
-        }
-        ExpressionNode::Member(member) => visit!(member.receiver),
-        ExpressionNode::Borrow(inner) => visit!(inner.target),
-        ExpressionNode::Range(range) => {
-            visit!(range.start);
-            visit!(range.end);
-        }
-        ExpressionNode::StructLiteral(literal) => {
-            for field in program.expression_table.struct_fields(literal.fields) {
-                visit!(field.value);
-            }
-        }
-        ExpressionNode::Unary(unary) => visit!(unary.operand),
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => {}
-    }
+    crate::expression_traversal::children(
+        program,
+        program.expression_table.expression(expression),
+        |child| record_expression_owner(program, child, source_span, owners),
+    );
 }
 
 /// Bind concrete named callable calls after type/domain normalization, when

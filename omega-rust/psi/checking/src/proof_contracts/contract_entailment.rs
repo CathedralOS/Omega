@@ -1008,9 +1008,9 @@ fn fact_call_targets(program: &TypedTrees, expression: ExpressionHandle) -> Fact
         summary
     };
     match program.expression_table.expression(expression) {
-        ExpressionNode::Match(dispatch) => merge(
-            &mut crate::value_custody::expression_types::match_children(program, *dispatch),
-        ),
+        ExpressionNode::Match(dispatch) => merge(&mut crate::expression_traversal::match_children(
+            program, *dispatch,
+        )),
         ExpressionNode::Atomic(atomic) => merge(&mut [atomic.value].into_iter()),
         ExpressionNode::Call(call) => {
             let declared = call.target_symbol.is_valid()

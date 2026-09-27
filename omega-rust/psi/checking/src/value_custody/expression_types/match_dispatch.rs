@@ -16,26 +16,6 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 #[cfg(test)]
 mod tests;
 
-/// Structural readers visit every source edge, not just executable arms.
-pub(crate) fn match_children(
-    program: &TypedTrees,
-    dispatch: TableMatchExpression,
-) -> impl Iterator<Item = ExpressionHandle> + '_ {
-    std::iter::once(dispatch.subject).chain(
-        program
-            .expression_table
-            .match_arms(dispatch.arms)
-            .iter()
-            .flat_map(|arm| {
-                let pattern = match arm.pattern {
-                    MatchPattern::Value(pattern) => Some(pattern),
-                    MatchPattern::Wildcard => None,
-                };
-                pattern.into_iter().chain(std::iter::once(arm.value))
-            }),
-    )
-}
-
 /// Find a retained subject carrier or an already-typed value-pattern peer.
 /// Anonymous patterns never choose a default width.
 pub fn match_subject_primitive_type(
@@ -546,9 +526,7 @@ fn selected_shared_borrow_place(
         return false;
     };
     let Some(record) =
-        crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-            program, *symbol,
-        )
+        crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)
     else {
         return false;
     };
@@ -704,9 +682,7 @@ pub(super) fn fresh_payloadless_case(
     else {
         return None;
     };
-    let data = crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-        program, *symbol,
-    )?;
+    let data = crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)?;
     let members = program.data_members(data);
     if members.is_empty()
         || members.iter().any(|member| match member {
@@ -906,9 +882,7 @@ fn selected_expression_transfers_owned(
             }
             _ => {}
         }
-        crate::value_custody::literals::expression_children::children(program, node, |child| {
-            pending.push(child)
-        });
+        crate::expression_traversal::children(program, node, |child| pending.push(child));
     }
     false
 }
@@ -1046,10 +1020,8 @@ fn case_pattern(
         }
         _ => return None,
     };
-    let owner = crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-        program,
-        owner_symbol,
-    )?;
+    let owner =
+        crate::program_scope::data_definitions::data_definition_by_symbol(program, owner_symbol)?;
     let reference = program
         .type_reference_table
         .find_named_type_reference(owner.symbol)?;

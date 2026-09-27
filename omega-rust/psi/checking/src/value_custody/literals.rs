@@ -26,8 +26,8 @@
 //! integer expressions for checking, lowering, proof and interpretation.
 //! `constant_arrays` and `record_projection` answer the declared type and the
 //! closed values of constant arrays and record constructor projections.
-//! `expression_children` lists an expression's immediate value children for
-//! the width check, integer landing and other validators.
+//! Width and landing checks use `crate::expression_traversal` for immediate
+//! edges while retaining their own destination and execution rules.
 
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
@@ -35,7 +35,6 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
 use typed_trees::types::PrimitiveType;
 
-pub(crate) mod expression_children;
 mod literal_widths;
 pub(crate) use literal_widths::validate_literal_widths;
 

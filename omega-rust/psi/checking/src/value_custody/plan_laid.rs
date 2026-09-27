@@ -15,12 +15,10 @@ pub(crate) fn validate_plans(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
         }
         data_symbols.push(plan.data_symbol);
 
-        let Some(data) =
-            crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-                program,
-                plan.data_symbol,
-            )
-        else {
+        let Some(data) = crate::program_scope::data_definitions::data_definition_by_symbol(
+            program,
+            plan.data_symbol,
+        ) else {
             diagnostics.push(Diagnostic::error(format!(
                 "plan-laid value type `{}` no longer names its exact synthesized data identity",
                 plan.data_name
@@ -42,12 +40,10 @@ pub(crate) fn validate_plans(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
             continue;
         }
 
-        let Some(schema) =
-            crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-                program,
-                plan.schema_symbol,
-            )
-        else {
+        let Some(schema) = crate::program_scope::data_definitions::data_definition_by_symbol(
+            program,
+            plan.schema_symbol,
+        ) else {
             diagnostics.push(Diagnostic::error(format!(
                 "plan-laid value type `{}` no longer names its exact source schema identity",
                 plan.data_name
@@ -107,12 +103,10 @@ pub(crate) fn validate_plans(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
             continue;
         }
 
-        let Some(policy) =
-            crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-                program,
-                plan.policy_symbol,
-            )
-        else {
+        let Some(policy) = crate::program_scope::data_definitions::data_definition_by_symbol(
+            program,
+            plan.policy_symbol,
+        ) else {
             diagnostics.push(Diagnostic::error(format!(
                 "plan-laid value type `{}` no longer names its exact nominal policy identity",
                 plan.data_name

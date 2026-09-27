@@ -41,9 +41,7 @@ pub(crate) fn checked_operator_contract_snapshot(
         match node {
             ExpressionNode::Match(dispatch) => {
                 append_debug(&program.expression_table.match_arms(dispatch.arms), output);
-                for child in
-                    crate::value_custody::expression_types::match_children(program, *dispatch)
-                {
+                for child in crate::expression_traversal::match_children(program, *dispatch) {
                     append_expression(program, child, visited, output);
                 }
             }

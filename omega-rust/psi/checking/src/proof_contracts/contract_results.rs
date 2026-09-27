@@ -170,12 +170,12 @@ fn contract_occurrence_owner(
             for fact in program.proof_facts.span_or_empty(contract.facts) {
                 match fact {
                     ProofFact::Expression(root) => {
-                        crate::value_custody::expression_types::collect_expression_nodes(
+                        crate::expression_traversal::collect_expression_nodes(
                             program, *root, &mut nodes, &mut seen,
                         );
                     }
                     ProofFact::Membership(membership) => {
-                        crate::value_custody::expression_types::collect_expression_nodes(
+                        crate::expression_traversal::collect_expression_nodes(
                             program,
                             membership.value,
                             &mut nodes,
@@ -187,7 +187,7 @@ fn contract_occurrence_owner(
                             .expression_table
                             .expression_handles(application.arguments)
                         {
-                            crate::value_custody::expression_types::collect_expression_nodes(
+                            crate::expression_traversal::collect_expression_nodes(
                                 program, *argument, &mut nodes, &mut seen,
                             );
                         }

@@ -1,4 +1,5 @@
 mod applications;
+pub(crate) mod namespaces;
 mod signatures;
 
 pub(crate) use applications::retain_validated_boundary_operator_application;

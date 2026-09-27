@@ -784,7 +784,7 @@ pub(crate) fn type_references_match_with_trait_bindings(
             },
             TypeReferenceNode::Generic { .. },
         ) if actual_symbol.is_valid() => {
-            crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+            crate::program_scope::data_definitions::data_definition_by_symbol(
                 program,
                 *actual_symbol,
             )
@@ -1060,10 +1060,7 @@ fn type_reference_is_instance_of_family(
         return false;
     };
     let Some(family_definition) =
-        crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-            program,
-            *family_symbol,
-        )
+        crate::program_scope::data_definitions::data_definition_by_symbol(program, *family_symbol)
     else {
         return false;
     };
@@ -1114,11 +1111,10 @@ fn indexed_law_callable_telescope_groups<'program>(
             else {
                 return None;
             };
-            let carrier =
-                crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-                    program,
-                    *carrier_symbol,
-                )?;
+            let carrier = crate::program_scope::data_definitions::data_definition_by_symbol(
+                program,
+                *carrier_symbol,
+            )?;
             let telescope = program.data_type_parameters(carrier);
             (!telescope.is_empty()).then_some(telescope)
         })

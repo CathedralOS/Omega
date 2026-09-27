@@ -1066,12 +1066,10 @@ fn quotient_carrier_matches_type(
         // rewrite; do not erase that mode by unwrapping here.
         return false;
     }
-    let Some(quotient) =
-        crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-            program,
-            relation.quotient_symbol,
-        )
-    else {
+    let Some(quotient) = crate::program_scope::data_definitions::data_definition_by_symbol(
+        program,
+        relation.quotient_symbol,
+    ) else {
         return false;
     };
     let Some(metadata) = quotient.quotient.as_ref() else {
@@ -1086,10 +1084,7 @@ fn quotient_carrier_matches_type(
         return false;
     };
     let Some(carrier) =
-        crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-            program,
-            carrier_symbol,
-        )
+        crate::program_scope::data_definitions::data_definition_by_symbol(program, carrier_symbol)
     else {
         return false;
     };

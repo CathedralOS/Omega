@@ -454,7 +454,7 @@ fn requirement_signature_for_receiver_path<'program>(
                 signature.name.as_str() == target
             });
         }
-        data = crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+        data = crate::program_scope::data_definitions::data_definition_by_symbol(
             program,
             receiver_type_symbol(program, field_type),
         )?;

@@ -8,7 +8,7 @@ use super::{
     anonymous_numeric_value, has_anonymous_operator_meaning, integer_landing_warning,
     land_anonymous_integer_expression, land_integer_value,
 };
-use crate::value_custody::literals::expression_children::children;
+use crate::expression_traversal::children;
 use diagnostics::Diagnostic;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use typed_trees::types::TypeReferenceHandle;
@@ -232,7 +232,7 @@ fn retained_integer_fits(
 struct DestinationTrees {
     owned: Vec<ExpressionHandle>,
     other_roots: Vec<ExpressionHandle>,
-    /// Exact immediate-child positions in `expression_children::children` order.
+    /// Exact immediate-child positions in `expression_traversal::children` order.
     /// Call receiver is position zero even when invalid; explicit arguments
     /// start at one. Shared handles cannot transfer an edge's landing permission.
     admitted_edges: Vec<(ExpressionHandle, usize)>,
@@ -514,7 +514,7 @@ fn call_argument_destinations(
     target: symbols::SymbolHandle,
     argument_count: usize,
 ) -> Option<Vec<TypeReferenceHandle>> {
-    crate::machine_calls::effect_inference::plan_scope::memoized_call_argument_destinations(
+    crate::program_scope::call_targets::memoized_call_argument_destinations(
         program,
         target,
         argument_count,

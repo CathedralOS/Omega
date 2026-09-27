@@ -129,7 +129,7 @@ fn transition_is_fact_observation_free(
 fn expression_is_fact_observation_free(program: &TypedTrees, expression: ExpressionHandle) -> bool {
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
-            crate::value_custody::expression_types::match_children(program, *dispatch)
+            crate::expression_traversal::match_children(program, *dispatch)
                 .all(|child| expression_is_fact_observation_free(program, child))
         }
         ExpressionNode::Atomic(_) | ExpressionNode::Borrow(_) => false,

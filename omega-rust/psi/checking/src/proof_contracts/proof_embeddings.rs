@@ -20,7 +20,7 @@ use typed_trees::proposition::{PropositionBody, PropositionFormula};
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
-use crate::value_custody::expression_types::collect_expression_nodes;
+use crate::expression_traversal::collect_expression_nodes;
 
 mod calls;
 pub use calls::ValidatedIntegerEmbeddingCall;

@@ -27,8 +27,7 @@ pub(super) fn validate_expression(
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
-            for child in crate::value_custody::expression_types::match_children(program, *dispatch)
-            {
+            for child in crate::expression_traversal::match_children(program, *dispatch) {
                 validate_expression(
                     program,
                     proof_only,
@@ -391,7 +390,7 @@ pub(super) fn validate_statement_call_receiver(
         // `self` resolves to the machine itself, never an erased binding;
         // its fields live on the attached data.
 
-        crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+        crate::program_scope::data_definitions::data_definition_by_symbol(
             program,
             machine.attached_data_symbol,
         )

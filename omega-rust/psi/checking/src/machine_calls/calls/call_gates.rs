@@ -87,7 +87,7 @@ pub(super) fn receiver_is_declared(
         .map(|member| member.as_str())
         .collect();
     if let Some(first) = receiver_members.first()
-        && !crate::value_custody::locals::is_named_operator_namespace(
+        && !crate::declarations::operators::namespaces::is_named_operator_namespace(
             program,
             &[call.receiver_symbol],
             &namespace,

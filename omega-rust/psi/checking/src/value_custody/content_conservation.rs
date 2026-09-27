@@ -310,7 +310,7 @@ fn expression_uses_content_surface(
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
-            crate::value_custody::expression_types::match_children(program, *dispatch)
+            crate::expression_traversal::match_children(program, *dispatch)
                 .any(|child| expression_uses_content_surface(program, projections, child))
         }
         ExpressionNode::Call(call) => {
@@ -381,58 +381,11 @@ fn collect_expression_nodes(
     {
         return;
     }
-    let recurse =
-        |child, nodes: &mut HashSet<(u32, u32)>| collect_expression_nodes(program, child, nodes);
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Match(dispatch) => {
-            for child in crate::value_custody::expression_types::match_children(program, *dispatch)
-            {
-                recurse(child, nodes);
-            }
-        }
-        ExpressionNode::Atomic(atomic) => {
-            recurse(atomic.value, nodes);
-            recurse(atomic.result, nodes);
-        }
-        ExpressionNode::Binary(binary) => {
-            recurse(binary.left, nodes);
-            recurse(binary.right, nodes);
-        }
-        ExpressionNode::Unary(unary) => recurse(unary.operand, nodes),
-        ExpressionNode::Cast(cast) => recurse(cast.value, nodes),
-        ExpressionNode::Call(call) => {
-            recurse(call.receiver, nodes);
-            for argument in program.expression_table.expression_handles(call.arguments) {
-                recurse(*argument, nodes);
-            }
-        }
-        ExpressionNode::Indexed(indexed) => {
-            recurse(indexed.collection, nodes);
-            recurse(indexed.index, nodes);
-        }
-        ExpressionNode::Member(member) => recurse(member.receiver, nodes),
-        ExpressionNode::Borrow(inner) => recurse(inner.target, nodes),
-        ExpressionNode::Range(range) => {
-            recurse(range.start, nodes);
-            recurse(range.end, nodes);
-        }
-        ExpressionNode::ArrayLiteral(items) => {
-            for item in program.expression_table.expression_handles(*items) {
-                recurse(*item, nodes);
-            }
-        }
-        ExpressionNode::StructLiteral(literal) => {
-            for field in program.expression_table.struct_fields(literal.fields) {
-                recurse(field.value, nodes);
-            }
-        }
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => {}
-    }
+    crate::expression_traversal::children(
+        program,
+        program.expression_table.expression(expression),
+        |child| collect_expression_nodes(program, child, nodes),
+    );
 }
 
 fn algebra_key(algebra: &ContentAlgebraIdentity) -> String {

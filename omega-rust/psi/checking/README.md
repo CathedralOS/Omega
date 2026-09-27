@@ -1,10 +1,19 @@
-# Semantic validation
+# Source program checking
 
 Start at [program_validation.rs](src/program_validation.rs): declaration checks,
 machine/state validation, and result publication run there in order.
 [Statement validation](src/program_validation/statements.rs) owns ordered value
 updates; [contract queries](src/program_validation/contract_queries.rs) owns
 entailment queries and pristine-template checks. [lib.rs](src/lib.rs) wires the API.
+
+Shared program queries have explicit owners beside that coordinator.
+[program_scope.rs](src/program_scope.rs) owns scoped memo lifetimes; its children
+serve declaration indexes, value properties, call targets and effect plans.
+[frozen_program.rs](src/frozen_program.rs) retains the separate immutable-program
+cache lifetime. [expression_traversal.rs](src/expression_traversal.rs) owns the
+ordered expression-child roster, while each checker keeps its own visitation and
+pruning policy. [Operator namespaces](src/declarations/operators/namespaces.rs)
+are declaration resolution, consumed by call checking and local-value checks.
 
 Standalone validation checks generic contracts itself. Post-specialization
 validation requires the earlier template check and explicitly selects required

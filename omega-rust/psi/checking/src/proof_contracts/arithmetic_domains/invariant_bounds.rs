@@ -370,9 +370,7 @@ fn bounds(
                     return None;
                 }
             }
-            crate::value_custody::literals::expression_children::children(program, node, |child| {
-                pending.push(child)
-            });
+            crate::expression_traversal::children(program, node, |child| pending.push(child));
         }
         // A closed value outside its carrier is an overflow verdict, not a
         // usable bound: a successful bounds run must prove carrier landing.

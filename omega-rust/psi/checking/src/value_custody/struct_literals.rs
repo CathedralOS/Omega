@@ -212,8 +212,7 @@ fn scan_expression(
 
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
-            for child in crate::value_custody::expression_types::match_children(program, *dispatch)
-            {
+            for child in crate::expression_traversal::match_children(program, *dispatch) {
                 scan_expression(program, machine, state, child, environment, diagnostics);
             }
         }
@@ -465,12 +464,10 @@ fn validate_literal_field_names(
         }
     }
 
-    let Some(data_definition) =
-        crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-            program,
-            literal.type_symbol,
-        )
-    else {
+    let Some(data_definition) = crate::program_scope::data_definitions::data_definition_by_symbol(
+        program,
+        literal.type_symbol,
+    ) else {
         // The literal names a type that is not a data definition -- a primitive
         // (`i32 { a: 1 }`) or an undefined name (`Nonexistent { a: 1 }`). Neither is
         // constructible with `{ ... }`; both used to compile silently, binding a ZII

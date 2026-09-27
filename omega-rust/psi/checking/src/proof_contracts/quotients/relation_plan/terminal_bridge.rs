@@ -718,7 +718,7 @@ fn relation_identity(
     program: &TypedTrees,
     relation: ExactQuotientRelation,
 ) -> Result<QuotientRelationIdentity, String> {
-    let quotient = crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+    let quotient = crate::program_scope::data_definitions::data_definition_by_symbol(
         program,
         relation.quotient_symbol,
     )

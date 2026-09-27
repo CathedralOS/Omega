@@ -508,10 +508,8 @@ fn validate_routed_service_carrier_placement(
         }
         TypeReferenceNode::Named { symbol, .. } => {
             if let Some(origin) =
-                crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-                    program, *symbol,
-                )
-                .and_then(|definition| definition.generic_instance)
+                crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)
+                    .and_then(|definition| definition.generic_instance)
             {
                 validate_routed_service_carrier_placement(
                     program,

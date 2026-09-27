@@ -96,7 +96,7 @@ fn member_custody(
                 custody = MemberCustody::Broken;
             }
         }
-        literals::expression_children::children(program, node, |child| pending.push(child));
+        crate::expression_traversal::children(program, node, |child| pending.push(child));
     }
     custody
 }

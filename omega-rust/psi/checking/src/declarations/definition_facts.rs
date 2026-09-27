@@ -195,8 +195,7 @@ fn append_data_expression_dependency_places(
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
-            for child in crate::value_custody::expression_types::match_children(program, *dispatch)
-            {
+            for child in crate::expression_traversal::match_children(program, *dispatch) {
                 append_data_expression_dependency_places(program, facts, data, child, dependencies);
             }
         }
@@ -497,8 +496,7 @@ fn append_domain_expression_dependency_places(
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
-            for child in crate::value_custody::expression_types::match_children(program, *dispatch)
-            {
+            for child in crate::expression_traversal::match_children(program, *dispatch) {
                 append_domain_expression_dependency_places(
                     program,
                     facts,
@@ -739,10 +737,8 @@ fn domain_target_member_symbol(
         } => *base_symbol,
         _ => return None,
     };
-    let data = crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-        program,
-        target_symbol,
-    )?;
+    let data =
+        crate::program_scope::data_definitions::data_definition_by_symbol(program, target_symbol)?;
     program
         .data_members(data)
         .iter()

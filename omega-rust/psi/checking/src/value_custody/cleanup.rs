@@ -99,12 +99,10 @@ fn type_graph_requires_nominal_drop_with_substitutions(
             arguments,
             ..
         } => {
-            let Some(data) =
-                crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-                    program,
-                    *base_symbol,
-                )
-            else {
+            let Some(data) = crate::program_scope::data_definitions::data_definition_by_symbol(
+                program,
+                *base_symbol,
+            ) else {
                 return false;
             };
             let arguments = program
@@ -251,10 +249,8 @@ fn is_reserved_cleanup(program: &TypedTrees, machine: &Machine) -> bool {
     machine.attached_data.is_some()
         && owner.is_valid()
         && machine.name.as_str().rsplit("::").next() == Some("drop")
-        && crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-            program, owner,
-        )
-        .is_some()
+        && crate::program_scope::data_definitions::data_definition_by_symbol(program, owner)
+            .is_some()
 }
 
 /// The first reserved cleanup machine, in program order, that

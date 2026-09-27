@@ -111,8 +111,7 @@ fn walk_expression(
     visited.push(expression);
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
-            for child in crate::value_custody::expression_types::match_children(program, *dispatch)
-            {
+            for child in crate::expression_traversal::match_children(program, *dispatch) {
                 walk_expression(program, child, visited, projections, equalities)?;
             }
         }

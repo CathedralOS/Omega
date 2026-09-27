@@ -170,7 +170,7 @@ fn exclusive_referent(program: &TypedTrees, mut reference: TypeReferenceHandle) 
 fn stable_references(program: &TypedTrees, state: &State, expression: ExpressionHandle) -> bool {
     let mut nodes = Vec::new();
     let mut seen = std::collections::HashSet::new();
-    crate::value_custody::expression_types::collect_expression_nodes(
+    crate::expression_traversal::collect_expression_nodes(
         program, expression, &mut nodes, &mut seen,
     );
     nodes.iter().all(|node| {
@@ -206,7 +206,7 @@ fn bind_local_lengths(
 ) {
     let mut nodes = Vec::new();
     let mut seen = std::collections::HashSet::new();
-    crate::value_custody::expression_types::collect_expression_nodes(
+    crate::expression_traversal::collect_expression_nodes(
         program, expression, &mut nodes, &mut seen,
     );
     for node in nodes {

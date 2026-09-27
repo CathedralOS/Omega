@@ -79,12 +79,11 @@ pub(crate) fn validate_conformances(
         }
 
         if let Some(type_name) = carrier_name {
-            let data_exists =
-                crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
-                    program,
-                    conformance.carrier_symbol,
-                )
-                .is_some();
+            let data_exists = crate::program_scope::data_definitions::data_definition_by_symbol(
+                program,
+                conformance.carrier_symbol,
+            )
+            .is_some();
             let name_owned_type_parameter = program
                 .conformance_type_parameters(conformance)
                 .iter()

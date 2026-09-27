@@ -69,7 +69,7 @@ pub fn local_scalar_record_field(
     // Every step is resolved under its own declaration. Reusing only the final
     // field spelling would confuse identically shaped children of this root.
     for member in members.iter().rev().take(members.len() - 1) {
-        let record = crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+        let record = crate::program_scope::data_definitions::data_definition_by_symbol(
             program,
             program.type_reference_symbol(carrier),
         )?;
@@ -86,7 +86,7 @@ pub fn local_scalar_record_field(
         path.push(field.path_identity());
         carrier = field.type_reference;
     }
-    let record = crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+    let record = crate::program_scope::data_definitions::data_definition_by_symbol(
         program,
         program.type_reference_symbol(carrier),
     )?;
@@ -159,7 +159,7 @@ fn expression_at_statement(
             continue;
         }
         visited.push(handle);
-        crate::value_custody::literals::expression_children::children(
+        crate::expression_traversal::children(
             program,
             program.expression_table.expression(handle),
             |child| pending.push(child),
@@ -340,7 +340,7 @@ fn has_realized_record_fields(
                         | typed_trees::types::PrimitiveType::F64
                 )
             ) || matches!(program.type_reference_table.type_reference(field.type_reference),
-                TypeReferenceNode::Named { symbol, .. } if crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(program, *symbol)
+                TypeReferenceNode::Named { symbol, .. } if crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)
                     .is_some_and(|nested| has_realized_record_fields(program, nested, active))))
         });
     active.pop();

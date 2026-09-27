@@ -7,7 +7,7 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::mathematical::{MathematicalBody, MathematicalType};
 
-use crate::value_custody::expression_types::collect_expression_nodes;
+use crate::expression_traversal::collect_expression_nodes;
 
 pub(super) fn expression_nodes(program: &TypedTrees) -> Vec<ExpressionHandle> {
     let mut expressions = Vec::new();
