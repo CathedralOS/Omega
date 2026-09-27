@@ -1,0 +1,219 @@
+use super::{
+    ProgramEntryFusedServiceEstablishment, validate_terminal_fused_service_establishments,
+};
+use crate::{ProgramEntrySourceReceiverSignature, SelectedProgramEntrySourceSignature};
+use effects::provider_plan::{ProviderPlan, ServiceSchema};
+use semantic_vocabulary::{
+    BlockId, ContractId, EdgeId, MachineId, StructuralFieldId, StructuralTypeId,
+};
+use symbols::SymbolHandle;
+use terminal_psi::{
+    BindingRelevance, Block, MachineContract, StructuralFieldDeclaration, StructuralFieldType,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, TerminalMachineResult,
+    TerminalModule, Terminator,
+};
+
+fn fixture(
+    nested: bool,
+) -> (
+    TerminalModule,
+    SelectedProgramEntrySourceSignature,
+    ProgramEntryFusedServiceEstablishment,
+    ProviderPlan,
+) {
+    let source = SelectedProgramEntrySourceSignature::from_checked_typed_entry(
+        target::TargetProfile::MacosArm64.program_entry_slot(),
+        SymbolHandle::from_arena_index(1),
+        SymbolHandle::from_arena_index(2),
+        "Main::entry".into(),
+        "entry".into(),
+        "Main::entry()".into(),
+        ProgramEntrySourceReceiverSignature::ProvisionedMutable {
+            normalized_type_identity: "Main".into(),
+        },
+        Vec::new(),
+    )
+    .unwrap();
+    let plan = ProviderPlan {
+        name: "console".into(),
+        provider_type: "ConsoleProvider".into(),
+        schema: ServiceSchema {
+            trait_name: "Console".into(),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let field = StructuralFieldDeclaration {
+        id: StructuralFieldId::new(1).unwrap(),
+        identity: "console".into(),
+        relevance: BindingRelevance::Erased,
+        field_type: StructuralFieldType::Erased {
+            type_identity: "ConsoleCarrier".into(),
+        },
+    };
+    let attachment = StructuralTypeId::new(1).unwrap();
+    let child = StructuralTypeId::new(2).unwrap();
+    let mut module = TerminalModule::for_entry(MachineId::new(1).unwrap());
+    let fields = if nested {
+        module.structural_types.push(StructuralTypeDeclaration {
+            id: child,
+            identity: "Banner".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![field],
+            },
+        });
+        vec![StructuralFieldDeclaration {
+            id: StructuralFieldId::new(1).unwrap(),
+            identity: "banner".into(),
+            relevance: BindingRelevance::Relevant,
+            field_type: StructuralFieldType::Structural(child),
+        }]
+    } else {
+        vec![field]
+    };
+    module.structural_types.insert(
+        0,
+        StructuralTypeDeclaration {
+            id: attachment,
+            identity: "Main".into(),
+            shape: StructuralTypeShape::Record { fields },
+        },
+    );
+    let entry_block = BlockId::new(1).unwrap();
+    module.machines.push(TerminalMachine {
+        id: module.entry,
+        attachment: Some(attachment),
+        parameters: Vec::new(),
+        structural_parameters: Vec::new(),
+        ranked_scc: None,
+        result: TerminalMachineResult::Unit,
+        structural_places: Vec::new(),
+        entry_claims: Vec::new(),
+        declared_service_reach: Vec::new(),
+        closed_reach_application: None,
+        published_service_ceiling: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: entry_block,
+        blocks: vec![Block {
+            id: entry_block,
+            parameters: Vec::new(),
+            erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
+            structural_parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::ReturnUnit {
+                edge: EdgeId::new(1).unwrap(),
+                trivial_affine_discards: Vec::new(),
+            },
+        }],
+        contract: MachineContract {
+            id: ContractId::new(1).unwrap(),
+            crash_routes: Vec::new(),
+            erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+            outcome_specific_ensures: Vec::new(),
+        },
+    });
+    let field_path = if nested {
+        vec!["banner".into(), "console".into()]
+    } else {
+        vec!["console".into()]
+    };
+    let row = ProgramEntryFusedServiceEstablishment::new(
+        source.identity(),
+        source.target_slot(),
+        "Main".into(),
+        "Main".into(),
+        "console".into(),
+        field_path,
+        "ConsoleCarrier".into(),
+        "ConsoleCarrier".into(),
+        ProgramEntryFusedServiceEstablishment::requirement_identity_for_schema(&plan.schema),
+        plan.schema.identity_digest(),
+        plan.identity_digest(),
+    )
+    .unwrap();
+    (module, source, row, plan)
+}
+
+#[test]
+fn terminal_replay_accepts_direct_and_nested_receiver_routes() {
+    for nested in [false, true] {
+        let (module, source, row, plan) = fixture(nested);
+        validate_terminal_fused_service_establishments(&module, &source, &[row], &[plan])
+            .expect("receiver route and exact selected provider replay");
+        validate_terminal_fused_service_establishments(&module, &source, &[], &[])
+            .expect("no establishments require no receiver-field replay");
+    }
+}
+
+#[test]
+fn terminal_replay_rejects_substitution_and_ambiguous_routes() {
+    let (module, source, row, plan) = fixture(true);
+    for mutation in 0..6 {
+        let mut changed = row.clone();
+        match mutation {
+            0 => changed.receiver_type_identity = "Other".into(),
+            1 => changed.attachment_type_identity = "Other".into(),
+            2 => changed.field_path[0] = "missing".into(),
+            3 => changed.carrier_type_identity = "Other".into(),
+            4 => changed.target_slot = target::TargetProfile::WindowsX64.program_entry_slot(),
+            _ => changed.requirement_identity = "Other".into(),
+        }
+        assert!(
+            validate_terminal_fused_service_establishments(
+                &module,
+                &source,
+                &[changed],
+                std::slice::from_ref(&plan),
+            )
+            .is_err(),
+            "receipt mutation {mutation}"
+        );
+    }
+    assert!(
+        validate_terminal_fused_service_establishments(
+            &module,
+            &source,
+            &[row.clone(), row.clone()],
+            std::slice::from_ref(&plan),
+        )
+        .is_err(),
+        "duplicate receiver route"
+    );
+    assert!(
+        validate_terminal_fused_service_establishments(
+            &module,
+            &source,
+            std::slice::from_ref(&row),
+            &[plan.clone(), plan.clone()],
+        )
+        .is_err(),
+        "ambiguous selected plan"
+    );
+    let mut changed_plan = plan.clone();
+    changed_plan.provider_type = "OtherProvider".into();
+    assert!(
+        validate_terminal_fused_service_establishments(
+            &module,
+            &source,
+            std::slice::from_ref(&row),
+            &[changed_plan],
+        )
+        .is_err(),
+        "same schema cannot substitute a provider"
+    );
+    let mut changed_module = module;
+    if let StructuralTypeShape::Record { fields } = &mut changed_module.structural_types[1].shape {
+        fields.push(fields[0].clone());
+    }
+    assert!(
+        validate_terminal_fused_service_establishments(&changed_module, &source, &[row], &[plan],)
+            .is_err(),
+        "ambiguous nested field"
+    );
+}

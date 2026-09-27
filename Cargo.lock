@@ -1479,9 +1479,11 @@ dependencies = [
  "layout",
  "layout-plans",
  "post-handoff-writer-plan",
+ "semantic-vocabulary",
  "sha2",
  "symbols",
  "target",
+ "terminal-psi",
 ]
 
 [[package]]

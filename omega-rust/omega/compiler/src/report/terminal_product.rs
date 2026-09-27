@@ -406,7 +406,12 @@ impl TerminalNativeRealizationProposal {
                 "Terminal native proposal checked ProgramEntry receipt names a different Terminal entry",
             );
         }
-        self.validate_fused_program_entry_establishments(&module)?;
+        program_entry_plan::validate_terminal_fused_service_establishments(
+            &module,
+            self.program_entry.source_signature(),
+            self.program_entry.fused_service_establishments(),
+            self.selected_provider_plans.plans(),
+        )?;
         // The retained exclusion union is a source-free admission policy over
         // this artifact's committed semantics: a consumer replays the same
         // Terminal-closure absence check the producing build enforced, so a
@@ -511,131 +516,6 @@ impl TerminalNativeRealizationProposal {
             self.boundary_application_coverage.realizations(),
             &self.checked_boundary_operator_scope,
         )?;
-        Ok(())
-    }
-
-    fn validate_fused_program_entry_establishments(
-        &self,
-        module: &terminal_psi::TerminalModule,
-    ) -> Result<(), &'static str> {
-        let rows = self.program_entry.fused_service_establishments();
-        if rows.is_empty() {
-            return Ok(());
-        }
-        let source = self.program_entry.source_signature();
-        let Some(receiver_identity) = source.receiver().normalized_type_identity() else {
-            return Err("Terminal proposal gives a free ProgramEntry a Fused root establishment");
-        };
-        let entry_machines = module
-            .machines
-            .iter()
-            .filter(|machine| machine.id == module.entry)
-            .collect::<Vec<_>>();
-        let [entry_machine] = entry_machines.as_slice() else {
-            return Err("Terminal proposal has no unique entry machine for root establishment");
-        };
-        let Some(attachment) = entry_machine.attachment else {
-            return Err("Terminal proposal root establishment lost its entry attachment");
-        };
-        let attachment_types = module
-            .structural_types
-            .iter()
-            .filter(|declaration| declaration.id == attachment)
-            .collect::<Vec<_>>();
-        let [attachment_type] = attachment_types.as_slice() else {
-            return Err("Terminal proposal root establishment has no unique attachment type");
-        };
-        let terminal_psi::StructuralTypeShape::Record { fields } = &attachment_type.shape else {
-            return Err("Terminal proposal root establishment attachment is not a record");
-        };
-        if attachment_type.identity != rows[0].attachment_type_identity()
-            || rows
-                .iter()
-                .any(|row| row.attachment_type_identity() != attachment_type.identity)
-        {
-            return Err("Terminal proposal root establishment substituted its receiver type");
-        }
-        let mut field_routes = std::collections::BTreeSet::new();
-        for row in rows {
-            if row.source_signature_identity() != source.identity()
-                || row.target_slot() != source.target_slot()
-                || row.receiver_type_identity() != receiver_identity
-                || !field_routes.insert(row.field_path().to_vec())
-            {
-                return Err(
-                    "Terminal proposal root establishment drifted from ProgramEntry custody",
-                );
-            }
-            // Replay the route through the record-field tree: each
-            // intermediate segment is a nested record field; the leaf is the
-            // erased service field rejoining its carrier.
-            let mut current_fields = fields.as_slice();
-            let route_length = row.field_path().len();
-            for (position, segment) in row.field_path().iter().enumerate() {
-                let matching_fields = current_fields
-                    .iter()
-                    .filter(|field| field.identity == *segment)
-                    .collect::<Vec<_>>();
-                let [field] = matching_fields.as_slice() else {
-                    return Err(
-                        "Terminal proposal root establishment has no unique receiver field",
-                    );
-                };
-                if position + 1 == route_length {
-                    if !matches!(
-                        &field.field_type,
-                        terminal_psi::StructuralFieldType::Erased { type_identity }
-                            if type_identity == row.carrier_type_identity()
-                    ) {
-                        return Err(
-                            "Terminal proposal root establishment substituted its erased carrier",
-                        );
-                    }
-                } else {
-                    let terminal_psi::StructuralFieldType::Structural(child) = field.field_type
-                    else {
-                        return Err(
-                            "Terminal proposal root establishment has no unique receiver field",
-                        );
-                    };
-                    let nested_types = module
-                        .structural_types
-                        .iter()
-                        .filter(|declaration| declaration.id == child)
-                        .collect::<Vec<_>>();
-                    let [nested_type] = nested_types.as_slice() else {
-                        return Err(
-                            "Terminal proposal root establishment has no unique nested record type",
-                        );
-                    };
-                    current_fields = match &nested_type.shape {
-                        terminal_psi::StructuralTypeShape::Record { fields }
-                        | terminal_psi::StructuralTypeShape::Mixed { fields, .. } => fields,
-                        _ => {
-                            return Err(
-                                "Terminal proposal root establishment route leaves its record tree",
-                            );
-                        }
-                    };
-                }
-            }
-            let matching_plans = self
-                .selected_provider_plans
-                .plans()
-                .iter()
-                .filter(|plan| {
-                    program_entry_plan::ProgramEntryFusedServiceEstablishment::requirement_identity_for_schema(&plan.schema)
-                        == row.requirement_identity()
-                        && plan.schema.identity_digest() == row.service_schema_digest()
-                        && plan.identity_digest() == row.selected_provider_plan_digest()
-                })
-                .count();
-            if matching_plans != 1 {
-                return Err(
-                    "Terminal proposal root establishment has no unique selected provider plan",
-                );
-            }
-        }
         Ok(())
     }
 
