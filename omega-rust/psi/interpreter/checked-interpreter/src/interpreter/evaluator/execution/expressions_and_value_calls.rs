@@ -359,7 +359,7 @@ impl<'program> Evaluator<'program> {
                 .iter()
                 .find_map(|member| match member {
                     typed_trees::data::DataMember::Variant(variant)
-                        if variant.name.as_str() == variant_name =>
+                        if *variant.name.as_str() == *variant_name =>
                     {
                         Some(variant.symbol)
                     }
@@ -771,10 +771,10 @@ impl<'program> Evaluator<'program> {
                                 .find_data_by_name("FloatClass")
                                 .map(|data| data.symbol)
                                 .unwrap_or_else(SymbolHandle::invalid),
-                            variant_name: variant_name.to_owned(),
+                            variant_name: variant_name.into(),
                             payload: match negative {
                                 Some(negative) => vec![(
-                                    "negative".to_owned(),
+                                    "negative".into(),
                                     self.allocate_cell(Value::Bool(negative))?,
                                 )],
                                 None => Vec::new(),
@@ -1258,10 +1258,10 @@ impl<'program> Evaluator<'program> {
                         .find_data_by_name("FloatClass")
                         .map(|data| data.symbol)
                         .unwrap_or_else(SymbolHandle::invalid),
-                    variant_name: variant_name.to_owned(),
+                    variant_name: variant_name.into(),
                     payload: match negative {
                         Some(negative) => vec![(
-                            "negative".to_owned(),
+                            "negative".into(),
                             self.allocate_cell(Value::Bool(negative))?,
                         )],
                         None => Vec::new(),
@@ -1531,11 +1531,11 @@ impl<'program> Evaluator<'program> {
                 Some(type_reference) => self.coerce_scalar_value(value, type_reference)?,
                 None => value,
             };
-            fields.insert(field.name.as_str().to_owned(), self.allocate_cell(value)?);
+            fields.insert(field.name.as_str().into(), self.allocate_cell(value)?);
         }
         Ok(Value::Struct {
             type_symbol,
-            type_name,
+            type_name: type_name.into(),
             fields,
         })
     }
@@ -1582,12 +1582,12 @@ impl<'program> Evaluator<'program> {
             let DataMember::Field(common_field) = member else {
                 continue;
             };
-            let name = common_field.name.as_str().to_owned();
+            let name: crate::value::ValueName = common_field.name.as_str().into();
             let value = self.default_value_for_type(common_field.type_reference)?;
             payload.push((name, self.allocate_cell(value)?));
         }
         for field in self.program.data_payload_fields(variant) {
-            let name = field.name.as_str().to_owned();
+            let name: crate::value::ValueName = field.name.as_str().into();
             let value = self.default_value_for_type(field.type_reference)?;
             payload.push((name, self.allocate_cell(value)?));
         }
@@ -1605,7 +1605,7 @@ impl<'program> Evaluator<'program> {
                 self.eval_expression_at_type(field.value, field_type.unwrap_or_default(), frame)?;
             let Some(slot) = payload
                 .iter_mut()
-                .find(|(name, _)| name == field.name.as_str())
+                .find(|(name, _)| **name == *field.name.as_str())
             else {
                 return trap(format!(
                     "case `{type_name}::{case_name}` has no payload field `{}`",
@@ -1617,7 +1617,7 @@ impl<'program> Evaluator<'program> {
 
         Ok(Value::Enum {
             type_symbol: data.symbol,
-            variant_name: case_name.to_owned(),
+            variant_name: case_name.into(),
             payload,
         })
     }

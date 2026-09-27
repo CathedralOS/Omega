@@ -385,6 +385,11 @@ impl LiveTextByteLease {
     }
 }
 
+/// A declared name a value carries: its data type, a field, or a case. Values
+/// copy and clone often (every array default and deep copy), and a shared name
+/// makes each copy a count bump rather than a fresh string.
+pub type ValueName = Rc<str>;
+
 /// A semantic runtime value. Width/signedness of integers is tracked separately by the
 /// evaluator from the declared type; the value itself stores an `i64` payload (skeleton:
 /// full i64 semantics, refined per-width later).
@@ -406,8 +411,8 @@ pub enum Value {
     /// field is its own cell (so `&mut self.field` aliases correctly).
     Struct {
         type_symbol: SymbolHandle,
-        type_name: String,
-        fields: BTreeMap<String, Cell>,
+        type_name: ValueName,
+        fields: BTreeMap<ValueName, Cell>,
     },
     /// A case (enum) value, identified by its case name -- the TAG -- optionally
     /// carrying NAMED payload field cells (`case Say(text: String)` constructs
@@ -424,8 +429,8 @@ pub enum Value {
     /// name-global scan.
     Enum {
         type_symbol: SymbolHandle,
-        variant_name: String,
-        payload: Vec<(String, Cell)>,
+        variant_name: ValueName,
+        payload: Vec<(ValueName, Cell)>,
     },
     /// A fixed array or a slice view. Both are an ordered list of element CELLS; a slice
     /// shares the array's element `Rc`s (so writes through the slice alias the array). The

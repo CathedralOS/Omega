@@ -92,14 +92,14 @@ impl BuildTimeValue {
             BuildTimeValue::Float(value) => Ok(Value::Float(value)),
             BuildTimeValue::Text(bytes) => allocate_text(bytes),
             BuildTimeValue::Struct { type_name, fields } => {
-                let mut cells: BTreeMap<String, Cell> = BTreeMap::new();
+                let mut cells: BTreeMap<crate::value::ValueName, Cell> = BTreeMap::new();
                 for (name, value) in fields {
                     let value = value.into_value_with(allocate, allocate_text)?;
-                    cells.insert(name, allocate(value)?);
+                    cells.insert(name.into(), allocate(value)?);
                 }
                 Ok(Value::Struct {
                     type_symbol: symbols::SymbolHandle::invalid(),
-                    type_name,
+                    type_name: type_name.into(),
                     fields: cells,
                 })
             }
@@ -108,12 +108,12 @@ impl BuildTimeValue {
                 // the Struct arm above); tag-ordinal resolution falls back to
                 // the name-global scan for these values.
                 type_symbol: symbols::SymbolHandle::invalid(),
-                variant_name: variant,
+                variant_name: variant.into(),
                 payload: payload
                     .into_iter()
                     .map(|(name, value)| {
                         let value = value.into_value_with(allocate, allocate_text)?;
-                        Ok((name, allocate(value)?))
+                        Ok((name.into(), allocate(value)?))
                     })
                     .collect::<Result<_, E>>()?,
             }),
@@ -141,10 +141,10 @@ impl BuildTimeValue {
             Value::Struct {
                 type_name, fields, ..
             } => BuildTimeValue::Struct {
-                type_name: type_name.clone(),
+                type_name: type_name.to_string(),
                 fields: fields
                     .iter()
-                    .map(|(name, cell)| (name.clone(), Self::from_value(&cell.borrow())))
+                    .map(|(name, cell)| (name.to_string(), Self::from_value(&cell.borrow())))
                     .collect(),
             },
             Value::Enum {
@@ -152,10 +152,10 @@ impl BuildTimeValue {
                 payload,
                 ..
             } => BuildTimeValue::Case {
-                variant: variant_name.clone(),
+                variant: variant_name.to_string(),
                 payload: payload
                     .iter()
-                    .map(|(name, cell)| (name.clone(), Self::from_value(&cell.borrow())))
+                    .map(|(name, cell)| (name.to_string(), Self::from_value(&cell.borrow())))
                     .collect(),
             },
             Value::Array(elements) => BuildTimeValue::Array(

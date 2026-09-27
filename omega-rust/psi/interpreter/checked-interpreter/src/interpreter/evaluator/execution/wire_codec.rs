@@ -160,7 +160,7 @@ impl<'program> Evaluator<'program> {
 
             let raw = match &*value_cell.borrow() {
                 Value::Struct { fields, .. } => fields
-                    .get(field_name)
+                    .get(field_name.as_str())
                     .map(|cell| self.deref_cell(cell.clone()))
                     .ok_or_else(|| {
                         Halt::Trap(format!(
@@ -192,7 +192,7 @@ impl<'program> Evaluator<'program> {
                         body.extend(wire_varint_bytes(*child_number));
                         let child_raw = match &*raw.borrow() {
                             Value::Struct { fields, .. } => fields
-                                .get(child_name)
+                                .get(child_name.as_str())
                                 .map(|cell| self.deref_cell(cell.clone()))
                                 .ok_or_else(|| {
                                     Halt::Trap(format!(
@@ -503,7 +503,7 @@ impl<'program> Evaluator<'program> {
                 .find_data_by_name("WireVerdict")
                 .map(|data| data.symbol)
                 .unwrap_or_else(SymbolHandle::invalid),
-            variant_name: if ok { "Sound" } else { "Invalid" }.to_owned(),
+            variant_name: if ok { "Sound" } else { "Invalid" }.into(),
             payload: Vec::new(),
         };
 
@@ -698,7 +698,7 @@ impl<'program> Evaluator<'program> {
 
             let field_cell = match &*value_cell.borrow() {
                 Value::Struct { fields, .. } => {
-                    fields.get(field_name).cloned().ok_or_else(|| {
+                    fields.get(field_name.as_str()).cloned().ok_or_else(|| {
                         Halt::Trap(format!(
                             "`{schema_name}::decode` value has no field `{field_name}`"
                         ))
@@ -778,7 +778,7 @@ impl<'program> Evaluator<'program> {
                         let decoded = wire_decoded_scalar_value(raw, *encoding)?;
                         let child_cell = match &*field_cell.borrow() {
                             Value::Struct { fields, .. } => {
-                                fields.get(child_name).cloned().ok_or_else(|| {
+                                fields.get(child_name.as_str()).cloned().ok_or_else(|| {
                                     Halt::Trap(format!(
                                         "`{schema_name}::decode` nested field `{field_name}` has no member `{child_name}`"
                                     ))

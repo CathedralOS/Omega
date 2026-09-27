@@ -433,11 +433,11 @@ impl<'program> Evaluator<'program> {
             let cell = self
                 .allocate_cell(value)
                 .map_err(|halt| format!("{schema_name}: {}", halt_text(&halt)))?;
-            value_fields.insert(field_name, cell);
+            value_fields.insert(field_name.into(), cell);
         }
         Ok(Value::Struct {
             type_symbol: data.symbol,
-            type_name: data.name.as_str().to_owned(),
+            type_name: data.name.as_str().into(),
             fields: value_fields,
         })
     }
@@ -493,11 +493,11 @@ impl<'program> Evaluator<'program> {
                     .allocate_cell(Value::Int(*live as i64))
                     .map_err(|halt| format!("{schema_name}: {}", halt_text(&halt)))?;
                 let mut vec_fields = BTreeMap::new();
-                vec_fields.insert("items".to_owned(), items);
-                vec_fields.insert("length".to_owned(), length);
+                vec_fields.insert("items".into(), items);
+                vec_fields.insert("length".into(), length);
                 Ok(Value::Struct {
                     type_symbol: symbols::SymbolHandle::invalid(),
-                    type_name: "FixedVec".to_owned(),
+                    type_name: "FixedVec".into(),
                     fields: vec_fields,
                 })
             }
@@ -508,11 +508,11 @@ impl<'program> Evaluator<'program> {
                     let cell = self
                         .allocate_cell(Value::Int(*value))
                         .map_err(|halt| format!("{schema_name}: {}", halt_text(&halt)))?;
-                    child_fields.insert(child.name.clone(), cell);
+                    child_fields.insert(child.name.clone().into(), cell);
                 }
                 Ok(Value::Struct {
                     type_symbol: symbols::SymbolHandle::invalid(),
-                    type_name: format!("{schema_name}.{}", field.name),
+                    type_name: format!("{schema_name}.{}", field.name).into(),
                     fields: child_fields,
                 })
             }
@@ -558,11 +558,12 @@ impl<'program> Evaluator<'program> {
                 Some((_, _, WireInterpScalarField::Nested(children))) => {
                     let mut child_fields = BTreeMap::new();
                     for (child_name, _, _, _) in children {
-                        child_fields.insert(child_name.clone(), zero_cell(self, Value::Int(0))?);
+                        child_fields
+                            .insert(child_name.clone().into(), zero_cell(self, Value::Int(0))?);
                     }
                     Value::Struct {
                         type_symbol: symbols::SymbolHandle::invalid(),
-                        type_name: field_name.clone(),
+                        type_name: field_name.clone().into(),
                         fields: child_fields,
                     }
                 }
@@ -578,11 +579,11 @@ impl<'program> Evaluator<'program> {
                             let items = zero_cell(self, elements)?;
                             let length = zero_cell(self, Value::Int(0))?;
                             let mut vec_fields = BTreeMap::new();
-                            vec_fields.insert("items".to_owned(), items);
-                            vec_fields.insert("length".to_owned(), length);
+                            vec_fields.insert("items".into(), items);
+                            vec_fields.insert("length".into(), length);
                             Value::Struct {
                                 type_symbol: symbols::SymbolHandle::invalid(),
-                                type_name: "FixedVec".to_owned(),
+                                type_name: "FixedVec".into(),
                                 fields: vec_fields,
                             }
                         }
@@ -592,11 +593,11 @@ impl<'program> Evaluator<'program> {
                 // walk; Unit stands in untouched.
                 None => Value::Unit,
             };
-            fields.insert(field_name, zero_cell(self, zero)?);
+            fields.insert(field_name.into(), zero_cell(self, zero)?);
         }
         Ok(Value::Struct {
             type_symbol: data.symbol,
-            type_name: data.name.as_str().to_owned(),
+            type_name: data.name.as_str().into(),
             fields,
         })
     }
@@ -647,7 +648,7 @@ impl<'program> Evaluator<'program> {
                 .get(&field.name)
                 .expect("the member map covers every field");
             let cell = decoded
-                .get(&field.name)
+                .get(field.name.as_str())
                 .map(|cell| self.deref_cell(cell.clone()))
                 .ok_or_else(|| {
                     format!("{schema_name}: destination has no field `{}`", field.name)
@@ -909,7 +910,7 @@ fn member_matches(field: &ReferenceField, member: &ReferenceMember, cell: &Cell)
                 children.len() == values.len()
                     && children.iter().zip(values.iter()).all(|(child, value)| {
                         fields
-                            .get(&child.name)
+                            .get(child.name.as_str())
                             .map(|child_cell| child_cell.borrow().as_int() == Some(*value))
                             .unwrap_or(false)
                     })

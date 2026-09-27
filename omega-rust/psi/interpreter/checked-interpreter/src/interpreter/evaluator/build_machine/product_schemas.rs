@@ -40,7 +40,7 @@ impl<'program> Evaluator<'program> {
         let receiver = self.deref_cell(receiver);
         let is_facet = matches!(
             &*receiver.borrow(),
-            Value::Struct { type_name, .. } if type_name == PRODUCT_FACET_TYPE
+            Value::Struct { type_name, .. } if **type_name == *PRODUCT_FACET_TYPE
         );
         if !is_facet {
             // An authored `BuildProduct` value can select the toolchain
@@ -91,7 +91,7 @@ impl<'program> Evaluator<'program> {
         };
         let is_facet = matches!(
             &*receiver.borrow(),
-            Value::Struct { type_name, .. } if type_name == PRODUCT_FACET_TYPE
+            Value::Struct { type_name, .. } if **type_name == *PRODUCT_FACET_TYPE
         );
         if !is_facet {
             if call.target_symbol.is_valid()
@@ -140,7 +140,7 @@ impl<'program> Evaluator<'program> {
         let receiver = self.deref_cell(receiver);
         let is_marker = matches!(
             &*receiver.borrow(),
-            Value::Struct { type_name, .. } if type_name == PRODUCT_SCHEMA_DESCRIPTION_TYPE
+            Value::Struct { type_name, .. } if **type_name == *PRODUCT_SCHEMA_DESCRIPTION_TYPE
         );
         if !is_marker {
             if call.target_symbol.is_valid()
@@ -181,7 +181,7 @@ impl<'program> Evaluator<'program> {
         };
         let is_marker = matches!(
             &*receiver.borrow(),
-            Value::Struct { type_name, .. } if type_name == PRODUCT_SCHEMA_DESCRIPTION_TYPE
+            Value::Struct { type_name, .. } if **type_name == *PRODUCT_SCHEMA_DESCRIPTION_TYPE
         );
         if !is_marker {
             if call.target_symbol.is_valid()
@@ -222,7 +222,7 @@ impl<'program> Evaluator<'program> {
                     .to_owned(),
             ));
         };
-        if type_name != PRODUCT_SCHEMA_DESCRIPTION_TYPE {
+        if **type_name != *PRODUCT_SCHEMA_DESCRIPTION_TYPE {
             return Err(Halt::Trap(
                 "product-schema inspection is not a compiler-issued product schema description"
                     .to_owned(),
@@ -360,8 +360,8 @@ impl<'program> Evaluator<'program> {
         let description = self.allocate_cell(Value::Int(index))?;
         Ok(Value::Struct {
             type_symbol: SymbolHandle::invalid(),
-            type_name: PRODUCT_SCHEMA_DESCRIPTION_TYPE.to_owned(),
-            fields: BTreeMap::from([("description".to_owned(), description)]),
+            type_name: PRODUCT_SCHEMA_DESCRIPTION_TYPE.into(),
+            fields: BTreeMap::from([("description".into(), description)]),
         })
     }
 

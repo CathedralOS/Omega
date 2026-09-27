@@ -304,7 +304,7 @@ impl<'program> Evaluator<'program> {
             .map(|name| name.as_str().to_owned())?;
         let self_type = match &*frame.self_cell.borrow() {
             Value::Struct { type_name, .. } => type_name.clone(),
-            _ => String::new(),
+            _ => "".into(),
         };
         let machine = self.find_machine_by_name(&self_type)?;
         let data = self.find_data_by_name(machine.attached_data.as_ref()?.as_str())?;
@@ -472,8 +472,8 @@ impl<'program> Evaluator<'program> {
             .map_err(|_| Halt::Resource("read_line byte count overflowed".to_owned()))?;
         Ok(Value::Enum {
             type_symbol,
-            variant_name: variant.to_owned(),
-            payload: vec![("count".to_owned(), self.allocate_cell(Value::Int(count))?)],
+            variant_name: variant.into(),
+            payload: vec![("count".into(), self.allocate_cell(Value::Int(count))?)],
         })
     }
 
@@ -602,11 +602,11 @@ mod tests {
             )
             .unwrap_or_else(|_| panic!("line cell"));
         let mut fields = BTreeMap::new();
-        fields.insert("line".to_owned(), line);
+        fields.insert("line".into(), line);
         evaluator
             .allocate_cell(Value::Struct {
                 type_symbol: machine.symbol,
-                type_name: "Main".to_owned(),
+                type_name: "Main".into(),
                 fields,
             })
             .unwrap_or_else(|_| panic!("self cell"))
@@ -678,11 +678,11 @@ mod tests {
             else {
                 panic!("{input:?}: read_line returned {value:?}")
             };
-            assert_eq!(variant_name, variant, "{input:?}");
+            assert_eq!(variant_name, variant.into(), "{input:?}");
             let [(name, count_cell)] = payload.as_slice() else {
                 panic!("{input:?}: payload {payload:?}")
             };
-            assert_eq!(name, "count", "{input:?}");
+            assert_eq!(&**name, "count", "{input:?}");
             assert!(
                 matches!(&*count_cell.borrow(), Value::Int(value) if *value == count),
                 "{input:?}: count payload"
@@ -743,7 +743,7 @@ mod tests {
             else {
                 panic!("{input:?} {destination}: read_line returned {value:?}")
             };
-            assert_eq!(variant_name, variant, "{input:?} {destination}");
+            assert_eq!(variant_name, variant.into(), "{input:?} {destination}");
             let [(_, count_cell)] = payload.as_slice() else {
                 panic!("{input:?} {destination}: payload {payload:?}")
             };

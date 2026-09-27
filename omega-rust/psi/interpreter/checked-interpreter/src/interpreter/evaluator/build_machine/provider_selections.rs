@@ -111,7 +111,7 @@ impl<'program> Evaluator<'program> {
                 .iter()
                 .find_map(|member| match member {
                     typed_trees::data::DataMember::Variant(variant)
-                        if variant.name.as_str() == variant_name && payload.is_empty() =>
+                        if *variant.name.as_str() == *variant_name && payload.is_empty() =>
                     {
                         Some(variant.symbol)
                     }

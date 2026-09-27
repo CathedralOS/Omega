@@ -125,16 +125,16 @@ impl<'program> Evaluator<'program> {
             self.stdin_cursor += 1;
             Ok(Value::Enum {
                 type_symbol,
-                variant_name: "Byte".to_owned(),
+                variant_name: "Byte".into(),
                 payload: vec![(
-                    "value".to_owned(),
+                    "value".into(),
                     self.allocate_cell(Value::Int(i64::from(byte)))?,
                 )],
             })
         } else {
             Ok(Value::Enum {
                 type_symbol,
-                variant_name: "Eof".to_owned(),
+                variant_name: "Eof".into(),
                 payload: Vec::new(),
             })
         }
@@ -207,7 +207,7 @@ impl<'program> Evaluator<'program> {
             .map(|name| name.as_str().to_owned())?;
         let self_type = match &*frame.self_cell.borrow() {
             Value::Struct { type_name, .. } => type_name.clone(),
-            _ => String::new(),
+            _ => "".into(),
         };
         let machine = self.find_machine_by_name(&self_type)?;
         let data = self.find_data_by_name(machine.attached_data.as_ref()?.as_str())?;
@@ -324,7 +324,7 @@ impl<'program> Evaluator<'program> {
             // attached data definition.
             let self_type = match &*frame.self_cell.borrow() {
                 Value::Struct { type_name, .. } => type_name.clone(),
-                _ => String::new(),
+                _ => "".into(),
             };
             if let Some(machine) = self.find_machine_by_name(&self_type)
                 && let Some(data_name) = machine.attached_data.as_ref()

@@ -232,12 +232,12 @@ impl<'program> Evaluator<'program> {
                 visiting.remove(type_name);
                 return Ok(None);
             };
-            field_values.insert(name, self.allocate_cell(value)?);
+            field_values.insert(name.into(), self.allocate_cell(value)?);
         }
         visiting.remove(type_name);
         Ok(Some(Value::Struct {
             type_symbol,
-            type_name: type_name.to_owned(),
+            type_name: type_name.into(),
             fields: field_values,
         }))
     }
@@ -699,7 +699,7 @@ impl<'program> Evaluator<'program> {
             ));
         };
         for (name, type_reference, field_offset, stored_integer, repeated_field) in field_specs {
-            let Some(field_cell) = fields.get(&name) else {
+            let Some(field_cell) = fields.get(name.as_str()) else {
                 return trap(format!(
                     "record value written through `{type_name}` has no field `{name}`"
                 ));

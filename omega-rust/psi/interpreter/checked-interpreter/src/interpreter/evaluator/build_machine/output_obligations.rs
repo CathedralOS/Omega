@@ -121,7 +121,7 @@ impl<'program> Evaluator<'program> {
         let receiver = self.deref_cell(receiver);
         let is_marker = matches!(
             &*receiver.borrow(),
-            Value::Struct { type_name, .. } if type_name == REQUIRED_OUTPUT_TYPE
+            Value::Struct { type_name, .. } if **type_name == *REQUIRED_OUTPUT_TYPE
         );
         if !is_marker {
             if call.target_symbol.is_valid()
@@ -159,7 +159,7 @@ impl<'program> Evaluator<'program> {
         };
         let is_marker = matches!(
             &*receiver.borrow(),
-            Value::Struct { type_name, .. } if type_name == REQUIRED_OUTPUT_TYPE
+            Value::Struct { type_name, .. } if **type_name == *REQUIRED_OUTPUT_TYPE
         );
         if !is_marker {
             if call.target_symbol.is_valid()
@@ -195,8 +195,8 @@ impl<'program> Evaluator<'program> {
         let root = match &*receiver.borrow() {
             Value::Struct {
                 type_name, fields, ..
-            } if type_name
-                == crate::interpreter::evaluator::build_machine::paths::OUTPUT_ROOT_FACET_TYPE =>
+            } if **type_name
+                == *crate::interpreter::evaluator::build_machine::paths::OUTPUT_ROOT_FACET_TYPE =>
             {
                 fields
                     .get("root")
@@ -377,13 +377,10 @@ impl<'program> Evaluator<'program> {
             let type_symbol = self.output_completion_type_symbol();
             return Ok(Value::Enum {
                 type_symbol,
-                variant_name: "Retry".to_owned(),
+                variant_name: "Retry".into(),
                 payload: vec![
-                    (
-                        "obligation".to_owned(),
-                        self.allocate_cell(obligation_marker)?,
-                    ),
-                    ("file".to_owned(), self.allocate_cell(file)?),
+                    ("obligation".into(), self.allocate_cell(obligation_marker)?),
+                    ("file".into(), self.allocate_cell(file)?),
                 ],
             });
         };
@@ -407,8 +404,8 @@ impl<'program> Evaluator<'program> {
         let type_symbol = self.output_completion_type_symbol();
         Ok(Value::Enum {
             type_symbol,
-            variant_name: "Sealed".to_owned(),
-            payload: vec![("receipt".to_owned(), self.allocate_cell(receipt)?)],
+            variant_name: "Sealed".into(),
+            payload: vec![("receipt".into(), self.allocate_cell(receipt)?)],
         })
     }
 
@@ -451,7 +448,7 @@ impl<'program> Evaluator<'program> {
                     .to_owned(),
             ));
         };
-        if type_name != REQUIRED_OUTPUT_TYPE {
+        if **type_name != *REQUIRED_OUTPUT_TYPE {
             return Err(Halt::Trap(
                 "output operation operand is not a compiler-issued required output obligation"
                     .to_owned(),
@@ -481,8 +478,8 @@ impl<'program> Evaluator<'program> {
         let obligation = self.allocate_cell(Value::Int(index))?;
         Ok(Value::Struct {
             type_symbol: SymbolHandle::invalid(),
-            type_name: REQUIRED_OUTPUT_TYPE.to_owned(),
-            fields: BTreeMap::from([("obligation".to_owned(), obligation)]),
+            type_name: REQUIRED_OUTPUT_TYPE.into(),
+            fields: BTreeMap::from([("obligation".into(), obligation)]),
         })
     }
 
@@ -492,8 +489,8 @@ impl<'program> Evaluator<'program> {
         let receipt = self.allocate_cell(Value::Int(index))?;
         Ok(Value::Struct {
             type_symbol: SymbolHandle::invalid(),
-            type_name: OUTPUT_RECEIPT_TYPE.to_owned(),
-            fields: BTreeMap::from([("receipt".to_owned(), receipt)]),
+            type_name: OUTPUT_RECEIPT_TYPE.into(),
+            fields: BTreeMap::from([("receipt".into(), receipt)]),
         })
     }
 

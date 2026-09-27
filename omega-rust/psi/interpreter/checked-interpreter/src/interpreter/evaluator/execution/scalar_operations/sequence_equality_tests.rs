@@ -74,8 +74,8 @@ fn unsupported_equality_never_succeeds_from_two_missing_integer_values() {
         array(b"x"),
         Value::Enum {
             type_symbol: SymbolHandle::invalid(),
-            variant_name: "Payload".to_owned(),
-            payload: vec![("value".to_owned(), Value::Int(1).cell())],
+            variant_name: "Payload".into(),
+            payload: vec![("value".into(), Value::Int(1).cell())],
         },
     ] {
         let nonbytes = Value::Array(vec![element.cell()]);
