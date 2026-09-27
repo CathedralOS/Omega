@@ -14,22 +14,25 @@ mod external_policy;
 
 use optimization_core::TargetCostModelIdentity;
 
-#[cfg(any(test, feature = "test-support"))]
+use crate::ranked_rewrites::LoopInvariantScalarMotionError;
 use crate::validation::ValidatedOptimizerRankingCertificates;
 use crate::validation::{
     ValidatedOptimizerCycleComponents, validate_transformed_psi_cycle_components,
     validate_verified_psi_cycle_components,
 };
 use crate::{AnalysisManagerError, RuleProposalError, RuleRegistryError};
-#[cfg(any(test, feature = "test-support"))]
 use crate::{
-    CountdownInvariantConstantAnalysisError, CountdownInvariantConstantAnalysisSnapshot,
-    CountdownInvariantConstantPlacementAnalysisError,
-    CountdownInvariantConstantPlacementAnalysisSnapshot, CountedLoopAnalysisError,
-    CountedLoopAnalysisSnapshot, ValidatedCountdownInvariantConstantAnalysis,
+    CountdownInvariantConstantAnalysisError, CountdownInvariantConstantPlacementAnalysisError,
+    CountedLoopAnalysisError, ValidatedCountdownInvariantConstantAnalysis,
     ValidatedCountdownInvariantConstantPlacementAnalysis, ValidatedCountedLoopAnalysis,
     analyze_countdown_invariant_constant_placement, analyze_countdown_invariant_constants,
-    analyze_counted_loops, validate_countdown_invariant_constant_analysis,
+    analyze_counted_loops,
+};
+#[cfg(any(test, feature = "test-support"))]
+use crate::{
+    CountdownInvariantConstantAnalysisSnapshot,
+    CountdownInvariantConstantPlacementAnalysisSnapshot, CountedLoopAnalysisSnapshot,
+    validate_countdown_invariant_constant_analysis,
     validate_countdown_invariant_constant_placement_analysis, validate_counted_loop_analysis,
 };
 pub(crate) use execution::run_registries;
@@ -75,8 +78,7 @@ pub struct VerifiedPsiOptimizationSession {
     input: VerifiedPsiOptimizationInput,
     unit: PsiOptimizationUnit,
     /// Validated at construction in every build, so malformed cycle topology
-    /// rejects the session; only the test-support loop analyses read it back.
-    #[cfg_attr(not(any(test, feature = "test-support")), allow(dead_code))]
+    /// rejects the session; the relocation boundary reads it back per step.
     cycle_components: ValidatedOptimizerCycleComponents,
 }
 
@@ -120,9 +122,8 @@ impl VerifiedPsiOptimizationSession {
     }
 }
 
-/// Countdown loop analyses over the session, reached only by tests and the
-/// `test-support` feature: no production optimization pass consumes them.
-#[cfg(any(test, feature = "test-support"))]
+/// Cycle-component and countdown loop analyses over the session, consumed by
+/// the relocation boundary in every build.
 impl VerifiedPsiOptimizationSession {
     /// Canonical SCC topology authorized for optimizer analysis only.
     pub const fn cycle_components(&self) -> &ValidatedOptimizerCycleComponents {
@@ -143,6 +144,7 @@ impl VerifiedPsiOptimizationSession {
         analyze_counted_loops(&self.unit, &self.cycle_components)
     }
 
+    #[cfg(any(test, feature = "test-support"))]
     pub fn validate_counted_loop_analysis(
         &self,
         candidate: &CountedLoopAnalysisSnapshot,
@@ -162,6 +164,7 @@ impl VerifiedPsiOptimizationSession {
         analyze_countdown_invariant_constants(&self.unit, &self.cycle_components, &counted)
     }
 
+    #[cfg(any(test, feature = "test-support"))]
     pub fn validate_countdown_invariant_constant_analysis(
         &self,
         candidate: &CountdownInvariantConstantAnalysisSnapshot,
@@ -200,6 +203,7 @@ impl VerifiedPsiOptimizationSession {
         )
     }
 
+    #[cfg(any(test, feature = "test-support"))]
     pub fn validate_countdown_invariant_constant_placement_analysis(
         &self,
         candidate: &CountdownInvariantConstantPlacementAnalysisSnapshot,
@@ -303,6 +307,7 @@ pub enum OptimizationRunError {
         error: RuleProposalError,
     },
     CandidateValidation(OptimizationUnitValidationError),
+    LoopInvariantScalarMotion(LoopInvariantScalarMotionError),
     WorkBudgetExhausted(&'static str),
     NonDecreasingConvergenceMeasure {
         previous: u64,

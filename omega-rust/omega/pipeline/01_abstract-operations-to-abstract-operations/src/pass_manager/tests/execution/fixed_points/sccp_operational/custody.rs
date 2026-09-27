@@ -116,6 +116,8 @@ pub(super) fn assert_operational_custody(cases: Vec<Case>) {
         );
         let expected_fact_count = match commit
             .declaration
+            .rewrite()
+            .expect("rewrite declaration")
             .scalar_evaluation_witness()
             .expect("every SCCP candidate retains typed evaluation evidence")
         {

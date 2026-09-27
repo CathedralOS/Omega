@@ -4,7 +4,7 @@ use super::{
     BlockId, LoopInvariantNodeResult, LoopInvariantScalarMotionCandidate,
     LoopInvariantScalarMotionError, LoopInvariantScalarNode, LoopInvariantScalarRelocation,
     NodeLocation, OperationId, OptimizationNode, PlaceId, PsiProvenance, ValueDefinitionSite,
-    ValueId, VerifiedPsiOptimizationSession, apply, candidate_identity,
+    ValueId, VerifiedPsiOptimizationSession, apply, contract,
 };
 use abstract_operations::AbstractOperation;
 pub(super) fn all(
@@ -53,26 +53,20 @@ fn component_candidate(
         .nodes
         .iter()
         .map(|node| {
-            Ok(LoopInvariantScalarRelocation {
-                destination: apply::operation_location(&output, node.psi_operation)
+            Ok(LoopInvariantScalarRelocation::new(
+                node.clone(),
+                apply::operation_location(&output, node.psi_operation())
                     .ok_or(LoopInvariantScalarMotionError::CandidateMismatch)?,
-                node: node.clone(),
-            })
+            ))
         })
         .collect::<Result<Vec<_>, LoopInvariantScalarMotionError>>()?;
-    let identity = candidate_identity(
+    Ok(Some(LoopInvariantScalarMotionCandidate::new(
+        contract(),
         session.unit().identity,
         output.identity,
-        &component.id,
-        &relocations,
-    );
-    Ok(Some(LoopInvariantScalarMotionCandidate {
-        identity,
-        input: session.unit().identity,
-        output: output.identity,
-        component: component.id.clone(),
+        component.id.clone(),
         relocations,
-    }))
+    )))
 }
 
 /// The independently replayable relocation plan for one component: every
@@ -869,7 +863,7 @@ pub(super) fn component_plan(
                 .ok_or(LoopInvariantScalarMotionError::CandidateMismatch)?;
             for (index, node) in block.nodes.iter().enumerate() {
                 let psi_operation = match node.provenance.first() {
-                    Some(PsiProvenance::Operation(operation)) => *operation,
+                    Some(&PsiProvenance::Operation(operation)) => operation,
                     _ => continue,
                 };
                 if admitted.contains(&psi_operation)
@@ -985,10 +979,10 @@ pub(super) fn component_plan(
                 {
                     relocating_roots.insert(root);
                 }
-                nodes.push(LoopInvariantScalarNode {
+                nodes.push(LoopInvariantScalarNode::new(
                     psi_operation,
                     result,
-                    location: NodeLocation {
+                    NodeLocation {
                         machine,
                         block: *member,
                         node: u32::try_from(index)
@@ -997,9 +991,9 @@ pub(super) fn component_plan(
                     operand_rewrites,
                     root_rewrite,
                     argument_rewrites,
-                    provenance: node.provenance.clone(),
-                    fuel: node.fuel.clone(),
-                });
+                    node.provenance.clone(),
+                    node.fuel.clone(),
+                ));
                 progressed = true;
             }
         }

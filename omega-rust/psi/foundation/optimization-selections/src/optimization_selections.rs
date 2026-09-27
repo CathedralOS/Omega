@@ -28,10 +28,14 @@ pub enum PsiOptimization {
     ProofCheckElision = 6,
     StateSpecialization = 7,
     RepresentationSpecialization = 8,
+    /// Unique-preheader loop-invariant scalar relocation. Like the
+    /// specialization passes it executes after Terminal Psi seals — the
+    /// pre-Terminal stage records the selection but runs no rule for it.
+    LoopInvariantScalarMotion = 9,
 }
 
 impl PsiOptimization {
-    pub const ALL: [Self; 8] = crate::PRETERMINAL_PSI_PASS_CATALOG;
+    pub const ALL: [Self; 9] = crate::PRETERMINAL_PSI_PASS_CATALOG;
 
     pub const fn name(self) -> &'static str {
         match self {
@@ -43,6 +47,7 @@ impl PsiOptimization {
             Self::ProofCheckElision => "ProofCheckElision",
             Self::StateSpecialization => "StateSpecialization",
             Self::RepresentationSpecialization => "RepresentationSpecialization",
+            Self::LoopInvariantScalarMotion => "LoopInvariantScalarMotion",
         }
     }
 

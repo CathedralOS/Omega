@@ -1,7 +1,8 @@
 //! Independent reconstruction of every retained validated candidate.
 
-use crate::{OptimizationRun, OrderedRuleRegistry};
+use crate::{OptimizationRun, PsiPassStep, VerifiedPsiOptimizationSession};
 use optimization_core::OptimizationCandidateVerdict;
+use optimization_unit::PsiCandidateDeclaration;
 
 use super::super::commits::{ReplayedCommits, bind_contract, contract_for};
 use crate::OptimizedAbstractProjectionError;
@@ -9,7 +10,7 @@ use crate::publication::error::{AppliedDecisionCustodyAxis, custody_error};
 
 pub(super) fn validate(
     run: &OptimizationRun,
-    registries: &[OrderedRuleRegistry],
+    steps: &[PsiPassStep],
     replayed: &ReplayedCommits,
 ) -> Result<(), OptimizedAbstractProjectionError> {
     let decisions = run
@@ -30,7 +31,7 @@ pub(super) fn validate(
     for (retained, decision) in run.validated_candidates().iter().zip(decisions) {
         let declaration = retained.declaration();
         let candidate = declaration.identity();
-        let contract = contract_for(registries, declaration.rule()).ok_or_else(|| {
+        let contract = contract_for(steps, declaration.rule()).ok_or_else(|| {
             custody_error(Some(candidate), AppliedDecisionCustodyAxis::RuleContract)
         })?;
         if contract.pass() != retained.pass() {
@@ -46,10 +47,41 @@ pub(super) fn validate(
             .ok_or_else(|| {
                 custody_error(Some(candidate), AppliedDecisionCustodyAxis::InputRevision)
             })?;
-        let accepted =
-            optimization_unit_semantics::validate_psi_rewrite_candidate(revision, declaration)
+        let validator = match declaration {
+            PsiCandidateDeclaration::Rewrite(candidate) => {
+                let accepted = optimization_unit_semantics::validate_psi_rewrite_candidate(
+                    revision, candidate,
+                )
                 .map_err(OptimizedAbstractProjectionError::CandidateReplay)?;
-        if accepted.candidate() != candidate || accepted.validator() != retained.validator() {
+                if accepted.candidate() != declaration.identity() {
+                    return Err(custody_error(
+                        Some(declaration.identity()),
+                        AppliedDecisionCustodyAxis::Validator,
+                    ));
+                }
+                accepted.validator()
+            }
+            PsiCandidateDeclaration::LoopInvariantScalarMotion(candidate) => {
+                let session = VerifiedPsiOptimizationSession::from_transformed(
+                    run.session().input().clone(),
+                    revision.clone(),
+                )
+                .map_err(OptimizedAbstractProjectionError::CandidateReplay)?;
+                let accepted =
+                    crate::ranked_rewrites::loop_invariant_scalar_motion::validate_loop_invariant_scalar_motion(
+                        &session, candidate,
+                    )
+                    .map_err(OptimizedAbstractProjectionError::LoopInvariantScalarMotionReplay)?;
+                if accepted.candidate().identity() != declaration.identity() {
+                    return Err(custody_error(
+                        Some(declaration.identity()),
+                        AppliedDecisionCustodyAxis::Validator,
+                    ));
+                }
+                accepted.validator()
+            }
+        };
+        if validator != retained.validator() {
             return Err(custody_error(
                 Some(candidate),
                 AppliedDecisionCustodyAxis::Validator,

@@ -1,6 +1,6 @@
 //! Immutable optimizer evidence. These records carry no executing session or analysis cache.
 
-use crate::{ProvenanceRewrite, PsiRewriteCandidate, PsiTransformationLedger};
+use crate::{ProvenanceRewrite, PsiCandidateDeclaration, PsiTransformationLedger};
 use optimization_core::{
     BaselineDecisionLog, ExternalDecisionLog, OptimizationCandidateIdentity,
     OptimizationIdentityBundle, OptimizationPassIdentity, OptimizationPassManifestRecord,
@@ -18,11 +18,11 @@ pub struct PsiOptimizationCommit {
     pub predicted_cost_delta: i64,
     pub pruned_machines: Vec<crate::PrunedMachineCustody>,
     pub provenance: Vec<ProvenanceRewrite>,
-    pub declaration: PsiRewriteCandidate,
+    pub declaration: PsiCandidateDeclaration,
 }
 
 impl PsiOptimizationCommit {
-    pub const fn declaration(&self) -> &PsiRewriteCandidate {
+    pub const fn declaration(&self) -> &PsiCandidateDeclaration {
         &self.declaration
     }
 }
@@ -32,7 +32,7 @@ impl PsiOptimizationCommit {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PsiValidatedCandidateDeclaration {
     pub pass: OptimizationPassIdentity,
-    pub declaration: PsiRewriteCandidate,
+    pub declaration: PsiCandidateDeclaration,
     pub validator: OptimizationValidatorIdentity,
 }
 
@@ -41,7 +41,7 @@ impl PsiValidatedCandidateDeclaration {
         self.pass
     }
 
-    pub const fn declaration(&self) -> &PsiRewriteCandidate {
+    pub const fn declaration(&self) -> &PsiCandidateDeclaration {
         &self.declaration
     }
 

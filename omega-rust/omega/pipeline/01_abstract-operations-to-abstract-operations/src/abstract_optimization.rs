@@ -41,11 +41,11 @@ use crate::pass_manager::{
 use crate::publication::{
     OptimizedAbstractProjectionError, ValidatedOptimizedAbstractPlan, publish_optimization_run,
 };
-use crate::rules::built_in_psi_registries_for_selections;
+#[cfg(any(test, feature = "test-support"))]
+use crate::rules::built_in_psi_registry;
+use crate::rules::built_in_psi_steps_for_selections;
 #[cfg(any(test, feature = "test-support"))]
 use crate::rules::registry::OrderedRuleRegistry;
-#[cfg(any(test, feature = "test-support"))]
-use crate::rules::{built_in_psi_registries, built_in_psi_registry};
 
 #[derive(Debug)]
 pub enum AbstractOptimizationError {
@@ -100,11 +100,12 @@ pub fn run_psi_registry(
     if registry.is_empty() {
         run_registries(session, selections, projection.selections(), &[], budget)
     } else {
+        let step = crate::rules::PsiPassStep::RewriteRegistry(registry.clone());
         run_registries(
             session,
             selections,
             projection.selections(),
-            std::slice::from_ref(registry),
+            std::slice::from_ref(&step),
             budget,
         )
     }
@@ -145,11 +146,12 @@ pub(crate) fn replay_psi_registry(
             external_decisions,
         )
     } else {
+        let step = crate::rules::PsiPassStep::RewriteRegistry(registry.clone());
         run_registries_with_external_decisions(
             session,
             selections,
             projection.selections(),
-            std::slice::from_ref(registry),
+            std::slice::from_ref(&step),
             budget,
             external_decisions,
         )
@@ -180,7 +182,7 @@ pub(crate) fn run_psi_pipeline_for_projection(
     if projection.complete_selection() != selections.identity() {
         return Err(OptimizationRunError::SelectionRegistryMismatch);
     }
-    let registries = built_in_psi_registries_for_selections(projection.selections())
+    let steps = built_in_psi_steps_for_selections(projection.selections())
         .map_err(OptimizationRunError::RegistryConstruction)?;
     let session = VerifiedPsiOptimizationSession::new(verified)
         .map_err(OptimizationRunError::InitialValidation)?;
@@ -188,7 +190,7 @@ pub(crate) fn run_psi_pipeline_for_projection(
         session,
         selections,
         projection.selections(),
-        &registries,
+        &steps,
         budget_per_pass,
     )
 }
@@ -208,15 +210,15 @@ pub fn replay_psi_pipeline(
         ExternalDecisionLog::decode(encoded_external_decisions).map_err(|error| {
             OptimizationRunError::ExternalDecisionReplay(ExternalDecisionReplayError::Schema(error))
         })?;
-    let registries =
-        built_in_psi_registries(selections).map_err(OptimizationRunError::RegistryConstruction)?;
+    let steps = built_in_psi_steps_for_selections(projection.selections())
+        .map_err(OptimizationRunError::RegistryConstruction)?;
     let session = VerifiedPsiOptimizationSession::new(verified)
         .map_err(OptimizationRunError::InitialValidation)?;
     run_registries_with_external_decisions(
         session,
         selections,
         projection.selections(),
-        &registries,
+        &steps,
         budget_per_pass,
         external_decisions,
     )

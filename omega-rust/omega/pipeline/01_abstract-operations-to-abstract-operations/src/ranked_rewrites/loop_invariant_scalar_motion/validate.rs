@@ -5,15 +5,15 @@ use super::{
     LoopInvariantScalarRelocation, MachineId, NodeLocation, OptimizationNode,
     ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationUnit, PsiProvenance,
     PsiRealizationSite, ValidatedLoopInvariantScalarMotion, VerifiedPsiOptimizationSession, apply,
-    candidate_identity, propose,
+    contract, propose,
 };
 pub(super) fn candidate(
     session: &VerifiedPsiOptimizationSession,
     candidate: &LoopInvariantScalarMotionCandidate,
 ) -> Result<ValidatedLoopInvariantScalarMotion, LoopInvariantScalarMotionError> {
-    if candidate.input != session.unit().identity {
+    if candidate.input() != session.unit().identity {
         return Err(LoopInvariantScalarMotionError::StaleCandidateRevision {
-            candidate: candidate.input,
+            candidate: candidate.input(),
             current: session.unit().identity,
         });
     }
@@ -21,7 +21,7 @@ pub(super) fn candidate(
         .cycle_components()
         .components()
         .iter()
-        .find(|component| component.id == candidate.component)
+        .find(|component| &component.id == candidate.component())
         .ok_or(LoopInvariantScalarMotionError::UnknownComponent)?;
     let effects = crate::validation::invariant_calls::unit_effect_summaries(session.unit());
     let Some(plan) = propose::component_plan(session, component, &effects)? else {
@@ -38,24 +38,21 @@ pub(super) fn candidate(
         .nodes
         .iter()
         .map(|node| {
-            Ok(LoopInvariantScalarRelocation {
-                node: node.clone(),
-                destination: apply::operation_location(&output, node.psi_operation)
+            Ok(LoopInvariantScalarRelocation::new(
+                node.clone(),
+                apply::operation_location(&output, node.psi_operation())
                     .ok_or(LoopInvariantScalarMotionError::CandidateMismatch)?,
-            })
+            ))
         })
         .collect::<Result<Vec<_>, LoopInvariantScalarMotionError>>()?;
-    let expected_identity = candidate_identity(
+    let expected = LoopInvariantScalarMotionCandidate::new(
+        contract(),
         session.unit().identity,
         output.identity,
-        &component.id,
-        &relocations,
+        component.id.clone(),
+        relocations,
     );
-    if candidate.identity != expected_identity
-        || candidate.output != output.identity
-        || candidate.component != component.id
-        || candidate.relocations != relocations
-    {
+    if *candidate != expected {
         return Err(LoopInvariantScalarMotionError::CandidateMismatch);
     }
 
@@ -79,7 +76,7 @@ fn reconstruct_provenance(
     output: &PsiOptimizationUnit,
     candidate: &LoopInvariantScalarMotionCandidate,
 ) -> Result<Vec<ProvenanceRewrite>, LoopInvariantScalarMotionError> {
-    let machine = candidate.component.machine;
+    let machine = candidate.component().machine;
     let function = input
         .functions
         .iter()
@@ -110,13 +107,13 @@ fn reconstruct_provenance(
                 continue;
             }
             let (sources, fuel) = candidate
-                .relocations
+                .relocations()
                 .iter()
-                .find(|relocation| relocation.node.location == input_location)
+                .find(|relocation| relocation.node().location() == input_location)
                 .map(|relocation| {
                     (
-                        relocation.node.provenance.clone(),
-                        relocation.node.fuel.clone(),
+                        relocation.node().provenance().to_vec(),
+                        relocation.node().fuel().to_vec(),
                     )
                 })
                 .unwrap_or_else(|| (node.provenance.clone(), node.fuel.clone()));

@@ -2,12 +2,13 @@
 
 use std::collections::BTreeMap;
 
-use crate::{OptimizationRun, OrderedRuleRegistry};
+use crate::{OptimizationRun, PsiPassStep, VerifiedPsiOptimizationSession};
 use optimization_core::{
     AnalysisSet, OptimizationCandidateIdentity, OptimizationFactReference,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationUnitIdentity,
     OptimizationValidatorIdentity,
 };
+use optimization_unit::PsiCandidateDeclaration;
 
 use crate::OptimizedAbstractProjectionError;
 use crate::publication::error::{AppliedDecisionCustodyAxis, custody_error};
@@ -30,7 +31,7 @@ pub(super) struct ReplayedCommits {
 
 pub(super) fn replay(
     run: &OptimizationRun,
-    registries: &[OrderedRuleRegistry],
+    steps: &[PsiPassStep],
 ) -> Result<ReplayedCommits, OptimizedAbstractProjectionError> {
     let initial = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
         run.session().input().clone(),
@@ -45,11 +46,10 @@ pub(super) fn replay(
         if declaration.input() != unit.identity
             || declaration.identity() != commit.candidate
             || declaration.rule() != commit.rule
-            || declaration.provenance() != commit.provenance
         {
             return Err(OptimizedAbstractProjectionError::CommitReplayMismatch);
         }
-        let contract = contract_for(registries, commit.rule).ok_or_else(|| {
+        let contract = contract_for(steps, commit.rule).ok_or_else(|| {
             custody_error(
                 Some(commit.candidate),
                 AppliedDecisionCustodyAxis::RuleContract,
@@ -62,16 +62,57 @@ pub(super) fn replay(
                 AppliedDecisionCustodyAxis::CommitPredictedCostDelta,
             ));
         }
-        let accepted =
-            optimization_unit_semantics::validate_psi_rewrite_candidate(&unit, declaration)
+        let next = match declaration {
+            PsiCandidateDeclaration::Rewrite(candidate) => {
+                if declaration.provenance() != commit.provenance {
+                    return Err(OptimizedAbstractProjectionError::CommitReplayMismatch);
+                }
+                let accepted =
+                    optimization_unit_semantics::validate_psi_rewrite_candidate(&unit, candidate)
+                        .map_err(OptimizedAbstractProjectionError::CandidateReplay)?;
+                if accepted.candidate() != commit.candidate
+                    || accepted.validator() != commit.validator
+                    || accepted.unit().identity != commit.output
+                    || commit.input != unit.identity
+                {
+                    return Err(OptimizedAbstractProjectionError::CommitReplayMismatch);
+                }
+                accepted.into_unit()
+            }
+            PsiCandidateDeclaration::LoopInvariantScalarMotion(candidate) => {
+                // The relocation boundary is session-level: replay rebuilds
+                // the verified session over the current revision, validates
+                // the declared roster independently, and applies atomically.
+                let session = VerifiedPsiOptimizationSession::from_transformed(
+                    run.session().input().clone(),
+                    unit.clone(),
+                )
                 .map_err(OptimizedAbstractProjectionError::CandidateReplay)?;
-        if accepted.candidate() != commit.candidate
-            || accepted.validator() != commit.validator
-            || accepted.unit().identity != commit.output
-            || commit.input != unit.identity
-        {
-            return Err(OptimizedAbstractProjectionError::CommitReplayMismatch);
-        }
+                let accepted =
+                    crate::ranked_rewrites::loop_invariant_scalar_motion::validate_loop_invariant_scalar_motion(
+                        &session, candidate,
+                    )
+                    .map_err(OptimizedAbstractProjectionError::LoopInvariantScalarMotionReplay)?;
+                if accepted.candidate().identity() != commit.candidate
+                    || accepted.validator() != commit.validator
+                    || accepted.provenance() != commit.provenance
+                    || commit.input != unit.identity
+                {
+                    return Err(OptimizedAbstractProjectionError::CommitReplayMismatch);
+                }
+                let applied_relocation =
+                    crate::ranked_rewrites::loop_invariant_scalar_motion::apply_loop_invariant_scalar_motion(
+                        session, accepted,
+                    )
+                    .map_err(OptimizedAbstractProjectionError::LoopInvariantScalarMotionReplay)?;
+                let (applied_session, _, _) = applied_relocation.into_parts();
+                let (_, transformed) = applied_session.into_parts();
+                if transformed.identity != commit.output {
+                    return Err(OptimizedAbstractProjectionError::CommitReplayMismatch);
+                }
+                transformed
+            }
+        };
         applied.push(ReplayedAppliedDecision {
             input: commit.input,
             candidate: commit.candidate,
@@ -81,7 +122,7 @@ pub(super) fn replay(
             consumed_facts: declaration.consumed_facts(),
             predicted_cost_delta: declaration.predicted_cost_delta(),
         });
-        unit = accepted.into_unit();
+        unit = next;
         if revisions.insert(unit.identity, unit.clone()).is_some() {
             return Err(OptimizedAbstractProjectionError::CommitReplayMismatch);
         }
@@ -93,18 +134,18 @@ pub(super) fn replay(
 }
 
 pub(super) fn contract_for(
-    registries: &[OrderedRuleRegistry],
+    steps: &[PsiPassStep],
     rule: OptimizationRuleIdentity,
 ) -> Option<OptimizationRuleContract> {
-    registries
+    steps
         .iter()
-        .flat_map(|registry| registry.contracts())
+        .flat_map(PsiPassStep::contracts)
         .find(|contract| contract.identity() == rule)
 }
 
 pub(super) fn bind_contract(
     candidate: OptimizationCandidateIdentity,
-    declaration: &optimization_unit::PsiRewriteCandidate,
+    declaration: &PsiCandidateDeclaration,
     contract: OptimizationRuleContract,
 ) -> Result<(), OptimizedAbstractProjectionError> {
     let axis = if declaration.required_analyses() != contract.required_analyses() {

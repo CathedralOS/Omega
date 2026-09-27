@@ -27,21 +27,17 @@ pub(super) fn register_revision(
 }
 
 pub(super) fn build_pass_manifest(
-    registry: &OrderedRuleRegistry,
+    step: &crate::rules::PsiPassStep,
     input: OptimizationUnitIdentity,
     output: OptimizationUnitIdentity,
     commits: &[PsiOptimizationCommit],
     decisions: &[OptimizationDecisionRecord],
     usage: OptimizationRunUsage,
 ) -> Result<Option<OptimizationPassManifestRecord>, OptimizationRunError> {
-    let Some(pass) = registry.pass() else {
+    let Some(pass) = step.pass() else {
         return Ok(None);
     };
-    let contracts = registry.contracts().collect::<Vec<_>>();
-    let ordered_rules = contracts
-        .iter()
-        .map(|contract| contract.identity())
-        .collect::<Vec<_>>();
+    let ordered_rules = step.ordered_rules();
     for commit in commits {
         assert!(
             decisions.iter().any(|decision| {
@@ -55,7 +51,7 @@ pub(super) fn build_pass_manifest(
         pass,
         input,
         output,
-        registry.identity(),
+        step.rule_set_identity(),
         ordered_rules,
         decisions.to_vec(),
         OptimizationWorkUsage {

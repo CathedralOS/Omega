@@ -28,6 +28,7 @@ pub(crate) fn analyze_countdown_invariant_constants(
     validate::accept(unit, custody, counted, &candidate)
 }
 
+#[cfg(any(test, feature = "test-support"))]
 pub(crate) fn validate_countdown_invariant_constant_analysis(
     unit: &PsiOptimizationUnit,
     custody: &ValidatedOptimizerCycleComponents,

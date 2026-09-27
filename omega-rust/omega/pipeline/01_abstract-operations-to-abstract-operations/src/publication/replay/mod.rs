@@ -23,8 +23,8 @@ pub(super) fn validate(
     run: &OptimizationRun,
 ) -> Result<ValidatedRunReplay, OptimizedAbstractProjectionError> {
     let schedule = rule_set::rebuild(run.selections())?;
-    let commits = commits::replay(run, &schedule.registries)?;
-    candidate_decisions::validate(run, &schedule.registries, &commits)?;
+    let commits = commits::replay(run, &schedule.steps)?;
+    candidate_decisions::validate(run, &schedule.steps, &commits)?;
     records::validate(run, schedule.ordered_rule_set)?;
     validate_external_decision_recording(run)
         .map_err(|_| OptimizedAbstractProjectionError::ExternalDecisionRecordingMismatch)?;

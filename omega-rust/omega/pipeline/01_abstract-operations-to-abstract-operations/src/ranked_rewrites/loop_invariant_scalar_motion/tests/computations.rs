@@ -500,18 +500,18 @@ fn bypassed_member_computation_is_speculation_and_stays_inside() {
     // A forged candidate cannot smuggle the speculated relocation past
     // independent validation: replaying the gated plan yields a different
     // relocation roster and a different candidate identity.
-    let mut forged = candidate.clone();
-    forged.relocations.push(LoopInvariantScalarRelocation {
-        node: crate::ranked_rewrites::LoopInvariantScalarNode {
-            psi_operation: addition_operation,
-            result: match addition.definitions.as_slice() {
+    let mut forged_relocations = candidate.relocations().to_vec();
+    forged_relocations.push(LoopInvariantScalarRelocation::new(
+        crate::ranked_rewrites::LoopInvariantScalarNode::new(
+            addition_operation,
+            match addition.definitions.as_slice() {
                 [definition] => LoopInvariantNodeResult::Scalar {
                     value: definition.value,
                     scalar_type: definition.scalar_type,
                 },
                 _ => panic!("one defined result"),
             },
-            location: NodeLocation {
+            NodeLocation {
                 machine: component.id.machine,
                 block: member_block.id,
                 node: u32::try_from(
@@ -523,18 +523,25 @@ fn bypassed_member_computation_is_speculation_and_stays_inside() {
                 )
                 .expect("node index fits u32"),
             },
-            operand_rewrites: vec![(member_parameter, anchor)],
-            root_rewrite: None,
-            argument_rewrites: Vec::new(),
-            provenance: addition.provenance.clone(),
-            fuel: addition.fuel.clone(),
-        },
-        destination: NodeLocation {
+            vec![(member_parameter, anchor)],
+            None,
+            Vec::new(),
+            addition.provenance.clone(),
+            addition.fuel.clone(),
+        ),
+        NodeLocation {
             machine: component.id.machine,
             block: entry.source,
             node: 0,
         },
-    });
+    ));
+    let forged = optimization_unit::LoopInvariantScalarMotionCandidate::new(
+        super::super::contract(),
+        candidate.input(),
+        candidate.output(),
+        candidate.component().clone(),
+        forged_relocations,
+    );
     assert!(matches!(
         validate_loop_invariant_scalar_motion(&session, &forged),
         Err(LoopInvariantScalarMotionError::CandidateMismatch)

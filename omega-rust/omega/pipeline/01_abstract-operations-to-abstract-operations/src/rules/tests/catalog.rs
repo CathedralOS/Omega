@@ -30,8 +30,8 @@ use crate::rules::registry::PsiOptimizationRule;
 use crate::rules::tests::fixtures::proof_check_elision::exact_add_unit;
 use crate::rules::tests::fixtures::randomized_built_in_registries;
 use crate::rules::{
-    PSI_PASS_CATALOG, built_in_psi_registries, built_in_psi_registry,
-    built_in_psi_registry_for_selections,
+    PSI_PASS_CATALOG, PsiPassStep, built_in_psi_registries, built_in_psi_registry,
+    built_in_psi_registry_for_selections, built_in_psi_steps_for_selections,
 };
 use crate::{RuleAnalysisView, RuleProposalError, RuleRegistryError};
 use optimization::{PsiOptimization, PsiOptimizationSelections};
@@ -51,9 +51,17 @@ fn ordered_catalog_covers_every_declared_psi_optimization_once() {
     assert_eq!(catalog, declared);
     for optimization in ordered {
         let selections = OptimizationSelections::new([Optimization::from(optimization)]).unwrap();
-        let scheduled = built_in_psi_registries(&selections).unwrap();
-        assert_eq!(scheduled.len(), 1, "{optimization:?} must schedule once");
-        assert!(!scheduled[0].is_empty(), "{optimization:?} has no rules");
+        let steps =
+            built_in_psi_steps_for_selections(selections.project_psi().selections()).unwrap();
+        assert_eq!(steps.len(), 1, "{optimization:?} must schedule once");
+        match &steps[0] {
+            PsiPassStep::RewriteRegistry(registry) => {
+                assert!(!registry.is_empty(), "{optimization:?} has no rules");
+            }
+            PsiPassStep::LoopInvariantScalarMotion => {
+                assert_eq!(optimization, PsiOptimization::LoopInvariantScalarMotion);
+            }
+        }
     }
 }
 

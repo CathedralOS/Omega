@@ -212,10 +212,13 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   `StructuralByteSequenceFieldLength`. Admission in
   `validation/place_observations.rs` + `invariant_operations.rs`, replay in
   `context/ranked_cycles/freeze/relocated_scalars.rs`.
-  No Psi optimization selection runs the rewrite today: it and the countdown
-  loop analyses compile only for tests and the crate's `test-support`
-  feature, so a selected pass must reach it from `optimize_abstract_operations`
-  before an extension changes any compiled program.
+  The boundary now schedules as `PsiOptimization::LoopInvariantScalarMotion`:
+  selection resolves a session-level `PsiPassStep` that proposes, validates,
+  and applies relocation candidates through `optimize_abstract_operations`,
+  retaining declaration, decision, commit, and manifest rows under
+  independent publication replay. The countdown-invariant-constant
+  relocation boundary and the snapshot validators still compile only for
+  tests and the crate's `test-support` feature.
 
   Remaining boundaries:
   - Establishment/custody families not covered by current relocation.

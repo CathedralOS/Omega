@@ -53,7 +53,8 @@ pub fn run_psi_optimization(
                 lowered = proof_check_elision::elide(lowered)?;
             }
             PsiOptimization::StateSpecialization
-            | PsiOptimization::RepresentationSpecialization => {}
+            | PsiOptimization::RepresentationSpecialization
+            | PsiOptimization::LoopInvariantScalarMotion => {}
         }
     }
 

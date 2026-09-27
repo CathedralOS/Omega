@@ -10,19 +10,25 @@ pub use catalog::{AnalysisProduct, compute_analysis};
 #[cfg(test)]
 pub(crate) use control_flow::ExitKind;
 pub use control_flow::{CallGraphAnalysis, StronglyConnectedComponentAnalysis};
-#[cfg(any(test, feature = "test-support"))]
 pub use control_flow::{
-    CountdownInvariantConstantAnalysisError, CountdownInvariantConstantAnalysisSnapshot,
-    CountdownInvariantConstantPlacementAnalysisError,
-    CountdownInvariantConstantPlacementAnalysisSnapshot, CountdownInvariantConstantRole,
-    CountdownInvariantIntegerConstant, CountedLoopAnalysisError, CountedLoopAnalysisSnapshot,
-    UnsignedCountdownInvariantConstantPlacements, ValidatedCountdownInvariantConstantAnalysis,
+    CountdownInvariantConstantAnalysisError, CountdownInvariantConstantPlacementAnalysisError,
+    CountedLoopAnalysisError, ValidatedCountdownInvariantConstantAnalysis,
     ValidatedCountdownInvariantConstantPlacementAnalysis, ValidatedCountedLoopAnalysis,
 };
 #[cfg(any(test, feature = "test-support"))]
+pub use control_flow::{
+    CountdownInvariantConstantAnalysisSnapshot,
+    CountdownInvariantConstantPlacementAnalysisSnapshot, CountdownInvariantConstantRole,
+    CountdownInvariantIntegerConstant, CountedLoopAnalysisSnapshot,
+    UnsignedCountdownInvariantConstantPlacements,
+};
 pub(crate) use control_flow::{
     analyze_countdown_invariant_constant_placement, analyze_countdown_invariant_constants,
-    analyze_counted_loops, validate_countdown_invariant_constant_analysis,
+    analyze_counted_loops,
+};
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) use control_flow::{
+    validate_countdown_invariant_constant_analysis,
     validate_countdown_invariant_constant_placement_analysis, validate_counted_loop_analysis,
 };
 pub use manager::{AnalysisManager, AnalysisManagerError};

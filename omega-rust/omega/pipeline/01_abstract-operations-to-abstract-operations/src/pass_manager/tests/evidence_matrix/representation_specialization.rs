@@ -218,11 +218,19 @@ fn forwarded_field_value_commit_substitutes_and_retires_the_read() {
         panic!("one commit")
     };
     assert_eq!(commit.rule, expected_field_rule());
-    let [substitution] = commit.declaration.substitutions() else {
+    let [substitution] = commit
+        .declaration
+        .rewrite()
+        .expect("rewrite declaration")
+        .substitutions()
+    else {
         panic!("one scalar substitution")
     };
-    let optimization_unit::PsiRewritePatch::SpecializeFieldValue(patch) =
-        commit.declaration.patch()
+    let optimization_unit::PsiRewritePatch::SpecializeFieldValue(patch) = commit
+        .declaration
+        .rewrite()
+        .expect("rewrite declaration")
+        .patch()
     else {
         panic!("a field-value patch")
     };
