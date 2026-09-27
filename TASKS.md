@@ -685,7 +685,15 @@ the complete product bar; focused successes below do not establish that baseline
       `cli/{algorithms/dutch_flag, systems/{descriptor_walk,wire_protocol}}`
     - 3 `structural field store: byte sequence carrier` --
       `cli/{basics/text_greeting, systems/status_report,
-      text/string_catalog}`
+      text/string_catalog}`, and the phase name misleads: the carrier IS
+      recognized (these declare `[u8; N] in Utf8`, unlike the gui samples),
+      the VALUE has no plan. Isolated over one program by changing only the
+      assigned expression -- `self.greeting = "Hello";` checks, and
+      `"Hello, " + self.name`, `self.name + "!"` and
+      `"Hello, " + self.name + "!"` all omit. So it is CONCATENATION into a
+      bounded owned carrier, in either operand order, and all three samples
+      are building text from a name or a label. Pinned at
+      `tests/omega/pending/text/byte_carrier_concatenation_store`
     - 3 `call operation: boundary arguments` -- all three of
       `gui/{image_viewer,window_app,window_demo}`, and the cause is one
       token. Their `Gui::window_create(class_name: [u8; 7], title:
