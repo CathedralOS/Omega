@@ -1,3 +1,4 @@
+use proof_admission::{Declaration, TermArena};
 use symbols::SymbolHandle;
 
 /// A checked top-level mathematical declaration: the checked proof surface a
@@ -97,6 +98,34 @@ pub enum CheckedMathematicalBody {
     /// transitive dependencies require the receiver's admission, keyed on the
     /// declaration's exact identity.
     Assumption,
+}
+
+/// The kernel-checked mathematical signature of a program's
+/// `let`/`boundary let` cohort — the checked evidence the Terminal
+/// signature codec serializes and an independent receiver re-decides
+/// through `check_signature`.
+///
+/// `mathematical_declarations` records the authored declarations for the
+/// checked surface; this signature is the same cohort as the kernel decided
+/// it: interned carrier assumptions land in `declarations` at the positions
+/// elaboration discovered them, `authored` maps each authored declaration
+/// (in `mathematical_declarations` order) to its signature position, and
+/// `arena` holds every `TermHandle` either list resolves against. The
+/// kernel's `Signature` wrapper is deliberately not stored: it shares its
+/// declaration list through `Rc`, which would make the checked tree no
+/// longer `Send`. Rebuilding it at the consumer is one `Vec` clone.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedMathematicalSignature {
+    /// The arena every `TermHandle` in `declarations` resolves in; the two
+    /// travel together — a declaration's roots mean nothing without it.
+    pub arena: TermArena,
+    /// The re-decided declaration list in signature order: carrier
+    /// assumptions interleaved with authored declarations in use order.
+    pub declarations: Vec<Declaration>,
+    /// Kernel signature position of each authored declaration, in authored
+    /// declaration order — which positions name authored declarations
+    /// rather than interned carrier assumptions.
+    pub authored: Vec<u32>,
 }
 
 #[cfg(test)]

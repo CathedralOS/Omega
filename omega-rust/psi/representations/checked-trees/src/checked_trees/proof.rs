@@ -55,7 +55,7 @@ pub use lemmas::{
 };
 pub use mathematical::{
     CheckedMathematicalBinder, CheckedMathematicalBinderKind, CheckedMathematicalBody,
-    CheckedMathematicalDeclaration, CheckedMathematicalParameter,
+    CheckedMathematicalDeclaration, CheckedMathematicalParameter, CheckedMathematicalSignature,
 };
 pub use obligations::{ProofFactKind, ProofObligationFact, ProofObligationOwner};
 pub use propositions::{

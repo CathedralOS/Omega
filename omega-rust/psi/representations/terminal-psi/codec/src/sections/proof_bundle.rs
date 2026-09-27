@@ -5,21 +5,26 @@
 //! `evidence_codec.rs` carries evidence producers, routes and component
 //! certificates, `proof_node_codec.rs` the proof nodes and rules,
 //! `proposition_codec.rs` propositions and content terms,
-//! `scalar_term_codec.rs` scalar terms, types and values, `codec_error.rs`
-//! the error, `synopsis.rs` the rendered synopsis, `validation.rs` the
-//! decoded-bundle validation and `wire.rs` the byte reader and writer.
+//! `scalar_term_codec.rs` scalar terms, types and values,
+//! `signature_codec.rs` the canonical checked mathematical-signature wire,
+//! `codec_error.rs` the error, `synopsis.rs` the rendered synopsis,
+//! `validation.rs` the decoded-bundle validation and `wire.rs` the byte
+//! reader and writer.
 
 mod codec_error;
 mod evidence_codec;
 mod proof_node_codec;
 mod proposition_codec;
 mod scalar_term_codec;
-pub(crate) mod signature_codec;
+mod signature_codec;
 mod synopsis;
 mod validation;
 mod wire;
 
 pub use codec_error::ProofCodecError;
+pub use signature_codec::{
+    DecodedMathematicalSignature, decode_mathematical_signature, encode_mathematical_signature,
+};
 pub use synopsis::render_verified_proof_synopsis;
 
 use crate::sections::proof_bundle::evidence_codec::{

@@ -17,6 +17,7 @@ facts = { path = "facts" }
 language-core = { path = "../../foundation/language-core" }
 language-semantics = { path = "../../foundation/language-semantics" }
 numerics = { path = "../../foundation/numerics" }
+proof-admission = { path = "../../proof/admission" }
 source = { path = "../../foundation/source" }
 symbols = { path = "../../foundation/symbols" }
 typed-trees = { path = "../typed-trees" }

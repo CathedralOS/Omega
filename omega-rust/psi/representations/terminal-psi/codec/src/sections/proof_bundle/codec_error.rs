@@ -34,6 +34,10 @@ pub enum ProofCodecError {
     InvalidUtf8(&'static str),
     MalformedProposition(PropositionError),
     MalformedMathematicalSignature(&'static str),
+    /// The signature wire was canonical but the kernel refused to re-decide
+    /// its declarations — producer forgery or a resource-capacity refusal,
+    /// never a decoding success.
+    MathematicalSignatureRejected(proof_admission::CoreError),
     TrustGraph(crate::TrustGraphError),
     SubjectIdentity(crate::CodecError),
     UnsupportedProofSectionVocabulary(u16),

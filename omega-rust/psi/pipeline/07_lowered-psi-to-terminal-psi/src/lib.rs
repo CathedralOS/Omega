@@ -15,4 +15,6 @@ pub use boundary_operator_custody::{
     CheckedBoundaryOperatorApplicationOccurrence, CheckedBoundaryOperatorApplicationScope,
     CheckedDynamicCallLane, CheckedDynamicCallOccurrence, checked_boundary_operator_scope,
 };
-pub use publish_artifact::finalize_terminal_artifact;
+pub use publish_artifact::{
+    finalize_terminal_artifact, finalize_terminal_artifact_with_mathematical_signature,
+};

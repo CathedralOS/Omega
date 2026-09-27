@@ -408,6 +408,7 @@ pub enum Term {
 }
 
 /// Contiguous arena storage for terms. Null handles resolve to `Term::Dummy`.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TermArena {
     terms: Arena<Term>,
 }

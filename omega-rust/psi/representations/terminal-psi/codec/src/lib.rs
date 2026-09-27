@@ -39,7 +39,8 @@ pub use publication::{
 };
 pub use sections::artifact_manifest::{
     ArtifactManifestError, SectionFingerprint, TerminalArtifactIdentity, TerminalArtifactManifest,
-    build_artifact_manifest, validate_artifact_manifest,
+    build_artifact_manifest, build_artifact_manifest_with_mathematical_signature,
+    validate_artifact_manifest, validate_artifact_manifest_with_mathematical_signature,
 };
 pub use sections::debug_map::{
     DebugFileId, DebugMapError, DebugSite, DebugSourceDigest, DebugSourceFile, DebugSourceOrigin,
@@ -59,9 +60,10 @@ pub use sections::optimization_execution::{
     decode_psi_optimization_execution_record, encode_psi_optimization_execution_record,
 };
 pub use sections::proof_bundle::{
-    ProofBundleFingerprint, ProofCodecError, decode_proof_bundle, decode_proof_section,
-    decode_proof_section_for, encode_proof_bundle, encode_proof_section, proof_bundle_fingerprint,
-    render_verified_proof_synopsis,
+    DecodedMathematicalSignature, ProofBundleFingerprint, ProofCodecError,
+    decode_mathematical_signature, decode_proof_bundle, decode_proof_section,
+    decode_proof_section_for, encode_mathematical_signature, encode_proof_bundle,
+    encode_proof_section, proof_bundle_fingerprint, render_verified_proof_synopsis,
 };
 pub use sections::proof_sidecar::psi_claim::{
     PSI_TERMINAL_VERIFIED_GUARANTEE, admission_profile_identity, build_psi_proof_sidecar,

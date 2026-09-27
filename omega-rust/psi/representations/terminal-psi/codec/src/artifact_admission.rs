@@ -8,8 +8,8 @@ use crate::sections::proof_sidecar::MAX_PCC_EVIDENCE_BYTES;
 use crate::{
     CanonicalTerminalArtifact, PccDependency, PccProductKind, PccProofSidecar,
     TerminalObligationLedgerFingerprint, admission_profile_identity, build_psi_proof_sidecar,
-    decode_module, decode_proof_section_for, pcc_artifact_commitment,
-    psi_semantic_profile_identity,
+    decode_mathematical_signature, decode_module, decode_proof_section_for,
+    pcc_artifact_commitment, psi_semantic_profile_identity,
 };
 use proof_admission::{AdmissionAcceptance, AdmissionProfile};
 use terminal_psi::TerminalPsiIdentity;
@@ -53,6 +53,17 @@ pub fn verify_terminal_artifact_proof(
             format!("invalid canonical proof: {error}"),
         )
     })?;
+    // The mathematical-signature section, when carried, decodes into a fresh
+    // arena and re-decides every declaration through the kernel — the
+    // receiver replays it rather than trusting the producer's success.
+    if let Some(signature_bytes) = artifact.mathematical_signature_bytes() {
+        decode_mathematical_signature(signature_bytes).map_err(|error| {
+            PccRejection::new(
+                "psi mathematical signature section",
+                format!("invalid canonical mathematical signature: {error}"),
+            )
+        })?;
+    }
     terminal_verifier::verify_module(&module, &proof, profile).map_err(|error| {
         PccRejection::new(
             "psi evidence",
