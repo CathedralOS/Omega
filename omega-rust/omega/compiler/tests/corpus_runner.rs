@@ -4,7 +4,13 @@
 //! `compiler::compile` with a `Check` product (run fixtures are compile-
 //! checked only — the suite's execution leg is not reproduced here), fail
 //! fixtures through `compile_to_checked` with reviewed repository package
-//! inputs. `tools/corpus_gate.py` diffs those records against the recorded
+//! inputs. A pass or run fixture whose own `build.omg` binds a
+//! program-entry root is instead realized for the target the native leg
+//! would choose (its bound host target, else its first declared): the
+//! `Check` product establishes no program entry, so the unit-plan roster
+//! its root claims would never be demanded and an omitted plan would
+//! still record `checked`. `tools/corpus_gate.py` diffs those
+//! records against the recorded
 //! golden so an agent's inner loop is one binary plus a corpus diff instead
 //! of a chain of per-crate assertion suites.
 //!
@@ -434,21 +440,31 @@ fn check_fail_fixture(root_path: &Path) -> Result<(), Vec<diagnostics::Diagnosti
     compile_to_checked(request).map(|_| ())
 }
 
-/// A fail fixture whose refusal belongs to a stage after checking -- a layout
-/// size overflow, target lowering, provider selection -- checks clean on the
-/// targetless route above and would otherwise be recorded as having stopped
-/// rejecting. Realize it for the host before concluding that: the rejection is
-/// real, it simply lives past where `compile_to_checked` stops.
-fn realize_fail_fixture(
+/// Realize one fixture as a native artifact for the first target its own
+/// `build.omg` binds a program-entry root for, without publishing or running
+/// it. Two routes lean on this:
+///
+/// - a fail fixture whose refusal belongs to a stage after checking -- a
+///   layout size overflow, target lowering, provider selection -- checks
+///   clean on `compile_to_checked` and is realized before it is recorded as
+///   having stopped rejecting;
+/// - a pass or run fixture on the check leg, where the `Check` product
+///   establishes no program entry and so never demands the unit-plan roster
+///   the fixture's own root binding claims -- realizing accounts that
+///   roster, and an omitted plan records `rejected` with its `Lowering`
+///   diagnostic instead of `checked`.
+fn realize_fixture(
     root_path: &Path,
     build_dir: PathBuf,
+    target_name: Option<String>,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    let package_inputs =
+        reviewed_repository_fixture_package_inputs(root_path, target_name.as_deref())?;
     let options = CompileOptions {
         root_path: root_path.to_path_buf(),
         build_dir: Some(build_dir.clone()),
-        target_name: declared_realization_target(root_path),
+        target_name,
     };
-    let package_inputs = reviewed_repository_fixture_package_inputs(root_path, None)?;
     let mut request = CompileRequest::new(options)
         .with_requested_product(RequestedCompileProduct::NativeArtifact);
     if let Some(package_inputs) = package_inputs {
@@ -507,6 +523,20 @@ fn pass_realization_target(root_path: &Path, host: &str) -> Option<(String, bool
         return Some((host.to_owned(), true));
     }
     declared.into_iter().next().map(|target| (target, false))
+}
+
+/// The target the check leg accounts a pass/run fixture's program-entry
+/// roster against: the same choice the native leg makes (its bound host
+/// target, else its first declared), so a fixture's row answers the demand
+/// `omega --check` on that root would make. `None` when the fixture binds
+/// no program-entry root at all -- nothing claims a realizable program.
+fn check_leg_realization_target(root_path: &Path) -> Option<String> {
+    match target::TargetProfile::host_if_supported() {
+        Some(profile) => {
+            pass_realization_target(root_path, profile.target_name()).map(|(target, _)| target)
+        }
+        None => declared_realization_target(root_path),
+    }
 }
 
 /// Whether the fixture's expected fragments all appear in the diagnostics it
@@ -572,10 +602,25 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
             let _ = fs::remove_dir_all(&build_dir);
             built.map(|_| ())
         }
-        _ => check_pass_fixture(main, unique_build_dir(sequence)),
+        // A pass or run fixture that binds a program-entry root claims an
+        // executable roster the targetless `Check` product never demands:
+        // `omega --check` on the same root selects that entry and refuses
+        // when its unit plan is omitted, while this route would record
+        // `checked`. Realize the fixture for the target the native leg
+        // would choose -- its bound host target when it declares one, else
+        // its first declared -- so the roster is accounted before the row
+        // reads as executable.
+        _ => match check_leg_realization_target(main) {
+            Some(target) => realize_fixture(main, unique_build_dir(sequence), Some(target)),
+            None => check_pass_fixture(main, unique_build_dir(sequence)),
+        },
     };
     if tier == "fail" && outcome.is_ok() {
-        outcome = realize_fail_fixture(main, unique_build_dir(sequence));
+        outcome = realize_fixture(
+            main,
+            unique_build_dir(sequence),
+            declared_realization_target(main),
+        );
     }
     if interpreter_leg() && tier != "fail" && runnable {
         facts.extend(interpret_fixture(main, &fixture_dir));
