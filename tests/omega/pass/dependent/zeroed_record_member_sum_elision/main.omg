@@ -1,0 +1,24 @@
+// COMPILE CANARY. A record literal may elide a member of sum type whose first
+// case carries scalar payloads: zero establishment mints the first-case tag
+// cell and the zero spelling of its scalar payload fields.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data RegionAlignment {
+    case Unaligned(offset: u64);
+    case Aligned(boundary: u64);
+}
+
+data Snapshot {
+    padding: [u8; 8];
+    alignment: RegionAlignment;
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let snapshot: Snapshot = Snapshot {};
+    self.console.exit_process(70);
+}
