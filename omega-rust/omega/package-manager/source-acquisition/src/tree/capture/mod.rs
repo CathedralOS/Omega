@@ -55,7 +55,13 @@ pub(crate) fn capture_local_source_from_open_root(
     // remade root leaves the handle pinned to the old inode while the path
     // moves on. Compare the canonical path's observation before and after the
     // traversal so that swap rejects instead of publishing a stale capture.
-    let opening_root = std::fs::symlink_metadata(&root).map_err(|error| io_error(&root, error))?;
+    let opening_root = root_directory
+        .dir_metadata()
+        .map_err(|error| io_error(&root, error))?;
+    let named_root = open_canonical_source_root(&root)?
+        .dir_metadata()
+        .map_err(|error| io_error(&root, error))?;
+    require_unchanged_entry(&opening_root, &named_root, &root)?;
     let mut tree_observations = CapturedTreeObservations::default();
     visit_directory(
         &root_directory,
@@ -74,12 +80,10 @@ pub(crate) fn capture_local_source_from_open_root(
     // sweep re-observes the whole recorded tree once more so a mutation that
     // landed in an already-closed subtree still rejects at capture time.
     verify_captured_tree(&root_directory, &root, &tree_observations)?;
-    let closing_root = std::fs::symlink_metadata(&root).map_err(|error| io_error(&root, error))?;
-    require_unchanged_entry(
-        &cap_std::fs::Metadata::from_just_metadata(opening_root),
-        &cap_std::fs::Metadata::from_just_metadata(closing_root),
-        &root,
-    )?;
+    let closing_root = open_canonical_source_root(&root)?
+        .dir_metadata()
+        .map_err(|error| io_error(&root, error))?;
+    require_unchanged_entry(&opening_root, &closing_root, &root)?;
     source_entries.sort_by(|left, right| left.relative_bytes.cmp(&right.relative_bytes));
 
     let mut identity = SourceIdentityHasher::new(source_entries.len());
@@ -123,4 +127,30 @@ pub(crate) fn capture_local_source_from_open_root(
         },
         entries,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn capture_rejects_a_root_handle_for_a_different_directory() {
+        let root = crate::test_support::temp_root("capture-root-identity");
+        let first = root.join("first");
+        let second = root.join("second");
+        std::fs::create_dir_all(&first).expect("create first root");
+        std::fs::create_dir(&second).expect("create second root");
+        let retained = open_canonical_source_root(&first).expect("retain first root");
+        let result = capture_local_source_from_open_root(
+            second,
+            retained,
+            LocalSourceLimits::default(),
+            SourceTreePolicy::ExactMaterialized,
+        );
+        assert!(matches!(
+            result,
+            Err(SourceResolveError::LocalSourceChanged { .. })
+        ));
+        std::fs::remove_dir_all(root).expect("remove fixture");
+    }
 }
