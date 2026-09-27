@@ -144,17 +144,24 @@ pub(crate) struct CheckedMathematicalSignature {
 }
 
 impl CheckedMathematicalSignature {
-    /// The arena and the checked signature, for the Terminal evidence
-    /// encoding leg that hands them to the signature codec.
-    #[allow(dead_code)]
-    pub(crate) fn evidence(&self) -> (&TermArena, &Signature) {
-        (&self.arena, &self.signature)
+    /// Consume the checked signature into the evidence record the proof
+    /// facts retain for the Terminal encoding leg: the arena plus the
+    /// re-decided declaration list in signature order. `Signature` shares
+    /// its list through `Rc`, which the checked tree cannot hold without
+    /// losing `Send`, so the record keeps the plain `Vec`; the codec
+    /// producer rebuilds `Signature::from_declarations`.
+    pub(crate) fn into_checked_evidence(self) -> checked_trees::CheckedMathematicalSignature {
+        checked_trees::CheckedMathematicalSignature {
+            arena: self.arena,
+            declarations: self.signature.declarations().to_vec(),
+            authored: self.authored,
+        }
     }
 
     /// Kernel signature position of each authored declaration, in authored
     /// declaration order — which signature positions are authored
     /// declarations rather than interned carrier assumptions.
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn authored(&self) -> &[u32] {
         &self.authored
     }

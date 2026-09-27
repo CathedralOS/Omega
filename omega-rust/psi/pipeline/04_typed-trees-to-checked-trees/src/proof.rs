@@ -256,6 +256,18 @@ pub(crate) fn build_proof_facts_with_operators(
         build_contract_exit_facts(program, &contract_facts, &mut contract_fact_refs);
     let proposition_vocabulary = build_checked_proposition_vocabulary(program);
     let mathematical_declarations = build_checked_mathematical_declarations(program)?;
+    // The signature leg re-runs `check_signature` on the same elaborated
+    // cohort the early gate in `checking.rs` decided, so the proof facts
+    // retain the checked kernel signature — not only its checked identity
+    // records — for the Terminal evidence encoding. `Some` exactly when the
+    // program carries declarations: the pair is the invariant the lowering
+    // admission gate and the artifact publisher rely on, and a decl-free
+    // program never pays for an empty signature section.
+    let mathematical_signature = if mathematical_declarations.is_empty() {
+        None
+    } else {
+        Some(check_mathematical_signature(program)?.into_checked_evidence())
+    };
 
     Ok(ProofFacts {
         obligations,
@@ -269,6 +281,7 @@ pub(crate) fn build_proof_facts_with_operators(
         contract_operator_uses,
         proposition_vocabulary,
         mathematical_declarations,
+        mathematical_signature,
         ..ProofFacts::default()
     })
 }

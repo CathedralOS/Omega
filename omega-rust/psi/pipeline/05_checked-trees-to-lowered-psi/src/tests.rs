@@ -609,11 +609,12 @@ fn hard_root_checked_fixture() -> CheckedTrees {
 }
 
 #[test]
-fn mathematical_declarations_refuse_at_terminal_lowering() {
-    // Checked `let`/`boundary let` records reach this stage on
-    // `ProofFacts::mathematical_declarations`; no Terminal evidence encoding
-    // carries them yet, so production refuses loudly rather than emit a
-    // module that silently omits them (PROOF-CONTRACT-MIGRATION).
+fn mathematical_declarations_publish_the_checked_signature_as_evidence() {
+    // Checked `let`/`boundary let` records land on
+    // `ProofFacts::mathematical_declarations` beside the checked kernel
+    // signature; terminal production encodes that signature into the
+    // artifact envelope's `PSISIG` section, which the receiver decodes and
+    // re-decides through the kernel (PROOF-CONTRACT-MIGRATION).
     let checked = crate::front_end::checked_program(
         r#"
             let double(x: u64): u64 = x;
@@ -622,8 +623,188 @@ fn mathematical_declarations_refuse_at_terminal_lowering() {
         "#,
     );
     assert_eq!(checked.facts.proof.mathematical_declarations.len(), 1);
+    let signature = checked
+        .facts
+        .proof
+        .mathematical_signature
+        .as_ref()
+        .expect("declarations retain their checked kernel signature");
+    assert!(!signature.declarations.is_empty());
+    // Lowering admits the declaration-bearing program now that the signature
+    // reaches Terminal evidence at publication.
+    lower_machine(&checked, TerminalMachineSelection::Name("main"))
+        .expect("mathematical declarations admit at lowering");
+
+    let produced = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("main"),
+    )
+    .produce(
+        terminal_production::TerminalProductionCustody::artifact_only(
+            &mut terminal_production::TerminalProductionTimings::default(),
+        ),
+    )
+    .expect("a declaration-bearing program publishes");
+
+    let signature_bytes = produced
+        .artifact()
+        .mathematical_signature_bytes()
+        .expect("the artifact carries the checked signature section")
+        .to_vec();
+    // The published section is exactly the canonical encoding of the checked
+    // signature — same declaration list, same order — never a re-elaboration.
+    let rebuilt = proof_admission::Signature::from_declarations(signature.declarations.clone());
+    assert_eq!(
+        terminal_codec::encode_mathematical_signature(&signature.arena, &rebuilt)
+            .expect("the checked signature encodes"),
+        signature_bytes
+    );
+    // Independent receipt: the section decodes into a fresh arena and the
+    // kernel re-decides every declaration inside the decoder.
+    let decoded = terminal_codec::decode_mathematical_signature(&signature_bytes)
+        .expect("the published signature independently verifies");
+    assert_eq!(
+        decoded.signature.declarations().len(),
+        signature.declarations.len()
+    );
+    // The envelope round-trips the section byte-for-byte, and the receiver's
+    // proof verification replays it — a signed artifact admits only when its
+    // signature section independently re-decides.
+    let round_tripped =
+        terminal_codec::CanonicalTerminalArtifact::from_bytes(&produced.artifact().to_bytes())
+            .expect("the signed artifact decodes");
+    assert_eq!(
+        round_tripped.mathematical_signature_bytes(),
+        Some(signature_bytes.as_slice())
+    );
+    terminal_codec::verify_terminal_artifact_proof(
+        produced.artifact(),
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("the receiver's proof verification replays the signature section");
+
+    // A false twin: a well-formed `PSISIG` wire whose last declaration's body
+    // is an unbound variable — it decodes and re-encodes canonically, but the
+    // kernel refuses to re-decide it, so no artifact may carry it.
+    let mut forged_arena = signature.arena.clone();
+    let unbound = forged_arena.insert(proof_admission::Term::Variable(0));
+    let mut forged_declarations = signature.declarations.clone();
+    forged_declarations.last_mut().unwrap().body = Some(unbound);
+    let forged_signature = proof_admission::Signature::from_declarations(forged_declarations);
+    let forged_bytes =
+        terminal_codec::encode_mathematical_signature(&forged_arena, &forged_signature)
+            .expect("the forged signature is a well-formed wire");
+    let original = produced.artifact().to_bytes();
+    // The envelope tail is `tag(1) | len(u64) | payload`.
+    let tail_head = original.len() - (1 + 8 + signature_bytes.len());
+    assert_eq!(original[tail_head], 1);
+    assert_eq!(
+        u64::from_le_bytes(original[tail_head + 1..tail_head + 9].try_into().unwrap()),
+        signature_bytes.len() as u64
+    );
+    let mut forged = original[..tail_head].to_vec();
+    forged.push(1);
+    forged.extend_from_slice(&(forged_bytes.len() as u64).to_le_bytes());
+    forged.extend_from_slice(&forged_bytes);
+    assert!(
+        matches!(
+            terminal_codec::CanonicalTerminalArtifact::from_bytes(&forged),
+            Err(
+                terminal_codec::CanonicalTerminalArtifactError::MathematicalSignature(
+                    terminal_codec::ProofCodecError::MathematicalSignatureRejected(_)
+                )
+            )
+        ),
+        "a wire-canonical signature the kernel cannot re-decide must reject"
+    );
+
+    // Swapping in another program's *valid* signature decodes to a different
+    // artifact — the section is bound into the manifest identity, so the
+    // spliced artifact's identity provably diverges from the produced one.
+    // (The wire carries declarations, not authored names: the twin differs in
+    // its statement, not just its identifier.)
+    let twin = crate::front_end::checked_program(
+        r#"
+            let choose(x: u64, y: u64): u64 = x;
+
+            machine main() {}
+        "#,
+    );
+    let twin_signature = twin.facts.proof.mathematical_signature.as_ref().unwrap();
+    let twin_rebuilt =
+        proof_admission::Signature::from_declarations(twin_signature.declarations.clone());
+    let twin_bytes =
+        terminal_codec::encode_mathematical_signature(&twin_signature.arena, &twin_rebuilt)
+            .unwrap();
+    let mut swapped = original[..tail_head].to_vec();
+    swapped.push(1);
+    swapped.extend_from_slice(&(twin_bytes.len() as u64).to_le_bytes());
+    swapped.extend_from_slice(&twin_bytes);
+    let swapped_artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(&swapped)
+        .expect("a well-formed foreign signature still decodes to an artifact");
+    assert_ne!(
+        swapped_artifact.manifest().identity(),
+        produced.artifact().manifest().identity(),
+        "the signature section is bound into the artifact identity"
+    );
+}
+
+#[test]
+fn a_declaration_free_program_carries_no_signature_section() {
+    // The section is `Some` exactly when the checked cohort carried
+    // declarations: a signature-free artifact keeps the marker-2 envelope
+    // byte-identical to its pre-signature form.
+    let checked = crate::front_end::checked_program("machine main() {}");
+    assert!(checked.facts.proof.mathematical_signature.is_none());
+    let produced = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("main"),
+    )
+    .produce(
+        terminal_production::TerminalProductionCustody::artifact_only(
+            &mut terminal_production::TerminalProductionTimings::default(),
+        ),
+    )
+    .expect("a declaration-free program publishes");
+    assert!(produced.artifact().mathematical_signature_bytes().is_none());
+    assert!(
+        produced
+            .artifact()
+            .manifest()
+            .mathematical_signature()
+            .is_none()
+    );
+}
+
+#[test]
+fn an_inconsistent_signature_facts_record_refuses_at_lowering() {
+    // Declarations and their checked signature are one invariant: lowering
+    // refuses either half missing rather than let a program publish an
+    // artifact whose evidence disagrees with its checked cohort
+    // (PROOF-CONTRACT-MIGRATION).
+    let mut checked = crate::front_end::checked_program(
+        r#"
+            let double(x: u64): u64 = x;
+
+            machine main() {}
+        "#,
+    );
+    checked.facts.proof.mathematical_signature = None;
     let error = lower_machine(&checked, TerminalMachineSelection::Name("main"))
-        .expect_err("mathematical declarations refuse at lowering");
+        .expect_err("declarations without signature evidence refuse");
+    assert!(
+        matches!(
+            error,
+            LoweringError::Unsupported(reason) if reason.contains("PROOF-CONTRACT-MIGRATION")
+        ),
+        "unexpected lowering error: {error:?}"
+    );
+
+    let mut checked = crate::front_end::checked_program("machine main() {}");
+    checked.facts.proof.mathematical_signature =
+        Some(checked_trees::CheckedMathematicalSignature::default());
+    let error = lower_machine(&checked, TerminalMachineSelection::Name("main"))
+        .expect_err("signature evidence without declarations refuses");
     assert!(
         matches!(
             error,

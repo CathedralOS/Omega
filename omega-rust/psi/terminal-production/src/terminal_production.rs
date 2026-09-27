@@ -10,9 +10,7 @@ use lowered_psi::{
 use lowered_psi_to_lowered_psi::{
     PsiOptimizationStageError, PsiOptimizationStageResult, run_psi_optimization,
 };
-use lowered_psi_to_terminal_psi::{
-    CheckedBoundaryOperatorApplicationScope, finalize_terminal_artifact,
-};
+use lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope;
 use semantic_vocabulary::ObligationId;
 use terminal_psi::CheckedProgramEntryTerminalReceipt;
 
@@ -277,7 +275,7 @@ impl<'a> TerminalProductionRequest<'a> {
         };
         let (artifact, lowered) = timings
             .record_result(TerminalProductionStage::Publication, || {
-                publish_terminal_artifact(optimized)
+                publish_terminal_artifact(optimized, checked)
             })?;
         let receipt = match entry_receipt {
             Some(receipt) => {
@@ -339,11 +337,22 @@ impl<'a> TerminalProductionRequest<'a> {
 
 /// Publication consumes exactly the validated optimization result; retained
 /// source evidence is extracted only after canonical publication succeeds.
+///
+/// The checked mathematical signature — `Some` exactly when the program
+/// carried `let`/`boundary let` mathematical declarations — is encoded onto
+/// the artifact at this boundary, so a declaration-bearing program can never
+/// publish an artifact that silently omits the checked signature the
+/// receiver's kernel re-decides.
 fn publish_terminal_artifact(
     optimized: PsiOptimizationStageResult,
+    checked: &CheckedTrees,
 ) -> Result<(terminal_codec::CanonicalTerminalArtifact, LoweredPsi), TerminalArtifactProductionError>
 {
-    let artifact = finalize_terminal_artifact(&optimized)
+    let artifact =
+        lowered_psi_to_terminal_psi::finalize_terminal_artifact_with_mathematical_signature(
+            &optimized,
+            checked.facts.proof.mathematical_signature.as_ref(),
+        )
         .map_err(TerminalArtifactProductionError::Artifact)?;
     Ok((artifact, optimized.into_lowered()))
 }

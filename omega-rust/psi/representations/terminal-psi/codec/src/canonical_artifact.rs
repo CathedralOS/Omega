@@ -12,10 +12,12 @@ use terminal_verifier::ProofBundle;
 use crate::{
     ArtifactManifestError, CodecError, DebugMapError, ProofCodecError,
     PsiOptimizationExecutionRecord, PsiOptimizationExecutionRecordDecodeError,
-    TerminalArtifactManifest, TerminalDebugMap, build_artifact_manifest, decode_debug_map,
-    decode_module, decode_proof_section_for, decode_psi_optimization_execution_record,
-    encode_debug_map, encode_module, encode_proof_section,
-    encode_psi_optimization_execution_record, validate_artifact_manifest,
+    TerminalArtifactManifest, TerminalDebugMap,
+    build_artifact_manifest_with_mathematical_signature, decode_debug_map,
+    decode_mathematical_signature, decode_module, decode_proof_section_for,
+    decode_psi_optimization_execution_record, encode_debug_map, encode_module,
+    encode_proof_section, encode_psi_optimization_execution_record,
+    validate_artifact_manifest_with_mathematical_signature,
 };
 
 const ARTIFACT_MAGIC: &[u8; 8] = b"PSIART\0\0";
@@ -30,6 +32,12 @@ pub struct CanonicalTerminalArtifact {
     optimization_bytes: Vec<u8>,
     optimization: PsiOptimizationExecutionRecord,
     debug_bytes: Option<Vec<u8>>,
+    /// The canonical mathematical-signature wire, present exactly when the
+    /// checked program carried mathematical declarations. It is evidence
+    /// about the checked cohort — not module state — so it rides the
+    /// envelope as an optional trailing section bound by the manifest
+    /// fingerprint rather than joining `ProofBundle`.
+    mathematical_signature_bytes: Option<Vec<u8>>,
     manifest: TerminalArtifactManifest,
     replayed: SectionReplay,
 }
@@ -58,11 +66,38 @@ impl std::fmt::Debug for SectionReplay {
 
 impl CanonicalTerminalArtifact {
     /// Encode and independently replay one source-free Terminal artifact.
+    /// The artifact carries no mathematical-signature section; a program
+    /// whose checked cohort held mathematical declarations must publish
+    /// through [`Self::from_parts_with_mathematical_signature`].
     pub fn from_parts(
         semantic_module: &TerminalModule,
         proof_bundle: &ProofBundle,
         optimization: &PsiOptimizationExecutionRecord,
         debug_map: Option<&TerminalDebugMap>,
+    ) -> Result<Self, CanonicalTerminalArtifactError> {
+        Self::from_parts_with_mathematical_signature(
+            semantic_module,
+            proof_bundle,
+            optimization,
+            debug_map,
+            None,
+        )
+    }
+
+    /// Encode and independently replay one source-free Terminal artifact that
+    /// also carries the checked mathematical signature.
+    ///
+    /// `mathematical_signature` is the canonical `PSISIG` wire produced by
+    /// [`crate::encode_mathematical_signature`], `Some` exactly when the
+    /// checked program carried mathematical declarations. The bytes are
+    /// decoded and kernel re-decided during the construction replay, so an
+    /// artifact whose signature evidence does not verify is never built.
+    pub fn from_parts_with_mathematical_signature(
+        semantic_module: &TerminalModule,
+        proof_bundle: &ProofBundle,
+        optimization: &PsiOptimizationExecutionRecord,
+        debug_map: Option<&TerminalDebugMap>,
+        mathematical_signature: Option<&[u8]>,
     ) -> Result<Self, CanonicalTerminalArtifactError> {
         let semantic_bytes =
             encode_module(semantic_module).map_err(CanonicalTerminalArtifactError::Semantic)?;
@@ -77,12 +112,13 @@ impl CanonicalTerminalArtifact {
                     .map_err(CanonicalTerminalArtifactError::Debug)
             })
             .transpose()?;
-        let manifest = build_artifact_manifest(
+        let manifest = build_artifact_manifest_with_mathematical_signature(
             semantic_module,
             proof_bundle,
             optimization,
             None,
             debug_bytes.as_deref(),
+            mathematical_signature,
         )
         .map_err(CanonicalTerminalArtifactError::Manifest)?;
         let artifact = Self {
@@ -91,6 +127,7 @@ impl CanonicalTerminalArtifact {
             optimization_bytes,
             optimization: optimization.clone(),
             debug_bytes,
+            mathematical_signature_bytes: mathematical_signature.map(<[u8]>::to_vec),
             manifest,
             replayed: SectionReplay::default(),
         };
@@ -124,12 +161,20 @@ impl CanonicalTerminalArtifact {
             decode_debug_map(&semantic_module, debug_bytes)
                 .map_err(CanonicalTerminalArtifactError::Debug)?;
         }
-        validate_artifact_manifest(
+        // The signature wire decodes into a fresh arena, must re-encode to
+        // its exact bytes, and is re-decided by the kernel's `check_signature`
+        // inside the decoder — no producer claim is trusted.
+        if let Some(signature_bytes) = self.mathematical_signature_bytes.as_deref() {
+            decode_mathematical_signature(signature_bytes)
+                .map_err(CanonicalTerminalArtifactError::MathematicalSignature)?;
+        }
+        validate_artifact_manifest_with_mathematical_signature(
             &semantic_module,
             &proof_bundle,
             &optimization,
             None,
             self.debug_bytes.as_deref(),
+            self.mathematical_signature_bytes.as_deref(),
             self.manifest,
         )
         .map_err(CanonicalTerminalArtifactError::Manifest)
@@ -140,15 +185,31 @@ impl CanonicalTerminalArtifact {
     /// the exact section bytes rather than trusted as redundant input.
     pub fn to_bytes(&self) -> Vec<u8> {
         let debug_header_bytes = if self.debug_bytes.is_some() { 9 } else { 1 };
+        // The signature section, when present, is an optional trailing
+        // `tag + length + payload` after the four fixed sections: a
+        // signature-free artifact emits byte-identical marker-2 output, and
+        // a receiver without signature support rejects a signed artifact on
+        // its trailing bytes rather than silently dropping the evidence.
+        let signature_tail_bytes = if self.mathematical_signature_bytes.is_some() {
+            9
+        } else {
+            0
+        };
         let capacity = ARTIFACT_MAGIC
             .len()
             .saturating_add(2)
             .saturating_add(24)
             .saturating_add(debug_header_bytes)
+            .saturating_add(signature_tail_bytes)
             .saturating_add(self.semantic_bytes.len())
             .saturating_add(self.proof_bytes.len())
             .saturating_add(self.optimization_bytes.len())
-            .saturating_add(self.debug_bytes.as_ref().map_or(0, Vec::len));
+            .saturating_add(self.debug_bytes.as_ref().map_or(0, Vec::len))
+            .saturating_add(
+                self.mathematical_signature_bytes
+                    .as_ref()
+                    .map_or(0, Vec::len),
+            );
         let mut bytes = Vec::with_capacity(capacity);
         bytes.extend_from_slice(ARTIFACT_MAGIC);
         bytes.extend_from_slice(&ARTIFACT_FORMAT_MARKER.to_le_bytes());
@@ -167,6 +228,11 @@ impl CanonicalTerminalArtifact {
         bytes.extend_from_slice(&self.optimization_bytes);
         if let Some(debug) = &self.debug_bytes {
             bytes.extend_from_slice(debug);
+        }
+        if let Some(signature) = &self.mathematical_signature_bytes {
+            bytes.push(1);
+            encode_section_len(&mut bytes, signature.len());
+            bytes.extend_from_slice(signature);
         }
         bytes
     }
@@ -197,6 +263,28 @@ impl CanonicalTerminalArtifact {
         let proof_bytes = cursor.take(proof_len)?;
         let optimization_bytes = cursor.take(optimization_len)?;
         let debug_bytes = debug_len.map(|len| cursor.take(len)).transpose()?;
+        // After the four fixed payloads, a `1`-tagged tail carries the
+        // canonical mathematical-signature section; bytes still remaining at
+        // a signature-free envelope's end are the existing trailing-bytes
+        // rejection, unchanged for marker-2 artifacts that predate it.
+        let mathematical_signature_bytes = if cursor.remaining() == 0 {
+            None
+        } else {
+            match cursor.byte()? {
+                1 => {
+                    let signature_len = cursor.section_len("mathematical signature")?;
+                    Some(cursor.take(signature_len)?)
+                }
+                tag => {
+                    return Err(
+                        CanonicalTerminalArtifactEnvelopeError::InvalidMathematicalSignatureTag(
+                            tag,
+                        )
+                        .into(),
+                    );
+                }
+            }
+        };
         if cursor.remaining() != 0 {
             return Err(
                 CanonicalTerminalArtifactEnvelopeError::TrailingBytes(cursor.remaining()).into(),
@@ -215,16 +303,18 @@ impl CanonicalTerminalArtifact {
                     .map_err(CanonicalTerminalArtifactError::Debug)
             })
             .transpose()?;
-        let artifact = Self::from_parts(
+        let artifact = Self::from_parts_with_mathematical_signature(
             &semantic_module,
             &proof_bundle,
             &optimization,
             debug_map.as_ref(),
+            mathematical_signature_bytes,
         )?;
         if artifact.semantic_bytes() != semantic_bytes
             || artifact.proof_bytes() != proof_bytes
             || artifact.optimization_bytes() != optimization_bytes
             || artifact.debug_bytes() != debug_bytes
+            || artifact.mathematical_signature_bytes() != mathematical_signature_bytes
         {
             return Err(CanonicalTerminalArtifactEnvelopeError::NonCanonicalSections.into());
         }
@@ -249,6 +339,14 @@ impl CanonicalTerminalArtifact {
 
     pub fn debug_bytes(&self) -> Option<&[u8]> {
         self.debug_bytes.as_deref()
+    }
+
+    /// The canonical mathematical-signature wire the artifact carries —
+    /// `Some` exactly when the checked program's signature was published.
+    /// The bytes have already decoded and kernel-verified once; receivers
+    /// re-decide them through [`crate::decode_mathematical_signature`].
+    pub fn mathematical_signature_bytes(&self) -> Option<&[u8]> {
+        self.mathematical_signature_bytes.as_deref()
     }
 
     pub const fn manifest(&self) -> TerminalArtifactManifest {
@@ -316,6 +414,10 @@ pub enum CanonicalTerminalArtifactError {
     Proof(ProofCodecError),
     Optimization(PsiOptimizationExecutionRecordDecodeError),
     Debug(DebugMapError),
+    /// The mathematical-signature section failed canonical decoding or the
+    /// kernel's independent `check_signature` re-decision — producer
+    /// signature evidence that does not verify is never admitted.
+    MathematicalSignature(ProofCodecError),
     Manifest(ArtifactManifestError),
     Envelope(CanonicalTerminalArtifactEnvelopeError),
 }
@@ -331,6 +433,7 @@ pub enum CanonicalTerminalArtifactEnvelopeError {
     InvalidMagic,
     UnsupportedFormatMarker(u16),
     InvalidDebugTag(u8),
+    InvalidMathematicalSignatureTag(u8),
     SectionTooLong(&'static str),
     UnexpectedEnd,
     TrailingBytes(usize),

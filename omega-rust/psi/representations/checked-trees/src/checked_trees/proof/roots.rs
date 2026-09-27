@@ -59,6 +59,14 @@ pub struct ProofFacts {
     /// universe binders, the parameter telescope, the statement's result, and
     /// a transparent term or named-assumption absence.
     pub mathematical_declarations: Vec<crate::CheckedMathematicalDeclaration>,
+    /// The kernel signature `mathematical_declarations` were decided under:
+    /// the shared term arena plus the re-decided declaration list in
+    /// signature order, kept so lowering can encode the checked signature as
+    /// Terminal evidence rather than re-elaborate. `Some` exactly when
+    /// `mathematical_declarations` is non-empty — a declaration-bearing
+    /// program whose facts were built without it reads as a producer
+    /// defect, and lowering admission rejects either half missing.
+    pub mathematical_signature: Option<crate::CheckedMathematicalSignature>,
     /// Caller-coordinate -> `contract_calls` row lookup owned by this
     /// ledger; the index carries the `contract_calls` arena's revision, so
     /// a mutation rebuilds it on the next query.

@@ -470,8 +470,6 @@ fn canonical_terminal_artifact_envelope_rejects_every_one_field_substitution() {
     );
     let semantic_len = spans.semantic.len();
     let proof_len = spans.proof.len();
-    let optimization_len = spans.optimization.len();
-    let debug_payload_len = debug_spans.debug.clone().unwrap().len();
 
     // A foreign module: the same machine shape under a different machine and
     // entry identity. Its complete consistent payload set is the debug-free
@@ -552,17 +550,29 @@ fn canonical_terminal_artifact_envelope_rejects_every_one_field_substitution() {
             //
             // Every declared length is read before any payload is taken, so a
             // single-field length lie never reaches a section codec: a
-            // shrunken declaration leaves the surrendered tail as trailing
-            // bytes and a grown one starves a later section read.
-            Field::SemanticLengthCleared => envelope_error(Envelope::TrailingBytes(semantic_len)),
-            Field::ProofLengthCleared => envelope_error(Envelope::TrailingBytes(proof_len)),
-            Field::OptimizationLengthCleared => {
-                envelope_error(Envelope::TrailingBytes(optimization_len))
+            // shrunken declaration leaves the surrendered tail positioned
+            // where the optional signature tail's tag byte is read — its
+            // first byte is not a signature tag — and a grown one starves a
+            // later section read.
+            Field::SemanticLengthCleared => {
+                envelope_error(Envelope::InvalidMathematicalSignatureTag(0))
             }
+            Field::ProofLengthCleared => {
+                // The stranded tail begins inside the proof payload — not a
+                // signature tail tag.
+                envelope_error(Envelope::InvalidMathematicalSignatureTag(200))
+            }
+            Field::OptimizationLengthCleared => {
+                envelope_error(Envelope::InvalidMathematicalSignatureTag(b'P'))
+            }
+            // The one surrendered byte is the optimization payload's last
+            // byte — not a signature tail tag.
             Field::SemanticLengthShortened
             | Field::ProofLengthShortened
-            | Field::OptimizationLengthShortened
-            | Field::TrailingByte => envelope_error(Envelope::TrailingBytes(1)),
+            | Field::OptimizationLengthShortened => {
+                envelope_error(Envelope::InvalidMathematicalSignatureTag(60))
+            }
+            Field::TrailingByte => envelope_error(Envelope::InvalidMathematicalSignatureTag(0)),
             Field::SemanticLengthLengthened
             | Field::SemanticLengthOverLarge
             | Field::ProofLengthLengthened
@@ -594,9 +604,11 @@ fn canonical_terminal_artifact_envelope_rejects_every_one_field_substitution() {
             Field::SemanticPayloadDropped
             | Field::ProofPayloadDropped
             | Field::OptimizationPayloadDropped => envelope_error(Envelope::UnexpectedEnd),
-            // An extra section payload is trailing envelope content.
+            // An extra section payload is trailing envelope content; the
+            // duplicated `PSIOEXE` payload's magic byte is not a signature
+            // tail tag.
             Field::OptimizationPayloadDuplicated => {
-                envelope_error(Envelope::TrailingBytes(optimization_len))
+                envelope_error(Envelope::InvalidMathematicalSignatureTag(b'P'))
             }
             // --- cross-section joins reject non-canonical custody ---
             //
@@ -711,15 +723,21 @@ fn canonical_terminal_artifact_envelope_rejects_every_one_field_substitution() {
                 | Field::DebugLengthLengthened
                 | Field::DebugLengthOverLarge => envelope_error(Envelope::UnexpectedEnd),
                 // Clearing presence strands the now unclaimed debug length
-                // field and payload as trailing bytes.
+                // field and payload where the optional signature tail's tag
+                // byte is read — the stranded tail begins inside the
+                // optimization payload, not at a signature tag.
                 Field::DebugTagDropped => {
-                    envelope_error(Envelope::TrailingBytes(8 + debug_payload_len))
+                    envelope_error(Envelope::InvalidMathematicalSignatureTag(177))
                 }
                 Field::DebugTagCorrupted => envelope_error(Envelope::InvalidDebugTag(2)),
                 Field::DebugLengthCleared => {
-                    envelope_error(Envelope::TrailingBytes(debug_payload_len))
+                    // The stranded debug payload's `PSIDBG` magic is not a
+                    // signature tail tag.
+                    envelope_error(Envelope::InvalidMathematicalSignatureTag(b'P'))
                 }
-                Field::DebugLengthShortened => envelope_error(Envelope::TrailingBytes(1)),
+                Field::DebugLengthShortened => {
+                    envelope_error(Envelope::InvalidMathematicalSignatureTag(0))
+                }
                 Field::DebugMagic => decode(CanonicalTerminalArtifactError::Debug(
                     DebugMapError::InvalidMagic,
                 )),

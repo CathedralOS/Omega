@@ -25,20 +25,12 @@
 //! either wire. Depth is bounded on both directions: deeper terms are a
 //! producer resource refusal, not a decoder stack hazard.
 
-// Authored ahead of its consumer. `8efa96ec70` made this module crate-internal
-// "until the lowering leg wires it": PROOF-CONTRACT-MIGRATION owns connecting
-// the checked signature to Terminal evidence, and its producer half already
-// carries the same allowance
-// (`04_typed-trees-to-checked-trees/src/proof/mathematical_signature.rs`'s
-// `evidence`/`authored`). The allowance sits on the module rather than on each
-// item because the whole file is one wire format with one pending consumer; it
-// comes off when that leg lands, and until then `-D warnings` would otherwise
-// reject a format the board asked for.
-#![allow(dead_code)]
-
 use std::collections::HashMap;
 
-use proof_admission::{Declaration, Level, Signature, Sort, Term, TermArena, TermHandle};
+use proof_admission::{
+    Budget, DEFAULT_CONVERSION_STEPS, Declaration, Level, Signature, Sort, Term, TermArena,
+    TermHandle, check_signature,
+};
 
 use crate::sections::proof_bundle::ProofCodecError;
 use crate::sections::proof_bundle::wire::{Reader, Writer};
@@ -182,6 +174,16 @@ pub fn decode_mathematical_signature(
     if encode_mathematical_signature(&arena, &signature)? != bytes {
         return Err(ProofCodecError::NonCanonicalEncoding);
     }
+    // Independent re-decision: the kernel checks every decoded declaration
+    // against the fresh arena under the default budget, exactly as the
+    // producer's checker did — a well-formed wire whose declarations do not
+    // check is producer forgery, not a decoding success.
+    check_signature(
+        &mut arena,
+        signature.declarations(),
+        &mut Budget::new(DEFAULT_CONVERSION_STEPS),
+    )
+    .map_err(ProofCodecError::MathematicalSignatureRejected)?;
     Ok(DecodedMathematicalSignature { arena, signature })
 }
 
@@ -941,7 +943,11 @@ mod tests {
         let statement = pi(&mut arena, type_parameter, codomain);
         let sort_parameter = Term::Sort(Sort::Type(Level::Parameter(0)));
         let parameter_statement = arena.insert(sort_parameter);
-        let parameter_identity = lambda(&mut arena, parameter_statement, bound);
+        // `λ(A : Type u). λ(x : A). x` — the level-parameterized identity;
+        // its body must actually inhabit `Π(A : Type u). Π(x : A). A` because
+        // decoding now re-decides the signature through `check_signature`.
+        let parameter_body = lambda(&mut arena, bound, bound);
+        let parameter_identity = lambda(&mut arena, parameter_statement, parameter_body);
         let parameter_codomain = pi(&mut arena, parameter_statement, codomain);
         (
             arena,
