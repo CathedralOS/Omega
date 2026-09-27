@@ -512,6 +512,19 @@ impl StatementTable {
         self.statements.len()
     }
 
+    /// The owned freshness counter over every arena the table owns. Each
+    /// arena's revision only ever moves forward, so their sum moves on any
+    /// mutation — including same-length rewrites through `retarget_call_states`
+    /// or `remap_symbols_in` — and a cache keyed on it can never be stale.
+    pub fn revision(&self) -> u64 {
+        self.statements
+            .revision()
+            .wrapping_add(self.expression_handles.revision())
+            .wrapping_add(self.name_path_members.revision())
+            .wrapping_add(self.transition_targets.revision())
+            .wrapping_add(self.outcome_proof_selectors.revision())
+    }
+
     /// Point every call statement aimed at one replaced state at its
     /// replacement. Returns how many calls moved.
     pub fn retarget_call_states(&mut self, replacements: &[(SymbolHandle, SymbolHandle)]) -> usize {

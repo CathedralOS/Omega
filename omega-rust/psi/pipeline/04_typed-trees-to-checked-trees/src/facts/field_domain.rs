@@ -576,40 +576,18 @@ fn declared_owned_field_domain_identities_uncached(
 // Domain declarations bucketed by their resolved symbol once per program.
 // `domain_requires_provenance` runs per DomainMembership fact per context
 // per statement and its alias walk rescanned the whole domain table at
-// every visited node. The owner is the program's `ProgramIdentity`, and the
-// fingerprint answers only whether the table has grown since. Both once read
-// addresses -- the program's, the domain slice's, and sampled name text -- to
-// tell fixture programs apart when their forged symbol arenas agree. Those
-// blocks are recycled with the program they identify, so a replacement could
-// present the same address and the same fingerprint and be served the dropped
-// program's domain positions.
+// every visited node. Freshness is the program's `ProgramIdentity` plus the
+// domain-definition arena's own revision — the counter moves on every
+// mutation, so a same-length rewrite or a recycled `TypedTrees` can never be
+// served a dropped table's domain positions.
 thread_local! {
     static DOMAIN_SYMBOL_INDEX: std::cell::RefCell<
         Option<(
             typed_trees::ProgramIdentity,
-            usize,
+            u64,
             std::collections::HashMap<SymbolHandle, usize>,
         )>,
     > = const { std::cell::RefCell::new(None) };
-}
-
-fn domain_index_fingerprint(program: &typed_trees::TypedTrees) -> usize {
-    let domains = program.domain_definitions();
-    let sample = |index: usize| -> usize {
-        domains
-            .get(index)
-            .map(|domain| {
-                domain.symbol.arena_index() as usize ^ domain.name.as_str().as_ptr() as usize
-            })
-            .unwrap_or(0)
-    };
-    let mut fingerprint = (domains.as_ptr() as usize)
-        ^ domains.len().rotate_left(17)
-        ^ (program.data_definitions().as_ptr() as usize)
-        ^ program.data_definitions().len().rotate_left(31);
-    fingerprint = fingerprint.rotate_left(11) ^ sample(0);
-    fingerprint = fingerprint.rotate_left(11) ^ sample(domains.len() / 2);
-    fingerprint.rotate_left(11) ^ sample(domains.len().saturating_sub(1))
 }
 
 fn domain_by_symbol(
@@ -618,16 +596,16 @@ fn domain_by_symbol(
 ) -> Option<&typed_trees::domain::DomainDefinition> {
     DOMAIN_SYMBOL_INDEX.with(|cell| {
         let mut slot = cell.borrow_mut();
-        let fingerprint = domain_index_fingerprint(program);
+        let revision = program.tables.domain_definitions.revision();
         let fresh = matches!(&*slot, Some((owner, seen, _))
-            if owner.get() == program.identity.get() && *seen == fingerprint);
+            if owner.get() == program.identity.get() && *seen == revision);
         if !fresh {
             let mut by_symbol = std::collections::HashMap::new();
             for (position, domain) in program.domain_definitions().iter().enumerate() {
                 // `find` returns the first matching row; keep it.
                 by_symbol.entry(domain.symbol).or_insert(position);
             }
-            *slot = Some((program.identity, fingerprint, by_symbol));
+            *slot = Some((program.identity, revision, by_symbol));
         }
         slot.as_ref()
             .unwrap()
