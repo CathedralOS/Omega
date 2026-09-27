@@ -91,94 +91,14 @@ pub(crate) fn validate(
     // surrounding call is a statement, initializer, return or assignment.
     // Reconstruct its exact authored call and formal instead of treating the
     // enclosing destination as the copied argument's destination.
-    let (expression, reference) =
-        if let Some(checked_trees::CheckedArrayConstructionSource::CallArgument {
-            call_ordinal,
-            parameter_position,
-        }) = operand_position
-        {
-            let call = crate::emission::call_source_custody::authored::locate_source(
-                checked,
-                state,
-                checked_trees::CheckedUnitCallCoordinate {
-                    statement_index: result.statement_index,
-                    call_ordinal: *call_ordinal,
-                },
-            )?;
-            let signature = crate::emission::call_source_custody::authored::target_signature(
-                checked,
-                machine,
-                call.source_target,
-            )?;
-            let parameter = signature
-                .parameters
-                .get(*parameter_position as usize)
-                .ok_or(LoweringError::Unsupported(
-                    "structural construction lost its authored formal",
-                ))?;
-            let argument = call
-                .structural_argument(checked, *parameter_position, parameter.is_self)
-                .filter(|argument| *argument == retained_expression)
-                .ok_or(LoweringError::Unsupported(
-                    "structural construction lost its authored destination",
-                ))?;
-            (argument, parameter.type_reference)
-        } else {
-            match checked
-                .statement_table
-                .statements(source.statement_nodes)
-                .get(result.statement_index as usize)
-            {
-                // A `let mut` declaration without an initializer keys its
-                // zeroed establishment on the invalid handle; the destination
-                // type is the local's own declared type either way.
-                Some(StatementNode::LocalData(local)) => {
-                    (local.initial_value, local.type_reference)
-                }
-                Some(StatementNode::Expression(expression)) => (*expression, source.return_type),
-                // `place = <construction>` establishes the value that replaces a
-                // structural field; its destination type is the authored place's own
-                // declared type, reconstructed here rather than read from the root.
-                Some(StatementNode::Assignment(assignment)) => (
-                    assignment.value,
-                    validation::declared_place_type_raw(
-                        &checked.typed,
-                        owner,
-                        Some(source),
-                        assignment.target,
-                    )
-                    .and_then(|reference| {
-                        validation::unwrapped_type_reference(&checked.typed, reference)
-                    })
-                    .ok_or(LoweringError::Unsupported(
-                        "structural construction lost its authored destination",
-                    ))?,
-                ),
-                Some(StatementNode::Transition(transition))
-                    if transition.exit == checked_trees::statement::TransitionExit::Ordinary =>
-                {
-                    let mut selected = [transition.target, transition.continuation]
-                        .into_iter()
-                        .filter(|target| target.is_valid())
-                        .filter_map(|target| {
-                            match checked.statement_table.transition_target(target) {
-                                checked_trees::statement::TransitionTargetNode::Value(
-                                    expression,
-                                ) if *expression == retained_expression => Some(*expression),
-                                _ => None,
-                            }
-                        });
-                    let expression = selected.next().ok_or(LoweringError::Unsupported(
-                        "structural return exchanged its authored destination",
-                    ))?;
-                    if selected.next().is_some() {
-                        return unsupported("structural return has ambiguous source destinations");
-                    }
-                    (expression, source.return_type)
-                }
-                _ => return unsupported("structural construction lost its authored destination"),
-            }
-        };
+    let (expression, reference) = authored_destination(
+        checked,
+        machine,
+        state,
+        result.statement_index,
+        retained_expression,
+        operand_position,
+    )?;
     // Absence and ambiguity are different: a duplicate key must not turn a
     // selected owner into a fresh construction with fabricated provenance.
     if checked
@@ -736,14 +656,21 @@ pub(crate) fn validate(
     if consumed_calls.len() != calls.len() {
         return unsupported("structural value has unaccounted call plans");
     }
-    if checked
+    let transition = matches!(
+        checked
+            .statement_table
+            .statements(source.statement_nodes)
+            .get(result.statement_index as usize),
+        Some(StatementNode::Transition(_))
+    );
+    let mut seen_roles = Vec::new();
+    for (_, scalar_root) in checked
         .facts
         .values
         .scalar_computations
         .roots
         .iter()
-        .map(|(_, root)| root)
-        .any(|root| {
+        .filter(|(_, root)| {
             root.state == state
                 && root.statement_ordinal == result.statement_index
                 && matches!(
@@ -753,17 +680,27 @@ pub(crate) fn validate(
                         | CheckedScalarExpressionRole::StructuralValuePattern { .. }
                         | CheckedScalarExpressionRole::StructuralValueField { .. }
                 )
-                && !operand_roles.contains(&root.role)
-                && !matches!(
-                    checked
-                        .statement_table
-                        .statements(source.statement_nodes)
-                        .get(result.statement_index as usize),
-                    Some(StatementNode::Transition(_))
-                )
         })
     {
-        return unsupported("structural construction acquired an unauthored scalar root");
+        if scalar_root.machine != machine || seen_roles.contains(&scalar_root.role) {
+            return unsupported("structural construction has duplicated or foreign scalar roots");
+        }
+        seen_roles.push(scalar_root.role);
+        if operand_roles.contains(&scalar_root.role) || transition {
+            continue;
+        }
+        if role_belongs_to_value(checked, expression, scalar_root.role)?
+            || !sibling_owns_role(
+                checked,
+                machine,
+                state,
+                result.statement_index,
+                expression,
+                scalar_root.role,
+            )?
+        {
+            return unsupported("structural construction acquired an unauthored scalar root");
+        }
     }
     // A combined transition has two disjoint value scopes at one statement.
     // Reconstruct every retained operand against those authored scopes instead
@@ -807,6 +744,305 @@ pub(crate) fn validate(
         }
     }
     Ok(())
+}
+
+/// Rejoin the retained occurrence to its authored destination or exact call formal.
+fn authored_destination(
+    checked: &CheckedTrees,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    statement_index: u32,
+    retained_expression: ExpressionHandle,
+    operand_position: &Option<checked_trees::CheckedArrayConstructionSource>,
+) -> Result<(ExpressionHandle, TypeReferenceHandle), LoweringError> {
+    let (owner, source) =
+        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    Ok(
+        if let Some(checked_trees::CheckedArrayConstructionSource::CallArgument {
+            call_ordinal,
+            parameter_position,
+        }) = operand_position
+        {
+            let call = crate::emission::call_source_custody::authored::locate_source(
+                checked,
+                state,
+                checked_trees::CheckedUnitCallCoordinate {
+                    statement_index,
+                    call_ordinal: *call_ordinal,
+                },
+            )?;
+            let signature = crate::emission::call_source_custody::authored::target_signature(
+                checked,
+                machine,
+                call.source_target,
+            )?;
+            let parameter = signature
+                .parameters
+                .get(*parameter_position as usize)
+                .ok_or(LoweringError::Unsupported(
+                    "structural construction lost its authored formal",
+                ))?;
+            let argument = call
+                .structural_argument(checked, *parameter_position, parameter.is_self)
+                .filter(|argument| *argument == retained_expression)
+                .ok_or(LoweringError::Unsupported(
+                    "structural construction lost its authored destination",
+                ))?;
+            (argument, parameter.type_reference)
+        } else {
+            match checked
+                .statement_table
+                .statements(source.statement_nodes)
+                .get(statement_index as usize)
+            {
+                // A `let mut` declaration without an initializer keys its
+                // zeroed establishment on the invalid handle; the destination
+                // type is the local's own declared type either way.
+                Some(StatementNode::LocalData(local)) => {
+                    (local.initial_value, local.type_reference)
+                }
+                Some(StatementNode::Expression(expression)) => (*expression, source.return_type),
+                // `place = <construction>` establishes the value that replaces a
+                // structural field; its destination type is the authored place's own
+                // declared type, reconstructed here rather than read from the root.
+                Some(StatementNode::Assignment(assignment)) => (
+                    assignment.value,
+                    validation::declared_place_type_raw(
+                        &checked.typed,
+                        owner,
+                        Some(source),
+                        assignment.target,
+                    )
+                    .and_then(|reference| {
+                        validation::unwrapped_type_reference(&checked.typed, reference)
+                    })
+                    .ok_or(LoweringError::Unsupported(
+                        "structural construction lost its authored destination",
+                    ))?,
+                ),
+                Some(StatementNode::Transition(transition))
+                    if transition.exit == checked_trees::statement::TransitionExit::Ordinary =>
+                {
+                    let mut selected = [transition.target, transition.continuation]
+                        .into_iter()
+                        .filter(|target| target.is_valid())
+                        .filter_map(|target| {
+                            match checked.statement_table.transition_target(target) {
+                                checked_trees::statement::TransitionTargetNode::Value(
+                                    expression,
+                                ) if *expression == retained_expression => Some(*expression),
+                                _ => None,
+                            }
+                        });
+                    let expression = selected.next().ok_or(LoweringError::Unsupported(
+                        "structural return exchanged its authored destination",
+                    ))?;
+                    if selected.next().is_some() {
+                        return unsupported("structural return has ambiguous source destinations");
+                    }
+                    (expression, source.return_type)
+                }
+                _ => return unsupported("structural construction lost its authored destination"),
+            }
+        },
+    )
+}
+
+/// Candidate roots grant no authority: each other scope must rejoin an authored
+/// destination or call formal before its own independent construction replay owns it.
+fn sibling_owns_role(
+    checked: &CheckedTrees,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    statement: u32,
+    current: ExpressionHandle,
+    role: CheckedScalarExpressionRole,
+) -> Result<bool, LoweringError> {
+    let plans = &checked.facts.values.structural_values;
+    let (_, source) =
+        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let authored_statement = checked
+        .statement_table
+        .statements(source.statement_nodes)
+        .get(statement as usize);
+    let control = &checked.facts.flow.control;
+    let mut owners = 0;
+    for (_, root) in plans.roots.iter().filter(|(_, root)| {
+        root.state == state && root.statement_ordinal == statement && root.expression != current
+    }) {
+        if !role_belongs_to_value(checked, root.expression, role)? {
+            continue;
+        }
+        if root.machine != machine
+            || !plans.nodes.is_valid(root.root)
+            || plans.nodes.get(root.root).expression != root.expression
+            || plans
+                .root_for_expression(state, statement, root.expression)
+                .is_none()
+        {
+            return unsupported("structural sibling changed its exact retained root");
+        }
+        let mut destination = None;
+        if !matches!(authored_statement, Some(StatementNode::Call(_))) {
+            let outer =
+                authored_destination(checked, machine, state, statement, root.expression, &None)?;
+            if outer.0 == root.expression {
+                destination = Some(outer.1);
+            }
+        }
+        for (_, flow_state) in control.states.iter().filter(|(_, flow_state)| {
+            flow_state.machine_symbol == machine && flow_state.state_symbol == state
+        }) {
+            let calls = control
+                .calls
+                .span(flow_state.calls)
+                .ok_or(LoweringError::Unsupported(
+                    "structural sibling has a stale call roster",
+                ))?;
+            for call in calls.iter().filter(|call| {
+                call.statement_index == statement as usize && !control.is_retired(state, call)
+            }) {
+                // Semantic coordinates only nominate candidates. Unrelated scalar
+                // calls need no structural-operand source reconstruction here.
+                let is_candidate = if checked
+                    .expression_table
+                    .expression_is_valid(call.authored_expression)
+                {
+                    let ExpressionNode::Call(authored) = checked
+                        .expression_table
+                        .expression(call.authored_expression)
+                    else {
+                        continue;
+                    };
+                    authored.receiver == root.expression
+                        || checked
+                            .expression_table
+                            .expression_handles(authored.arguments)
+                            .contains(&root.expression)
+                } else if let Some(StatementNode::Call(authored)) = authored_statement {
+                    checked
+                        .statement_table
+                        .expression_handles(authored.arguments)
+                        .contains(&root.expression)
+                } else {
+                    continue;
+                };
+                if !is_candidate {
+                    continue;
+                }
+                let call_ordinal = u32::try_from(call.call_ordinal)
+                    .map_err(|_| LoweringError::Unsupported("call ordinal overflow"))?;
+                let authored = crate::emission::call_source_custody::authored::locate_source(
+                    checked,
+                    state,
+                    checked_trees::CheckedUnitCallCoordinate {
+                        statement_index: statement,
+                        call_ordinal,
+                    },
+                )?;
+                let signature = crate::emission::call_source_custody::authored::target_signature(
+                    checked,
+                    machine,
+                    authored.source_target,
+                )?;
+                for (position, parameter) in signature.parameters.iter().enumerate() {
+                    let position = u32::try_from(position)
+                        .map_err(|_| LoweringError::Unsupported("argument position overflow"))?;
+                    if authored.structural_argument(checked, position, parameter.is_self)
+                        == Some(root.expression)
+                        && destination.replace(parameter.type_reference).is_some()
+                    {
+                        return unsupported(
+                            "structural sibling has ambiguous authored destinations",
+                        );
+                    }
+                }
+            }
+        }
+        if destination != Some(root.type_reference) {
+            return unsupported("structural sibling lost its authored destination");
+        }
+        owners += 1;
+    }
+    Ok(owners == 1)
+}
+
+/// A role carries its constructor/match occurrence, including a synthesized
+/// zero field whose scalar expression is absent. Only authored descendants of
+/// another exactly rejoined scope may be delegated to that construction's replay.
+/// A call's operand constructions have separate roots and own separate scopes.
+fn role_belongs_to_value(
+    checked: &CheckedTrees,
+    expression: ExpressionHandle,
+    role: CheckedScalarExpressionRole,
+) -> Result<bool, LoweringError> {
+    let mut pending = vec![expression];
+    let mut visited = Vec::new();
+    while let Some(expression) = pending.pop() {
+        if !checked.expression_table.expression_is_valid(expression)
+            || visited.contains(&expression)
+        {
+            return unsupported("structural argument sibling has stale or cyclic authored scope");
+        }
+        visited.push(expression);
+        let node = checked.expression_table.expression(expression);
+        match (role, node) {
+            (
+                CheckedScalarExpressionRole::RecordField {
+                    expression: owner, ..
+                }
+                | CheckedScalarExpressionRole::StructuralValueField {
+                    expression: owner, ..
+                },
+                ExpressionNode::StructLiteral(_),
+            ) if owner == expression => return Ok(true),
+            (
+                CheckedScalarExpressionRole::StructuralValueSubject { expression: owner },
+                ExpressionNode::Match(_),
+            ) if owner == expression => return Ok(true),
+            (
+                CheckedScalarExpressionRole::StructuralValuePattern { source_arm },
+                ExpressionNode::Match(dispatch),
+            ) if source_arm.is_valid()
+                && source_arm.generation() == dispatch.arms.start().generation()
+                && source_arm
+                    .arena_index()
+                    .checked_sub(dispatch.arms.start().arena_index())
+                    .is_some_and(|ordinal| {
+                        (ordinal as usize)
+                            < checked.expression_table.match_arms(dispatch.arms).len()
+                    }) =>
+            {
+                return Ok(true);
+            }
+            _ => {}
+        }
+        match node {
+            ExpressionNode::StructLiteral(literal) => pending.extend(
+                checked
+                    .expression_table
+                    .struct_fields(literal.fields)
+                    .iter()
+                    .map(|field| field.value),
+            ),
+            ExpressionNode::Match(dispatch) => pending.extend(
+                checked
+                    .expression_table
+                    .match_arms(dispatch.arms)
+                    .iter()
+                    .map(|arm| arm.value),
+            ),
+            ExpressionNode::ArrayLiteral(elements) => pending.extend(
+                checked
+                    .expression_table
+                    .expression_handles(*elements)
+                    .iter()
+                    .copied(),
+            ),
+            _ => {}
+        }
+    }
+    Ok(false)
 }
 
 fn validate_operand(

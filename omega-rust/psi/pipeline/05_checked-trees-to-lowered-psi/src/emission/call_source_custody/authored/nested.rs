@@ -74,7 +74,7 @@ pub(crate) fn authored_postorder(
                 .facts
                 .values
                 .structural_values
-                .root_at(caller_state, statement_index)
+                .root_for_expression(caller_state, statement_index, *expression)
                 .is_some_and(|root| {
                     root.machine == machine.symbol
                         && root.expression == *expression

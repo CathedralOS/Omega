@@ -406,3 +406,201 @@ fn carrier_selection_receipt_replay_rejects_mutated_claim_sets() {
         );
     }
 }
+
+/// Retain the actual call-argument establishments: their coordinates belong to
+/// the checked caller, not to a test-manufactured construction operation.
+fn sibling_argument_constructions() -> (
+    CheckedTrees,
+    SymbolHandle,
+    SymbolHandle,
+    Vec<CheckedUnitEffectOperationPlan>,
+) {
+    let source = "data Input { bytes: [u8; 4]; value: u64; }
+         data Inner [copy] { case Yes; case No; }
+         data Choice [copy] { case Selected(inner: Inner); case Empty; }
+         data Output { value: u64; }
+         machine combine(input: Input, choice: Choice) -> Output {
+             Output { value: input.value }
+         }
+         machine make() {
+             let output: Output = combine(
+                 Input { value: 7 },
+                 Choice::Selected { inner: Inner::Yes }
+             );
+             transition output.value == 7 {
+                 true -> done()
+                 false -> done()
+             }
+             state done() {}
+         }";
+    let checked = crate::front_end::checked_program(source);
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "make")
+        .expect("authored caller");
+    let symbol = machine.symbol;
+    let state = checked.machine_states(machine)[0].symbol;
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let operations = if let Some(plan) = plans.for_machine(symbol) {
+        &plan.operations
+    } else {
+        &plans
+            .composed_for_machine(symbol)
+            .unwrap_or_else(|| panic!("retained caller graph missing: {:?}", plans.omissions))
+            .states
+            .iter()
+            .find(|plan| plan.state == state)
+            .expect("retained caller entry")
+            .operations
+    };
+    let arguments = operations
+        .iter()
+        .filter(|operation| {
+            matches!(
+                operation,
+                CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                    operand_source: Some(
+                        checked_trees::CheckedArrayConstructionSource::CallArgument { .. }
+                    ),
+                    ..
+                }
+            )
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    assert_eq!(arguments.len(), 2, "both authored argument constructors");
+    let coordinates = arguments
+        .iter()
+        .map(|operation| {
+            let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                result,
+                operand_source:
+                    Some(checked_trees::CheckedArrayConstructionSource::CallArgument {
+                        call_ordinal,
+                        parameter_position,
+                    }),
+                ..
+            } = operation
+            else {
+                unreachable!()
+            };
+            (result.statement_index, *call_ordinal, *parameter_position)
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        coordinates
+            .iter()
+            .all(|coordinate| coordinate.0 == coordinates[0].0)
+    );
+    assert_eq!(coordinates[0].1, coordinates[1].1);
+    assert_eq!((coordinates[0].2, coordinates[1].2), (0, 1));
+    (checked, symbol, state, arguments)
+}
+
+#[test]
+fn sibling_argument_constructors_keep_disjoint_scalar_root_scopes() {
+    let (checked, machine, state, arguments) = sibling_argument_constructions();
+    let CheckedUnitEffectOperationPlan::EstablishStructuralValue { value, result, .. } =
+        &arguments[0]
+    else {
+        unreachable!()
+    };
+    let constructor = checked.facts.values.structural_values.nodes.get(*value);
+    assert!(matches!(
+        constructor.kind,
+        CheckedStructuralValueKind::Record { .. }
+    ));
+    let roots = checked.facts.values.scalar_computations.roots.iter()
+        .map(|(_, root)| root)
+        .filter(|root| root.state == state && root.statement_ordinal == result.statement_index
+            && matches!(root.role, checked_trees::CheckedScalarExpressionRole::RecordField { expression, .. }
+                if expression == constructor.expression))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        roots.len(),
+        2,
+        "explicit value and omitted-array zero operand"
+    );
+    assert_eq!(
+        roots
+            .iter()
+            .filter(|root| !checked
+                .facts
+                .values
+                .scalar_computations
+                .nodes
+                .get(root.root)
+                .authored_root
+                .is_valid())
+            .count(),
+        1,
+        "one synthesized zero root"
+    );
+    for argument in &arguments {
+        validate(&checked, machine, state, argument)
+            .expect("each constructor owns its scalar roots, with siblings independently retained");
+    }
+}
+
+#[test]
+fn sibling_argument_root_partition_rejects_injected_and_duplicate_roles() {
+    let (checked, machine, state, arguments) = sibling_argument_constructions();
+    let CheckedUnitEffectOperationPlan::EstablishStructuralValue { value, result, .. } =
+        &arguments[0]
+    else {
+        unreachable!()
+    };
+    let constructor = checked
+        .facts
+        .values
+        .structural_values
+        .nodes
+        .get(*value)
+        .expression;
+    let retained = checked
+        .facts
+        .values
+        .scalar_computations
+        .roots
+        .iter()
+        .map(|(_, root)| root)
+        .find(|root| {
+            root.state == state
+                && root.statement_ordinal == result.statement_index
+                && matches!(root.role, checked_trees::CheckedScalarExpressionRole::RecordField {
+                expression, field_ordinal: 0,
+            } if expression == constructor)
+        })
+        .expect("retained authored scalar field")
+        .clone();
+    for mutation in 0..3 {
+        let mut forged = checked.clone();
+        let mut extra = retained.clone();
+        extra.role = match mutation {
+            0 => checked_trees::CheckedScalarExpressionRole::RecordField {
+                expression: constructor,
+                field_ordinal: 99,
+            },
+            1 => checked_trees::CheckedScalarExpressionRole::RecordField {
+                expression: arena::Handle::invalid(),
+                field_ordinal: 0,
+            },
+            _ => retained.role,
+        };
+        forged.facts.values.scalar_computations.roots.append(extra);
+        assert!(
+            validate(&forged, machine, state, &arguments[0]).is_err(),
+            "current constructor accepted root mutation {mutation}"
+        );
+        if mutation != 0 {
+            assert!(
+                validate(&forged, machine, state, &arguments[1]).is_err(),
+                "sibling scope hid unauthored or duplicated root mutation {mutation}"
+            );
+        } else {
+            validate(&forged, machine, state, &arguments[1])
+                .expect("a delegated field ordinal is checked by its owning constructor replay");
+        }
+    }
+}
