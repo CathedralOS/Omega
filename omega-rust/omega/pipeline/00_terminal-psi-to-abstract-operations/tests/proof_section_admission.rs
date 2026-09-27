@@ -1,6 +1,5 @@
-//! Every artifact admission — ordinary, optimizer, and native — requires a
-//! proof section sealed to the exact admitted module; unsealed bundles are
-//! rejected at all three boundaries.
+//! The shared artifact admission requires a proof section sealed to the exact
+//! module before callers obtain a plan, optimizer input, or native input.
 
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
@@ -48,7 +47,7 @@ fn artifact_sections<'artifact>(
 }
 
 #[test]
-fn every_admission_rejects_an_unsealed_proof_bundle() {
+fn artifact_admission_rejects_an_unsealed_proof_bundle() {
     let checked = checked_source();
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
@@ -57,39 +56,24 @@ fn every_admission_rejects_an_unsealed_proof_bundle() {
     .expect("Terminal producer");
     let semantic_bytes = encode_module(&lowered.semantic_module).expect("canonical semantics");
     // A bare proof bundle still verifies in process but carries no subject
-    // seal, so every admission boundary must refuse it outright.
+    // seal, so artifact admission must refuse it outright.
     let bare_proof_bytes = encode_proof_bundle(&lowered.proof_bundle).expect("bare bundle");
     let profile = AdmissionProfile::default();
     terminal_verifier::verify_module(&lowered.semantic_module, &lowered.proof_bundle, &profile)
         .expect("the bare bundle still verifies in process");
 
-    for entrance in ["ordinary", "optimizer", "native"] {
-        let result = match entrance {
-            "ordinary" => lower_artifact(
-                artifact_sections(&semantic_bytes, &bare_proof_bytes),
-                &profile,
-            )
-            .map(|_| ()),
-            "optimizer" => lower_artifact(
-                artifact_sections(&semantic_bytes, &bare_proof_bytes),
-                &profile,
-            )
-            .map(|_| ()),
-            _ => lower_artifact(
-                artifact_sections(&semantic_bytes, &bare_proof_bytes),
-                &profile,
-            )
-            .map(|_| ()),
-        };
-        assert!(
-            matches!(result, Err(ArtifactLoweringError::ProofDecode(_))),
-            "{entrance} admission must reject an unsealed proof bundle"
-        );
-    }
+    let result = lower_artifact(
+        artifact_sections(&semantic_bytes, &bare_proof_bytes),
+        &profile,
+    );
+    assert!(
+        matches!(result, Err(ArtifactLoweringError::ProofDecode(_))),
+        "artifact admission must reject an unsealed proof bundle"
+    );
 }
 
 #[test]
-fn every_admission_rejects_a_proof_section_sealed_for_another_subject() {
+fn artifact_admission_rejects_a_proof_section_sealed_for_another_subject() {
     let checked = checked_source();
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
@@ -111,32 +95,17 @@ fn every_admission_rejects_a_proof_section_sealed_for_another_subject() {
     terminal_verifier::verify_module(&lowered.semantic_module, &lowered.proof_bundle, &profile)
         .expect("the bundle itself verifies for this module");
 
-    for entrance in ["ordinary", "optimizer", "native"] {
-        let result = match entrance {
-            "ordinary" => lower_artifact(
-                artifact_sections(&semantic_bytes, &foreign_sealed_bytes),
-                &profile,
-            )
-            .map(|_| ()),
-            "optimizer" => lower_artifact(
-                artifact_sections(&semantic_bytes, &foreign_sealed_bytes),
-                &profile,
-            )
-            .map(|_| ()),
-            _ => lower_artifact(
-                artifact_sections(&semantic_bytes, &foreign_sealed_bytes),
-                &profile,
-            )
-            .map(|_| ()),
-        };
-        assert!(
-            matches!(
-                result,
-                Err(ArtifactLoweringError::ProofDecode(
-                    ProofCodecError::ProofSubjectMismatch { .. }
-                ))
-            ),
-            "{entrance} admission must reject a section sealed for another subject"
-        );
-    }
+    let result = lower_artifact(
+        artifact_sections(&semantic_bytes, &foreign_sealed_bytes),
+        &profile,
+    );
+    assert!(
+        matches!(
+            result,
+            Err(ArtifactLoweringError::ProofDecode(
+                ProofCodecError::ProofSubjectMismatch { .. }
+            ))
+        ),
+        "artifact admission must reject a section sealed for another subject"
+    );
 }
