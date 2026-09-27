@@ -3,9 +3,11 @@
 use crate::custody::resolve_structural_path_type;
 use crate::errors::TerminalInterpretError;
 use crate::execution::TerminalExecution;
-use crate::values::StructuralRuntimePlace;
-use semantic_vocabulary::{PlaceId, StructuralCaseId, StructuralTypeId};
-use terminal_psi::{StructuralPathSegment, StructuralTypeShape};
+use crate::values::{StructuralRuntimePlace, TerminalStructuralValue};
+use semantic_vocabulary::{
+    CanonicalStructuralPathSegment, PlaceId, StructuralCaseId, StructuralTypeId,
+};
+use terminal_psi::{StructuralFieldType, StructuralPathSegment, StructuralTypeShape};
 
 /// Initialized payloadless case contents below one structural entry argument.
 /// The path selects the sum itself, not its case payload. Neither an opaque
@@ -25,6 +27,94 @@ pub(crate) struct StructuralCaseContents {
 }
 
 impl TerminalExecution {
+    /// Runtime sum storage contains only the active case's payload under its
+    /// declared field names. A canonical Case segment therefore checks the
+    /// stored discriminator rather than adding a storage-path component. Do
+    /// not erase it without that check: two cases may reuse a field name.
+    pub(crate) fn case_payload_leaf(
+        &self,
+        source: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+    ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        let mut leaf = self.structural_values.get(&source).cloned().ok_or(
+            TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
+        )?;
+        let mut case_fields = None;
+        let mut saw_case = false;
+        for segment in path {
+            let declaration = self
+                .structural_types
+                .get(&leaf.structural_type)
+                .ok_or_else(invalid)?;
+            match segment {
+                CanonicalStructuralPathSegment::Case(case) => {
+                    if case_fields.is_some() {
+                        return Err(invalid());
+                    }
+                    let (StructuralTypeShape::Sum { cases }
+                    | StructuralTypeShape::Mixed { cases, .. }) = &declaration.shape
+                    else {
+                        return Err(invalid());
+                    };
+                    let contents = self
+                        .structural_cases
+                        .get(&StructuralRuntimePlace::from(&leaf))
+                        .ok_or_else(invalid)?;
+                    if contents.structural_type != leaf.structural_type || contents.case != *case {
+                        return Err(invalid());
+                    }
+                    case_fields = Some(
+                        cases
+                            .iter()
+                            .find(|candidate| candidate.id == *case)
+                            .ok_or_else(invalid)?
+                            .fields
+                            .as_slice(),
+                    );
+                    saw_case = true;
+                }
+                CanonicalStructuralPathSegment::Field(field) => {
+                    let fields = match case_fields.take() {
+                        Some(fields) => fields,
+                        None => match &declaration.shape {
+                            StructuralTypeShape::Record { fields }
+                            | StructuralTypeShape::Mixed { fields, .. } => fields,
+                            _ => return Err(invalid()),
+                        },
+                    };
+                    let field = fields
+                        .iter()
+                        .find(|candidate| {
+                            candidate.id == *field && !candidate.relevance.is_erased()
+                        })
+                        .ok_or_else(invalid)?;
+                    let StructuralFieldType::Structural(child) = field.field_type else {
+                        return Err(invalid());
+                    };
+                    leaf.path
+                        .push(StructuralPathSegment::Field(field.identity.clone()));
+                    leaf.structural_type = child;
+                }
+                CanonicalStructuralPathSegment::FixedIndex(index) => {
+                    let StructuralTypeShape::FixedArray { element, length } = declaration.shape
+                    else {
+                        return Err(invalid());
+                    };
+                    if case_fields.is_some() || *index >= length {
+                        return Err(invalid());
+                    }
+                    leaf.path.push(StructuralPathSegment::FixedIndex(*index));
+                    leaf.structural_type = element;
+                }
+            }
+        }
+        if !saw_case || case_fields.is_some() {
+            return Err(invalid());
+        }
+        Ok(leaf)
+    }
+
     pub(crate) fn bind_structural_cases(
         &mut self,
         cases: &[TerminalStructuralCaseValue],

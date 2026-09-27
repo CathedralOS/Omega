@@ -544,6 +544,6 @@ impl TerminalExecution {
                     .remove(&StructuralRuntimePlace::from(&view));
             }
         }
-        self.retire_unrestricted_records();
+        self.retire_unrestricted_aggregates();
     }
 }

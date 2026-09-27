@@ -425,11 +425,7 @@ impl TerminalExecution {
                 .structural_types
                 .get(&result.structural_type)
                 .is_some_and(|declaration| match &declaration.shape {
-                    StructuralTypeShape::Sum { cases } => cases.iter().all(|case| {
-                        case.fields.iter().all(|field| {
-                            !field.relevance.is_erased() && field.field_type.scalar_type().is_some()
-                        })
-                    }),
+                    StructuralTypeShape::Sum { .. } => self.plain_case_type(result.structural_type),
                     StructuralTypeShape::Record { .. } => {
                         self.plain_record_type(result.structural_type)
                     }

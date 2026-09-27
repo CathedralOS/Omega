@@ -187,6 +187,183 @@ fn owned_execution(
 }
 
 #[test]
+fn case_payload_copy_checks_the_tag_and_transfers_independent_storage() {
+    use crate::structural_inputs::case_membership::StructuralCaseContents;
+    use semantic_vocabulary::{CanonicalStructuralPathSegment as Segment, StructuralCaseId};
+    use terminal_psi::{
+        StructuralCaseDeclaration, StructuralOperationResult, StructuralTypeDeclaration,
+    };
+
+    let mut edge = owned_successor();
+    let source = PlaceId::new(1).unwrap();
+    let copied = PlaceId::new(5).unwrap();
+    edge.structural_arguments[0].place = copied;
+    edge.structural_arguments[1].place = PlaceId::new(2).unwrap();
+    let mut execution = owned_execution(jump(edge.clone()), StructuralMultiplicity::Unrestricted);
+    let record_type = StructuralTypeId::new(1).unwrap();
+    let sum_type = StructuralTypeId::new(2).unwrap();
+    let active = StructuralCaseId::new(1).unwrap();
+    let payload = StructuralFieldId::new(3).unwrap();
+    execution.structural_types.insert(
+        sum_type,
+        StructuralTypeDeclaration {
+            id: sum_type,
+            identity: "Choice".into(),
+            shape: StructuralTypeShape::Sum {
+                cases: [1, 2]
+                    .into_iter()
+                    .map(|identity| StructuralCaseDeclaration {
+                        id: StructuralCaseId::new(identity).unwrap(),
+                        identity: format!("Case{identity}"),
+                        fields: vec![StructuralFieldDeclaration {
+                            id: StructuralFieldId::new(identity + 2).unwrap(),
+                            identity: "payload".into(),
+                            relevance: BindingRelevance::Relevant,
+                            field_type: StructuralFieldType::Structural(record_type),
+                        }],
+                    })
+                    .collect(),
+            },
+        },
+    );
+    let root = execution.structural_values.get_mut(&source).unwrap();
+    root.structural_type = sum_type;
+    let root = StructuralRuntimePlace::from(&*root);
+    execution.structural_cases.insert(
+        root.clone(),
+        StructuralCaseContents {
+            structural_type: sum_type,
+            case: active,
+        },
+    );
+    let mut member = root.clone();
+    member
+        .path
+        .push(terminal_psi::StructuralPathSegment::Field("payload".into()));
+    for field in [1, 2] {
+        let field = StructuralFieldId::new(field).unwrap();
+        let value = execution
+            .structural_scalar_fields
+            .remove(&StructuralScalarRuntimeField {
+                parent: root.clone(),
+                field,
+            })
+            .unwrap();
+        execution.structural_scalar_fields.insert(
+            StructuralScalarRuntimeField {
+                parent: member.clone(),
+                field,
+            },
+            value,
+        );
+    }
+    let operation = Operation {
+        id: OperationId::new(30).unwrap(),
+        static_reach_binding: None,
+        suspension_crossing: None,
+        result: OperationResult::Structural(StructuralOperationResult {
+            place: copied,
+            structural_type: record_type,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            qualification_establishments: Vec::new(),
+            claims: Vec::new(),
+        }),
+        kind: OperationKind::StructuralCaseLeafCopy {
+            source,
+            path: vec![Segment::Case(active), Segment::Field(payload)],
+        },
+    };
+    // Both cases spell the member identically. Its name alone cannot authorize
+    // reading the inactive payload, and a failed check must publish no copy.
+    for path in [
+        vec![
+            Segment::Case(StructuralCaseId::new(2).unwrap()),
+            Segment::Field(StructuralFieldId::new(4).unwrap()),
+        ],
+        vec![Segment::Case(active)],
+        vec![
+            Segment::Case(active),
+            Segment::Field(StructuralFieldId::new(99).unwrap()),
+        ],
+        vec![Segment::Field(payload)],
+    ] {
+        let mut forged = operation.clone();
+        forged.kind = OperationKind::StructuralCaseLeafCopy { source, path };
+        let cursor = execution.local_structural_identities.cursor();
+        assert!(matches!(
+            execution.execute_structural_leaf_copy(&forged),
+            Err(TerminalInterpretError::VerifiedOperationMalformed)
+        ));
+        assert!(!execution.structural_values.contains_key(&copied));
+        assert_eq!(execution.local_structural_identities.cursor(), cursor);
+    }
+    let mut affine = operation.clone();
+    let OperationResult::Structural(result) = &mut affine.result else {
+        panic!("structural copy");
+    };
+    result.multiplicity = StructuralMultiplicity::Affine;
+    assert!(matches!(
+        execution.execute_structural_leaf_copy(&affine),
+        Err(TerminalInterpretError::AffineProjectionNotRepresentable)
+    ));
+    execution.execute_structural_leaf_copy(&operation).unwrap();
+    let copy_root = StructuralRuntimePlace::from(&execution.structural_values[&copied]);
+    assert_ne!(copy_root.opaque_identity, root.opaque_identity);
+    let integer_field = StructuralFieldId::new(1).unwrap();
+    execution.structural_scalar_fields.insert(
+        StructuralScalarRuntimeField {
+            parent: copy_root,
+            field: integer_field,
+        },
+        unsigned(99),
+    );
+    assert_eq!(
+        execution.structural_scalar_fields[&StructuralScalarRuntimeField {
+            parent: member,
+            field: integer_field,
+        }],
+        unsigned(7)
+    );
+    let machine = std::sync::Arc::get_mut(&mut execution.machines)
+        .unwrap()
+        .get_mut(&execution.current_machine)
+        .unwrap();
+    machine.structural_places.push(StructuralPlaceDeclaration {
+        id: copied,
+        kind: StructuralPlaceKind::OperationResult {
+            producer: operation.id,
+            structural_type: record_type,
+        },
+    });
+    machine
+        .blocks
+        .get_mut(&machine.entry)
+        .unwrap()
+        .operations
+        .push(operation);
+    execution
+        .prepare_block_bindings(
+            edge.target,
+            &edge.arguments,
+            &edge.structural_arguments,
+            true,
+        )
+        .unwrap()
+        .commit(&mut execution);
+    let arrival =
+        StructuralRuntimePlace::from(&execution.structural_values[&PlaceId::new(3).unwrap()]);
+    assert_eq!(
+        execution.structural_scalar_fields[&StructuralScalarRuntimeField {
+            parent: arrival,
+            field: integer_field,
+        }],
+        unsigned(99)
+    );
+}
+
+#[test]
 fn unrestricted_copy_staging_failure_leaves_backing_and_identity_cursor_unchanged() {
     for exhausted in [false, true] {
         let mut execution = owned_execution(

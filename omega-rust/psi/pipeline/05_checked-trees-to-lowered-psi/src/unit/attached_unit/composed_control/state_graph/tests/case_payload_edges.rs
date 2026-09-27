@@ -149,6 +149,25 @@ fn case_payload_edge_rejoins_the_tested_local_result() {
         &proof_admission::AdmissionProfile::default(),
     )
     .expect("the source-free artifact retains independently checked case membership");
+    assert_eq!(
+        terminal_interpreter::interpret_terminal_artifact(
+            &semantic_bytes,
+            &proof_bytes,
+            &proof_admission::AdmissionProfile::default(),
+            &[],
+        )
+        .expect("the source-free local case payload executes"),
+        terminal_interpreter::TerminalExecutionResult::Scalar(
+            terminal_interpreter::TerminalScalarValue::Integer {
+                scalar_type: semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    32,
+                )
+                .unwrap(),
+                value: semantic_vocabulary::IntegerValue::Unsigned(70),
+            },
+        ),
+    );
     let (source, _, first, successor) = payload_edge(&checked, &plan);
     let StatementNode::LocalData(decoy) =
         &checked.statement_table.statements(source.statement_nodes)[0]
