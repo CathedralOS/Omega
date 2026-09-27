@@ -42,6 +42,19 @@
 // Untested prediction from that code, worth one line when repairing: a nested
 // `[[u8; 2]; 2]` should decline identically.
 //
+// LIFTING THE GUARD IS NOT THE FIX, measured rather than assumed. With the
+// argument guard deleted and the compiler rebuilt, this program does not
+// plan -- the omission ADVANCES one step, from `call operation: boundary
+// arguments` to `completion`. That is the same site a record by value and a
+// `[Point; 2]` by value already decline at, so the guard is a first line in
+// front of a shared missing capability rather than the capability's absence
+// itself. Removing it only changes which phase reports.
+//
+// So the repair is: implement composite-by-value boundary arguments at the
+// `completion` site, and drop this guard as PART of that, having confirmed
+// the new route carries a plan. Dropping it first buys nothing and hides the
+// real site behind a less specific label.
+//
 // Why the samples look inconsistent: `image_viewer`'s
 // `self.raw.read(self.fd, &mut self.buffer, 16384)` already checks, because it
 // passes a REFERENCE. Converting every array-typed boundary parameter in
