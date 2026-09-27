@@ -23,6 +23,83 @@ fn signed(value: i32) -> TerminalScalarValue {
     }
 }
 
+#[test]
+fn discarded_scalar_call_preserves_its_mutable_parameter_store() {
+    let source = r#"
+        data Tally { calls: u64; pad: u64; }
+        data Main { tally: Tally; }
+        machine Main::roll(&mut self, tally: &mut Tally) -> bool {
+            tally.calls = ((tally.calls as u64 in Wrapping) + 1) as u64;
+            transition { _ -> true }
+        }
+        machine Main::main(&mut self) {
+            self.tally.calls = 40;
+            self.tally.pad = 0;
+            _ = self.roll(&mut self.tally);
+        }
+    "#;
+    lowered_verified(source, "Main::main");
+}
+
+#[test]
+fn dense_store_parameters_reject_redirected_source_and_shared_access() {
+    let source = r#"
+        data Tally { calls: u64; }
+        machine update(prefix: u8, left: &mut Tally, right: &mut Tally) {
+            left.calls = 41;
+        }
+    "#;
+    let (module, _) = lowered_verified(source, "update");
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    assert_eq!(entry.structural_parameters.len(), 2);
+    assert_eq!(entry.structural_parameters[0].position, 0);
+    assert_eq!(entry.structural_parameters[1].position, 1);
+    let checked = crate::front_end::checked_program(source);
+    let machine = checked
+        .typed
+        .realized_machine_named("update")
+        .unwrap()
+        .symbol;
+    for mutation in 0..3 {
+        let mut changed = checked.clone();
+        let plan = changed
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter_mut()
+            .find(|plan| plan.machine == machine)
+            .unwrap();
+        if mutation == 2 {
+            plan.structural_parameters[0].access =
+                checked_trees::CheckedStructuralAccess::SharedBorrow;
+        } else {
+            let checked_trees::CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) =
+                &mut plan.operations[0]
+            else {
+                panic!("one authored field store")
+            };
+            assert_eq!(store.destination.parameter_position(), Some(1));
+            store.destination =
+                checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter {
+                    position: if mutation == 0 { 0 } else { 2 },
+                };
+        }
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("update"),
+            )
+            .is_err(),
+            "store custody mutation {mutation} must reject"
+        );
+    }
+}
+
 /// Lower `name`, round-trip the artifact through the Terminal codec, and
 /// verify the decoded module independently. Returns the decoded module and the
 /// ephemeral source-call receipts joined to the emitted operations.

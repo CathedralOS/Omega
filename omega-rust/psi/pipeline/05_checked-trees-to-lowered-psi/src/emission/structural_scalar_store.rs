@@ -67,14 +67,16 @@ pub(crate) fn lower_structural_scalar_store_destination(
     available_scalar_types: &[ScalarType],
     access_policy: StoreAccessPolicy,
 ) -> Result<LoweredStructuralScalarStore, LoweringError> {
-    if !checked_store_source_matches(
-        store.value.as_pure().ok_or(LoweringError::Unsupported(
-            "this structural scalar store route requires a pure RHS",
-        ))?,
-        store.primitive_type,
-        scalar_parameters,
-        available_scalar_types,
-    ) {
+    if store.destination.parameter_position() != Some(parameter.position)
+        || !checked_store_source_matches(
+            store.value.as_pure().ok_or(LoweringError::Unsupported(
+                "this structural scalar store route requires a pure RHS",
+            ))?,
+            store.primitive_type,
+            scalar_parameters,
+            available_scalar_types,
+        )
+    {
         return unsupported("structural scalar store lost exact exclusive custody");
     }
     lower_structural_scalar_store_place(
@@ -88,6 +90,9 @@ pub(crate) fn lower_structural_scalar_store_destination(
 
 /// Resolve the destination independently of the ordered source expression.
 /// Callers must validate and emit that expression in its current scalar namespace.
+/// They also rejoin the authored destination through their source-position map
+/// before supplying `parameter`. Its Terminal position is dense: scalar formals
+/// and omitted receivers can make it differ from the authored position.
 pub(crate) fn lower_structural_scalar_store_place(
     store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
     expected_statement_index: u32,
@@ -102,6 +107,7 @@ pub(crate) fn lower_structural_scalar_store_place(
         store
             .destination
             .parameter_position()
+            .map(|_| parameter.position)
             .ok_or(LoweringError::Unsupported(
                 "parameter store route cannot substitute a local destination",
             ))?,
