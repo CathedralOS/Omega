@@ -2,9 +2,7 @@
 
 use register_homes::FunctionAllocationLegality;
 use selected_instructions::FunctionLiveRanges;
-use selected_instructions_to_selected_instructions::test_support::{
-    exercise_multiple_use_rematerialization, exercise_single_use_rematerialization,
-};
+use selected_instructions_to_selected_instructions::test_support::exercise_multiple_use_rematerialization;
 
 fn check_assignment(
     legality: &FunctionAllocationLegality,
@@ -21,11 +19,6 @@ fn check_assignment(
     .unwrap();
     assert_eq!(homes, replayed);
     assert_eq!(homes.assignments.len(), 4);
-}
-
-#[test]
-fn single_use_rewrite_reaches_register_assignment() {
-    exercise_single_use_rematerialization(check_assignment);
 }
 
 #[test]

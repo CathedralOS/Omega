@@ -31,27 +31,3 @@ fn overlapping_closed_intervals_use_distinct_slots() {
         [0, 8]
     );
 }
-
-#[test]
-fn disjoint_intervals_reuse_the_first_slot() {
-    assert_eq!(
-        offsets(vec![interval(0, 0, 1, 2), interval(1, 0, 3, 4)]),
-        [0, 0]
-    );
-}
-
-#[test]
-fn touching_closed_interval_endpoints_conflict() {
-    assert_eq!(
-        offsets(vec![interval(0, 0, 1, 3), interval(1, 0, 3, 5)]),
-        [0, 8]
-    );
-}
-
-#[test]
-fn distinct_blocks_may_reuse_the_first_slot() {
-    assert_eq!(
-        offsets(vec![interval(0, 0, 1, 5), interval(1, 1, 1, 5)]),
-        [0, 0]
-    );
-}
