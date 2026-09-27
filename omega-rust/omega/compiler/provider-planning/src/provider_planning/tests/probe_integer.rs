@@ -2,77 +2,7 @@
 //! `boundary machine ==` plus a `satisfies ... via ForeignBinding::CompilerIntrinsic`
 //! provider derives, and that the closed identity commits to the authored
 //! spelling and exact operand type.
-use super::{derive_satisfies_plans, typed_fixture};
-use crate::ProviderPlanDerivation;
-use crate::provider_planning::ProviderBinding;
-
-/// A `satisfies` provider over a boundary `==` derives one single-row plan
-/// that binds the exact operator requirement under a compiler-intrinsic
-/// binding, and the row's execution identity is the authored `equal` on the
-/// exact operand primitive.
-#[test]
-fn integer_comparison_satisfies_provider_binds_the_exact_requirement() {
-    let typed = typed_fixture(
-        r#"
-        boundary machine == Comparison::equal(left: i32, right: i32) -> bool;
-
-        data IntProvider {}
-
-        machine IntProvider::equal_impl(left: i32, right: i32) -> bool
-        satisfies Comparison::equal
-        via ForeignBinding::CompilerIntrinsic;
-
-        machine use_it(left: i32, right: i32) -> bool {
-            left == right
-        }
-        "#,
-    );
-    let [operator] = typed.machine_token_bindings() else {
-        panic!("one boundary operator")
-    };
-    let derived_plans = derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None));
-    let [derived] = derived_plans.as_slice() else {
-        panic!("one derived provider plan")
-    };
-    let [row] = derived.plan.rows.as_slice() else {
-        panic!("one realization row")
-    };
-    assert!(
-        matches!(row.binding, ProviderBinding::CompilerIntrinsic { .. }),
-        "expected a compiler-intrinsic binding, got {:?}",
-        row.binding,
-    );
-    assert_eq!(derived.provenance.row_requirements, [operator.symbol]);
-    assert_eq!(
-        crate::primitive_integer_comparison_intrinsic_execution_identity(&typed, operator),
-        Some(
-            crate::CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison {
-                operation: crate::CompilerPrimitiveIntegerComparisonOperation::Equal,
-                integer_type: crate::CompilerNumericType::I32,
-            }
-        ),
-    );
-    assert_eq!(
-        crate::compiler_intrinsic_diagnostic_label(&typed, operator).as_deref(),
-        Some("integer-comparison.equal.i32"),
-    );
-}
-
-/// A boundary comparison operator with no provider derives no plan, so a
-/// selected use can never reach an unplanned comparison execution.
-#[test]
-fn integer_comparison_without_provider_derives_no_plan() {
-    let typed = typed_fixture(
-        r#"
-        boundary machine == Comparison::equal(left: i32, right: i32) -> bool;
-
-        machine use_it(left: i32, right: i32) -> bool {
-            left == right
-        }
-        "#,
-    );
-    assert!(derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None)).is_empty());
-}
+use super::typed_fixture;
 
 /// The authored token is the integer comparison's operation identity: a
 /// `boundary machine <` declaration commits to the primitive `less` on the

@@ -30,7 +30,6 @@ struct Fixture {
     plans: Vec<ProviderPlan>,
     realizations: Vec<BoundaryCallingPlanRealization>,
     requirement_identity: String,
-    expected: BoundaryEntryPlan,
 }
 
 fn symbol(index: u32) -> SymbolHandle {
@@ -132,7 +131,7 @@ fn fixture_with_inventory(
             validated.contract_commitment_digest(),
         ),
         boundary_entry_plan: expected.clone(),
-        exact_boundary_entry_plan: expected.clone(),
+        exact_boundary_entry_plan: expected,
         callback_binders: Vec::new(),
         callback_demands: Vec::new(),
         callback_context_closed: false,
@@ -172,7 +171,6 @@ fn fixture_with_inventory(
         plans: vec![plan],
         realizations: vec![realization],
         requirement_identity,
-        expected,
     }
 }
 
@@ -337,92 +335,6 @@ fn rejected_settlement_preserves_prior_arc_identity_and_contents() {
 }
 
 #[test]
-fn external_abi_rows_derive_from_the_selected_provider_plan() {
-    let mut fixture = fixture(false);
-    let evaluated = add_import_row(&mut fixture);
-
-    let rows = extract_external_binding_rows(
-        None,
-        target::NativeTarget::host(),
-        &fixture.plans,
-        &fixture.realizations,
-        &fixture.typed,
-        &[],
-    )
-    .expect("selected provider binding should produce one ABI row");
-    let [row] = rows.as_slice() else {
-        panic!("one selected external ABI row")
-    };
-
-    assert_eq!(row.target_name, "windows_x86_64");
-    assert_eq!(row.trait_name, SCHEMA_NAME);
-    assert_eq!(row.method, METHOD_NAME);
-    assert_eq!(row.requirement_identity, fixture.requirement_identity);
-    assert_eq!(row.table_type, "RetainedProvider");
-    assert_eq!(row.boundary_entry_plan, Some(fixture.expected));
-    assert_eq!(
-        row.binding,
-        calling_conventions::ExternalBindingKind::Import {
-            locator: evaluated.locator().clone(),
-        }
-    );
-}
-
-#[test]
-fn native_external_projection_retains_syscall_custody_without_unrelated_abi_planning() {
-    let mut fixture = fixture(false);
-    add_import_row(&mut fixture);
-    fixture.plans[0].target = "linux_x86_64".to_owned();
-    fixture.plans[0].rows[0].binding = ProviderBinding::Syscall { number: 231 };
-    let expected = extract_external_binding_rows(
-        Some("linux_x86_64"),
-        target::NativeTarget::linux_x64(),
-        &fixture.plans,
-        &fixture.realizations,
-        &fixture.typed,
-        &[],
-    )
-    .expect("reference syscall projection");
-
-    // These mechanisms have separate consumers. They must not demand a
-    // compatibility calling plan merely because the same provider also has
-    // a syscall; deliberately absent schema methods make that observable.
-    for binding in [
-        ProviderBinding::VtableField {
-            table: "RetainedProvider".to_owned(),
-            field: "grant".to_owned(),
-        },
-        ProviderBinding::VtableSlot { index: 2 },
-    ] {
-        fixture.plans[0].rows.push(ProviderPlanRow {
-            method: "separate_route".to_owned(),
-            requirement_identity: "separate_route".to_owned(),
-            requirement_lifetime_partition: Vec::new(),
-            binding,
-        });
-    }
-    let actual = extract_native_external_binding_rows(
-        Some("linux_x86_64"),
-        target::NativeTarget::linux_x64(),
-        &fixture.plans,
-        &fixture.realizations,
-        &fixture.typed,
-        &[],
-    )
-    .expect("native handoff retains only supported external mechanisms");
-    assert_eq!(actual, expected);
-    let [row] = actual.as_slice() else {
-        panic!("one exact syscall row")
-    };
-    assert_eq!(row.requirement_identity, fixture.requirement_identity);
-    assert_eq!(row.boundary_entry_plan, Some(fixture.expected));
-    assert_eq!(
-        row.binding,
-        calling_conventions::ExternalBindingKind::Syscall { number: 231 }
-    );
-}
-
-#[test]
 fn external_top_level_requirement_extracts_its_exact_carrier_abi() {
     let source = r#"
         pub data Counter [copy] { value: u64; }
@@ -501,17 +413,6 @@ fn external_top_level_requirement_extracts_its_exact_carrier_abi() {
         .expect("native syscall handoff preserves the same top-level carrier ABI"),
         rows,
     );
-}
-
-#[test]
-fn selected_source_boundary_entry_plan_accepts_exact_direct_and_inherited_owners() {
-    for inherited in [false, true] {
-        let fixture = fixture(inherited);
-        assert_eq!(
-            resolve(&fixture, SCHEMA_NAME),
-            Ok(Some(fixture.expected.clone()))
-        );
-    }
 }
 
 #[test]

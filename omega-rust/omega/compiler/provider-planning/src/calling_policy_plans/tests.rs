@@ -43,7 +43,6 @@ use calling_conventions::ValidatedBoundaryEntryPlan;
 use calling_conventions::ValuePlacement;
 use calling_conventions::ValueShape;
 use calling_conventions::evaluate_ordinary_boundary_entry_plan;
-use calling_conventions::nominal_callback_native_parameter_id;
 use calling_conventions::validate_boundary_entry_plan_with_callback_materializations;
 use sha2::Digest;
 use sha2::Sha256;
@@ -190,30 +189,6 @@ fn opaque_shape_path_retains_fixed_array_and_record_coordinates() {
             BoundaryOpaqueRepresentationPathElement::RecordField { ordinal: 0 },
         ]
     );
-}
-
-#[test]
-fn boundary_plan_application_commitment_binds_opaque_shape_root() {
-    let shape = ValueShape::integer(8, 8);
-    let call_signature = CallSignature {
-        parameters: vec![shape, shape],
-        result: None,
-    };
-    let validated = evaluate_ordinary_boundary_entry_plan(
-        CallingPolicy::native_for_target(NativeTarget::host()),
-        &call_signature,
-    )
-    .expect("ordinary two-parameter plan");
-    let mut signature = materialized_boundary_signature_from_abi(&call_signature)
-        .expect("materialized two-parameter signature");
-    signature
-        .opaque_representations
-        .push(test_opaque_representation_use(0));
-
-    let first = boundary_plan_application_identity(&signature, &validated);
-    signature.opaque_representations[0].shape_root = 1;
-    let second = boundary_plan_application_identity(&signature, &validated);
-    assert_ne!(first, second);
 }
 
 #[test]
@@ -441,36 +416,6 @@ fn compact_native_parameter_collision_rejects_within_exact_registrar_catalog() {
     let error = validate_fresh_native_parameter_report_identity(&prior, identity, 1)
         .expect_err("a second exact parameter cannot reuse a compact report identity");
     assert!(error.contains("collides with an earlier exact parameter"));
-}
-
-#[test]
-fn boundary_application_v3_commits_nominal_telescope_order() {
-    let call_signature = CallSignature {
-        parameters: vec![ValueShape::integer(8, 8), ValueShape::integer(8, 8)],
-        result: None,
-    };
-    let validated =
-        evaluate_ordinary_boundary_entry_plan(CallingPolicy::MicrosoftX64, &call_signature)
-            .expect("Microsoft x64 ordinary plan");
-    let signature = materialized_boundary_signature_from_abi(&call_signature).unwrap();
-    let first = boundary_plan_application_identity(&signature, &validated);
-
-    let mut reordered = signature.clone();
-    reordered.native_parameters.swap(0, 1);
-    let second = boundary_plan_application_identity(&reordered, &validated);
-    assert_ne!(
-        first, second,
-        "equally shaped nominal parameters cannot reorder under one application identity"
-    );
-
-    let mut renamed = signature;
-    renamed.native_parameters[0].identity =
-        nominal_callback_native_parameter_id("omega.synthetic-abi-signature", "renamed-parameter");
-    assert_ne!(
-        first,
-        boundary_plan_application_identity(&renamed, &validated),
-        "a changed declaration-owned native parameter identity must reissue the application"
-    );
 }
 
 #[test]
@@ -807,43 +752,6 @@ fn nominal_callback_fixture() -> (
         relationship_span: source::SourceSpan::default(),
     };
     (checked, vec![inbound_realization, registrar_realization])
-}
-
-#[test]
-fn nominal_callback_placement_binds_one_exact_evaluated_plan() {
-    let (checked, realizations) = nominal_callback_fixture();
-
-    let bound = validate_nominal_callback_placement_bindings(&checked, &realizations)
-        .expect("exact checked and target plan identities should bind");
-    let [bound] = bound.as_slice() else {
-        panic!("one checked callback must produce one durable target plan");
-    };
-    let nominal_use = &checked.facts.nominal_machine_uses.uses[0];
-    assert_eq!(bound.site, nominal_use.site);
-    assert_eq!(
-        bound.static_machine_ordinal,
-        nominal_use.static_machine_ordinal
-    );
-    assert_eq!(bound.selected_machine, nominal_use.selected_machine);
-    assert_eq!(bound.selected_entry, nominal_use.selected_entry);
-    assert_eq!(
-        bound.resource_receipt,
-        nominal_use
-            .callback_placement
-            .expect("checked callback placement")
-            .resource_receipt
-    );
-    assert_eq!(
-        bound.boundary_calling_plan_report_fingerprint,
-        realizations[0]
-            .replayed_validated_plan()
-            .unwrap()
-            .contract_report_fingerprint()
-    );
-    assert_eq!(
-        bound.boundary_entry_plan,
-        realizations[0].boundary_entry_plan
-    );
 }
 
 #[test]

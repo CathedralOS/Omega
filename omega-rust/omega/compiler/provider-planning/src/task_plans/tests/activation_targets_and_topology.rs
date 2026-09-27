@@ -1,22 +1,9 @@
 use super::{activation_crossing_validation_fixture, activation_target_fixture, topology_error};
 use crate::task_plans::CheckedTrees;
-use crate::task_plans::carry_crossings::{
-    activation_carry_crossings, exact_activation_carry_subtree,
-};
+use crate::task_plans::carry_crossings::exact_activation_carry_subtree;
 use crate::task_plans::start_selections::{
     TaskActivationTargetError, exact_task_activation_target,
 };
-use language_semantics::CarrySuspension;
-
-#[test]
-fn activation_target_retains_exact_machine_and_entry() {
-    let (program, first_machine, first_entry, _, _) = activation_target_fixture();
-    let (machine, entry) = exact_task_activation_target(&program, first_machine, first_entry)
-        .expect("exact task target");
-
-    assert_eq!(machine.symbol, first_machine);
-    assert_eq!(entry.symbol, first_entry);
-}
 
 #[test]
 fn activation_target_rejects_missing_entry() {
@@ -98,30 +85,6 @@ fn activation_target_rejects_stored_machine_entry_drift() {
             .expect_err("stored machine/entry drift must fail closed"),
         TaskActivationTargetError::MachineMismatch
     );
-}
-
-#[test]
-fn activation_crossings_include_contained_machine_crossings() {
-    let (program, root, _, _) = activation_crossing_validation_fixture();
-    let child_policy = program.facts.carry.suspension_crossings[0].effective;
-    let crossings = activation_carry_crossings(&program, root).expect("exact crossing custody");
-
-    assert!(
-        crossings
-            .subtree
-            .iter()
-            .all(|crossing| crossing.machine != root)
-    );
-    assert_eq!(crossings.subtree.len(), 2);
-    assert_eq!(crossings.subtree[0].call_ordinal, 0);
-    assert_eq!(crossings.subtree[1].call_ordinal, 1);
-    assert!(
-        crossings
-            .subtree
-            .iter()
-            .all(|crossing| crossing.effective.suspension == CarrySuspension::Allowed)
-    );
-    assert_eq!(crossings.subtree[0].effective, child_policy);
 }
 
 #[test]

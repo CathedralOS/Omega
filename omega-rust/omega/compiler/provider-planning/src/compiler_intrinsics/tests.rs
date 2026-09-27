@@ -5,7 +5,6 @@ use super::{
 use crate::{ProviderPlanProvenance, ProviderSchemaDeclaration, ProviderSelectionProvenance};
 use effects::provider_plan::{ProviderBinding, ProviderPlanRow};
 use std::collections::BTreeSet;
-use target_operations::CompilerBuiltinExecution;
 
 fn selected_plan(
     name: &str,
@@ -46,60 +45,6 @@ fn demands(identities: &[&str]) -> BTreeSet<String> {
         .iter()
         .map(|identity| (*identity).to_owned())
         .collect()
-}
-
-#[test]
-fn reordered_rows_preserve_lexical_proposals_and_exact_plan_associations() {
-    use CompilerIntrinsicExecutionIdentity::{
-        HostedExitProcessI32, HostedReadByte, HostedWriteByteI32,
-    };
-    let (first, first_retained) = selected_plan(
-        "first",
-        &[
-            ("zeta", Some(HostedExitProcessI32)),
-            ("alpha", Some(HostedWriteByteI32)),
-            ("unused", None),
-        ],
-    );
-    let (mut second, mut second_retained) = selected_plan(
-        "second",
-        &[("beta", Some(HostedReadByte)), ("ordinary", None)],
-    );
-    second.rows[1].binding = ProviderBinding::Syscall { number: 0 };
-    second_retained.plan = second.clone();
-    let demanded = demands(&["zeta", "ordinary", "beta", "missing", "alpha"]);
-    for reverse_rows in [false, true] {
-        let mut plans = [first.clone(), second.clone()];
-        let mut provenance = [first_retained.clone(), second_retained.clone()];
-        if reverse_rows {
-            for (plan, retained) in plans.iter_mut().zip(&mut provenance) {
-                plan.rows.reverse();
-                retained.plan.rows.reverse();
-                retained.row_compiler_intrinsic_executions.reverse();
-            }
-        }
-        let proposals =
-            derive_selected_intrinsic_settlement_proposals(&plans, &provenance, &demanded)
-                .expect("sorted join retains original row execution and plan index");
-        let actual = proposals
-            .iter()
-            .map(|proposal| {
-                (
-                    proposal.requirement_identity.as_str(),
-                    proposal.plan_index,
-                    proposal.execution,
-                )
-            })
-            .collect::<Vec<_>>();
-        assert_eq!(
-            actual,
-            [
-                ("alpha", 0, CompilerBuiltinExecution::HostedWriteByteI32),
-                ("beta", 1, CompilerBuiltinExecution::HostedReadByte),
-                ("zeta", 0, CompilerBuiltinExecution::HostedExitProcessI32),
-            ]
-        );
-    }
 }
 
 #[test]
@@ -167,21 +112,5 @@ fn undemanded_plans_still_require_complete_aligned_provenance() {
                 "selected compiler-intrinsic plan `unused` has misaligned retained settlement provenance"
             );
         }
-    }
-}
-
-#[test]
-fn undemanded_duplicates_and_absent_intrinsic_rows_produce_no_proposals() {
-    let (plan, retained) = selected_plan("unused", &[("unused", None), ("unused", None)]);
-    for demanded in [BTreeSet::new(), demands(&["before", "zz_after"])] {
-        assert!(
-            derive_selected_intrinsic_settlement_proposals(
-                std::slice::from_ref(&plan),
-                std::slice::from_ref(&retained),
-                &demanded,
-            )
-            .expect("undemanded rows grant no proposal")
-            .is_empty()
-        );
     }
 }

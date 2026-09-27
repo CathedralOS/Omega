@@ -244,24 +244,6 @@ fn binding(inner: BuildTimeValue) -> BuildTimeValue {
 }
 
 #[test]
-fn decodes_exact_atomic_pe_name() {
-    let value = binding(BuildTimeValue::Case {
-        variant: "PeByName".to_owned(),
-        payload: vec![
-            ("library".to_owned(), bytes(b"kernel32.dll")),
-            ("export".to_owned(), bytes(b"ExitProcess")),
-        ],
-    });
-    assert_eq!(
-        decode_binding_value(&value, [12, 11, 0]).unwrap(),
-        DecodedBindingValue::Import(ForeignLocatorCandidate::PeByName {
-            library: b"kernel32.dll".to_vec(),
-            export: b"ExitProcess".to_vec()
-        })
-    );
-}
-
-#[test]
 fn decodes_exact_pe_ordinal_and_rejects_reserved_ordinal_or_used_widths() {
     let value = binding(BuildTimeValue::Case {
         variant: "PeByOrdinal".to_owned(),

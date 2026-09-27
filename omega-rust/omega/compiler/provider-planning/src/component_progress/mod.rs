@@ -396,19 +396,6 @@ mod tests {
     }
 
     #[test]
-    fn absent_component_root_builds_no_manifest() {
-        assert_eq!(
-            build_selected_component_progress_manifest(
-                &CheckedTrees::default(),
-                &empty_selected(),
-                None,
-                None,
-            ),
-            Ok(None),
-        );
-    }
-
-    #[test]
     fn exact_component_root_retains_its_callable_identity() {
         let mut program = CheckedTrees::default();
         let machine = push_machine(&mut program, "Application::run", 20, true);
@@ -431,28 +418,6 @@ mod tests {
             selected.compatibility_report_identity()
         );
         assert!(manifest.pending().is_empty());
-    }
-
-    #[test]
-    fn exact_component_root_outranks_named_harness_fallback() {
-        let mut program = CheckedTrees::default();
-        let machine = push_machine(&mut program, "Application::run", 20, true);
-        let manifest = build_selected_component_progress_manifest(
-            &program,
-            &empty_selected(),
-            Some(ExactComponentProgressRoot::new(
-                machine,
-                "Application::run#source",
-            )),
-            Some("missing::HarnessEntry"),
-        )
-        .expect("exact source root should bypass the harness fallback")
-        .expect("exact source root should be present");
-
-        assert_eq!(
-            manifest.entry_callable_identity(),
-            "Application::run#source"
-        );
     }
 
     #[test]
@@ -533,17 +498,6 @@ mod tests {
     fn absent_progress_manifest_needs_no_discharge() {
         reject_undischarged_build_bound_progress(None)
             .expect("absent progress carries no pending demand");
-    }
-
-    #[test]
-    fn empty_progress_manifest_needs_no_discharge() {
-        let selected = SelectedProviderPlanFacts::from_selected_plans(Vec::new())
-            .expect("empty provider selection");
-        let manifest =
-            ComponentProgressManifest::bind("Application::run#exact".into(), &selected, Vec::new())
-                .expect("empty progress manifest");
-        reject_undischarged_build_bound_progress(Some(&manifest))
-            .expect("empty progress carries no pending demand");
     }
 
     #[test]

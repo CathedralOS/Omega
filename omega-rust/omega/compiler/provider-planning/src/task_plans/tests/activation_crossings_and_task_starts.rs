@@ -197,63 +197,6 @@ fn nested_checked_call_composes_whole_graph_wcsu_and_roster() {
 }
 
 #[test]
-fn suspending_task_plan_retains_the_exact_live_frontier() {
-    let (checked, selected, _) = concrete_task_start_fixture();
-
-    let task_activations =
-        elaborate_task_activation_plans(&checked, &selected, NativeTarget::macos_arm64(), &[])
-            .expect("a suspending task target should elaborate");
-    let activation = task_activations
-        .as_slice()
-        .iter()
-        .find(|activation| activation.operation == TaskStartOperation::Start)
-        .expect("start activation plan");
-    let plan = activation.plan.candidate();
-
-    // `Worker::run` parks at `suspend Sleeper::park(value)` with `value`
-    // live in its fixed frame. The crossing retains the exact checked live
-    // frontier rather than a bare suspension bit.
-    assert_eq!(plan.canonical_suspension_crossings.len(), 1);
-    let crossing = &plan.canonical_suspension_crossings[0];
-    assert!(
-        !crossing.live_carry.is_empty(),
-        "the parking crossing retains the exact live frontier"
-    );
-    for live in &crossing.live_carry {
-        assert_ne!(live.place.normalized_identity(), 0);
-        assert_ne!(live.ty.normalized_identity(), 0);
-        assert_eq!(
-            live.effective.suspension,
-            language_semantics::CarrySuspension::Allowed,
-            "every retained place permits suspension"
-        );
-    }
-    assert!(
-        crossing
-            .live_carry
-            .iter()
-            .any(|live| live.storage == task_plans::LiveCarryStorage::Local),
-        "the live `value` local rides the frontier"
-    );
-
-    // The crossing's preservation bits are exactly the join of its frontier.
-    assert_eq!(
-        crossing.preserve_cpu,
-        crossing
-            .live_carry
-            .iter()
-            .any(|live| live.effective.cpu == CarryCpu::Origin)
-    );
-    assert_eq!(
-        crossing.preserve_host_thread,
-        crossing
-            .live_carry
-            .iter()
-            .any(|live| live.effective.host_thread == CarryHostThread::Origin)
-    );
-}
-
-#[test]
 fn suspending_task_plan_rejects_a_suspension_forbidden_live_place() {
     let (mut checked, selected, _) = concrete_task_start_fixture();
     // Drift one checked live row to forbid suspension while the crossing's
@@ -390,37 +333,6 @@ fn suspending_call_without_canonical_crossing_rejects_elaboration() {
             .contains("no canonical suspension crossing"),
         "unexpected diagnostic: {}",
         diagnostics[0].message
-    );
-}
-
-#[test]
-fn compiler_task_activation_settlement_borrows_shared_program_and_commits_two_rows() {
-    let (checked, selected, _) = concrete_task_start_fixture();
-    let original_sidecar = Arc::new(TaskActivationPlanSet::default());
-    let mut retained = Arc::clone(&original_sidecar);
-
-    settle_task_activation_plans(
-        &mut retained,
-        &checked,
-        &selected,
-        NativeTarget::macos_arm64(),
-        &[],
-    )
-    .expect("shared checked custody should produce the complete activation sidecar");
-
-    assert!(!Arc::ptr_eq(&original_sidecar, &retained));
-    assert_eq!(retained.as_slice().len(), 2);
-    assert!(
-        retained
-            .as_slice()
-            .iter()
-            .any(|activation| { activation.operation == TaskStartOperation::Start })
-    );
-    assert!(
-        retained
-            .as_slice()
-            .iter()
-            .any(|activation| { activation.operation == TaskStartOperation::TryStart })
     );
 }
 

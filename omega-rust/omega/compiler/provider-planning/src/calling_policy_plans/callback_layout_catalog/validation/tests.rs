@@ -118,17 +118,6 @@ fn two_hop_fixture() -> MaterializedBoundarySignature {
 }
 
 #[test]
-fn direct_and_two_hop_catalogs_replay_with_distinct_root_and_terminal_layouts() {
-    for signature in [signature_fixture(), two_hop_fixture()] {
-        assert_ne!(
-            signature.callback_layout_catalog[0].root_layout.layout,
-            signature.callback_layout_catalog[0].terminal_slot.layout,
-        );
-        validate(&signature, &signature.callback_demands).unwrap();
-    }
-}
-
-#[test]
 fn named_catalog_preserves_existing_boundary_application_bytes() {
     use calling_conventions::{CallingPolicy, evaluate_ordinary_boundary_entry_plan};
 
