@@ -136,7 +136,17 @@ impl ContractExpressionEvaluator<'_, '_> {
             return None;
         }
 
-        let data = self.target_self_data_definition()?;
+        // The receiver's `self` name resolves to the machine that owns the
+        // expression, not necessarily the call target: a substituted argument
+        // keeps the CALLER's receiver (`&mut self.control` under a boundary
+        // read is the caller's own field), while an authored contract
+        // `self.<field>` stays the callee's. Follow the resolved symbol; only
+        // an unresolved receiver (a trait boundary `self` with no machine)
+        // falls back to the target's data.
+        let data = crate::lookup::machine_by_symbol(self.program, path.symbol)
+            .or_else(|| crate::lookup::machine_by_symbol(self.program, path.head_symbol))
+            .map(|machine| self.self_data_definition(machine))
+            .unwrap_or_else(|| self.target_self_data_definition())?;
         for data_member in self.program.data_members(data) {
             let typed_trees::data::DataMember::Field(field) = data_member else {
                 continue;
@@ -160,6 +170,15 @@ impl ContractExpressionEvaluator<'_, '_> {
                 crate::semantic::calls::find_state_with_machine(self.program, self.target_symbol)
                     .map(|(machine, _)| machine)
             })?;
+        self.self_data_definition(machine)
+    }
+
+    /// The data definition a machine is attached to. `None` for free machines
+    /// (no attached data).
+    fn self_data_definition(
+        &self,
+        machine: &typed_trees::machine::Machine,
+    ) -> Option<&typed_trees::data::DataDefinition> {
         let attached_data = machine.attached_data.as_ref()?;
         self.program
             .data_definitions()
