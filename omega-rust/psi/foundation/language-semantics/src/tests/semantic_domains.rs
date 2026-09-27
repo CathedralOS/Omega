@@ -9,6 +9,8 @@ fn semantic_domain_table_is_deterministic_and_idempotent() {
     // the same id; NULL never resolves to a name.
     let mut table = SemanticDomainTable::default();
     // Policies pre-seed with FIXED ids; declared domains follow.
+    assert_eq!(table.len(), 3);
+    assert!(!table.is_empty());
     assert_eq!(
         table.lookup("Wrapping"),
         Some(SemanticDomainTable::WRAPPING)
@@ -27,6 +29,8 @@ fn semantic_domain_table_is_deterministic_and_idempotent() {
     assert_eq!(table.name(kilometres), Some("Km"));
     // Re-interning a policy returns its fixed id, never a duplicate.
     assert_eq!(table.intern("Wrapping"), SemanticDomainTable::WRAPPING);
+    assert_eq!(table.len(), 4);
+    assert!(!table.is_empty());
     assert_eq!(table.name(SemanticDomainId::NULL), None);
     assert_eq!(table.lookup("Miles"), None);
 }
