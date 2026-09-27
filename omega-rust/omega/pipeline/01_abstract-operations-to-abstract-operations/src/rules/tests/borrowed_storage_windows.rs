@@ -319,13 +319,22 @@ fn window_inside_cycle_module() -> TerminalModule {
 #[test]
 fn a_window_inside_a_cycle_is_not_representable() {
     let module = window_inside_cycle_module();
+    let encoded = terminal_codec::encode_module(&module);
     assert!(
         matches!(
-            terminal_codec::encode_module(&module),
+            encoded,
             Err(terminal_codec::CodecError::InvalidModule(
-                terminal_verifier::ModuleError::ControlCycle(block)
+                terminal_verifier::ModuleError::ControlCycleIneligible {
+                    block,
+                    reason: terminal_verifier::ControlCycleIneligibility::BlockOperation {
+                        block: operation_block,
+                        operation,
+                    },
+                }
             )) if block == id::<BlockId>(73)
+                && operation_block == block
+                && operation == id::<OperationId>(42)
         ),
-        "the cyclic window machine must fail cycle eligibility"
+        "the cyclic window machine must fail cycle eligibility: {encoded:?}"
     );
 }
