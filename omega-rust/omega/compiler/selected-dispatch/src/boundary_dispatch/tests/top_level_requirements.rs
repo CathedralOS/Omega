@@ -3,7 +3,9 @@
 //! redirects the journaled call to the selected checked adapter, and a called
 //! requirement with no selected provider rejects at settlement.
 
-use super::{Arc, CheckedTrees, ProviderPlan, settle_selected_boundary_adapter_dispatch};
+use super::{
+    Arc, CheckedTrees, ProviderBinding, ProviderPlan, settle_selected_boundary_adapter_dispatch,
+};
 use provider_planning::ProviderPlanDerivation;
 use typed_trees::expression::ExpressionNode;
 
@@ -524,4 +526,278 @@ fn a_requirement_realized_by_a_compiler_intrinsic_settles_no_adapter_row_and_is_
         "an intrinsic-realized requirement call is the intrinsic bridge's, not an adapter row",
     );
     assert!(settled.facts.boundary_adapter_dispatch.is_empty());
+}
+
+/// A generic token-machine requirement keeps its selected plan row keyed by
+/// the authored template: `Indexing::index` projects one schema whose row
+/// names the generic provider, while checking mints a closed requirement and
+/// a closed provider instance for every demanded application. Settlement
+/// replays the selected-requirement specialization roster — one exact
+/// dispatch row per closed instance, keyed on the closed requirement's own
+/// entry state and naming the specialized provider's entry state — and never
+/// aliases the closed identities back to the template's.
+const SPECIALIZED_REQUIREMENT_SOURCE: &str = r#"
+    data Buffer<Element, const Count: u64> {
+        value: Element
+    }
+    data Position {}
+    data Indexing {}
+
+    boundary machine [] Indexing::index<Element, const Count: u64>(
+        items: Buffer<Element, Count>,
+        position: Position
+    ) -> bool
+    requires Count == Count;
+
+    data IndexingProvider {}
+    machine IndexingProvider::index<Value, const Length: u64>(
+        items: Buffer<Value, Length>,
+        position: Position
+    ) -> bool
+    satisfies Indexing::index
+    {
+        true
+    }
+
+    data Client {}
+    machine Client::run(&mut self, items: Buffer<i32, 4>, position: Position) -> bool {
+        transition { _ -> (items[position]) }
+    }
+"#;
+
+/// The retained specialization instances of one machine template: the
+/// template itself is identified by its surviving static binders, and each
+/// demanded closed instance joins it through `machine_specializations`
+/// receipts rather than a shared display name — specialized instances carry
+/// a minted `$specialized$` name. Symbol handles return so callers may move
+/// the checked surface after the join is computed.
+fn template_and_instances(
+    checked: &CheckedTrees,
+    name: &str,
+) -> (symbols::SymbolHandle, Vec<symbols::SymbolHandle>) {
+    let templates = checked
+        .typed
+        .machines()
+        .iter()
+        .filter(|machine| {
+            machine.name.as_str() == name
+                && !checked.typed.machine_type_parameters(machine).is_empty()
+        })
+        .collect::<Vec<_>>();
+    let [template] = templates.as_slice() else {
+        panic!("`{name}` has no unique generic template")
+    };
+    let instances = checked
+        .typed
+        .machine_specializations
+        .iter()
+        .filter(|receipt| receipt.template == template.symbol)
+        .filter_map(|receipt| {
+            checked
+                .typed
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == receipt.instance)
+        })
+        .map(|machine| machine.symbol)
+        .collect();
+    (template.symbol, instances)
+}
+
+fn machine_identity_by_symbol(checked: &CheckedTrees, symbol: symbols::SymbolHandle) -> String {
+    let machine = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == symbol)
+        .expect("machine symbol resolves");
+    checked
+        .typed
+        .normalized_machine_overload_identity(machine)
+        .expect("machine carries a normalized identity")
+        .identity()
+}
+
+fn entry_state_symbol(
+    checked: &CheckedTrees,
+    symbol: symbols::SymbolHandle,
+) -> symbols::SymbolHandle {
+    let machine = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == symbol)
+        .expect("machine symbol resolves");
+    checked
+        .typed
+        .machine_states(machine)
+        .first()
+        .expect("entry state")
+        .symbol
+}
+
+/// Attach the specialization roster rows `bind_selected_provider_plan_facts`
+/// derives in production: the fixture replays the same retained receipts so
+/// settlement sees the closure it would receive after binding.
+fn with_specialization_roster(
+    checked: &CheckedTrees,
+    selected: effects::SelectedProviderPlanFacts,
+) -> effects::SelectedProviderPlanFacts {
+    let mut symbol_diagnostics = Vec::new();
+    let top_level_symbols =
+        validation::TopLevelSymbols::build(&checked.typed, &mut symbol_diagnostics);
+    assert!(
+        symbol_diagnostics.is_empty(),
+        "fixture top-level symbols build exactly: {symbol_diagnostics:?}"
+    );
+    let mut roster = Vec::new();
+    for plan in selected.plans() {
+        for row in &plan.rows {
+            let ProviderBinding::CheckedAdapter {
+                machine_identity: selected_machine_identity,
+                ..
+            } = &row.binding
+            else {
+                continue;
+            };
+            let Some(provider_template) = checked
+                .typed
+                .machine_by_normalized_overload_identity(selected_machine_identity)
+            else {
+                continue;
+            };
+            let requirement_template = checked
+                .typed
+                .machines()
+                .iter()
+                .find(|machine| {
+                    machine.supply_mode
+                        == language_semantics::MachineSupplyMode::TopLevelRequirement
+                        && !checked.typed.machine_type_parameters(machine).is_empty()
+                        && provider_planning::service_schema::from_typed_boundary_requirement(
+                            &checked.typed,
+                            machine,
+                        )
+                        .is_some_and(|schema| schema == plan.schema)
+                })
+                .unwrap_or_else(|| {
+                    panic!("plan `{}` binds no generic requirement template", plan.name)
+                });
+            for receipt in checked
+                .typed
+                .machine_specializations
+                .iter()
+                .filter(|receipt| receipt.template == provider_template.symbol)
+            {
+                if !receipt.operator_realizations.iter().any(|application| {
+                    application.requirement_symbol == requirement_template.symbol
+                }) {
+                    continue;
+                }
+                let Some(instance) = checked
+                    .typed
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.symbol == receipt.instance)
+                else {
+                    panic!("provider specialization retains no typed instance")
+                };
+                let closed = validation::resolve_closed_requirement_application(
+                    &checked.typed,
+                    instance,
+                    requirement_template,
+                    &top_level_symbols,
+                )
+                .unwrap_or_else(|diagnostic| {
+                    panic!(
+                        "provider instance `{}` retains one exact closed requirement: {}",
+                        instance.name, diagnostic.message,
+                    )
+                });
+                roster.push(effects::SelectedRequirementSpecialization {
+                    provider_plan_report_identity: plan.report_fingerprint(),
+                    selected_requirement_identity: row.requirement_identity.clone(),
+                    selected_machine_identity: selected_machine_identity.clone(),
+                    requirement_identity: machine_identity_by_symbol(checked, closed.symbol),
+                    machine_identity: machine_identity_by_symbol(checked, instance.symbol),
+                });
+            }
+        }
+    }
+    selected
+        .with_specialized_requirement_rows(roster)
+        .expect("fixture roster binds to the selected plan")
+}
+
+#[test]
+fn a_generic_requirement_settles_one_row_per_closed_requirement_instance() {
+    let (checked, plans) = requirement_fixture(SPECIALIZED_REQUIREMENT_SOURCE);
+    assert_eq!(
+        plans.len(),
+        1,
+        "the generic requirement template derives one plan: {plans:?}"
+    );
+    let (requirement_template, closed_requirements) =
+        template_and_instances(&checked, "Indexing::index");
+    let (provider_template, provider_instances) =
+        template_and_instances(&checked, "IndexingProvider::index");
+    assert_eq!(
+        closed_requirements.len(),
+        1,
+        "`Buffer<i32, 4>` demand mints one closed requirement"
+    );
+    assert_eq!(provider_instances.len(), 1);
+    let requirement_template_entry = entry_state_symbol(&checked, requirement_template);
+    let provider_template_entry = entry_state_symbol(&checked, provider_template);
+    let closed_requirement_entry = entry_state_symbol(&checked, closed_requirements[0]);
+    let provider_instance_entry = entry_state_symbol(&checked, provider_instances[0]);
+    let closed_requirement_owner = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == closed_requirements[0])
+        .expect("closed requirement resolves")
+        .attached_data_symbol;
+    let selected = with_specialization_roster(&checked, selected_all(&plans));
+
+    let mut settled = Arc::new(checked);
+    settle_selected_boundary_adapter_dispatch(&mut settled, &selected)
+        .expect("the roster settles each closed requirement exactly");
+
+    let rows = &settled.facts.boundary_adapter_dispatch;
+    let [row] = rows.as_slice() else {
+        panic!("one roster row settles one dispatch row: {rows:?}")
+    };
+    assert_eq!(row.receiver, closed_requirement_owner);
+    assert_eq!(row.requirement, closed_requirement_entry);
+    assert_eq!(row.realization_state, provider_instance_entry);
+    assert!(!row.forward_receiver && row.family_tuple.is_empty());
+    assert_ne!(
+        row.requirement, requirement_template_entry,
+        "the closed requirement never aliases its template's entry"
+    );
+    assert_ne!(
+        row.realization_state, provider_template_entry,
+        "the specialized provider never aliases its template's entry"
+    );
+}
+
+/// A demanded closed requirement the roster does not rebind can only reach
+/// the unbound template, so settlement rejects rather than emitting the
+/// template's entry as an executable row.
+#[test]
+fn a_closed_requirement_instance_missing_its_roster_row_rejects() {
+    let (checked, plans) = requirement_fixture(SPECIALIZED_REQUIREMENT_SOURCE);
+    let selected = selected_all(&plans);
+    let mut settled = Arc::new(checked);
+    let diagnostics = settle_selected_boundary_adapter_dispatch(&mut settled, &selected)
+        .expect_err("an unbound closed instance never falls back to the template");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("checking retained 1 closed requirement instances")
+        }),
+        "{diagnostics:?}"
+    );
 }

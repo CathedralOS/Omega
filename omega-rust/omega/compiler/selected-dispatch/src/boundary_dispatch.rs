@@ -180,7 +180,12 @@ fn plan_selected_boundary_adapter_dispatch(
     let mut diagnostics = Vec::new();
     for plan in selected_plans.plans() {
         for row in &plan.rows {
-            match resolve_selected_adapter_row(typed, plan, row) {
+            match resolve_selected_adapter_row(
+                typed,
+                plan,
+                row,
+                selected_plans.specialized_requirement_rows(),
+            ) {
                 Ok(rows) => {
                     for resolved in rows {
                         match resolved {
