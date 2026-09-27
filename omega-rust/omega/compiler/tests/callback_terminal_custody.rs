@@ -1677,12 +1677,9 @@ impl ProviderExecutionEvidence for CallbackRegistrarExecution {
     }
 }
 
-/// Recorded stop (linux x86-64, re-witnessed 2026-09-21): the witness still
-/// reaches the native-artifact fragment import custody join and stops there —
-/// the compile ends on "native artifact fragment object publication failed:
-/// fragment import lacks selected call custody", CALLBACK-PRIVATE-
-/// MATERIALIZATION's receiving-stage leg. Selection, allocation and emission
-/// of the private thunk all complete before that stop.
+/// Compiler-derived import evidence reaches the same private-function,
+/// relocation, image and installation replay as explicitly supplied evidence
+/// in the two-slot registrar control above.
 #[test]
 fn direct_callback_relocation_resolves_to_its_private_function() {
     let fixture = Fixture::direct_with_import();
@@ -1724,30 +1721,7 @@ fn direct_callback_relocation_resolves_to_its_private_function() {
         panic!("one exact callback registrar import expected");
     };
     let provider_plan_report_identity = provider_plan.report_fingerprint();
-    let provider_plan_commitment =
-        SameStackProviderPlanCommitment::from_digest(*provider_plan.identity_digest().as_bytes());
     let provider_requirement = provider_row.requirement_identity.clone();
-    let execution = CallbackRegistrarExecution {
-        requirement: provider_requirement.clone(),
-        provider_plan_report_identity,
-    };
-    let same_stack = admit_same_stack_contribution(
-        SameStackContributionAdmissionCandidate {
-            provider_plan_report_identity,
-            provider_plan_commitment,
-            requirement_identity: provider_requirement.clone(),
-            receipt: SameStackContributionAdmissionReceiptId::from_normalized_identity(
-                0x4341_4c4c_4241_0005,
-            )
-            .expect("callback registrar admission receipt"),
-            bytes: 64,
-            alignment: 16,
-        },
-        provider_plan_report_identity,
-        provider_plan_commitment,
-        &provider_requirement,
-    )
-    .expect("callback registrar same-stack contribution admits");
     let policy_rows = proposal
         .external_binding_rows()
         .iter()
@@ -1799,10 +1773,7 @@ fn direct_callback_relocation_resolves_to_its_private_function() {
                     compiler::native::current_terminal_authority_permission_policy(),
                 terminal_authority_permission_policy: Some(permission_policy),
                 image_request,
-                imports: &[SourceEvaluatedImportSettlement::new(
-                    &execution,
-                    &same_stack,
-                )],
+                imports: &[],
             },
         )
         .map(|artifact| match artifact {
@@ -1954,7 +1925,7 @@ fn direct_callback_relocation_resolves_to_its_private_function() {
     let installation = image_emission::build_installation_record_with_provider_executions(
         artifact.image(),
         semantic_vocabulary::ProfileDecisionId::new(1).expect("profile decision"),
-        [&execution],
+        artifact.provider_executions(),
     )
     .expect("source-derived callback installation");
     let [installed_private] = installation.private_functions() else {
