@@ -1,0 +1,12 @@
+// Complete linux_arm64 `Clock` provider closure over the kernel `nanosleep`
+// leaf. `sleep`'s `timespec*` argument marshalling is compiler-owned for a
+// `Clock`/`sleep` syscall binding (`uses_linux_timespec_argument`), so the
+// leaf carries only the reviewed syscall number — linux_arm64 `nanosleep`
+// is 101.
+linux_arm64 machine ClockNativeProvider::sleep(milliseconds: u32)
+    satisfies Clock::sleep
+    via ForeignBinding::Syscall(101);
+
+linux_arm64 machine ClockNativeProvider::provider_defaults(defaults: &mut ClockNativeProvider) {
+    defaults.select_provider<Clock, ClockNativeProvider>();
+}
