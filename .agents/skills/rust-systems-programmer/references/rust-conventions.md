@@ -1,6 +1,6 @@
 # Rust coding and verification conventions
 
-Apply these preferences within [AGENTS.md](../../../../AGENTS.md) and its [repository conventions](../../../../CONTRIBUTING.md#repository-conventions); those contracts take precedence.
+Apply these preferences within [AGENTS.md](../../../../AGENTS.md) and its [repository conventions](../../../../AGENTS.md#conventions-and-workflow); those contracts take precedence.
 
 ## Name the domain, not the mechanics
 

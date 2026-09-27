@@ -286,7 +286,7 @@ main changes rather than using a merge-base. Invalid references fail.
 | Changed input | Selection |
 | --- | --- |
 | Rust `.rs` under a known workspace crate's `src/` | That crate and declared reverse dependencies, including dev/build/optional/platform dependencies, plus known source-reader edges. |
-| Root `AGENTS.md`, `CONTRIBUTING.md`, `CLAUDE.md`, `README.md`, `OWNER_QUESTIONS.md`, `TASKS.md`, `TASKS_BOOTSTRAP.md`, `TASKS_OPTIMIZER.md`; Markdown under `wiki/` | No library commands — reported under `documentation_paths` in the plan; a `jev` augment may still add checks. |
+| Root `AGENTS.md`, `CLAUDE.md`, `README.md`, `OWNER_QUESTIONS.md`, `TASKS.md`, `TASKS_BOOTSTRAP.md`, `TASKS_OPTIMIZER.md`; Markdown under `wiki/` | No library commands — reported under `documentation_paths` in the plan; a `jev` augment may still add checks. |
 | Manifests, build scripts, lockfiles, toolchain/configuration, shared fixtures, Omega library sources, tools, and unknown inputs | All libraries. Markdown outside the allowlist, including this file, also takes this fallback. |
 | No changed input | No commands; library filter `none()`. |
 

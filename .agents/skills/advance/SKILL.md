@@ -11,10 +11,9 @@ description: >-
 
 One invocation delivers a bounded compiler improvement through publication.
 A blocked task or paused strategy does not end an unrestricted invocation.
-Reassess the strategy or select independent actionable work under CONTRIBUTING.md.
+Reassess the strategy or select independent actionable work under AGENTS.md.
 Reconfirming a known blocker is verification-only, not a
-completed advance. Follow [AGENTS.md](../../../AGENTS.md) and
-[CONTRIBUTING.md](../../../CONTRIBUTING.md) for repository
+completed advance. Follow [AGENTS.md](../../../AGENTS.md) for repository
 ownership, validation, scope checkpoints, board hygiene, and publication.
 
 ## Choose the next customer outcome
@@ -40,7 +39,7 @@ does not count — evidence describes the line; it does not advance it. Pick
 evidence work only when every compiling path within reach is claimed or
 blocked, and a slot that cannot claim line-advancing work idles. Missing implementation, a red customer command, and cross-stage
 scope do not make a task unavailable. A paused helper strategy requires the
-CONTRIBUTING.md reassessment before resumption, not permanent exclusion of its customer.
+AGENTS.md scope reassessment before resumption, not permanent exclusion of its customer.
 When passing over an eligible priority, name the real decision, prerequisite, or
 active assignment preventing work. Check live assignments with
 `python tools/claims.py status` and coordinate overlapping paths before editing;
@@ -70,7 +69,7 @@ Keep the existing proof-obligation, active-assignment, and pause rules intact.
 
 Read the owning design and [completion plan](../../../wiki/drafts/reference/rust_compiler_completion.md).
 For bootstrap work, also read [whole-chain minimization](../../../bootstrap/MINIMIZATION.md).
-Apply [scope checkpoints](../../../CONTRIBUTING.md#scope-checkpoints) using recent
+Apply [scope checkpoints](../../../AGENTS.md#scope-and-escalation) using recent
 milestones across invocations and delegated work. Required customer behavior and
 human-auditable proof closure justify work; a board item or passing helper alone
 does not. Compare simpler alternatives before adding machinery.
@@ -207,8 +206,8 @@ evidence still belongs on the board and run history in the conversation.
 
 ## Delegate a bounded assignment
 
-Read [agent delegation](../../../CONTRIBUTING.md#agent-delegation) for current model
-routing and assignment requirements. Keep that policy in CONTRIBUTING.md. Give the worker
+Read [agent delegation](../../../AGENTS.md#delegation) for current model
+routing and assignment requirements. Keep that policy in AGENTS.md. Give the worker
 its exact worktree/revision and canonical skill path, objective, design anchors,
 edit ownership, dependencies, acceptance, and escalation conditions. Refine the
 owning board only when it lacks context needed for the assignment.
@@ -312,7 +311,7 @@ Engineering difficulty alone is not an owner decision.
 
 For a blocker, name the attempted slice, missing contract or unavailable dependency,
 why existing mechanisms cannot deliver acceptance, and the next executable step.
-For a scope pause, cite the applicable CONTRIBUTING.md checkpoint, preserve useful work,
+For a scope pause, cite the applicable AGENTS.md scope rule, preserve useful work,
 and record why that strategy cannot continue. Do not evade it by changing helpers
 or manufacturing an owner question. Actual language/architecture decisions follow
 `OWNER_QUESTIONS.md` and the ratified decision process; reference the dependency

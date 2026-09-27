@@ -100,24 +100,46 @@ on 2026-09-26; its draft and map are not implementation authority.
 
 ## Conventions and workflow
 
-The complete contract is [CONTRIBUTING.md](CONTRIBUTING.md): coding
-conventions, platform support, boards, landing detail, scope checkpoints,
-delegation, commit naming, prose. The rules that touch every edit:
+The rules that touch every edit:
 
 - Real words in code (`character`, `expression`, `arguments` — not `ch`,
-  `expr`, `args`).
+  `expr`, `args`). Names must read outside compiler insiders: `pipeline`
+  over `driver`.
 - Arena-backed data with generational handles over scattered heap objects;
   ZII — the zero handle is the absence state, so do not wrap handles in
-  `Optional`; no `RefCell` as an ownership escape.
+  `Optional`; no `RefCell` as an ownership escape. Durable lowered children
+  use `Handle<T>`/`HandleSpan<T>`; `Vec` is construction scratch, not the
+  durable shape. Arena/vector-backed symbol tables over local hash maps; a
+  map keyed by compiler-owned objects is a review trigger for missing
+  representation structure. Symbols are handle-first — string names are
+  debug/export payload, not identity. Source text stays in loading,
+  diagnostic, and debug payload roles.
+- Entrypoints stay prominent: `main.rs` owns startup and visible dispatch
+  to real subsystems, never a forwarding stub built to satisfy a size rule.
+  Split at genuine responsibility boundaries, not file-count quotas.
+- Comments explain non-obvious intent; `lib.rs` headers carry the reasoning
+  signatures cannot — mechanism, justification, honest boundaries,
+  provenance.
 - Commit subjects are `lane: statement` — pick the lane by changed
-  responsibility per [CONTRIBUTING.md](CONTRIBUTING.md#commit-naming) before
-  committing.
+  responsibility per [commit naming](#commit-naming) below.
 - `TASKS.md`, `TASKS_BOOTSTRAP.md`, `TASKS_OPTIMIZER.md` are execution
   boards, not changelogs: an item exists only while it names unfinished work
-  and is deleted when acceptance passes. Owner decisions go to
-  `OWNER_QUESTIONS.md`, not the boards.
+  and is deleted when acceptance passes. An open item states its current
+  frontier once — replace the paragraph, do not append run history. New
+  items carry `(new-scope)` or `(split-of:<parent>)` on the first line.
+  Owner decisions go to `OWNER_QUESTIONS.md`, not the boards.
 - Windows and macOS are both supported development hosts; shared tooling
-  needs a documented usable entrypoint on each.
+  needs a documented usable entrypoint on each — a `.ps1` alone is not
+  macOS support; either document `pwsh` as an explicit prerequisite or
+  provide the portable route. Omega is the intended implementation language
+  for tooling: existing Python/shell implementations are temporary support,
+  kept bounded and removed when Omega replaces them.
+- Language fixtures name the compiler behavior they pin
+  (`tests/omega/{pass,fail,run}/<behavior>/`), not the sample that exposed
+  it; `samples/` are language pressure tests; a Rust test of one crate stays
+  beside that crate.
+- Write direct prose — state the idea; no metaphor performing for the
+  reader.
 - Read the matching skill before starting: `.agents/skills/` — `advance` for
   board work, `rust-systems-programmer` for Rust implementation and review,
   `architecture-cleanup`, `task-board-cleanup`, `local-swarm`, `cloud-swarm`.
@@ -127,6 +149,105 @@ raised, `debug = 0` and `opt-level = 1` in dev/test profiles (opt back in
 per-session with `CARGO_PROFILE_DEV_DEBUG=2`, `CARGO_PROFILE_TEST_DEBUG=2`,
 `CARGO_PROFILE_TEST_OPT_LEVEL=0`), and `.gitattributes` forces LF because
 canonical source and evidence identities are byte-sensitive.
+
+## Scope and escalation
+
+- Before a milestone, name the program it will get running and the
+  dependencies still missing. A board item or a passing helper test is not
+  by itself a reason to build machinery.
+- Two consecutive milestones that only add supporting machinery without
+  moving a running program or a named proof obligation: pause, summarize
+  the accumulated cost, and reassess before a third. Helper passes do not
+  reset the count.
+- Pauses bind a strategy, not its customer — missing implementation does
+  not make the customer unavailable, and resuming under a new helper name
+  is not a new assessment. Do not present a pause as a delivered advance.
+- Language/architecture decisions go in `OWNER_QUESTIONS.md` with the
+  dependency referenced on the owning task; ordinary engineering decisions
+  stay with the implementer. Never invent semantics or validation evidence
+  to satisfy a gate. Experiments do not discharge proofs or change the
+  accepted bootstrap chain.
+
+## Delegation
+
+- One edit owner per change; parallelize only genuinely independent work.
+  Assignments carry the objective, governing design links, ownership
+  boundary, dependencies, and the acceptance command — a file list is not
+  an assignment.
+- Workers report through `python tools/claims.py note --ticket` and the
+  session report, never `board:` commits; the coordinator owns board edits.
+  A slice blocked on a sibling-owned path reports `blocked-path` rather
+  than editing it.
+- A diagnosis is not a delivered fix: continue when the design answers it,
+  or hand off the exact missing dependency. Report which happened —
+  implementation done, verification only, diagnosed blocker, still running.
+- Use Astra for coordination and judgment work (refactoring, ownership,
+  review); Luna only for execution where no tradeoff decisions remain. If
+  decisions emerge, stop and route to Astra.
+
+## Commit naming
+
+Use `lane: statement`. Choose the lane from the changed responsibility
+below — not the repository name, implementation language, or a prefix
+copied from Git history. Omega names the project, a compiler stage, and a
+bootstrap implementation; those meanings stay distinct in subjects.
+
+| Lane | Responsibility and current path anchors |
+| --- | --- |
+| `alpha`, `beta`, `gamma`, `delta`, `epsilon` | The corresponding language rung in `bootstrap/<rung>/`, including its compiler/evaluator, Rust reference tooling, and rung-specific tests. Use the actual rung name. |
+| `bootstrap-omega` | The Epsilon-written first Omega compiler D in `bootstrap/5_omega/` and tests specifically of that implementation. Never shorten this to `omega`. |
+| `bootstrap` | Cross-rung reconstruction, trust-chain edges, artifact provenance, and chain hygiene; includes `tests/bootstrap/` and shared `tools/bootstrap/` orchestration. A helper specific to one rung uses that rung's lane. |
+| `psi` | Target-neutral source semantics through Terminal Psi: parsing, resolution, typing, checking, proof, interpretation, and Psi optimization in `omega-rust/psi/` or `source/psi/`. |
+| `omega` | The Terminal-Psi-consuming compiler stage: Omega representations, transforms, optimization, and realization semantics in `omega-rust/omega/{representations,pipeline}/` or corresponding `source/omega/` implementation. Never a project-wide default. |
+| `backend` | Target, ISA, ABI, object/image encoding, layout, and execution primitives in `omega-rust/omega/backend/` and their product-source equivalents. Transform policy in `pipeline/` remains `omega`. |
+| `compiler` | Product compilation coordination and reports in `omega-rust/omega/compiler/`, or an inseparable compiler contract change spanning Psi and Omega. A coordinator call-site adjustment accompanying a stage fix keeps the stage's lane. |
+| `build` | The product's build evaluation, composition, provider planning, and trust ledger in supporting packages under `omega-rust/omega/compiler/`, plus product build declarations such as `source/omega/build.omg`. Repository build commands and CI use `repo`. |
+| `packages` | Package acquisition, graphs, review, admission, installation, and update workflows in `omega-rust/omega/package-manager/`. Package command wiring accompanying those changes keeps `packages`. |
+| `cli` | Command parsing, flags, help, and command dispatch in `omega-rust/omega/omega/src/`, plus the corresponding product entrypoint. The command's underlying compiler or package behavior uses its owning lane. |
+| `tooling` | Shipped developer tools and shared host support in `omega-rust/omega/foundation/`. Compiler artifact records and output writing in `omega-rust/omega/compiler/artifacts/` use `compiler`. |
+| `library` | Bundled packages in `source/library/`, including `core`, `alloc`, and `std`, and their Rust reference implementations in `omega-rust/library/`. A compiler semantic fix exercised by library code keeps its compiler lane. |
+| `samples` | Standalone sample/example content and presentation in `samples/` or example directories. A regression fixture for an implementation fix keeps that implementation's lane. |
+| `tests` | Shared test infrastructure, corpus registration, fixtures, or architecture gates spanning multiple owners. Tests for one responsibility use that responsibility's lane, even in a test-only commit. |
+| `tools` | Repository maintenance/development utilities in `tools/`, including landing reservations and sample-refresh scripts. Bootstrap tools follow the rung/chain rules above; shipped tooling uses `tooling`. |
+| `repo` | Repository-wide workflow, agent instructions/skills, CI, workspace/dependency configuration, formatting policy, and Git settings. Includes standalone policy changes in `AGENTS.md` and `.claude/`. |
+| `docs` | Explanatory documentation-only changes in `wiki/`, README files, or guides. Executable agent instructions use `repo`; documentation accompanying an implementation change keeps its implementation lane. |
+
+Apply these selection rules in order:
+
+1. Read the diff and identify the responsibility whose behavior or contract
+   changed. The more specific table row wins over an enclosing directory:
+   `omega-rust/omega/package-manager/` is `packages`, not `omega` or `repo`.
+2. Supporting tests, fixtures, documentation, task-board updates, and
+   mechanical call-site edits inherit that responsibility's lane.
+   `tests/omega/` names the language corpus; a typing regression there is
+   `psi`, an encoding regression is `backend`. `TASKS*.md` and
+   `OWNER_QUESTIONS.md` follow their subject; changes to the board workflow
+   itself use `repo`.
+3. For independently useful changes in different lanes, split the commits.
+   For one inseparable change, use the responsibility whose contract
+   required the other edits. File count does not decide the lane; do not
+   invent combined prefixes such as `psi/omega` or use `repo` merely
+   because many files changed.
+4. New files in an existing responsibility use its existing lane. Only a
+   new responsibility absent from this table needs a new lane: choose a
+   short lowercase area name, document its scope here in the same change,
+   and explain its ownership in the body. Do not create synonyms for
+   listed lanes.
+
+The statement is lowercase and declarative: name the resulting behavior or
+structure. Aim for about 68 characters for the whole subject; 85 is the
+maximum. No trailing period, ticket-only title, or bare `update`. No second
+change-type prefix such as `feat:` or `fix:`.
+
+The body is prose paragraphs after a blank line, with numbers in place of
+adjectives. Cover what applies: what the previous behavior was and why it
+was wrong; which alternatives were rejected; which constraint shaped the
+diff; which gates ran, named with counts rather than the word `pass`; what
+is known red or deliberately left undone. Omit the body only when the
+subject carries the full reasoning (typo, rename, mechanical revert).
+
+Commit messages carry no tool attribution: no "Generated with ..." line, no
+`Co-Authored-By` trailer naming an agent or vendor.
 
 ## Hard rules
 
