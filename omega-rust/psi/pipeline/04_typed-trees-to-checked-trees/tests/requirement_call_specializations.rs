@@ -115,7 +115,7 @@ const ROUTED_TASK_START_DECLS: &str = r#"
         token
     }
 
-    machine Task::settle<T>(self) { }
+    boundary requirement Task::settle<T>(self);
 "#;
 
 #[test]

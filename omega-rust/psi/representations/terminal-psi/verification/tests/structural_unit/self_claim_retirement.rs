@@ -1,12 +1,13 @@
-//! A claim established on a consumed owned receiver retires exactly once, on
-//! the terminal completion edge, and only claims rooted at that receiver.
+//! An owned `self` receiver follows the same custody rules as an ordinary
+//! owned parameter: no completion edge retires it implicitly.
 //!
-//! A by-value `self` parameter on linear attached data is a terminal consumer:
-//! the checker records no ordinary body permission event for it, so the claim
-//! minted for the receiver at entry is discharged when the machine completes.
-//! The retirement is exact — claims rooted at any other place remain live,
-//! receiver claims cannot be re-rooted or doubled, and crash exits still name
-//! the claim in their frontier lower bound.
+//! `self` is ordinary parameter syntax. A linear receiver that reaches a
+//! return undischarged rejects exactly as a non-receiver linear parameter
+//! does; an affine receiver leaves owned custody only through the authored
+//! discard/cleanup rows; and a receiver forwarded as the structural result
+//! retires through `returned_claims` like any moved source. Claims rooted
+//! anywhere stay live until their actual disposition, and crash exits still
+//! name live claims in their frontier lower bound.
 
 use super::{
     Block, EntryClaim, ModuleError, Operation, OperationKind, OperationResult, ScalarType,
@@ -17,9 +18,9 @@ use super::{
     ValueDeclaration, VocabularyMarker, block_id, claim_id, contract_id, edge_id, empty_contract,
     machine_id, operation_id, place_id, structural_type_id, validate_module, value_id,
 };
-use terminal_psi::{CrashCause, CrashRouteBucket, CrashRouteGuard};
+use terminal_psi::{CrashCause, CrashRouteBucket, CrashRouteGuard, TerminalAffineCleanupAction};
 
-fn self_consumer_machine() -> TerminalMachine {
+fn self_consumer_machine(is_self: bool) -> TerminalMachine {
     TerminalMachine {
         closed_reach_application: None,
         declared_service_reach: Vec::new(),
@@ -29,7 +30,7 @@ fn self_consumer_machine() -> TerminalMachine {
         structural_parameters: vec![StructuralParameterDeclaration {
             place: place_id(1),
             position: 0,
-            is_self: true,
+            is_self,
             structural_type: structural_type_id(1),
             multiplicity: StructuralMultiplicity::Linear,
             access: StructuralAccess::Owned,
@@ -42,7 +43,7 @@ fn self_consumer_machine() -> TerminalMachine {
             id: place_id(1),
             kind: StructuralPlaceKind::Parameter {
                 position: 0,
-                is_self: true,
+                is_self,
             },
         }],
         entry_claims: vec![EntryClaim {
@@ -71,7 +72,7 @@ fn self_consumer_machine() -> TerminalMachine {
     }
 }
 
-fn self_consumer_module() -> TerminalModule {
+fn self_consumer_module(is_self: bool) -> TerminalModule {
     TerminalModule {
         entry: machine_id(1),
         structural_types: vec![
@@ -93,7 +94,7 @@ fn self_consumer_module() -> TerminalModule {
                 shape: StructuralTypeShape::Record { fields: Vec::new() },
             },
         ],
-        machines: vec![self_consumer_machine()],
+        machines: vec![self_consumer_machine(is_self)],
         scalar_qualifications: Default::default(),
         scalar_block_invariants: Vec::new(),
         operation_crash_contracts: Vec::new(),
@@ -150,45 +151,64 @@ fn second_parameter_place() -> StructuralPlaceDeclaration {
 }
 
 #[test]
-fn an_owned_self_receiver_claim_retires_at_unit_return() {
-    validate_module(&self_consumer_module()).expect("consumed receiver claim retires");
+fn an_undischarged_linear_self_rejects_like_an_ordinary_linear_parameter() {
+    for is_self in [true, false] {
+        assert_eq!(
+            validate_module(&self_consumer_module(is_self)).unwrap_err(),
+            ModuleError::LiveLinearClaimAtUnitReturn {
+                machine: machine_id(1),
+                block: block_id(1),
+                claim: claim_id(1),
+            },
+            "receiver and ordinary parameter must share the custody verdict"
+        );
+    }
 }
 
 #[test]
-fn claims_rooted_outside_the_consumed_receiver_stay_live() {
-    let mut module = self_consumer_module();
-    let machine = &mut module.machines[0];
-    machine
-        .structural_parameters
-        .push(second_linear_parameter());
-    machine.structural_places.push(second_parameter_place());
-    machine.entry_claims.push(EntryClaim {
-        claim: claim_id(2),
-        input: place_id(2),
-        path: Vec::new(),
-    });
+fn claims_rooted_on_or_outside_a_linear_receiver_stay_live() {
+    for is_self in [true, false] {
+        let mut module = self_consumer_module(is_self);
+        let machine = &mut module.machines[0];
+        machine
+            .structural_parameters
+            .push(second_linear_parameter());
+        machine.structural_places.push(second_parameter_place());
+        machine.entry_claims.push(EntryClaim {
+            claim: claim_id(2),
+            input: place_id(2),
+            path: Vec::new(),
+        });
+
+        assert_eq!(
+            validate_module(&module).unwrap_err(),
+            ModuleError::LiveLinearClaimAtUnitReturn {
+                machine: machine_id(1),
+                block: block_id(1),
+                claim: claim_id(1),
+            }
+        );
+    }
+}
+
+#[test]
+fn a_subclaim_rooted_within_the_receiver_stays_live_at_return() {
+    let mut module = self_consumer_module(true);
+    module.machines[0].entry_claims[0].path = vec![StructuralPathSegment::Field("payload".into())];
 
     assert_eq!(
         validate_module(&module).unwrap_err(),
         ModuleError::LiveLinearClaimAtUnitReturn {
             machine: machine_id(1),
             block: block_id(1),
-            claim: claim_id(2),
+            claim: claim_id(1),
         }
     );
 }
 
 #[test]
-fn a_subclaim_rooted_within_the_receiver_retires_with_it() {
-    let mut module = self_consumer_module();
-    module.machines[0].entry_claims[0].path = vec![StructuralPathSegment::Field("payload".into())];
-
-    validate_module(&module).expect("receiver sub-claim retires with its root");
-}
-
-#[test]
 fn a_borrowed_receiver_claim_cannot_retire() {
-    let mut module = self_consumer_module();
+    let mut module = self_consumer_module(true);
     module.machines[0].structural_parameters[0].access = StructuralAccess::MutableBorrow;
 
     assert_eq!(
@@ -203,7 +223,7 @@ fn a_borrowed_receiver_claim_cannot_retire() {
 
 #[test]
 fn receiver_claims_cannot_be_re_rooted_to_another_parameter() {
-    let mut module = self_consumer_module();
+    let mut module = self_consumer_module(true);
     let machine = &mut module.machines[0];
     machine
         .structural_parameters
@@ -224,7 +244,7 @@ fn receiver_claims_cannot_be_re_rooted_to_another_parameter() {
 
 #[test]
 fn a_second_claim_rooted_within_the_receiver_overlaps() {
-    let mut module = self_consumer_module();
+    let mut module = self_consumer_module(true);
     module.machines[0].entry_claims.push(EntryClaim {
         claim: claim_id(2),
         input: place_id(1),
@@ -241,8 +261,8 @@ fn a_second_claim_rooted_within_the_receiver_overlaps() {
 }
 
 #[test]
-fn an_owned_self_receiver_claim_retires_at_scalar_return() {
-    let mut module = self_consumer_module();
+fn an_undischarged_linear_self_rejects_at_scalar_return() {
+    let mut module = self_consumer_module(true);
     let machine = &mut module.machines[0];
     machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
         qualifications: Default::default(),
@@ -266,12 +286,109 @@ fn an_owned_self_receiver_claim_retires_at_scalar_return() {
         cleanup_actions: Vec::new(),
     };
 
-    validate_module(&module).expect("the receiver claim retires while a scalar result returns");
+    assert_eq!(
+        validate_module(&module).unwrap_err(),
+        ModuleError::LiveLinearClaimAtScalarReturn {
+            machine: machine_id(1),
+            block: block_id(1),
+            claim: claim_id(1),
+        }
+    );
+}
+
+#[test]
+fn an_affine_self_receiver_retires_through_authored_edge_discards() {
+    let mut module = self_consumer_module(true);
+    let machine = &mut module.machines[0];
+    machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+    machine.entry_claims.clear();
+    machine.blocks[0].terminator = Terminator::ReturnUnit {
+        edge: edge_id(1),
+        trivial_affine_discards: vec![place_id(1)],
+    };
+
+    validate_module(&module)
+        .expect("an authored root discard retires an affine receiver at unit return");
+}
+
+#[test]
+fn an_affine_self_receiver_retires_through_authored_scalar_cleanup() {
+    let mut module = self_consumer_module(true);
+    let machine = &mut module.machines[0];
+    machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+    machine.entry_claims.clear();
+    machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
+        id: value_id(21),
+        scalar_type: ScalarType::Boolean,
+    });
+    machine.blocks[0].operations.push(Operation {
+        static_reach_binding: None,
+        suspension_crossing: None,
+        id: operation_id(1),
+        result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
+            id: value_id(20),
+            scalar_type: ScalarType::Boolean,
+        }),
+        kind: OperationKind::BooleanConstant { value: true },
+    });
+    machine.blocks[0].terminator = Terminator::Return {
+        edge: edge_id(1),
+        value: value_id(20),
+        cleanup_actions: vec![TerminalAffineCleanupAction::DiscardRoot(place_id(1))],
+    };
+
+    validate_module(&module)
+        .expect("an authored root cleanup retires an affine receiver at scalar return");
+}
+
+#[test]
+fn an_affine_self_receiver_without_authored_discard_rejects() {
+    let mut module = self_consumer_module(true);
+    let machine = &mut module.machines[0];
+    machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+    machine.entry_claims.clear();
+
+    assert_eq!(
+        validate_module(&module).unwrap_err(),
+        ModuleError::UnitReturnAffineDiscardsMismatch {
+            machine: machine_id(1),
+            block: block_id(1),
+        }
+    );
+}
+
+#[test]
+fn a_linear_self_receiver_retires_as_the_structural_result() {
+    let mut module = self_consumer_module(true);
+    let machine = &mut module.machines[0];
+    machine.structural_places.push(StructuralPlaceDeclaration {
+        id: place_id(3),
+        kind: StructuralPlaceKind::Result,
+    });
+    machine.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+        place: place_id(3),
+        structural_type: structural_type_id(1),
+        multiplicity: StructuralMultiplicity::Linear,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+        reference_sources: Vec::new(),
+    });
+    machine.blocks[0].terminator = Terminator::ReturnStructural {
+        edge: edge_id(1),
+        source: place_id(1),
+        returned_claims: vec![claim_id(1)],
+        trivial_affine_discards: Vec::new(),
+    };
+
+    validate_module(&module)
+        .expect("returning the receiver transfers its claim like any moved source");
 }
 
 #[test]
 fn a_returned_value_does_not_drain_the_receiver_claim() {
-    let mut module = self_consumer_module();
+    let mut module = self_consumer_module(true);
     module.structural_types.push(StructuralTypeDeclaration {
         id: structural_type_id(3),
         identity: "Token".into(),
@@ -310,13 +427,19 @@ fn a_returned_value_does_not_drain_the_receiver_claim() {
         trivial_affine_discards: Vec::new(),
     };
 
-    validate_module(&module)
-        .expect("the receiver claim retires while an unrestricted result returns");
+    assert_eq!(
+        validate_module(&module).unwrap_err(),
+        ModuleError::LiveClaimAtStructuralReturn {
+            machine: machine_id(1),
+            block: block_id(1),
+            claim: claim_id(1),
+        }
+    );
 }
 
 #[test]
 fn a_crash_names_the_receiver_claim_in_its_frontier() {
-    let mut module = self_consumer_module();
+    let mut module = self_consumer_module(true);
     let machine = &mut module.machines[0];
     machine.contract.crash_routes = vec![CrashRouteBucket {
         cause: CrashCause::Trap,
@@ -334,7 +457,7 @@ fn a_crash_names_the_receiver_claim_in_its_frontier() {
 
 #[test]
 fn a_crash_cannot_release_the_receiver_claim_implicitly() {
-    let mut module = self_consumer_module();
+    let mut module = self_consumer_module(true);
     let machine = &mut module.machines[0];
     machine.contract.crash_routes = vec![CrashRouteBucket {
         cause: CrashCause::Trap,

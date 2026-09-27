@@ -4,7 +4,7 @@
 // The body observes the payload and then explicitly consumes the obligation.
 
 pub data ImageHandle [linear] { raw: addr; }
-machine ImageHandle::release(self) {}
+boundary requirement ImageHandle::release(self);
 
 pub data Main {}
 

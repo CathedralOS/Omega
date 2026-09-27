@@ -7,7 +7,9 @@ data Receipt [linear] {
     code: i32;
 }
 
-machine Receipt::ack(self) {}
+// Hook-less linear obligation: the declared consuming contract is the
+// authorized terminal disposition.
+boundary requirement Receipt::ack(self);
 
 data Pair {
     left: Receipt;

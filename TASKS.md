@@ -4030,31 +4030,6 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   kind), and the Unit closure rejects its `count`/`step` recursion.
   Acceptance: the run canaries named in the omission roster execute.
 
-- **OWNED-SELF-RECEIVER-AFFINE-DISCARD.** (new-scope) An owned `self` receiver
-  is removed by `consume_terminal_self_receiver` before cleanup validation,
-  regardless of multiplicity. Remove this receiver-only exemption and account
-  for the parameter's ordinary disposition in
-  `terminal-verifier/src/validation/frontier/terminators.rs` under
-  [Terminal ownership](wiki/spec/terminal-psi/ownership.md) and
-  [source ownership](wiki/spec/language/ownership.md#consumers-and-cleanup).
-  `self` is ordinary parameter syntax: normal completion consumes neither a
-  linear nor an affine input by itself. Carry the repair through producers and
-  consumers that relied on the exemption; do not replace it with a linear-only
-  exemption or a new receiver contract.
-
-  The `terminal-interpreter --test unit` controls
-  `affine_cleanups::scalar_return_performs_affine_discard_only_after_edge_charge`
-  and `affine_cleanups::conditional_commits_only_the_selected_affine_cleanup_after_edge_charge`
-  construct an Owned, Affine self receiver with explicit `DiscardRoot`.
-  They reject with `ScalarReturnAffineDiscardsMismatch` after implicit removal
-  of that root. Preserve their edge-charge and once-only-disposal observations.
-
-  Acceptance: both interpreter controls preserve edge-charge ordering; equivalent
-  receiver and ordinary-parameter forms have the same custody result for linear
-  and affine inputs. Returning with undischarged linear debt rejects; authorized
-  disposition succeeds. Retain loans and claims until their actual disposition.
-  Do not merely repin the tests.
-
 - **FILTERED-CALLEE-CALL-SITES.** (new-scope) A source-authored statement call
   whose callee has no declaration in the selected program is dropped from the
   checked call facts with no diagnostic. `checked_statement_call_target`

@@ -2,7 +2,7 @@ data Receipt [linear] {
     code: i32;
 }
 
-machine Receipt::ack(self) {}
+boundary requirement Receipt::ack(self);
 
 data Pair {
     left: Receipt;

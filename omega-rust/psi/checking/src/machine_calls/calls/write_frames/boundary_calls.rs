@@ -675,15 +675,21 @@ pub(super) fn signature_state_call_written_paths(
         return None;
     }
     let parameters = program.state_parameters(callee_state);
+    // A declaration-qualified call (`Receipt::ack(v)`) supplies `self` as an
+    // ordinary argument; a receiver call (`v.ack()`) does not. Arity alone
+    // separates the two forms: the declared parameter list and the non-self
+    // list differ by exactly the receiver.
+    let self_is_argument =
+        parameters.iter().any(|parameter| parameter.is_self) && parameters.len() == arguments.len();
     let paired = parameters
         .iter()
-        .filter(|parameter| !parameter.is_self)
+        .filter(|parameter| self_is_argument || !parameter.is_self)
         .collect::<Vec<_>>();
     if paired.len() != arguments.len() {
         return None;
     }
     let mut written = Vec::new();
-    if parameters.iter().any(|parameter| {
+    let self_is_exclusive = parameters.iter().any(|parameter| {
         parameter.is_self
             && live_unconstrained_type(program, parameter.type_reference).is_some_and(|reference| {
                 matches!(
@@ -691,7 +697,8 @@ pub(super) fn signature_state_call_written_paths(
                     TypeReferenceNode::Reference { access, .. } if access.is_exclusive()
                 )
             })
-    }) {
+    });
+    if self_is_exclusive && !self_is_argument {
         if receiver_origins.is_empty() {
             if !receiver.is_empty() {
                 written.push(receiver.join("."));
@@ -707,6 +714,15 @@ pub(super) fn signature_state_call_written_paths(
         }
     }
     for (parameter, argument) in paired.into_iter().zip(arguments) {
+        if parameter.is_self {
+            if self_is_exclusive {
+                let path = coarse_place_path(program, *argument)?;
+                if !written.contains(&path) {
+                    written.push(path);
+                }
+            }
+            continue;
+        }
         let parameter_type = live_unconstrained_type(program, parameter.type_reference)?;
         let TypeReferenceNode::Reference {
             access, referee, ..

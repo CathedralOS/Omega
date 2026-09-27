@@ -404,11 +404,7 @@ fn proven_conditional_entry_claims(
     incoming: &[crate::checks::ranges::incoming_guards::IncomingGuard],
     places: &[LinearPlace],
 ) -> Vec<PermissionClaimIdentity> {
-    let parameters = program
-        .state_parameters(state)
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .collect::<Vec<_>>();
+    let parameters = program.state_parameters(state).iter().collect::<Vec<_>>();
     let mut memberships = Vec::new();
 
     for entry in incoming.iter().filter(|entry| entry.holds_at(state.symbol)) {

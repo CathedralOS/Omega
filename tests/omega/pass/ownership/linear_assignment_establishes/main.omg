@@ -1,7 +1,10 @@
 // PASS canary (decision 21): a bare declaration owns only zeroed storage;
 // explicit assignment establishes the value and creates the obligation.
+// `Receipt` declares no `Receipt::drop` cleanup plan, so the linear
+// obligation's authorized terminal disposition is the consuming contract —
+// the call edge transfers custody and the requirement discharges it.
 data Receipt [linear] { code: i32; }
-machine Receipt::ack(self) {}
+boundary requirement Receipt::ack(self);
 data Main {}
 
 machine Main::main() -> i32 {

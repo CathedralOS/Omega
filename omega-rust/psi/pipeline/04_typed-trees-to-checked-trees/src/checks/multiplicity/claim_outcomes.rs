@@ -94,7 +94,7 @@ fn derive_checked_claim_outcome_map(
         && let facts::PlaceRoot::Symbol(parameter_symbol) = place.root
         && program.state_parameters(state).iter().any(|parameter| {
             parameter.is_self
-                && parameter.symbol == parameter_symbol
+                && (parameter.symbol == parameter_symbol || parameter_symbol == machine_symbol)
                 && (program.normalized_type_identity(parameter.type_reference)
                     == program.normalized_type_identity(state.return_type)
                     || program.machines().iter().any(|machine| {
@@ -823,10 +823,7 @@ fn claim_outcome_source_for_event(
             && candidate.claim_identity == event.claim_identity
             && candidate.provenance == event.provenance
     }) && let facts::PlaceRoot::Symbol(parameter_symbol) = entry.root
-        && program
-            .state_parameters(state)
-            .iter()
-            .any(|parameter| parameter.symbol == parameter_symbol)
+        && parameter_for_symbol(program, state, parameter_symbol).is_some()
     {
         return CheckedClaimOutcomeSource::Input {
             parameter_symbol,
@@ -932,10 +929,7 @@ fn bind_claim_outcome_source_at_arguments(
         target_state,
         *parameter_symbol,
     )?;
-    let parameter = program
-        .state_parameters(target_state)
-        .iter()
-        .find(|parameter| parameter.symbol == *parameter_symbol)?;
+    let parameter = parameter_for_symbol(program, target_state, *parameter_symbol)?;
     // Constructor operands already name the transferred claims. Resolve the
     // exact typed projection instead of inventing storage below a literal.
     let mut projections = crate::flow::literal_value_projections(
@@ -988,6 +982,28 @@ fn bind_claim_outcome_source_at_arguments(
     Some(source.clone())
 }
 
+/// Resolve `parameter_symbol` to the state parameter it names. An owned
+/// `self` receiver's durable place root is the owning machine's symbol
+/// (`normalized_event_place_root`), so a machine symbol resolves to the
+/// `is_self` parameter.
+fn parameter_for_symbol<'a>(
+    program: &'a typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
+    parameter_symbol: SymbolHandle,
+) -> Option<&'a typed_trees::signature::StateParameter> {
+    let parameters = program.state_parameters(state);
+    if let Some(parameter) = parameters
+        .iter()
+        .find(|parameter| parameter.symbol == parameter_symbol)
+    {
+        return Some(parameter);
+    }
+    let (machine, _) = crate::semantic::calls::find_state_with_machine(program, state.symbol)?;
+    (machine.symbol == parameter_symbol)
+        .then(|| parameters.iter().find(|parameter| parameter.is_self))
+        .flatten()
+}
+
 fn argument_for_parameter(
     program: &typed_trees::TypedTrees,
     arguments: &[typed_trees::expression::ExpressionHandle],
@@ -996,6 +1012,7 @@ fn argument_for_parameter(
     parameter_symbol: SymbolHandle,
 ) -> Option<typed_trees::expression::ExpressionHandle> {
     let parameters = program.state_parameters(target_state);
+    let matched = parameter_for_symbol(program, target_state, parameter_symbol)?;
     let includes_explicit_self =
         parameters.iter().any(|parameter| parameter.is_self) && arguments.len() == parameters.len();
     let mut argument_index = 0usize;
@@ -1007,7 +1024,7 @@ fn argument_for_parameter(
             argument_index = argument_index.saturating_add(1);
             argument
         };
-        if parameter.symbol == parameter_symbol {
+        if parameter.symbol == matched.symbol {
             return argument;
         }
     }

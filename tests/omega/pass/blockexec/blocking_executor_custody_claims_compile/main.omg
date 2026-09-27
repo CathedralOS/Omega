@@ -1,4 +1,5 @@
 use omega::language::core::binding;
+use omega::language::core::drop;
 
 // BLOCKEXEC — concrete custody/claim pin for the blocking-executor contract
 // surface (source/library/blocking-executor/): bounded submissions, moved
@@ -128,9 +129,9 @@ data Executor [linear] {
 }
 
 // Reclaim helper: consume a submission whose custody came back through
-// `Rejected` (the local consume convention — task_lifecycle_operations'
-// `Task::settle<T>(self) {}` shape).
-machine Submission::release(self) { }
+// `Rejected`. `Submission` is hook-less linear, so the contract edge is the
+// authorized terminal disposition — `drop` has no cleanup plan to apply.
+boundary requirement Submission::release(self);
 
 // Cancellation request authority: borrows the claim and retains it — the
 // request asks for a transition, it is not proof the worker stopped and it
@@ -147,25 +148,26 @@ boundary trait IsolatedWorkerProvider: WorkerProvider {}
 // Terminal consumption of the completion claim: parks on the wait word
 // while the worker is in flight, then reports the lifecycle outcome.
 // Declared `suspends; blocks` because settlement is a blocking wait, not a
-// semantic safe point.
-machine Ticket::settle(self, wait_word: u64) -> ExecutorOutcome suspends; blocks; {
-    suspend block WaitSubstrate::park(wait_word);
-    ExecutorOutcome::Cancelled
-}
+// semantic safe point. The boundary contract owns the park and consumes the
+// ticket exactly once at the call edge.
+boundary requirement Ticket::settle(self, wait_word: u64) -> ExecutorOutcome suspends; blocks;
 
 // Terminal consumption of the executor itself.
-machine Executor::close(self) { }
+boundary requirement Executor::close(self);
 
-// Consume a terminal lifecycle outcome.
-machine ExecutorOutcome::release(self) { }
+// Consume a terminal lifecycle outcome — affine, so `drop` remains the
+// ordinary early-disposal call and the edge applies trivial cleanup.
+machine ExecutorOutcome::release(self) {
+    drop(self);
+}
 
 // Consume an admission outcome — whichever linear case is active is
-// discharged with the sum.
-machine SubmitOutcome::release(self) { }
+// discharged by the consuming contract, sum and claim together.
+boundary requirement SubmitOutcome::release(self);
 
-// Consume an unvended claim — the local consume convention for a claim the
-// refusal path retires instead of returning.
-machine Ticket::release(self) { }
+// Consume an unvended claim — the refusal path retires the claim through
+// the declared contract rather than returning it.
+boundary requirement Ticket::release(self);
 
 // The package's `Submission::submit` contract shape instantiated at
 // concrete types: admission moves the submission's custody in by value and
