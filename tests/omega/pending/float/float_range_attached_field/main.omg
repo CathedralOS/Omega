@@ -1,0 +1,48 @@
+// A FLOAT field carrying a bracketed RANGE in a machine's attached data makes
+// the machine unplannable. One token decides it, and neither float-ness nor
+// range-ness alone is enough:
+//
+//   value: i32                checks
+//   value: f32                checks
+//   value: i32 [0..=10]       checks   <- an integer range is fine
+//   value: f64 in Finite      checks   <- a float DOMAIN is fine
+//   value: f32 [0.0..=1.0]    OMITTED  (this fixture)
+//   value: f64 [0.0..=1.0]    OMITTED
+//
+// all at `state graph: state signature: parameter signature: attached data
+// shape`.
+//
+// THE PHASE NAME MISLEADS TWICE. It says "parameter signature", and a state
+// parameter is not required -- the same program with a parameterless state
+// omits identically. It says "attached data shape", which is at least the
+// right neighbourhood, but the mark sits above four `?` exits in
+// `terminal_unit/calls/signatures.rs` (attached name, data definition,
+// `shapes.add_attached_application`, then
+// `scalar_and_structural_parameters`), and only the third is a plausible
+// site for a shape the collector cannot add. Confirm which before repairing.
+//
+// FOUR of the five corpus fixtures at this phase carry a float-range field:
+// `pass/float/finite_core_domain_range_discharge`,
+// `pass/recast/runtime_float_range_representation_recast_exit`,
+// `pass/recast/runtime_mutable_equivalent_record_recast_exit` and
+// `pass/recast/runtime_shared_record_float_range_weakening_exit` -- the last
+// two carry theirs inside a record, so the shell does not have to be the
+// attached type's own field list. The fifth,
+// `pass/generics/runtime_const_container_methods_exit`, has no float at all
+// (its attached fields are `FixedBuffer<2>` and `FixedBuffer<4>`) and is a
+// DIFFERENT cause, unattributed.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    value: f32 [0.0..=1.0];
+}
+
+machine Main::main(&mut self) reaches Console {
+    transition { _ -> step(1) }
+
+    state step(&mut self, count: i32) {
+        self.console.exit_process(0);
+    }
+}
