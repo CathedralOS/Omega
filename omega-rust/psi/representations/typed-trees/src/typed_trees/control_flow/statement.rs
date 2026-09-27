@@ -454,6 +454,7 @@ impl StatementTable {
         self.statements.get_mut(handle)
     }
 
+    #[inline]
     pub fn statements(&self, span: HandleSpan<StatementNode>) -> &[StatementNode] {
         self.statements.span_or_empty(span)
     }

@@ -1127,12 +1127,14 @@ impl ExpressionTable {
         self.expressions.get_mut(handle)
     }
 
+    #[inline]
     pub fn expression(&self, handle: ExpressionHandle) -> &ExpressionNode {
         self.expressions.get(handle)
     }
 
     /// Whether an exact generational handle still names a live expression.
     /// Custody checks must distinguish a real zero literal from dummy storage.
+    #[inline]
     pub fn expression_is_valid(&self, handle: ExpressionHandle) -> bool {
         self.expressions.is_valid(handle)
     }
@@ -1150,10 +1152,12 @@ impl ExpressionTable {
         }
     }
 
+    #[inline]
     pub fn expression_handles(&self, span: HandleSpan<ExpressionHandle>) -> &[ExpressionHandle] {
         self.expression_handles.span_or_empty(span)
     }
 
+    #[inline]
     pub fn struct_fields(
         &self,
         span: HandleSpan<TableStructLiteralField>,
@@ -1161,10 +1165,12 @@ impl ExpressionTable {
         self.struct_fields.span_or_empty(span)
     }
 
+    #[inline]
     pub fn name_path_members(&self, span: HandleSpan<Identifier>) -> &[Identifier] {
         self.name_path_members.span_or_empty(span)
     }
 
+    #[inline]
     pub fn name_path_member_symbols(&self, span: HandleSpan<SymbolHandle>) -> &[SymbolHandle] {
         self.name_path_member_symbols.span_or_empty(span)
     }

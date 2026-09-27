@@ -62,6 +62,7 @@ impl TypedTrees {
             .append_to_span(&mut self.roots.data_definitions, data_definition);
     }
 
+    #[inline]
     pub fn data_definitions(&self) -> &[data::DataDefinition] {
         self.tables
             .data_definitions
@@ -120,6 +121,7 @@ impl TypedTrees {
             .append_to_span(&mut data_definition.members, member);
     }
 
+    #[inline]
     pub fn data_members(&self, data_definition: &data::DataDefinition) -> &[data::DataMember] {
         self.data_members.span_or_empty(data_definition.members)
     }
@@ -133,6 +135,7 @@ impl TypedTrees {
             .append_to_span(&mut variant.payload, field);
     }
 
+    #[inline]
     pub fn data_payload_fields(&self, variant: &data::DataVariant) -> &[data::DataField] {
         self.data_payload_fields.span_or_empty(variant.payload)
     }
