@@ -240,7 +240,7 @@ impl TerminalExecution {
         Ok(payload)
     }
 
-    pub(crate) fn retire_unrestricted_records(&mut self) {
+    pub(crate) fn retire_unrestricted_aggregates(&mut self) {
         let Some(machine) = self.machines.get(&self.current_machine) else {
             return;
         };
@@ -252,6 +252,7 @@ impl TerminalExecution {
                 matches!(
                     operation.kind,
                     OperationKind::EstablishRecord { .. }
+                        | OperationKind::EstablishStructuralCase { .. }
                         | OperationKind::EstablishZeroedStructural { .. }
                         | OperationKind::MoveStructuralField { .. }
                         | OperationKind::CallStructural { .. }
@@ -273,7 +274,10 @@ impl TerminalExecution {
                         )
                         .is_some()
                     }
-                    _ => self.plain_record_type(result.structural_type),
+                    _ => {
+                        self.plain_record_type(result.structural_type)
+                            || self.plain_case_type(result.structural_type)
+                    }
                 };
                 (result.multiplicity == StructuralMultiplicity::Unrestricted
                     && result.qualifications.is_empty()

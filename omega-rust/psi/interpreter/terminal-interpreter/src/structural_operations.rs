@@ -21,6 +21,29 @@ use terminal_psi::{
 };
 
 impl TerminalExecution {
+    /// Cases built from scalars and plain records retain their whole payload
+    /// under one result identity. Calls may return that storage, and an
+    /// unrestricted occurrence needs no affine cleanup at frame exit. Keep
+    /// those two decisions on the same supported payload contract.
+    pub(crate) fn plain_case_type(&self, structural_type: StructuralTypeId) -> bool {
+        let Some(StructuralTypeShape::Sum { cases }) = self
+            .structural_types
+            .get(&structural_type)
+            .map(|declaration| &declaration.shape)
+        else {
+            return false;
+        };
+        cases.iter().all(|case| {
+            case.fields.iter().all(|field| {
+                !field.relevance.is_erased()
+                    && match field.field_type {
+                        StructuralFieldType::Structural(child) => self.plain_record_type(child),
+                        _ => field.field_type.scalar_type().is_some(),
+                    }
+            })
+        })
+    }
+
     pub(crate) fn execute_store_dynamic_descriptor(
         &mut self,
         operation: &terminal_psi::Operation,
@@ -1128,14 +1151,16 @@ impl TerminalExecution {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::StructuralLeafCopy {
-            source, ref path, ..
-        } = operation.kind
-        else {
-            unreachable!("dispatched execute_structural_leaf_copy")
-        };
         let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let result = operation.result.structural().ok_or_else(invalid)?;
+        // Affine payload copies and reference relocations need their own
+        // frontier/loan publication. Preserve the explicit execution boundary
+        // rather than calling an admitted but unsupported operation malformed.
+        if matches!(operation.kind, OperationKind::StructuralCaseLeafCopy { .. })
+            && result.multiplicity != StructuralMultiplicity::Unrestricted
+        {
+            return Err(TerminalInterpretError::AffineProjectionNotRepresentable);
+        }
         if result.multiplicity != StructuralMultiplicity::Unrestricted
             || !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
@@ -1144,17 +1169,23 @@ impl TerminalExecution {
         {
             return Err(invalid());
         }
-        let leaf = resolve_structural_arguments(
-            &self.structural_types,
-            &self.structural_values,
-            &[StructuralArgument {
-                place: source,
-                path: path.to_vec(),
-                access: StructuralAccess::SharedBorrow,
-            }],
-        )?
-        .pop()
-        .ok_or_else(invalid)?;
+        let leaf = match &operation.kind {
+            OperationKind::StructuralLeafCopy { source, path } => resolve_structural_arguments(
+                &self.structural_types,
+                &self.structural_values,
+                &[StructuralArgument {
+                    place: *source,
+                    path: path.clone(),
+                    access: StructuralAccess::SharedBorrow,
+                }],
+            )?
+            .pop()
+            .ok_or_else(invalid)?,
+            OperationKind::StructuralCaseLeafCopy { source, path } => {
+                self.case_payload_leaf(*source, path)?
+            }
+            _ => return Err(invalid()),
+        };
         if leaf.structural_type != result.structural_type {
             return Err(invalid());
         }
