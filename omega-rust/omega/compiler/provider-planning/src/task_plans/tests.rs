@@ -433,7 +433,7 @@ fn concrete_task_start_fixture() -> (
 ) {
     let source = r#"
         data Task<T> [linear] { provider: u64; activation: u64; }
-        machine Task::settle<T>(self) {}
+        boundary requirement Task::settle<T>(self);
         data StartRejection { code: i32; }
         data StartOutcome<T, Arguments> {
             case Started(task: Task<T>);
@@ -538,7 +538,7 @@ fn nested_task_call_fixture() -> (
 ) {
     let source = r#"
         data Task<T> [linear] { provider: u64; activation: u64; }
-        machine Task::settle<T>(self) {}
+        boundary requirement Task::settle<T>(self);
         data StartRejection { code: i32; }
         data StartOutcome<T, Arguments> {
             case Started(task: Task<T>);
