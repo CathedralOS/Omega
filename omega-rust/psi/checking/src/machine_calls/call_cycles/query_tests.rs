@@ -172,3 +172,54 @@ fn symbol_construction_errors_grant_no_components() {
     assert!(diagnostics.iter().any(Diagnostic::is_error));
     assert!(validated_runtime_recursive_components(&program).is_empty());
 }
+
+#[test]
+fn normalized_proof_self_tail_edges_still_require_strict_descent() {
+    for (name, witness, returned, accepted) in [
+        ("unmeasured", "", "ProofNat::spin(n)", false),
+        (
+            "nondecreasing",
+            "terminates by n;",
+            "ProofNat::spin(n)",
+            false,
+        ),
+        (
+            "decreasing",
+            "terminates by n;",
+            "ProofNat::spin(prev)",
+            true,
+        ),
+    ] {
+        let program = typed_source(&format!(
+            "data ProofNat {{ case Zero; case Succ(prev: ProofNat); }}
+             machine ProofNat::spin(n: ProofNat) -> ProofNat {witness} {{
+                 transition n {{
+                     ProofNat::Zero -> (n)
+                     ProofNat::Succ {{ prev }} -> ({returned})
+                 }}
+             }}"
+        ));
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "ProofNat::spin")
+            .unwrap();
+        assert!(
+            crate::proof_only_classification(&program).is_proof_machine(&program, machine),
+            "{name}: proof classification"
+        );
+        let mut diagnostics = Vec::new();
+        for state in program.machine_states(machine) {
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                crate::machine_calls::calls::validate_proof_machine_recursion(
+                    &program,
+                    machine,
+                    state,
+                    statement,
+                    &mut diagnostics,
+                );
+            }
+        }
+        assert_eq!(diagnostics.is_empty(), accepted, "{name}: {diagnostics:#?}");
+    }
+}

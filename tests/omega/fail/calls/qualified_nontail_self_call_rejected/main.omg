@@ -1,0 +1,12 @@
+data Walker {}
+machine Walker::walk(position: u64) -> u64 {
+    transition position < 3 {
+        true -> step(position)
+        false -> (position)
+    }
+    state step(position: u64) -> u64 {
+        3 * Walker::walk(((position as u64 in Wrapping) + (1 as u64 in Wrapping)) as u64)
+    }
+}
+data Main {}
+machine Main::main(&self) -> u64 { Walker::walk(0) }

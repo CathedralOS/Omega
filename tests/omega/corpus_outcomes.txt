@@ -214,6 +214,8 @@ fail/calls/nontail_value_self_call_rejected rejected 997ms expected
 	`self.triple(..)` here is NON-TAIL self-recursion: the result feeds the surrounding computation, so the frame must survive the call. Runtime recursion is TAIL-ONLY (measured recursion amendment) -- recursion depth lives in explicit storage you size. Restructure so the recursive step is the transition arm `-> self.triple(..)` on a measured machine, or iterate with an explicit stack.
 fail/calls/plain_let_reassign_rejected rejected 1245ms expected
 	machine `Main::main` state `main` assignment cannot write `x` because it is not mutable in this state (if `x` is undeclared -- a typo -- no such field or local exists)
+fail/calls/qualified_nontail_self_call_rejected rejected 64ms expected
+	`self.walk(..)` here is NON-TAIL self-recursion: the result feeds the surrounding computation, so the frame must survive the call. Runtime recursion is TAIL-ONLY (measured recursion amendment) -- recursion depth lives in explicit storage you size. Restructure so the recursive step is the transition arm `-> self.walk(..)` on a measured machine, or iterate with an explicit stack.
 fail/calls/terminal_return_type_mismatch_rejected rejected 1098ms expected
 	machine `Main::main` state `main` stores a boolean into a `i32` return value, which holds a numeric value
 	store in machine `Main::main` state `main` terminal expression implicitly converts `bool` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
@@ -1108,6 +1110,7 @@ pass/calls/runtime_option_value_call_exit checked 12564ms
 pass/calls/runtime_owned_case_temporaries_exhaustive_dispatch_exit checked 7474ms
 pass/calls/runtime_param_receiver_second_instance_exit rejected 6387ms
 	native-artifact Terminal production failed: Lowering(InvalidTerminalModule(OverlappingExclusiveStructuralArguments { operation: OperationId(14), first_argument: 0, second_argument: 1 }))
+pass/calls/runtime_qualified_tail_recursion_exit checked 830ms
 pass/calls/runtime_reference_returned_slice_element_write_exit rejected 9244ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::fill`), which was itself omitted at local construction at `structural field store: destination parameter`
 pass/calls/runtime_referenced_local_outlives_sibling_guard_call_exit rejected 7960ms
@@ -1117,6 +1120,7 @@ pass/calls/runtime_shared_ref_param_member_exit rejected 5728ms
 	native-artifact Terminal production failed: Lowering(InvalidTerminalModule(OverlappingExclusiveStructuralArguments { operation: OperationId(5), first_argument: 0, second_argument: 1 }))
 pass/calls/runtime_std_math_sin_cos_exit rejected 21220ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: guard expression` (state 0)
+pass/calls/runtime_structural_literal_call_initializer_exit checked 848ms
 pass/calls/runtime_transition_subject_call_single_evaluation_exit rejected 7697ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: guard expression` (state 1)
 pass/calls/runtime_value_call_dispatch_results_exit checked 11359ms

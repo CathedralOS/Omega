@@ -158,11 +158,14 @@ impl Evaluation {
     /// Publish one completed structural result into the state's existing value
     /// and local namespaces. Calls and constructors share the original home;
     /// registration neither copies payload fields nor changes cleanup custody.
+    /// The validated producer identifies whether this is the statement result:
+    /// nested operands share its statement coordinate but own no source local.
     pub(crate) fn establish_structural_result(
         &mut self,
         checked: &CheckedTrees,
         state: symbols::SymbolHandle,
         result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
+        is_statement_result: bool,
         produced: terminal_psi::StructuralOperationResult,
         structural_types: &[StructuralTypeDeclaration],
         operations: &mut OperationBuffer,
@@ -238,7 +241,11 @@ impl Evaluation {
             .statements(source.statement_nodes)
             .get(result.statement_index as usize)
         {
-            Some(checked_trees::statement::StatementNode::LocalData(local)) => Some(local),
+            Some(checked_trees::statement::StatementNode::LocalData(local))
+                if is_statement_result =>
+            {
+                Some(local)
+            }
             Some(_) => None,
             None => return unsupported("structural result lost its source statement"),
         };

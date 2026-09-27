@@ -1,0 +1,23 @@
+// A call argument's construction shares its statement with the enclosing
+// initializer, but it is a different authored value occurrence. The receiver
+// of the returned record must observe the factory's result, not its argument.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Input { value: u64; }
+data Output { value: u64; }
+
+machine Output::make(input: Input) -> Output {
+    Output { value: ((input.value as u64 in Wrapping) + (20 as u64 in Wrapping)) as u64 }
+}
+
+data Main { console: Binding<Console>; }
+machine Main::main(&mut self) reaches Console {
+    let output: Output = Output::make(Input { value: 50 });
+    transition output.value == 70 {
+        true -> passed()
+        false -> failed()
+    }
+    state passed(&mut self) { self.console.exit_process(70); }
+    state failed(&mut self) { self.console.exit_process(71); }
+}

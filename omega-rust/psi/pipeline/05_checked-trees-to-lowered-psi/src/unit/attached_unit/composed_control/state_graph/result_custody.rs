@@ -352,6 +352,7 @@ pub(super) fn validate_disposition_roster(
     state: &CheckedComposedUnitControlStatePlan,
 ) -> Result<(), LoweringError> {
     let statements = checked.statement_table.statements(source.statement_nodes);
+    let cleanup_discards = retired_in_body(state);
     for (_, event) in checked
         .facts
         .flow
@@ -372,7 +373,11 @@ pub(super) fn validate_disposition_roster(
         {
             continue;
         }
+        // Argument constructions share the enclosing local's statement, but
+        // their custody already moved into the call. Rejoin the same live
+        // result roster used by local_discards and edge disposal below.
         let matching = state.operations.iter().filter_map(result).filter(|result| {
+            !cleanup_discards.contains(&result.binding_ordinal) &&
             matches!(statements.get(result.statement_index as usize),
                 Some(StatementNode::LocalData(local)) if event.root == facts::PlaceRoot::Symbol(local.symbol))
         }).count();

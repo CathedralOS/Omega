@@ -1,0 +1,26 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+data Walker {}
+machine Walker::walk(position: u64) -> u64 {
+    transition position < 3 {
+        true -> step(position)
+        false -> (position)
+    }
+    state step(position: u64) -> u64 {
+        Walker::walk(((position as u64 in Wrapping) + (1 as u64 in Wrapping)) as u64)
+    }
+}
+data Main { console: Binding<Console>; status: u64; }
+machine Main::main(&mut self) reaches Console {
+    transition { _ -> gate() }
+    state gate(&mut self) {
+        self.status = 1;
+        transition { _ -> verify() }
+    }
+    state verify(&mut self) {
+        let value: u64 = Walker::walk(0);
+        transition value == 3 { true -> yes() false -> no() }
+    }
+    state yes(&mut self) { self.console.exit_process(70); }
+    state no(&mut self) { self.console.exit_process(71); }
+}

@@ -151,10 +151,36 @@ impl OperationFrame<'_, '_> {
             .ok_or(LoweringError::Unsupported(
                 "structural call did not establish its result",
             ))?;
+        let coordinate = match operation {
+            CheckedUnitEffectOperationPlan::StructuralCall { coordinate, .. }
+            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { coordinate, .. } => {
+                *coordinate
+            }
+            _ => return unsupported("structural result has no call coordinate"),
+        };
+        let authored = crate::emission::call_source_custody::authored::locate_source(
+            self.checked,
+            self.state,
+            coordinate,
+        )?;
+        let (_, source) = crate::expression_preparation::source_custody::authored_state(
+            self.checked,
+            self.state,
+        )?;
+        // A nested call can have ordinal zero when the initializer itself is
+        // a constructor. Only the exact initializer occurrence owns the local.
+        let is_statement_result = matches!(
+            (self.checked.statement_table.statements(source.statement_nodes)
+                .get(result.statement_index as usize), authored.source_site),
+            (Some(checked_trees::statement::StatementNode::LocalData(local)),
+             Some(checked_trees::NominalMachineUseSite::Expression(expression)))
+                if local.initial_value == expression
+        );
         self.evaluation.establish_structural_result(
             self.checked,
             self.state,
             result,
+            is_statement_result,
             produced,
             self.structural_types.declarations(),
             self.operations,

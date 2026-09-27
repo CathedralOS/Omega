@@ -949,6 +949,23 @@ pub(crate) fn operand_source(
                     "record operand has no scalar carrier",
                 ));
         }
+        // An initializer or return call evaluates constructors in its own
+        // receiver/arguments. Reach only those authored children before
+        // comparing the retained constructor and field identities.
+        if let ExpressionNode::Call(call) = checked.expression_table.expression(expression) {
+            pending.extend(
+                checked
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .rev()
+                    .copied(),
+            );
+            if call.receiver.is_valid() {
+                pending.push(call.receiver);
+            }
+            continue;
+        }
         // A nested record's scalar fields belong to that constructor, not the
         // enclosing field's ordinal. Reach them through authored field values
         // before comparing the retained owner/ordinal above on the next visit.
