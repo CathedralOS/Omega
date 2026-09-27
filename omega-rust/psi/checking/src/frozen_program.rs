@@ -43,6 +43,8 @@ pub(crate) struct FrozenProgramMemos {
     pub(crate) data_fields: OnceLock<Arc<DataFieldIndex>>,
     pub(crate) contract_occurrences:
         OnceLock<Arc<crate::proof_contracts::contract_results::ContractOccurrenceIndex>>,
+    pub(crate) bound_maps:
+        OnceLock<Arc<crate::proof_contracts::immutable_integer_bounds::BoundMaps>>,
 }
 
 /// Restores the enclosing scope, if any, when dropped.

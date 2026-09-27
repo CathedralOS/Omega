@@ -3,7 +3,7 @@ use symbols::SymbolKeyMap as HashMap;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
-use typed_trees::statement::{StatementNode, TableLocalData};
+use typed_trees::statement::{StatementHandle, StatementNode, TableLocalData};
 use typed_trees::types::PrimitiveType;
 
 /// One whole-program resolution index behind the bound-leaf lookups in this
@@ -17,25 +17,36 @@ use typed_trees::types::PrimitiveType;
 pub struct ImmutableBoundLookup<'program> {
     program: &'program TypedTrees,
     /// Shared through clones: a cloned lookup reads the same maps, built at
-    /// most once across the whole clone family.
-    maps: std::rc::Rc<std::cell::OnceCell<BoundMaps<'program>>>,
+    /// most once across the whole clone family, and once per frozen program
+    /// across every lookup its checks construct.
+    maps: std::rc::Rc<std::cell::OnceCell<std::sync::Arc<BoundMaps>>>,
 }
 
-struct BoundMaps<'program> {
-    locals_by_symbol: HashMap<SymbolHandle, Option<&'program TableLocalData>>,
-    locals_by_name: HashMap<&'program str, Option<&'program TableLocalData>>,
-    parameters_by_symbol: HashMap<SymbolHandle, Option<&'program StateParameter>>,
-    machine_self_parameters: HashMap<SymbolHandle, &'program StateParameter>,
+/// The index owns statement handles and parameter positions rather than
+/// borrows, so a frozen program's memo can hold one copy for all lookups.
+pub(crate) struct BoundMaps {
+    locals_by_symbol: HashMap<SymbolHandle, Option<StatementHandle>>,
+    locals_by_name: HashMap<Box<str>, Option<StatementHandle>>,
+    parameters_by_symbol: HashMap<SymbolHandle, Option<ParameterPosition>>,
+    machine_self_parameters: HashMap<SymbolHandle, ParameterPosition>,
     /// Positions behind `projected_integer_bound_field`: a projected
     /// receiver's declared type resolves to the data definition, machine, or
     /// machine-attached data naming it. First matches win, as the scans did.
     data_by_symbol: HashMap<SymbolHandle, usize>,
     machines_by_symbol: HashMap<SymbolHandle, usize>,
-    data_by_name: HashMap<&'program str, usize>,
+    data_by_name: HashMap<Box<str>, usize>,
 }
 
-impl<'program> BoundMaps<'program> {
-    fn build(program: &'program TypedTrees) -> Self {
+/// A state parameter by its machine's, its state's and its own position.
+#[derive(Clone, Copy)]
+struct ParameterPosition {
+    machine: u32,
+    state: u32,
+    parameter: u32,
+}
+
+impl BoundMaps {
+    fn build(program: &TypedTrees) -> Self {
         let mut maps = BoundMaps {
             locals_by_symbol: HashMap::default(),
             locals_by_name: HashMap::default(),
@@ -49,40 +60,54 @@ impl<'program> BoundMaps<'program> {
             maps.data_by_symbol
                 .entry(definition.symbol)
                 .or_insert(position);
-            maps.data_by_name
-                .entry(definition.name.as_str())
-                .or_insert(position);
+            if !maps.data_by_name.contains_key(definition.name.as_str()) {
+                maps.data_by_name
+                    .insert(definition.name.as_str().into(), position);
+            }
         }
         for (position, machine) in program.machines().iter().enumerate() {
             maps.machines_by_symbol
                 .entry(machine.symbol)
                 .or_insert(position);
         }
-        for machine in program.machines() {
-            for state in program.machine_states(machine) {
-                for parameter in program.state_parameters(state) {
+        for (machine_position, machine) in program.machines().iter().enumerate() {
+            for (state_position, state) in program.machine_states(machine).iter().enumerate() {
+                for (parameter_position, parameter) in
+                    program.state_parameters(state).iter().enumerate()
+                {
+                    let position = ParameterPosition {
+                        machine: machine_position as u32,
+                        state: state_position as u32,
+                        parameter: parameter_position as u32,
+                    };
                     maps.parameters_by_symbol
                         .entry(parameter.symbol)
                         .and_modify(|entry| *entry = None)
-                        .or_insert(Some(parameter));
+                        .or_insert(Some(position));
                     if parameter.is_self {
                         maps.machine_self_parameters
                             .entry(machine.symbol)
-                            .or_insert(parameter);
+                            .or_insert(position);
                     }
                 }
-                for statement in program.statement_table.statements(state.statement_nodes) {
+                for (handle, statement) in program
+                    .statement_table
+                    .iter_statements(state.statement_nodes)
+                {
                     let StatementNode::LocalData(local) = statement else {
                         continue;
                     };
                     maps.locals_by_symbol
                         .entry(local.symbol)
                         .and_modify(|entry| *entry = None)
-                        .or_insert(Some(local));
-                    maps.locals_by_name
-                        .entry(local.name.as_str())
-                        .and_modify(|entry| *entry = None)
-                        .or_insert(Some(local));
+                        .or_insert(Some(handle));
+                    match maps.locals_by_name.get_mut(local.name.as_str()) {
+                        Some(entry) => *entry = None,
+                        None => {
+                            maps.locals_by_name
+                                .insert(local.name.as_str().into(), Some(handle));
+                        }
+                    }
                 }
             }
         }
@@ -100,24 +125,49 @@ impl<'program> ImmutableBoundLookup<'program> {
         }
     }
 
-    fn maps(&self) -> &BoundMaps<'program> {
-        self.maps.get_or_init(|| BoundMaps::build(self.program))
+    fn maps(&self) -> &BoundMaps {
+        self.maps.get_or_init(|| {
+            crate::frozen_program::frozen_memo(
+                self.program,
+                |memos| &memos.bound_maps,
+                || BoundMaps::build(self.program),
+            )
+        })
+    }
+
+    fn local_at(&self, handle: StatementHandle) -> &'program TableLocalData {
+        let program: &'program TypedTrees = self.program;
+        match program.statement_table.statement(handle) {
+            StatementNode::LocalData(local) => local,
+            _ => unreachable!("the bound index records local-data statements only"),
+        }
+    }
+
+    fn parameter_at(&self, position: ParameterPosition) -> &'program StateParameter {
+        let program: &'program TypedTrees = self.program;
+        let machine = &program.machines()[position.machine as usize];
+        let state = &program.machine_states(machine)[position.state as usize];
+        &program.state_parameters(state)[position.parameter as usize]
     }
 
     fn local_entry(&self, symbol: SymbolHandle) -> Option<Option<&'program TableLocalData>> {
-        self.maps().locals_by_symbol.get(&symbol).copied()
+        let entry = *self.maps().locals_by_symbol.get(&symbol)?;
+        Some(entry.map(|handle| self.local_at(handle)))
     }
 
     fn local_named(&self, name: &str) -> Option<Option<&'program TableLocalData>> {
-        self.maps().locals_by_name.get(name).copied()
+        let entry = *self.maps().locals_by_name.get(name)?;
+        Some(entry.map(|handle| self.local_at(handle)))
     }
 
     fn parameter_entry(&self, symbol: SymbolHandle) -> Option<Option<&'program StateParameter>> {
-        self.maps().parameters_by_symbol.get(&symbol).copied()
+        let entry = *self.maps().parameters_by_symbol.get(&symbol)?;
+        Some(entry.map(|position| self.parameter_at(position)))
     }
 
     fn machine_self_parameter(&self, symbol: SymbolHandle) -> Option<&'program StateParameter> {
-        self.maps().machine_self_parameters.get(&symbol).copied()
+        let position = *self.maps().machine_self_parameters.get(&symbol)?;
+        Some(self.parameter_at(position))
     }
 }
 
