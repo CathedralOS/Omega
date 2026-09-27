@@ -89,9 +89,12 @@ backend-visible; full corpus runs only at the end of an item.
   Finish routing every boundary-operator application through its requirement's
   `BoundaryCall` and Omega stage 00 installation, including legacy named
   operators and compiler-known float realizations. Generic token machines
-  still need template ProviderPlan derivation (currently excluded by
-  `service_schema::from_typed_boundary_requirement`) and a portable exact
-  requirement-template/application join to that unchanged selected plan.
+  are now joined: `service_schema::from_typed_boundary_requirement` admits a
+  static generic template's authored schema, the selected-requirement
+  specialization roster (`SelectedProviderPlanFacts::specialized_requirement_row`)
+  joins each template-keyed selected row to the exact closed requirement and
+  provider instance from retained specialization receipts, and selected
+  dispatch settles one closed adapter row per demanded requirement instance.
   Psi checking derives candidate specializations
   from authored conformance edges without Build selection; the Stage 05
   `provider_candidates` integration tests exercise source-free installation and
@@ -101,7 +104,12 @@ backend-visible; full corpus runs only at the end of an item.
   not treat `ClosedReachApplication` as authenticated source-specialization
   evidence. Do not extend the retired selected-dispatch route,
   alias a closed requirement to its template, or infer authority from equal
-  runtime signatures. On macOS ARM64, the outcome of `python3 tools/corpus_gate.py
+  runtime signatures. Still open: an operator application retains no
+  requirement-level call occurrence (`flow.control.calls`) or Unit boundary
+  operation today — named calls divert in `expression_scanning` before the
+  call-fact lane, and spelled uses never mint one — so the Unit planner
+  cannot emit `BoundaryCall` for them and `boundary operator` declarations
+  have no `CheckedBoundaryMachinePlan`. On macOS ARM64, the outcome of `python3 tools/corpus_gate.py
   --native --filter specialized_mixed_structural_result_operator_hosted_native
   --golden build/operator-native.txt --record` still records rejection at
   terminal-authority review with zero selected provider rows for
@@ -113,7 +121,9 @@ backend-visible; full corpus runs only at the end of an item.
   the operator-adapter and float-intrinsic resolution it uses. Compiler-known
   float realizations (`F32::negate`, directed arithmetic, conversions,
   `square_root`, FMA) install as Omega builtins beside the hosted process
-  builtins in native provider settlement. Acceptance: the eight native builds
+  builtins in native provider settlement (`provider_admission/compiler_builtins.rs`
+  already maps `CompilerBuiltinExecution`; float variants are absent).
+  Acceptance: the eight native builds
   089bd3290c regressed build again with their golden exits
   (`providers/checked_fixed_operator_dispatch_exit` exits 70,
   `checked_boundary_operator_physical_custody`,
@@ -151,7 +161,7 @@ backend-visible; full corpus runs only at the end of an item.
   has no native route (its borrowed field operand fails Unit planning at
   "call operation: structural arguments: parameter source", and the verifier's
   provider signature compares `is_self` flags that differ between requirement
-  receiver and adapter); add a native fixture for it or record the limit here.
+  receiver and adapter); recorded limit — no native fixture exists for it.
 
   Moving a spelled use onto the call route also moves it onto a STRICTER
   borrow rule, which is a correctness gain that surfaces as breakage.
