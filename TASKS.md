@@ -686,10 +686,24 @@ the complete product bar; focused successes below do not establish that baseline
       and its route is mapped below; the runtime-indexed case dispatch
       above is the SAME family -- a runtime index selecting a non-scalar
       element -- so one Terminal answer serves both),
-      a local record's field inside arithmetic (`grid_walk`,
-      `self.px = self.px + v.dx` with `v` bound from a call), and a length
-      inside arithmetic (`text_padding`,
+      a field read off a LOCAL record whose type carries an arithmetic
+      policy (`grid_walk` -- pinned at
+      `tests/omega/pending/structs/policy_field_record_local_read`), and a
+      length inside arithmetic (`text_padding`,
       `self.padding = 16 - self.message.len`)
+      `grid_walk`'s entry above USED to read "a local record's field inside
+      arithmetic, with `v` bound from a call". Both halves were wrong. The
+      bisect alternated each candidate against its control and the
+      arithmetic, the call, the `[copy]`, which field is read, which policy,
+      and the destination's own policy are all irrelevant; construction of
+      the local is fine and the same read off a SELF-HELD record checks. One
+      thing carries it: the local's TYPE contains a field that is not
+      uniformly Exact, and then no field -- not even a plain sibling -- can
+      be read out of that local. `b: i32`, `b: u8` and `b: bool` all check;
+      `b: i32 in Saturating` and `b: i32 in Wrapping` both omit. The missing
+      capability is a single Terminal source row: a scalar field read whose
+      carrier is an owned local of a policy-bearing record type. The fixture
+      carries the whole matrix in its header.
     - 3 `statement sequence: local data: structural call binding` --
       `cli/{algorithms/dutch_flag, systems/{descriptor_walk,wire_protocol}}`,
       and this is the phase label to DISTRUST. `dutch_flag` carries no
