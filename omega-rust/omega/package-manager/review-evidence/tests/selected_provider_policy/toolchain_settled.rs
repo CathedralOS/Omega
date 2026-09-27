@@ -130,7 +130,7 @@ fn checked_with_time_host_binding() -> (TempPackage, ReviewFixture) {
 }
 
 #[test]
-fn toolchain_settled_plan_replays_its_exact_settled_identity() {
+fn toolchain_settled_plan_replays_identity_and_rejects_substitution() {
     let (_package, checked) = checked_with_filesystem_binding();
     let policy = project_checked_selected_provider_policy(
         &checked,
@@ -182,6 +182,8 @@ fn toolchain_settled_plan_replays_its_exact_settled_identity() {
     )
     .expect("policy recovers");
     assert_eq!(recovered, policy);
+    assert_changed_settled_identity_rejects_at_replay(&checked);
+    assert_authored_unique_covering_candidate_substitution_rejects_at_replay(&checked);
 }
 
 #[test]
@@ -259,9 +261,8 @@ fn rename_trait_requirement(fixture: &mut ReviewFixture, trait_path: &str, from:
 /// supplied typed program changes that schema, the accepted
 /// `FilesystemHostService` binding resolves to zero exact declarations, and
 /// review rejects rather than forgiving the changed settlement.
-#[test]
-fn changed_settled_identity_rejects_at_replay() {
-    let (_package, mut changed) = checked_with_filesystem_binding();
+fn assert_changed_settled_identity_rejects_at_replay(checked: &ReviewFixture) {
+    let mut changed = checked.clone();
     rename_trait_requirement(&mut changed, "FilesystemHost", "set_len", "set_len_renamed");
     let diagnostics = project_checked_selected_provider_policy(
         &changed,
@@ -285,9 +286,10 @@ fn changed_settled_identity_rejects_at_replay() {
 /// retained, and review rejects the substitution even though the settled
 /// plan records the same `UniqueCoveringCandidate` provenance kind — the
 /// exemption follows exact settled membership, not the shared kind.
-#[test]
-fn authored_unique_covering_candidate_substitution_rejects_at_replay() {
-    let (_package, mut changed) = checked_with_filesystem_binding();
+fn assert_authored_unique_covering_candidate_substitution_rejects_at_replay(
+    checked: &ReviewFixture,
+) {
+    let mut changed = checked.clone();
     // The Echo conformance is the fixture's lone covering authored plan for
     // its slot and retains `UniqueCoveringCandidate` — the same provenance
     // kind the toolchain-settled plan records.

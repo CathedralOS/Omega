@@ -46,7 +46,7 @@ requires
 
 #[test]
 fn public_domain_predicate_review_rejects_checked_owner_and_dependency_spoofs() {
-    let compile = || {
+    let original = {
         let package = TempPackage::new();
         package.write(
             "main.omg",
@@ -76,7 +76,7 @@ pub domain Packet::Ready
         );
     };
 
-    let mut missing_owner = compile();
+    let mut missing_owner = original.clone();
     let owner = missing_owner
         .facts
         .semantic
@@ -94,7 +94,7 @@ pub domain Packet::Ready
     );
     assert_rejects(&missing_owner, "0 exact checked ownership records");
 
-    let mut duplicate_owner = compile();
+    let mut duplicate_owner = original.clone();
     let owner = duplicate_owner
         .facts
         .semantic
@@ -110,7 +110,7 @@ pub domain Packet::Ready
         .append(owner);
     assert_rejects(&duplicate_owner, "2 exact checked ownership records");
 
-    let mut wrong_origin = compile();
+    let mut wrong_origin = original.clone();
     let semantic_fact = wrong_origin
         .facts
         .semantic
@@ -127,7 +127,7 @@ pub domain Packet::Ready
         .origin = facts::FactOrigin::Unknown;
     assert_rejects(&wrong_origin, "0 exact checked definition rows");
 
-    let mut false_evidence = compile();
+    let mut false_evidence = original.clone();
     let semantic_fact = false_evidence
         .facts
         .semantic
@@ -145,7 +145,7 @@ pub domain Packet::Ready
         .receipt_identity = 1;
     assert_rejects(&false_evidence, "0 exact checked definition rows");
 
-    let mut missing_dependency = compile();
+    let mut missing_dependency = original.clone();
     let owner = missing_dependency
         .facts
         .semantic
@@ -163,7 +163,7 @@ pub domain Packet::Ready
         .clear();
     assert_rejects(&missing_dependency, "0 exact checked dependency records");
 
-    let mut duplicate_dependency = compile();
+    let mut duplicate_dependency = original.clone();
     let owner = duplicate_dependency
         .facts
         .semantic
@@ -187,7 +187,7 @@ pub domain Packet::Ready
         .push(dependency);
     assert_rejects(&duplicate_dependency, "2 exact checked dependency records");
 
-    let mut wrong_member = compile();
+    let mut wrong_member = original.clone();
     let dependency = wrong_member
         .facts
         .semantic
@@ -304,6 +304,7 @@ fn public_domain_predicate_fact_order_is_canonical_but_content_changes_encoding(
             .canonical_review_bytes()
             .expect("multi-fact public domain encoding")
     };
-    assert_eq!(encode(&first), encode(&reordered));
-    assert_ne!(encode(&first), encode(&changed));
+    let baseline = encode(&first);
+    assert_eq!(baseline, encode(&reordered));
+    assert_ne!(baseline, encode(&changed));
 }
