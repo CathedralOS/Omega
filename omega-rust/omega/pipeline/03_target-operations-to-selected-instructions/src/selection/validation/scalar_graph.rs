@@ -397,7 +397,7 @@ pub(in crate::selection) fn validate_with_environment(
                         integer_arithmetic::validate(environment, operation, &mut replay)?
                     }
                     LegalizedScalarInstructionKind::EstablishRecord { .. }
-                    | LegalizedScalarInstructionKind::EstablishScalarCase { .. }
+                    | LegalizedScalarInstructionKind::EstablishCase { .. }
                     | LegalizedScalarInstructionKind::EstablishScalarArray { .. }
                     | LegalizedScalarInstructionKind::EstablishZeroedStructural { .. }
                     | LegalizedScalarInstructionKind::StructuralLeafCopy { .. }

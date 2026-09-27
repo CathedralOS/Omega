@@ -385,7 +385,7 @@ fn operation_structural_result(operation: &O) -> Option<&terminal_psi::Structura
         O::EstablishPrimitiveLocal { result, .. }
         | O::ByteSequenceSubslice { result, .. }
         | O::EstablishScalarArray { result, .. }
-        | O::EstablishScalarCase { result, .. }
+        | O::EstablishCase { result, .. }
         | O::EstablishRecord { result, .. }
         | O::EstablishZeroedStructural { result, .. }
         | O::EstablishReference { result, .. }

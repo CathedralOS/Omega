@@ -1,4 +1,4 @@
-//! Initialize a complete sum carrier before publishing its tag and scalar payloads.
+//! Initialize a complete sum carrier before publishing its tag and owned payloads.
 use super::super::{IntegerValue, ValueId};
 use super::{
     Builder, LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
@@ -17,9 +17,9 @@ pub(super) fn establish(
     row: &LegalizedScalarInstruction,
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
-    let (ordinal, declarations) =
+    let (ordinal, placements) =
         crate::selection::aggregate_result_input::fields(source, row).ok_or_else(|| invalid())?;
-    let LegalizedScalarInstructionKind::EstablishScalarCase {
+    let LegalizedScalarInstructionKind::EstablishCase {
         result,
         fields,
         layout,
@@ -77,25 +77,15 @@ pub(super) fn establish(
         provenance(row),
     )?;
     store(builder, row, pointer, 0, 4, tag, Vec::new())?;
-    for ((field, declaration), placed) in fields
-        .iter()
-        .zip(declarations)
-        .zip(&layout.cases[ordinal].fields)
-    {
-        let (_, value, _, scalar) = builder.resolve(field.value).ok_or_else(|| invalid())?;
-        if Some(scalar) != declaration.field_type.scalar_type() {
-            return Err(invalid());
-        }
-        store(
-            builder,
-            row,
-            pointer,
-            u32::from(placed.byte_offset),
-            u8::try_from(placed.shape.byte_size).map_err(|_| invalid())?,
-            value,
-            vec![field.value],
-        )?;
-    }
+    super::record::write_fields(
+        source,
+        row,
+        builder,
+        result.place,
+        pointer,
+        fields,
+        &placements,
+    )?;
     // Publish to ordinary edge transport only after the carrier is initialized.
     builder.transport.pointers.push((result.place, pointer));
     Ok(())
@@ -110,7 +100,7 @@ fn store(
     value: VirtualRegisterId,
     values: Vec<ValueId>,
 ) -> Result<(), SelectedInstructionError> {
-    let LegalizedScalarInstructionKind::EstablishScalarCase { result, .. } = &row.kind else {
+    let LegalizedScalarInstructionKind::EstablishCase { result, .. } = &row.kind else {
         return Err(invalid());
     };
     memory(

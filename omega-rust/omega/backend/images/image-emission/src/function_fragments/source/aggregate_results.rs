@@ -151,9 +151,11 @@ pub(super) fn operation(
                     if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result)) && retained_elements == elements
             )).count() == 1
         }
-        AbstractOperation::EstablishScalarCase { psi_operation, result, result_case, fields } => {
+        // The selected tag and every scalar or structural field operand retain
+        // their source identities; storage replay owns the concrete writes.
+        AbstractOperation::EstablishCase { psi_operation, result, result_case, fields } => {
             graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| matches!(row,
-                TargetUnitOperation::EstablishScalarCase { psi_operation: retained, result_home, result_case: retained_case, fields: retained_fields }
+                TargetUnitOperation::EstablishCase { psi_operation: retained, result_home, result_case: retained_case, fields: retained_fields }
                     if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result)) && retained_case == result_case && retained_fields == fields
             )).count() == 1
         }

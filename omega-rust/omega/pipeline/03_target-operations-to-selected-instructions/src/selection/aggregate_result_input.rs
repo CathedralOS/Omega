@@ -92,7 +92,7 @@ pub(super) fn membership_layout(
             .flat_map(|block| &block.instructions)
             .filter_map(|row| {
                 let result = match &row.kind {
-                    LegalizedScalarInstructionKind::EstablishScalarCase { result, .. }
+                    LegalizedScalarInstructionKind::EstablishCase { result, .. }
                     | LegalizedScalarInstructionKind::EstablishRecord { result, .. }
                     | LegalizedScalarInstructionKind::EstablishScalarArray { result, .. }
                     | LegalizedScalarInstructionKind::HostedReadByte { result, .. } => result,
@@ -149,7 +149,11 @@ pub(super) fn membership_layout(
                     if field.relevance.is_erased() {
                         return None;
                     }
-                    super::scalar_call_abi::scalar_shape(field.field_type.scalar_type()?)
+                    crate::structural_inputs::structural_reference_input::field_shape(
+                        &field.field_type,
+                        &signature.structural_types,
+                        &mut Vec::new(),
+                    )
                 })
                 .collect::<Option<Vec<_>>>()
         })
@@ -189,9 +193,7 @@ pub(super) fn has_local_aggregates(source: &LegalizedScalarFunction) -> bool {
             LegalizedScalarInstructionKind::EstablishScalarArray { .. } => {
                 super::scalar_array_input::elements(source, row).is_some()
             }
-            LegalizedScalarInstructionKind::EstablishScalarCase { .. } => {
-                fields(source, row).is_some()
-            }
+            LegalizedScalarInstructionKind::EstablishCase { .. } => fields(source, row).is_some(),
             LegalizedScalarInstructionKind::Call(call) => call_result(source, call).is_some(),
             _ => false,
         })
@@ -449,7 +451,7 @@ pub(super) fn returned<'a>(
                     super::scalar_array_input::elements(source, row)?;
                     (result, *shape)
                 }
-                LegalizedScalarInstructionKind::EstablishScalarCase { result, layout, .. } => {
+                LegalizedScalarInstructionKind::EstablishCase { result, layout, .. } => {
                     (result, layout.shape)
                 }
                 // A returned reference carrier names its custody slot only;
@@ -528,11 +530,18 @@ pub(super) fn returned<'a>(
     Some((slot, placement))
 }
 
-pub(super) fn fields<'a>(
-    source: &'a LegalizedScalarFunction,
-    row: &'a LegalizedScalarInstruction,
-) -> Option<(usize, &'a [terminal_psi::StructuralFieldDeclaration])> {
-    let LegalizedScalarInstructionKind::EstablishScalarCase {
+pub(super) fn fields(
+    source: &LegalizedScalarFunction,
+    row: &LegalizedScalarInstruction,
+) -> Option<(
+    usize,
+    Vec<(
+        u32,
+        calling_conventions::ValueShape,
+        Option<semantic_vocabulary::ScalarType>,
+    )>,
+)> {
+    let LegalizedScalarInstructionKind::EstablishCase {
         result,
         result_case,
         fields,
@@ -542,6 +551,7 @@ pub(super) fn fields<'a>(
         return None;
     };
     if row.result.is_some()
+        || result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
         || !result.claims.is_empty()
         || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
@@ -549,41 +559,58 @@ pub(super) fn fields<'a>(
         return None;
     }
     let signature = source.structural.as_ref()?;
-    let declaration = signature
+    let mut declarations = signature
         .structural_types
         .iter()
-        .find(|declaration| declaration.id == result.structural_type)?;
+        .filter(|declaration| declaration.id == result.structural_type);
+    let declaration = declarations.next()?;
+    if declarations.next().is_some() {
+        return None;
+    }
     let terminal_psi::StructuralTypeShape::Sum { cases } = &declaration.shape else {
         return None;
     };
     let ordinal = cases.iter().position(|case| case.id == *result_case)?;
-    let case = &cases[ordinal];
-    if fields.len() != case.fields.len()
-        || layout.cases.len() != cases.len()
-        || !layout.common_fields.is_empty()
-        || layout.tag_byte_offset != 0
-        || layout.tag_shape != calling_conventions::ValueShape::integer(4, 4)
+    if cases.iter().filter(|case| case.id == *result_case).count() != 1 {
+        return None;
+    }
+    let payloads = cases
+        .iter()
+        .map(|case| {
+            case.fields
+                .iter()
+                .map(|field| {
+                    if field.relevance.is_erased() {
+                        return None;
+                    }
+                    crate::structural_inputs::structural_reference_input::field_shape(
+                        &field.field_type,
+                        &signature.structural_types,
+                        &mut Vec::new(),
+                    )
+                })
+                .collect::<Option<Vec<_>>>()
+        })
+        .collect::<Option<Vec<_>>>()?;
+    if calling_conventions::evaluate_conventional_sum_layout(&[], &payloads).ok()? != *layout
+        || fields.len() != cases[ordinal].fields.len()
     {
         return None;
     }
-    let placed = &layout.cases[ordinal].fields;
-    if placed.len() != fields.len()
-        || fields
-            .iter()
-            .zip(&case.fields)
-            .zip(placed)
-            .any(|((field, declaration), placed)| {
-                field.field != declaration.id
-                    || declaration
-                        .field_type
-                        .scalar_type()
-                        .and_then(super::scalar_call_abi::scalar_shape)
-                        != Some(placed.shape)
-            })
-    {
-        return None;
-    }
-    Some((ordinal, &case.fields))
+    fields
+        .iter()
+        .zip(&cases[ordinal].fields)
+        .zip(&layout.cases[ordinal].fields)
+        .map(|((field, declaration), placed)| {
+            let shape = super::record_input::field_shape(source, result, field, declaration)?;
+            (shape == placed.shape).then_some((
+                u32::from(placed.byte_offset),
+                shape,
+                declaration.field_type.scalar_type(),
+            ))
+        })
+        .collect::<Option<Vec<_>>>()
+        .map(|fields| (ordinal, fields))
 }
 
 /// Stored block arrivals use their declared value layout, independently of a call ABI.
@@ -604,41 +631,17 @@ pub(super) fn block_parameter_shape(
         .structural_types
         .iter()
         .find(|declaration| declaration.id == parameter.structural_type)?;
-    if let terminal_psi::StructuralTypeShape::Record { .. } = &declaration.shape {
-        // A join carries the complete owned payload, including nested records;
-        // it does not change the geometry established by record construction.
-        // Borrowable geometry alone cannot authorize copying byte-owner fields.
-        return crate::structural_inputs::structural_reference_input::owned_aggregate_shape(
-            parameter.structural_type,
-            &source.structural.as_ref()?.structural_types,
-        );
-    }
-    let terminal_psi::StructuralTypeShape::Sum { cases } = &declaration.shape else {
+    if !matches!(
+        declaration.shape,
+        terminal_psi::StructuralTypeShape::Record { .. }
+            | terminal_psi::StructuralTypeShape::Sum { .. }
+    ) {
         return None;
-    };
-    let payloads = cases
-        .iter()
-        .map(|case| {
-            case.fields
-                .iter()
-                .map(|field| {
-                    if field.relevance.is_erased() {
-                        return None;
-                    }
-                    let scalar @ semantic_vocabulary::ScalarType::Integer(_) =
-                        field.field_type.scalar_type()?
-                    else {
-                        return None;
-                    };
-                    super::scalar_call_abi::scalar_shape(scalar)
-                })
-                .collect::<Option<Vec<_>>>()
-        })
-        .collect::<Option<Vec<_>>>()?;
-    Some(
-        calling_conventions::evaluate_conventional_sum_layout(&[], &payloads)
-            .ok()?
-            .shape,
+    }
+    // A successor carries the complete owned payload, including nested cases.
+    crate::structural_inputs::structural_reference_input::owned_aggregate_shape(
+        parameter.structural_type,
+        &source.structural.as_ref()?.structural_types,
     )
 }
 
@@ -698,7 +701,7 @@ pub(super) fn home(
             let result = match &row.kind {
                 LegalizedScalarInstructionKind::EstablishScalarArray { result, .. }
                 | LegalizedScalarInstructionKind::EstablishRecord { result, .. }
-                | LegalizedScalarInstructionKind::EstablishScalarCase { result, .. } => result,
+                | LegalizedScalarInstructionKind::EstablishCase { result, .. } => result,
                 LegalizedScalarInstructionKind::Call(call) => call.structural_result.as_ref()?,
                 _ => return None,
             };
@@ -819,7 +822,7 @@ pub(super) fn owned_store_destination(
                 LegalizedScalarInstructionKind::EstablishRecord { result, .. }
                 | LegalizedScalarInstructionKind::EstablishZeroedStructural { result, .. }
                 | LegalizedScalarInstructionKind::EstablishScalarArray { result, .. }
-                | LegalizedScalarInstructionKind::EstablishScalarCase { result, .. }
+                | LegalizedScalarInstructionKind::EstablishCase { result, .. }
                 | LegalizedScalarInstructionKind::StructuralLeafCopy { result, .. }
                 | LegalizedScalarInstructionKind::HostedReadByte { result, .. } => result,
                 LegalizedScalarInstructionKind::Call(call) => call.structural_result.as_ref()?,

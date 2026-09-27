@@ -31,7 +31,7 @@ pub(in crate::legalization) fn source_result(
                 result,
                 ..
             }
-            | AbstractOperation::EstablishScalarCase {
+            | AbstractOperation::EstablishCase {
                 psi_operation,
                 result,
                 ..

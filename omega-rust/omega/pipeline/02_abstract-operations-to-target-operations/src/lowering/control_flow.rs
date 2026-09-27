@@ -244,7 +244,7 @@ pub(super) fn lower(
             | AbstractOperation::EstablishScalarArray { result, .. }
             | AbstractOperation::EstablishRecord { result, .. }
             | AbstractOperation::EstablishZeroedStructural { result, .. }
-            | AbstractOperation::EstablishScalarCase { result, .. }
+            | AbstractOperation::EstablishCase { result, .. }
             | AbstractOperation::EstablishReference { result, .. }
             | AbstractOperation::CallStructural { result, .. }
             | AbstractOperation::ByteSequenceSubslice { result, .. }

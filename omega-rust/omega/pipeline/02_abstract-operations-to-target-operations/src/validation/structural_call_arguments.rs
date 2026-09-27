@@ -3887,7 +3887,7 @@ fn canonical_roots(source: &AbstractFunction) -> BTreeMap<PlaceId, RootDeclarati
             AbstractOperation::EstablishPrimitiveLocal { result, .. }
             | AbstractOperation::EstablishRecord { result, .. }
             | AbstractOperation::EstablishScalarArray { result, .. }
-            | AbstractOperation::EstablishScalarCase { result, .. }
+            | AbstractOperation::EstablishCase { result, .. }
             | AbstractOperation::ByteSequenceSubslice { result, .. }
             | AbstractOperation::CallStructural { result, .. } => {
                 (result.place, result.structural_type)

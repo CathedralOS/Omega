@@ -2,7 +2,7 @@
 //!
 //! Validation never trusts the candidate's field rows: it re-derives the
 //! claimed place's proof evidence — an `EstablishRecord` producer on an
-//! operation-result place at an empty path, an `EstablishScalarCase`
+//! operation-result place at an empty path, an `EstablishCase`
 //! producer whose `result_case` matches at a lone `Case` path, the same two
 //! reached through `Field` descents across owned, complete structural
 //! children, or a declared `BoundedInteger` singleton bound at the position
@@ -46,7 +46,7 @@ use terminal_psi::{
 
 /// The establishing operation the place's operation-result producer resolves
 /// to, when it is one this family's proofs can draw on: `Record` for an
-/// `EstablishRecord`, `Variant` for an `EstablishScalarCase` carrying its
+/// `EstablishRecord`, `Variant` for an `EstablishCase` carrying its
 /// `result_case`, `None` for every other producer or place kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum RootProducer {
@@ -96,7 +96,7 @@ fn field_evidence<'a>(
 
 /// The establishing producer `declaration`'s operation-result kind names, or
 /// `RootProducer::None` when the place is not an operation result or its
-/// producer is not an `EstablishRecord`/`EstablishScalarCase` in `function`.
+/// producer is not an `EstablishRecord`/`EstablishCase` in `function`.
 fn root_producer(
     function: &PsiOptimizationFunction,
     declaration: &StructuralPlaceDeclaration,
@@ -113,7 +113,7 @@ fn root_producer(
             } if *psi_operation == producer && result.place == declaration.id => {
                 return RootProducer::Record(producer);
             }
-            O::EstablishScalarCase {
+            O::EstablishCase {
                 psi_operation,
                 result,
                 result_case,
@@ -312,7 +312,7 @@ fn admit_field_node(
 
 /// The stored value the unit proves for `field` at `path` under `place`'s
 /// evidence, or `None` when no basis applies. An establishment basis — an
-/// `EstablishRecord` producer at an empty path or an `EstablishScalarCase`
+/// `EstablishRecord` producer at an empty path or an `EstablishCase`
 /// producer whose `result_case` matches a lone `Case` path, or the same two
 /// reached through `Field` descents across owned, complete structural
 /// children — proves the field's initializer scalar directly: a
@@ -536,7 +536,7 @@ fn establishment_scalar(
                 RootProducer::Variant(producer, result_case),
                 [CanonicalStructuralPathSegment::Case(observed_case)],
             ) if result_case == *observed_case => {
-                // An `EstablishScalarCase` proves its scalar case-field
+                // An `EstablishCase` proves its scalar case-field
                 // initializers for exactly the case it establishes.
                 return case_field_initializer(function, producer, place, field)
                     .map(|initializer| (producer, initializer));
@@ -782,8 +782,8 @@ fn structural_child(
         })
 }
 
-/// The `ValueId` the `EstablishScalarCase` producer stores into `field`, or
-/// `None` when the producer node is absent, is not an `EstablishScalarCase`
+/// The `ValueId` the `EstablishCase` producer stores into `field`, or
+/// `None` when the producer node is absent, is not an `EstablishCase`
 /// on this place, or the case field is absent.
 fn case_field_initializer(
     function: &PsiOptimizationFunction,
@@ -796,7 +796,7 @@ fn case_field_initializer(
         .iter()
         .flat_map(|block| &block.nodes)
         .find_map(|node| match &node.operation {
-            O::EstablishScalarCase {
+            O::EstablishCase {
                 psi_operation,
                 result,
                 fields,
@@ -804,7 +804,10 @@ fn case_field_initializer(
             } if *psi_operation == producer && result.place == place => fields
                 .iter()
                 .find(|initializer| initializer.field == field)
-                .map(|initializer| initializer.value),
+                .and_then(|initializer| match initializer.value {
+                    terminal_psi::RecordFieldValue::Scalar { value, .. } => Some(value),
+                    terminal_psi::RecordFieldValue::Structural(_) => None,
+                }),
             _ => None,
         })
 }

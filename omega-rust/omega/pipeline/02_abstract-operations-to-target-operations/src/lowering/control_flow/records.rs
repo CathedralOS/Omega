@@ -1,4 +1,4 @@
-//! Record construction retains the complete declared field tuple in one home.
+//! Record and selected case construction retain declared field tuples in one home.
 use super::LiveDefinitions;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
@@ -17,23 +17,36 @@ pub(super) fn establish(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    let AbstractOperation::EstablishRecord {
-        psi_operation,
-        result,
-        fields,
-    } = operation
-    else {
-        return Err(LoweringError::unsupported_control_flow(function.machine));
+    let invalid = || LoweringError::unsupported_control_flow(function.machine);
+    let (psi_operation, result, fields, result_case) = match operation {
+        AbstractOperation::EstablishRecord {
+            psi_operation,
+            result,
+            fields,
+        } => (psi_operation, result, fields, None),
+        AbstractOperation::EstablishCase {
+            psi_operation,
+            result,
+            fields,
+            result_case,
+        } => (psi_operation, result, fields, Some(*result_case)),
+        _ => return Err(invalid()),
     };
     let result_home = super::aggregate_results::home(*psi_operation, result, types)?;
-    let StructuralTypeShape::Record {
-        fields: declarations,
-    } = &types
+    let shape = &types
         .get(&result.structural_type)
-        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
-        .shape
-    else {
-        return Err(LoweringError::unsupported_control_flow(function.machine));
+        .ok_or_else(invalid)?
+        .shape;
+    let declarations = match (shape, result_case) {
+        (StructuralTypeShape::Record { fields }, None) => fields,
+        (StructuralTypeShape::Sum { cases }, Some(result_case)) => {
+            &cases
+                .iter()
+                .find(|case| case.id == result_case)
+                .ok_or_else(invalid)?
+                .fields
+        }
+        _ => return Err(invalid()),
     };
     if declarations.len() != fields.len() || live.structural_homes.contains_key(&result.place) {
         return Err(LoweringError::unsupported_control_flow(function.machine));
@@ -65,6 +78,11 @@ pub(super) fn establish(
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 };
                 let reference_bearing = super::references::contains_reference(types, nested);
+                // Reference relocation currently describes record field paths;
+                // a case-qualified carrier needs its own custody contract.
+                if result_case.is_some() && reference_bearing {
+                    return Err(invalid());
+                }
                 // A sum or mixed member rides as one completed value the way
                 // a record member does.
                 if !matches!(
@@ -162,10 +180,18 @@ pub(super) fn establish(
     super::references::relocate_record_leaves(live, result.place, relocations);
     live.structural_homes
         .insert(result.place, result_home.clone());
-    operations.push(TargetUnitOperation::EstablishRecord {
-        psi_operation: *psi_operation,
-        result_home,
-        fields: fields.clone(),
+    operations.push(match result_case {
+        Some(result_case) => TargetUnitOperation::EstablishCase {
+            psi_operation: *psi_operation,
+            result_home,
+            result_case,
+            fields: fields.clone(),
+        },
+        None => TargetUnitOperation::EstablishRecord {
+            psi_operation: *psi_operation,
+            result_home,
+            fields: fields.clone(),
+        },
     });
     provenance.operations.push(*psi_operation);
     Ok(())

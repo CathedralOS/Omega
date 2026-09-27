@@ -57,7 +57,7 @@ pub enum LoopInvariantNodeResult {
     /// `ByteSequenceSubslice` establishes, the fresh storage cell an
     /// `EstablishPrimitiveLocal` declares, the fresh payload an
     /// `EstablishScalarArray` or `EstablishRecord` binds, the fresh sum
-    /// place an `EstablishScalarCase` declares, or the fresh place a
+    /// place an `EstablishCase` declares, or the fresh place a
     /// `CallStructural` returns. The moved operation keeps it
     /// byte-exact, so the transformed unit's structural custody still sees
     /// the same producer declaring the same place — for an affine case or

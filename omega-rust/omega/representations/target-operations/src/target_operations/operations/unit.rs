@@ -325,11 +325,11 @@ pub enum TargetUnitOperation {
         elements: Vec<ValueId>,
     },
     /// Establish a fresh sum in its exact durable aggregate home.
-    EstablishScalarCase {
+    EstablishCase {
         psi_operation: OperationId,
         result_home: TargetStructuralHomeRequirement,
         result_case: semantic_vocabulary::StructuralCaseId,
-        fields: Vec<terminal_psi::ScalarCaseField>,
+        fields: Vec<terminal_psi::RecordFieldInitializer>,
     },
     /// One direct scalar-result call whose authored parameter roster contains
     /// one or more existential descriptors. This role remains distinct from

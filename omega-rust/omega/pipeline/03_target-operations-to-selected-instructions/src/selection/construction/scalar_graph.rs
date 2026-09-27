@@ -384,7 +384,7 @@ fn select_function(
                         integer_arithmetic::emit(function, environment, operation, &mut builder)?
                     }
                     LegalizedScalarInstructionKind::EstablishRecord { .. }
-                    | LegalizedScalarInstructionKind::EstablishScalarCase { .. }
+                    | LegalizedScalarInstructionKind::EstablishCase { .. }
                     | LegalizedScalarInstructionKind::EstablishScalarArray { .. }
                     | LegalizedScalarInstructionKind::EstablishZeroedStructural { .. }
                     | LegalizedScalarInstructionKind::StructuralLeafCopy { .. }

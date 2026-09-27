@@ -124,12 +124,12 @@ pub(super) fn project(
             elements: elements.clone(),
             shape: scalar_graph_input::scalar_arrays::shape(result, plan)?.2,
         },
-        AbstractOperation::EstablishScalarCase {
+        AbstractOperation::EstablishCase {
             result,
             result_case,
             fields,
             ..
-        } => LegalizedScalarInstructionKind::EstablishScalarCase {
+        } => LegalizedScalarInstructionKind::EstablishCase {
             result: result.clone(),
             result_case: *result_case,
             fields: fields.clone(),

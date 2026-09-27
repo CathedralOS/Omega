@@ -267,7 +267,7 @@ fn validate_structural_field_range_authority(
                     *range_obligation,
                 )?;
             }
-            O::EstablishScalarCase {
+            O::EstablishCase {
                 psi_operation,
                 result,
                 result_case,
@@ -284,14 +284,20 @@ fn validate_structural_field_range_authority(
                     continue;
                 };
                 for (declaration, binding) in case.fields.iter().zip(fields) {
-                    validate_field_range_authority(
-                        unit,
-                        function.machine,
-                        *psi_operation,
-                        declaration,
-                        binding.value,
-                        binding.range_obligation,
-                    )?;
+                    if let RecordFieldValue::Scalar {
+                        value,
+                        range_obligation,
+                    } = &binding.value
+                    {
+                        validate_field_range_authority(
+                            unit,
+                            function.machine,
+                            *psi_operation,
+                            declaration,
+                            *value,
+                            *range_obligation,
+                        )?;
+                    }
                 }
             }
             O::EstablishRecord {

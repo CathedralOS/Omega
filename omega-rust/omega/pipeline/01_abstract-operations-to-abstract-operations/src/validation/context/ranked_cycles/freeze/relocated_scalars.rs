@@ -237,7 +237,7 @@ pub(super) fn validate(
     let mut relocated_case_results: BTreeMap<CycleComponentId, BTreeSet<PlaceId>> = BTreeMap::new();
     for relocation in &moved {
         let result = match &relocation.expected.operation {
-            abstract_operations::AbstractOperation::EstablishScalarCase { result, .. }
+            abstract_operations::AbstractOperation::EstablishCase { result, .. }
             | abstract_operations::AbstractOperation::EstablishRecord { result, .. }
             | abstract_operations::AbstractOperation::CallStructural { result, .. } => result,
             abstract_operations::AbstractOperation::EstablishTrivialAffineLocal {

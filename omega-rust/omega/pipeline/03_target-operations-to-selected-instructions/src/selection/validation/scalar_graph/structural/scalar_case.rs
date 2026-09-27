@@ -17,9 +17,9 @@ pub(super) fn establish(
     row: &LegalizedScalarInstruction,
     replay: &mut Replay<'_>,
 ) -> Result<(), SelectedInstructionError> {
-    let (ordinal, declarations) = crate::selection::aggregate_result_input::fields(source, row)
+    let (ordinal, placements) = crate::selection::aggregate_result_input::fields(source, row)
         .ok_or_else(|| SelectedInstructionError::custody())?;
-    let LegalizedScalarInstructionKind::EstablishScalarCase {
+    let LegalizedScalarInstructionKind::EstablishCase {
         result: established,
         fields,
         layout,
@@ -74,28 +74,15 @@ pub(super) fn establish(
         &provenance(row),
     )?;
     store(replay, row, pointer, 0, 4, tag, Vec::new())?;
-    for ((field, declaration), placed) in fields
-        .iter()
-        .zip(declarations)
-        .zip(&layout.cases[ordinal].fields)
-    {
-        let (_, value, _, scalar) = replay
-            .resolve(field.value)
-            .ok_or_else(|| SelectedInstructionError::custody())?;
-        if Some(scalar) != declaration.field_type.scalar_type() {
-            return Err(SelectedInstructionError::custody());
-        }
-        store(
-            replay,
-            row,
-            pointer,
-            u32::from(placed.byte_offset),
-            u8::try_from(placed.shape.byte_size)
-                .map_err(|_| SelectedInstructionError::custody())?,
-            value,
-            vec![field.value],
-        )?;
-    }
+    super::record::write_fields(
+        source,
+        row,
+        replay,
+        established.place,
+        pointer,
+        fields,
+        &placements,
+    )?;
     replay.transport.pointers.push((established.place, pointer));
     Ok(())
 }
@@ -109,7 +96,7 @@ fn store(
     value: VirtualRegisterId,
     values: Vec<ValueId>,
 ) -> Result<(), SelectedInstructionError> {
-    let LegalizedScalarInstructionKind::EstablishScalarCase { result, .. } = &row.kind else {
+    let LegalizedScalarInstructionKind::EstablishCase { result, .. } = &row.kind else {
         return Err(replay.invalid());
     };
     memory(

@@ -1,6 +1,6 @@
 //! Representation-specialization verified fixtures: source-produced machines
 //! whose `StructuralCaseMembership` observations the unit itself proves —
-//! an `EstablishScalarCase` producer on the observed operation-result place —
+//! an `EstablishCase` producer on the observed operation-result place —
 //! and a near-miss machine whose parameter membership no basis can prove.
 
 use super::super::VerifiedPsiOptimizationUnit;
@@ -73,7 +73,7 @@ fn lowered_module(
 }
 
 /// The established-place positive: two memberships on `c`'s place fold in one
-/// candidate whose producer is the `EstablishScalarCase` that fixed `Some`.
+/// candidate whose producer is the `EstablishCase` that fixed `Some`.
 pub(in crate::pass_manager::tests) fn verified_representation_specialization_unit()
 -> VerifiedPsiOptimizationUnit {
     let (module, proof) = lowered_module(

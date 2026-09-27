@@ -225,7 +225,7 @@ pub(crate) fn realize(
     let case_results: BTreeSet<PlaceId> = nodes
         .iter()
         .filter_map(|node| match &node.operation {
-            O::EstablishScalarCase { result, .. }
+            O::EstablishCase { result, .. }
             | O::EstablishRecord { result, .. }
             | O::CallStructural { result, .. }
                 if result.multiplicity == terminal_psi::StructuralMultiplicity::Affine =>

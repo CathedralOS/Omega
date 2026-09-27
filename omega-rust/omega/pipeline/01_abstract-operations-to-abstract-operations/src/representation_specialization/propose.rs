@@ -3,7 +3,7 @@
 //! A `StructuralCaseMembership` is foldable when the case of the position it
 //! observes is proven by the unit itself. At an empty path the observed
 //! position is the source place itself, and two proofs qualify: the place is
-//! an `OperationResult` whose same-function producer is `EstablishScalarCase`,
+//! an `OperationResult` whose same-function producer is `EstablishCase`,
 //! so the place is assigned once by that producer and cannot be rewritten;
 //! or the place's declared structural type is a closed roster of exactly one
 //! case — `StructuralTypeShape::Sum` or `Mixed` — so every inhabitant holds

@@ -141,7 +141,7 @@ pub(super) fn validate_current_ownership_cfg(
             // Heterogeneous field operands need a temporary structural-only roster;
             // ordinary call operands continue borrowing their retained slice.
             let record_arguments = match &node.operation {
-                O::EstablishRecord { fields, .. } => fields
+                O::EstablishCase { fields, .. } | O::EstablishRecord { fields, .. } => fields
                     .iter()
                     .filter_map(|initializer| match &initializer.value {
                         terminal_psi::RecordFieldValue::Structural(argument) => {
@@ -153,7 +153,7 @@ pub(super) fn validate_current_ownership_cfg(
                 _ => Vec::new(),
             };
             let structural_arguments = match &node.operation {
-                O::EstablishRecord { .. } => record_arguments.as_slice(),
+                O::EstablishCase { .. } | O::EstablishRecord { .. } => record_arguments.as_slice(),
                 O::CallUnit {
                     structural_arguments,
                     ..
@@ -183,7 +183,7 @@ pub(super) fn validate_current_ownership_cfg(
                 _ => &[],
             };
             let parameter_multiplicities = match &node.operation {
-                O::EstablishRecord { .. } => record_arguments
+                O::EstablishCase { .. } | O::EstablishRecord { .. } => record_arguments
                     .iter()
                     .map(|argument| {
                         crate::unit_validation::operation_contracts::structural_source_contract(
@@ -430,7 +430,7 @@ pub(super) fn validate_current_ownership_cfg(
                 // result or a new cleanup/claim frontier.
                 O::ByteSequenceSubslice { .. } => None,
                 O::EstablishScalarArray { result, .. }
-                | O::EstablishScalarCase { result, .. }
+                | O::EstablishCase { result, .. }
                 | O::EstablishRecord { result, .. }
                 | O::EstablishZeroedStructural { result, .. }
                 | O::EstablishReference { result, .. }

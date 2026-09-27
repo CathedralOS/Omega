@@ -94,15 +94,13 @@ impl LegalizedScalarInstruction {
             LegalizedScalarInstructionKind::EstablishScalarArray { elements, .. } => {
                 elements.iter().copied().for_each(visit)
             }
-            LegalizedScalarInstructionKind::EstablishRecord { fields, .. } => {
+            LegalizedScalarInstructionKind::EstablishRecord { fields, .. }
+            | LegalizedScalarInstructionKind::EstablishCase { fields, .. } => {
                 for field in fields {
                     if let terminal_psi::RecordFieldValue::Scalar { value, .. } = &field.value {
                         visit(*value);
                     }
                 }
-            }
-            LegalizedScalarInstructionKind::EstablishScalarCase { fields, .. } => {
-                fields.iter().for_each(|field| visit(field.value))
             }
             LegalizedScalarInstructionKind::HostedWriteByteI32 { source, .. }
             | LegalizedScalarInstructionKind::HostedExitProcessI32 { source, .. } => visit(*source),
@@ -253,10 +251,10 @@ pub enum LegalizedScalarInstructionKind {
         result: terminal_psi::StructuralOperationResult,
         shape: calling_conventions::ValueShape,
     },
-    EstablishScalarCase {
+    EstablishCase {
         result: terminal_psi::StructuralOperationResult,
         result_case: semantic_vocabulary::StructuralCaseId,
-        fields: Vec<terminal_psi::ScalarCaseField>,
+        fields: Vec<terminal_psi::RecordFieldInitializer>,
         layout: calling_conventions::ConventionalSumLayout,
     },
     /// One verified reference carrier. `shape` is the carrier's zero-byte

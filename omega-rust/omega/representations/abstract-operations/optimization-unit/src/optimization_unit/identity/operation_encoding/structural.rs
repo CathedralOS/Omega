@@ -168,7 +168,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
                 bytes.id(*obligation);
             }
         }
-        O::EstablishScalarCase {
+        O::EstablishCase {
             psi_operation,
             result,
             result_case,
@@ -178,15 +178,27 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.id(*psi_operation);
             encode_structural_operation_result(bytes, result);
             bytes.id(*result_case);
-            bytes.slice(fields, |bytes, field| {
-                bytes.id(field.field);
-                bytes.id(field.value);
-                match field.range_obligation {
-                    Some(obligation) => {
-                        bytes.u8(1);
-                        bytes.id(obligation);
+            bytes.slice(fields, |bytes, initializer| {
+                bytes.id(initializer.field);
+                match &initializer.value {
+                    terminal_psi::RecordFieldValue::Scalar {
+                        value,
+                        range_obligation,
+                    } => {
+                        bytes.u8(0);
+                        bytes.id(*value);
+                        match range_obligation {
+                            Some(obligation) => {
+                                bytes.u8(1);
+                                bytes.id(*obligation);
+                            }
+                            None => bytes.u8(0),
+                        }
                     }
-                    None => bytes.u8(0),
+                    terminal_psi::RecordFieldValue::Structural(argument) => {
+                        bytes.u8(1);
+                        encode_structural_argument(bytes, argument);
+                    }
                 }
             });
         }

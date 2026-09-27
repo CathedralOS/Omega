@@ -431,7 +431,7 @@ fn operation_observations(
         | O::AtomicEvent { .. }
         | O::StoreDynamicDescriptor { .. }
         | O::EstablishScalarArray { .. }
-        | O::EstablishScalarCase { .. }
+        | O::EstablishCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::EstablishZeroedStructural { .. }

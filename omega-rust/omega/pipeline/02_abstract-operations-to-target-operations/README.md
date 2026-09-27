@@ -113,6 +113,13 @@ use the same calling-plan custody. Record block arrivals, including nested recor
 retain the existing aggregate edge transport and their own destination storage;
 no literal-only constructor or separate record storage graph is retained.
 
+Case construction uses `EstablishCase` with the same scalar-or-structural field
+operands as records. Lowering checks the selected sum case's exact field roster
+and reuses record source and affine-consumption checks; nested completed children
+retain their declared types and whole owned source places. The existing recursive
+sum layout determines storage. Case fields carrying reference custody still
+reject until case-qualified reference relocation is supported.
+
 Shared calls can borrow a constructed plain record's existing home, including
 one produced by an ordinary call or selected at a block join. Shared field loans
 from joined records retain the exact block home and declaration-derived offset.

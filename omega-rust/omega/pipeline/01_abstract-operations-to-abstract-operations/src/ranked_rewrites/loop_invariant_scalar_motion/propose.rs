@@ -935,7 +935,7 @@ pub(super) fn component_plan(
                         {
                             LoopInvariantNodeResult::Structural(result.clone())
                         }
-                        AbstractOperation::EstablishScalarCase { result, .. }
+                        AbstractOperation::EstablishCase { result, .. }
                             if crate::validation::invariant_operations::admissible_invariant_scalar_case(node)
                                 .is_some() =>
                         {

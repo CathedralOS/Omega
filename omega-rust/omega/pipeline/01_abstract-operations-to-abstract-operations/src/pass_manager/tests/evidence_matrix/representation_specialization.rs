@@ -28,7 +28,7 @@ const CASE: SelectionMatrix = SelectionMatrix {
     expected_rule,
     // One candidate covers the established place: its two memberships fold
     // together — `c in Choice::Some` to `true` and `c in Choice::Empty` to
-    // `false` — under the `EstablishScalarCase` producer basis, so the pass
+    // `false` — under the `EstablishCase` producer basis, so the pass
     // commits exactly once.
     expected_commits: 1,
     positive: verified_representation_specialization_unit,

@@ -65,7 +65,7 @@ pub(super) fn validate_owned_arguments(
                     continue;
                 }
                 let result = match &producer.kind {
-                    LegalizedScalarInstructionKind::EstablishScalarCase { result, .. } => {
+                    LegalizedScalarInstructionKind::EstablishCase { result, .. } => {
                         crate::selection::aggregate_result_input::fields(source, producer)?;
                         result
                     }

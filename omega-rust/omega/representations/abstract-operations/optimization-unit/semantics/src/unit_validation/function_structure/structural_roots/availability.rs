@@ -24,7 +24,7 @@ pub(crate) fn validate_structural_place_availability(
                 O::EstablishPrimitiveLocal { result, .. }
                 | O::ByteSequenceSubslice { result, .. }
                 | O::EstablishScalarArray { result, .. }
-                | O::EstablishScalarCase { result, .. }
+                | O::EstablishCase { result, .. }
                 | O::EstablishRecord { result, .. }
                 | O::EstablishZeroedStructural { result, .. }
                 | O::EstablishReference { result, .. }
@@ -86,7 +86,7 @@ pub(crate) fn validate_structural_place_availability(
 
 pub(crate) fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
     let mut inputs = match operation {
-        O::EstablishRecord { fields, .. } => fields
+        O::EstablishCase { fields, .. } | O::EstablishRecord { fields, .. } => fields
             .iter()
             .filter_map(|initializer| match &initializer.value {
                 terminal_psi::RecordFieldValue::Structural(argument) => Some(argument.place),

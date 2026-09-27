@@ -537,19 +537,21 @@ fn apply_call(
 /// Record construction moves carriers, not referents: every live leaf of a
 /// reference-bearing structural field argument relocates under the result's
 /// field path, and a consumed affine home stops reporting a contract.
-fn establish_record(
+fn establish_fields(
     function: &AbstractFunction,
     declarations: &[StructuralTypeDeclaration],
     custody: &mut Custody,
     result: &StructuralOperationResult,
     fields: &[terminal_psi::RecordFieldInitializer],
+    result_case: Option<semantic_vocabulary::StructuralCaseId>,
 ) -> Option<()> {
-    let Some(StructuralTypeDeclaration {
-        shape: StructuralTypeShape::Record { fields: declared },
-        ..
-    }) = lookup(declarations, result.structural_type)
-    else {
-        return None;
+    let shape = &lookup(declarations, result.structural_type)?.shape;
+    let declared = match (shape, result_case) {
+        (StructuralTypeShape::Record { fields }, None) => fields,
+        (StructuralTypeShape::Sum { cases }, Some(result_case)) => {
+            &cases.iter().find(|case| case.id == result_case)?.fields
+        }
+        _ => return None,
     };
     if declared.len() != fields.len() {
         return None;
@@ -567,9 +569,16 @@ fn establish_record(
             return None;
         };
         let reference_bearing = contains_reference(declarations, nested);
+        if result_case.is_some() && reference_bearing {
+            return None;
+        }
         if !matches!(
             lookup(declarations, nested).map(|declaration| &declaration.shape),
-            Some(StructuralTypeShape::Record { .. })
+            Some(
+                StructuralTypeShape::Record { .. }
+                    | StructuralTypeShape::Sum { .. }
+                    | StructuralTypeShape::Mixed { .. }
+            )
         ) && !reference_bearing
             && terminal_semantics::scalar_array_leaf_shape(declarations.iter(), nested).is_none()
         {
@@ -729,11 +738,25 @@ fn apply(
             custody.leaves.remove(&(*source, Vec::new()))?;
         }
         AbstractOperation::EstablishRecord { result, fields, .. } => {
-            establish_record(function, declarations, custody, result, fields)?;
+            establish_fields(function, declarations, custody, result, fields, None)?;
+        }
+        AbstractOperation::EstablishCase {
+            result,
+            result_case,
+            fields,
+            ..
+        } => {
+            establish_fields(
+                function,
+                declarations,
+                custody,
+                result,
+                fields,
+                Some(*result_case),
+            )?;
         }
         AbstractOperation::EstablishPrimitiveLocal { result, .. }
-        | AbstractOperation::EstablishScalarArray { result, .. }
-        | AbstractOperation::EstablishScalarCase { result, .. } => {
+        | AbstractOperation::EstablishScalarArray { result, .. } => {
             if custody
                 .homes
                 .insert(result.place, (result.structural_type, result.multiplicity))

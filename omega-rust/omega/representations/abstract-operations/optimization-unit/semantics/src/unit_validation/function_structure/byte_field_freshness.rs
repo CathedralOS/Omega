@@ -170,7 +170,7 @@ fn changes_length(
         | O::PrimitiveLocalStore { .. }
         | O::PrimitiveScalarRead { .. }
         | O::EstablishScalarArray { .. }
-        | O::EstablishScalarCase { .. }
+        | O::EstablishCase { .. }
         | O::EstablishRecord { .. }
         | O::StructuralCaseMembership { .. }
         | O::IntegerStructuralField { .. }

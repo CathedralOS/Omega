@@ -31,7 +31,7 @@ pub(crate) use structural_access::structural_source_contract;
 #[cfg(test)]
 pub(crate) use claim_transfers::validate_internal_claim_transfers;
 #[cfg(test)]
-pub(crate) use payloadless_cases::scalar_case_establishment_matches;
+pub(crate) use payloadless_cases::case_establishment_matches;
 #[cfg(test)]
 pub(crate) use records::zeroed_establishment_matches;
 #[cfg(test)]

@@ -286,7 +286,7 @@ fn owned_arrival_fixture() -> AbstractOperationPlan {
     else {
         panic!("structural result");
     };
-    function.operations[1] = AbstractOperation::EstablishScalarCase {
+    function.operations[1] = AbstractOperation::EstablishCase {
         psi_operation,
         result,
         result_case: StructuralCaseId::new(1).unwrap(),
@@ -747,4 +747,168 @@ fn parameter_root_dispatch_refuses_roots_without_an_owned_value_copy() {
             "parameter root mutation {mutation} must refuse the dispatch"
         );
     }
+}
+
+fn nested_case_establishment_fixture() -> AbstractOperationPlan {
+    let mut plan = fixture();
+    plan.boundary_machines.truncate(1);
+    let child_type = plan.structural_types[0].id;
+    let outer_type = StructuralTypeId::new(30).unwrap();
+    let outer_case = StructuralCaseId::new(3).unwrap();
+    let field = StructuralFieldId::new(2).unwrap();
+    let mut declarations = plan.structural_types.to_vec();
+    declarations.push(StructuralTypeDeclaration {
+        id: outer_type,
+        identity: "NestedRead".into(),
+        shape: StructuralTypeShape::Sum {
+            cases: vec![StructuralCaseDeclaration {
+                id: outer_case,
+                identity: "Nested".into(),
+                fields: vec![StructuralFieldDeclaration {
+                    id: field,
+                    identity: "child".into(),
+                    relevance: terminal_psi::BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Structural(child_type),
+                }],
+            }],
+        },
+    });
+    plan.structural_types = declarations.into();
+    let result = |place, structural_type| StructuralOperationResult {
+        qualification_establishments: Vec::new(),
+        place,
+        structural_type,
+        multiplicity: StructuralMultiplicity::Affine,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+        claims: Vec::new(),
+    };
+    let function = &mut plan.functions[0];
+    function.block_entries.truncate(1);
+    let constant = function.operations[0].clone();
+    // The shared lowering helper supplies the hosted write settlement, so keep
+    // its actual call after construction. Reserve operation 4 for the affine
+    // reuse control below.
+    let mut write = function.operations[6].clone();
+    let AbstractOperation::BoundaryCall { psi_operation, .. } = &mut write else {
+        panic!("hosted write")
+    };
+    *psi_operation = operation(5);
+    function.operations = vec![
+        constant,
+        AbstractOperation::EstablishCase {
+            psi_operation: operation(2),
+            result: result(PlaceId::new(20).unwrap(), child_type),
+            result_case: StructuralCaseId::new(2).unwrap(),
+            fields: vec![terminal_psi::RecordFieldInitializer {
+                field: StructuralFieldId::new(1).unwrap(),
+                value: terminal_psi::RecordFieldValue::Scalar {
+                    value: value(1),
+                    range_obligation: None,
+                },
+            }],
+        },
+        AbstractOperation::EstablishCase {
+            psi_operation: operation(3),
+            result: result(PlaceId::new(30).unwrap(), outer_type),
+            result_case: outer_case,
+            fields: vec![terminal_psi::RecordFieldInitializer {
+                field,
+                value: terminal_psi::RecordFieldValue::Structural(
+                    terminal_psi::StructuralArgument {
+                        place: PlaceId::new(20).unwrap(),
+                        path: Vec::new(),
+                        access: terminal_psi::StructuralAccess::Owned,
+                    },
+                ),
+            }],
+        },
+        write,
+        AbstractOperation::ReturnUnit {
+            psi_edge: edge(6),
+            cleanup_actions: Vec::new(),
+        },
+    ];
+    plan
+}
+
+#[test]
+fn nested_case_establishment_retains_exact_child_and_rejects_invalid_custody() {
+    let valid = nested_case_establishment_fixture();
+    let lowered = lower_owned(&valid).expect("completed nested case lowers");
+    let AbstractOperation::EstablishCase {
+        fields,
+        result_case,
+        ..
+    } = &valid.functions[0].operations[2]
+    else {
+        panic!("outer case")
+    };
+    assert!(
+        lowered.functions[0].graph.blocks[0]
+            .operations
+            .iter()
+            .any(|operation| {
+                matches!(operation, TargetUnitOperation::EstablishCase {
+            fields: retained, result_case: retained_case, ..
+        } if retained == fields && retained_case == result_case)
+            })
+    );
+    for mutation in 0..7 {
+        let mut changed = valid.clone();
+        let AbstractOperation::EstablishCase {
+            result_case,
+            fields,
+            ..
+        } = &mut changed.functions[0].operations[2]
+        else {
+            panic!("outer case")
+        };
+        match mutation {
+            0 => *result_case = StructuralCaseId::new(1).unwrap(),
+            1 => fields[0].field = StructuralFieldId::new(99).unwrap(),
+            2 => fields.clear(),
+            3 => {
+                fields[0].value = terminal_psi::RecordFieldValue::Scalar {
+                    value: value(1),
+                    range_obligation: None,
+                }
+            }
+            _ => {
+                let terminal_psi::RecordFieldValue::Structural(argument) = &mut fields[0].value
+                else {
+                    panic!("nested child")
+                };
+                match mutation {
+                    4 => argument.access = terminal_psi::StructuralAccess::SharedBorrow,
+                    5 => argument.place = PlaceId::new(99).unwrap(),
+                    _ => argument
+                        .path
+                        .push(terminal_psi::StructuralPathSegment::Field("child".into())),
+                }
+            }
+        }
+        assert!(
+            lower_owned(&changed).is_err(),
+            "accepted nested case mutation {mutation}"
+        );
+    }
+    // Consuming the child in one case prevents a second constructor using it.
+    let mut reused = valid.clone();
+    let mut second = reused.functions[0].operations[2].clone();
+    let AbstractOperation::EstablishCase {
+        psi_operation,
+        result,
+        ..
+    } = &mut second
+    else {
+        panic!("outer case")
+    };
+    *psi_operation = operation(4);
+    result.place = PlaceId::new(31).unwrap();
+    reused.functions[0].operations.insert(3, second);
+    assert!(
+        lower_owned(&reused).is_err(),
+        "reused consumed affine child"
+    );
 }

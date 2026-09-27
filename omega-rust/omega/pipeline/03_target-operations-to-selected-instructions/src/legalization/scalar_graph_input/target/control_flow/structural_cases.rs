@@ -35,7 +35,7 @@ pub(super) fn home_available(
                             result: TargetBoundaryResult::Structural(home),
                             ..
                         }
-                        | TargetUnitOperation::EstablishScalarCase {
+                        | TargetUnitOperation::EstablishCase {
                             result_home: home, ..
                         }
                         | TargetUnitOperation::EstablishRecord {

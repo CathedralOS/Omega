@@ -18,7 +18,7 @@ use crate::{
 /// Resolves a `BooleanStructuralField`/`IntegerStructuralField` observation
 /// whose stored value the unit itself proves: an `EstablishRecord` producer
 /// on the observed operation-result place at an empty path, an
-/// `EstablishScalarCase` producer whose `result_case` matches at a lone
+/// `EstablishCase` producer whose `result_case` matches at a lone
 /// `Case` path, the same two proofs reached through `Field` descents across
 /// owned, complete structural children, or a declared `BoundedInteger`
 /// singleton bound at the position the observation's path resolves to. A

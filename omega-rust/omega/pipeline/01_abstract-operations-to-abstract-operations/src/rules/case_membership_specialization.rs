@@ -14,7 +14,7 @@ use crate::{
 };
 
 /// Folds a `StructuralCaseMembership` observation to a `BooleanConstant`
-/// carrying the verdict the unit itself proves: an `EstablishScalarCase`
+/// carrying the verdict the unit itself proves: an `EstablishCase`
 /// producer on the observed operation-result place, or a declared closed
 /// `Sum`/`Mixed` roster of exactly one case at the position the
 /// observation's path resolves to. Each folded node keeps its operation

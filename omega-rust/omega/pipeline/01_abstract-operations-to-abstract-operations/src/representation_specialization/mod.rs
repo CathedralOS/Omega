@@ -4,7 +4,7 @@
 //! observation whose `source` place carries a case the unit itself proves
 //! folds to a `BooleanConstant` holding that verdict. Two proofs qualify.
 //! Establishment: the position the observation names resolves to an
-//! `EstablishScalarCase` — the observed place's own producer when it is an
+//! `EstablishCase` — the observed place's own producer when it is an
 //! operation result, the establishment a uniform whole
 //! `Owned`/`SharedBorrow` block-parameter binding forwards to when every
 //! incoming edge names the same place and nothing rewrites or mutably
@@ -14,7 +14,7 @@
 //! roster: the place's declared structural type is a closed `Sum` or
 //! `Mixed` roster of exactly one case, so every inhabitant of the place
 //! holds that case independently of how it arrived — parameters, results,
-//! and non-`EstablishScalarCase` producers all qualify. In either proof the
+//! and non-`EstablishCase` producers all qualify. In either proof the
 //! membership's Boolean answer is `proven_case == case` at every
 //! observation site. The traversal "observe
 //! the proven case" specializes into `BooleanConstant` at the same node: the

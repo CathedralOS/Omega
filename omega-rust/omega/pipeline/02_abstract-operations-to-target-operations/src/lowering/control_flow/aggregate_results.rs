@@ -11,7 +11,7 @@ use target_operations::{
     TerminalPsiProvenance,
 };
 use target_operations::{TargetStructuralHomeLayout, TargetStructuralHomeRequirement};
-use terminal_psi::{StructuralFieldType, StructuralMultiplicity, StructuralTypeShape};
+use terminal_psi::{StructuralMultiplicity, StructuralTypeShape};
 
 fn sum_layout(
     structural_type: StructuralTypeId,
@@ -132,68 +132,6 @@ pub(super) fn home(
         },
         layout: result_home_layout(&declaration, types)?,
     })
-}
-
-pub(super) fn establish_scalar_case(
-    operation: &AbstractOperation,
-    function: &AbstractFunction,
-    types: &StructuralTypeLookup<'_>,
-    live: &mut LiveDefinitions,
-    operations: &mut Vec<TargetUnitOperation>,
-    provenance: &mut TerminalPsiProvenance,
-) -> Result<(), LoweringError> {
-    let invalid = || LoweringError::unsupported_control_flow(function.machine);
-    let AbstractOperation::EstablishScalarCase {
-        psi_operation,
-        result,
-        result_case,
-        fields,
-    } = operation
-    else {
-        return Err(invalid());
-    };
-    let result_home = home(*psi_operation, result, types)?;
-    let StructuralTypeShape::Sum { cases } = &types
-        .get(&result.structural_type)
-        .ok_or_else(invalid)?
-        .shape
-    else {
-        return Err(invalid());
-    };
-    let case = cases
-        .iter()
-        .find(|case| case.id == *result_case)
-        .ok_or_else(invalid)?;
-    if fields.len() != case.fields.len() {
-        return Err(invalid());
-    }
-    for (field, declaration) in fields.iter().zip(&case.fields) {
-        let source = super::scalar_sources::source(field.value, function, live)?;
-        if field.field != declaration.id
-            || declaration.field_type.scalar_type() != Some(source.scalar_type())
-            || matches!(
-                declaration.field_type,
-                StructuralFieldType::BoundedInteger(_)
-            ) != field.range_obligation.is_some()
-        {
-            return Err(invalid());
-        }
-    }
-    if live
-        .structural_homes
-        .insert(result.place, result_home.clone())
-        .is_some()
-    {
-        return Err(invalid());
-    }
-    operations.push(TargetUnitOperation::EstablishScalarCase {
-        psi_operation: *psi_operation,
-        result_home,
-        result_case: *result_case,
-        fields: fields.clone(),
-    });
-    provenance.operations.push(*psi_operation);
-    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]

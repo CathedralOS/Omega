@@ -176,7 +176,7 @@ pub(super) fn validate_operation(
             AbstractOperation::EstablishScalarArray { .. }
             | AbstractOperation::EstablishRecord { .. }
             | AbstractOperation::StructuralLeafCopy { .. }
-            | AbstractOperation::EstablishScalarCase { .. },
+            | AbstractOperation::EstablishCase { .. },
         ) => {
             aggregate_results::validate(target, abstracted, sources, optimized, plan, unit)?;
         }

@@ -241,7 +241,7 @@ pub enum AbstractOperation {
     /// live readable root. The source stays fully intact: copying observes
     /// contents like a structural field read, so shared loans admit it where
     /// a move would vacate borrowed storage. The result is fresh storage the
-    /// way an `EstablishScalarCase` result is — consumers must not alias it
+    /// way an `EstablishCase` result is — consumers must not alias it
     /// back into the borrowed root's custody.
     StructuralLeafCopy {
         psi_operation: OperationId,
@@ -285,14 +285,15 @@ pub enum AbstractOperation {
         reads_from: Option<AtomicReadsFrom>,
         modification_after: Option<AtomicModificationAfter>,
     },
-    /// Atomically establish one exact scalar case of a declared structural sum.
+    /// Atomically establish one exact case of a declared structural sum from
+    /// scalar values and whole owned structural payloads.
     /// Target realization remains deliberately separate from retention in the
     /// optimizer's target-neutral semantic vocabulary.
-    EstablishScalarCase {
+    EstablishCase {
         psi_operation: OperationId,
         result: StructuralOperationResult,
         result_case: StructuralCaseId,
-        fields: Vec<terminal_psi::ScalarCaseField>,
+        fields: Vec<terminal_psi::RecordFieldInitializer>,
     },
     /// Establish one exact immutable byte payload in a verifier-declared
     /// borrowed-view place. The bytes remain semantic data until target
@@ -924,7 +925,7 @@ impl AbstractOperation {
             | Self::StructuralLeafCopy { psi_operation, .. }
             | Self::StoreDynamicDescriptor { psi_operation, .. }
             | Self::EstablishScalarArray { psi_operation, .. }
-            | Self::EstablishScalarCase { psi_operation, .. }
+            | Self::EstablishCase { psi_operation, .. }
             | Self::EstablishByteSequenceLiteral { psi_operation, .. }
             | Self::EstablishTrivialAffineLocal { psi_operation, .. }
             | Self::EstablishZeroedStructural { psi_operation, .. }

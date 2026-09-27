@@ -373,7 +373,7 @@ pub(super) fn validate(
             AbstractOperation::CallStructural { .. }
             | AbstractOperation::EstablishRecord { .. }
             | AbstractOperation::EstablishScalarArray { .. }
-            | AbstractOperation::EstablishScalarCase { .. }
+            | AbstractOperation::EstablishCase { .. }
             | AbstractOperation::StructuralCaseMembership { .. }
             | AbstractOperation::StructuralLeafCopy { .. },
         ) => {

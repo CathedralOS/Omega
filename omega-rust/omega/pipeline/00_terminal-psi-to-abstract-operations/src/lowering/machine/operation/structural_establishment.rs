@@ -39,7 +39,30 @@ pub(super) fn lower(
             let Some(result) = operation.result.structural().cloned() else {
                 return Err(LoweringError::UnsupportedPayloadlessCase(operation.id));
             };
-            AbstractOperation::EstablishScalarCase {
+            AbstractOperation::EstablishCase {
+                psi_operation: operation.id,
+                result,
+                result_case,
+                fields: fields
+                    .into_iter()
+                    .map(|field| terminal_psi::RecordFieldInitializer {
+                        field: field.field,
+                        value: terminal_psi::RecordFieldValue::Scalar {
+                            value: field.value,
+                            range_obligation: field.range_obligation,
+                        },
+                    })
+                    .collect(),
+            }
+        }
+        OperationKind::EstablishStructuralCase {
+            result_case,
+            fields,
+        } => {
+            let Some(result) = operation.result.structural().cloned() else {
+                return Err(LoweringError::UnsupportedStructuralCase(operation.id));
+            };
+            AbstractOperation::EstablishCase {
                 psi_operation: operation.id,
                 result,
                 result_case,

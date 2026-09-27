@@ -47,9 +47,12 @@ operands, which retain their unsigned realization. x86-64 zero/sign high-half
 preparation retains explicit scratch constraints and adds no source operation or
 fuel charge.
 
-Fresh scalar sums use activation-local carriers in this graph. Construction
+Fresh sums use activation-local carriers in this graph. Construction
 initializes the complete carrier, including padding and inactive payload bytes,
-then writes the declared tag and exact-width fields. The carrier-address
+then writes the declared tag and exact-width scalar fields or copies complete
+owned structural children through the same field transport as records. Exact
+case/field identities, recursive payload geometry, scalar range obligations and
+child sources survive legalization and independent selected replay. The carrier-address
 instruction retains the single source-operation charge; its other initialization
 instructions add none. Ordinary calls capture every direct result fragment into
 the caller's result slot, and returns load every fragment under the same retained

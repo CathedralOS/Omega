@@ -56,7 +56,7 @@ pub(super) fn scalar_case_result_contained(
                 // the admissibility gate confines an affine result to the
                 // field-free shape, so no structural field argument can
                 // spell `picked` here.
-                O::EstablishScalarCase { result, .. }
+                O::EstablishCase { result, .. }
                 | O::EstablishRecord { result, .. }
                 | O::CallStructural { result, .. }
                     if result.place == picked =>
@@ -509,17 +509,7 @@ pub(crate) fn substitute_invariant_scalar_operands(
         // place, structural type, result case, result custody, field
         // identities, and bounded-integer range obligations stay byte-exact
         // inside the moved operation.
-        O::EstablishScalarCase { fields, .. } => {
-            for field in fields {
-                substitute(&mut field.value, substitution);
-            }
-        }
-        // A relocated record establishment rebinds each scalar field
-        // initializer through the same invariant-parameter substitution —
-        // the declared place, structural type, result custody, declaration
-        // order, structural field arguments, and bounded-integer range
-        // obligations stay byte-exact inside the moved operation.
-        O::EstablishRecord { fields, .. } => {
+        O::EstablishCase { fields, .. } | O::EstablishRecord { fields, .. } => {
             for field in fields {
                 if let terminal_psi::RecordFieldValue::Scalar { value, .. } = &mut field.value {
                     substitute(value, substitution);
@@ -610,7 +600,7 @@ pub(crate) fn substitute_invariant_call_roots(
                 }
             }
         }
-        O::EstablishRecord { fields, .. } => {
+        O::EstablishCase { fields, .. } | O::EstablishRecord { fields, .. } => {
             for field in fields.iter_mut() {
                 if let terminal_psi::RecordFieldValue::Structural(argument) = &mut field.value
                     && let Some(root) = rewrites.get(&argument.place)
