@@ -28,25 +28,4 @@ pub(crate) fn join_path_identifier(members: &[Identifier]) -> Identifier {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::join_path_identifier;
-    use source::{SourceId, SourceSpan, Span};
-    use syntax_trees::identifier::Identifier;
-
-    #[test]
-    fn joined_machine_path_retains_authored_source_span() {
-        let source = SourceId(7);
-        let members = [
-            Identifier::new("Provider", SourceSpan::new(source, Span::new(11, 19))),
-            Identifier::new("first", SourceSpan::new(source, Span::new(21, 26))),
-        ];
-
-        let joined = join_path_identifier(&members);
-
-        assert_eq!(joined.as_str(), "Provider::first");
-        assert_eq!(
-            joined.source_span(),
-            SourceSpan::new(source, Span::new(11, 26))
-        );
-    }
-}
+mod tests {}

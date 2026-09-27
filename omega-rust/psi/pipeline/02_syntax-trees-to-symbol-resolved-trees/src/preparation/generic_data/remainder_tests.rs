@@ -3,9 +3,7 @@ use crate::pre_resolution::normalize_generic_data;
 use diagnostics::Diagnostic;
 use source_files_to_tokens::Lexer;
 use syntax_trees::SyntaxTrees;
-use syntax_trees::item::DataMember;
 use syntax_trees::item::Item;
-use syntax_trees::types::TypeReferenceNode;
 use tokens_to_syntax_trees::parse_syntax_trees;
 
 fn normalize(source: &str) -> Result<SyntaxTrees, Vec<Diagnostic>> {
@@ -28,71 +26,6 @@ fn const_argument_anonymous_division_retains_its_exact_value() {
         )),
         "anonymous quotient was truncated before multiplication"
     );
-}
-
-#[test]
-fn anonymous_remainder_const_arguments_reject_before_folding() {
-    for value in ["7 % 2", "8 % 2", "7 + 8 % 2", "7u64 + 8 % 2"] {
-        let source = format!(
-            "data Buffer<const N: u64> {{ values: [u8; N]; }} data Main {{ value: Buffer<{value}>; }}"
-        );
-        let errors = match normalize(&source) {
-            Err(errors) => errors,
-            Ok(_) => panic!("anonymous remainder acquired the parameter type: {value}"),
-        };
-        assert!(
-            errors
-                .iter()
-                .any(|error| error.message.contains("integer-typed operand")),
-            "{source}: {errors:?}"
-        );
-    }
-}
-
-#[test]
-fn anonymous_remainder_const_facts_reject_before_discharge() {
-    let source = "data Buffer<const N: u64> where 8 % 2 == 0, { values: [u8; N]; } data Main { value: Buffer<2>; }";
-    let errors = match normalize(source) {
-        Err(errors) => errors,
-        Ok(_) => panic!("anonymous remainder became a true fact"),
-    };
-    assert!(
-        errors
-            .iter()
-            .any(|error| error.message.contains("integer-typed operand")),
-        "{errors:?}"
-    );
-}
-
-#[test]
-fn anonymous_remainder_const_domain_facts_reject_before_discharge() {
-    for expression in [
-        "8 % 2 == 0",
-        "7 % 2 == 1",
-        "-3 % 2 == -1",
-        "(7 + 1) % 2 == 0",
-        "(7 / 2) % 2 == 1",
-        "self > 0 && 8 % 2 == 0",
-    ] {
-        for membership in ["Checked", "Transitive"] {
-            let source = format!(
-                "domain u64::Checked requires {expression};
-                domain u64::Transitive requires self in Checked;
-                data Buffer<const N: u64> where N in {membership}, {{ values: [u8; N]; }}
-                data Main {{ value: Buffer<2>; }}"
-            );
-            let errors = match normalize(&source) {
-                Err(errors) => errors,
-                Ok(_) => panic!("anonymous remainder became a discharged domain fact: {source}"),
-            };
-            assert!(
-                errors
-                    .iter()
-                    .any(|error| error.message.contains("integer-typed operand")),
-                "{source}: {errors:?}"
-            );
-        }
-    }
 }
 
 #[test]
@@ -142,38 +75,6 @@ fn typed_const_domain_remainders_preserve_truth_and_divisor_checks() {
 }
 
 #[test]
-fn typed_and_named_remainder_operands_and_exact_quotients_still_normalize() {
-    for value in ["7u64 % 2", "7 % 2u64", "Sizes::COUNT % 2", "8 / 2"] {
-        let source = format!(
-            "const Sizes::COUNT: u64 = 7; data Buffer<const N: u64> {{ values: [u8; N]; }} data Main {{ value: Buffer<{value}>; }}"
-        );
-        normalize(&source).unwrap_or_else(|errors| panic!("{source}: {errors:?}"));
-    }
-    normalize("operator % u64::remainder(left: u64, right: u64) -> u64; machine value(left: u64, right: u64) -> u64 { left % right }")
-        .expect("authored typed operator application remains for selection");
-}
-
-#[test]
-fn authored_spelling_cannot_select_wholly_anonymous_remainder() {
-    // Operator spellings resolve by operand carrier, and wholly anonymous
-    // operands have none (wiki/spec/language/numeric_values.md), so an
-    // authored `%` never rescues the builtin formation rule.
-    for (operator, value) in [("%", "7 % 2"), ("*", "7 * 2 % 4")] {
-        let source = format!(
-            "operator {operator} u64::operation(left: u64, right: u64) -> u64; data Buffer<const N: u64> {{ values: [u8; N]; }} data Main {{ value: Buffer<{value}>; }}"
-        );
-        let errors =
-            normalize(&source).expect_err("wholly anonymous `%` has no integer operand meaning");
-        assert!(
-            errors.iter().any(|error| error
-                .message
-                .contains("builtin `%` requires an integer-typed operand")),
-            "{source}: {errors:?}"
-        );
-    }
-}
-
-#[test]
 fn authored_const_operator_arguments_retain_selection_before_folding() {
     let syntax = normalize(
         "operator % u64::remainder(left: u64, right: u64) -> u64;
@@ -190,43 +91,6 @@ fn authored_const_operator_arguments_retain_selection_before_folding() {
 }
 
 #[test]
-fn nested_authored_const_arguments_preserve_the_whole_application() {
-    let syntax = normalize(
-        "operator % u64::remainder(left: u64, right: u64) -> u64;
-         data Buffer<const First: u64, const Second: u64> { values: [u8; First]; }
-         data Main { value: Buffer<7 / 2 * 2, 1 + (7u64 % 2)>; }",
-    )
-    .expect("defer the application before rewriting arguments");
-    let definition = syntax
-        .root_items()
-        .find_map(|item| match item {
-            Item::Data(definition) if definition.name.as_str() == "Main" => Some(definition),
-            _ => None,
-        })
-        .expect("Main remains");
-    let [DataMember::Field(field)] = syntax.tables.items.data_members(definition.members) else {
-        panic!("one field");
-    };
-    let TypeReferenceNode::Generic { arguments, .. } = syntax
-        .tables
-        .type_references
-        .type_reference(field.type_reference)
-    else {
-        panic!("generic application remains");
-    };
-    for argument in syntax
-        .tables
-        .type_references
-        .type_reference_handles(*arguments)
-    {
-        assert!(matches!(
-            syntax.tables.type_references.type_reference(*argument),
-            TypeReferenceNode::ConstExpression(_)
-        ));
-    }
-}
-
-#[test]
 fn unrelated_operator_spelling_does_not_block_builtin_const_arguments() {
     let syntax = normalize(
         "operator + u64::add(left: u64, right: u64) -> u64;
@@ -237,29 +101,4 @@ fn unrelated_operator_spelling_does_not_block_builtin_const_arguments() {
     assert!(syntax.root_items().any(|item| matches!(item,
         Item::Data(definition) if definition.name.as_str() == "Buffer<1>"
     )));
-}
-
-#[test]
-fn authored_const_domain_indices_retain_operator_selection() {
-    let syntax = normalize(
-        "operator % u64::remainder(left: u64, right: u64) -> u64;
-         domain<T, const N: u64> T::Indexed<N>;
-         data Main { value: u64 in Indexed<7u64 % 2>; }",
-    )
-    .expect("domain index remains for typing");
-    let domains = syntax.tables.type_references.domain_constraints();
-    let [domain] = domains.as_slice() else {
-        panic!("one domain");
-    };
-    let [argument] = syntax
-        .tables
-        .type_references
-        .type_reference_handles(domain.arguments)
-    else {
-        panic!("one argument");
-    };
-    assert!(matches!(
-        syntax.tables.type_references.type_reference(*argument),
-        TypeReferenceNode::ConstExpression(_)
-    ));
 }

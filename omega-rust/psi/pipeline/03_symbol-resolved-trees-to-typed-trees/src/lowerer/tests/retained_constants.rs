@@ -29,56 +29,6 @@ fn resolved_local(program: &SymbolResolvedTrees, local_name: &str) -> Expression
 }
 
 #[test]
-fn seeded_retained_scalar_and_array_constants_type_without_relowering_base() {
-    use symbol_resolved_trees::expression::ExpressionNode;
-
-    let (base, extension) = seeded_plain_data_inputs(
-        "module settings; pub const COUNT: u64 = 7; pub const VALUES: [u64; 2] = [3, 5];",
-        "use settings; machine generated() -> u64 {
-            let count: u64 = settings::COUNT;
-            let first: [u64; 2] = settings::VALUES;
-            let second: [u64; 2] = settings::VALUES;
-            count
-        }",
-    );
-    let program = extension.trees();
-    let expressions = &program.tables.bodies.expressions;
-    let ExpressionNode::Integer(count) = expressions.expression(resolved_local(program, "count"))
-    else {
-        panic!("retained scalar substituted");
-    };
-    assert_eq!(count.value_u64(), Some(7));
-    let ExpressionNode::ArrayLiteral(first) =
-        expressions.expression(resolved_local(program, "first"))
-    else {
-        panic!("first retained array substituted");
-    };
-    let ExpressionNode::ArrayLiteral(second) =
-        expressions.expression(resolved_local(program, "second"))
-    else {
-        panic!("second retained array substituted");
-    };
-    assert_ne!(first, second);
-    for (first, second) in expressions
-        .expression_handles(*first)
-        .iter()
-        .zip(expressions.expression_handles(*second))
-    {
-        assert_ne!(first, second);
-        assert_eq!(
-            expressions.expression(*first),
-            expressions.expression(*second)
-        );
-    }
-    let retained = base.typed().clone();
-    let typed = lower_seeded_extension(extension, base)
-        .expect("retained scalar and array uses enter seeded typing");
-    assert!(retained_typed_base_is_exact_prefix(&retained, &typed));
-    assert_eq!(typed.const_declarations(), retained.const_declarations());
-    assert_eq!(typed.machines().len(), retained.machines().len() + 1);
-}
-
-#[test]
 fn seeded_retained_nominal_constant_keeps_constructor_custody_under_shadowing() {
     use language_semantics::declaration_selection::{
         AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,

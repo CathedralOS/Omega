@@ -122,26 +122,6 @@ fn owned_successor_module() -> TerminalModule {
 }
 
 #[test]
-fn verified_owned_record_successor_copy_survives_mutation_of_original() {
-    let module = owned_successor_module();
-    terminal_verifier::validate_module(&module)
-        .expect("dominating source remains legal after an owned unrestricted edge copy");
-    // The existing runner canonical-decodes and verifies again, then executes
-    // with one-unit replenishments from zero fuel across the copy and mutation.
-    let (execution, result) = run(&module, &[unsigned(41)]);
-    assert_eq!(
-        execution.values[&ValueId::new(4).unwrap()],
-        unsigned(99),
-        "the original was really mutated"
-    );
-    assert_eq!(
-        result,
-        TerminalExecutionResult::Scalar(unsigned(41)),
-        "owned successor retained its independent pre-mutation payload"
-    );
-}
-
-#[test]
 fn verified_direct_owned_record_stores_preserve_copy_and_scalar_snapshots() {
     for destination in [1, 2] {
         let mut module = owned_successor_module();

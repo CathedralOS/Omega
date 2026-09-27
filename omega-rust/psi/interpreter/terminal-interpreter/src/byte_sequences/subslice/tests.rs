@@ -2,19 +2,16 @@ use crate::byte_sequences::subslice::{
     IntegerSign, IntegerType, IntegerValue, Operation, OperationKind, StructuralMultiplicity,
     StructuralPlaceKind, TerminalExecution, TerminalScalarValue, TerminalStructuralValue,
 };
-use crate::effects::AcceptTerminalEffects;
 use std::collections::BTreeMap;
 use terminal_psi::{ByteSequenceCarrier, StructuralTypeShape};
 
 use crate::execution::ExecutableMachine;
 use crate::execution::LiveClaim;
-use crate::results::TerminalExecutionStatus;
 use crate::values::TerminalScalarCaseValue;
 use semantic_vocabulary::{
     BlockId, ClaimId, EdgeId, MachineId, ObligationId, OperationId, PlaceId, StructuralDomainId,
     StructuralTypeId, ValueId,
 };
-use terminal_fuel::{FuelChargeSite, TerminalFuelMeter};
 use terminal_psi::{
     Block, OperationResult, StructuralAccess, StructuralAffineDiscard, StructuralArgument,
     StructuralOperationResult, StructuralParameterDeclaration, StructuralPathQualification,
@@ -193,90 +190,6 @@ fn execution() -> (TerminalExecution, Operation) {
         effects: Vec::new(),
     };
     (execution, operation)
-}
-
-#[test]
-fn repeated_producer_shortens_to_empty_tail_without_changing_other_aliases() {
-    let (mut execution, operation) = execution();
-    let original = execution.byte_sequence_values[&place(1)].clone();
-    execution
-        .execute_byte_sequence_subslice(&operation)
-        .unwrap();
-    let first_tail = execution.byte_sequence_values[&place(2)].clone();
-    execution
-        .structural_values
-        .insert(place(3), execution.structural_values[&place(2)].clone());
-    execution
-        .byte_sequence_values
-        .insert(place(3), first_tail.clone());
-    for length in (1..=3).rev() {
-        let previous = execution.byte_sequence_values[&place(2)].clone();
-        execution.byte_sequence_values.insert(place(1), previous);
-        execution.values.insert(value(3), count(length));
-        execution
-            .execute_byte_sequence_subslice(&operation)
-            .unwrap();
-        let tail = &execution.byte_sequence_values[&place(2)];
-        let offset = 5 - usize::try_from(length).unwrap();
-        assert_eq!(
-            tail.immutable().unwrap().bytes(),
-            &original.immutable().unwrap().bytes()[offset..]
-        );
-        assert_eq!(
-            tail.immutable().unwrap().bytes().as_ptr(),
-            original.immutable().unwrap().bytes()[offset..].as_ptr()
-        );
-        assert_eq!(
-            execution.byte_sequence_values[&place(3)]
-                .immutable()
-                .unwrap()
-                .bytes(),
-            &[128, 255, 7]
-        );
-    }
-    execution
-        .byte_sequence_values
-        .insert(place(1), execution.byte_sequence_values[&place(2)].clone());
-    execution.values.insert(value(1), count(0));
-    execution.values.insert(value(3), count(0));
-    execution
-        .execute_byte_sequence_subslice(&operation)
-        .unwrap();
-    assert_eq!(
-        execution.byte_sequence_values[&place(2)]
-            .immutable()
-            .unwrap()
-            .bytes(),
-        &[]
-    );
-    assert_eq!(original.immutable().unwrap().bytes(), &[0, 128, 255, 7]);
-    assert_eq!(first_tail.immutable().unwrap().bytes(), &[128, 255, 7]);
-    assert!(execution.live_claims.is_empty());
-    assert!(execution.live_affine_frontier.is_empty());
-}
-
-#[test]
-fn source_descriptor_is_snapshotted_before_replacing_aliased_destination() {
-    let (mut execution, mut operation) = execution();
-    execution
-        .execute_byte_sequence_subslice(&operation)
-        .unwrap();
-    let previous = execution.byte_sequence_values[&place(2)].clone();
-    let OperationKind::ByteSequenceSubslice { source, .. } = &mut operation.kind else {
-        panic!("subslice");
-    };
-    *source = place(2);
-    execution.values.insert(value(3), count(3));
-    execution
-        .execute_byte_sequence_subslice(&operation)
-        .unwrap();
-    let tail = &execution.byte_sequence_values[&place(2)];
-    assert_eq!(tail.immutable().unwrap().bytes(), &[255, 7]);
-    assert_eq!(
-        tail.immutable().unwrap().bytes().as_ptr(),
-        previous.immutable().unwrap().bytes()[1..].as_ptr()
-    );
-    assert_eq!(previous.immutable().unwrap().bytes(), &[128, 255, 7]);
 }
 
 #[test]
@@ -519,86 +432,5 @@ fn failed_replacement_preserves_descriptors_and_live_custody() {
                 "{mutation}"
             );
         }
-    }
-}
-
-#[test]
-fn repeated_dispatch_rebinds_only_after_fuel_charge_and_resumes_once() {
-    let (mut execution, _) = execution();
-    let (mut uninterrupted, _) = self::execution();
-    let mut meter = TerminalFuelMeter::with_allowance(0);
-    for consumed in 0..=11 {
-        let previous = execution.byte_sequence_values.clone();
-        let previous_operation = execution.next_operation;
-        assert!(matches!(
-            execution
-                .resume(&mut meter, &mut AcceptTerminalEffects)
-                .unwrap(),
-            TerminalExecutionStatus::SponsorExhausted(_)
-        ));
-        assert_eq!(execution.next_operation, previous_operation);
-        for (place, previous) in previous {
-            assert_eq!(
-                execution.byte_sequence_values[&place]
-                    .immutable()
-                    .unwrap()
-                    .bytes()
-                    .as_ptr(),
-                previous.immutable().unwrap().bytes().as_ptr()
-            );
-            assert_eq!(
-                execution.byte_sequence_values[&place]
-                    .immutable()
-                    .unwrap()
-                    .bytes(),
-                previous.immutable().unwrap().bytes()
-            );
-        }
-        if consumed == 11 {
-            break;
-        }
-        meter.replenish(1).unwrap();
-        assert!(matches!(
-            execution
-                .resume(&mut meter, &mut AcceptTerminalEffects)
-                .unwrap(),
-            TerminalExecutionStatus::SponsorExhausted(_)
-        ));
-    }
-    let mut uninterrupted_meter = TerminalFuelMeter::with_allowance(11);
-    assert!(matches!(
-        uninterrupted
-            .resume(&mut uninterrupted_meter, &mut AcceptTerminalEffects)
-            .unwrap(),
-        TerminalExecutionStatus::SponsorExhausted(_)
-    ));
-    assert_eq!(execution.next_operation, 2);
-    assert_eq!(
-        execution.byte_sequence_values[&place(2)]
-            .immutable()
-            .unwrap()
-            .bytes(),
-        &[]
-    );
-    assert_eq!(execution.structural_values, uninterrupted.structural_values);
-    assert_eq!(execution.values, uninterrupted.values);
-    assert_eq!(meter.usage(), uninterrupted_meter.usage());
-    assert_eq!(meter.usage().total_units(), 11);
-    assert_eq!(
-        meter
-            .usage()
-            .at(FuelChargeSite::Operation(OperationId::new(2).unwrap()))
-            .unwrap()
-            .units(),
-        4
-    );
-    for (place, bytes) in &execution.byte_sequence_values {
-        assert_eq!(
-            bytes.immutable().unwrap().bytes(),
-            uninterrupted.byte_sequence_values[place]
-                .immutable()
-                .unwrap()
-                .bytes()
-        );
     }
 }

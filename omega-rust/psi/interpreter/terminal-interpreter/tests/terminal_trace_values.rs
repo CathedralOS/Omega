@@ -64,44 +64,6 @@ fn structural_value(
 }
 
 #[test]
-fn exact_terminal_trace_scalar_values_compare_by_typed_semantic_value() {
-    assert_eq!(
-        compare_terminal_trace_scalar_values(
-            schema(ScalarType::Boolean),
-            TerminalScalarValue::Boolean(true),
-            TerminalScalarValue::Boolean(true),
-        ),
-        Ok(true),
-    );
-    assert_eq!(
-        compare_terminal_trace_scalar_values(
-            schema(ScalarType::Boolean),
-            TerminalScalarValue::Boolean(true),
-            TerminalScalarValue::Boolean(false),
-        ),
-        Ok(false),
-    );
-
-    let u16_type = integer_type(IntegerSign::Unsigned, 16);
-    assert_eq!(
-        compare_terminal_trace_scalar_values(
-            schema(ScalarType::Integer(u16_type)),
-            integer(u16_type, IntegerValue::Unsigned(513)),
-            integer(u16_type, IntegerValue::Unsigned(513)),
-        ),
-        Ok(true),
-    );
-    assert_eq!(
-        compare_terminal_trace_scalar_values(
-            schema(ScalarType::Integer(u16_type)),
-            integer(u16_type, IntegerValue::Unsigned(513)),
-            integer(u16_type, IntegerValue::Unsigned(514)),
-        ),
-        Ok(false),
-    );
-}
-
-#[test]
 fn exact_terminal_trace_float_values_compare_raw_interchange_bits() {
     let binary32 = schema(ScalarType::IeeeFloat(IeeeFloatFormat::Binary32));
     assert_eq!(

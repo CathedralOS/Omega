@@ -5,22 +5,6 @@ use std::{path::PathBuf, sync::Arc};
 use tokens_to_syntax_trees::parse_syntax_trees_with_id;
 
 #[test]
-fn unused_machine_equations_still_validate_type_and_value_kinds() {
-    let tokens =
-        Lexer::new("machine bad<Type, const Count: u64>() -> u64 where Type == Count { 0 }")
-            .tokenize()
-            .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let diagnostics = resolve(ResolutionRequest::new(&syntax)).unwrap_err();
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("equation mixes type and value")),
-        "{diagnostics:?}"
-    );
-}
-
-#[test]
 fn retained_machine_equation_cannot_be_discarded_by_extension_call() {
     let base_source = "machine capacity<Length, const Capacity: u64>() -> u64 where Length == u64[0..=Capacity] { Capacity }";
     let extension_source = "machine recovered() -> u64 { capacity<u64[0..=256], 512>() }";

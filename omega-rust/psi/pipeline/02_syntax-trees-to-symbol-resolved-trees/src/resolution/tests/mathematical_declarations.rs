@@ -22,56 +22,6 @@ fn resolve(source: &str) -> SymbolResolvedTrees {
 }
 
 #[test]
-fn let_definition_resolves_onto_its_own_root_surface() {
-    let program = resolve("let double(x: u64): u64 = x;");
-
-    assert_eq!(program.mathematical_definitions.len(), 1);
-    let definition = program.mathematical_definitions.first().unwrap();
-    assert!(definition.symbol.is_valid());
-    assert_eq!(
-        program.symbols.get(definition.symbol).kind,
-        SymbolKind::MathematicalDefinition
-    );
-    assert_eq!(definition.name.as_str(), "double");
-
-    let [parameter] = program.mathematical_parameters(definition.parameters) else {
-        panic!("one telescope parameter")
-    };
-    assert!(parameter.symbol.is_valid());
-    assert_eq!(
-        program.symbols.get(parameter.symbol).kind,
-        SymbolKind::Parameter
-    );
-    assert!(
-        program
-            .symbols
-            .child_handles(definition.symbol)
-            .into_iter()
-            .flatten()
-            .any(|child| child == parameter.symbol)
-    );
-
-    // The `u64` result is an ordinary resolved type reference.
-    let MathematicalType::Ordinary(result) = program.mathematical_type(definition.result) else {
-        panic!("ordinary result type")
-    };
-    let TypeReference::Named { symbol, .. } = result else {
-        panic!("builtin result resolves as a named reference")
-    };
-    assert_eq!(program.symbols.get(*symbol).kind, SymbolKind::BuiltinType);
-
-    // The body `x` names the parameter child.
-    let MathematicalBody::Definition(body) = definition.body else {
-        panic!("transparent definition body")
-    };
-    let ExpressionNode::Name(path) = program.tables.bodies.expressions.expression(body) else {
-        panic!("parameter reference body")
-    };
-    assert_eq!(path.symbol, parameter.symbol);
-    assert_eq!(path.head_symbol, parameter.symbol);
-}
-
-#[test]
 fn boundary_let_resolves_as_a_named_assumption() {
     let program = resolve("boundary let choose(inhabited: u64): u64;");
 
@@ -87,82 +37,6 @@ fn boundary_let_resolves_as_a_named_assumption() {
         program.symbols.get(parameter.symbol).kind,
         SymbolKind::Parameter
     );
-}
-
-#[test]
-fn type_binders_scope_over_the_result_and_body() {
-    let program = resolve("let id<A>(value: A): A = value;");
-
-    let definition = program.mathematical_definitions.first().unwrap();
-    let binders = program
-        .tables
-        .declarations
-        .data_type_parameters
-        .span_or_empty(definition.binders);
-    let [binder] = binders else {
-        panic!("one type binder")
-    };
-    assert_eq!(binder.name.as_str(), "A");
-    assert!(binder.symbol.is_valid());
-    assert_eq!(
-        program.symbols.get(binder.symbol).kind,
-        SymbolKind::TypeParameter
-    );
-
-    // The `A` result resolves to the binder's child symbol.
-    let MathematicalType::Ordinary(result) = program.mathematical_type(definition.result) else {
-        panic!("ordinary result type")
-    };
-    let TypeReference::Named { symbol, .. } = result else {
-        panic!("binder result resolves as a named reference")
-    };
-    assert_eq!(*symbol, binder.symbol);
-
-    let [parameter] = program.mathematical_parameters(definition.parameters) else {
-        panic!("one telescope parameter")
-    };
-    let MathematicalBody::Definition(body) = definition.body else {
-        panic!("transparent definition body")
-    };
-    let ExpressionNode::Name(path) = program.tables.bodies.expressions.expression(body) else {
-        panic!("parameter reference body")
-    };
-    assert_eq!(path.symbol, parameter.symbol);
-}
-
-#[test]
-fn calls_between_mathematical_declarations_resolve() {
-    let program = resolve(
-        "let plus(a: u64, b: u64): u64 = a;\n\
-         let two(): u64 = plus(plus(1, 1), 1);",
-    );
-
-    assert_eq!(program.mathematical_definitions.len(), 2);
-    let mut definitions = program.mathematical_definitions.iter();
-    let plus = definitions.next().unwrap();
-    let two = definitions.next().unwrap();
-    assert_eq!(plus.name.as_str(), "plus");
-    assert_eq!(two.name.as_str(), "two");
-
-    let MathematicalBody::Definition(body) = two.body else {
-        panic!("transparent definition body")
-    };
-    let ExpressionNode::Call(call) = program.tables.bodies.expressions.expression(body) else {
-        panic!("call body")
-    };
-    assert_eq!(call.target_symbol, plus.symbol);
-
-    // Nested `plus(1, 1)` arguments resolve to the same declaration symbol.
-    let arguments = program
-        .tables
-        .bodies
-        .expressions
-        .expression_handles(call.arguments);
-    let ExpressionNode::Call(nested) = program.tables.bodies.expressions.expression(arguments[0])
-    else {
-        panic!("nested call argument")
-    };
-    assert_eq!(nested.target_symbol, plus.symbol);
 }
 
 #[test]

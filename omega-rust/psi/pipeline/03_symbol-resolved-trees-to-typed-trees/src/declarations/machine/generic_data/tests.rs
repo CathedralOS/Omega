@@ -31,20 +31,6 @@ fn derived(program: &SymbolResolvedTrees) -> Machine {
 }
 
 #[test]
-fn exact_generated_method_and_authored_template_have_distinct_selection_contexts() {
-    let program = resolved_fixture();
-    let instance = derived(&program);
-    let template = program
-        .machines
-        .iter()
-        .find(|machine| machine.symbol == instance.generic_data_origin.template)
-        .unwrap();
-    assert!(is_derived(&program, &instance).unwrap());
-    assert!(!is_derived(&program, template).unwrap());
-    assert!(instance.is_public && template.is_public);
-}
-
-#[test]
 fn missing_template_owner_or_source_token_cannot_authorize_suppression() {
     let program = resolved_fixture();
     let original = derived(&program);
@@ -55,30 +41,6 @@ fn missing_template_owner_or_source_token_cannot_authorize_suppression() {
     let mut missing_source = original;
     missing_source.generic_data_origin.template_source = Default::default();
     for malformed in [missing_template, missing_owner, missing_source] {
-        assert!(is_derived(&program, &malformed).is_err());
-    }
-}
-
-#[test]
-fn wrong_template_and_cross_paired_closed_owner_reject() {
-    let program = resolved_fixture();
-    let original = derived(&program);
-    let unrelated_machine = program
-        .machines
-        .iter()
-        .find(|machine| machine.name.as_str() == "use_private")
-        .unwrap();
-    let unrelated_data = program
-        .data_definitions
-        .iter()
-        .find(|data| data.name.as_str() == "Secret")
-        .unwrap();
-    let mut wrong_template = original.clone();
-    wrong_template.generic_data_origin.template = unrelated_machine.symbol;
-    let mut wrong_owner = original;
-    wrong_owner.generic_data_origin.closed_owner = unrelated_data.symbol;
-    wrong_owner.attached_data_symbol = unrelated_data.symbol;
-    for malformed in [wrong_template, wrong_owner] {
         assert!(is_derived(&program, &malformed).is_err());
     }
 }

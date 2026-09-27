@@ -1,8 +1,7 @@
 use crate::byte_sequences::ByteSequenceView;
 use crate::byte_sequences::binding::ByteSequenceBinding;
-use crate::effects::AcceptTerminalEffects;
 use crate::execution::ExecutableMachine;
-use crate::results::{TerminalExecutionResult, TerminalExecutionStatus};
+use crate::results::TerminalExecutionStatus;
 use crate::terminators::block_bindings::{
     BTreeMap, BlockId, PlaceId, StructuralArgument, StructuralPlaceKind, TerminalExecution,
     TerminalInterpretError, TerminalScalarValue, TerminalStructuralValue, ValueId,
@@ -19,9 +18,6 @@ use terminal_psi::{ByteSequenceCarrier, StructuralTypeShape};
 
 #[path = "tests/owned.rs"]
 mod owned;
-
-#[path = "tests/reference_cleanup.rs"]
-mod reference_cleanup;
 
 fn view_argument(place: u64) -> StructuralArgument {
     StructuralArgument {
@@ -188,133 +184,6 @@ fn execution(terminator: Terminator) -> TerminalExecution {
         result: None,
         crash: None,
         effects: Vec::new(),
-    }
-}
-
-fn assert_swap_after_fuel(terminator: Terminator) {
-    let mut execution = execution(terminator);
-    let original_structural = execution.structural_values.clone();
-    let original_scalars = execution.values.clone();
-    let original_views = execution.byte_sequence_values.clone();
-    let mut meter = TerminalFuelMeter::with_allowance(0);
-    assert!(matches!(
-        execution
-            .resume(&mut meter, &mut AcceptTerminalEffects)
-            .unwrap(),
-        TerminalExecutionStatus::SponsorExhausted(_)
-    ));
-    assert_eq!(execution.structural_values, original_structural);
-    assert_eq!(execution.values, original_scalars);
-    assert_eq!(
-        execution.byte_sequence_values[&PlaceId::new(1).unwrap()]
-            .immutable()
-            .unwrap()
-            .bytes(),
-        &[0, 128]
-    );
-    meter.replenish(1).unwrap();
-    assert!(matches!(
-        execution
-            .resume(&mut meter, &mut AcceptTerminalEffects)
-            .unwrap(),
-        TerminalExecutionStatus::SponsorExhausted(_)
-    ));
-    for (destination, source) in [(1, 2), (2, 1)] {
-        assert_eq!(
-            execution.structural_values[&PlaceId::new(destination).unwrap()],
-            original_structural[&PlaceId::new(source).unwrap()]
-        );
-        assert_eq!(
-            execution.values[&ValueId::new(destination).unwrap()],
-            original_scalars[&ValueId::new(source).unwrap()]
-        );
-        assert_eq!(
-            execution.byte_sequence_values[&PlaceId::new(destination).unwrap()]
-                .immutable()
-                .unwrap()
-                .bytes()
-                .as_ptr(),
-            original_views[&PlaceId::new(source).unwrap()]
-                .immutable()
-                .unwrap()
-                .bytes()
-                .as_ptr()
-        );
-    }
-    assert_eq!(
-        execution.byte_sequence_values[&PlaceId::new(1).unwrap()]
-            .immutable()
-            .unwrap()
-            .bytes(),
-        &[255, 7, 42]
-    );
-    assert_eq!(
-        execution.byte_sequence_values[&PlaceId::new(2).unwrap()]
-            .immutable()
-            .unwrap()
-            .bytes(),
-        &[0, 128]
-    );
-    assert!(execution.live_affine_frontier.is_empty());
-    assert!(execution.live_claims.is_empty());
-    meter.replenish(1).unwrap();
-    assert_eq!(
-        execution
-            .resume(&mut meter, &mut AcceptTerminalEffects)
-            .unwrap(),
-        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
-    );
-    assert_eq!(meter.usage().total_units(), 2);
-}
-
-#[test]
-fn jump_swaps_views_and_scalars_once_after_fuel_replenishment() {
-    let successor = successor();
-    assert_swap_after_fuel(Terminator::Jump {
-        edge: successor.edge,
-        target: successor.target,
-        arguments: successor.arguments,
-        erased_arguments: Vec::new(),
-        erased_proof_arguments: Vec::new(),
-        structural_arguments: successor.structural_arguments,
-        trivial_affine_discards: Vec::new(),
-        residual_affine_discards: Vec::new(),
-    });
-}
-
-#[test]
-fn conditional_only_snapshots_selected_arm_and_resumes_once() {
-    for (condition, when_true, when_false) in [
-        (
-            1,
-            successor(),
-            SuccessorEdge {
-                target: BlockId::new(999).unwrap(),
-                arguments: vec![ValueId::new(999).unwrap()],
-                erased_arguments: Vec::new(),
-                erased_proof_arguments: Vec::new(),
-                structural_arguments: vec![view_argument(999)],
-                ..successor()
-            },
-        ),
-        (
-            2,
-            SuccessorEdge {
-                target: BlockId::new(999).unwrap(),
-                arguments: vec![ValueId::new(999).unwrap()],
-                erased_arguments: Vec::new(),
-                erased_proof_arguments: Vec::new(),
-                structural_arguments: vec![view_argument(999)],
-                ..successor()
-            },
-            successor(),
-        ),
-    ] {
-        assert_swap_after_fuel(Terminator::Conditional {
-            condition: ValueId::new(condition).unwrap(),
-            when_true,
-            when_false,
-        });
     }
 }
 

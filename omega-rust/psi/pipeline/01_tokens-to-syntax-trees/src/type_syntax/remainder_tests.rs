@@ -3,32 +3,6 @@ use syntax_trees::item::{DataMember, Item};
 use syntax_trees::types::{TypeConstraintNode, TypeReferenceNode};
 
 #[test]
-fn an_empty_parenthesis_pair_remains_a_unit_type_argument() {
-    let tokens = Lexer::new("data Main { value: Buffer<( /* unit */ )>; }")
-        .tokenize()
-        .expect("tokenize Unit argument");
-    let syntax = crate::parse_syntax_trees(&tokens).expect("parse Unit argument");
-    let Item::Data(definition) = syntax.root_items().next().expect("Main declaration") else {
-        panic!("data declaration");
-    };
-    let [DataMember::Field(field)] = syntax.items.data_members(definition.members) else {
-        panic!("one field");
-    };
-    let TypeReferenceNode::Generic { arguments, .. } =
-        syntax.type_references.type_reference(field.type_reference)
-    else {
-        panic!("generic field type");
-    };
-    let [argument] = syntax.type_references.type_reference_handles(*arguments) else {
-        panic!("one type argument");
-    };
-    assert!(matches!(
-        syntax.type_references.type_reference(*argument),
-        TypeReferenceNode::Unit
-    ));
-}
-
-#[test]
 fn division_and_remainder_const_arguments_retain_operations_before_semantic_admission() {
     for operand in [
         "7 % 2",

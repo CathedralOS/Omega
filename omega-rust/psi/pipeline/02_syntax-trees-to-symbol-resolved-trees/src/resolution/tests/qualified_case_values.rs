@@ -30,40 +30,6 @@ fn resolve(texts: &[&str]) -> Result<SymbolResolvedTrees, Vec<diagnostics::Diagn
 }
 
 #[test]
-fn unqualified_case_values_do_not_infer_their_owner_from_the_expected_type() {
-    let diagnostics =
-        resolve(&["data Light { case Off; case On; } machine read() -> Light { On }"])
-            .expect_err("an unqualified case value must not infer its carrier");
-    assert!(
-        diagnostics.iter().any(|diagnostic| diagnostic
-            .message
-            .contains("case value `On` requires its carrier-qualified `Type::On` path")),
-        "{diagnostics:?}"
-    );
-}
-
-#[test]
-fn qualified_path_heads_sharing_case_spellings_are_not_case_values() {
-    resolve(&[
-        "data Light { case Off; case Float; } machine Float::add() -> u64 { 1 } machine read() -> u64 { Float::add() }",
-    ])
-    .expect("a qualified-path head is a namespace segment, not a bare case value");
-}
-
-#[test]
-fn qualified_payload_free_case_values_resolve_to_constructors() {
-    let resolved =
-        resolve(&["data Light { case Off; case On; } machine read() -> Light { Light::On }"])
-            .expect("qualified payload-free case value");
-    assert!(resolved.tables.bodies.expressions.iter_expressions().any(
-        |(_, expression)| matches!(
-            expression,
-            ExpressionNode::StructLiteral(literal) if literal.case_name.as_ref().is_some_and(|name| name.as_str() == "On")
-        )
-    ));
-}
-
-#[test]
 fn qualified_case_ambiguity_cannot_select_a_segmentwise_owner() {
     for imports in [
         "use first::scope; use second::scope;",

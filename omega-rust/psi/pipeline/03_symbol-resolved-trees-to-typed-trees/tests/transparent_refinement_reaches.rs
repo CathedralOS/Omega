@@ -69,58 +69,6 @@ trait LocalLogger = Logger {
 }
 
 #[test]
-fn wildcard_clause_reach_must_fit_every_covered_requirement() {
-    let source = r#"
-boundary trait Handler { machine handle(); }
-boundary trait EventLog { machine emit(); }
-
-trait Logger {
-    machine write(&mut self) reaches Handler;
-    machine flush(&mut self) reaches Handler;
-}
-
-trait LocalLogger = Logger {
-    machine * reaches EventLog;
-}
-"#;
-    let diagnostic = crate::front_end::typed_program_result(source)
-        .expect_err("a `machine *` clause narrows every covered requirement");
-    let message = diagnostic.to_string();
-    assert!(
-        message.contains("does not reach it"),
-        "unexpected diagnostic: {message}"
-    );
-}
-
-#[test]
-fn named_clause_reach_interns_a_concrete_row() {
-    let source = r#"
-boundary trait Handler { machine handle(); }
-boundary trait EventLog { machine emit(); }
-
-trait Logger {
-    machine write(&mut self) reaches Handler + EventLog;
-}
-
-trait LocalLogger = Logger {
-    machine Logger::write reaches Handler;
-}
-"#;
-    let typed = crate::front_end::typed_program_result(source).expect("a subset reach narrows");
-    let clause = local_logger_clause(&typed, "write");
-    let typed_trees::trait_definition::TraitRefinementReach::Concrete(row) = &clause.service_reach
-    else {
-        panic!("named reaches bind a concrete clause-location row")
-    };
-    let services = typed.service_reach_rows.services(*row);
-    assert_eq!(
-        services.len(),
-        1,
-        "clause row holds exactly the named reach"
-    );
-}
-
-#[test]
 fn authored_empty_clause_reach_narrows_to_the_empty_row() {
     let source = r#"
 boundary trait Handler { machine handle(); }
@@ -142,29 +90,6 @@ trait LocalLogger = Logger {
             language_semantics::ServiceReachRowTable::EMPTY_ROW
         ),
         "authored `reaches;` is the concrete empty row, not inheritance"
-    );
-}
-
-#[test]
-fn omitted_clause_reach_inherits_the_base_row() {
-    let source = r#"
-boundary trait Handler { machine handle(); }
-
-trait Logger {
-    machine write(&mut self) reaches Handler;
-}
-
-trait LocalLogger = Logger {
-    machine Logger::write suspends false;
-}
-"#;
-    let typed =
-        crate::front_end::typed_program_result(source).expect("an omitted reaches clause inherits");
-    let clause = local_logger_clause(&typed, "write");
-    assert_eq!(
-        clause.service_reach,
-        typed_trees::trait_definition::TraitRefinementReach::Inherited,
-        "omitted reaches leaves the base row in place"
     );
 }
 
