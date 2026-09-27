@@ -139,7 +139,7 @@ fn join(
         }
     } else {
         changed = true;
-        build.new_state_field_input_height += fields::height(&incoming.fields);
+        build.new_state_field_input_height += fields::height(&incoming.fields, thresholds.len());
         build.new_state_field_input_height += incoming.qualifications.len();
         let mut incoming = incoming;
         for field in &mut incoming.fields {

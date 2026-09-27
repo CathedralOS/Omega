@@ -168,10 +168,31 @@ pub(super) struct FieldValue {
     bounds_shrink: u8,
 }
 
-pub(super) fn height(fields: &[FieldValue]) -> usize {
+const BOUNDS_WIDENING_DELAY: u8 = 4;
+const BOUNDS_NARROWING_LIMIT: u8 = 8;
+
+pub(super) fn height(fields: &[FieldValue], threshold_count: usize) -> usize {
+    // Either endpoint can traverse the finite threshold set, then reach its
+    // primitive carrier. Narrowing can revisit those thresholds, so reserve
+    // a traversal for every permitted narrowing and the final outward pass.
+    // This remains a finite work allowance; exhaustion still discards all
+    // provisional evidence in the flow builder.
+    let bounds_height = threshold_count
+        .saturating_add(1)
+        .saturating_mul(2)
+        .saturating_mul(usize::from(BOUNDS_NARROWING_LIMIT) + 1)
+        .saturating_add(usize::from(BOUNDS_WIDENING_DELAY))
+        .saturating_add(usize::from(BOUNDS_NARROWING_LIMIT));
     fields
         .iter()
-        .map(|field| 1 + field.predicates.len() + usize::from(field.integer_bounds.is_some()))
+        .map(|field| {
+            1 + field.predicates.len()
+                + if field.integer_bounds.is_some() {
+                    bounds_height
+                } else {
+                    0
+                }
+        })
         .sum()
 }
 
@@ -460,7 +481,7 @@ impl FieldValue {
             let extends_maximum = fresh.maximum > stored.maximum;
             if extends_minimum || extends_maximum {
                 self.bounds_growth = self.bounds_growth.saturating_add(1);
-                if self.bounds_growth >= 4
+                if self.bounds_growth >= BOUNDS_WIDENING_DELAY
                     && let Some(carrier) =
                         carrier_integer_range(program, machine, state, self.root, &self.segments)
                     && let Some(widened) = joined.as_mut()
@@ -470,35 +491,26 @@ impl FieldValue {
                     // the carrier: loop counters keep re-extending by their
                     // step until the bound is useless, but the authored
                     // comparisons name the values that actually occur.
-                    // That hypothesis earns only a few rungs: a counter that
-                    // keeps exceeding each widened bound is not settling on
-                    // an authored comparison -- its cap is a runtime value
-                    // or none, and the join's fixed point is the carrier
-                    // itself. Climbing the whole literal ladder would cost
-                    // one pass per authored literal to reach the same end.
-                    let exhausted = self.bounds_growth >= 8;
+                    // An update count cannot refute a later threshold: an
+                    // outer loop's bound may grow many times before reaching
+                    // its guard, while an inner loop merely preserves it.
+                    // Skip to the carrier only beyond the finite threshold
+                    // set. `height` accounts for traversal and narrowing;
+                    // the builder still fails closed if it cannot settle.
                     if extends_minimum {
-                        widened.minimum = if exhausted {
-                            carrier.minimum.clone()
-                        } else {
-                            thresholds
-                                .iter()
-                                .rev()
-                                .find(|literal| **literal <= widened.minimum)
-                                .cloned()
-                                .unwrap_or_else(|| carrier.minimum.clone())
-                        };
+                        widened.minimum = thresholds
+                            .iter()
+                            .rev()
+                            .find(|literal| **literal <= widened.minimum)
+                            .cloned()
+                            .unwrap_or_else(|| carrier.minimum.clone());
                     }
                     if extends_maximum {
-                        widened.maximum = if exhausted {
-                            carrier.maximum.clone()
-                        } else {
-                            thresholds
-                                .iter()
-                                .find(|literal| **literal >= widened.maximum)
-                                .cloned()
-                                .unwrap_or_else(|| carrier.maximum.clone())
-                        };
+                        widened.maximum = thresholds
+                            .iter()
+                            .find(|literal| **literal >= widened.maximum)
+                            .cloned()
+                            .unwrap_or_else(|| carrier.maximum.clone());
                     }
                 }
             }
@@ -507,7 +519,7 @@ impl FieldValue {
             && (fresh.minimum > stored.minimum || fresh.maximum < stored.maximum)
         {
             self.bounds_shrink = self.bounds_shrink.saturating_add(1);
-            if self.bounds_shrink >= 8 {
+            if self.bounds_shrink >= BOUNDS_NARROWING_LIMIT {
                 // Widening's mirror: a bound that keeps shrinking on the
                 // same axis is re-deriving the fixed point one endpoint at
                 // a time -- a counter clamped by a runtime value nudges the
