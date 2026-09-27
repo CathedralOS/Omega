@@ -432,112 +432,89 @@ backend-visible; full corpus runs only at the end of an item.
   removal test that proved one shared cause.
 
 - **OPERATOR-BOUNDARY-CALLS.** (split-of:PROVIDER-SELECTION-AFTER-TERMINAL)
-  Finish routing every boundary-operator application through its requirement's
-  `BoundaryCall` and Omega stage 00 installation, including legacy named
-  operators and compiler-known float realizations. Generic token machines
-  are now joined: `service_schema::from_typed_boundary_requirement` admits a
-  static generic template's authored schema, the selected-requirement
-  specialization roster (`SelectedProviderPlanFacts::specialized_requirement_row`)
-  joins each template-keyed selected row to the exact closed requirement and
-  provider instance from retained specialization receipts, and selected
-  dispatch settles one closed adapter row per demanded requirement instance.
-  Psi checking derives candidate specializations
-  from authored conformance edges without Build selection; the Stage 05
-  `provider_candidates` integration tests exercise source-free installation and
-  execution for two providers and two const tuples. Native settlement must retain
-  artifact-bound checked custody for the exact specialization and reuse the
-  selected realization companion in `compiler/terminal/application_coverage`,
-  not treat `ClosedReachApplication` as authenticated source-specialization
-  evidence. Do not extend the retired selected-dispatch route,
-  alias a closed requirement to its template, or infer authority from equal
-  runtime signatures. Still open: an operator application retains no
-  requirement-level call occurrence (`flow.control.calls`) or Unit boundary
-  operation today — named calls divert in `expression_scanning` before the
-  call-fact lane, and spelled uses never mint one — so the Unit planner
-  cannot emit `BoundaryCall` for them and `boundary operator` declarations
-  have no `CheckedBoundaryMachinePlan`. On macOS ARM64, the outcome of `python3 tools/corpus_gate.py
-  --native --filter specialized_mixed_structural_result_operator_hosted_native
-  --golden build/operator-native.txt --record` still records rejection at
-  terminal-authority review with zero selected provider rows for
-  the closed requirement. The non-generic `token_machine_family_override_exit`
-  and `checked_fixed_operator_dispatch_exit` both build and exit 70; keep
-  these native controls while completing the generic join. After replacement,
-  delete
-  `selected_dispatch/uninstalled.rs`, the `UninstalledOperator` omission and
-  the operator-adapter and float-intrinsic resolution it uses. Compiler-known
-  float realizations (`F32::negate`, directed arithmetic, conversions,
-  `square_root`, FMA) install as Omega builtins beside the hosted process
-  builtins in native provider settlement (`provider_admission/compiler_builtins.rs`
-  already maps `CompilerBuiltinExecution`; float variants are absent).
-  Acceptance: the eight native builds
-  089bd3290c regressed build again with their golden exits
-  (`providers/checked_fixed_operator_dispatch_exit` exits 70,
-  `checked_boundary_operator_physical_custody`,
-  `checked_fixed_operator_physical_custody`,
-  `specialized_{boundary,fixed}_operator_physical_custody`, three
-  `specialized_*_operator_hosted_native`), the `pass/float` named-provider
-  fixtures reach the same native state they had before, and the corpus has no
-  `applies boundary operator` diagnostic.
+  Finish requirement-level calls and Omega stage 00 installation for legacy
+  named operators and compiler-known float realizations under
+  [boundary applications](wiki/spec/terminal-psi/boundary_calls.md#operator-applications-and-physical-children).
+  Token-bearing machines already enter the ordinary call route.
+  `05_checked-trees-to-lowered-psi/tests/provider_candidates.rs` checks one
+  artifact across two providers and two const tuples, drops checked custody,
+  then installs and executes both applications in the Terminal interpreter.
+  That is not native execution or coverage of the legacy operator path.
 
-  The pre-resolution const evaluator is one of the readers still tied to the
-  old introducer: it recognizes authored operator spellings only on
-  `Item::Operator`, so a token-bearing `boundary machine <token>` declaration
-  folds as the builtin instead of executing the selected provider.
-  `8d12f06e095` knew this -- it kept
-  `fail/generics/authored_const_operator_requires_selection` on `operator`
-  for exactly that reason -- but migrated
-  `pass/comptime/provider_boundary_range_endpoint_exit` alongside it, which
-  depends on the same recognition. Two controls isolate it, with no `std` and
-  no provider: a bare `left % right` const endpoint checks, and adding only
-  `boundary machine % Math::remainder(..)` above it fails at "build-time
-  binary operator requires exact authored selection before evaluation". The
-  selection rows that authorize such an expression come from
-  `compiler/src/checked/checking/const_evaluation.rs`, which emits them only
-  for `primitive_float_binary_semantics`, so a non-float provider has no
-  build-time route at all. That fixture is reverted to `operator` until this
-  reader moves; migrating it again before then silently stops it testing
-  provider execution.
+  Remaining work:
 
-  Three samples are waiting customers, one operator each, all measured at
-  `de525cf687d`: `sensor_min_max` (`F64::minimum`), `vector_distance`
-  (`F64::maximum`) and `fibonacci_golden` (`F64::from_i32`) -- a CONVERSION,
-  not a binary operator, so confirm it separately rather than assuming the
-  binary route covers it. A fourth group sits one step earlier: float
-  arithmetic and float comparison have no route at all without
-  `core::float_operations` imported, pinned at
-  `tests/omega/pending/arithmetic/float_computation_no_route`, and with it
-  imported they omit at `a missing boundary target` here.
+  - Replace the early named-operator return in
+    `checking/src/machine_calls/calls/expression_scanning.rs` with ordinary
+    requirement-call facts and boundary plans. Legacy `boundary operator`
+    declarations still miss that route; the selected-dispatch
+    `uninstalled.rs` machinery reports the omission. After replacement,
+    remove `UninstalledOperator` and its retired operator-adapter /
+    float-intrinsic resolution machinery rather than extend those rewrites.
+  - Finish native specialization custody: retain the exact closed requirement,
+    provider instance, static tuple and artifact-bound application occurrence
+    through selected-plan settlement and physical-child replay. Reuse stage
+    00's `boundary_application_settlement.rs`; `ClosedReachApplication`,
+    a template alias or equal runtime signatures cannot authenticate the
+    specialization. Re-drive
+    `providers/specialized_mixed_structural_result_operator_hosted_native`:
+    its recorded stop is now native physical replay's exact selected-plan
+    rejoin, not the old zero-row authority review. The native replay owner is
+    `native-artifact/src/physical/derivation/evidence.rs`. The new
+    `boundary_internal_call_evidence` test covers a nongeneric requirement's
+    internal physical child, not this whole generic matrix.
+  - Install named float execution as Omega builtins, preserving each exact
+    selected meaning: negate, min/max, square root, directed arithmetic,
+    conversions, multiply-then-add and distinct FMA. Native
+    `provider_admission/compiler_builtins.rs` currently handles hosted
+    exit/read/write only. Re-drive `pending/arithmetic/float_computation_no_route`
+    both with and without the ordinary float-operations import across
+    arithmetic/comparison, field/local/guard positions and f32/f64.
+    Preserve declared operator selection rather than use a spelling-based
+    fallback. **FLOAT-PROVIDERS** owns the semantic contracts and
+    **X86-FMA-PROVIDER-TRANSPORT** the admitted FMA transport.
+  - Complete a receiver-bearing requirement's member-call witness through
+    borrowed-field argument planning, provider signature refinement and native
+    execution. The verifier compares receiver flags as part of the structural
+    signature; preserve exact receiver/argument correspondence, not a blanket
+    `is_self` exemption. Reproduce the old parameter-source/refinement stops
+    before assigning their repairs.
+  - Keep ordinary call borrow rules when spelling operators as calls.
+    [Exclusive loans](wiki/spec/language/ownership.md#borrows-and-aliases) forbid a
+    second alias reading the old contents. Preserve
+    `recast/runtime_mutable_equivalent_record_recast_exit`'s read-through-view
+    then last-use release. With **BORROW-PROOF-CONVERGENCE**, recheck plain-read,
+    call-argument and float-comparison forms of the same live-loan conflict;
+    retain their rejection parity without weakening the call check.
 
-  `samples/cli/arithmetic/sensor_min_max`
-  is a waiting customer: it reaches `applies boundary operator `F64::minimum``
-  once the float store source policy in
-  `structural_scalar_store/value.rs::admits` also admits
-  `StructuralParameterField` and `StructuralParameterIndexedRead`, which is
-  recorded under **CANARY-CORPUS** and belongs in this change. A `self` requirement's member call
-  has no native route (its borrowed field operand fails Unit planning at
-  "call operation: structural arguments: parameter source", and the verifier's
-  provider signature compares `is_self` flags that differ between requirement
-  receiver and adapter); recorded limit — no native fixture exists for it.
+  Reuse the repaired const path: pre-resolution `has_no_authored_spelling`
+  recognizes token-bearing machines, and `selected_provider_bodies` in
+  `compiler/src/checked/checking/const_evaluation.rs` handles non-float
+  checked bodies. `comptime/provider_boundary_range_endpoint_exit` now uses
+  `boundary machine %`, distinguishes provider result 7 from builtin result 1,
+  and has a recorded native exit 70. Retain that control; the alternate-provider
+  const-generic fixture still records a selection failure, so finish its
+  distinct-result and unselected-refusal acceptance with
+  **TARGET-SEMANTIC-APPLICATIONS**. Do not claim every const application works
+  from the endpoint case alone.
 
-  Moving a spelled use onto the call route also moves it onto a STRICTER
-  borrow rule, which is a correctness gain that surfaces as breakage.
-  Measured with three nine-line programs and no `std`: a plain read of
-  `source.count` while `view = &mut source` is live is ACCEPTED; the same
-  place passed to an ordinary call is REJECTED ("state `same` receives
-  `source.count` while local borrow `view` is still active"); and `f32 ==`
-  rejects identically once `core::float_operations` is imported, because the
-  operand becomes an argument to `Float::equal`. Ownership settles which is
-  right -- `&mut T` is "Exclusive observation and mutation", and
-  "Exclusivity prevents reading old contents through a second alias" -- so
-  the call route is correct and the operand read is the lenient outlier.
-  `pass/recast/runtime_mutable_equivalent_record_recast_exit` was written
-  against the lenient path and read both spellings inside one guard; it is
-  repaired here to observe through the view first, ending the loan at its
-  last use, which keeps its subject. Expect other authored code to need the
-  same shape as more spellings migrate. Closing the remaining hole -- making
-  a plain operand read enforce exclusivity too -- is spec-correct but would
-  reject code that compiles today, so it wants its own survey rather than
-  riding this item.
+  Acceptance: preserve the native exit-70 controls
+  `providers/checked_fixed_operator_dispatch_exit` and
+  `providers/token_machine_family_override_exit`; close legacy named and
+  generic physical-custody cases, plus structural-input/scalar-result,
+  mixed-input/scalar-result and mixed-input/structural-result hosted cases,
+  retaining the owned affine operand/result and its disposition.
+  Recover deleted customers from `089bd3290c` where necessary:
+  `specialized_{boundary,fixed}_operator_physical_custody` and
+  `specialized_{structural_fixed,mixed_structural_fixed,mixed_structural_result}_operator_hosted_native`.
+  Retain `checked_{boundary,fixed}_operator_physical_custody` build/replay
+  checks and each runtime customer's original oracle; an unused helper beside
+  an empty entry is not execution coverage. Restore the named-provider
+  `pass/float` native matrix and remove `applies boundary operator` omissions
+  by completing the route. Run unchanged `sensor_min_max`, `vector_distance`
+  and `fibonacci_golden` under **SAMPLE-CORPUS**; the last exercises conversion,
+  independently of binary arithmetic. Float field/index store admission is
+  already present in `structural_scalar_store/value.rs`; reattribute later
+  failures instead of repeating that repair.
 
 - **SOURCE-SET-UNION.** (split-of:PSI-TARGET-FAMILIES) The assembled source set
   is target-neutral: one union of physical sources, every target's program-entry
@@ -612,47 +589,59 @@ backend-visible; full corpus runs only at the end of an item.
   row per compilation for a two-target request, and std's `build.omg` rows for
   six targets come from one evaluation.
 
-- **PROVIDER-SELECTION-AFTER-TERMINAL.** (new-scope) Nothing Psi produces
-  depends on a target's provider selection. Still selection-dependent inside
-  the Psi half of `compiler.rs`, each of which moves into Omega stage 00
-  (`terminal-psi-to-abstract-operations`, which already installs providers)
-  consuming Terminal Psi plus the target's Build rows: calling plans
-  (`provider_planning::calling_policy_plans::compute_boundary_calling_plans`,
-  which mutates `TypedTrees`), program-entry selection, provider settlement
-  (`build_evaluation::settle_checked_providers`, which mutates `TypedTrees`),
-  const folds through selected operators and provider bodies
-  (`const_evaluation.rs`), stage 04's selected inputs
-  (`selected_generic_operator_provider_specializations`,
-  `selected_boundary_family_specializations`), selected float-comparison executions,
-  boundary-dispatch settlement (`selected_dispatch::settle_selected_execution_dispatch`),
-  callback materialization, task activations, component progress, the x86 FMA
-  plan association and fused program-entry establishments. Measured on the
-  Windows host with `omega inspect-terminal --target windows_x86_64` against
-  `--target linux_x86_64`: the Terminal module is already identical for
-  `pass/arithmetic/const_fold_unsigned_landed_ops_exit`,
-  `pass/expressions/match_float_patterns` and
-  `pass/providers/checked_boundary_requirement_dispatch_exit`, so the
-  per-target Psi runs duplicate work rather than produce different Terminal
-  semantics; target dependence enters through the checked sidecars and
-  through selection inputs to checking. Checked uses carry no plan stamps
-  (Omega joins by requirement, `provider_planning::selected_use_plan`) and
-  fused-service erasure is a requirement-level authorization with no plan
-  digest. Still target-dependent inputs that change what Psi checks: which
-  requirements are Fused (`provider_settlement` binds them from the target's
-  selection before checking; with Psi once the realized targets must agree)
-  and stage 04's selected generic operator providers and boundary families
-  (`CheckingRequest`), which become the union over realized targets. Moving the
-  provider-body const folds follows the settled rule in
-  [multi-target compilation](wiki/spec/build/configuration.md#multi-target-compilation):
-  every realized target must select the same provider for a folded
-  application, and disagreement rejects it. Invert the layering
-  guard `omega_provider_selection_consumes_psi_frontend_directly` so
-  `provider-planning` may not depend on `typed-trees` or `validation`. Scalar
-  `ensures` of a requirement are not yet retained on its Terminal
-  declaration. Depends on BUILD-EVALUATES-ONCE and OPERATOR-BOUNDARY-CALLS.
-  Acceptance: Psi stages 00-07 run once for a two-target request and produce
-  one Terminal artifact identity, and each target's native artifact is
-  byte-identical to its single-target output across the native corpus.
+- **PROVIDER-SELECTION-AFTER-TERMINAL.** (new-scope) Finish one target-neutral
+  Psi product, with per-target provider installation consuming Terminal Psi
+  plus that target's Build rows in Omega stage 00. Follow
+  [multi-target compilation](wiki/spec/build/configuration.md#multi-target-compilation)
+  and the [pipeline](omega-rust/pipeline.md#one-driver-one-pass-per-target-realization).
+
+  Boundary-application and integer/IEEE-comparison settlement now live in
+  stage 00's `boundary_application_settlement.rs` and
+  `comparison_settlement.rs`. They still borrow checked trees, source
+  identities and frontend-derived selected evidence; moving files did not
+  complete the portable boundary. Finish their inputs and replay through the
+  existing artifact-bound occurrence scope, without another parallel registry.
+
+  Remaining frontend decisions are in compiler checking's
+  `execution_settlement.rs` and `phase_transitions.rs`: target-family body
+  substitution, calling plans, program-entry selection, fused-provider
+  settlement, selected legacy generic-operator and boundary-family requests,
+  selected-dispatch execution, callback materialization, task activation,
+  component progress, x86 FMA associations and fused entry establishments.
+  Move their per-target realization to Omega while preserving source-semantic
+  contracts and all authored candidates in Psi. Token-provider candidates
+  already derive from authored conformance edges without Build selection;
+  extend that independence to the remaining paths. Checking only the realized
+  targets' union is insufficient: every family's bodies and every Build row
+  must be checked and retained even when `--target` excludes realization.
+  Remove provider-planning's `typed-trees` / `validation` dependencies and
+  enforce the layering boundary.
+
+  Preserve the spec's const exception: provider-dependent constants belong to
+  the one checked program. Every realized target must select the same provider
+  for that application; evaluate it once through that checked body in Psi,
+  rejecting disagreement with the diverging targets named. Do not move a
+  layout-determining fold into per-target native realization. Carry exact
+  selection/replay evidence through the existing const evaluator.
+
+  Retain each requirement's complete portable contract. Scalar `requires`,
+  crash routes and content guarantees exist; general scalar `ensures` still
+  have no declaration field in `BoundaryMachineDeclaration`. Complete their
+  transport and independent provider/call validation without narrowing the
+  public contract to the selected body's behavior.
+
+  Acceptance, together with **BUILD-EVALUATES-ONCE** and
+  **OPERATOR-BOUNDARY-CALLS**: one two-target request runs Psi 00–07 once and
+  produces one Terminal artifact identity; each target's native output equals
+  its single-target output byte-for-byte across the native corpus and passes
+  the same execution oracles. Preserve the target-comparison customers
+  `arithmetic/const_fold_unsigned_landed_ops_exit`,
+  `expressions/match_float_patterns` and
+  `providers/checked_boundary_requirement_dispatch_exit`, but do not treat
+  their equal Terminal bytes as proof that checking ran once. Cover differing
+  runtime providers, agreeing/disagreeing const selections, errors in an
+  unrealized body, and a missing required realization row without suppressing
+  the other target's outcome. Independent moves need not wait for full closure.
 
 - **ONE-DRIVER-PER-STAGE.** (new-scope) Close the remainder after the items
   above: `compiler.rs` calls Psi 00-07 once, then maps the realization set
