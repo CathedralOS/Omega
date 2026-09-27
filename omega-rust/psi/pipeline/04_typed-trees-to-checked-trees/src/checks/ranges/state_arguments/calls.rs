@@ -56,6 +56,9 @@ pub(super) fn collect_state_argument_facts_for_call(
                 .collect(),
             index_proofs: Default::default(),
             receiver_lengths: None,
+            storage_upper_bounds: None,
+            storage_non_negatives: None,
+            storage_minimum_lengths: None,
         });
         collected
             .last_mut()
@@ -64,11 +67,120 @@ pub(super) fn collect_state_argument_facts_for_call(
 
     // An ordinary invocation starts with its declared receiver obligations;
     // only a state transition hands off the same receiver's live storage.
-    let incoming_lengths = if receiver_transition {
+    let mut incoming_lengths = if receiver_transition {
         facts.receiver_lengths(program, machine, state)
     } else {
         Vec::new()
     };
+    // A transition argument's referent is storage the destination parameter
+    // aliases for the whole state, exactly like attached `self`: every label
+    // fact spelled under the argument's place re-keys onto the parameter's
+    // name (`put(&mut buf)` delivers `buf.i` as the callee's `buf.i`). A `->
+    // self` edge maps each parameter to its own continuing storage. Ordinary
+    // calls and runtime-selector arguments carry no storage evidence.
+    let argument_storages: Vec<(crate::flow::CanonicalPlace, SymbolHandle)> =
+        if !receiver_transition {
+            Vec::new()
+        } else if arguments.is_empty() {
+            entry
+                .parameters
+                .iter()
+                .filter(|parameter| !parameter.is_self)
+                .filter_map(|parameter| {
+                    Some((
+                        crate::flow::canonical_place_from_symbol(parameter.symbol)?,
+                        parameter.symbol,
+                    ))
+                })
+                .collect()
+        } else {
+            entry
+                .parameters
+                .iter()
+                .filter(|parameter| !parameter.is_self)
+                .zip(arguments.iter().copied())
+                .filter_map(|(parameter, argument)| {
+                    let mut place =
+                        crate::flow::canonical_place_from_expression(program, argument)?;
+                    if !matches!(place.root, facts::PlaceRoot::Symbol(_)) {
+                        return None;
+                    }
+                    if !place.segments.iter().all(|segment| {
+                        matches!(
+                            segment,
+                            facts::PlaceSegment::Field { .. }
+                                | facts::PlaceSegment::Case { .. }
+                                | facts::PlaceSegment::FixedIndex { .. }
+                        )
+                    }) {
+                        return None;
+                    }
+                    place = crate::flow::rebase_exact_local_place(
+                        program,
+                        state.symbol,
+                        facts.statement_index,
+                        place,
+                        facts
+                            .checked_calls
+                            .and_then(|context| context.call_frames()),
+                    )?;
+                    crate::flow::normalize_attached_place_root(
+                        program,
+                        machine.symbol,
+                        state.symbol,
+                        &mut place,
+                    );
+                    place.root = crate::flow::normalized_event_place_root(program, place.root);
+                    Some((place, parameter.symbol))
+                })
+                .collect()
+        };
+    let storage_rows = facts.storage_sub_places(program, machine, state, &argument_storages);
+    let mut incoming_upper_bounds = Vec::new();
+    let mut incoming_non_negatives = Vec::new();
+    let mut incoming_minimum_lengths = Vec::new();
+    for (source_label, expression, destination_place) in &storage_rows {
+        let destination_label = facts::canonical_place_label_from_parts(
+            program,
+            destination_place.root,
+            &destination_place.segments,
+        );
+        if let Some(length) = facts.exact_length(source_label) {
+            incoming_lengths.push(crate::checks::ranges::facts::ReceiverLength::at_place(
+                *expression,
+                destination_place.clone(),
+                destination_label.clone(),
+                length,
+            ));
+        }
+        if let Some(bound) = facts.proven_index_upper_bound(source_label) {
+            incoming_upper_bounds.push((destination_label.clone(), bound));
+        }
+        if facts.non_negative_is_proven(source_label) {
+            incoming_non_negatives.push(destination_label.clone());
+        }
+        if let Some(minimum) = facts.minimum_length(source_label) {
+            incoming_minimum_lengths.push((destination_label, minimum));
+        }
+    }
+    super::merge_storage_rows(
+        &mut entry.storage_upper_bounds,
+        &Some(incoming_upper_bounds),
+        |a, b| a.max(b),
+    );
+    super::merge_storage_rows(
+        &mut entry.storage_minimum_lengths,
+        &Some(incoming_minimum_lengths),
+        |a, b| a.min(b),
+    );
+    {
+        let incoming = Some(incoming_non_negatives);
+        if let Some(existing) = &mut entry.storage_non_negatives {
+            existing.retain(|label| incoming.as_ref().is_some_and(|rows| rows.contains(label)));
+        } else {
+            entry.storage_non_negatives = incoming;
+        }
+    }
     if let Some(existing) = &mut entry.receiver_lengths {
         existing.retain(|length| {
             incoming_lengths
@@ -166,7 +278,7 @@ pub(super) fn collect_state_argument_facts_for_call(
                 .filter(|index| is_receiver_rooted(index))
                 .map(|index| ParameterIndexProof {
                     collection: ParameterIndexProofSide::Parameter(collection_parameter),
-                    index: ParameterIndexProofSide::MachineStorage(index.clone()),
+                    index: ParameterIndexProofSide::Storage(index.clone()),
                 }),
         );
     }
@@ -179,10 +291,56 @@ pub(super) fn collect_state_argument_facts_for_call(
                 .proven_collections_for_index(&index_label)
                 .filter(|collection| is_receiver_rooted(collection))
                 .map(|collection| ParameterIndexProof {
-                    collection: ParameterIndexProofSide::MachineStorage(collection.clone()),
+                    collection: ParameterIndexProofSide::Storage(collection.clone()),
                     index: ParameterIndexProofSide::Parameter(index_parameter),
                 }),
         );
+    }
+    // Argument-referent storage: a proven pair spelled under an argument's
+    // place arrives spelled under the destination parameter on either side
+    // (`put(&mut buf)` delivers `buf.line`'s proven `buf.i` index as
+    // `param.line`'s proven `param.i` index).
+    let storage_sides: Vec<(String, ParameterIndexProofSide)> = storage_rows
+        .iter()
+        .map(|(source_label, _, destination_place)| {
+            (
+                source_label.clone(),
+                ParameterIndexProofSide::Storage(facts::canonical_place_label_from_parts(
+                    program,
+                    destination_place.root,
+                    &destination_place.segments,
+                )),
+            )
+        })
+        .collect();
+    let parameter_sides: Vec<(String, ParameterIndexProofSide)> = parameter_arguments
+        .iter()
+        .map(|(position, argument)| {
+            (
+                program.expression_table.display_name(*argument),
+                ParameterIndexProofSide::Parameter(*position),
+            )
+        })
+        .collect();
+    for (collection_source, collection_side) in &storage_sides {
+        for (index_source, index_side) in storage_sides.iter().chain(parameter_sides.iter()) {
+            if facts.index_is_proven(collection_source, index_source) {
+                index_proofs.push(ParameterIndexProof {
+                    collection: collection_side.clone(),
+                    index: index_side.clone(),
+                });
+            }
+        }
+    }
+    for (index_source, index_side) in &storage_sides {
+        for (collection_source, collection_side) in &parameter_sides {
+            if facts.index_is_proven(collection_source, index_source) {
+                index_proofs.push(ParameterIndexProof {
+                    collection: collection_side.clone(),
+                    index: index_side.clone(),
+                });
+            }
+        }
     }
     entry.index_proofs.merge(index_proofs);
 }

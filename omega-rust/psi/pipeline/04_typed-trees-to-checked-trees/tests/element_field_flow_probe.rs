@@ -396,3 +396,127 @@ fn named_transition_runtime_index() {
         &["cannot prove index `index` is within unknown slice length of `rows`"],
     );
 }
+
+const RECEIVER: &str = r#"
+domain [u8; 4]::Utf8 requires valid_utf8(self);
+data Main { line: [u8; 4] in Utf8; i: u64; }
+"#;
+
+const HOLDER: &str = r#"
+domain [u8; 4]::Utf8 requires valid_utf8(self);
+data Holder { line: [u8; 4] in Utf8; i: u64; }
+data Main { tag: u64; }
+"#;
+
+/// A literal field fact written on attached storage survives the receiver's
+/// own state handoffs: `self.line` keeps its `Utf8` coverage across the
+/// `-> write()` edge and through the guarded byte store.
+#[test]
+fn mutable_receiver_field_facts_survive_transitions() {
+    assert_accepted(
+        "mutable_receiver_field_facts_survive_transitions",
+        &format!(
+            r#"{RECEIVER}
+            machine Main::run(&mut self) {{
+                self.line = "    ";
+                self.i = 0;
+                transition {{ _ -> put() }}
+                state put(&mut self) {{
+                    transition self.i < 4 {{ true -> write() _ -> done() }}
+                }}
+                state write(&mut self) {{
+                    self.line[self.i] = 46;
+                }}
+                state done(&mut self) {{}}
+            }}
+        "#
+        ),
+    );
+}
+
+/// The named `&mut` argument form of the same program: `buf` is an ordinary
+/// mutable parameter, yet the literal written in `run` reaches `write` as
+/// `buf.line`'s entry fact -- the same obligation the receiver form meets.
+#[test]
+fn named_mutable_argument_carries_receiver_field_facts() {
+    assert_accepted(
+        "named_mutable_argument_carries_receiver_field_facts",
+        &format!(
+            r#"{HOLDER}
+            machine Main::run(&mut self) {{
+                let mut buf: Holder;
+                buf.line = "    ";
+                buf.i = 0;
+                transition {{ _ -> put(&mut buf) }}
+                state put(&mut self, buf: &mut Holder) {{
+                    transition buf.i < 4 {{ true -> write(buf) _ -> done() }}
+                }}
+                state write(&mut self, buf: &mut Holder) {{
+                    buf.line[buf.i] = 46;
+                }}
+                state done(&mut self) {{}}
+            }}
+        "#
+        ),
+    );
+}
+
+/// One corrupted edge poisons the join: `other.line[0] = 255` retires the
+/// coverage `other.line` would have delivered, so `put` cannot promise
+/// `buf.line` stays `Utf8`.
+#[test]
+fn named_mutable_argument_poisoned_edge_rejects() {
+    assert_rejected(
+        "named_mutable_argument_poisoned_edge_rejects",
+        &format!(
+            r#"{HOLDER}
+            machine Main::run(&mut self) {{
+                let mut buf: Holder;
+                buf.line = "    ";
+                buf.i = 0;
+                let mut other: Holder;
+                other.line = "    ";
+                other.i = 0;
+                other.line[0] = 255;
+                transition self.tag == 0 {{ true -> put(&mut buf) _ -> put(&mut other) }}
+                state put(&mut self, buf: &mut Holder) {{
+                    transition buf.i < 4 {{ true -> write(buf) _ -> done() }}
+                }}
+                state write(&mut self, buf: &mut Holder) {{
+                    buf.line[buf.i] = 46;
+                }}
+                state done(&mut self) {{}}
+            }}
+        "#
+        ),
+        &["parameter buf.line requires"],
+    );
+}
+
+/// An argument the caller never wrote carries no incoming fact at all: no
+/// zero-initialization credit is invented for `buf.line`, so the write in
+/// `put` cannot justify the `write` edge's `Utf8` requirement.
+#[test]
+fn named_mutable_argument_without_facts_rejects() {
+    assert_rejected(
+        "named_mutable_argument_without_facts_rejects",
+        &format!(
+            r#"{HOLDER}
+            machine Main::run(&mut self) {{
+                let mut buf: Holder;
+                buf.i = 0;
+                transition buf.i < 4 {{ true -> put(&mut buf) _ -> done() }}
+                state put(&mut self, buf: &mut Holder) {{
+                    buf.line[buf.i] = 46;
+                    transition buf.i < 4 {{ true -> write(buf) _ -> done() }}
+                }}
+                state write(&mut self, buf: &mut Holder) {{
+                    buf.line[0] = 46;
+                }}
+                state done(&mut self) {{}}
+            }}
+        "#
+        ),
+        &["parameter buf.line requires"],
+    );
+}

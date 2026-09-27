@@ -88,6 +88,10 @@ impl FieldValue {
     pub(super) fn segments(&self) -> &[facts::PlaceSegment] {
         &self.segments
     }
+
+    pub(super) fn root(&self) -> facts::PlaceRoot {
+        self.root
+    }
 }
 
 impl EdgeDelivery {
@@ -121,6 +125,12 @@ impl EdgeDelivery {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct FieldValue {
+    /// The destination-side identity of the carrier storage: the machine
+    /// symbol for an attached `self` field, or the destination parameter's
+    /// own symbol for a `&mut`/shared transition argument. `&mut self` is an
+    /// ordinary `&mut T` argument's receiver spelling; the two roots name the
+    /// same kind of evidence at one hop apart.
+    root: facts::PlaceRoot,
     segments: Vec<facts::PlaceSegment>,
     literal: ExpressionHandle,
     predicates: Vec<ByteSequencePredicate>,
@@ -165,18 +175,43 @@ pub(super) fn height(fields: &[FieldValue]) -> usize {
         .sum()
 }
 
+/// The data definition a captured row's root denotes: the attached record for
+/// the machine root, or the readable referent type behind the destination
+/// parameter's own symbol for a transition argument. `&mut self` and a named
+/// `&mut T` parameter are the same carrier here, one root spelling apart.
+fn root_data_definition<'program>(
+    program: &'program typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    root: facts::PlaceRoot,
+) -> Option<&'program typed_trees::data::DataDefinition> {
+    let facts::PlaceRoot::Symbol(symbol) = root else {
+        return None;
+    };
+    if symbol == machine.symbol {
+        let attached = machine.attached_data.as_ref()?;
+        return program
+            .data_definitions()
+            .iter()
+            .find(|data| data.name.as_str() == attached.as_str());
+    }
+    let parameter = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.symbol == symbol)?;
+    crate::facts::field_domain::readable_nominal_definition(program, parameter.type_reference)
+}
+
 /// The declared primitive extent of a field path, when it resolves to a
 /// primitive scalar: the widest interval a widening join can need.
 fn carrier_integer_range(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    root: facts::PlaceRoot,
     segments: &[facts::PlaceSegment],
 ) -> Option<facts::IntegerRange> {
-    let attached = machine.attached_data.as_ref()?;
-    let mut data = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.name.as_str() == attached.as_str())?;
+    let mut data = root_data_definition(program, machine, state, root)?;
     let mut reference = None;
     for (index, segment) in segments.iter().enumerate() {
         let facts::PlaceSegment::Field { symbol } = segment else {
@@ -241,6 +276,7 @@ pub(in crate::flow) fn integer_literal_thresholds(
 pub(super) fn meet(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
+    destination: &typed_trees::state::State,
     previous: &mut Vec<FieldValue>,
     incoming: &[FieldValue],
     source: BoundsSource,
@@ -261,7 +297,7 @@ pub(super) fn meet(
     previous.retain_mut(|field| {
         let delivery = incoming
             .iter()
-            .find(|next| next.segments == field.segments)
+            .find(|next| next.root == field.root && next.segments == field.segments)
             .map(EdgeDelivery::of)
             // A call's return edge never captures field rows, so its absence
             // forwards the running ceiling rather than refuting it -- the
@@ -288,14 +324,17 @@ pub(super) fn meet(
         } else {
             field.deliveries.push((source, delivery));
         }
-        changed |= field.rejoin(program, machine, thresholds);
+        changed |= field.rejoin(program, machine, destination, thresholds);
         // Keep the row even when the join is empty: its delivery map remembers
         // which edges carry no evidence, so a re-delivered field still
         // intersects over those edges instead of claiming a fresh start.
         true
     });
     for next in incoming {
-        if previous.iter().any(|field| field.segments == next.segments) {
+        if previous
+            .iter()
+            .any(|field| field.root == next.root && field.segments == next.segments)
+        {
             continue;
         }
         let mut deliveries: Vec<(BoundsSource, EdgeDelivery)> = known_sources
@@ -313,6 +352,7 @@ pub(super) fn meet(
             .collect();
         deliveries.push((source, EdgeDelivery::of(next)));
         let mut field = FieldValue {
+            root: next.root,
             segments: next.segments.clone(),
             literal: ExpressionHandle::invalid(),
             predicates: Vec::new(),
@@ -323,7 +363,7 @@ pub(super) fn meet(
             bounds_growth: 0,
             bounds_shrink: 0,
         };
-        field.rejoin(program, machine, thresholds);
+        field.rejoin(program, machine, destination, thresholds);
         previous.push(field);
         changed = true;
     }
@@ -338,6 +378,7 @@ impl FieldValue {
         &mut self,
         program: &typed_trees::TypedTrees,
         machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
         thresholds: &[numerics::bignum::BigInt],
     ) -> bool {
         let mut changed = false;
@@ -410,7 +451,7 @@ impl FieldValue {
             }
         }
         let mut joined = if unbounded_edge {
-            carrier_integer_range(program, machine, &self.segments)
+            carrier_integer_range(program, machine, state, self.root, &self.segments)
         } else {
             joined
         };
@@ -420,7 +461,8 @@ impl FieldValue {
             if extends_minimum || extends_maximum {
                 self.bounds_growth = self.bounds_growth.saturating_add(1);
                 if self.bounds_growth >= 4
-                    && let Some(carrier) = carrier_integer_range(program, machine, &self.segments)
+                    && let Some(carrier) =
+                        carrier_integer_range(program, machine, state, self.root, &self.segments)
                     && let Some(widened) = joined.as_mut()
                 {
                     // Widening jumps to the smallest program literal that
@@ -499,16 +541,65 @@ fn has_self(program: &typed_trees::TypedTrees, state: &typed_trees::state::State
         == 1
 }
 
+/// A Named edge's explicit arguments bind the destination's non-self
+/// parameters. Each argument's canonical place names the caller storage the
+/// parameter aliases, so a captured fact rooted at that place -- with the
+/// argument's own segment prefix stripped -- is evidence about the
+/// parameter's referent at entry. `&mut self` rides the machine root through
+/// the same join; a named `&mut T` argument is no different one symbol over.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn capture(
     program: &typed_trees::TypedTrees,
     semantic: &FactPlan,
-    build: &FlowBuildContext,
+    build: &mut FlowBuildContext,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     destination: &typed_trees::state::State,
+    statement_index: usize,
+    arguments: Option<&[typed_trees::expression::ExpressionHandle]>,
     contexts: HandleSpan<FlowSemanticContextRef>,
 ) -> Vec<FieldValue> {
-    if !has_self(program, state) || !has_self(program, destination) {
+    let self_carrier = has_self(program, state) && has_self(program, destination);
+    // (argument storage root, argument's own prefix, destination parameter).
+    // `put(&mut buf)` and `put(buf)` both resolve to the caller's `buf`
+    // storage; `put(&mut self.holder)` strips the `holder` field prefix.
+    let mut argument_roots: Vec<(facts::PlaceRoot, Vec<facts::PlaceSegment>, SymbolHandle)> =
+        Vec::new();
+    if let Some(arguments) = arguments {
+        let mut ordinal = 0;
+        for parameter in program.state_parameters(destination) {
+            if parameter.is_self {
+                continue;
+            }
+            let Some(&argument) = arguments.get(ordinal) else {
+                break;
+            };
+            ordinal += 1;
+            let Some(mut place) =
+                build.canonical_place_at(program, state.symbol, statement_index, argument)
+            else {
+                continue;
+            };
+            normalize_attached_place_root(program, machine.symbol, state.symbol, &mut place);
+            place.root = normalized_event_place_root(program, place.root);
+            if let facts::PlaceRoot::Symbol(_) = place.root {
+                argument_roots.push((place.root, place.segments, parameter.symbol));
+            }
+        }
+    } else {
+        // `-> self`: every parameter is the same storage again at the next
+        // state entry, so each maps to its own symbol identity.
+        for parameter in program.state_parameters(destination) {
+            if !parameter.is_self {
+                argument_roots.push((
+                    facts::PlaceRoot::Symbol(parameter.symbol),
+                    Vec::new(),
+                    parameter.symbol,
+                ));
+            }
+        }
+    }
+    if !self_carrier && argument_roots.is_empty() {
         return Vec::new();
     }
     // A bound minted at a later point refines what came before it: an arm's
@@ -639,62 +730,89 @@ pub(super) fn capture(
             };
             normalize_attached_place_root(program, machine.symbol, state.symbol, &mut place);
             place.root = normalized_event_place_root(program, place.root);
-            if place.root != facts::PlaceRoot::Symbol(machine.symbol)
-                || !matches!(place.segments.first(), Some(facts::PlaceSegment::Field { symbol }) if symbol.is_valid())
-                || !place.segments.iter().all(|segment| match segment {
+            // Each destination identity this evidence serves: the shared
+            // machine root for an attached `self` field, and every transition
+            // argument whose storage prefix the fact's place extends. A
+            // `&mut self.holder` actual joins both -- `self.holder.line` for
+            // the receiver and `param.line` for the bound parameter.
+            let field_segments = |segments: &[facts::PlaceSegment]| {
+                segments.iter().all(|segment| match segment {
                     facts::PlaceSegment::Field { symbol } => symbol.is_valid(),
                     facts::PlaceSegment::Case { variant } => variant.is_valid(),
                     facts::PlaceSegment::FixedIndex { .. } => true,
                     _ => false,
                 })
+            };
+            let mut targets: Vec<(facts::PlaceRoot, &[facts::PlaceSegment])> = Vec::new();
+            if self_carrier
+                && place.root == facts::PlaceRoot::Symbol(machine.symbol)
+                && matches!(place.segments.first(), Some(facts::PlaceSegment::Field { symbol }) if symbol.is_valid())
+                && field_segments(&place.segments)
             {
-                continue;
+                targets.push((place.root, place.segments.as_slice()));
             }
-            if let Some(index) = fields
-                .iter()
-                .position(|field| field.segments == place.segments)
-            {
-                let field = &mut fields[index];
-                if literal.is_valid() {
-                    field.literal = literal;
+            for (root, prefix, parameter) in &argument_roots {
+                if place.root != *root
+                    || !place.segments.starts_with(prefix)
+                    || !field_segments(&place.segments[prefix.len()..])
+                {
+                    continue;
                 }
-                if let Some(incoming) = integer_bounds {
-                    let rank = bound_point_rank(fact.point);
-                    field.integer_bounds = match (bounds_ranks[index], field.integer_bounds.take())
-                    {
-                        (stored, Some(previous)) if stored > rank => Some(previous),
-                        (stored, Some(previous)) if stored == rank => Some(facts::IntegerRange {
-                            minimum: previous.minimum.min(incoming.minimum),
-                            maximum: previous.maximum.max(incoming.maximum),
-                        }),
-                        _ => {
-                            bounds_ranks[index] = rank;
-                            Some(incoming)
-                        }
-                    };
-                }
-                for predicate in predicates {
-                    if !field.predicates.contains(&predicate) {
-                        field.predicates.push(predicate);
+                targets.push((
+                    facts::PlaceRoot::Symbol(*parameter),
+                    &place.segments[prefix.len()..],
+                ));
+            }
+            for (root, segments) in targets {
+                if let Some(index) = fields
+                    .iter()
+                    .position(|field| field.root == root && field.segments == segments)
+                {
+                    let field = &mut fields[index];
+                    if literal.is_valid() {
+                        field.literal = literal;
                     }
-                }
-            } else {
-                bounds_ranks.push(if integer_bounds.is_some() {
-                    bound_point_rank(fact.point)
+                    if let Some(incoming) = integer_bounds.clone() {
+                        let rank = bound_point_rank(fact.point);
+                        field.integer_bounds =
+                            match (bounds_ranks[index], field.integer_bounds.take()) {
+                                (stored, Some(previous)) if stored > rank => Some(previous),
+                                (stored, Some(previous)) if stored == rank => {
+                                    Some(facts::IntegerRange {
+                                        minimum: previous.minimum.min(incoming.minimum),
+                                        maximum: previous.maximum.max(incoming.maximum),
+                                    })
+                                }
+                                _ => {
+                                    bounds_ranks[index] = rank;
+                                    Some(incoming)
+                                }
+                            };
+                    }
+                    for predicate in predicates.iter().copied() {
+                        if !field.predicates.contains(&predicate) {
+                            field.predicates.push(predicate);
+                        }
+                    }
                 } else {
-                    (0, 0)
-                });
-                fields.push(FieldValue {
-                    segments: place.segments,
-                    literal,
-                    predicates,
-                    integer_bounds,
-                    deliveries: Vec::new(),
-                    edge_potential: Vec::new(),
-                    predicate_ceiling: Vec::new(),
-                    bounds_growth: 0,
-                    bounds_shrink: 0,
-                });
+                    bounds_ranks.push(if integer_bounds.is_some() {
+                        bound_point_rank(fact.point)
+                    } else {
+                        (0, 0)
+                    });
+                    fields.push(FieldValue {
+                        root,
+                        segments: segments.to_vec(),
+                        literal,
+                        predicates: predicates.clone(),
+                        integer_bounds: integer_bounds.clone(),
+                        deliveries: Vec::new(),
+                        edge_potential: Vec::new(),
+                        predicate_ceiling: Vec::new(),
+                        bounds_growth: 0,
+                        bounds_shrink: 0,
+                    });
+                }
             }
         }
     }
@@ -712,18 +830,24 @@ pub(super) fn capture(
         // predicates or byte-side store classes -- so a carrier whose every
         // store leaves the class still refutes itself.
         field.edge_potential = field.predicates.clone();
-        for predicate in super::field_predicate_ceiling(build, state.symbol, &field.segments) {
+        for predicate in
+            super::field_predicate_ceiling(build, state.symbol, field.root, &field.segments)
+        {
             if !field.edge_potential.contains(predicate) {
                 field.edge_potential.push(*predicate);
             }
         }
-        if let Some((_, _, byteok)) =
-            build
-                .element_store_potentials
-                .iter()
-                .find(|(stored_state, segments, _)| {
-                    *stored_state == state.symbol && *segments == field.segments
-                })
+        // Element-store potentials are recorded only for attached machine
+        // storage (byte_sequences' carrier_ceiling gate); a parameter carrier
+        // never minted one, so it must not inherit a same-segments row.
+        if field.root == facts::PlaceRoot::Symbol(machine.symbol)
+            && let Some((_, _, byteok)) =
+                build
+                    .element_store_potentials
+                    .iter()
+                    .find(|(stored_state, segments, _)| {
+                        *stored_state == state.symbol && *segments == field.segments
+                    })
         {
             for predicate in byteok {
                 if !field.edge_potential.contains(predicate) {
@@ -743,9 +867,6 @@ pub(super) fn append(
     state: &typed_trees::state::State,
     point: ProgramPoint,
 ) {
-    if !has_self(program, state) {
-        return;
-    }
     for field in fields {
         let mut segments = HandleSpan::empty();
         for segment in &field.segments {
@@ -753,8 +874,11 @@ pub(super) fn append(
                 .place_segments
                 .append_to_span(&mut segments, *segment);
         }
+        // The row's stored root is already destination-side: the machine
+        // symbol for an attached `self` field, the parameter's own symbol
+        // for a named `&mut` argument's storage.
         let place = semantic.append_place(facts::Place {
-            root: facts::PlaceRoot::Symbol(machine.symbol),
+            root: field.root,
             segments,
         });
         let mut references = HandleSpan::empty();
@@ -765,7 +889,7 @@ pub(super) fn append(
             .integer_bounds
             .as_ref()
             .filter(|bounds| {
-                carrier_integer_range(program, machine, &field.segments)
+                carrier_integer_range(program, machine, state, field.root, &field.segments)
                     .is_none_or(|carrier| !crate::values::bounds::contains(bounds, &carrier))
             })
             .map(|bounds| FactPayload::AssignedIntegerBounds {

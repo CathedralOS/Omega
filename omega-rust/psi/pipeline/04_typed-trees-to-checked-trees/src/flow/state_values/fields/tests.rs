@@ -7,6 +7,7 @@ use typed_trees::statement::TransitionTargetHandle;
 fn field(symbol: u32, literal: u32, predicates: Vec<ByteSequencePredicate>) -> FieldValue {
     let edge_potential = predicates.clone();
     FieldValue {
+        root: facts::PlaceRoot::Symbol(SymbolHandle::from_arena_index(11)),
         segments: vec![facts::PlaceSegment::Field {
             symbol: SymbolHandle::from_arena_index(symbol),
         }],
@@ -39,16 +40,21 @@ fn edge(ordinal: u32) -> BoundsSource {
     )
 }
 
-fn fixture() -> (typed_trees::TypedTrees, typed_trees::machine::Machine) {
+fn fixture() -> (
+    typed_trees::TypedTrees,
+    typed_trees::machine::Machine,
+    typed_trees::state::State,
+) {
     (
         typed_trees::TypedTrees::default(),
         typed_trees::machine::Machine::default(),
+        typed_trees::state::State::default(),
     )
 }
 
 #[test]
 fn deliveries_shrink_and_regrow_with_each_edges_latest_evidence() {
-    let (program, machine) = fixture();
+    let (program, machine, state) = fixture();
     let mut previous = vec![seeded(1, 2, ByteSequencePredicate::ALL.to_vec(), edge(9))];
     let mut incoming = field(1, 2, ByteSequencePredicate::ALL.to_vec());
     incoming.literal = ExpressionHandle::invalid();
@@ -56,6 +62,7 @@ fn deliveries_shrink_and_regrow_with_each_edges_latest_evidence() {
         meet(
             &program,
             &machine,
+            &state,
             &mut previous,
             &[incoming.clone()],
             edge(0),
@@ -68,6 +75,7 @@ fn deliveries_shrink_and_regrow_with_each_edges_latest_evidence() {
     assert!(meet(
         &program,
         &machine,
+        &state,
         &mut previous,
         &[field(1, 2, ByteSequencePredicate::ALL.to_vec())],
         edge(0),

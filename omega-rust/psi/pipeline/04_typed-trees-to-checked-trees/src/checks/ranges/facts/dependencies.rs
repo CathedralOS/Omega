@@ -40,6 +40,22 @@ pub(in crate::checks::ranges) struct ReceiverLength {
 }
 
 impl ReceiverLength {
+    /// One exact-length row re-keyed onto a surviving destination place, as
+    /// `storage_sub_places` renders argument storage.
+    pub(in crate::checks::ranges) fn at_place(
+        expression: ExpressionHandle,
+        place: CanonicalPlace,
+        label: String,
+        length: i64,
+    ) -> Self {
+        Self {
+            expression,
+            label,
+            place,
+            length,
+        }
+    }
+
     pub(in crate::checks::ranges) fn same_extent(&self, other: &Self) -> bool {
         self.place == other.place && self.length == other.length
     }
@@ -166,6 +182,73 @@ impl<'field> RangeFacts<'field> {
                         length: self.exact_length(&row.label)?,
                     })
                 })?
+            })
+            .collect()
+    }
+
+    /// The expression-dependency rows whose single read place sits under one
+    /// of `storages`, re-keyed to that storage's destination place.
+    ///
+    /// `storages` pairs a caller-side canonical place with the destination
+    /// root the edge binds it to: `(machine root + prefix, machine symbol)`
+    /// for attached `self` storage (a no-op re-root; `self.line` stays
+    /// `self.line`), or `(argument place, parameter symbol)` for a `&mut`
+    /// transition argument (`buf.line` arrives as `param.line`). Each
+    /// element is `(source_label, source_expression, destination_place)`;
+    /// the caller re-spells the destination label from the place.
+    pub(in crate::checks::ranges) fn storage_sub_places(
+        &self,
+        program: &TypedTrees,
+        machine: &Machine,
+        state: &State,
+        storages: &[(CanonicalPlace, SymbolHandle)],
+    ) -> Vec<(String, ExpressionHandle, CanonicalPlace)> {
+        self.expression_dependencies
+            .iter()
+            .filter(|row| row.machine == machine.symbol && row.state == state.symbol)
+            .filter_map(|row| {
+                let [place] = row.reads.as_deref()? else {
+                    return None;
+                };
+                let mut place = crate::flow::rebase_exact_local_place(
+                    program,
+                    state.symbol,
+                    self.statement_index,
+                    place.clone(),
+                    self.checked_calls.and_then(|context| context.call_frames()),
+                )?;
+                crate::flow::normalize_attached_place_root(
+                    program,
+                    machine.symbol,
+                    state.symbol,
+                    &mut place,
+                );
+                place.root = crate::flow::normalized_event_place_root(program, place.root);
+                storages.iter().find_map(|(storage, destination)| {
+                    if place.root != storage.root || !place.segments.starts_with(&storage.segments)
+                    {
+                        return None;
+                    }
+                    let suffix = &place.segments[storage.segments.len()..];
+                    if !suffix.iter().all(|segment| {
+                        matches!(
+                            segment,
+                            facts::PlaceSegment::Field { .. }
+                                | facts::PlaceSegment::Case { .. }
+                                | facts::PlaceSegment::FixedIndex { .. }
+                        )
+                    }) {
+                        return None;
+                    }
+                    Some((
+                        row.label.clone(),
+                        row.expression,
+                        CanonicalPlace {
+                            root: facts::PlaceRoot::Symbol(*destination),
+                            segments: suffix.to_vec(),
+                        },
+                    ))
+                })
             })
             .collect()
     }

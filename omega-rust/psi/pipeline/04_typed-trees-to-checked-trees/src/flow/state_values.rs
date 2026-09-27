@@ -26,23 +26,38 @@ mod tests;
 pub(super) struct StateValues {
     state: SymbolHandle,
     values: Vec<(SymbolHandle, ScalarValue)>,
+    /// The integer interval every edge proves for the parameter, `None` when
+    /// this edge delivers none. The join keeps the UNION: the destination
+    /// only knows the argument lies inside the widest delivered range.
+    /// `put(35) | put(46)` joins `ch` to `[35, 46]`, which is how an
+    /// all-ASCII glyph table keeps a `u8` byte store provably in-class.
+    bounds: Vec<(SymbolHandle, Option<facts::IntegerRange>)>,
     fields: Vec<fields::FieldValue>,
     qualifications: Vec<qualifications::QualifiedInput>,
 }
 
 /// The greatest predicate set this state's incoming edges have ever jointly
-/// delivered for `segments` -- the co-inductive premise an element-store
+/// delivered for `root`/`segments` -- the co-inductive premise an element-store
 /// reseed may assume for the carrier. Empty when no edge has established any.
+///
+/// `root` is the destination-side carrier identity: the machine symbol for an
+/// attached `self` field, or the destination parameter's own symbol for a
+/// `&mut`/shared argument's storage.
 pub(super) fn field_predicate_ceiling<'a>(
     build: &'a FlowBuildContext<'_>,
     state: SymbolHandle,
+    root: facts::PlaceRoot,
     segments: &[facts::PlaceSegment],
 ) -> &'a [crate::facts::field_domain::ByteSequencePredicate] {
     let field = build
         .state_value_inputs
         .iter()
         .find(|row| row.state == state)
-        .and_then(|row| row.fields.iter().find(|field| field.segments() == segments));
+        .and_then(|row| {
+            row.fields
+                .iter()
+                .find(|field| field.root() == root && field.segments() == segments)
+        });
     field.map_or(&[], |field| field.predicate_ceiling())
 }
 
@@ -66,6 +81,7 @@ fn join(
     program: &typed_trees::TypedTrees,
     build: &mut FlowBuildContext,
     machine: &typed_trees::machine::Machine,
+    destination: &typed_trees::state::State,
     source: fields::BoundsSource,
     incoming: StateValues,
 ) {
@@ -83,6 +99,7 @@ fn join(
         changed |= fields::meet(
             program,
             machine,
+            destination,
             &mut previous.fields,
             &incoming.fields,
             source,
@@ -100,6 +117,25 @@ fn join(
                 changed |= *value != ScalarValue::Unknown;
                 *value = ScalarValue::Unknown;
             }
+        }
+        for (parameter, bound) in &mut previous.bounds {
+            let next = incoming
+                .bounds
+                .iter()
+                .find(|row| row.0 == *parameter)
+                .and_then(|row| row.1.clone());
+            let before = bound.take();
+            let merged = before
+                .clone()
+                .zip(next)
+                .map(|(before, next)| facts::IntegerRange {
+                    minimum: before.minimum.min(next.minimum),
+                    maximum: before.maximum.max(next.maximum),
+                });
+            if before != merged {
+                changed = true;
+            }
+            *bound = merged;
         }
     } else {
         changed = true;
@@ -141,6 +177,7 @@ pub(super) fn unknown_inputs(program: &typed_trees::TypedTrees) -> Vec<StateValu
                         .filter(|parameter| !parameter.is_self)
                         .map(|parameter| (parameter.symbol, ScalarValue::Unknown))
                         .collect(),
+                    bounds: Vec::new(),
                 })
         })
         .collect()
@@ -190,6 +227,7 @@ pub(super) fn record_transition(
     build: &mut FlowBuildContext,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
+    statement_index: usize,
     transition: &typed_trees::statement::TableTransition,
     target: typed_trees::statement::TransitionTargetHandle,
     contexts: HandleSpan<FlowSemanticContextRef>,
@@ -228,11 +266,13 @@ pub(super) fn record_transition(
     }
     let mut ordinal = 0;
     let mut values = Vec::new();
+    let mut bounds = Vec::new();
     for parameter in program.state_parameters(destination) {
         if parameter.is_self {
             continue;
         }
         let captured = argument_values.get(ordinal);
+        let argument = arguments.and_then(|arguments| arguments.get(ordinal));
         ordinal += 1;
         let scalar = program
             .primitive_type_reference(parameter.type_reference)
@@ -248,7 +288,35 @@ pub(super) fn record_transition(
             let source = semantic.append_symbol_place(parameter.symbol);
             value_at_place(program, semantic, build, contexts, source)
         };
+        // The integer interval this edge delivers for the parameter: a
+        // literal or captured value is a point range, and a place argument
+        // forwards the bounds its live facts prove. No evidence, no bound --
+        // an edge that proves nothing narrows the joined interval to nothing.
+        let bound = match &value {
+            ScalarValue::Integer(value) => Some(facts::IntegerRange {
+                minimum: value.clone(),
+                maximum: value.clone(),
+            }),
+            _ => argument
+                .and_then(|argument| {
+                    build.canonical_place_at(program, state.symbol, statement_index, *argument)
+                })
+                .and_then(|place| {
+                    crate::values::integer_bounds_at_place(
+                        program,
+                        semantic,
+                        build
+                            .contexts
+                            .semantic_context_refs
+                            .span_or_empty(contexts)
+                            .iter()
+                            .map(|reference| semantic.contexts.get(reference.context)),
+                        &place,
+                    )
+                }),
+        };
         values.push((parameter.symbol, value));
+        bounds.push((parameter.symbol, bound));
     }
     let fields = fields::capture(
         program,
@@ -257,6 +325,8 @@ pub(super) fn record_transition(
         machine,
         state,
         destination,
+        statement_index,
+        arguments,
         contexts,
     );
     let qualifications = if arguments.is_some() {
@@ -268,10 +338,12 @@ pub(super) fn record_transition(
         program,
         build,
         machine,
+        destination,
         fields::BoundsSource::transition(state.symbol, target),
         StateValues {
             state: destination.symbol,
             values,
+            bounds,
             fields,
             qualifications,
         },
@@ -325,11 +397,13 @@ pub(super) fn record_invocation<'plans>(
         program,
         build,
         owner,
+        destination,
         fields::BoundsSource::invocation(state.symbol, call.statement_index, call.call_ordinal),
         StateValues {
             state: destination.symbol,
             fields: Vec::new(),
             qualifications: Vec::new(),
+            bounds: Vec::new(),
             values: program
                 .state_parameters(destination)
                 .iter()
@@ -373,6 +447,23 @@ pub(super) fn append_entry_context(
             origin: FactOrigin::StatementTransfer,
             evidence: QualificationEvidence::default(),
             payload: FactPayload::AssignedScalarValue { value },
+        });
+        semantic.append_ref(&mut refs, fact);
+        semantic.append_context(point, refs);
+    }
+    for (parameter, bounds) in &input.bounds {
+        let Some(bounds) = bounds else {
+            continue;
+        };
+        let mut refs = HandleSpan::empty();
+        let place = semantic.append_symbol_place(*parameter);
+        let bounds = semantic.integer_ranges.append(bounds.clone());
+        let fact = semantic.append_fact(Fact {
+            place: FactPlace::Place(place),
+            point,
+            origin: FactOrigin::StatementTransfer,
+            evidence: QualificationEvidence::default(),
+            payload: FactPayload::AssignedIntegerBounds { bounds },
         });
         semantic.append_ref(&mut refs, fact);
         semantic.append_context(point, refs);

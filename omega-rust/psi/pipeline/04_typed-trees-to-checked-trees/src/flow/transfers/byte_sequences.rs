@@ -281,6 +281,7 @@ pub(super) fn append_element_replacement_predicates(
                 crate::flow::state_values::field_predicate_ceiling(
                     contexts,
                     state_symbol,
+                    place.root,
                     &place.segments,
                 )
             })
