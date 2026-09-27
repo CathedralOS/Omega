@@ -2289,21 +2289,41 @@ syntax and other terminal services are not prerequisites.
   `python3 tools/corpus_gate.py --native --filter core/content_conservation_contract,core/content_retained_custody_round_trip`
   and require the authored runtime result, alongside independent replay.
 
-- **BOUNDARY-ISSUANCE.** Join source fresh-supply evidence to provider planning,
+- **BOUNDARY-ISSUANCE.** Join source issuance evidence to provider planning,
   native settlement and the exact installed occurrence under
   [external roots and issuance](wiki/spec/resources/authority.md#external-roots-and-issuance).
-  Source issuance/construction checks and runtime receipt ingress validation
-  already exist; they do not complete this cross-stage join.
+  First customer: give `tests/omega/pass/core/content_retained_custody_round_trip`
+  an authorized initial claim, invoke its submit/complete cycle and require an
+  observable native result. Its current entry is empty and the two issuer
+  routes form a cycle; an annotated `Buffer` cannot establish the first claim.
 
-  Reuse `checks/content/{retained_custody,call_results}.rs`, qualification
-  evidence, Terminal claims, selected provider plans and
-  `external-roots` settlement. Derive geometry from exact arguments,
-  callable-entry places and result paths; admit the provider's backing/freshness
-  premises, never interval arithmetic as an opaque provider fact. Multiple
-  results require separated supply; transferred input is not freshly minted
-  capacity. **DOMAIN-ISSUER-ROUTES** owns source route selection,
-  **AP-BRINGUP** its hardware arrival customer, and conservation of existing
-  accounts remains independent work.
+  Reuse Psi stage 04's `checks/content/{retained_custody,call_results}.rs` and
+  qualification evidence: authorized bare-result and selected-case grants
+  already check, and consumed input cannot count again as fresh supply.
+  Complete the content join beyond those facts and Terminal route validation.
+  In `compiler/provider-planning`, `service_schema/mod.rs` derives result
+  claims containing only domain/carry, while `provider_planning/receipt_binding.rs`
+  binds granted requirement identities to report receipts. Neither carries
+  per-invocation geometry, backing or live supply. Carry the exact evidence
+  through provider admission and native settlement, preserving every
+  authorized source spelling and result path.
+
+  Reuse finite installed-parameter schemas from Psi stage 05's
+  `unit/attached_unit/catalog.rs` and the occurrence/capacity/epoch ledger in
+  `external-roots/src/program_local/program_local_roots/`. Its
+  `tests/program_local_epochs.rs` constructs runtime subjects in Rust;
+  `tests/interrupt_entries.rs` checks acknowledgement receipt ingress.
+  Those controls do not execute source-issued content. Wire real entry/provider
+  observations into the exact installed account. **DOMAIN-ISSUER-ROUTES** owns
+  route selection; **AP-BRINGUP** owns hardware arrival execution. Existing-account
+  conservation remains independent.
+
+  Derive geometry from exact arguments, callable-entry places and result paths.
+  Admit backing/freshness premises, never interval arithmetic. Retain common
+  custody roots for shared backing and explicit alias classes. Multiple new
+  results require one separated supply relation; transferred input is not new
+  capacity. Preserve the finite installed-parameter alternative to provider
+  issuance; neither needs a source-visible receipt binder.
 
   Acceptance: source-issued content retains geometry, backing, issuer, lineage,
   route and installed occurrence through independent replay. Forged source
@@ -2315,33 +2335,30 @@ syntax and other terminal services are not prerequisites.
 
 - **PLAN-LAID-VIEWS.** Complete executable placed-view establishment, access
   and retirement under [placed access](wiki/spec/resources/placed_access.md#establishment-and-retirement).
-  Direct-entry interpreter/native admission already joins exact roster rows to
-  provider-supplied referents, checks declaration consistency, aliasing and
-  qualifications, and carries loans into native entry settlement.
+  Start from `tests/omega/pass/layouts/placed_view_source_access_compile`:
+  its `inspect` writes `transmit` and reads `status`, but `Main::main` is empty
+  and `build.omg` declares only a package. Bind an admitted backing, invoke
+  the accessors and require an observable runtime result. Psi stage 04's
+  `types/mod.rs::add_placed_accessor_attachment` already admits the generated
+  opaque attachment through its exact placement-plan row.
 
-  The next bridge is `compiler/native-realization`'s
-  `native_realization/optimized_fragment_projection.rs` and
-  `image-emission/src/hosted_receiver.rs`: emission rejects a settlement with
-  bound establishments because the entry shim cannot lend each referent yet.
-  Carry each loan for the invocation's duration and retire it at completion.
-  Non-entry machines additionally need call-bound custody from the caller.
-  Keep unsupported routes rejected; a roster or pointer is not authority.
+  Direct-entry admission already rejoins roster, referent type/path,
+  qualifications and aliasing; interpreter completion releases those loans.
+  Reuse stage 00's `artifact_admission/establishment.rs`,
+  `terminal-interpreter/src/structural_inputs/placed_views.rs`, `ArtifactSections`
+  and codec/optimization custody. Existing interpreter tests construct a
+  return-unit module; they establish loan binding/retirement, not source access.
 
-  Extend `compiler/tests/access_plans/source_access_policies.rs`'s
-  `direct_placed_view_input_survives_codec_and_native_replay` to actual source
-  access. Its consumer is empty: `view.status.read()` needs realization of the
-  derived `PlacedField` accessor, not just an admitted roster. Reuse the
-  existing `ArtifactSections`, codec, optimization and verified-native-input
-  boundary rather than rebuilding admission.
-
-  A probe on `swarm/macw4-plan-laid-views` (`670843530b (revision absent from the repository)`) reports an earlier
-  admission gap: synthesized
-  `PlacedField` accessor boundary machines attach as
-  `DataSupplyMode::BoundaryOpaque` (`record_synthesis.rs`), which the
-  `CheckedShape` supply gates in `typed-trees-to-checked-trees` `types/mod.rs`
-  reject, so no `CheckedBoundaryMachinePlan` exists and `Inspector::inspect`
-  reports `MissingBoundaryTarget`. Reproduce on the working base before repairing
-  accessor synthesis/admission; retain the later referent-lending obligation.
+  Native publication still rejects nonempty bound establishments in
+  `native-artifact/src/fragment_object_publication.rs`; `entry_receiver.rs`
+  also rejects them when no receiver bridge survives. Extend the entry bridge
+  to lend each exact referent through invocation and retirement. Stage 02's
+  `lowering/placed_view_inputs.rs` supplies only a direct-entry pointer ABI for
+  a parameterless, one-block Unit function, without access events. Join the
+  selected placement and derived accessor operations into the normal native
+  pipeline and preserve independent replay. Both native input admission and
+  interpretation still reject non-entry roster rows: add call-bound custody
+  from the caller. A pointer or roster alone must remain insufficient.
 
   Acceptance: one source program establishes, accesses and retires a view
   through interpretation and published native execution. Codec/optimization
