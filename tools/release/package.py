@@ -24,14 +24,15 @@ HOST_TARGETS = {
 }
 
 
-def run(command, *, cwd=ROOT, environment=None, expected=0, timeout=7200):
+def run(command, *, cwd=ROOT, environment=None, expected=0, timeout=7200, capture=True):
     print("+ " + " ".join(map(str, command)), flush=True)
     result = subprocess.run(list(map(str, command)), cwd=cwd, env=environment,
                             text=True, encoding="utf-8", errors="replace",
-                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout)
+                            stdout=subprocess.PIPE if capture else None,
+                            stderr=subprocess.STDOUT, timeout=timeout)
     if result.returncode != expected:
-        raise RuntimeError(f"command returned {result.returncode}, expected {expected}:\n{result.stdout}")
-    return result.stdout
+        raise RuntimeError(f"command returned {result.returncode}, expected {expected}:\n{result.stdout or ''}")
+    return result.stdout or ""
 
 
 def library_files(root):
@@ -265,7 +266,8 @@ def main():
             flags = ""
         environment["CARGO_ENCODED_RUSTFLAGS"] = flags + ("\x1f" if flags else "") + "-Ctarget-feature=+crt-static"
     cargo = shutil.which("mbx") or "cargo"
-    run([cargo, "build", "--locked", "--release", "--target", host, "-p", "omega", "--bin", "omega"], environment=environment)
+    run([cargo, "build", "--locked", "--release", "--target", host, "-p", "omega", "--bin", "omega"],
+        environment=environment, capture=False)
     target_directory = Path(json.loads(run(["cargo", "metadata", "--no-deps", "--format-version", "1"]))["target_directory"])
     binary = target_directory / host / "release" / ("omega.exe" if os.name == "nt" else "omega")
     if library_digest(library) != digest:
