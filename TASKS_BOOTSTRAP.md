@@ -115,7 +115,11 @@ prerequisite to every lower-rung milestone.
   [native check record](tests/gamma/beta-encoding-check/README.md) progressed
   past request admission to comparison-budget exhaustion; the source's
   `implementation/comparison/session.gamma` now uses the selected 2^26 shared
-  work bound. Successful full checking and mutation acceptance remain owed.
+  work bound. The 2026-09-27 macOS arm64 run produced the request byte-exactly
+  (135,485,028 bytes, 3,182,974 rows, 70.6 s) but the evaluator leg hit the
+  43200 s host timeout with no `Checked` observation — see
+  `wiki/drafts/measurements/gamma_beta_encoding_check.md`. Successful full
+  checking and mutation acceptance remain owed.
   Reuse the coupled evaluator/storage provisions in
   [CHECKING.md](bootstrap/proofs/checker/CHECKING.md#complete-generic-execution-provision)
   and [PROFILE.md](bootstrap/proofs/beta_encoding/PROFILE.md); do not rediscover
