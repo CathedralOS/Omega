@@ -3,7 +3,9 @@
 //! Constructors and validation share the operand rules owned here; proposition
 //! validation consumes these terms before applying proposition-specific rules.
 
-use crate::proposition::{IntegerType, IntegerValue, PropositionError};
+use crate::proposition::{
+    IntegerMathTerm, IntegerType, IntegerValue, Proposition, PropositionError,
+};
 use crate::{PlaceId, StructuralCaseId, StructuralFieldId, ValueId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -199,6 +201,8 @@ pub enum ScalarTerm {
         left: Box<ScalarTerm>,
         right: Box<ScalarTerm>,
     },
+    /// `scalar_type` witnesses the left carrier; the right child retains its
+    /// own carrier. No common runtime carrier or implicit conversion is implied.
     IntegerEqual {
         scalar_type: IntegerType,
         left: Box<ScalarTerm>,
@@ -419,7 +423,7 @@ impl ScalarTerm {
         right: ScalarTerm,
     ) -> Result<Self, PropositionError> {
         let expected = ScalarType::Integer(scalar_type);
-        if left.scalar_type() != expected || right.scalar_type() != expected {
+        if !integer_comparison_operands_match(scalar_type, &left, &right) {
             return Err(PropositionError::IntegerEqualTypeMismatch {
                 expected,
                 left: left.scalar_type(),
@@ -438,7 +442,7 @@ impl ScalarTerm {
         left: ScalarTerm,
         right: ScalarTerm,
     ) -> Result<Self, PropositionError> {
-        validate_integer_operands(scalar_type, &left, &right)?;
+        validate_integer_comparison_operands(scalar_type, &left, &right)?;
         Ok(Self::IntegerLessThan {
             scalar_type,
             left: Box::new(left),
@@ -451,11 +455,74 @@ impl ScalarTerm {
         left: ScalarTerm,
         right: ScalarTerm,
     ) -> Result<Self, PropositionError> {
-        validate_integer_operands(scalar_type, &left, &right)?;
+        validate_integer_comparison_operands(scalar_type, &left, &right)?;
         Ok(Self::IntegerLessOrEqual {
             scalar_type,
             left: Box::new(left),
             right: Box::new(right),
+        })
+    }
+
+    /// Interpret a mixed comparison over exact values/literals in the
+    /// proof-only integer vocabulary. Each `MathValue` keeps its original
+    /// carrier and identity; no runtime cast or representability premise is
+    /// introduced. Open compound endpoints retain their Boolean term until
+    /// an exact value equality exposes a supported endpoint.
+    pub fn mathematical_comparison(&self, positive: bool) -> Option<Proposition> {
+        let (kind, left_type, left, right) = match self {
+            Self::IntegerEqual {
+                scalar_type,
+                left,
+                right,
+            } => (0, *scalar_type, left, right),
+            Self::IntegerLessThan {
+                scalar_type,
+                left,
+                right,
+            } => (1, *scalar_type, left, right),
+            Self::IntegerLessOrEqual {
+                scalar_type,
+                left,
+                right,
+            } => (2, *scalar_type, left, right),
+            _ => return None,
+        };
+        if left.scalar_type() == right.scalar_type()
+            || !integer_comparison_operands_match(left_type, left, right)
+        {
+            return None;
+        }
+        let mathematical = |term: &Self| {
+            if let Self::Value {
+                id,
+                scalar_type: ScalarType::Integer(source_type),
+            } = term
+            {
+                return Some(IntegerMathTerm::MathValue {
+                    source_type: *source_type,
+                    value: *id,
+                });
+            }
+            term.integer_value()
+                .map(|(_, value)| IntegerMathTerm::literal(value))
+        };
+        let mut left = mathematical(left)?;
+        let mut right = mathematical(right)?;
+        Some(match (kind, positive) {
+            (0, true) => {
+                if left > right {
+                    std::mem::swap(&mut left, &mut right);
+                }
+                Proposition::IntegerMathEqual(left, right)
+            }
+            (0, false) => Proposition::Disjunction(vec![
+                Proposition::IntegerMathLessThan(left.clone(), right.clone()),
+                Proposition::IntegerMathLessThan(right, left),
+            ]),
+            (1, true) => Proposition::IntegerMathLessThan(left, right),
+            (1, false) => Proposition::IntegerMathLessOrEqual(right, left),
+            (_, true) => Proposition::IntegerMathLessOrEqual(left, right),
+            (_, false) => Proposition::IntegerMathLessThan(right, left),
         })
     }
 
@@ -1230,7 +1297,8 @@ impl ScalarTerm {
             } => {
                 let (left_type, left) = left.integer_value()?;
                 let (right_type, right) = right.integer_value()?;
-                (left_type == *scalar_type && right_type == *scalar_type).then_some(left == right)
+                (left_type == *scalar_type).then_some(())?;
+                Some(left_type.compare_with(left, right_type, right)?.is_eq())
             }
             Self::IntegerLessThan {
                 scalar_type,
@@ -1239,10 +1307,10 @@ impl ScalarTerm {
             } => {
                 let (left_type, left) = left.integer_value()?;
                 let (right_type, right) = right.integer_value()?;
-                if left_type != *scalar_type || right_type != *scalar_type {
+                if left_type != *scalar_type {
                     return None;
                 }
-                Some(scalar_type.compare(left, right)?.is_lt())
+                Some(left_type.compare_with(left, right_type, right)?.is_lt())
             }
             Self::IntegerLessOrEqual {
                 scalar_type,
@@ -1251,10 +1319,10 @@ impl ScalarTerm {
             } => {
                 let (left_type, left) = left.integer_value()?;
                 let (right_type, right) = right.integer_value()?;
-                if left_type != *scalar_type || right_type != *scalar_type {
+                if left_type != *scalar_type {
                     return None;
                 }
-                Some(!scalar_type.compare(left, right)?.is_gt())
+                Some(!left_type.compare_with(left, right_type, right)?.is_gt())
             }
             _ => None,
         }
@@ -1454,7 +1522,7 @@ impl ScalarTerm {
                 right,
             } => {
                 let expected = ScalarType::Integer(*scalar_type);
-                if left.scalar_type() != expected || right.scalar_type() != expected {
+                if !integer_comparison_operands_match(*scalar_type, left, right) {
                     return Err(PropositionError::IntegerEqualTypeMismatch {
                         expected,
                         left: left.scalar_type(),
@@ -1472,7 +1540,7 @@ impl ScalarTerm {
                 scalar_type,
                 left,
                 right,
-            } => validate_integer_operands(*scalar_type, left, right),
+            } => validate_integer_comparison_operands(*scalar_type, left, right),
             Self::IntegerBitwiseNot {
                 scalar_type,
                 operand,
@@ -1687,6 +1755,33 @@ impl ScalarTerm {
             }
         }
     }
+}
+
+fn integer_comparison_operands_match(
+    left_type: IntegerType,
+    left: &ScalarTerm,
+    right: &ScalarTerm,
+) -> bool {
+    let ScalarType::Integer(right_type) = right.scalar_type() else {
+        return false;
+    };
+    left.scalar_type() == ScalarType::Integer(left_type)
+        && (left_type == right_type || (!left_type.is_address() && !right_type.is_address()))
+}
+
+fn validate_integer_comparison_operands(
+    left_type: IntegerType,
+    left: &ScalarTerm,
+    right: &ScalarTerm,
+) -> Result<(), PropositionError> {
+    if !integer_comparison_operands_match(left_type, left, right) {
+        return Err(PropositionError::IntegerOperandTypeMismatch {
+            expected: ScalarType::Integer(left_type),
+            left: left.scalar_type(),
+            right: right.scalar_type(),
+        });
+    }
+    Ok(())
 }
 
 fn validate_integer_operands(

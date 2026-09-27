@@ -202,6 +202,18 @@ fn condition_proposition(
         if predicate.scalar_type() != ScalarType::Boolean {
             return None;
         }
+        if matches!(&predicate,
+            ScalarTerm::IntegerEqual { left, right, .. }
+                | ScalarTerm::IntegerLessThan { left, right, .. }
+                | ScalarTerm::IntegerLessOrEqual { left, right, .. }
+                if left.scalar_type() != right.scalar_type())
+        {
+            return Some(
+                predicate
+                    .mathematical_comparison(positive)
+                    .unwrap_or(Proposition::Equal(predicate, ScalarTerm::Boolean(positive))),
+            );
+        }
         match predicate {
             ScalarTerm::Value { id, .. } => {
                 if expanded.contains(&id) {

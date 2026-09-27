@@ -380,6 +380,9 @@ pass/expressions/match_float_subjects rejected 419ms
 	native-artifact Terminal production failed: Lowering(Unsupported("runtime scalar field observation requires an integer field"))
 pass/expressions/match_fresh_owned checked 181ms
 pass/expressions/match_ordered_duplicate_patterns checked 182ms
+pass/expressions/mixed_integer_comparison_places built 2323ms exit:70
+pass/expressions/mixed_integer_comparison_widths built 1982ms exit:2
+pass/expressions/mixed_integer_guard_comparison built 1591ms exit:70
 pass/expressions/numeric_operand_destinations checked 184ms
 pass/expressions/owned_match_authored_state checked 231ms
 pass/expressions/owned_match_call_values checked 185ms

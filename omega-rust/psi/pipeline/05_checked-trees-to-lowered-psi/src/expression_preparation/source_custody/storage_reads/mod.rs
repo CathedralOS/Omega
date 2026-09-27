@@ -140,6 +140,30 @@ fn validate_reads(
         &mut member_paths,
         &mut unmatched_member_paths,
     )?;
+    if matches!(scope, ReadScope::Entry) {
+        // Both direct owned fields and projected borrowed fields must name
+        // one runtime invocation root before their retained positions rejoin.
+        for (_, root, _, kind) in &authored_reads {
+            if !matches!(
+                kind,
+                ReadKind::OwnedField(_) | ReadKind::IndexedPrimitive(_)
+            ) {
+                continue;
+            }
+            let mut parameters = checked
+                .state_parameters(state)
+                .iter()
+                .filter(|parameter| parameter.symbol == *root);
+            let Some(parameter) = parameters.next() else {
+                return unsupported("entry field read has no authored invocation parameter");
+            };
+            if !root.is_valid() || parameter.relevance.is_erased() || parameters.next().is_some() {
+                return unsupported(
+                    "entry field read requires one non-erased invocation parameter",
+                );
+            }
+        }
+    }
     let namespace = checked
         .state_parameters(state)
         .iter()
@@ -445,7 +469,8 @@ fn authored_owned_field(
 /// `maps[1].value` resolve through the same projected receiver walk: a member
 /// leaf above a fixed index carries the same `IndexedPrimitive` read the
 /// retained `StructuralParameterField` reports. Paths without a fixed index
-/// keep their existing member/storage owners.
+/// keep their existing member/storage owners, except invocation requirements,
+/// whose complete parameter field paths are rejoined here as entry reads.
 fn authored_indexed_primitive_read(
     checked: &CheckedTrees,
     state: &checked_trees::state::State,
@@ -485,12 +510,13 @@ fn authored_indexed_primitive_read(
     ) else {
         return Ok(None);
     };
-    if !source.path.iter().any(|segment| {
+    let indexed = source.path.iter().any(|segment| {
         matches!(
             segment,
             checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(_)
         )
-    }) {
+    });
+    if !indexed && !matches!(scope, ReadScope::Entry) {
         return Ok(None);
     }
     let field_path = source
@@ -509,7 +535,11 @@ fn authored_indexed_primitive_read(
     Ok(Some((
         source.root,
         primitive,
-        ReadKind::IndexedPrimitive(field_path),
+        if indexed {
+            ReadKind::IndexedPrimitive(field_path)
+        } else {
+            ReadKind::OwnedField(field_path)
+        },
     )))
 }
 
@@ -536,6 +566,19 @@ fn collect_owned_field(
                 .unwrap_or_default(),
             primitive,
             ReadKind::IndexedPrimitive(field_path.to_vec()),
+        ));
+        return;
+    }
+    if matches!(namespace.scope, ReadScope::Entry) {
+        reads.push((
+            path.to_vec(),
+            namespace
+                .structural
+                .get(parameter_position as usize)
+                .map(|parameter| parameter.symbol)
+                .unwrap_or_default(),
+            primitive,
+            ReadKind::OwnedField(field_path.to_vec()),
         ));
         return;
     }

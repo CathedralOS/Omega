@@ -816,3 +816,61 @@ fn definition_anchored_citation_matches_the_full_roster_verdict() {
     );
     assert!(narrowed > compared / 4, "{narrowed} of {compared}");
 }
+
+#[test]
+fn mixed_integer_guard_keeps_original_subjects_and_independent_carriers() {
+    use semantic_vocabulary::IntegerMathTerm;
+    let signed = IntegerType::new(IntegerSign::Signed, 32).unwrap();
+    let unsigned = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let index = value(1, ScalarType::Integer(signed));
+    let length = value(2, ScalarType::Integer(unsigned));
+    let condition = value(3, ScalarType::Boolean);
+    let comparison = ScalarTerm::integer_less_than(signed, index, length).unwrap();
+    let axioms = [Proposition::Equal(condition, comparison)];
+    let context = context(&axioms);
+    let value_term = |id: ValueId| {
+        ScalarTerm::value(
+            id,
+            if id == ValueId::new(3).unwrap() {
+                ScalarType::Boolean
+            } else if id == ValueId::new(1).unwrap() {
+                ScalarType::Integer(signed)
+            } else {
+                ScalarType::Integer(unsigned)
+            },
+        )
+    };
+    let index = IntegerMathTerm::MathValue {
+        source_type: signed,
+        value: ValueId::new(1).unwrap(),
+    };
+    let length = IntegerMathTerm::MathValue {
+        source_type: unsigned,
+        value: ValueId::new(2).unwrap(),
+    };
+    for (positive, expected) in [
+        (
+            true,
+            Proposition::IntegerMathLessThan(index.clone(), length.clone()),
+        ),
+        (
+            false,
+            Proposition::IntegerMathLessOrEqual(length.clone(), index.clone()),
+        ),
+    ] {
+        let fact = condition_fact(
+            ValueId::new(3).unwrap(),
+            positive,
+            &axioms,
+            &value_term,
+            &context,
+        )
+        .unwrap();
+        assert_eq!(fact.proposition, expected);
+        assert!(
+            fact.certified,
+            "mixed bound must survive checked equality transport"
+        );
+        context.validate(&fact.proposition).unwrap();
+    }
+}

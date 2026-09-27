@@ -753,6 +753,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                 LegalizedScalarInstructionKind::Compare {
                     predicate,
                     operand_type,
+                    right_operand_type,
                     left,
                     right,
                 } => {
@@ -763,6 +764,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                         LegalizedScalarComparison::LessOrEqual => 2,
                     });
                     encode_scalar_type(bytes, *operand_type);
+                    encode_scalar_type(bytes, *right_operand_type);
                     bytes.extend_from_slice(&left.get().to_le_bytes());
                     bytes.extend_from_slice(&right.get().to_le_bytes());
                 }

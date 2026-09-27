@@ -1481,3 +1481,88 @@ fn exact_left_shift_replays_a_prior_shift_rooted_at_one_exact_cast() {
         "drifting the earlier landed count invalidates the retained source endpoint",
     );
 }
+
+#[test]
+fn mixed_guard_transports_repeated_field_observation_through_exact_cast() {
+    use semantic_vocabulary::{
+        CanonicalStructuralPathSegment, IntegerMathTerm, PlaceId, StructuralFieldId,
+        StructuralPlaceKind,
+    };
+    for source_sign in [IntegerSign::Signed, IntegerSign::Unsigned] {
+        let signed = IntegerType::new(source_sign, 32).unwrap();
+        let unsigned = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+        let context = PropositionContext::from_value_types_and_places(
+            (1..=5).map(|id| {
+                (
+                    ValueId::new(id).unwrap(),
+                    ScalarType::Integer(if matches!(id, 1 | 3) {
+                        signed
+                    } else {
+                        unsigned
+                    }),
+                )
+            }),
+            [(
+                PlaceId::new(1).unwrap(),
+                StructuralPlaceKind::Parameter {
+                    position: 0,
+                    is_self: true,
+                },
+            )],
+        )
+        .unwrap();
+        let field = ScalarTerm::integer_field_path(
+            PlaceId::new(1).unwrap(),
+            vec![CanonicalStructuralPathSegment::Field(
+                StructuralFieldId::new(1).unwrap(),
+            )],
+            signed,
+        );
+        let math = |id, source_type| IntegerMathTerm::MathValue {
+            source_type,
+            value: ValueId::new(id).unwrap(),
+        };
+        let unsigned_literal =
+            |number| ScalarTerm::integer(unsigned, IntegerValue::Unsigned(number)).unwrap();
+        let axioms = vec![
+            Proposition::Equal(value(1, signed), field.clone()),
+            Proposition::Equal(value(2, unsigned), unsigned_literal(12)),
+            Proposition::IntegerMathLessThan(math(1, signed), math(2, unsigned)),
+            Proposition::Equal(value(3, signed), field),
+            Proposition::Equal(
+                value(4, unsigned),
+                if source_sign == IntegerSign::Signed {
+                    ScalarTerm::integer_exact_cast(signed, unsigned, value(3, signed)).unwrap()
+                } else {
+                    ScalarTerm::integer_widen(signed, unsigned, value(3, signed)).unwrap()
+                },
+            ),
+            Proposition::Equal(value(5, unsigned), unsigned_literal(12)),
+        ];
+        let goal = Proposition::LessThan(value(4, unsigned), value(5, unsigned));
+        let proof = prove_canonical_integer_proposition(&context, &goal, &[], &axioms)
+            .expect("original mixed guard, repeated field read and exact cast compose");
+        proof_admission::check_certificate(&context, &goal, &[], &axioms, &proof)
+            .expect("independent replay retains original equations");
+        for missing in [0, 1, 2, 3, 4, 5] {
+            let mut forged = axioms.clone();
+            forged[missing] = Proposition::Truth;
+            assert!(
+                proof_admission::check_certificate(&context, &goal, &[], &forged, &proof).is_err(),
+                "missing exact source equation or guard {missing}"
+            );
+        }
+        // The upper guard is valid for negative indices too. Its evidence alone
+        // cannot establish the separate exact-cast nonnegative precondition.
+        let nonnegative = Proposition::IntegerMathLessOrEqual(
+            IntegerMathTerm::literal(IntegerValue::Signed(0)),
+            math(3, signed),
+        );
+        if source_sign == IntegerSign::Signed {
+            assert!(
+                prove_canonical_integer_proposition(&context, &nonnegative, &[], &axioms[..4])
+                    .is_none()
+            );
+        }
+    }
+}

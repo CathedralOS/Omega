@@ -63,6 +63,27 @@ fn proposition_with_polarity(
         CheckedBooleanExpression::IntegerComparison { kind, left, right } => {
             let left = terms.integer(left)?;
             let right = terms.integer(right)?;
+            if left.scalar_type() != right.scalar_type() {
+                let ScalarType::Integer(left_type) = left.scalar_type() else {
+                    return unsupported("integer contract comparison has a noninteger operand");
+                };
+                // Keep each endpoint's exact carrier and structural identity.
+                // Fixed-carrier propositions cannot express this relation;
+                // Boolean denotation supplies its mathematical interpretation.
+                let comparison = match kind {
+                    CheckedIntegerComparisonKind::Equal => {
+                        ScalarTerm::integer_equal(left_type, left, right)
+                    }
+                    CheckedIntegerComparisonKind::LessThan => {
+                        ScalarTerm::integer_less_than(left_type, left, right)
+                    }
+                    CheckedIntegerComparisonKind::LessOrEqual => {
+                        ScalarTerm::integer_less_or_equal(left_type, left, right)
+                    }
+                }
+                .map_err(LoweringError::InvalidCrashPredicate)?;
+                return canonical_equality(comparison, ScalarTerm::boolean(positive));
+            }
             Ok(match (kind, positive) {
                 (CheckedIntegerComparisonKind::Equal, true) => canonical_equality(left, right)?,
                 (CheckedIntegerComparisonKind::Equal, false) => connective(

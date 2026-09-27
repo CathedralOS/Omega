@@ -467,20 +467,20 @@ pub(crate) fn evaluate_compile_known_boolean_expression(
                 == evaluate_compile_known_boolean_expression(right, parameters)?,
         ),
         LoweredBooleanReturnExpression::IntegerComparison { kind, left, right } => {
-            let ScalarType::Integer(integer_type) = left.scalar_type() else {
+            let ScalarType::Integer(left_type) = left.scalar_type() else {
+                return None;
+            };
+            let ScalarType::Integer(right_type) = right.scalar_type() else {
                 return None;
             };
             let left = evaluate_integer_direct_expression(left, parameters)?;
             let right = evaluate_integer_direct_expression(right, parameters)?;
-            match kind {
-                LoweredIntegerComparisonKind::Equal => Some(left == right),
-                LoweredIntegerComparisonKind::LessThan => {
-                    Some(integer_type.compare(left, right)?.is_lt())
-                }
-                LoweredIntegerComparisonKind::LessOrEqual => {
-                    Some(!integer_type.compare(left, right)?.is_gt())
-                }
-            }
+            let ordering = left_type.compare_with(left, right_type, right)?;
+            Some(match kind {
+                LoweredIntegerComparisonKind::Equal => ordering.is_eq(),
+                LoweredIntegerComparisonKind::LessThan => ordering.is_lt(),
+                LoweredIntegerComparisonKind::LessOrEqual => ordering.is_le(),
+            })
         }
         LoweredBooleanReturnExpression::And { left, right } => {
             let left = evaluate_compile_known_boolean_expression(left, parameters)?;
@@ -498,5 +498,84 @@ pub(crate) fn evaluate_compile_known_boolean_expression(
                 evaluate_compile_known_boolean_expression(right, parameters)
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use semantic_vocabulary::{IntegerSign, IntegerType};
+
+    #[test]
+    fn compile_known_mixed_comparisons_preserve_mathematical_values() {
+        let signed = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+        let unsigned = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+        for (left, right, expected) in [
+            (
+                IntegerValue::Signed(-1),
+                IntegerValue::Unsigned(10),
+                std::cmp::Ordering::Less,
+            ),
+            (
+                IntegerValue::Signed(-1),
+                IntegerValue::Unsigned(u128::from(u64::MAX)),
+                std::cmp::Ordering::Less,
+            ),
+            (
+                IntegerValue::Signed(10),
+                IntegerValue::Unsigned(10),
+                std::cmp::Ordering::Equal,
+            ),
+        ] {
+            for (kind, expected) in [
+                (LoweredIntegerComparisonKind::Equal, expected.is_eq()),
+                (LoweredIntegerComparisonKind::LessThan, expected.is_lt()),
+                (LoweredIntegerComparisonKind::LessOrEqual, expected.is_le()),
+            ] {
+                let expression = LoweredBooleanReturnExpression::IntegerComparison {
+                    kind,
+                    left: Box::new(LoweredDirectExpression::IntegerLiteral {
+                        scalar_type: signed,
+                        value: left,
+                    }),
+                    right: Box::new(LoweredDirectExpression::IntegerLiteral {
+                        scalar_type: unsigned,
+                        value: right,
+                    }),
+                };
+                assert_eq!(
+                    evaluate_compile_known_boolean_expression(&expression, &[]),
+                    Some(expected)
+                );
+                let negated = LoweredBooleanReturnExpression::Not {
+                    operand: Box::new(expression),
+                };
+                assert_eq!(
+                    evaluate_compile_known_boolean_expression(&negated, &[]),
+                    Some(!expected)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn compile_known_mixed_comparisons_reject_wrong_operand_carriers() {
+        let signed = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 8).unwrap());
+        let unsigned = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+        let expression = LoweredBooleanReturnExpression::IntegerComparison {
+            kind: LoweredIntegerComparisonKind::Equal,
+            left: Box::new(LoweredDirectExpression::IntegerLiteral {
+                scalar_type: signed,
+                value: IntegerValue::Signed(128),
+            }),
+            right: Box::new(LoweredDirectExpression::IntegerLiteral {
+                scalar_type: unsigned,
+                value: IntegerValue::Unsigned(128),
+            }),
+        };
+        assert_eq!(
+            evaluate_compile_known_boolean_expression(&expression, &[]),
+            None
+        );
     }
 }

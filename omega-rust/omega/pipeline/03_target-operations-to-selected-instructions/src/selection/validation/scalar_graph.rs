@@ -208,9 +208,13 @@ pub(in crate::selection) fn validate_with_environment(
                     LegalizedScalarInstructionKind::Compare {
                         predicate,
                         operand_type,
+                        right_operand_type,
                         left,
                         right,
                     } => {
+                        if operand_type != right_operand_type {
+                            return Err(invalid());
+                        }
                         if !control::branch_suffix(source, source_block, operation_index) {
                             return Err(invalid());
                         }

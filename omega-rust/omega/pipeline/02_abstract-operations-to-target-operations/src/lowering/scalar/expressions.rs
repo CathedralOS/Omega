@@ -169,17 +169,23 @@ pub(in crate::lowering) fn equal_integer(
     else {
         return Err(LoweringError::ValueTypeMismatch(result));
     };
-    if left_type != right_type {
+    if left_type != right_type && (left_type.is_address() || right_type.is_address()) {
         return Err(LoweringError::ValueTypeMismatch(result));
     }
     match (left, right) {
         (KnownInteger::Immediate(left), KnownInteger::Immediate(right)) => {
-            Ok(KnownScalar::Boolean(left == right))
+            Ok(KnownScalar::Boolean(
+                left_type
+                    .compare_with(left, right_type, right)
+                    .ok_or(LoweringError::ValueTypeMismatch(result))?
+                    .is_eq(),
+            ))
         }
         (left, right) => Ok(KnownScalar::BooleanRuntime(
             TargetBooleanExpression::IntegerEqual {
                 psi_operation,
                 scalar_type: left_type,
+                right_scalar_type: right_type,
                 left: Box::new(left.into_expression(left_id)),
                 right: Box::new(right.into_expression(right_id)),
             },
@@ -209,13 +215,13 @@ pub(in crate::lowering) fn order_integer(
     else {
         return Err(LoweringError::ValueTypeMismatch(result));
     };
-    if left_type != right_type {
+    if left_type != right_type && (left_type.is_address() || right_type.is_address()) {
         return Err(LoweringError::ValueTypeMismatch(result));
     }
     match (left, right) {
         (KnownInteger::Immediate(left), KnownInteger::Immediate(right)) => {
             let ordering = left_type
-                .compare(left, right)
+                .compare_with(left, right_type, right)
                 .ok_or(LoweringError::ValueTypeMismatch(result))?;
             Ok(KnownScalar::Boolean(if inclusive {
                 !ordering.is_gt()
@@ -230,6 +236,7 @@ pub(in crate::lowering) fn order_integer(
                 TargetBooleanExpression::IntegerLessOrEqual {
                     psi_operation,
                     scalar_type: left_type,
+                    right_scalar_type: right_type,
                     left,
                     right,
                 }
@@ -237,6 +244,7 @@ pub(in crate::lowering) fn order_integer(
                 TargetBooleanExpression::IntegerLessThan {
                     psi_operation,
                     scalar_type: left_type,
+                    right_scalar_type: right_type,
                     left,
                     right,
                 }

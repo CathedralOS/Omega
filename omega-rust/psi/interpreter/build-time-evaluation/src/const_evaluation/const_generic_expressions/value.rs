@@ -1046,7 +1046,10 @@ fn validate_shapes(
                 if matches!(operator, BinaryOperator::And | BinaryOperator::Or) {
                     return Err("Boolean logic requires Boolean operands".into());
                 }
-                if !shift && (left != right || left_policy != right_policy) {
+                if !shift
+                    && !integer_comparison(operator)
+                    && (left != right || left_policy != right_policy)
+                {
                     return Err(
                         "constant operands have incompatible landed integer carriers".into(),
                     );
@@ -1388,6 +1391,18 @@ fn float_bits(format: FloatFormat, meaning: &FloatMeaning) -> u64 {
     }
 }
 
+fn integer_comparison(operator: BinaryOperator) -> bool {
+    matches!(
+        operator,
+        BinaryOperator::Equal
+            | BinaryOperator::NotEqual
+            | BinaryOperator::Less
+            | BinaryOperator::LessOrEqual
+            | BinaryOperator::Greater
+            | BinaryOperator::GreaterOrEqual
+    )
+}
+
 fn apply(operator: BinaryOperator, left: Value, right: Value) -> Result<Value, String> {
     if let (Value::Boolean(left), Value::Boolean(right)) = (left, right) {
         return match operator {
@@ -1411,7 +1426,10 @@ fn apply(operator: BinaryOperator, left: Value, right: Value) -> Result<Value, S
         operator,
         BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
     );
-    if !shifts && (left_carrier != right_carrier || policy != right_policy) {
+    if !shifts
+        && !integer_comparison(operator)
+        && (left_carrier != right_carrier || policy != right_policy)
+    {
         return Err("constant operands have incompatible landed integer carriers".into());
     }
     if matches!(
@@ -1424,8 +1442,8 @@ fn apply(operator: BinaryOperator, left: Value, right: Value) -> Result<Value, S
             | BinaryOperator::GreaterOrEqual
     ) {
         let ordering = integer
-            .compare(left, right)
-            .ok_or("constant comparison operands are outside their selected integer carrier")?;
+            .compare_with(left, integer_type(right_carrier)?, right)
+            .ok_or("constant comparison operands are outside their selected integer carriers")?;
         let result = match operator {
             BinaryOperator::Equal => ordering.is_eq(),
             BinaryOperator::NotEqual => ordering.is_ne(),
@@ -1777,6 +1795,67 @@ mod tests {
                 assert!(apply(operator, minimum, zero).is_err());
             }
         }
+    }
+
+    #[test]
+    fn mixed_integer_comparisons_use_each_landed_carrier() {
+        for (left_carrier, left, right_carrier, right, expected) in [
+            (
+                LandedIntegerType::I32,
+                IntegerValue::Signed(-1),
+                LandedIntegerType::U64,
+                IntegerValue::Unsigned(10),
+                std::cmp::Ordering::Less,
+            ),
+            (
+                LandedIntegerType::I64,
+                IntegerValue::Signed(-1),
+                LandedIntegerType::U64,
+                IntegerValue::Unsigned(u128::from(u64::MAX)),
+                std::cmp::Ordering::Less,
+            ),
+            (
+                LandedIntegerType::U64,
+                IntegerValue::Unsigned(u128::from(u64::MAX)),
+                LandedIntegerType::I64,
+                IntegerValue::Signed(i128::from(i64::MAX)),
+                std::cmp::Ordering::Greater,
+            ),
+            (
+                LandedIntegerType::I8,
+                IntegerValue::Signed(10),
+                LandedIntegerType::U64,
+                IntegerValue::Unsigned(10),
+                std::cmp::Ordering::Equal,
+            ),
+        ] {
+            // Policy controls how each operand was computed, not comparison.
+            let left = Value::Landed(left_carrier, left, ArithmeticDomain::Wrapping);
+            let right = Value::Landed(right_carrier, right, ArithmeticDomain::Saturating);
+            for (operator, expected) in [
+                (BinaryOperator::Equal, expected.is_eq()),
+                (BinaryOperator::NotEqual, expected.is_ne()),
+                (BinaryOperator::Less, expected.is_lt()),
+                (BinaryOperator::LessOrEqual, expected.is_le()),
+                (BinaryOperator::Greater, expected.is_gt()),
+                (BinaryOperator::GreaterOrEqual, expected.is_ge()),
+            ] {
+                assert!(
+                    matches!(apply(operator, left, right), Ok(Value::Boolean(actual)) if actual == expected)
+                );
+            }
+        }
+        let invalid = Value::Landed(
+            LandedIntegerType::I8,
+            IntegerValue::Signed(128),
+            ArithmeticDomain::Exact,
+        );
+        let valid = Value::Landed(
+            LandedIntegerType::U64,
+            IntegerValue::Unsigned(128),
+            ArithmeticDomain::Exact,
+        );
+        assert!(apply(BinaryOperator::Equal, invalid, valid).is_err());
     }
 
     #[test]

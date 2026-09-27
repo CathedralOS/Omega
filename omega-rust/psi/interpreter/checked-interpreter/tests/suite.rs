@@ -16,6 +16,7 @@ mod build_arguments;
 mod const_values;
 mod constant_array_projection;
 mod field_ranking_arrivals;
+mod mixed_integer_comparisons;
 mod projected_results;
 mod raw_literal_bytes;
 mod resolved_state_execution;

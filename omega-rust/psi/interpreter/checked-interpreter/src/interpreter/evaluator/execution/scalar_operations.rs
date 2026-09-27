@@ -288,6 +288,60 @@ impl<'program> Evaluator<'program> {
         Ok(Value::Float(meaning.to_interpreter_value(format)))
     }
 
+    /// Runtime integers use i64 storage even for u64. Decode each value with
+    /// its own carrier before applying the shared mathematical relation.
+    pub(in crate::interpreter::evaluator) fn eval_integer_comparison(
+        &self,
+        operator: BinaryOperator,
+        left: i64,
+        left_type: PrimitiveType,
+        right: i64,
+        right_type: PrimitiveType,
+    ) -> EvalResult<Value> {
+        use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
+        let decode = |value: i64, primitive| -> EvalResult<(IntegerType, IntegerValue)> {
+            let (sign, width) = match primitive {
+                PrimitiveType::I8 => (IntegerSign::Signed, 8),
+                PrimitiveType::I16 => (IntegerSign::Signed, 16),
+                PrimitiveType::I32 => (IntegerSign::Signed, 32),
+                PrimitiveType::I64 => (IntegerSign::Signed, 64),
+                PrimitiveType::U8 => (IntegerSign::Unsigned, 8),
+                PrimitiveType::U16 => (IntegerSign::Unsigned, 16),
+                PrimitiveType::U32 => (IntegerSign::Unsigned, 32),
+                PrimitiveType::U64 | PrimitiveType::Addr => (IntegerSign::Unsigned, 64),
+                _ => return unsupported("integer comparison requires integer carriers"),
+            };
+            let integer = if primitive == PrimitiveType::Addr {
+                IntegerType::address(width)
+            } else {
+                IntegerType::new(sign, width)
+            }
+            .map_err(|_| Halt::Unsupported("invalid integer comparison carrier".into()))?;
+            let value = if sign == IntegerSign::Signed {
+                IntegerValue::Signed(i128::from(value))
+            } else {
+                IntegerValue::Unsigned(u128::from(value as u64))
+            };
+            Ok((integer, value))
+        };
+        let (left_type, left) = decode(left, left_type)?;
+        let (right_type, right) = decode(right, right_type)?;
+        let ordering = left_type
+            .compare_with(left, right_type, right)
+            .ok_or_else(|| {
+                Halt::Unsupported("integer comparison operand outside its carrier".into())
+            })?;
+        Ok(Value::Bool(match operator {
+            BinaryOperator::Less => ordering.is_lt(),
+            BinaryOperator::LessOrEqual => ordering.is_le(),
+            BinaryOperator::Greater => ordering.is_gt(),
+            BinaryOperator::GreaterOrEqual => ordering.is_ge(),
+            BinaryOperator::Equal => ordering.is_eq(),
+            BinaryOperator::NotEqual => ordering.is_ne(),
+            _ => return unsupported("integer comparison requires a comparison operator"),
+        }))
+    }
+
     pub(in crate::interpreter::evaluator) fn eval_binary(
         &self,
         operator: BinaryOperator,

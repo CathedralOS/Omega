@@ -636,3 +636,96 @@ fn payloadless_sum_equality_lowers_to_case_membership_equivalence() {
                 && matches!(conclusion.as_ref(), Proposition::Falsehood)
     ));
 }
+
+#[test]
+fn mixed_integer_source_requirements_preserve_plain_and_structural_endpoints() {
+    use semantic_vocabulary::{IntegerSign, IntegerType, ScalarTerm};
+
+    let source = r#"
+        data Bounds { index: i32; }
+        machine plain(index: i32, limit: u64) -> bool
+        requires index < limit;
+        { index < limit }
+        machine Bounds::field(&self, limit: u64) -> bool
+        requires self.index < limit;
+        { self.index < limit }
+    "#;
+    let checked = crate::front_end::checked_program(source);
+    for (name, structural) in [("plain", false), ("Bounds::field", true)] {
+        let lowered = lower_machine(&checked, TerminalMachineSelection::Name(name))
+            .expect("mixed source requirement lowers");
+        terminal_verifier::validate_module(&lowered.semantic_module)
+            .expect("mixed source requirement independently validates");
+        let requirement = &lowered.semantic_module.machines[0].contract.requires[0];
+        let Proposition::Equal(first, second) = requirement else {
+            panic!("mixed requirement retains its Boolean denotation: {requirement:?}");
+        };
+        let comparison = match (first, second) {
+            (ScalarTerm::Boolean(true), comparison) | (comparison, ScalarTerm::Boolean(true)) => {
+                comparison
+            }
+            _ => panic!("requirement asserts its comparison: {requirement:?}"),
+        };
+        let ScalarTerm::IntegerLessThan {
+            scalar_type,
+            left,
+            right,
+        } = comparison
+        else {
+            panic!("requirement retains strict comparison: {comparison:?}");
+        };
+        assert_eq!(
+            *scalar_type,
+            IntegerType::new(IntegerSign::Signed, 32).expect("i32")
+        );
+        assert_eq!(left.scalar_type(), ScalarType::Integer(*scalar_type));
+        assert_eq!(
+            right.scalar_type(),
+            ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).expect("u64"))
+        );
+        assert_eq!(
+            matches!(left.as_ref(), ScalarTerm::IntegerField { .. }),
+            structural
+        );
+        assert!(matches!(right.as_ref(), ScalarTerm::Value { .. }));
+        let encoded = terminal_codec::encode_module(&lowered.semantic_module)
+            .expect("encode exact source contract");
+        assert_eq!(
+            terminal_codec::decode_module(&encoded),
+            Ok(lowered.semantic_module)
+        );
+    }
+}
+
+#[test]
+fn mixed_integer_source_guards_prove_byte_reads_after_signed_cast_or_unsigned_widen() {
+    for index_type in ["i32", "u32"] {
+        let source = r#"
+            domain [u8]::Utf8 requires valid_utf8(self);
+            domain [u8; 16]::Utf8 requires valid_utf8(self);
+            data Scan { text: [u8; 16] in Utf8; index: INDEX_TYPE; observed: u8; }
+            machine Scan::read(&mut self) {
+                self.text = "abc";
+                self.index = 0;
+                transition { _ -> guard() }
+                state guard(&mut self) {
+                    transition self.index >= 0 && self.index < self.text.len {
+                        true -> read_byte()
+                        _ -> done()
+                    }
+                }
+                state read_byte(&mut self) {
+                    self.observed = self.text[self.index];
+                    transition { _ -> done() }
+                }
+                state done(&mut self) { }
+            }
+        "#
+        .replace("INDEX_TYPE", index_type);
+        let checked = crate::front_end::checked_program(&source);
+        let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Scan::read"))
+            .expect("mixed guard preserves the exact byte index bound");
+        terminal_verifier::validate_module(&lowered.semantic_module)
+            .expect("source byte read and mixed guard independently validate");
+    }
+}

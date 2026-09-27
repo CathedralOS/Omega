@@ -201,3 +201,124 @@ fn strict_integer_requirements_keep_original_relation_and_reject_new_arithmetic(
         );
     }
 }
+
+#[test]
+fn mixed_integer_requirements_substitute_each_exact_formal_under_both_polarities() {
+    let formals = [PrimitiveType::I32, PrimitiveType::U64].map(|primitive_type| ValueDeclaration {
+        qualifications: Default::default(),
+        id: value_id(if primitive_type == PrimitiveType::I32 {
+            1
+        } else {
+            2
+        }),
+        scalar_type: integer_scalar_type(primitive_type).unwrap(),
+    });
+    let actuals = [
+        ValueDeclaration {
+            id: value_id(9),
+            ..formals[0]
+        },
+        ValueDeclaration {
+            id: value_id(8),
+            ..formals[1]
+        },
+    ];
+    let substitutions = BTreeMap::from([(formals[0].id, actuals[0]), (formals[1].id, actuals[1])]);
+    for kind in [
+        CheckedIntegerComparisonKind::Equal,
+        CheckedIntegerComparisonKind::LessThan,
+        CheckedIntegerComparisonKind::LessOrEqual,
+    ] {
+        for negative in [false, true] {
+            let comparison = CheckedBooleanExpression::IntegerComparison {
+                kind,
+                left: Box::new(CheckedScalarExpression::Parameter {
+                    position: 0,
+                    primitive_type: PrimitiveType::I32,
+                }),
+                right: Box::new(CheckedScalarExpression::Parameter {
+                    position: 1,
+                    primitive_type: PrimitiveType::U64,
+                }),
+            };
+            let predicate = if negative {
+                CheckedBooleanExpression::Not(Box::new(comparison))
+            } else {
+                comparison
+            };
+            let original =
+                lower_structural_runtime_requirement(&predicate, &formals, &[], &[], &[]).unwrap();
+            let expected =
+                lower_structural_runtime_requirement(&predicate, &actuals, &[], &[], &[]).unwrap();
+            let mut rebound = original.clone();
+            substitute_runtime_requirement_scalar_values(&mut rebound, &substitutions).unwrap();
+            assert_eq!(rebound, expected, "{kind:?}, negative={negative}");
+            for formal in formals {
+                let mut missing = substitutions.clone();
+                missing.remove(&formal.id);
+                assert!(
+                    substitute_runtime_requirement_scalar_values(&mut original.clone(), &missing)
+                        .is_err()
+                );
+                for wrong_type in [
+                    ScalarType::Boolean,
+                    integer_scalar_type(PrimitiveType::U32).unwrap(),
+                ] {
+                    let mut forged = substitutions.clone();
+                    forged.get_mut(&formal.id).unwrap().scalar_type = wrong_type;
+                    assert!(
+                        substitute_runtime_requirement_scalar_values(
+                            &mut original.clone(),
+                            &forged
+                        )
+                        .is_err()
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn mixed_comparison_substitution_retains_structural_endpoint_and_rejects_forged_witness() {
+    use semantic_vocabulary::{
+        CanonicalStructuralPathSegment, IntegerSign, IntegerType, PlaceId, StructuralFieldId,
+    };
+    let signed = IntegerType::new(IntegerSign::Signed, 32).unwrap();
+    let unsigned = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let field = ScalarTerm::integer_field_path(
+        PlaceId::new(1).unwrap(),
+        vec![CanonicalStructuralPathSegment::Field(
+            StructuralFieldId::new(2).unwrap(),
+        )],
+        signed,
+    );
+    let formal = ValueDeclaration {
+        id: value_id(1),
+        qualifications: Default::default(),
+        scalar_type: ScalarType::Integer(unsigned),
+    };
+    let actual = ValueDeclaration {
+        id: value_id(8),
+        ..formal
+    };
+    let predicate = |witness, value| {
+        Proposition::Equal(
+            ScalarTerm::IntegerLessThan {
+                scalar_type: witness,
+                left: Box::new(field.clone()),
+                right: Box::new(value),
+            },
+            ScalarTerm::Boolean(true),
+        )
+    };
+    let substitutions = BTreeMap::from([(formal.id, actual)]);
+    let mut requirement = predicate(signed, ScalarTerm::value(formal.id, formal.scalar_type));
+    substitute_runtime_requirement_scalar_values(&mut requirement, &substitutions).unwrap();
+    assert_eq!(
+        requirement,
+        predicate(signed, ScalarTerm::value(actual.id, actual.scalar_type))
+    );
+    let mut forged = predicate(unsigned, ScalarTerm::value(formal.id, formal.scalar_type));
+    assert!(substitute_runtime_requirement_scalar_values(&mut forged, &substitutions).is_err());
+}

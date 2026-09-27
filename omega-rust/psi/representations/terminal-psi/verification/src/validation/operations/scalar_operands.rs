@@ -186,7 +186,10 @@ pub(super) fn validate_integer_equal(
     require_defined(right, value_types, defined)?;
     let left_type = value_types[&left];
     let right_type = value_types[&right];
-    if !matches!(left_type, ScalarType::Integer(_)) || right_type != left_type {
+    if !matches!((left_type, right_type),
+        (ScalarType::Integer(left), ScalarType::Integer(right))
+            if left == right || (!left.is_address() && !right.is_address()))
+    {
         return Err(ModuleError::IntegerEqualOperandTypeMismatch {
             operation: operation.id,
             left: left_type,
@@ -210,7 +213,10 @@ pub(super) fn validate_integer_comparison(
     require_defined(right, value_types, defined)?;
     let left_type = value_types[&left];
     let right_type = value_types[&right];
-    if !matches!(left_type, ScalarType::Integer(_)) || right_type != left_type {
+    if !matches!((left_type, right_type),
+        (ScalarType::Integer(left), ScalarType::Integer(right))
+            if left == right || (!left.is_address() && !right.is_address()))
+    {
         return Err(ModuleError::IntegerOrderingOperandTypeMismatch {
             operation: operation.id,
             left: left_type,

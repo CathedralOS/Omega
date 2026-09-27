@@ -547,9 +547,12 @@ pub(super) fn project_boolean_equal(
         };
         let operand_type =
             scalar_graph_input::value_type(optimized, *left).ok_or(Error::custody())?;
+        let right_operand_type =
+            scalar_graph_input::value_type(optimized, *right).ok_or(Error::custody())?;
         LegalizedScalarInstructionKind::Compare {
             predicate,
             operand_type,
+            right_operand_type,
             left: *left,
             right: *right,
         }

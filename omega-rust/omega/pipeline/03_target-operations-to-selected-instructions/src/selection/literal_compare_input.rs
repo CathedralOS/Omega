@@ -34,6 +34,8 @@ fn folded_literal<'a>(
     }
     let LegalizedScalarInstructionKind::Compare {
         predicate: LegalizedScalarComparison::Equal,
+        operand_type,
+        right_operand_type,
         left,
         right,
         ..
@@ -41,6 +43,9 @@ fn folded_literal<'a>(
     else {
         return None;
     };
+    if operand_type != right_operand_type {
+        return None;
+    }
     if (left == definition.value) == (right == definition.value) {
         return None;
     }

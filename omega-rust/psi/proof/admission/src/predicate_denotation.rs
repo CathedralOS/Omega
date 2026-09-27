@@ -343,7 +343,22 @@ fn boolean(
     depth: usize,
 ) -> Result<Proposition, PredicateDenotationError> {
     budget.step(depth)?;
+    if let Some(comparison) = comparison_with_representable_literal(term) {
+        return boolean(&comparison, positive, budget, depth + 1);
+    }
+    if let Some(proposition) = term.mathematical_comparison(positive) {
+        return normalize(&proposition, budget, depth + 1);
+    }
     match term {
+        ScalarTerm::IntegerEqual { left, right, .. }
+        | ScalarTerm::IntegerLessThan { left, right, .. }
+        | ScalarTerm::IntegerLessOrEqual { left, right, .. }
+            if left.scalar_type() != right.scalar_type() =>
+        {
+            // A compound endpoint is still typed, but the existing
+            // mathematical vocabulary cannot replace its identity.
+            Ok(equality(term.clone(), ScalarTerm::Boolean(positive)))
+        }
         ScalarTerm::Boolean(value) => Ok(if *value == positive {
             Proposition::Truth
         } else {
@@ -453,3 +468,51 @@ impl std::fmt::Display for PredicateDenotationError {
 }
 
 impl std::error::Error for PredicateDenotationError {}
+
+/// A closed endpoint can change carrier only when its mathematical integer is
+/// representable there. No conversion is applied to an unknown endpoint.
+fn comparison_with_representable_literal(term: &ScalarTerm) -> Option<ScalarTerm> {
+    let (kind, left, right) = match term {
+        ScalarTerm::IntegerEqual { left, right, .. } => (0, left.as_ref(), right.as_ref()),
+        ScalarTerm::IntegerLessThan { left, right, .. } => (1, left.as_ref(), right.as_ref()),
+        ScalarTerm::IntegerLessOrEqual { left, right, .. } => (2, left.as_ref(), right.as_ref()),
+        _ => return None,
+    };
+    let (ScalarType::Integer(left_type), ScalarType::Integer(right_type)) =
+        (left.scalar_type(), right.scalar_type())
+    else {
+        return None;
+    };
+    if left_type == right_type {
+        return None;
+    }
+    let (carrier, left, right) = if let ScalarTerm::Integer { value, .. } = right {
+        (
+            left_type,
+            left.clone(),
+            ScalarTerm::integer(
+                left_type,
+                right_type.exact_cast_value_to(left_type, *value)?,
+            )
+            .ok()?,
+        )
+    } else if let ScalarTerm::Integer { value, .. } = left {
+        (
+            right_type,
+            ScalarTerm::integer(
+                right_type,
+                left_type.exact_cast_value_to(right_type, *value)?,
+            )
+            .ok()?,
+            right.clone(),
+        )
+    } else {
+        return None;
+    };
+    match kind {
+        0 => ScalarTerm::integer_equal(carrier, left, right),
+        1 => ScalarTerm::integer_less_than(carrier, left, right),
+        _ => ScalarTerm::integer_less_or_equal(carrier, left, right),
+    }
+    .ok()
+}

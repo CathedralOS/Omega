@@ -39,18 +39,21 @@ pub enum TargetBooleanExpression {
     IntegerEqual {
         psi_operation: OperationId,
         scalar_type: IntegerType,
+        right_scalar_type: IntegerType,
         left: Box<TargetIntegerExpression>,
         right: Box<TargetIntegerExpression>,
     },
     IntegerLessThan {
         psi_operation: OperationId,
         scalar_type: IntegerType,
+        right_scalar_type: IntegerType,
         left: Box<TargetIntegerExpression>,
         right: Box<TargetIntegerExpression>,
     },
     IntegerLessOrEqual {
         psi_operation: OperationId,
         scalar_type: IntegerType,
+        right_scalar_type: IntegerType,
         left: Box<TargetIntegerExpression>,
         right: Box<TargetIntegerExpression>,
     },

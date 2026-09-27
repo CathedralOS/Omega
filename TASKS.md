@@ -832,15 +832,6 @@ the complete product bar; focused successes below do not establish that baseline
     execution; the deleted `compiler --test bounded_slice_selectors` is no
     longer evidence for those distinct obligations.
 
-    **ARITHMETIC-POLICY-REALIZATION** owns mixed-integer comparisons, including
-    both current refusals: `boolean_lowering::construct_integer_comparison`
-    requires equal carriers, while `operand_reports::report_mismatched_width_operands`
-    rejects declared places earlier and prescribes a cast. Preserve the bitwise
-    restriction while implementing exact mathematical comparison with original
-    subjects/carriers through interpretation, replay and native selection.
-    `pending/expressions/mixed_integer_{guard_comparison,comparison_places}`
-    and the unchanged text cursor/length samples are the customers; relaxing
-    admission alone can expose wrong unsigned-promotion behavior.
     Carry exact anonymous arithmetic through generic/evidence-adapted,
     boundary, aggregate, parameter/constant, float and proof uses, retaining
     rational intermediates, result carrier/policy custody and warning origins/

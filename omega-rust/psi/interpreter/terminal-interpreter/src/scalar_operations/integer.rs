@@ -58,12 +58,12 @@ impl TerminalExecution {
         else {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         };
-        if left_type != right_type {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-        }
+        let ordering = left_type
+            .compare_with(left, right_type, right)
+            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
         self.values.insert(
             operation.result.expect_scalar().id,
-            TerminalScalarValue::Boolean(left == right),
+            TerminalScalarValue::Boolean(ordering.is_eq()),
         );
         Ok(OperationFlow::Advance)
     }
@@ -102,11 +102,8 @@ impl TerminalExecution {
         else {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         };
-        if left_type != right_type {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-        }
         let ordering = left_type
-            .compare(left_value, right_value)
+            .compare_with(left_value, right_type, right_value)
             .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
         let result = match operation.kind {
             OperationKind::IntegerLessThan { .. } => ordering.is_lt(),

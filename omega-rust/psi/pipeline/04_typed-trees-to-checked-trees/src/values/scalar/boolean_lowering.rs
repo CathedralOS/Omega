@@ -391,7 +391,12 @@ pub(crate) fn construct_integer_comparison(
         (None, None) => return None,
     }
     let left_type = scalar_expression_type(&left)?;
-    if !is_integer(left_type) || scalar_expression_type(&right)? != left_type {
+    let right_type = scalar_expression_type(&right)?;
+    if !is_integer(left_type)
+        || !is_integer(right_type)
+        || (left_type != right_type
+            && (left_type == PrimitiveType::Addr || right_type == PrimitiveType::Addr))
+    {
         return None;
     }
     let (kind, negated) = match operator {

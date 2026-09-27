@@ -44,6 +44,8 @@ mod embedding_lifetimes;
 mod evidence_substitution;
 #[path = "unit/ieee_float_comparisons.rs"]
 mod ieee_float_comparisons;
+#[path = "unit/mixed_integer_comparisons.rs"]
+mod mixed_integer_comparisons;
 #[path = "unit/indexed_primitive_stores.rs"]
 mod indexed_primitive_stores;
 #[path = "unit/indexed_structural_store.rs"]

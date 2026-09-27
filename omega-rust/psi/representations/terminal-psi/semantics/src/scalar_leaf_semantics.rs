@@ -60,6 +60,7 @@ pub fn constant_goal_free_scalar_leaf(
         Some((
             integer_type_of(left)?,
             integer_literal(left)?,
+            integer_type_of(right)?,
             integer_literal(right)?,
         ))
     };
@@ -71,16 +72,22 @@ pub fn constant_goal_free_scalar_leaf(
             ScalarLeafLiteral::Boolean(boolean_literal(left)? == boolean_literal(right)?)
         }
         (ScalarLeafDenotation::IntegerEqual, ScalarLeafInputs::Binary(left, right)) => {
-            let (operand_type, left, right) = binary_integer(left, right)?;
-            ScalarLeafLiteral::Boolean(operand_type.compare(left, right)? == Ordering::Equal)
+            let (left_type, left, right_type, right) = binary_integer(left, right)?;
+            ScalarLeafLiteral::Boolean(
+                left_type.compare_with(left, right_type, right)? == Ordering::Equal,
+            )
         }
         (ScalarLeafDenotation::IntegerLessThan, ScalarLeafInputs::Binary(left, right)) => {
-            let (operand_type, left, right) = binary_integer(left, right)?;
-            ScalarLeafLiteral::Boolean(operand_type.compare(left, right)? == Ordering::Less)
+            let (left_type, left, right_type, right) = binary_integer(left, right)?;
+            ScalarLeafLiteral::Boolean(
+                left_type.compare_with(left, right_type, right)? == Ordering::Less,
+            )
         }
         (ScalarLeafDenotation::IntegerLessOrEqual, ScalarLeafInputs::Binary(left, right)) => {
-            let (operand_type, left, right) = binary_integer(left, right)?;
-            ScalarLeafLiteral::Boolean(operand_type.compare(left, right)? != Ordering::Greater)
+            let (left_type, left, right_type, right) = binary_integer(left, right)?;
+            ScalarLeafLiteral::Boolean(
+                left_type.compare_with(left, right_type, right)? != Ordering::Greater,
+            )
         }
         (ScalarLeafDenotation::IntegerBitwiseNot, ScalarLeafInputs::Unary(operand)) => {
             ScalarLeafLiteral::Integer(
@@ -271,9 +278,15 @@ fn validate_operand_shape(
         (ScalarLeafOperandShape::BinaryInteger, ScalarLeafInputs::Binary(left, right)) => {
             let left_type = type_of(left)?;
             let right_type = type_of(right)?;
-            matches!(left_type, ScalarType::Integer(_))
-                && left_type == right_type
-                && (result_type == ScalarType::Boolean || result_type == left_type)
+            if result_type == ScalarType::Boolean {
+                matches!((left_type, right_type),
+                    (ScalarType::Integer(left), ScalarType::Integer(right))
+                        if left == right || (!left.is_address() && !right.is_address()))
+            } else {
+                matches!(left_type, ScalarType::Integer(_))
+                    && left_type == right_type
+                    && result_type == left_type
+            }
         }
         (ScalarLeafOperandShape::WideningInteger, ScalarLeafInputs::Unary(operand)) => {
             let (ScalarType::Integer(source), ScalarType::Integer(target)) =

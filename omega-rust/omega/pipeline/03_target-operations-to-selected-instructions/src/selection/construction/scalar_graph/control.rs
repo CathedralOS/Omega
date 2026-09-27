@@ -437,6 +437,12 @@ pub(super) fn branch_suffix(
     block: &LegalizedScalarBlock,
     index: usize,
 ) -> bool {
+    if matches!(block.instructions.get(index).map(|row| &row.kind),
+        Some(LegalizedScalarInstructionKind::Compare { operand_type, right_operand_type, .. })
+            if operand_type != right_operand_type)
+    {
+        return false;
+    }
     let Some(result) = block.instructions.get(index).and_then(|row| row.result) else {
         return false;
     };

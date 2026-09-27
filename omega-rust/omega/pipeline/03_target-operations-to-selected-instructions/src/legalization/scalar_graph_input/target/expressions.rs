@@ -433,62 +433,76 @@ impl Checker<'_> {
         else {
             return false;
         };
-        let (operation, source_left, source_right, scalar_type, left, right, target_operation) =
-            match (&node.operation, expression) {
-                (
-                    AbstractOperation::IntegerEqual {
-                        psi_operation,
-                        left: source_left,
-                        right: source_right,
-                        ..
-                    },
-                    Boolean::IntegerEqual {
-                        psi_operation: target_operation,
-                        scalar_type,
-                        left,
-                        right,
-                    },
-                )
-                | (
-                    AbstractOperation::IntegerLessThan {
-                        psi_operation,
-                        left: source_left,
-                        right: source_right,
-                        ..
-                    },
-                    Boolean::IntegerLessThan {
-                        psi_operation: target_operation,
-                        scalar_type,
-                        left,
-                        right,
-                    },
-                )
-                | (
-                    AbstractOperation::IntegerLessOrEqual {
-                        psi_operation,
-                        left: source_left,
-                        right: source_right,
-                        ..
-                    },
-                    Boolean::IntegerLessOrEqual {
-                        psi_operation: target_operation,
-                        scalar_type,
-                        left,
-                        right,
-                    },
-                ) => (
-                    *psi_operation,
-                    *source_left,
-                    *source_right,
-                    *scalar_type,
+        let (
+            operation,
+            source_left,
+            source_right,
+            scalar_type,
+            right_scalar_type,
+            left,
+            right,
+            target_operation,
+        ) = match (&node.operation, expression) {
+            (
+                AbstractOperation::IntegerEqual {
+                    psi_operation,
+                    left: source_left,
+                    right: source_right,
+                    ..
+                },
+                Boolean::IntegerEqual {
+                    psi_operation: target_operation,
+                    scalar_type,
+                    right_scalar_type,
                     left,
                     right,
-                    *target_operation,
-                ),
-                _ => return false,
-            };
+                },
+            )
+            | (
+                AbstractOperation::IntegerLessThan {
+                    psi_operation,
+                    left: source_left,
+                    right: source_right,
+                    ..
+                },
+                Boolean::IntegerLessThan {
+                    psi_operation: target_operation,
+                    scalar_type,
+                    right_scalar_type,
+                    left,
+                    right,
+                },
+            )
+            | (
+                AbstractOperation::IntegerLessOrEqual {
+                    psi_operation,
+                    left: source_left,
+                    right: source_right,
+                    ..
+                },
+                Boolean::IntegerLessOrEqual {
+                    psi_operation: target_operation,
+                    scalar_type,
+                    right_scalar_type,
+                    left,
+                    right,
+                },
+            ) => (
+                *psi_operation,
+                *source_left,
+                *source_right,
+                *scalar_type,
+                *right_scalar_type,
+                left,
+                right,
+                *target_operation,
+            ),
+            _ => return false,
+        };
         operation == target_operation
             && value_type(self.optimized, source_left) == Some(ScalarType::Integer(scalar_type))
+            && value_type(self.optimized, source_right)
+                == Some(ScalarType::Integer(right_scalar_type))
             && self.integer_source(left, source_left, aliases)
             && self.integer_source(right, source_right, aliases)
     }
