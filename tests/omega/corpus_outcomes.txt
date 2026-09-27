@@ -9,10 +9,10 @@ fail/calls/qualified_nontail_self_call_rejected rejected 64ms expected
 	`self.walk(..)` here is NON-TAIL self-recursion: the result feeds the surrounding computation, so the frame must survive the call. Runtime recursion is TAIL-ONLY (measured recursion amendment) -- recursion depth lives in explicit storage you size. Restructure so the recursive step is the transition arm `-> self.walk(..)` on a measured machine, or iterate with an explicit stack.
 fail/calls/statement_call_undeclared_callee_rejected rejected 293ms expected
 	call `no_such_leg` selects no declaration: `no_such_leg` is not a declared machine, data, or proof definition
-fail/calls/value_call_param_effect_arm_rejected rejected 7286ms unexpected
-	native-artifact Terminal production failed: Lowering(InvalidTerminalModule(InvalidBlockStructuralParameter { block: BlockId(6), place: PlaceId(7) }))
-fail/calls/value_call_param_effect_arm_rejected rejected 7286ms unexpected
-	native-artifact Terminal production failed: Lowering(InvalidTerminalModule(InvalidBlockStructuralParameter { block: BlockId(6), place: PlaceId(7) }))
+fail/float/negated_ordered_guard_cast rejected 321ms expected
+	machine `Guarded::convert` state `bounded` cannot prove Exact float-to-`i32` cast operand `self.value` is finite and in range; constrain the float with a declared range or a dominating guard, or select `in Saturating`/`in Trapping`
+	float-to-int cast in machine `Guarded::convert` state `bounded` cast expression is not provably in `i32`'s range (ch5 cast ruling -- proof-or-policy). Prove a finite declared range or a dominating non-NaN/range guard, or use `in Saturating` (NaN -> 0, clamp to the target range) or `in Trapping` (trap on NaN/out-of-range).
+	float-to-int cast in machine `Guarded::convert` state `bounded` assignment is not provably in `i32`'s range (ch5 cast ruling -- proof-or-policy). Prove a finite declared range or a dominating non-NaN/range guard, or use `in Saturating` (NaN -> 0, clamp to the target range) or `in Trapping` (trap on NaN/out-of-range).
 fail/structs/local_record_policy_erasure rejected 64ms expected
 	implicit domain weakening in machine `observe` state `entry` local `value` drops `Wrapping`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
 	store in machine `observe` state `entry` local `value` implicitly converts `u8 in Wrapping` to `u8`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u8`)
@@ -159,6 +159,8 @@ pass/calls/runtime_value_call_statement_recursive_walk_exit rejected 831ms
 pass/calls/runtime_value_call_terminal_exit rejected 2453ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: guard expression` (state 2)
 pass/calls/statement_call_recursive_overload_compile checked 341ms
+pass/calls/structural_mut_to_shared_argument checked 458ms
+pass/calls/structural_self_rooted_argument checked 477ms
 pass/calls/transition_arg_local_from_embedded_call_exit rejected 747ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: scalar local: pure initializer` (state 0, statement 1)
 pass/calls/value_call_as_host_arg_exit rejected 799ms
@@ -541,6 +543,7 @@ pass/float/float_trapping_propagated_nan_traps rejected 320ms
 	implicit domain weakening in argument `left` for state `Float::add::add` drops `Trapping`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
 pass/float/foreign_control_state_restore rejected 2402ms
 	unimplemented: `Main::main` applies boundary operator `F64::from_i32`, whose selected provider has no requirement-level Terminal route for Omega to install
+pass/float/guarded_exact_float_conversion checked 742ms
 pass/float/named_provider_directed_divide_exit rejected 335ms
 	machine `Main::main` state `main`: a value-call argument cannot itself be a machine call yet (`subtract(..)` nested in `divide_toward_negative(..)` would read a garbage result) -- bind the inner call to a local first, then pass the local.
 	machine `Main::main` state `main`: a value-call argument cannot itself be a machine call yet (`subtract(..)` nested in `divide_toward_negative(..)` would read a garbage result) -- bind the inner call to a local first, then pass the local.
