@@ -975,7 +975,7 @@ machine Main::main(&mut self) reaches Clock + Console + CoreGraphics + DarwinClo
         transition self.button_code <= 9 { true -> button_digit_label() _ -> button_operator_label() }
     }
     state button_digit_label(&mut self) {
-        self.draw_digit = self.button_code;
+        self.draw_digit = self.button_code as i32 in Saturating;
         self.local_x = self.button_lx - 4;
         self.local_y = self.button_ly - 1;
         transition { _ -> button_segment_a() }
@@ -1167,14 +1167,14 @@ requires
         self.error = 0;
         self.pending = 0;
         self.accumulator = 0;
-        self.current = digit;
+        self.current = digit as i32 in Saturating;
         self.typing = 1;
     }
     state digit_dispatch(&mut self, digit: i32) {
         transition self.typing > 0 { true -> digit_append(digit) _ -> digit_start(digit) }
     }
     state digit_start(&mut self, digit: i32) {
-        self.current = digit;
+        self.current = digit as i32 in Saturating;
         self.typing = 1;
     }
     state digit_append(&mut self, digit: i32) {
