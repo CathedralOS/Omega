@@ -442,27 +442,41 @@ fn review_projects_unselected_type_and_lifetime_generic_top_level_external_suppl
         "main.omg",
         r#"pub data GenericSurface {}
 pub data GenericProvider {}
+pub data SelectedGenericProvider {}
 pub data LifetimeSurface {}
 pub data LifetimeProvider {}
+pub data SelectedLifetimeProvider {}
 
 pub boundary requirement GenericSurface::identity<Element>(value: Element) -> Element;
 pub boundary requirement LifetimeSurface::observe<'input>(value: &'input u32);
 
-// Unselected top-level requirement supply has no derived provider-plan
-// provenance row for an evaluated `via` to join, so these leaves keep the
-// remaining bootstrap mechanism; evaluated-import coverage for supply lives
-// in the selected-provider fixtures.
+// Keep both generic leaves unselected by choosing competing providers in
+// build.omg. A lone covering provider is selected automatically, even when
+// this package contains no closed call to its generic requirement.
+// Unselected legacy supply is still disclosed without a selected provenance
+// row for an evaluated `via` to join.
 pub machine GenericProvider::identity<Value>(value: Value) -> Value
     satisfies GenericSurface::identity
     via ForeignBinding::Syscall(60);
 pub machine LifetimeProvider::observe<'borrow>(value: &'borrow u32)
     satisfies LifetimeSurface::observe
     via ForeignBinding::Syscall(60);
+
+pub machine SelectedGenericProvider::identity<Value>(value: Value) -> Value
+    satisfies GenericSurface::identity
+    via ForeignBinding::Syscall(60);
+pub machine SelectedLifetimeProvider::observe<'borrow>(value: &'borrow u32)
+    satisfies LifetimeSurface::observe
+    via ForeignBinding::Syscall(60);
 "#,
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+        r#"machine build(builder: &mut Build) {
+    builder.package("review_fixture");
+    builder.select_provider<GenericSurface::identity, SelectedGenericProvider>();
+    builder.select_provider<LifetimeSurface::observe, SelectedLifetimeProvider>();
+}
 "#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
@@ -473,10 +487,20 @@ pub machine LifetimeProvider::observe<'borrow>(value: &'borrow u32)
     let review = project_checked_package_review(&checked)
         .expect("generic top-level external supply should project without installation");
 
-    assert_eq!(review.external_executable_supply().len(), 2);
-    for (callable, symbol, lifetime_count, type_count) in [
-        ("GenericProvider::identity", "identity", 0, 1),
-        ("LifetimeProvider::observe", "observe", 1, 0),
+    assert_eq!(review.external_executable_supply().len(), 4);
+    for (callable, selected_callable, lifetime_count, type_count) in [
+        (
+            "GenericProvider::identity",
+            "SelectedGenericProvider::identity",
+            0,
+            1,
+        ),
+        (
+            "LifetimeProvider::observe",
+            "SelectedLifetimeProvider::observe",
+            1,
+            0,
+        ),
     ] {
         let supply = review
             .external_executable_supply()
@@ -511,7 +535,6 @@ pub machine LifetimeProvider::observe<'borrow>(value: &'borrow u32)
                 "external-supply identity must alpha-normalize `{authored_binder}`",
             );
         }
-        let _ = symbol;
         assert_eq!(
             supply.binding(),
             &PackageReviewExternalBinding::Syscall { number: 60 }
@@ -522,6 +545,18 @@ pub machine LifetimeProvider::observe<'borrow>(value: &'borrow u32)
                 .iter()
                 .all(|row| row.realization() != Some(supply.callable()))),
             "generic disclosure must not imply provider selection or installation",
+        );
+        let selected_supply = review
+            .external_executable_supply()
+            .iter()
+            .find(|supply| supply.callable().path().starts_with(selected_callable))
+            .unwrap_or_else(|| panic!("missing selected supply for {selected_callable}"));
+        assert!(
+            review.selected_providers().iter().any(|provider| provider
+                .row_declarations()
+                .iter()
+                .any(|row| row.realization() == Some(selected_supply.callable()))),
+            "the build-selected competitor must retain its exact realization",
         );
     }
 }
