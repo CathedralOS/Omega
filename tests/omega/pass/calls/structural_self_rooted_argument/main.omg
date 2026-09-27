@@ -1,0 +1,18 @@
+// A bare `self` argument is authored under the state parameter's own symbol,
+// while the borrow model keys the same segment-free storage at the machine
+// symbol. The structural argument must be admitted under either spelling.
+
+data Filter { count: u64; }
+
+data Main { filter: Filter; }
+
+machine Filter::clone(filter: &Filter) -> Filter {
+    Filter { count: filter.count }
+}
+
+machine Filter::cloned_count(&self) -> u64 {
+    let cloned: Filter = Filter::clone(self);
+    cloned.count
+}
+
+machine Main::main(&mut self) { }

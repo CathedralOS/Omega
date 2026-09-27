@@ -731,6 +731,13 @@ pub(crate) fn structural_call_arguments(
                 )?;
                 if authored_access == target_access {
                     authored_access
+                } else if authored_access == CheckedStructuralAccess::MutableBorrow
+                    && target_access == CheckedStructuralAccess::SharedBorrow
+                {
+                    // A `&mut` reborrow weakens to the callee's shared loan:
+                    // the caller's mutable custody already covers the read
+                    // the callee performs.
+                    target_access
                 } else {
                     // A borrow carrier passed bare moves its reference: the
                     // call records only a Read of that value, while the erased
@@ -1095,12 +1102,28 @@ pub(crate) fn exact_structural_borrow_access(
     let [borrow_call] = matching_calls.as_slice() else {
         return None;
     };
+    // The borrow model keys a bare `self` read at the machine symbol, while
+    // the authored argument's canonical place roots `self` at the state
+    // parameter's own symbol. Both spellings name the same storage, so the
+    // segment-free lookup accepts either.
+    let self_symbol = crate::semantic::calls::find_state(program, state).and_then(|source_state| {
+        program
+            .state_parameters(source_state)
+            .iter()
+            .find(|parameter| parameter.is_self)
+            .map(|parameter| parameter.symbol)
+    });
+    let self_rooted = |symbol: SymbolHandle| Some(symbol) == self_symbol || symbol == machine;
     let kinds = borrow
         .argument_accesses
         .span_or_empty(borrow_call.accesses)
         .iter()
         .filter(|access| {
-            access.root_symbol == root_symbol && borrow.access_segments(access) == segments
+            borrow.access_segments(access) == segments
+                && (access.root_symbol == root_symbol
+                    || (segments.is_empty()
+                        && self_rooted(access.root_symbol)
+                        && self_rooted(root_symbol)))
         })
         .map(|access| &access.kind)
         .collect::<Vec<_>>();
