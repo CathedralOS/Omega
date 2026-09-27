@@ -556,6 +556,8 @@ fail/modules/boundary_signature_selects_private_data rejected 0ms expected
 	public interface selects private data `Payload`
 fail/modules/bundled_core_name_collision_rejected rejected 0ms expected
 	import `omega::language::core::marker` in tests/omega/fail/modules/bundled_core_name_collision_rejected/main.omg collides with a requester-local source; `omega::language` names are claimed by the bundled toolchain namespace, so the local source is unreachable -- rename or remove it
+fail/modules/duplicate_data_keeps_guard_facts rejected 46ms expected
+	duplicate data `Zed`
 fail/modules/duplicate_imported_machine_overload_rejected rejected 0ms expected
 	duplicate named machine overload `seed` with parameter signature `` and result dispatch set `<empty>`; predicate-only result refinements do not distinguish overloads
 fail/modules/runtime_fixed_array_index rejected 0ms expected

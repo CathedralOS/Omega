@@ -1,0 +1,31 @@
+// FAIL canary: a duplicate declaration rejects ON ITS OWN. The golden row
+// beside this file is the subject -- ONE diagnostic, not a cascade.
+//
+// `CallFrameResolver::new` refuses whole-program when top-level declarations
+// conflict, and `cross_expression_effects` used to read "no resolver" as "an
+// unresolved call", clearing the value environment at EVERY transition in
+// the program. One duplicate `data` anywhere therefore erased every
+// guard-narrowed fact, so `x < 255` stopped discharging `[0..=254]` here AND
+// in bundled library code: `fail/modules/ambiguous_imported_data` reported
+// `LinuxArm64::extent_shape` and its four sibling targets storing outside a
+// declared range, which reads as std failing its own obligation.
+//
+// A call-free expression writes nothing whether or not a resolver exists --
+// that is the answer the resolver itself gives for one -- so its facts now
+// survive. `Probe::start` is the local witness: if the cascade returns, this
+// row grows a second diagnostic naming `narrow`'s `x`.
+data Zed { }
+data Zed { }
+
+data Probe { }
+machine Probe::start(&self, x: u64) -> bool {
+    transition x < 255 {
+        true -> narrow(x)
+        _ -> no()
+    }
+    state narrow(x: u64 [0..=254]) -> bool { true }
+    state no() -> bool { false }
+}
+
+data Main { }
+machine Main::main(&mut self) { }

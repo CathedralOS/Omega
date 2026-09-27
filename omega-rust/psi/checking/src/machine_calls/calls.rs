@@ -70,7 +70,8 @@ pub use write_frames::{
     operand_call_plans, state_reference_parameter_binding_is_stable,
 };
 pub(crate) use write_frames::{
-    boundary_trait_signature, free_machine_entry_state, statement_value_expression_roots,
+    boundary_trait_signature, expression_has_calls, free_machine_entry_state,
+    statement_value_expression_roots,
 };
 
 /// What every statement-call check reads: the program, the call, the

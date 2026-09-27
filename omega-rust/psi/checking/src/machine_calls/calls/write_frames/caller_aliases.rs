@@ -862,7 +862,7 @@ fn contains_expression(
     expression_any(program, root, |expression| expression == target)
 }
 
-pub(super) fn expression_has_calls(program: &TypedTrees, root: ExpressionHandle) -> bool {
+pub(crate) fn expression_has_calls(program: &TypedTrees, root: ExpressionHandle) -> bool {
     expression_any(program, root, |expression| {
         matches!(
             program.expression_table.expression(expression),

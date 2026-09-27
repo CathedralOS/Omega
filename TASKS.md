@@ -744,19 +744,30 @@ _rejected` and `expressions/bool_numeric_operand_mixing_rejected` each gained
     call 0". It still carries its fragment, but the call lane's message
     spells an internal coordinate where the operator lane named the subject.
     **OPERATOR-BOUNDARY-CALLS** owns the routing; the message is this row's.
-  - **Held back: `modules/ambiguous_imported_data`.** It gained FIVE
-    diagnostics from bundled library code -- `LinuxArm64::extent_shape`,
-    `LinuxX86_64`, `MacosArm64`, `MacosX64`, `WindowsX86_64` -- each saying
-    `field_range`'s `first_field` is not provably within `[0..=254]`.
-    Recording that would pin std failing its own obligation as expected. The
-    guard is right there (`record_bounded` transitions on
-    `first_field < 255`), and a standalone reduction of exactly that shape --
-    a case-destructured `u64` threaded through two states, guarded, then
-    passed to a `[0..=254]` parameter -- CHECKS CLEAN. So the trigger is the
-    closure, not the code, and this is the only fixture in the tier that
-    shows it: it is also the only one with two sibling packages beside a
-    resolution failure. Reduce from the fixture down, not from a small
-    program up.
+  - **`modules/ambiguous_imported_data` was the tenth, and it is fixed.** It
+    had gained FIVE diagnostics from bundled library code -- one per target
+    -- each saying `extent_shape`'s `first_field` is not provably within
+    `[0..=254]`, which reads as std failing its own obligation. It was not
+    std. `CallFrameResolver::new` refuses WHOLE-PROGRAM when
+    `TopLevelSymbols::build` reports anything, and
+    `cross_expression_effects` read "no resolver" as "an unresolved call",
+    clearing the value environment at every transition in the program. One
+    duplicate `data` anywhere therefore erased every guard-narrowed fact. A
+    call-free expression writes nothing whether or not a resolver exists --
+    that is the answer the resolver itself gives for one -- so its facts now
+    survive, and `fail/modules/duplicate_data_keeps_guard_facts` pins the
+    whole chain in fifteen lines. With that, `--filter fail/` is CLEAN: 438
+    fixtures, zero moves.
+
+    The veto has a second face, unfixed and worth a separate look: it also
+    SUPPRESSES checks. `let x: u64 = 7; transition { _ -> narrow(x) }` into a
+    `[0..=254]` parameter rejects with "cannot prove transition argument `x`
+    satisfies bounded parameter `x`", and adding an unrelated duplicate
+    `data` makes that rejection disappear. Only already-failing programs are
+    affected either way, so no accepted program is at stake -- but the
+    statement-level site (`program_validation.rs`'s `value_written`, which
+    clears on `call_frames == None` exactly as the transition site did)
+    is the same coarse veto and has not been narrowed.
 
   THREE fail fixtures reject for a reason other than their own subject, so
   they pin nothing: `build/uefi_program_entry_wrong_calling_policy` (its own
