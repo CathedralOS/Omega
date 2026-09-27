@@ -61,14 +61,14 @@ const parameters explicitly:
 ```omega
 domain<T, const U: Unit> T::Quantity<U>;
 
-domain<P, T> Extent::Resident<P, T>;
+domain<Frame> Point::Coordinates<Frame>;
 ```
 
 Bindings select closed canonical indices, such as
 `i64 in Quantity<Units::METER>`, or use direct binders in a generic signature.
 Type indices use exact normalized type identity and are invariant:
-`Resident<PlanA, Header>` has no implicit relationship to
-`Resident<PlanB, Header>`. Open type indices substitute structurally at generic
+`Coordinates<World>` has no implicit relationship to
+`Coordinates<Screen>`. Open type indices substitute structurally at generic
 calls. Structurally equal const values have one semantic identity even when a
 record literal spells its fields in a different order; different values are
 different domains and cannot flow into one another implicitly. Every index is
@@ -76,8 +76,8 @@ retained in checked and terminal identity while the carrier remains unchanged
 at runtime. Explicit qualification selects closed canonical indices or direct
 binders without runtime work. Generic-carrier families such as
 `T::Quantity<U>` and fixed-carrier families such as
-`Extent::Resident<P, T>` are both permitted; every binder of the latter is an
-invariant index, while `Extent` remains the exact runtime carrier:
+`Point::Coordinates<Frame>` are both permitted; `Frame` is an invariant index,
+while `Point` remains the exact runtime carrier:
 
 ```omega
 machine retag<const To: Unit>(value: i64) -> i64 in Quantity<To> {
@@ -230,10 +230,44 @@ domain i32::Km;
 
 Every bare `i32` may therefore be explicitly qualified as `i32::Km`. This is
 not a package-owner privilege. The same declaration means the same thing in
-every package.
+every package. The stored value does not change: qualifying `5` as `Km` adds
+neither a runtime tag nor a multiplication by 1,000.
 
-A route changes that rule. Neither the domain-owning package nor any other
-code may manufacture `Reservation::Issued` with `as`; establishment must pass
+Linearity does not restrict who may introduce an otherwise unrestricted tag:
+
+```omega
+data Region [linear] {
+    base: addr;
+    length: u64;
+}
+
+domain Region::Left;
+
+machine mark_left(region: Region) -> Region in Left {
+    region as Region in Left
+}
+```
+
+This transfers the same `Region`; it neither copies it nor discharges its linear
+obligation. `Left` certifies no memory-access authority or vacancy. Adding another
+domain over `Region` with predicates or issuer routes cannot change this cast's
+legality. Protected claims must declare their own establishment restrictions.
+
+The choices are independent of whether the carrier is copyable, affine or linear:
+
+| Establishment restriction | Who can establish membership |
+| --- | --- |
+| None | Anyone satisfying the predicates and ordinary carrier obligations. |
+| Publicly implementable trait requirement | Valid selected implementations of that exact requirement, including downstream implementations. |
+| Private trait requirement | Its permitted implementations, without granting consumers conformance access. |
+| Exact machine declarations | Only the named machines' authorized occurrences. |
+
+Inherited routes and alias constituents still apply. An omitted route clause is
+not a declaration that nobody may mint. Invoking a public issuer or forwarding
+its result does not give the caller independent minting authority.
+
+For a routed domain, neither the domain-owning package nor any other code
+may manufacture `Reservation::Issued` with `as`; establishment must pass
 through one of the exact routes named by the domain. Trait visibility
 controls who may conform, machine visibility controls who may invoke the
 selected machine, and a boundary requirement additionally requires provider selection

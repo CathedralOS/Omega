@@ -6,12 +6,11 @@ and deliberately deferred research live in `TASKS.md`. Questions are numbered
 consecutively; pruning or adding one requires updating every repository
 reference in the same change.
 
-Three owner-level decisions remain. Only the affected behavior below awaits a
+Two owner-level decisions remain. Only the affected behavior below awaits a
 ruling; other work on the same task may proceed under existing contracts.
 
 | Named decision | Affected work |
 | --- | --- |
-| `linear-carrier-vacuous-qualification` | Qualification/custody boundary for BUMP-ALLOCATOR-CANARY and placed access |
 | `mixed-integer-comparison` | Mixed typed-integer guards in the five text samples named below |
 | `assumed-binding-refutable-claim` | Whether ASSUMED-BINDING-CONTRACTS may override a checker-refutable semantic claim |
 
@@ -74,66 +73,7 @@ Proposed solutions below are recommendations, not owner rulings. Remove an
 entry when the contract answers it; retain any unfinished implementation on
 its owning task.
 
-### Q1 - Does a vacuous qualification on a linear carrier need establishment?
-
-Named decision: `linear-carrier-vacuous-qualification`.
-
-**Context:** [domains](wiki/spec/language/domains.md) states the obligation for a
-predicate-free, route-free qualification as "None beyond carrier compatibility",
-and illustrates it with `5 as i32::Km`: "a valid bare `i32` may be explicitly
-qualified as `Km` without an owner grant. Predicate-free does not mean
-uninhabited." The table row carries no carrier condition.
-
-**Problem:** Three checked-in cases disagree about whether that row is
-unconditional, and no two of them are reconciled by the spec text.
-`fail/memory/bump_allocator_cast_minted_vacant` and `_resident` require the
-refusal on core's `[linear] Extent`, reasoning that "a qualification on a
-move-only carrier is custody state, not a value tag" -- minting `Vacant` with
-`as` would let fabricated custody satisfy a provider view's parameter.
-`index_compatibility::tests::restating_let_keeps_a_cast_mint_on_an_all_vacuous_domain_carrier`
-requires the opposite on `[linear] Region`, whose only domains are the vacuous
-`Left` and `Right`: a retag there is an ordinary linear move. The spec's own
-`i32::Km` case requires admission on an unrestricted carrier.
-
-`facts::index_compatibility::domain_target_is_custody_marked` now refuses only
-when the carrier is linear **and** some domain over it carries a predicate or an
-`established by` route, which is the one rule satisfying all three. It reached
-that shape by adding the linearity conjunct: the route-management scan alone
-decided `5 as i32::Km` by whether an unrelated `domain i32::Positive` was
-declared elsewhere in the same program, which rejected
-`pass/domains/explicit_domain_erasure`.
-
-**Problem with the current rule:** it is still non-compositional inside the
-linear case. Declaring a new predicate-bearing domain over an existing linear
-carrier retroactively makes every vacuous `as` qualification of that carrier
-illegal, in source that did not change and does not mention the new domain.
-`Region` and `Extent` differ only by whether some *other* domain was declared.
-
-[Placed access](wiki/spec/resources/placed_access.md#establishment-and-retirement)
-already gives `Resident` exact custody and introduction routes; core's current
-`Vacant`/`Resident` declarations leave placement/custody enforcement unfinished.
-Reconcile those rules and declarations with ordinary qualification before adding
-a new carrier property. Linearity alone is not authority, and the sibling-domain
-scan is not a ratified rule.
-
-**Proposed solution:** Make the carrier's own declaration carry the answer,
-rather than inferring custody from its domain set. A linear carrier that manages
-custody says so once -- at the data declaration or on the domain family -- and
-every vacuous qualification of it then needs establishment whatever its siblings
-declare. `Extent` would be marked; `Region` would not.
-
-**Alternatives:**
-- Rule that a linear carrier's qualification is always custody. This refuses the
-  `Region` retag and deletes that test's premise; linear values would lose
-  ordinary vacuous tagging entirely.
-- Rule that the spec's row is genuinely unconditional and admit all three. This
-  deletes the two bump-allocator refusals, and with them the only check stopping
-  a cast from fabricating the custody a provider view reads as held authority.
-- Tempting but wrong: keep the sibling scan and call it settled. It makes the
-  legality of one module's `as` depend on an unrelated declaration in another,
-  which no other qualification rule does.
-
-### Q2 - How does a comparison order two integer operands of different types?
+### Q1 - How does a comparison order two integer operands of different types?
 
 Named decision: `mixed-integer-comparison`.
 
@@ -168,7 +108,7 @@ its unsigned promotion.
 - Adopt the interpreter's promotion to unsigned. This is C's rule and silently
   answers wrongly for negative operands.
 
-### Q3 - May an assumed runtime binding override a checker-refutable claim?
+### Q2 - May an assumed runtime binding override a checker-refutable claim?
 
 Named decision: `assumed-binding-refutable-claim`.
 

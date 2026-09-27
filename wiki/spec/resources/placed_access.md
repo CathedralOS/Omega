@@ -129,10 +129,22 @@ inferred multi-object algebra. `Vacant` means no established live value on that
 range; it says nothing about zeroing, readability, allocation strategy, or
 capacity, and cannot be inferred from the absence of an active view.
 
+These protected qualifications must declare their authorized establishment
+routes under [ordinary domain rules](../language/domains.md#declaration-and-membership).
+`Extent` being linear supplies no implicit route restriction, and neither the
+names `Vacant`/`Resident` nor `Granted`'s routes protect a separate empty domain.
+A bare `domain Extent::Vacant;` would be freely introducible and would not express
+the required custody contract. The core declarations and checked operations must
+encode that contract rather than relying on a carrier-wide exception.
+
 Every `Resident` instantiation shares one route set. Initialization derives it
 from `Vacant` and owned `T`; `ResidentContentTransfer<P, T>` introduces it only
 at an exact installed/provider-issuance occurrence with its receipt. View,
 loan end, and resident-preserving retirement only forward existing custody.
+`Vacant` establishment likewise requires an authorized operation establishing
+the absence of live content, or transfer of existing vacancy evidence through a
+checked operation. Route authorization alone proves neither absence of content
+nor possession of a resident; predicates and custody obligations remain separate.
 
 Non-runtime Type fields use an ordinary authored custody record `C` and one
 explicit named `C satisfies PlacementCustody<P, T>` conformance. Agreement

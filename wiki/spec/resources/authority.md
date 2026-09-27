@@ -8,9 +8,10 @@ toolchain-known core declaration does not permit package-authored minting, and
 build provider selection alone does not establish arbitrary service values.
 
 Library-defined runtime authority uses ordinary data plus checked qualification
-and provenance. Fields carry runtime information; domain membership states an established
-authority, validation, interpretation, or historical fact. Reconstructing equal
-fields does not reconstruct membership. Qualification adds no runtime tag.
+and provenance. Fields carry runtime information; domain membership states an
+established authority, validation, interpretation, or historical fact according
+to its declared theory. Reconstructing equal fields does not reconstruct routed
+provenance. Qualification adds no runtime tag.
 
 Multiplicity belongs to the carrier. An owned linear resource must be consumed
 or transferred; casting away its visible qualification cannot discharge the
@@ -34,8 +35,15 @@ from supply and use, not the keyword. None is a substitute for claim evidence.
 
 A domain's `requires` clauses state predicate obligations; `established by`
 names exact trait requirements or exact machine declarations authorized to
-establish provenance. Each route is an alternative origin, not a call. The
-signature-free path must resolve to one exact declaration without consulting an
+establish provenance. An absent route restriction permits qualification wherever
+the predicates and ordinary carrier obligations hold, including on a linear
+carrier. It is not a private or empty issuer catalog. A protected library claim
+must declare its authorized routes; neither linearity nor a domain's name gives
+it implicit protection. Existing evidence can be transferred without making
+the transferring machine a new issuer.
+
+Each route is an alternative origin, not a call. The signature-free path must
+resolve to one exact declaration without consulting an
 expected result or selecting among satisfiers. Ambiguity across overloads or
 declaration kinds rejects. Adding an overload can break establishment clauses;
 compatibility reporting attributes that change to the selected declaration.
@@ -56,6 +64,11 @@ conformers. A public boundary requirement additionally requires provider
 selection and admission. An exact-machine route may name a free or attached
 machine; its visibility controls who can select it. Naming a machine is neither
 trait sealing nor an implicit grant to other machines in its package.
+
+The authorization is for the named requirement, not every member of its trait.
+A private requirement may have multiple permitted implementations without
+letting consumers independently supply one. Visibility restricts who can select
+or implement an issuer, not who can receive or forward its established result.
 
 Compiler-owned classifications can further restrict eligible route kinds, such
 as admitted boundary routes for opaque progress profiles. General machine-route
