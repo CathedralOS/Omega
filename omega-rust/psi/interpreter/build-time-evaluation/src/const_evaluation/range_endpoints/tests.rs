@@ -716,6 +716,7 @@ fn inferred_endpoint_still_waits_for_and_executes_its_selected_provider() {
 /// same tree.
 #[test]
 fn deferred_endpoint_mark_admits_interim_checking_only() {
+    let _retention = typed_trees_to_checked_trees::retain_repeated_checks();
     let source = r#"
 data Math {}
 boundary operator % Math::remainder(left: u64, right: u64) -> u64;
@@ -748,9 +749,9 @@ machine take_bounded(value: u64[0..=(match true { true -> limit(), false -> 0u64
     )
     .expect_err("final checking must refuse a lost deferred continuation");
     assert!(
-        errors
-            .iter()
-            .any(|error| error.message.contains("still unevaluated")),
+        errors.iter().any(|error| error.message
+            == "range endpoint has an unresolved build-time evaluation dependency"
+            && error.source_span.is_some()),
         "{errors:?}"
     );
     let rows = provider_rows(&program);

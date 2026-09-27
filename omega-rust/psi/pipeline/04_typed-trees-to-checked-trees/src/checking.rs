@@ -6,6 +6,7 @@
 //! selections. Only the test-only crash-inspection mode omits crash admission.
 
 pub(crate) mod call_acknowledgements;
+mod deferred_constants;
 mod exact_input_memo;
 pub use exact_input_memo::{RepeatedCheckRetention, retain_repeated_checks};
 pub(crate) mod program_validation;
@@ -23,9 +24,9 @@ use checked_trees::CheckedTrees;
 /// must run its declaration authority gate over the result before issuing
 /// package evidence. `preliminary()` is the pre-settlement checkpoint: unresolved
 /// selections are retained only for compiler-owned toolchain source, pending
-/// opaque-copy evidence and deferred const range endpoints are tolerated, and
-/// the caller must reject unresolved ordinary-package selections before
-/// granting build authority.
+/// opaque-copy evidence and deferred const array lengths/range endpoints are
+/// tolerated, and the caller must reject unresolved ordinary-package
+/// selections before granting build authority.
 ///
 /// Psi derives applications from authored uses and uses ordinary
 /// authoritative specialization; the request carries no application strings,
@@ -103,6 +104,11 @@ pub fn lower_typed_trees(
     program: typed_trees::TypedTrees,
     request: &CheckingRequest<'_>,
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
+    // Input completeness belongs to this stage, including when an otherwise
+    // equal preliminary result could serve this request from the memo.
+    if request.mode != CheckingMode::Preliminary {
+        deferred_constants::require_evaluated_constants(&program)?;
+    }
     let key = exact_input_memo::RequestKey {
         mode: request.mode,
         selected_generic_operator_providers: request.selected_generic_operator_providers.to_vec(),
@@ -134,20 +140,6 @@ fn lower_typed_trees_uncached(
     if !program.mathematical_definitions().is_empty() {
         crate::proof::build_checked_mathematical_declarations(&program)?;
         crate::proof::check_mathematical_signature(&program)?;
-    }
-    // A deferred range endpoint is pre-check-continuation custody: the
-    // semantic evaluation owner marks it when its fold must wait for selected
-    // execution and clears the mark as it lands the integer. Only the
-    // preliminary package checkpoint runs inside that window; every other
-    // checking mode must receive the bound already folded, so a surviving
-    // mark is a lost continuation and refuses rather than reading the
-    // still-authored call as an unbounded or dependent range.
-    if !mode.allows_pending_const_range_endpoints()
-        && !program.pending_const_range_endpoints.is_empty()
-    {
-        return Err(vec![diagnostics::Diagnostic::error(
-            "a deferred range endpoint reached checked lowering still unevaluated",
-        )]);
     }
     // Stage-1 machine monomorphization MUST precede validation: a generic
     // machine whose value calls agree on one instantiation is substituted to a
@@ -392,10 +384,6 @@ enum CheckingMode {
 
 impl CheckingMode {
     fn allows_pending_opaque_copy(self) -> bool {
-        matches!(self, Self::Preliminary)
-    }
-
-    fn allows_pending_const_range_endpoints(self) -> bool {
         matches!(self, Self::Preliminary)
     }
 

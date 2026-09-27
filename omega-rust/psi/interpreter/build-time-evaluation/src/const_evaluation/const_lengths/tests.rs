@@ -9,6 +9,54 @@ use checked_interpreter::{
     BuildMachineEvaluationRequest, BuildTimeOperationEvaluation, InterpretOptions,
 };
 
+#[test]
+fn settled_checking_requires_array_length_evaluation_even_after_retained_preliminary_check() {
+    let mut typed = crate::front_end::typed_program(
+        "machine length() -> u64 { 4 } data Buffer { bytes: [u8; length()]; }",
+    );
+    let pending_spans = typed
+        .type_reference_table
+        .fixed_array_lengths()
+        .filter_map(|(_, length)| match length {
+            typed_trees::types::FixedArrayLength::ConstCall { source_span, .. } => {
+                Some(*source_span)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(pending_spans.len(), 1);
+    // This crate consumes checking as a dependency, so its actual memo is
+    // active. A retained preliminary success must not admit unfinished work.
+    let _retention = typed_trees_to_checked_trees::retain_repeated_checks();
+    for retain_preliminary in [false, true] {
+        if retain_preliminary {
+            typed_trees_to_checked_trees::lower_typed_trees(
+                typed.clone(),
+                &typed_trees_to_checked_trees::CheckingRequest::preliminary(),
+            )
+            .expect("preliminary checking permits a deferred array length");
+        }
+        let Err(errors) = typed_trees_to_checked_trees::lower_typed_trees(
+            typed.clone(),
+            &typed_trees_to_checked_trees::CheckingRequest::settled(),
+        ) else {
+            panic!("settled checking requires evaluated array lengths");
+        };
+        assert_eq!(errors.len(), 1);
+        assert_eq!(
+            errors[0].message,
+            "array length `length` has an unresolved build-time evaluation dependency",
+        );
+        assert_eq!(errors[0].source_span, Some(pending_spans[0]));
+    }
+    evaluate_const_array_lengths(&mut typed, None).expect("ordinary length evaluates");
+    typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("the evaluated array length is ready for settled checking");
+}
+
 fn fixture(namespace: &str) -> (TypedTrees, Vec<SelectedBuildTimeBinaryOperator>) {
     fixture_with_receiver(namespace, "data Main { bytes:[u8;length()]; }")
 }
