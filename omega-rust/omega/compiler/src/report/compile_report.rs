@@ -2,7 +2,6 @@
 //! the payload slots each kind may occupy, and the publication of retained
 //! native artifacts into exact executable bytes with their custody receipts.
 
-use crate::report::package;
 use crate::report::publication::{
     PreparedPsiProofPair, appended_file_name_path, remove_stale_companion,
 };
@@ -14,7 +13,8 @@ use crate::report::{
 use artifacts::compile_timings::PhaseTiming;
 use native_artifact::build_native_proof_sidecar;
 use native_artifact::{
-    ExecutablePublicationReceipt, PreparedExecutablePublication, validate_native_pair,
+    ExecutablePublicationReceipt, NativePackagePublicationReceipt, PreparedExecutablePublication,
+    publish_macos_application_package, validate_native_pair,
 };
 use platform_custody::file_publication::{install_staged_files, stage_exact_bytes};
 use std::path::PathBuf;
@@ -87,7 +87,7 @@ pub struct CompileReport {
     application_identifier: Option<build_evaluation::ApplicationIdentifier>,
     /// Exact checked receipt for a macOS application package publication.
     /// Flat publications and unpublished reports retain `None`.
-    package_publication: Option<package::NativePackagePublicationReceipt>,
+    package_publication: Option<NativePackagePublicationReceipt>,
     /// Per-stage measurements the checked record accumulated during this
     /// compilation; empty unless the request asked for timing collection.
     timings: Vec<PhaseTiming>,
@@ -385,7 +385,7 @@ impl CompileReport {
                     sidecar_byte_len: native_sidecar_bytes.len() as u64,
                 });
             }
-            let receipt = package::publish_macos_application_package(
+            let receipt = publish_macos_application_package(
                 build_dir,
                 &application_name,
                 &application_identifier,
@@ -849,12 +849,12 @@ impl CompileReport {
         }
         self.package_publication
             .as_ref()
-            .map(package::NativePackagePublicationReceipt::package_root)
+            .map(NativePackagePublicationReceipt::package_root)
     }
 
     /// The checked package receipt for a published `.app`, when this report
     /// installed one.
-    pub fn package_publication(&self) -> Option<&package::NativePackagePublicationReceipt> {
+    pub fn package_publication(&self) -> Option<&NativePackagePublicationReceipt> {
         self.package_publication.as_ref()
     }
 

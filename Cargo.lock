@@ -1160,6 +1160,7 @@ dependencies = [
  "machine-emission",
  "object-file",
  "optimization-core",
+ "platform-custody",
  "program-entry-plan",
  "proof-admission",
  "register-model",

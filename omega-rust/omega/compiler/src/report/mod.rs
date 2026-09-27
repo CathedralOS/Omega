@@ -21,7 +21,7 @@
 //! Every report constructor checks custody before returning its result.
 //!
 //! A selected macOS GUI product publishes one complete `.app` package through
-//! `package::publish_macos_application_package` — the executable, the fixed
+//! `native_artifact::publish_macos_application_package` — the executable, the fixed
 //! `Contents/Info.plist`, the exact directory shape, and the three-way
 //! identifier join specified in `wiki/spec/build/macos_application.md` —
 //! instead of the flat executable path. The retained authored
@@ -41,7 +41,6 @@
 mod batch_manifest;
 mod build_outputs;
 mod compile_report;
-mod package;
 mod pcc;
 mod production_manifest;
 mod publication;
@@ -58,8 +57,8 @@ pub use native_artifact::{
     NativePublicationCertificateDigest, NativePublicationEvidenceDigest,
     executable_installation_evidence_digest,
 };
+pub use native_artifact::{NativePackagePublicationReceipt, PackagePublicationComponent};
 pub use optimization_core::OptimizationRollbackReceipt;
-pub use package::{NativePackagePublicationReceipt, PackagePublicationComponent};
 pub use pcc::{PccPublicationReceipt, verify_published_proof_pair};
 pub use production_manifest::{
     FinalRealizationEvidenceError, ProductionArtifactIdentity, ProductionCompilationManifest,
