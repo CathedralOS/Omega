@@ -12,6 +12,7 @@
 //! object's private-function channel can publish.
 
 use crate::native::native_realization::input_preparation::lower_realization_input;
+use crate::native::native_realization::optimization_stage::native_optimization_budget;
 use crate::native::native_realization::realization_diagnostics::realization_error;
 use crate::native::native_realization::realization_request::{
     NativeCallbackThunkSettlement, NativeRealizationRequest,
@@ -51,9 +52,12 @@ fn lower_callback_thunk(
         request.profile,
         &[],
     )?;
-    let optimized = crate::native::optimize_verified_abstract_input(
+    let selections = request.optimization_selections.selections();
+    let optimized = abstract_operations_to_abstract_operations::optimize_abstract_operations(
         input.into_optimization_input(),
-        crate::native::compiler_baseline_request_v1(request.optimization_selections.selections()),
+        selections,
+        &selections.project_psi(),
+        native_optimization_budget(),
     )
     .map_err(|error| realization_error("callback thunk abstract optimization", error))?;
     let optimized_target =
