@@ -160,6 +160,15 @@ impl RangeFacts<'_> {
                     || self.has_descriptor_facts()
             })
             .and_then(|site| self.structured_call_writes(program, machine, state, site));
+        let scalar_preserved = self.preserved_scalar_binding_labels(
+            program,
+            machine,
+            state,
+            call_writes.as_ref().map(|writes| writes.storage.as_slice()),
+        );
+        // Reference reads and collection descriptors still require complete
+        // alias closure; the raw ceiling never becomes their write frame.
+        let call_writes = call_writes.and_then(|writes| writes.aliases);
         let mut owned_frames = None;
         let shared_frames = crate::flow::shared_call_frames_or(
             self.checked_calls.and_then(|context| context.call_frames()),
@@ -193,8 +202,10 @@ impl RangeFacts<'_> {
                 && paths
                     .is_none_or(|paths| paths.iter().any(|path| write_affects_bound(name, path)))
         };
-        let overlaps =
-            |name: &str| affected.iter().any(|label| label == name) || string_fallback(name);
+        let overlaps = |name: &str| {
+            !scalar_preserved.iter().any(|label| label == name)
+                && (affected.iter().any(|label| label == name) || string_fallback(name))
+        };
         // A descriptor row survives when every caller-visible write stays
         // below the collection's own place. Labels that resolve to no caller
         // place, or a missing/incomplete write set, keep the conservative

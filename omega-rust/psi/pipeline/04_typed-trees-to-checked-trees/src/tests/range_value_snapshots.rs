@@ -276,3 +276,75 @@ fn signature_write_ceiling_tracks_exclusive_scalar_arguments() {
         check(&source, rejection);
     }
 }
+
+#[test]
+fn owned_shared_view_array_preserves_only_disjoint_captured_counts() {
+    let source = r#"data View { bytes: &[u8]; count: u64; }
+machine make_view(bytes: &[u8]) -> View { View { bytes: bytes, count: 0 } }
+machine assemble(views: &mut [View; 2]) -> &mut [View; 2] {
+    transition { _ -> walk(views, 0) }
+    state walk(views: &mut [View; 2], position: u64) -> &mut [View; 2]
+    requires 0 <= position && position <= 2;
+    {
+        transition position < 2 {
+            true -> store(views, position)
+            false -> (views)
+            _ -> (views)
+        }
+    }
+    state store(views: &mut [View; 2], position: u64) -> &mut [View; 2]
+    requires 0 <= position && position < 2;
+    {
+        views[position].count = 1;
+        transition { _ -> walk(views, position + 1) }
+    }
+}
+data Producer { value: u64; }
+machine Producer::copy_modules(&mut self, output: &mut [u8; 8]) -> u64
+ensures 0 <= result && result < 9;
+{
+    transition { _ -> copy(output, 0) }
+    state copy(&mut self, output: &mut [u8; 8], position: u64) -> u64
+    requires 0 <= position && position < 9;
+    {
+        transition position < self.value && position < 8 {
+            true -> store(output, position)
+            false -> (position)
+            _ -> (position)
+        }
+    }
+    state store(&mut self, output: &mut [u8; 8], position: u64) -> u64
+    requires 0 <= position && position < 8;
+    {
+        output[position] = 1;
+        transition { _ -> copy(output, position + 1) }
+    }
+}
+machine consume(values: &[u8]) -> u64 { values.len }
+
+machine demonstrate(producer: &mut Producer) -> u64 {
+    let empty: [u8; 1] = [0];
+    let mut views: [View; 2] = [make_view(&empty[0..0]), make_view(&empty[0..0])];
+    let mut output: [u8; 8] = [0,0,0,0,0,0,0,0];
+    let count: u64 = producer.copy_modules(&mut output);
+    let result: &mut [View; 2] = assemble(&mut views);
+    consume(&output[0..count])
+}
+"#;
+    check(source, None);
+    let mutated = source
+        .replace("let count: u64 =", "let mut count: u64 =")
+        .replace(
+            "machine demonstrate(producer:",
+            "data CountLoan { count: &mut u64; }
+             machine overwrite(loan: &mut CountLoan) { loan.count = 9; }
+             machine demonstrate(producer:",
+        )
+        .replace(
+            "    consume(&output[0..count])",
+            "    let mut loan: CountLoan = CountLoan { count: &mut count };
+                 overwrite(&mut loan);
+                 consume(&output[0..count])",
+        );
+    check(&mutated, Some("end bound"));
+}

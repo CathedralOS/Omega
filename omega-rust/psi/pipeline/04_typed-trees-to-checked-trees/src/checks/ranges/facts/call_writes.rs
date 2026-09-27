@@ -145,6 +145,13 @@ impl<'program> RangeCallContext<'program> {
     }
 }
 
+/// The checked storage ceiling can be complete while local alias expansion is
+/// opaque. Only owned scalar slots may use the ceiling without alias closure.
+pub(super) struct CallStorageWrites {
+    pub storage: Vec<CanonicalPlace>,
+    pub aliases: Option<Vec<CanonicalPlace>>,
+}
+
 impl RangeFacts<'_> {
     pub(super) fn structured_call_writes(
         &mut self,
@@ -152,7 +159,7 @@ impl RangeFacts<'_> {
         machine: &Machine,
         state: &State,
         site: &CallSite<'_>,
-    ) -> Option<Vec<CanonicalPlace>> {
+    ) -> Option<CallStorageWrites> {
         let context = self.checked_calls?;
         let call = context.find_call(program, machine, state, self.statement_index, site)?;
         let mut writes = crate::flow::call_mutated_places(
@@ -174,13 +181,17 @@ impl RangeFacts<'_> {
                 }
             }
         }
-        crate::flow::close_storage_places_over_aliases_with_resolver(
+        let aliases = crate::flow::close_storage_places_over_aliases_with_resolver(
             program,
             machine.symbol,
             state.symbol,
             self.statement_index,
-            writes,
+            writes.clone(),
             context.call_frames,
-        )
+        );
+        Some(CallStorageWrites {
+            storage: writes,
+            aliases,
+        })
     }
 }

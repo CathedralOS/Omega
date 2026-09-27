@@ -263,7 +263,8 @@ impl<'program> CallFrameResolver<'program> {
         })
     }
 
-    /// Shared classification only; storage origins still require prefix evidence.
+    /// Checked storage with no exclusive reference leaves writes only its own
+    /// local place. Other reference-bearing storage still requires prefix origins.
     pub fn local_requires_write_origin(
         &self,
         reference: typed_trees::types::TypeReferenceHandle,
@@ -271,6 +272,13 @@ impl<'program> CallFrameResolver<'program> {
         memoized(&self.caches.write_origin_requirements, reference, || {
             super::type_may_carry_write(self.program, reference)
                 && !super::type_is_caller_isolated_local(self.program, reference)
+                && super::stored_origins::declared_origins(
+                    self.program,
+                    SymbolHandle::invalid(),
+                    "",
+                    reference,
+                )
+                .is_none_or(|origins| !origins.references.is_empty())
         })
     }
 
@@ -1399,6 +1407,145 @@ mod tests {
                 .complete_paths(),
             Some([].as_slice()),
             "a value-only boundary signature admits no caller write",
+        );
+    }
+
+    #[test]
+    fn shared_only_checked_storage_needs_no_exclusive_write_origins() {
+        for (declaration, value_type) in [
+            ("data Token { value: &u64; count: u64; }", "Token"),
+            ("data Token { value: &u64; count: u64; }", "[Token; 8]"),
+            (
+                "data Token { case Empty; case Loan(value: &u64); }",
+                "Token",
+            ),
+            (
+                "boundary data Hidden; data Token { value: &Hidden; }",
+                "Token",
+            ),
+        ] {
+            let program = crate::front_end::typed_program(&format!(
+                "{declaration} machine probe(value: {value_type}) {{ }}"
+            ));
+            let machine = &program.machines()[0];
+            let state = &program.machine_states(machine)[0];
+            let parameter = &program.state_parameters(state)[0];
+            let resolver = crate::CallFrameResolver::new(&program).expect("frame resolver");
+            assert!(
+                !resolver.local_requires_write_origin(parameter.type_reference),
+                "{value_type}"
+            );
+            assert!(super::super::type_may_carry_write(
+                &program,
+                parameter.type_reference
+            ));
+            assert!(!super::super::type_is_caller_isolated_local(
+                &program,
+                parameter.type_reference
+            ));
+            if value_type != "Token" || !declaration.contains("Hidden") {
+                let shared = super::super::stored_origins::declared_origins_for_query(
+                    &program,
+                    parameter.symbol,
+                    "value",
+                    parameter.type_reference,
+                    true,
+                )
+                .expect("shared reference identities remain available");
+                assert!(!shared.references.is_empty());
+            }
+        }
+    }
+
+    #[test]
+    fn exclusive_or_incomplete_storage_still_requires_write_origins() {
+        for (declaration, value_type) in [
+            ("data Token { value: &mut u64; }", "Token"),
+            ("data Token { value: &write u64; }", "Token"),
+            (
+                "data Token { case Read(value: &u64); case Write(value: &mut u64); }",
+                "[Token; 2]",
+            ),
+            (
+                "boundary data Hidden; data Token { shared: &u64; value: Hidden; }",
+                "[Token; 2]",
+            ),
+            (
+                "data Box<T> { shared: &u64; value: T; } boundary data Hidden;",
+                "Box<Hidden>",
+            ),
+        ] {
+            let program = crate::front_end::typed_program(&format!(
+                "{declaration} machine probe(value: {value_type}) {{ }}"
+            ));
+            let state = &program.machine_states(&program.machines()[0])[0];
+            let reference = program.state_parameters(state)[0].type_reference;
+            let resolver = crate::CallFrameResolver::new(&program).expect("frame resolver");
+            assert!(
+                resolver.local_requires_write_origin(reference),
+                "{declaration}: {value_type}"
+            );
+        }
+    }
+
+    #[test]
+    fn opaque_owned_shapes_have_no_complete_declared_inventory() {
+        for (declaration, value_type) in [
+            ("boundary data Hidden;", "Hidden"),
+            (
+                "boundary data Hidden; data Token { value: Hidden; }",
+                "[Token; 2]",
+            ),
+        ] {
+            let program = crate::front_end::typed_program(&format!(
+                "{declaration} machine probe(value: {value_type}) {{ }}"
+            ));
+            let state = &program.machine_states(&program.machines()[0])[0];
+            let parameter = &program.state_parameters(state)[0];
+            for include_shared in [false, true] {
+                assert!(
+                    super::super::stored_origins::declared_origins_for_query(
+                        &program,
+                        parameter.symbol,
+                        "value",
+                        parameter.type_reference,
+                        include_shared,
+                    )
+                    .is_none(),
+                    "{value_type}: opaque storage is not an empty checked declaration"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn shared_only_storage_keeps_its_owned_slot_write() {
+        let program = crate::front_end::typed_program(
+            "data Token { value: &u64; count: u64; }
+             machine caller(input: &u64) {
+                 let mut local: Token = Token { value: input, count: 4 };
+                 replace(&mut local);
+             }
+             boundary machine replace(value: &mut Token);",
+        );
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(machine)[0];
+        let call = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .find_map(|statement| match statement {
+                StatementNode::Call(call) => Some(call),
+                _ => None,
+            })
+            .expect("replacement call");
+        let resolver = crate::CallFrameResolver::new(&program).expect("frame resolver");
+        assert!(
+            resolver
+                .may_write_frame(machine, call)
+                .complete_paths()
+                .is_none_or(|paths| paths.iter().any(|path| path == "local")),
+            "replacing shared-only storage must retain its local write or remain opaque"
         );
     }
 }

@@ -228,6 +228,7 @@ fn walk_declared_origins(
                 let (symbol, _) = concrete_nominal_type(node)?;
                 let definition = data_definition_by_symbol(program, symbol)?;
                 if program.symbols.get(symbol).kind != SymbolKind::Data
+                    || definition.supply_mode != language_semantics::DataSupplyMode::CheckedShape
                     || !definition.type_parameters.is_empty()
                 {
                     return None;
