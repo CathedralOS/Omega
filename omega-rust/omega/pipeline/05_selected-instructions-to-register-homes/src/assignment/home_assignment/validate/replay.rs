@@ -117,6 +117,7 @@ pub(crate) fn replay_function(
             selected_domain,
             &domains,
             &unassigned,
+            &remaining_neighbors[selected_domain],
             &assigned,
             &ranges.copy_affinities,
             &domain_of,
@@ -176,11 +177,14 @@ pub(crate) fn replay_function(
 /// can never share this domain's home, so the view stealing the fewest of its
 /// already-guaranteed coalesces wins third; the plain first candidate breaks
 /// any remaining tie.
+/// `neighbors` is the domain's remaining constrained set: every other
+/// still-unassigned domain it is constrained with, in index order.
 fn preferred_view(
     function: usize,
     domain_index: usize,
     domains: &[domain::ReplayDomain],
     unassigned: &BTreeSet<usize>,
+    neighbors: &BTreeSet<usize>,
     assigned: &BTreeMap<VirtualRegisterId, RegisterViewId>,
     affinities: &[CopyAffinity],
     domain_of: &BTreeMap<VirtualRegisterId, usize>,
@@ -196,7 +200,7 @@ fn preferred_view(
             domain_index,
             view,
             domains,
-            unassigned,
+            neighbors,
             ranges,
             physical,
         )? {
@@ -212,10 +216,10 @@ fn preferred_view(
         domain_index,
         domains,
         unassigned,
+        neighbors,
         assigned,
         affinities,
         domain_of,
-        ranges,
     );
     let mut leading = None::<(usize, usize, Reverse<usize>, RegisterViewId)>;
     for &view in pool {
@@ -247,7 +251,7 @@ fn preferred_view(
             domain_index,
             view,
             domains,
-            unassigned,
+            neighbors,
             assigned,
             affinities,
             ranges,
@@ -270,7 +274,7 @@ fn stolen_coalesces(
     domain_index: usize,
     view: RegisterViewId,
     domains: &[domain::ReplayDomain],
-    unassigned: &BTreeSet<usize>,
+    neighbors: &BTreeSet<usize>,
     assigned: &BTreeMap<VirtualRegisterId, RegisterViewId>,
     affinities: &[CopyAffinity],
     ranges: &FunctionLiveRanges,
@@ -282,11 +286,8 @@ fn stolen_coalesces(
         newly_assigned.insert(*register, view);
     }
     let mut stolen = 0;
-    for &neighbor in unassigned {
-        if neighbor == domain_index
-            || !conflicts::constrained(domain, &domains[neighbor], ranges)
-            || domains[neighbor].candidates.binary_search(&view).is_err()
-        {
+    for &neighbor in neighbors {
+        if domains[neighbor].candidates.binary_search(&view).is_err() {
             continue;
         }
         let neighbor_viable = conflicts::viable_candidates(
@@ -331,10 +332,10 @@ fn partner_outlooks(
     domain_index: usize,
     domains: &[domain::ReplayDomain],
     unassigned: &BTreeSet<usize>,
+    neighbors: &BTreeSet<usize>,
     assigned: &BTreeMap<VirtualRegisterId, RegisterViewId>,
     affinities: &[CopyAffinity],
     domain_of: &BTreeMap<VirtualRegisterId, usize>,
-    ranges: &FunctionLiveRanges,
 ) -> BTreeMap<usize, PartnerOutlook> {
     let domain = &domains[domain_index];
     let mut outlooks = BTreeMap::<usize, PartnerOutlook>::new();
@@ -347,7 +348,7 @@ fn partner_outlooks(
         };
         if partner_domain != domain_index
             && unassigned.contains(&partner_domain)
-            && !conflicts::constrained(domain, &domains[partner_domain], ranges)
+            && !neighbors.contains(&partner_domain)
         {
             outlooks.entry(partner_domain).or_default().pending += 1;
         }
@@ -387,7 +388,7 @@ fn strands_neighbor(
     domain_index: usize,
     view: RegisterViewId,
     domains: &[domain::ReplayDomain],
-    unassigned: &BTreeSet<usize>,
+    neighbors: &BTreeSet<usize>,
     ranges: &FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<bool, RegisterHomeError> {
@@ -396,11 +397,8 @@ fn strands_neighbor(
     for register in &domain.registers {
         newly_assigned.insert(*register, view);
     }
-    for &neighbor in unassigned {
-        if neighbor == domain_index
-            || domains[neighbor].candidates.is_empty()
-            || !conflicts::constrained(domain, &domains[neighbor], ranges)
-        {
+    for &neighbor in neighbors {
+        if domains[neighbor].candidates.is_empty() {
             continue;
         }
         if conflicts::viable_candidates(

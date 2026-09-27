@@ -16,6 +16,10 @@ pub(super) fn viable_candidates(
     ranges: &FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<Vec<RegisterViewId>, RegisterHomeError> {
+    if domain.candidates.is_empty() {
+        return Ok(Vec::new());
+    }
+    let conflicts = AssignmentConflicts::gather(domain, assigned, ranges, physical);
     domain
         .candidates
         .iter()
@@ -23,14 +27,90 @@ pub(super) fn viable_candidates(
         .filter_map(|candidate| {
             let view = checked_view(function, domain.leader, domain.class, candidate, physical);
             match view {
-                Ok(view) if compatible(domain, view, assigned, ranges, physical) => {
-                    Some(Ok(candidate))
-                }
+                Ok(view) if conflicts.admit(view) => Some(Ok(candidate)),
                 Ok(_) => None,
                 Err(error) => Some(Err(error)),
             }
         })
         .collect()
+}
+
+/// The assigned views a candidate for one domain must not collide with.
+/// Whether a domain register interferes with an assigned one, or an early
+/// clobber links them, does not depend on the candidate; only the footprint
+/// comparison does, so a domain's candidates share one gathering.
+struct AssignmentConflicts<'model> {
+    /// Views of assigned registers that interfere with a domain register.
+    interfering: Vec<&'model RegisterView>,
+    /// Views of assigned registers an early-clobber definition in the domain
+    /// must not overwrite.
+    clobbered_uses: Vec<&'model RegisterView>,
+    /// Views of assigned early-clobber definitions that must not overwrite a
+    /// use the domain holds.
+    clobbering_definitions: Vec<&'model RegisterView>,
+}
+
+impl<'model> AssignmentConflicts<'model> {
+    fn gather(
+        domain: &ReplayDomain,
+        assigned: &BTreeMap<VirtualRegisterId, RegisterViewId>,
+        ranges: &FunctionLiveRanges,
+        physical: &'model ValidatedPhysicalRegisterModel,
+    ) -> Self {
+        let mut interfering = Vec::new();
+        for register in &domain.registers {
+            for (assigned_register, assigned_view) in assigned {
+                if interferes(*register, *assigned_register, &ranges.interference) {
+                    interfering.push(*assigned_view);
+                }
+            }
+        }
+        interfering.sort_unstable();
+        interfering.dedup();
+        let mut clobbered_uses = Vec::new();
+        let mut clobbering_definitions = Vec::new();
+        for early in &ranges.early_clobbers {
+            for register in &domain.registers {
+                if *register == early.def_virtual_register {
+                    for used in &early.uses {
+                        if let Some(view) = assigned.get(&used.virtual_register) {
+                            clobbered_uses.push(known_view(*view, physical));
+                        }
+                    }
+                } else if early
+                    .uses
+                    .iter()
+                    .any(|used| used.virtual_register == *register)
+                    && let Some(view) = assigned.get(&early.def_virtual_register)
+                {
+                    clobbering_definitions.push(known_view(*view, physical));
+                }
+            }
+        }
+        Self {
+            interfering: interfering
+                .into_iter()
+                .map(|view| known_view(view, physical))
+                .collect(),
+            clobbered_uses,
+            clobbering_definitions,
+        }
+    }
+
+    fn admit(&self, candidate: &RegisterView) -> bool {
+        !self
+            .interfering
+            .iter()
+            .any(|assigned| footprints_overlap(candidate, assigned))
+            && !self
+                .clobbered_uses
+                .iter()
+                .any(|used| definition_overwrites_use(candidate, used))
+            && !self
+                .clobbering_definitions
+                .iter()
+                .any(|definition| definition_overwrites_use(definition, candidate))
+    }
 }
 
 pub(super) fn constrained(
@@ -50,53 +130,6 @@ pub(super) fn constrained(
                         || (early.def_virtual_register == *right
                             && early.uses.iter().any(|used| used.virtual_register == *left))
                 })
-        })
-    })
-}
-
-fn compatible(
-    domain: &ReplayDomain,
-    candidate: &RegisterView,
-    assigned: &BTreeMap<VirtualRegisterId, RegisterViewId>,
-    ranges: &FunctionLiveRanges,
-    physical: &ValidatedPhysicalRegisterModel,
-) -> bool {
-    !domain.registers.iter().any(|register| {
-        assigned.iter().any(|(assigned_register, assigned_view)| {
-            interferes(*register, *assigned_register, &ranges.interference)
-                && footprints_overlap(candidate, known_view(*assigned_view, physical))
-        })
-    }) && !directional_early_clobber_conflict(domain, candidate, assigned, ranges, physical)
-}
-
-fn directional_early_clobber_conflict(
-    domain: &ReplayDomain,
-    candidate: &RegisterView,
-    assigned: &BTreeMap<VirtualRegisterId, RegisterViewId>,
-    ranges: &FunctionLiveRanges,
-    physical: &ValidatedPhysicalRegisterModel,
-) -> bool {
-    ranges.early_clobbers.iter().any(|early| {
-        domain.registers.iter().any(|register| {
-            if *register == early.def_virtual_register {
-                early.uses.iter().any(|used| {
-                    assigned.get(&used.virtual_register).is_some_and(|view| {
-                        definition_overwrites_use(candidate, known_view(*view, physical))
-                    })
-                })
-            } else if early
-                .uses
-                .iter()
-                .any(|used| used.virtual_register == *register)
-            {
-                assigned
-                    .get(&early.def_virtual_register)
-                    .is_some_and(|view| {
-                        definition_overwrites_use(known_view(*view, physical), candidate)
-                    })
-            } else {
-                false
-            }
         })
     })
 }
