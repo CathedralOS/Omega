@@ -34,6 +34,32 @@
 // `self.greeting` does); and WHERE the store sits (entry body, a sub-state, and
 // a separate callee machine all decline at the same site).
 //
+// WHY THIS IS NOT A GUARD TO LIFT, established by enumeration rather than
+// impression. Terminal has exactly three byte-sequence store plans and none
+// of them can carry a runtime whole-sequence source:
+//
+//   ByteSequenceWrite                        one byte at an index, through a
+//                                            borrowed view
+//   StructuralByteSequenceFieldByteStore     one byte at an index, into a
+//                                            field
+//   StructuralByteSequenceFieldStore         the whole sequence -- and its
+//                                            payload is `bytes: Vec<u8>`, a
+//                                            COMPILE-TIME CONSTANT
+//
+// So the `ExpressionNode::String` requirement in `byte_stores.rs` is not a
+// conservative gate in front of a working route; it is the only expression
+// the one whole-sequence plan can represent. Deleting it would leave nothing
+// to put in `bytes`.
+//
+// The shape of the repair is already in the codebase, one level down. The
+// two single-byte plans carry `value: CheckedByteSequenceStoreValue`, an
+// enum that distinguishes a pure expression from a call result. The
+// whole-sequence plan needs the same treatment -- a source that is either a
+// literal or a carrier place -- and then the codec, stage 05 lowering and
+// Omega realization for that new source. That is a cross-stage change, which
+// is why this is filed rather than fixed, but it is a vocabulary widening
+// with an existing precedent, not an open design question.
+//
 // MEASUREMENT HAZARD, and the reason this fixture keeps a `write_line` it does
 // not otherwise need: A MACHINE WITH NO TERMINAL EFFECT DEMANDS NO UNIT PLAN,
 // so every check of it is VACUOUSLY GREEN. The exact body above, stripped of
