@@ -136,7 +136,7 @@ pub(super) fn validate(
                 residual_affine_discards,
             },
             _,
-        ) if residual_affine_discards.is_empty() => {
+        ) => {
             let [edge] = node.successors.as_slice() else {
                 return Err(LegalizationError::custody());
             };
@@ -145,7 +145,7 @@ pub(super) fn validate(
                 || edge.bindings != *bindings
                 || edge.structural_bindings != *structural_bindings
                 || edge.trivial_affine_discards != *trivial_affine_discards
-                || !edge.residual_affine_discards.is_empty()
+                || edge.residual_affine_discards != *residual_affine_discards
             {
                 return Err(LegalizationError::custody());
             }
@@ -210,9 +210,14 @@ fn branch_edges(
                     .iter()
                     .copied()
                     .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
+                    .chain(
+                        edge.residual_affine_discards
+                            .iter()
+                            .cloned()
+                            .map(terminal_psi::TerminalAffineCleanupAction::DiscardResidual),
+                    )
                     .collect::<Vec<_>>(),
-            ) || !edge.residual_affine_discards.is_empty()
-                || edge.provenance != [PsiProvenance::Edge(edge.psi_edge)]
+            ) || edge.provenance != [PsiProvenance::Edge(edge.psi_edge)]
                 || edge.fuel.is_empty()
                 || edge
                     .fuel

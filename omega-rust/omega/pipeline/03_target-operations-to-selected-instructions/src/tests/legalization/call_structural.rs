@@ -10,6 +10,281 @@ use crate::{
 use target_operations::TargetUnitOperation;
 
 #[test]
+fn owned_record_payload_arguments_replay_root_relative_offsets() {
+    use abstract_operations::AbstractOperation;
+    use semantic_vocabulary::{OperationId, PlaceId, StructuralFieldId, StructuralTypeId};
+    use terminal_psi::{
+        BindingRelevance, RecordFieldInitializer, RecordFieldValue, StructuralAccess,
+        StructuralArgument, StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
+        StructuralTypeDeclaration, StructuralTypeShape,
+    };
+
+    for payload_length in [2, 3] {
+        for native in [
+            target::NativeTarget::linux_x64(),
+            target::NativeTarget::linux_arm64(),
+            target::NativeTarget::macos_arm64(),
+            target::NativeTarget::windows_x64(),
+        ] {
+            let (mut source, _, original_unit) = fixture(native, Vec::new());
+            let mut types = source.structural_types.to_vec();
+            let StructuralTypeShape::FixedArray { length, .. } = &mut types[1].shape else {
+                unreachable!()
+            };
+            *length = payload_length;
+            let root_type = StructuralTypeId::new(3).unwrap();
+            types.push(StructuralTypeDeclaration {
+                id: root_type,
+                identity: "test::Envelope".into(),
+                shape: StructuralTypeShape::Record {
+                    fields: ["prefix", "payload"]
+                        .into_iter()
+                        .enumerate()
+                        .map(|(ordinal, name)| StructuralFieldDeclaration {
+                            id: StructuralFieldId::new(ordinal as u64 + 1).unwrap(),
+                            identity: name.into(),
+                            relevance: BindingRelevance::Relevant,
+                            field_type: StructuralFieldType::Structural(
+                                StructuralTypeId::new(2).unwrap(),
+                            ),
+                        })
+                        .collect(),
+                },
+            });
+            source.structural_types = types.into();
+            let operations = &mut source.functions[0].operations;
+            let AbstractOperation::EstablishScalarArray {
+                result, elements, ..
+            } = &mut operations[1]
+            else {
+                unreachable!()
+            };
+            elements.resize(payload_length as usize, elements[0]);
+            let mut root_result = result.clone();
+            root_result.place = PlaceId::new(13).unwrap();
+            root_result.structural_type = root_type;
+            root_result.multiplicity = terminal_psi::StructuralMultiplicity::Affine;
+            operations[2] = AbstractOperation::CallUnit {
+                psi_operation: OperationId::new(12).unwrap(),
+                callee: semantic_vocabulary::MachineId::new(2).unwrap(),
+                arguments: Vec::new(),
+                structural_arguments: vec![StructuralArgument {
+                    place: PlaceId::new(14).unwrap(),
+                    path: vec![StructuralPathSegment::Field("payload".into())],
+                    access: StructuralAccess::Owned,
+                }],
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            };
+            operations[3] = AbstractOperation::Jump {
+                psi_edge: semantic_vocabulary::EdgeId::new(1).unwrap(),
+                target: semantic_vocabulary::BlockId::new(4).unwrap(),
+                bindings: Vec::new(),
+                structural_bindings: Vec::new(),
+                trivial_affine_discards: Vec::new(),
+                residual_affine_discards: vec![terminal_psi::StructuralAffineDiscard {
+                    place: PlaceId::new(14).unwrap(),
+                    path: vec![StructuralPathSegment::Field("prefix".into())],
+                    structural_type: StructuralTypeId::new(2).unwrap(),
+                }],
+            };
+            operations.insert(
+                2,
+                AbstractOperation::EstablishRecord {
+                    psi_operation: OperationId::new(13).unwrap(),
+                    result: root_result.clone(),
+                    fields: [1, 2]
+                        .into_iter()
+                        .map(|field| RecordFieldInitializer {
+                            field: StructuralFieldId::new(field).unwrap(),
+                            value: RecordFieldValue::Structural(StructuralArgument {
+                                place: PlaceId::new(11).unwrap(),
+                                path: Vec::new(),
+                                access: StructuralAccess::Owned,
+                            }),
+                        })
+                        .collect(),
+                },
+            );
+            root_result.place = PlaceId::new(14).unwrap();
+            operations.insert(
+                3,
+                AbstractOperation::CallStructural {
+                    psi_operation: OperationId::new(14).unwrap(),
+                    result: root_result,
+                    callee: semantic_vocabulary::MachineId::new(3).unwrap(),
+                    arguments: Vec::new(),
+                    structural_arguments: vec![StructuralArgument {
+                        place: PlaceId::new(13).unwrap(),
+                        path: Vec::new(),
+                        access: StructuralAccess::Owned,
+                    }],
+                    claim_transfers: Vec::new(),
+                    returned_claim_transfers: Vec::new(),
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                    selected_evidence: Vec::new(),
+                },
+            );
+            let operation_offset = operations.len();
+            operations.push(AbstractOperation::ReturnUnit {
+                psi_edge: semantic_vocabulary::EdgeId::new(4).unwrap(),
+                cleanup_actions: Vec::new(),
+            });
+            source.functions[0]
+                .block_entries
+                .push(abstract_operations::AbstractBlockEntry {
+                    structural_parameters: Vec::new(),
+                    block: semantic_vocabulary::BlockId::new(4).unwrap(),
+                    parameters: Vec::new(),
+                    operation_offset,
+                });
+            let mut forward = source.functions[1].clone();
+            forward.machine = semantic_vocabulary::MachineId::new(3).unwrap();
+            forward.structural_parameters[0].structural_type = root_type;
+            forward.structural_parameters[0].multiplicity =
+                terminal_psi::StructuralMultiplicity::Affine;
+            let abstract_operations::AbstractFunctionResult::Structural(result) =
+                &mut forward.result
+            else {
+                unreachable!()
+            };
+            result.structural_type = root_type;
+            result.multiplicity = terminal_psi::StructuralMultiplicity::Affine;
+            source.functions.push(forward);
+            source.functions[0].result = abstract_operations::AbstractFunctionResult::Unit;
+            source.functions[1].result = abstract_operations::AbstractFunctionResult::Unit;
+            source.functions[1].structural_parameters[0].multiplicity =
+                terminal_psi::StructuralMultiplicity::Affine;
+            source.functions[1].operations = vec![AbstractOperation::ReturnUnit {
+                psi_edge: semantic_vocabulary::EdgeId::new(1).unwrap(),
+                cleanup_actions: vec![terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
+                    PlaceId::new(20).unwrap(),
+                )],
+            }];
+            let mut unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+                &source,
+                semantic_vocabulary::FuelScheduleIdentity::new(1).unwrap(),
+            )
+            .unwrap();
+            for function in &mut unit.functions {
+                function.verified_contract = original_unit.functions[0].verified_contract.clone();
+            }
+            unit.identity = optimization_unit::recompute_psi_optimization_unit_identity(&unit);
+            optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+            let target = abstract_operations_to_target_operations::lower_to_target_operations(
+                &source,
+                abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+            )
+            .unwrap();
+            let argument = target.functions[0].graph.blocks[0]
+                .operations
+                .iter()
+                .find_map(|operation| match operation {
+                    TargetUnitOperation::Call {
+                        arguments,
+                        psi_operation,
+                        ..
+                    } if psi_operation.get() == 12 => arguments.first(),
+                    _ => None,
+                })
+                .unwrap();
+            assert_eq!(argument.root_structural_type, root_type);
+            assert_eq!(u64::from(argument.source_byte_offset), payload_length * 8);
+            let legal = legalize_target_operations(&target, &source, &unit).unwrap();
+            validate_legalized_operations(&target, &source, &unit, legal.plan().clone()).unwrap();
+            let environment =
+                register_environment::baseline_target_register_environment(native).unwrap();
+            let constraints = selection_constraints(&legal, &environment);
+            let selected = select_instructions(
+                &legal,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+            .unwrap();
+            validate_selected_instructions(
+                &legal,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+                selected.plan().clone(),
+            )
+            .unwrap();
+            let reads = selected.plan().functions[0]
+                .memory_accesses
+                .iter()
+                .filter(|access| {
+                    access.place == PlaceId::new(14).unwrap()
+                        && access.role == selected_instructions::SelectedMemoryAccessRole::ReadPlace
+                })
+                .map(|access| (u64::from(access.byte_offset), access.byte_count))
+                .collect::<Vec<_>>();
+            assert_eq!(
+                reads,
+                (payload_length..2 * payload_length)
+                    .map(|element| (element * 8, 8))
+                    .collect::<Vec<_>>()
+            );
+            let mut wrong_read = selected.plan().clone();
+            wrong_read.functions[0]
+                .memory_accesses
+                .iter_mut()
+                .find(|access| {
+                    access.place == PlaceId::new(14).unwrap()
+                        && access.role == selected_instructions::SelectedMemoryAccessRole::ReadPlace
+                })
+                .unwrap()
+                .byte_offset = 0;
+            assert!(
+                validate_selected_instructions(
+                    &legal,
+                    &constraints,
+                    environment.physical(),
+                    environment.constraints(),
+                    wrong_read,
+                )
+                .is_err()
+            );
+            let mut missing_cleanup = target.clone();
+            let target_operations::TargetControlTerminator::Jump { successor } =
+                &mut missing_cleanup.functions[0].graph.blocks[0].terminator
+            else {
+                unreachable!()
+            };
+            successor.cleanup_actions.clear();
+            assert!(legalize_target_operations(&missing_cleanup, &source, &unit).is_err());
+            for mutation in ["offset", "root", "path"] {
+                let mut hostile = target.clone();
+                let argument = hostile.functions[0].graph.blocks[0]
+                    .operations
+                    .iter_mut()
+                    .find_map(|operation| match operation {
+                        TargetUnitOperation::Call {
+                            arguments,
+                            psi_operation,
+                            ..
+                        } if psi_operation.get() == 12 => arguments.first_mut(),
+                        _ => None,
+                    })
+                    .unwrap();
+                match mutation {
+                    "offset" => argument.source_byte_offset = 0,
+                    "root" => argument.root_structural_type = argument.structural_type,
+                    "path" => argument.path = vec![StructuralPathSegment::Field("prefix".into())],
+                    _ => unreachable!(),
+                }
+                assert!(
+                    legalize_target_operations(&hostile, &source, &unit).is_err(),
+                    "{mutation}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn crash_declaring_structural_calls_select_and_replay_their_continuation_roster() {
     for native in [
         target::NativeTarget::linux_x64(),

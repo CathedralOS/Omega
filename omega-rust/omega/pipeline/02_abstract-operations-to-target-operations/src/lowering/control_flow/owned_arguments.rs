@@ -35,39 +35,74 @@ pub(super) fn argument(
     let expected_shape = expected_layout.shape();
     if !is_owned_parameter(declaration, types)
         || argument.access != StructuralAccess::Owned
-        || !argument.path.is_empty()
         || destination.shape != expected_shape
     {
         return Err(invalid());
     }
-    let source = if let Some(home) = live.structural_homes.get(&argument.place) {
-        if home.structural_type() != declaration.structural_type
-            || home.multiplicity() != declaration.multiplicity
+    let (source, root_structural_type, source_byte_offset) = if let Some(home) =
+        live.structural_homes.get(&argument.place)
+    {
+        if home.multiplicity() != declaration.multiplicity
             || home.has_claims()
             || home.qualifications() != declaration.qualifications.as_slice()
             || home.projected_qualifications() != declaration.projected_qualifications.as_slice()
-            || home.layout != expected_layout
         {
             return Err(invalid());
         }
-        target_operations::TargetStructuralArgumentSource::StructuralHome {
-            psi_operation: home.operation_result().ok_or_else(invalid)?.0,
-        }
+        // Partial owned transfer selects bytes from the completed root home;
+        // the verified call and residual cleanup retain the root's custody.
+        // A root qualification cannot silently become a payload qualification.
+        let offset = if argument.path.is_empty() {
+            if home.structural_type() != declaration.structural_type
+                || home.layout != expected_layout
+            {
+                return Err(invalid());
+            }
+            0
+        } else {
+            if !home.qualifications().is_empty() {
+                return Err(invalid());
+            }
+            let (selected, shape, offset) =
+                crate::lowering::structural_layout::resolve_structural_projection_path(
+                    home.structural_type(),
+                    &argument.path,
+                    types,
+                    &mut BTreeMap::new(),
+                    &mut BTreeSet::new(),
+                )?;
+            if selected != declaration.structural_type || shape != expected_shape {
+                return Err(invalid());
+            }
+            offset
+        };
+        (
+            target_operations::TargetStructuralArgumentSource::StructuralHome {
+                psi_operation: home.operation_result().ok_or_else(invalid)?.0,
+            },
+            home.structural_type(),
+            offset,
+        )
     } else if let Some((establishment, structural_type)) =
         live.trivial_affine_locals.get(&argument.place)
     {
         // An empty-record local has no bytes to transport; its establishment
         // is the producer the call replays. It is affine and unqualified.
-        if *structural_type != declaration.structural_type
+        if !argument.path.is_empty()
+            || *structural_type != declaration.structural_type
             || declaration.multiplicity != StructuralMultiplicity::Affine
             || !declaration.qualifications.is_empty()
             || expected_shape.byte_size != 0
         {
             return Err(invalid());
         }
-        target_operations::TargetStructuralArgumentSource::StructuralHome {
-            psi_operation: *establishment,
-        }
+        (
+            target_operations::TargetStructuralArgumentSource::StructuralHome {
+                psi_operation: *establishment,
+            },
+            *structural_type,
+            0,
+        )
     } else {
         let parameter = prepared
             .parameters
@@ -82,7 +117,8 @@ pub(super) fn argument(
             .find(|source| source.place == argument.place)
             .map(|source| source.qualifications.as_slice())
             .unwrap_or(&[]);
-        if parameter.access != StructuralAccess::Owned
+        if !argument.path.is_empty()
+            || parameter.access != StructuralAccess::Owned
             || parameter.multiplicity != declaration.multiplicity
             || parameter.structural_type != declaration.structural_type
             || parameter.shape != expected_shape
@@ -90,16 +126,20 @@ pub(super) fn argument(
         {
             return Err(invalid());
         }
-        parameter.placement.clone().into()
+        (
+            parameter.placement.clone().into(),
+            parameter.structural_type,
+            0,
+        )
     };
     Ok(TargetStructuralArgument {
         place: argument.place,
         access: argument.access,
-        path: Vec::new(),
-        root_structural_type: declaration.structural_type,
+        path: argument.path.clone(),
+        root_structural_type,
         structural_type: declaration.structural_type,
         shape: expected_shape,
-        source_byte_offset: 0,
+        source_byte_offset,
         fixed_array_length: None,
         element_stride: None,
         indices: Vec::new(),
