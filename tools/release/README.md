@@ -24,7 +24,10 @@ Existing releases and conflicting tags reject, never overwrite. Failure before
 publication creates no release; failure afterwards leaves a draft explicitly
 marked pending validation. Fixes use a new prerelease version rather than moving
 a tag or replacing distributed bytes. Build jobs have read-only repository
-permissions; only draft creation and verification-note update have write access.
+permissions. Draft creation, verification-note update and draft downloads need
+write access: GitHub hides drafts from read-only credentials. Download jobs
+expose the token only in the download step; the subsequent installed-compiler
+smoke has no release token and checkout does not persist Git credentials.
 Action dependencies are pinned by commit. These jobs do not implement installers
 or change `omega update`, which remains the package-update command.
 

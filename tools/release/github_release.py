@@ -119,15 +119,21 @@ def publish(tag, repository, commit, directory):
             "--notes-file", str(write_release_notes(commit, False)))
 
 
-def verify_download(tag, repository, commit, host):
+def download_assets(tag, repository, host, directory):
+    row = next(row for row in MATRIX if row["host"] == host)
+    name = archive_name(version_from_tag(tag), row)
+    directory.mkdir(parents=True, exist_ok=True)
+    command("gh", "release", "download", tag, "--repo", repository,
+            "--pattern", name, "--pattern", name + ".sha256", "--dir", str(directory))
+
+
+def verify_download(tag, commit, host, directory):
     version = version_from_tag(tag)
     row = next(row for row in MATRIX if row["host"] == host)
     with tempfile.TemporaryDirectory(prefix="omega downloaded release ") as temporary:
         workspace = Path(temporary)
         name = archive_name(version, row)
-        command("gh", "release", "download", tag, "--repo", repository,
-                "--pattern", name, "--pattern", name + ".sha256", "--dir", str(workspace))
-        bundle = package.verify_archive(workspace / name, workspace,
+        bundle = package.verify_archive(directory / name, workspace,
                                         version=version, commit=commit, host=host)
         package.smoke_test(bundle, workspace)
         package.verify_manifest(bundle)
@@ -146,7 +152,7 @@ def finish(tag, repository, commit):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("operation", choices=("prepare", "publish", "verify", "finish"))
+    parser.add_argument("operation", choices=("prepare", "publish", "download", "verify", "finish"))
     parser.add_argument("--assets", type=Path, default=package.ROOT / "build/release-assets")
     arguments = parser.parse_args()
     tag = os.environ["RELEASE_TAG"]
@@ -160,8 +166,10 @@ def main():
             raise ValueError("expected an exact source commit")
         if arguments.operation == "publish":
             publish(tag, repository, commit, arguments.assets)
+        elif arguments.operation == "download":
+            download_assets(tag, repository, os.environ["RELEASE_HOST"], arguments.assets)
         elif arguments.operation == "verify":
-            verify_download(tag, repository, commit, os.environ["RELEASE_HOST"])
+            verify_download(tag, commit, os.environ["RELEASE_HOST"], arguments.assets)
         else:
             finish(tag, repository, commit)
 

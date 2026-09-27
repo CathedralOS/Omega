@@ -100,6 +100,15 @@ class ReleaseWorkflowTests(unittest.TestCase):
                                    commit="a" * 40, host=release.MATRIX[0]["host"])
         self.assertFalse((self.root / "output").exists())
 
+    def test_download_verification_needs_no_github_command(self):
+        self.make_archive(self.root, release.MATRIX[0])
+        with patch.object(release, "command") as command, \
+             patch.object(package, "smoke_test") as smoke:
+            release.verify_download("v0.1.0-alpha.1", "a" * 40,
+                                    release.MATRIX[0]["host"], self.root)
+            command.assert_not_called()
+            smoke.assert_called_once()
+
     def test_publication_rejects_existing_release_before_mutation(self):
         with patch.object(release, "checked_assets", return_value=[]), \
              patch.object(release, "existing_release", return_value={"id": 1}), \
