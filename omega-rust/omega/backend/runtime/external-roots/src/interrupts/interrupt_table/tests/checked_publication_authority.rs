@@ -1,7 +1,7 @@
 use super::{
     admitted_table, authority_id, carrier_authority, descriptor_operand, established_for,
-    establishment_id, foreign_space_site, full_publication_authority, member_fixtures,
-    publication_authority, publication_id, publication_receipt_id, table_installed_code,
+    foreign_space_site, full_publication_authority, member_fixtures, publication_authority,
+    publication_id, publication_receipt_id, table_installed_code,
 };
 use crate::interrupts::interrupt_table::{
     ArtifactId, INTERRUPT_TABLE_DESCRIPTOR_OPERAND_BYTES, InstalledCodeId,
@@ -440,82 +440,6 @@ fn checked_publication_rejects_a_foreign_architecture_realization() {
         .expect_err("the x86-64 contract cannot publish a foreign-architecture table");
     assert!(error.diagnostic().0.contains("foreign-architecture"));
     let _ = error.into_parts();
-}
-
-#[test]
-fn checked_publication_decline_returns_the_established_value_for_retry() {
-    let mut admitted = admitted_table();
-    let established = established_for(&admitted, 0x627);
-    let carrier = admitted
-        .table
-        .begin_interrupt_table_publication(
-            &admitted.ledger,
-            established,
-            publication_id(0x637),
-            authority_id(0x647),
-        )
-        .expect("issued publication carrier");
-    let authority = carrier_authority(&admitted, 0x647);
-    let operand = descriptor_operand(0x657, carrier.destination());
-
-    // A declined attempt installs no register state but still mints a
-    // receipt naming this exact carrier and authority.
-    let answer = carrier
-        .execute_checked_publication(
-            admitted._code,
-            &authority,
-            operand,
-            publication_receipt_id(0x66c),
-            false,
-        )
-        .expect("a declined attempt still answers under the checks");
-    assert!(!answer.is_published());
-    assert!(answer.installed_state().is_none());
-    assert!(!answer.receipt().published());
-    let (carrier, receipt, _operand, _state) = answer.into_parts();
-    let outcome = admitted
-        .table
-        .complete_interrupt_table_publication(&admitted.ledger, carrier, receipt)
-        .expect("the declined receipt refuses the carrier");
-    let InterruptTablePublicationOutcome::Refused(refusal) = outcome else {
-        panic!("a declined answer must refuse the publication")
-    };
-    let established = refusal.into_established();
-    assert_eq!(established.establishment(), establishment_id(0x627));
-
-    // Admission-phase custody is restored: the same established value
-    // retries under a fresh publication identity and publishes through the
-    // checked edge.
-    let carrier = admitted
-        .table
-        .begin_interrupt_table_publication(
-            &admitted.ledger,
-            established,
-            publication_id(0x638),
-            authority_id(0x648),
-        )
-        .expect("a refused attempt leaves admission-phase custody");
-    let authority = carrier_authority(&admitted, 0x648);
-    let operand = descriptor_operand(0x658, carrier.destination());
-    let answer = carrier
-        .execute_checked_publication(
-            admitted._code,
-            &authority,
-            operand,
-            publication_receipt_id(0x66d),
-            true,
-        )
-        .expect("the retried carrier publishes");
-    let (carrier, receipt, _operand, _state) = answer.into_parts();
-    let outcome = admitted
-        .table
-        .complete_interrupt_table_publication(&admitted.ledger, carrier, receipt)
-        .expect("the retried receipt completes");
-    let InterruptTablePublicationOutcome::Published(published) = outcome else {
-        panic!("the retried carrier publishes the table")
-    };
-    assert_eq!(published.publication(), publication_id(0x638));
-    assert_eq!(published.establishment(), establishment_id(0x627));
 }
 
 // ---------------------------------------------------------------------

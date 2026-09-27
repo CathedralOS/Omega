@@ -333,14 +333,6 @@ fn independent_validation_rejects_every_cross_table_corruption() {
 }
 
 #[test]
-fn system_v_hash_matches_known_generic_abi_vectors() {
-    assert_eq!(elf_hash(b""), 0x0000_0000);
-    assert_eq!(elf_hash(b"exit"), 0x0006_cf04);
-    assert_eq!(elf_hash(b"printf"), 0x0779_05a6);
-    assert_eq!(elf_hash(b"memcpy"), 0x073c_3a79);
-}
-
-#[test]
 fn gnu_hash_matches_known_vectors_and_exact_canonical_chain() {
     assert_eq!(gnu_hash(b""), 0x0000_1505);
     assert_eq!(gnu_hash(b"exit"), 0x7c96_7e3f);

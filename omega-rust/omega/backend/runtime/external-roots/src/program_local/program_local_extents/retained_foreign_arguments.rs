@@ -129,12 +129,9 @@ impl RetainedForeignArgumentRequest {
 #[derive(Debug)]
 enum RetainedForeignCustody {
     LifetimeBorrowed,
-    // No authored Terminal custody row selects the moved or snapshot
-    // dispositions yet; their entries exist only so tests can witness the
-    // ledger's admission machinery until `retain_foreign_argument_under_custody`
-    // learns those rows.
-    #[cfg(test)]
-    Moved(Extent),
+    // No authored Terminal custody row selects the snapshot disposition yet;
+    // its entry exists only so tests can witness the ledger's admission
+    // machinery until `retain_foreign_argument_under_custody` learns that row.
     #[cfg(test)]
     Snapshot(Extent),
 }
@@ -202,8 +199,6 @@ impl RetainedForeignArgument {
             RetainedForeignCustody::LifetimeBorrowed => {
                 RetainedForeignArgumentDisposition::LifetimeBorrowed
             }
-            #[cfg(test)]
-            RetainedForeignCustody::Moved(_) => RetainedForeignArgumentDisposition::Moved,
             #[cfg(test)]
             RetainedForeignCustody::Snapshot(_) => RetainedForeignArgumentDisposition::Snapshot,
         }
@@ -296,65 +291,6 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
             extent.provenance(),
             extent.era(),
             RetainedForeignCustody::LifetimeBorrowed,
-        ))
-    }
-
-    #[cfg(test)]
-    pub(crate) fn retain_foreign_argument_moved(
-        &mut self,
-        extent: Extent,
-        access: RetainedForeignAccess,
-        rights: ExtentRights,
-    ) -> Result<RetainedForeignArgument, Box<RetainedForeignArgumentError<Extent>>> {
-        let (_, origin) = match self.validate_backing(&extent) {
-            Ok(value) => value,
-            Err(diagnostic) => return Err(Box::new(error(extent, diagnostic.0))),
-        };
-        if !extent.rights().contains(&rights) {
-            return Err(Box::new(error(
-                extent,
-                "retained foreign argument rights exceed the Extent's authority",
-            )));
-        }
-        if let Err(diagnostic) =
-            self.check_retention_conflict(origin, extent.base(), extent.length(), access)
-        {
-            return Err(Box::new(error(extent, diagnostic.0)));
-        }
-        let identity = match self.next_retention_id() {
-            Ok(identity) => identity,
-            Err(diagnostic) => return Err(Box::new(error(extent, diagnostic.0))),
-        };
-        let held = self
-            .held
-            .get_mut(&origin)
-            .expect("validated program-local origin remains held");
-        held.retained.insert(
-            identity,
-            super::LiveRetention {
-                base: extent.base(),
-                length: extent.length(),
-                access,
-            },
-        );
-        let base = extent.base();
-        let length = extent.length();
-        let lineage = extent.lineage_root();
-        let address_space = extent.address_space();
-        let provenance = extent.provenance();
-        let era = extent.era();
-        Ok(Self::build_retained(
-            identity,
-            origin,
-            lineage,
-            address_space,
-            base,
-            length,
-            access,
-            rights,
-            provenance,
-            era,
-            RetainedForeignCustody::Moved(extent),
         ))
     }
 
@@ -529,9 +465,7 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
         let returned = match retained.custody {
             RetainedForeignCustody::LifetimeBorrowed => None,
             #[cfg(test)]
-            RetainedForeignCustody::Moved(extent) | RetainedForeignCustody::Snapshot(extent) => {
-                Some(extent)
-            }
+            RetainedForeignCustody::Snapshot(extent) => Some(extent),
         };
         Ok(ReleasedRetainedForeignArgument {
             identity: retained.identity,

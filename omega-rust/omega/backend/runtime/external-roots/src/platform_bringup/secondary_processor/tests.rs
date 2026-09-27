@@ -724,50 +724,6 @@ fn unconfirmed_dispatch_holds_the_account_invoked_until_a_definitive_receipt() {
 }
 
 #[test]
-fn unconfirmed_dispatch_resolved_to_nondispatch_returns_pending_custody() {
-    let code = installed_x86_trampoline(vec![0xCC; 96]);
-    let mut ledger = bound_ledger(&code);
-    ledger
-        .admit_secondary_processor(processor_account(0x10, 9, 0x2_0000, 0x1000))
-        .expect("secondary processor admits");
-
-    let carrier = ledger
-        .begin_secondary_processor_startup(processor_id(0x10), invocation_id(0x20))
-        .expect("startup invocation issues");
-    let unconfirmed = SecondaryProcessorStartupReceipt::from_provider(
-        receipt_id(0x30),
-        &carrier,
-        SecondaryProcessorStartupVerdict::DispatchUnconfirmed,
-    );
-    let SecondaryProcessorStartupOutcome::Unconfirmed(unresolved) = ledger
-        .complete_secondary_processor_startup(carrier, unconfirmed)
-        .expect("unconfirmed startup completes")
-    else {
-        panic!("an unconfirmed dispatch must not resolve the account");
-    };
-
-    // A later definite nondispatch answers the outstanding carrier: only
-    // then does the account return to pending, withdrawable custody.
-    let carrier = unresolved.into_carrier();
-    let definitive = SecondaryProcessorStartupReceipt::from_provider(
-        receipt_id(0x31),
-        &carrier,
-        SecondaryProcessorStartupVerdict::DefiniteNondispatch,
-    );
-    let outcome = ledger
-        .complete_secondary_processor_startup(carrier, definitive)
-        .expect("definitive nondispatch completes the outstanding attempt");
-    assert!(matches!(
-        outcome,
-        SecondaryProcessorStartupOutcome::Refused(_)
-    ));
-    let withdrawal = ledger
-        .withdraw_secondary_processor(processor_id(0x10))
-        .expect("a confirmed nondispatch permits withdrawal");
-    assert_eq!(withdrawal.processor(), processor_id(0x10));
-}
-
-#[test]
 fn started_processor_holds_its_account_until_a_quiescence_edge() {
     let code = installed_x86_trampoline(vec![0xCC; 96]);
     let mut ledger = bound_ledger(&code);

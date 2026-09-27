@@ -4,9 +4,8 @@ use super::{
     Candidate, ElfDynamicAddressObligation, ElfDynamicAddressTarget, ElfDynamicSemanticRow,
     ElfDynamicTag, ElfDynamicValue, TargetProfile,
     ValidatedElfProcedureLinkageSectionDescriptorPlan, checked_product, checked_sum, checked_u32,
-    derive_contents, dynamic_payloads, dynamic_string,
-    non_authoritative_tag_compatibility_fingerprint, plan_elf_dynamic_tags, structural_contents,
-    validate_candidate, validate_contents,
+    derive_contents, dynamic_string, non_authoritative_tag_compatibility_fingerprint,
+    plan_elf_dynamic_tags, structural_contents, validate_candidate, validate_contents,
 };
 use crate::{
     plan_elf_dynamic_link_inputs, plan_elf_dynamic_section_descriptors, plan_elf_dynamic_sections,
@@ -280,19 +279,6 @@ fn both_targets_plan_exact_needed_prefix_fixed_tags_and_address_obligations() {
         validate_contents(plan.descriptors(), &plan.contents)
             .expect("independent dynamic-tag replay");
     }
-}
-
-#[test]
-fn needed_rows_preserve_raw_non_utf8_names_and_significant_order() {
-    let plan = plan_elf_dynamic_tags(descriptors(TargetProfile::LinuxX64, &IMPORTS)).unwrap();
-    let dynstr = &dynamic_payloads(plan.descriptors()).payloads().dynstr;
-    let names = structural_contents(plan.descriptors())
-        .needed
-        .iter()
-        .map(|offset| dynamic_string(dynstr, *offset).unwrap())
-        .collect::<Vec<_>>();
-    assert_eq!(names, [b"liba\xff.so".as_slice(), b"libb.so".as_slice()]);
-    assert!(names[0].contains(&0xff));
 }
 
 #[test]

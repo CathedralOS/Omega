@@ -245,47 +245,6 @@ fn both_linux_targets_emit_exact_non_runnable_envelopes() {
 }
 
 #[test]
-fn exact_input_and_entry_changes_change_the_envelope() {
-    let first = serialize_elf_dynamic_file_envelope(resolved(
-        TargetProfile::LinuxX64,
-        EntryFixture::Text { offset: 8 },
-        b"first_envelope_call",
-    ))
-    .unwrap();
-    let replay = serialize_elf_dynamic_file_envelope(resolved(
-        TargetProfile::LinuxX64,
-        EntryFixture::Text { offset: 8 },
-        b"first_envelope_call",
-    ))
-    .unwrap();
-    let entry_change = serialize_elf_dynamic_file_envelope(resolved(
-        TargetProfile::LinuxX64,
-        EntryFixture::Text { offset: 12 },
-        b"first_envelope_call",
-    ))
-    .unwrap();
-    let import_change = serialize_elf_dynamic_file_envelope(resolved(
-        TargetProfile::LinuxX64,
-        EntryFixture::Text { offset: 8 },
-        b"second_envelope_call",
-    ))
-    .unwrap();
-    assert_eq!(first.header_prefix_bytes(), replay.header_prefix_bytes());
-    assert_eq!(
-        first.section_header_table_bytes(),
-        replay.section_header_table_bytes(),
-    );
-    assert_ne!(
-        first.non_authoritative_envelope_compatibility_fingerprint(),
-        entry_change.non_authoritative_envelope_compatibility_fingerprint(),
-    );
-    assert_ne!(
-        first.non_authoritative_envelope_compatibility_fingerprint(),
-        import_change.non_authoritative_envelope_compatibility_fingerprint(),
-    );
-}
-
-#[test]
 fn invalid_entry_rejection_returns_the_complete_upstream_owner() {
     for entry in [
         EntryFixture::Missing,

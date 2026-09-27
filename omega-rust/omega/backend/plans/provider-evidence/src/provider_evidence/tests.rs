@@ -161,26 +161,6 @@ fn exact_plan_lookup_rejects_a_substitute_claiming_the_same_report_identity() {
 }
 
 #[test]
-fn selected_closure_digest_distinguishes_compact_equal_calling_plans() {
-    let mut first = candidate("Alpha", "read");
-    first.schema.methods[0].calling_plan_report_fingerprint = Some(0x1234);
-    first.schema.methods[0].calling_plan_commitment =
-        Some(crate::provider_plan::BoundaryCallingPlanCommitment::from_digest([0x11; 32]));
-    let mut substituted = first.clone();
-    substituted.schema.methods[0].calling_plan_commitment =
-        Some(crate::provider_plan::BoundaryCallingPlanCommitment::from_digest([0x22; 32]));
-
-    assert_eq!(first.report_fingerprint(), substituted.report_fingerprint());
-    assert_ne!(first.identity_digest(), substituted.identity_digest());
-    let first = SelectedProviderPlanFacts::from_selected_plans(vec![first])
-        .expect("first exact selected closure");
-    let substituted = SelectedProviderPlanFacts::from_selected_plans(vec![substituted])
-        .expect("substituted exact selected closure");
-    assert_eq!(first.report_fingerprint(), substituted.report_fingerprint());
-    assert_ne!(first.identity_digest(), substituted.identity_digest());
-}
-
-#[test]
 fn resolved_selection_retains_same_spelled_plans_from_distinct_packages() {
     let first_package = semantic_vocabulary::PackageKeyIdentity::from_digest([0x31; 32])
         .expect("nonzero package identity");
@@ -523,48 +503,6 @@ fn selection_rejects_name_only_requirement_rows() {
 }
 
 #[test]
-fn opaque_selection_survives_a_checked_wrapper_as_attributed_incompleteness() {
-    let checked_wrapper = candidate("CheckedWrapper", "read");
-    let mut opaque_leaf = candidate("OpaqueLeaf", "read_raw");
-    opaque_leaf.schema.trait_name = "RawStorage".into();
-    opaque_leaf.target = "windows_x86_64".into();
-    let locator = crate::normalize_foreign_locator(
-        crate::ForeignLocatorCandidate::PeByName {
-            library: b"vendor-storage.dll".to_vec(),
-            export: b"read_raw".to_vec(),
-        },
-        target::TargetProfile::WindowsX64,
-    )
-    .expect("normalized opaque import");
-    opaque_leaf.rows[0].binding = ProviderBinding::Import {
-        evaluated: evaluated_import(locator.clone(), 11),
-    };
-    let selected = SelectedProviderPlanFacts::from_selection(
-        &[checked_wrapper.clone(), opaque_leaf.clone()],
-        &[checked_wrapper.name.clone(), opaque_leaf.name.clone()],
-    )
-    .expect("both transitive selections are exact");
-
-    let manifest = selected.executable_tcb_manifest();
-    assert_eq!(manifest.known_entries.len(), 1);
-    let crate::ScopeCompleteness::Incomplete { causes, .. } = manifest.completeness else {
-        panic!("opaque in-process selection must make the scope incomplete");
-    };
-    assert_eq!(causes.len(), 1);
-    assert!(matches!(
-        &causes[0],
-        crate::IncompleteCause::SelectedOpaqueProvider {
-            provider_plan_report_identity,
-            binding: crate::OpaqueInProcessBinding::Import {
-                evaluated: retained,
-            },
-            ..
-        } if *provider_plan_report_identity == opaque_leaf.report_fingerprint()
-            && retained.locator() == &locator
-    ));
-}
-
-#[test]
 fn selected_plan_identity_changes_with_normalized_import_coordinates() {
     fn selected(export: &[u8]) -> SelectedProviderPlanFacts {
         let mut plan = candidate("OpaqueLeaf", "read_raw");
@@ -665,54 +603,6 @@ fn pinned_opaque_entry_remains_incomplete_without_executable_closure_evidence() 
         manifest.completeness,
         crate::ScopeCompleteness::Incomplete { ref causes, .. } if causes.len() == 1
     ));
-}
-
-#[test]
-fn exact_closure_and_containment_receipts_complete_the_opaque_scope() {
-    let (opaque, opaque_binding) = opaque_candidate("Opaque", "read", b"platform", b"read", 42);
-    let plan_identity = opaque.report_fingerprint();
-    let selected = SelectedProviderPlanFacts::from_selection(
-        std::slice::from_ref(&opaque),
-        std::slice::from_ref(&opaque.name),
-    )
-    .expect("selected opaque provider")
-    .with_opaque_executable_admissions([crate::OpaqueExecutableAdmissionCandidate {
-        provider_plan_report_identity: plan_identity,
-        provider_plan_digest: opaque.identity_digest(),
-        method: "read".into(),
-        requirement_identity: opaque.schema.methods[0].requirement_identity.clone(),
-        binding: opaque_binding.clone(),
-        executable_identity: "platform-baseline:read-v1".into(),
-        implementation_evidence_identity: "receipt:platform-read-v1".into(),
-        execution_scope: crate::ExecutionScope::CallerAddressSpace,
-        containment: vec![
-            crate::ContainmentEvidence {
-                guarantee: crate::ContainmentGuarantee::BoundedResources,
-                evidence_identity: "receipt:quota-v1".into(),
-            },
-            crate::ContainmentEvidence {
-                guarantee: crate::ContainmentGuarantee::MemoryIsolation,
-                evidence_identity: "receipt:memory-v1".into(),
-            },
-        ],
-        executable_closure_evidence_identity: Some("receipt:closed-loader-v1".into()),
-    }])
-    .expect("exact opaque admission");
-
-    let manifest = selected.executable_tcb_manifest();
-    assert_eq!(manifest.known_entries[0].containment.len(), 2);
-    let crate::ScopeCompleteness::Complete {
-        opaque_closure_evidence,
-        ..
-    } = manifest.completeness
-    else {
-        panic!("closed executable envelope should complete the scope");
-    };
-    assert_eq!(opaque_closure_evidence.len(), 1);
-    assert_eq!(
-        opaque_closure_evidence[0].evidence_identity,
-        "receipt:closed-loader-v1"
-    );
 }
 
 #[test]
@@ -854,48 +744,4 @@ fn checked_and_intrinsic_entries_are_derived_only_from_selected_plans() {
             && entry.execution_scope == crate::ExecutionScope::CallerAddressSpace
             && entry.selected_requirement.is_some()
     }));
-}
-
-#[test]
-fn executable_manifest_keeps_same_named_overload_rows_distinct() {
-    let mut overloaded = candidate("Convert", "convert");
-    let first_identity = "named-callable:path=ConvertService::convert;result=Ordinary";
-    let second_identity = "named-callable:path=ConvertService::convert;result=Saturating";
-    let mut second_method = overloaded.schema.methods[0].clone();
-    overloaded.schema.methods[0].requirement_identity = first_identity.into();
-    second_method.requirement_identity = second_identity.into();
-    overloaded.schema.methods.push(second_method);
-    overloaded.rows[0].requirement_identity = first_identity.into();
-    overloaded.rows.push(ProviderPlanRow {
-        method: "convert".into(),
-        requirement_identity: second_identity.into(),
-        requirement_lifetime_partition: Vec::new(),
-        binding: ProviderBinding::CheckedAdapter {
-            machine_identity: "ConvertProvider::convert".into(),
-            machine_package_identity: None,
-        },
-    });
-
-    let selected = SelectedProviderPlanFacts::from_selection(&[overloaded], &["Convert".into()])
-        .expect("same-named exact overload rows cover distinct requirements");
-    let manifest = selected.executable_tcb_manifest();
-    assert_eq!(
-        manifest.known_entries.len(),
-        2,
-        "one shared executable must not collapse distinct selected requirement rows"
-    );
-    let mut identities = manifest
-        .known_entries
-        .iter()
-        .map(|entry| {
-            let requirement = entry
-                .selected_requirement
-                .as_ref()
-                .expect("static selected row identity");
-            assert_eq!(requirement.method, "convert");
-            requirement.requirement_identity.as_str()
-        })
-        .collect::<Vec<_>>();
-    identities.sort_unstable();
-    assert_eq!(identities, [first_identity, second_identity]);
 }

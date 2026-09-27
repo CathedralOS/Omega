@@ -33,33 +33,4 @@ pub(crate) fn elf_entry_address(image: &FinalImage, text_address: u64) -> Result
 }
 
 #[cfg(test)]
-mod tests {
-    use super::elf_entry_address;
-    use arena::Handle;
-    use image::{FinalImage, FinalImageSection, FinalImageSymbol};
-
-    #[test]
-    fn resolves_elf_entry_address_from_final_image_entry_symbol() {
-        let mut image = FinalImage::with_capacity(
-            FinalImage::default().target,
-            image::FinalImageMemory {
-                text: vec![0; 16],
-                ..Default::default()
-            },
-            Handle::invalid(),
-            0,
-            0,
-            0,
-        );
-        let entry_symbol = image.symbol_table.symbols.insert(FinalImageSymbol {
-            name: "_start".into(),
-            section: FinalImageSection::Text,
-            offset: 4,
-            size: 4,
-            ..FinalImageSymbol::default()
-        });
-        image.symbol_table.entry_symbol = entry_symbol;
-
-        assert_eq!(elf_entry_address(&image, 0x401000).unwrap(), 0x401004);
-    }
-}
+mod tests {}

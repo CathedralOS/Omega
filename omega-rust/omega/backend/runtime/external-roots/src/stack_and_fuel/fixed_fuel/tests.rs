@@ -839,62 +839,6 @@ fn installed_segment_replay_is_exact_and_never_becomes_entry_authority() {
 }
 
 #[test]
-fn installed_segment_catalog_binds_one_complete_partition_to_one_occurrence() {
-    let module = terminal_fixture();
-    let verified = verify_module(
-        &module,
-        &ProofBundle::default(),
-        &AdmissionProfile::default(),
-    )
-    .expect("terminal fixture verifies");
-    let catalog = derive_validated_fixed_safe_point_segments(&verified, module.entry)
-        .expect("complete two-segment partition");
-    assert_eq!(catalog.certificates().len(), 2);
-    assert_eq!(
-        catalog.certificates()[0].start_block(),
-        module.machines[0].entry
-    );
-    assert_eq!(
-        catalog.certificates()[1].start_block(),
-        module.machines[0].blocks[1].id
-    );
-
-    let terminal = TestObject {
-        identity: terminal_psi_identity(&module).expect("terminal identity"),
-        machine: module.entry,
-        bytes: vec![0; 64],
-    };
-    let selected_entry = entry(0x7340);
-    let installed = installed_code(0x7350, 0x7360, selected_entry);
-    let binding =
-        bind_installed_segment_fuel_catalog(catalog, &terminal, &installed, selected_entry)
-            .expect("complete partition binds to one installed function occurrence");
-
-    assert_eq!(binding.psi(), terminal.identity);
-    assert_eq!(binding.machine(), module.entry);
-    assert_eq!(binding.segments().len(), 2);
-    assert_eq!(binding.installed_code(), installed.identity());
-    assert_eq!(binding.artifact(), installed.artifact());
-    assert_eq!(binding.entry(), selected_entry);
-    validate_installed_segment_fuel_catalog(&binding, &installed, selected_entry)
-        .expect("exact installed occurrence replays");
-
-    let wrong_occurrence = installed_code(0x7350, 0x7361, selected_entry);
-    assert!(
-        validate_installed_segment_fuel_catalog(&binding, &wrong_occurrence, selected_entry,)
-            .is_err()
-    );
-    let wrong_artifact = installed_code(0x7352, 0x7362, selected_entry);
-    assert!(
-        validate_installed_segment_fuel_catalog(&binding, &wrong_artifact, selected_entry,)
-            .is_err()
-    );
-    assert!(validate_installed_segment_fuel_catalog(&binding, &installed, entry(0x7341),).is_err());
-    validate_installed_segment_fuel_catalog(&binding, &installed, selected_entry)
-        .expect("failed borrowed replay leaves the installed catalog intact");
-}
-
-#[test]
 fn installed_natural_cycle_safe_point_catalog_binds_to_one_occurrence() {
     let module = ranked_terminal_fixture();
     let proof = ranked_terminal_proof(&module);

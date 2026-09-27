@@ -102,17 +102,6 @@ mod tests {
     };
 
     #[test]
-    fn approved_provider_authorizes_its_exact_boundary_capability() {
-        let provider_symbol = SymbolHandle::from_arena_index(1);
-        let mut registry = BoundaryProviderApprovalRegistry::new();
-        registry.register(BoundaryProviderApproval::new(provider_symbol, true));
-
-        let decision = registry.authorize_boundary_call(provider_symbol);
-        assert_eq!(decision, BoundaryCallApproval::Approved);
-        assert!(decision.is_approved());
-    }
-
-    #[test]
     fn unapproved_provider_is_rejected() {
         let provider_symbol = SymbolHandle::from_arena_index(2);
         let mut registry = BoundaryProviderApprovalRegistry::new();

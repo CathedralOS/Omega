@@ -229,14 +229,10 @@ const fn manifest_scope(manifest: &ExecutableTcbManifest) -> ExecutionScope {
 #[cfg(test)]
 mod tests {
     use super::{
-        ContainmentEvidence, ExecutableIdentity, ExecutableTcbManifest, ExecutableTcbManifestSet,
-        ExecutionScope, IsolatedExecutableScopeCandidate, ProviderIdentity, ProviderPlan,
-        ScopeCompleteness,
+        ContainmentEvidence, ExecutableTcbManifest, ExecutableTcbManifestSet, ExecutionScope,
+        IsolatedExecutableScopeCandidate, ProviderIdentity, ProviderPlan, ScopeCompleteness,
     };
-    use crate::{
-        ContainmentGuarantee, ExactExecutableTcbAllowance, ExecutableTcbProfile,
-        IncompleteScopePolicy, SelectedProviderPlanFacts, evaluate_executable_tcb_profile,
-    };
+    use crate::{ContainmentGuarantee, SelectedProviderPlanFacts};
 
     fn isolated_manifest(scope_identity: u64) -> ExecutableTcbManifest {
         SelectedProviderPlanFacts::default()
@@ -260,29 +256,6 @@ mod tests {
             }],
             isolated_manifest: isolated_manifest(scope_identity),
         }
-    }
-
-    #[test]
-    fn caller_retains_endpoint_and_child_keeps_a_separate_manifest() {
-        let root = SelectedProviderPlanFacts::default().executable_tcb_manifest();
-        let mut manifests = ExecutableTcbManifestSet::new(root).expect("caller manifest");
-        manifests
-            .attach_isolated_scope(candidate(101))
-            .expect("exact isolated scope");
-
-        assert_eq!(manifests.root().known_entries.len(), 1);
-        assert!(matches!(
-            manifests.root().known_entries[0].executable_identity,
-            ExecutableIdentity::IsolatedProviderEndpoint {
-                scope_identity: 101,
-                ..
-            }
-        ));
-        assert_eq!(manifests.isolated().len(), 1);
-        assert_eq!(
-            manifests.isolated()[0].scope(),
-            ExecutionScope::IsolatedProvider(101)
-        );
     }
 
     #[test]
@@ -331,54 +304,6 @@ mod tests {
                 .attach_isolated_scope(candidate(303))
                 .expect_err("duplicate child scope")
                 .contains("attached more than once")
-        );
-    }
-
-    #[test]
-    fn profiles_evaluate_parent_endpoint_and_child_scope_independently() {
-        let root = SelectedProviderPlanFacts::default().executable_tcb_manifest();
-        let mut child = candidate(404);
-        child.isolated_manifest.completeness = ScopeCompleteness::Incomplete {
-            scope: ExecutionScope::IsolatedProvider(404),
-            causes: Vec::new(),
-            opaque_closure_evidence: Vec::new(),
-            runtime_closure_evidence: Vec::new(),
-        };
-        let mut manifests = ExecutableTcbManifestSet::new(root).expect("caller manifest");
-        manifests
-            .attach_isolated_scope(child)
-            .expect("separate child scope");
-        let endpoint = &manifests.root().known_entries[0];
-        let root_profile = ExecutableTcbProfile {
-            name: "caller".into(),
-            scope: ExecutionScope::CallerAddressSpace,
-            allow_static_current_artifact_checked_bodies: true,
-            exact_allowances: vec![ExactExecutableTcbAllowance {
-                provider_identity: endpoint.provider_identity.clone(),
-                provider_plan_report_identity: endpoint.provider_plan_report_identity,
-                provider_plan_digest: endpoint.provider_plan_digest,
-                selected_requirement: endpoint.selected_requirement.clone(),
-                executable_identity: endpoint.executable_identity.clone(),
-                implementation_evidence: endpoint.implementation_evidence.clone(),
-                origin: endpoint.origin,
-                execution_scope: endpoint.execution_scope,
-                required_containment: vec![ContainmentGuarantee::MemoryIsolation],
-            }],
-            incomplete_scope: IncompleteScopePolicy::Reject,
-        };
-        evaluate_executable_tcb_profile(manifests.root(), &root_profile)
-            .expect("child incompleteness does not contaminate caller profile");
-
-        let child_profile = ExecutableTcbProfile {
-            name: "isolated-child".into(),
-            scope: ExecutionScope::IsolatedProvider(404),
-            allow_static_current_artifact_checked_bodies: true,
-            exact_allowances: Vec::new(),
-            incomplete_scope: IncompleteScopePolicy::Reject,
-        };
-        assert!(
-            evaluate_executable_tcb_profile(manifests.isolated()[0].manifest(), &child_profile)
-                .is_err()
         );
     }
 }

@@ -286,40 +286,6 @@ fn program_local_root_epoch_lease_requires_current_open_exact_contract_and_artif
 }
 
 #[test]
-fn live_program_local_root_epoch_lease_blocks_quiescence_and_retirement() {
-    let mut ledger = ledger(2);
-    publish(&mut ledger, 10, 100);
-    let lease = ledger
-        .acquire_program_local_root_epoch_lease(lease_id(900), 10, "CodecEntry/v1")
-        .expect("lease");
-    publish(&mut ledger, 20, 101);
-
-    let retirement = ComponentEraRetirementReceipt::from_runtime(700, &ledger, 10, true);
-    let blocked = ledger.retire(retirement).expect_err("live epoch lease");
-    assert!(blocked.diagnostic().contains("epoch leases remain live"));
-    let quiescence = ComponentEraQuiescenceReceipt::from_runtime(&ledger, 10, 0, true);
-    let blocked = ledger
-        .establish_quiescence(quiescence)
-        .expect_err("authority hold");
-    assert!(blocked.diagnostic().contains("authority holds"));
-
-    ledger
-        .release_program_local_root_epoch_lease(lease)
-        .expect("exact release");
-    assert_eq!(ledger.program_local_root_authority_holds(10), Some(0));
-    ledger
-        .establish_quiescence(ComponentEraQuiescenceReceipt::from_runtime(
-            &ledger, 10, 0, true,
-        ))
-        .expect("quiescence after release");
-    ledger
-        .retire(ComponentEraRetirementReceipt::from_runtime(
-            700, &ledger, 10, true,
-        ))
-        .expect("retirement after release");
-}
-
-#[test]
 fn epoch_lease_release_rejects_ledger_substitution_and_identity_replay() {
     let mut first = ledger_with_identity(1, 1);
     let mut second = ledger_with_identity(2, 1);

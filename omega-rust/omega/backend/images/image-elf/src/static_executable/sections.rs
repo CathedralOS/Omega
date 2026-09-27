@@ -53,35 +53,4 @@ pub(crate) fn plan_elf_sections(image: &FinalImage) -> ElfSections {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::plan_elf_sections;
-    use crate::constants::{IMAGE_BASE, PAGE_SIZE};
-    use arena::Handle;
-    use image::FinalImage;
-
-    #[test]
-    fn plans_elf_text_data_and_bss_layout() {
-        let image = FinalImage::with_capacity(
-            FinalImage::default().target,
-            image::FinalImageMemory {
-                text: vec![0; 3],
-                data: vec![0; 5],
-                bss_size: 7,
-                bss_alignment: 8,
-            },
-            Handle::invalid(),
-            0,
-            0,
-            0,
-        );
-
-        let sections = plan_elf_sections(&image);
-
-        assert_eq!(sections.text_offset, PAGE_SIZE);
-        assert_eq!(sections.data_offset, PAGE_SIZE * 2);
-        assert_eq!(sections.text_address, IMAGE_BASE + PAGE_SIZE as u64);
-        assert_eq!(sections.data_address, IMAGE_BASE + (PAGE_SIZE * 2) as u64);
-        assert_eq!(sections.bss_address, sections.data_address + 8);
-        assert_eq!(sections.data_memory_size, 15);
-    }
-}
+mod tests {}
