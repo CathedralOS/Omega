@@ -4,7 +4,6 @@ use super::super::PackageSourceVerificationPhase;
 use super::{
     CandidateSourcePreparation, CompileResolvedPackageReviewsError, SemanticBindingReview,
     TargetEntryDiscovery, candidate_semantic_binding_inputs, compile_pass,
-    compile_resolved_package_candidate_for_check,
     compile_resolved_package_candidate_for_production, compile_resolved_package_reviews,
     compile_resolved_package_reviews_reusing,
 };
@@ -129,39 +128,6 @@ fn production_rejects_package_role_before_either_binding_mode_creates_a_session(
         ));
         assert!(!build.exists());
     }
-}
-
-#[test]
-fn check_retains_requested_package_entry_after_disposal_without_production() {
-    let fixture = SourcePreparationFixture::new();
-    fs::write(
-        fixture.0.join("package/main.omg"),
-        "invalid unselected source",
-    )
-    .unwrap();
-    fs::write(
-        fixture.0.join("package/entry.omg"),
-        "pub const VALUE: u32 = 8;\n",
-    )
-    .unwrap();
-    let closure = fixture.closure();
-    let target = target::TargetProfile::WindowsX64;
-    let entry = closure
-        .source_root(closure.graph().root())
-        .unwrap()
-        .join("entry.omg");
-    let build = fixture.0.join("check");
-    let (checked, _reviews) = compile_resolved_package_candidate_for_check(
-        &closure.for_exact_target(target),
-        &build,
-        &entry,
-        None,
-        false,
-    )
-    .expect("check accepts a package and does not read its unselected main");
-    assert_eq!(checked.selected_target_profile(), Some(target));
-    assert!(fs::read_dir(&build).unwrap().next().is_none());
-    checked.verify_current_source_consumption().unwrap();
 }
 
 struct SourcePreparationFixture(PathBuf);

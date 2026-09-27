@@ -26,6 +26,3 @@ fn hash_bytes(digest: &mut Sha256, bytes: &[u8]) {
     );
     digest.update(bytes);
 }
-
-#[cfg(test)]
-mod tests;

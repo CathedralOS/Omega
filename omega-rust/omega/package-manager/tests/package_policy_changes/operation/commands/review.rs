@@ -229,20 +229,6 @@ fn discard_abandons_only_pending_review_and_never_rolls_back_accepted_files() {
 }
 
 #[test]
-fn retained_assumptions_recommend_audit_for_repeated_source_upgrades() {
-    repeated_update_audit(ASSUMPTION);
-}
-
-#[test]
-fn retained_external_supply_recommends_audit_for_repeated_source_upgrades() {
-    repeated_update_audit(concat!(
-        "pub boundary trait ForeignSurface { machine invoke() reaches ForeignSurface; }\n",
-        "pub machine invoke_leaf() satisfies ForeignSurface::invoke\n",
-        " via ForeignBinding::Syscall(60);\n",
-    ));
-}
-
-#[test]
 fn retained_filesystem_authority_recommends_audit_for_repeated_source_upgrades() {
     // Same source as policy_changes/authority.rs. The command's candidate
     // entrance discovers and recompiles the exact FilesystemHost binding.

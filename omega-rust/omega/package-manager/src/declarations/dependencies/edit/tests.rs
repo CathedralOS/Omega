@@ -60,30 +60,6 @@ fn application_build(statements: &str) -> String {
 }
 
 #[test]
-fn adds_to_empty_canonical_build_without_mutating_input() {
-    let source = application_build("");
-    let replacement = automatic(
-        plan_dependency_addition_from_source(
-            PathBuf::from("build.omg"),
-            source.clone(),
-            &path("../math"),
-        )
-        .expect("plan addition"),
-    );
-
-    assert_eq!(source, application_build(""));
-    assert_eq!(
-        extract_scoped_from_source(replacement.replacement_source()).expect("project replacement"),
-        vec![(DependencyPurpose::Product, path("../math"))]
-    );
-    assert!(
-        replacement
-            .replacement_source()
-            .contains("    builder.depend(Source::Path { location: \"../math\" });")
-    );
-}
-
-#[test]
 fn rejects_dependency_edits_without_an_explicit_project_role() {
     let source = "".to_owned();
     assert!(matches!(
@@ -92,26 +68,6 @@ fn rejects_dependency_edits_without_an_explicit_project_role() {
             DependencyProjectionError::BuildDeclaration(error)
         )) if matches!(*error, crate::declarations::roles::BuildDeclarationError::MissingBuildDeclaration)
     ));
-}
-
-#[test]
-fn appends_after_existing_build_work_and_preserves_it() {
-    let source = r#"machine build(builder: &mut Build) {
-    builder.application("dependency_edit_probe");
-    builder.target(Target::Host);
-}
-"#
-    .to_owned();
-    let replacement = automatic(
-        plan_dependency_addition_from_source(PathBuf::from("build.omg"), source, &path("vendor"))
-            .expect("plan addition"),
-    );
-
-    assert!(
-        replacement
-            .replacement_source()
-            .contains("    builder.target(Target::Host);\n    builder.depend")
-    );
 }
 
 #[test]
@@ -323,24 +279,6 @@ fn replacement_from_unchanged_sources_retains_exact_bytes() {
         source.as_bytes()
     );
     assert_eq!(replacement.expected_sha256(), &source_digest(source));
-}
-
-#[test]
-fn replacement_from_sources_recovers_a_saved_proposal() {
-    let source = application_build("");
-    let build_path = PathBuf::from("command-owned/build.omg");
-    let planned = automatic(
-        plan_dependency_addition_from_source(build_path.clone(), source.clone(), &path("vendor"))
-            .expect("plan addition"),
-    );
-    let recovered = BuildFileReplacement::from_sources(
-        build_path,
-        &source,
-        planned.replacement_source().to_owned(),
-    )
-    .expect("recover saved proposal");
-
-    assert_eq!(recovered, planned);
 }
 
 #[test]

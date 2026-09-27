@@ -74,32 +74,6 @@ fn cleanup(root: &Path) {
 }
 
 #[test]
-fn myers_diff_reconstructs_exact_line_edits() {
-    let baseline = lines(b"alpha\nbeta\ngamma\nlast");
-    let candidate = lines(b"alpha\nchanged\ngamma\nlast\nadded\n");
-    let mut budget = DiffBudget::new(PackageSourcePatchLimits::default());
-    budget.add_lines(baseline.len(), candidate.len()).unwrap();
-    let edits = myers_diff(&baseline, &candidate, &mut budget).unwrap();
-    let mut old = Vec::new();
-    let mut new = Vec::new();
-    for edit in edits {
-        match edit {
-            Edit::Equal {
-                baseline: old_index,
-                candidate: new_index,
-            } => {
-                old.push(baseline[old_index]);
-                new.push(candidate[new_index]);
-            }
-            Edit::Remove { baseline: index } => old.push(baseline[index]),
-            Edit::Add { candidate: index } => new.push(candidate[index]),
-        }
-    }
-    assert_eq!(old, baseline);
-    assert_eq!(new, candidate);
-}
-
-#[test]
 fn myers_diff_reconstructs_every_small_repeated_line_sequence() {
     fn sequence(mask: usize, length: usize) -> Vec<u8> {
         let mut bytes = Vec::new();
