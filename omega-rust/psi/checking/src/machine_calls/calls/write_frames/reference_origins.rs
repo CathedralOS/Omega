@@ -491,6 +491,39 @@ pub(super) fn owned_receiver_origin(
     inference: &mut FrameInference,
 ) -> Option<FramePlaceOrigin> {
     let parent = match program.expression_table.expression(expression) {
+        ExpressionNode::Borrow(borrow) if borrow.access.is_exclusive() => {
+            // Explicitly borrowing an owned receiver preserves its storage
+            // origin, just like the implicit borrow of an attached call.
+            // Borrowing a reference binding adds a boundary instead: do not
+            // unwrap that slot into the referent's origin.
+            if !matches!(
+                program.expression_table.expression(borrow.target),
+                ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
+            ) {
+                return None;
+            }
+            let (state, _, _) = caller_statement_owner(
+                program,
+                current_machine,
+                CallerWriteSite::Expression(expression),
+            )?;
+            let reference = crate::value_custody::places::declared_place_type_raw(
+                program,
+                current_machine,
+                Some(state),
+                borrow.target,
+            )?;
+            if !type_is_caller_isolated_local(program, reference) {
+                return None;
+            }
+            return owned_receiver_origin(
+                program,
+                current_machine,
+                borrow.target,
+                symbols,
+                inference,
+            );
+        }
         ExpressionNode::Name(_) => {
             let reference = caller_binding_type(program, current_machine, expression)?;
             if exclusive_reference_referee(program, reference).is_none()

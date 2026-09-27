@@ -86,3 +86,103 @@ fn arithmetic_snapshot_cannot_copy_a_pre_assignment_lower_bound() {
         check(&source, (!before_mutation).then_some("cannot prove"));
     }
 }
+
+#[test]
+fn explicit_owned_receiver_result_preserves_captured_count_across_later_call() {
+    check(
+        r#"
+data Storage { bytes: [u8; 8]; }
+data Engine { storage: Storage; }
+data Arenas<'scope> { bytes: &'scope mut [u8]; }
+machine Storage::borrow_arenas<'scope>(&mut self) -> Arenas<'scope> {
+ Arenas { bytes: &mut self.bytes }
+}
+machine noop() -> u64 { 0 }
+data Producer { value: u64; }
+machine Producer::copy_modules(&mut self, output: &mut [u8; 8]) -> u64
+ensures 0 <= result && result < 9;
+{
+    transition { _ -> copy(output, 0) }
+    state copy(&mut self, output: &mut [u8; 8], position: u64) -> u64
+    requires 0 <= position && position < 9;
+    {
+        transition position < self.value && position < 8 {
+            true -> store(output, position)
+            false -> (position)
+            _ -> (position)
+        }
+    }
+    state store(&mut self, output: &mut [u8; 8], position: u64) -> u64
+    requires 0 <= position && position < 8;
+    {
+        output[position] = 1;
+        transition { _ -> copy(output, position + 1) }
+    }
+}
+machine consume(values: &[u8]) -> u64 { values.len }
+machine demonstrate(producer: &mut Producer, engine: &mut Engine) -> u64 {
+    let mut output: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
+    let count: u64 = producer.copy_modules(&mut output);
+    let arenas: Arenas = (&mut engine.storage).borrow_arenas();
+    let ignored: u64 = noop();
+    consume(&output[0..count])
+}
+"#,
+        None,
+    );
+}
+
+#[test]
+fn explicit_owned_receiver_results_keep_backing_storage_writes() {
+    use validation::CallFrameResolver;
+
+    for (parameter, receiver, expected) in [
+        ("mut storage: Storage", "&mut storage", "storage.bytes"),
+        (
+            "engine: &mut Engine",
+            "&mut engine.storage",
+            "engine.storage.bytes",
+        ),
+        ("stores: &mut [Storage; 2]", "&mut stores[0]", "stores"),
+    ] {
+        let program = checked_fixture(
+            &format!(
+                "data Storage {{ bytes: [u8; 8]; }}
+             data Engine {{ storage: Storage; }}
+             data Arenas<'scope> {{ bytes: &'scope mut [u8; 8]; }}
+             machine Storage::borrow_arenas<'scope>(&mut self) -> Arenas<'scope> {{
+                 Arenas {{ bytes: &mut self.bytes }}
+             }}
+             machine exercise({parameter}) {{
+                 let arenas: Arenas = ({receiver}).borrow_arenas();
+                 arenas.bytes[0] = 1;
+             }}"
+            ),
+            None,
+        )
+        .unwrap()
+        .typed;
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "exercise")
+            .unwrap();
+        let state = &program.machine_states(machine)[0];
+        let assignment = &program.statement_table.statements(state.statement_nodes)[1];
+        let paths = CallFrameResolver::new(&program)
+            .unwrap()
+            .assignment_write_frame(machine, assignment)
+            .into_complete_paths()
+            .unwrap_or_else(|| panic!("complete returned-origin frame for {receiver}"));
+        assert!(
+            paths.iter().any(|path| path == expected),
+            "{receiver}: {paths:?}"
+        );
+        if expected == "stores" {
+            assert!(
+                !paths.iter().any(|path| path.starts_with("stores.")),
+                "{paths:?}"
+            );
+        }
+    }
+}

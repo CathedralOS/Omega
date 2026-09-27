@@ -6,6 +6,78 @@ use super::{
 use crate::CallFrameResolver;
 use symbols::SymbolKeyMap as HashMap;
 
+#[test]
+fn explicit_owned_receiver_origins_reject_added_reference_boundaries() {
+    use typed_trees::expression::ExpressionNode;
+
+    let program = crate::front_end::typed_program(
+        "data Storage { bytes: [u8; 8]; }
+         data Engine { storage: Storage; }
+         data Arenas<'scope> { bytes: &'scope mut [u8]; }
+         machine Storage::borrow_arenas<'scope>(&mut self) -> Arenas<'scope> {
+             Arenas { bytes: &mut self.bytes }
+         }
+         machine exercise(engine: &mut Engine) {
+             let arenas: Arenas = (&mut engine.storage).borrow_arenas();
+         }",
+    );
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "exercise")
+        .unwrap();
+    let state = &program.machine_states(machine)[0];
+    let StatementNode::LocalData(local) =
+        &program.statement_table.statements(state.statement_nodes)[0]
+    else {
+        panic!("arena local");
+    };
+    let ExpressionNode::Call(call) = program.expression_table.expression(local.initial_value)
+    else {
+        panic!("arena initializer");
+    };
+    let receiver = call.receiver;
+    let ExpressionNode::Borrow(borrow) = program.expression_table.expression(receiver) else {
+        panic!("explicit receiver");
+    };
+    let borrow = *borrow;
+    let ExpressionNode::Member(member) = program.expression_table.expression(borrow.target) else {
+        panic!("owned storage projection");
+    };
+    let root = member.receiver;
+    let machine_symbol = machine.symbol;
+    for boundary in ["shared", "nested", "reference slot"] {
+        let mut changed = program.clone();
+        let mut changed_borrow = borrow;
+        match boundary {
+            "shared" => changed_borrow.access = language_core::ReferenceAccess::Shared,
+            "nested" => {
+                changed_borrow.target = changed
+                    .expression_table
+                    .insert(ExpressionNode::Borrow(borrow))
+            }
+            "reference slot" => changed_borrow.target = root,
+            _ => unreachable!(),
+        }
+        *changed.expression_table.expression_mut(receiver) = ExpressionNode::Borrow(changed_borrow);
+        let machine = changed
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == machine_symbol)
+            .unwrap();
+        let mut diagnostics = Vec::new();
+        let symbols = TopLevelSymbols::build(&changed, &mut diagnostics);
+        let origin = super::super::reference_origins::owned_receiver_origin(
+            &changed,
+            machine,
+            receiver,
+            &symbols,
+            &mut FrameInference::default(),
+        );
+        assert!(origin.is_none(), "{boundary}: {origin:?}");
+    }
+}
+
 // The former demand route deliberately recovered the prefix separately for
 // the direct target and closure. Keep it as a result/work comparison, not a
 // second production query path.
