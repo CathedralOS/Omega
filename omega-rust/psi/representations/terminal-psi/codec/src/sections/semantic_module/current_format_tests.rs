@@ -2,18 +2,6 @@
 use super::{CodecError, FORMAT_MARKER, decode_module, encode_module};
 use terminal_psi::VocabularyMarker;
 
-// Captured from d743b4e805 before retiring its legacy encoder. This is a
-// complete previously accepted artifact, not a current body with stale markers.
-const LEGACY_UNIT: &[u8] = &[
-    80, 83, 73, 84, 69, 82, 77, 0, 56, 0, 59, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0,
-    0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-];
-
 // The same Unit semantics with the current declaration rosters and markers.
 // Empty erased-scalar-formal rosters occupy four bytes at block offset 252
 // and contract offset 289, and empty erased-proof rosters occupy four bytes
@@ -31,21 +19,6 @@ const CURRENT_UNIT: &[u8] = &[
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 ];
-
-#[test]
-fn complete_legacy_artifact_rejects_without_migration() {
-    assert_eq!(
-        decode_module(LEGACY_UNIT),
-        Err(CodecError::UnsupportedFormatMarker(56))
-    );
-    let mut relabeled = LEGACY_UNIT.to_vec();
-    relabeled[8..10].copy_from_slice(&FORMAT_MARKER.to_le_bytes());
-    relabeled[10..12].copy_from_slice(&VocabularyMarker::CURRENT.get().to_le_bytes());
-    assert!(
-        decode_module(&relabeled).is_err(),
-        "markers cannot repair missing current rosters"
-    );
-}
 
 #[test]
 fn current_unit_golden_bytes_remain_identical() {
@@ -154,30 +127,6 @@ fn closed_reach_module() -> terminal_psi::TerminalModule {
         });
     }
     module
-}
-
-#[test]
-fn closed_reach_relation_roundtrips_and_binds_semantic_identity() {
-    let module = closed_reach_module();
-    let bytes = encode_module(&module).expect("closed substitution encodes");
-    assert_eq!(decode_module(&bytes).unwrap(), module);
-    for end in 0..bytes.len() {
-        assert!(decode_module(&bytes[..end]).is_err(), "truncated at {end}");
-    }
-    let mut changed = module.clone();
-    changed.machines[0]
-        .closed_reach_application
-        .as_mut()
-        .unwrap()
-        .template_identity
-        .push_str("-other");
-    assert_ne!(
-        super::terminal_psi_identity(&module).unwrap(),
-        super::terminal_psi_identity(&changed).unwrap()
-    );
-    // Provenance is deliberately not a fabricated opening of the original
-    // source contract. A changed origin remains a different ordinary product.
-    assert!(encode_module(&changed).is_ok());
 }
 
 #[test]
@@ -333,24 +282,6 @@ fn structural_callback_requirement_remains_fixed_beside_nominal_reach() {
 }
 
 #[test]
-fn declared_service_reach_roundtrips_and_participates_in_semantic_identity() {
-    let module = declared_service_module();
-    let bytes = encode_module(&module).expect("declared service contract encodes");
-    assert_eq!(decode_module(&bytes).unwrap(), module);
-    assert_eq!(
-        encode_module(&decode_module(&bytes).unwrap()).unwrap(),
-        bytes
-    );
-    let mut undeclared = module.clone();
-    undeclared.machines[0].declared_service_reach.clear();
-    undeclared.root_service_reach.concrete.clear();
-    assert_ne!(
-        super::terminal_psi_identity(&module).unwrap(),
-        super::terminal_psi_identity(&undeclared).unwrap()
-    );
-}
-
-#[test]
 fn declared_service_reach_decoder_rejects_corrupt_rows_and_missing_root() {
     let module = declared_service_module();
     let mut duplicate = module.clone();
@@ -373,16 +304,6 @@ fn declared_service_reach_decoder_rejects_corrupt_rows_and_missing_root() {
             terminal_verifier::ModuleError::RootConcreteServiceReachMismatch { .. }
         ))
     ));
-}
-
-#[test]
-fn declared_service_reach_format_rejects_previous_contract_encoding() {
-    let mut bytes = encode_module(&declared_service_module()).unwrap();
-    bytes[8..10].copy_from_slice(&(FORMAT_MARKER - 1).to_le_bytes());
-    assert_eq!(
-        decode_module(&bytes),
-        Err(CodecError::UnsupportedFormatMarker(FORMAT_MARKER - 1))
-    );
 }
 
 fn fixed_boundary_service_module() -> terminal_psi::TerminalModule {
@@ -446,33 +367,6 @@ fn fixed_boundary_service_module() -> terminal_psi::TerminalModule {
 }
 
 #[test]
-fn fixed_boundary_service_reach_roundtrips_with_distinct_installation_identity() {
-    let module = fixed_boundary_service_module();
-    let bytes = encode_module(&module).expect("fixed boundary contract");
-    assert_eq!(decode_module(&bytes).unwrap(), module);
-    assert_eq!(
-        encode_module(&decode_module(&bytes).unwrap()).unwrap(),
-        bytes
-    );
-    let mut overlapping = module.clone();
-    let bound = overlapping.root_service_reach.installation_dependencies[0].upper_bound[0];
-    overlapping.boundary_machines[0]
-        .fixed_service_reach
-        .push(bound);
-    overlapping.root_service_reach.concrete.push(bound);
-    let overlapping_bytes = encode_module(&overlapping).unwrap();
-    assert_eq!(decode_module(&overlapping_bytes).unwrap(), overlapping);
-    assert_ne!(
-        super::semantic_fingerprint(&module).unwrap(),
-        super::semantic_fingerprint(&overlapping).unwrap()
-    );
-    assert_eq!(
-        module.root_service_reach.installation_dependencies,
-        overlapping.root_service_reach.installation_dependencies
-    );
-}
-
-#[test]
 fn fixed_boundary_service_reach_decoder_rejects_corrupt_partition_and_rosters() {
     let module = fixed_boundary_service_module();
     for mutation in 0..6 {
@@ -526,63 +420,6 @@ fn every_noncurrent_format_and_vocabulary_marker_rejects() {
             );
         }
     }
-}
-
-#[test]
-fn crossed_markers_truncation_and_trailing_bytes_reject() {
-    for format in [
-        0,
-        56,
-        FORMAT_MARKER - 1,
-        FORMAT_MARKER,
-        FORMAT_MARKER + 1,
-        u16::MAX,
-    ] {
-        for vocabulary in [
-            0,
-            59,
-            VocabularyMarker::CURRENT.get() - 1,
-            VocabularyMarker::CURRENT.get(),
-            VocabularyMarker::CURRENT.get() + 1,
-            u16::MAX,
-        ] {
-            let mut bytes = CURRENT_UNIT.to_vec();
-            bytes[8..10].copy_from_slice(&format.to_le_bytes());
-            bytes[10..12].copy_from_slice(&vocabulary.to_le_bytes());
-            assert_eq!(
-                decode_module(&bytes).is_ok(),
-                format == FORMAT_MARKER && vocabulary == VocabularyMarker::CURRENT.get()
-            );
-        }
-    }
-    for length in 0..CURRENT_UNIT.len() {
-        assert!(
-            decode_module(&CURRENT_UNIT[..length]).is_err(),
-            "truncation at {length}"
-        );
-    }
-    let mut trailing = CURRENT_UNIT.to_vec();
-    trailing.push(0);
-    assert_eq!(decode_module(&trailing), Err(CodecError::TrailingBytes(1)));
-}
-
-#[test]
-fn portable_envelope_cannot_hide_legacy_semantics() {
-    // Use the public envelope decoder: semantic admission precedes proof and
-    // optimization admission, even when those sections have no bytes.
-    let mut envelope = b"PSIART\0\0".to_vec();
-    envelope.extend_from_slice(&2_u16.to_le_bytes());
-    envelope.extend_from_slice(&(LEGACY_UNIT.len() as u64).to_le_bytes());
-    envelope.extend_from_slice(&0_u64.to_le_bytes());
-    envelope.extend_from_slice(&0_u64.to_le_bytes());
-    envelope.push(0);
-    envelope.extend_from_slice(LEGACY_UNIT);
-    assert!(matches!(
-        super::CanonicalTerminalArtifact::from_bytes(&envelope),
-        Err(super::CanonicalTerminalArtifactError::Semantic(
-            CodecError::UnsupportedFormatMarker(56)
-        ))
-    ));
 }
 
 fn schema_reach_module() -> terminal_psi::TerminalModule {

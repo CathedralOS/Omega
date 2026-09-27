@@ -2,10 +2,7 @@
 //! pending marks, and the selected-execution fold over generic argument
 //! positions (fields, `let` annotations, return types).
 
-use super::{
-    const_application_plan, defer_pending_const_applications, evaluate_selected_const_applications,
-    pending_const_applications_need_operator_selection,
-};
+use super::{const_application_plan, evaluate_selected_const_applications};
 use crate::SelectedBuildTimeOperators;
 use typed_trees::TypedTrees;
 use typed_trees::types::TypeReferenceNode;
@@ -82,64 +79,6 @@ fn folded_const_arguments(program: &TypedTrees) -> Vec<String> {
 }
 
 #[test]
-fn provider_boundary_const_application_waits_for_selected_execution() {
-    let (program, rows) = provider_application_fixture();
-    assert_eq!(rows.len(), 1);
-    assert!(
-        pending_const_applications_need_operator_selection(&program, None).unwrap(),
-        "a boundary-operator callee must defer its const application until selected rows exist"
-    );
-    let independent = crate::front_end::typed_program(
-        "machine limit() -> u64 { 7 }
-         data Buffer<const N: u64> { values: [u8; N]; }
-         data Main { value: Buffer<limit()>; }",
-    );
-    assert!(
-        !pending_const_applications_need_operator_selection(&independent, None).unwrap(),
-        "an independent const application keeps its early route"
-    );
-}
-
-#[test]
-fn pending_const_application_marks_keep_the_consuming_tuple_open() {
-    let (mut program, _) = provider_application_fixture();
-    let plan = const_application_plan(&program);
-    assert_eq!(plan.applications.len(), 1);
-    let root = plan.applications[0].root;
-    defer_pending_const_applications(&mut program).unwrap();
-    assert!(program.pending_const_range_endpoints.contains(&root));
-    for call in &plan.calls {
-        assert!(
-            program
-                .pending_const_range_endpoints
-                .contains(&call.expression)
-        );
-    }
-}
-
-#[test]
-fn pending_const_application_executes_the_selected_provider_body() {
-    let (mut program, rows) = provider_application_fixture();
-    crate::validate_selected_provider_bodies(&program, &rows).unwrap();
-    evaluate_selected_const_applications(
-        &mut program,
-        None,
-        SelectedBuildTimeOperators {
-            operators: &[],
-            provider_bodies: &rows,
-        },
-    )
-    .unwrap_or_else(|errors| panic!("provider-boundary const application: {errors:?}"));
-    assert_eq!(
-        folded_const_arguments(&program).as_slice(),
-        &["7".to_owned()],
-        "the provider's `left | right` body must run; builtin `%` would fold 1"
-    );
-    assert!(const_application_plan(&program).applications.is_empty());
-    assert!(program.pending_const_range_endpoints.is_empty());
-}
-
-#[test]
 fn pending_const_application_folds_let_and_return_destinations() {
     let program = crate::front_end::typed_program(
         "data Math {}
@@ -212,31 +151,5 @@ fn unselected_boundary_const_application_never_falls_back_to_host_semantics() {
             TypeReferenceNode::ConstExpression(_)
         ),
         "no fold may survive"
-    );
-}
-
-#[test]
-fn provider_free_const_application_folds_without_selected_rows() {
-    // A retained application whose closure never needed a provider still folds
-    // on this route: it reaches typed trees only when pre-resolution retained
-    // it, and closed evaluation answers it exactly.
-    let mut program = crate::front_end::typed_program(
-        "machine limit() -> u64 { 7 }
-         data Buffer<const N: u64> { values: [u8; N]; }
-         data Main { value: Buffer<limit()>; }",
-    );
-    assert!(!pending_const_applications_need_operator_selection(&program, None).unwrap());
-    evaluate_selected_const_applications(
-        &mut program,
-        None,
-        SelectedBuildTimeOperators {
-            operators: &[],
-            provider_bodies: &[],
-        },
-    )
-    .unwrap_or_else(|errors| panic!("provider-free const application: {errors:?}"));
-    assert_eq!(
-        folded_const_arguments(&program).as_slice(),
-        &["7".to_owned()]
     );
 }

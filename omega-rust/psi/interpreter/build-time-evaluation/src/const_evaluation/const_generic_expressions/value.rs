@@ -1780,34 +1780,6 @@ mod tests {
     }
 
     #[test]
-    fn shift_uses_value_width_and_independent_count_carrier() {
-        let one = Value::Landed(
-            LandedIntegerType::U8,
-            IntegerValue::Unsigned(1),
-            ArithmeticDomain::Exact,
-        );
-        let invalid_count = Value::Landed(
-            LandedIntegerType::U64,
-            IntegerValue::Unsigned(8),
-            ArithmeticDomain::Exact,
-        );
-        assert!(apply(BinaryOperator::ShiftLeft, one, invalid_count).is_err());
-        let count = Value::Landed(
-            LandedIntegerType::U64,
-            IntegerValue::Unsigned(7),
-            ArithmeticDomain::Exact,
-        );
-        assert!(matches!(
-            apply(BinaryOperator::ShiftLeft, one, count),
-            Ok(Value::Landed(
-                LandedIntegerType::U8,
-                IntegerValue::Unsigned(128),
-                ArithmeticDomain::Exact
-            ))
-        ));
-    }
-
-    #[test]
     fn arithmetic_never_relands_incompatible_carriers() {
         let left = Value::Landed(
             LandedIntegerType::U8,

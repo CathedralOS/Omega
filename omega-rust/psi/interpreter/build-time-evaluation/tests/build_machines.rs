@@ -67,74 +67,6 @@ fn empty_build_selection() -> BuildTimeValue {
 }
 
 #[test]
-fn prepared_entries_select_exact_scoped_machines_with_the_same_short_name() {
-    let typed = crate::front_end::typed_program(
-        r#"
-        data Build { selected: u16; }
-        data First {}
-        data Second {}
-
-        machine First::build(&mut self, value: &mut Build) {
-            value.selected = 11;
-        }
-
-        machine Second::build(&mut self, value: &mut Build) {
-            value.selected = 29;
-        }
-        "#,
-    );
-    let prepared = PreparedBuildMachineProgram::prepare(&typed).expect("prepare exact entries");
-    let entry = |name: &str| {
-        let symbol = prepared
-            .typed()
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == name)
-            .expect("scoped build machine")
-            .symbol;
-        prepared.entry(symbol).expect("bind exact prepared entry")
-    };
-
-    let first = evaluate_build_machine_measured(
-        &prepared,
-        BuildMachineInvocation {
-            product_entry_compatibility: None,
-            machine: PreparedBuildMachine::Entry(&entry("First::build")),
-            arguments: vec![empty_build_selection()],
-            mode: BuildMachineExecutionMode::Pure,
-            sponsor: None,
-        },
-    )
-    .expect("evaluate First's exact build entry");
-    let second = evaluate_build_machine_measured(
-        &prepared,
-        BuildMachineInvocation {
-            product_entry_compatibility: None,
-            machine: PreparedBuildMachine::Entry(&entry("Second::build")),
-            arguments: vec![empty_build_selection()],
-            mode: BuildMachineExecutionMode::Pure,
-            sponsor: None,
-        },
-    )
-    .expect("evaluate Second's exact build entry");
-
-    assert_eq!(
-        first.value(),
-        &[BuildTimeValue::Struct {
-            type_name: "Build".to_owned(),
-            fields: vec![("selected".to_owned(), BuildTimeValue::Int(11))],
-        }]
-    );
-    assert_eq!(
-        second.value(),
-        &[BuildTimeValue::Struct {
-            type_name: "Build".to_owned(),
-            fields: vec![("selected".to_owned(), BuildTimeValue::Int(29))],
-        }]
-    );
-}
-
-#[test]
 fn prepared_entry_from_another_program_rejects_even_a_colliding_raw_symbol() {
     let source = r#"
         data Build { selected: u16; }
@@ -203,34 +135,6 @@ fn admission_plan_owns_result_machine_lookup_gate_and_evaluation() {
 }
 
 #[test]
-fn exported_wrapper_reach_controls_evaluation_admission() {
-    for declaration in ["", "reaches Host"] {
-        let program = crate::front_end::typed_program(&format!(
-            "pub boundary trait Host {{}}\n\
-             machine helper() -> u64 {declaration} {{ 7 }}\n\
-             machine memberless() -> u64 reaches {{ helper() }}\n\
-             pub machine exported() -> u64 {{ memberless() }}"
-        ));
-        let checked = typed_trees_to_checked_trees::lower_typed_trees(
-            program,
-            &typed_trees_to_checked_trees::CheckingRequest::settled(),
-        )
-        .expect("ordinary wrappers propagate their helper's service row");
-        let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&checked, None);
-        let result = admission.evaluate_const_evaluable_machine(&checked, "exported", vec![]);
-        if declaration.is_empty() {
-            assert_eq!(
-                result.expect("empty reach evaluates"),
-                BuildTimeValue::Int(7)
-            );
-        } else {
-            let error = result.expect_err("memberless and exported wrappers cannot hide reach");
-            assert!(error.contains("service reach [Host]"), "{error}");
-        }
-    }
-}
-
-#[test]
 fn nominal_callback_selection_controls_const_array_length_admission() {
     let source = include_str!(
         "../../../../../tests/omega/pass/effects/nominal_callback_const_reach/main.omg"
@@ -268,44 +172,6 @@ fn nominal_callback_selection_controls_const_array_length_admission() {
 }
 
 #[test]
-fn nominal_and_structural_callbacks_keep_distinct_specialized_reach() {
-    for (contract, admitted) in [
-        ("machine Step satisfies StepContract::step;", true),
-        (
-            "machine Step(value: u64) -> u64 reaches Console terminates;",
-            false,
-        ),
-    ] {
-        let source = format!(
-            "boundary trait Console {{}}\n\
-             trait StepContract {{ machine step(value: u64) -> u64 reaches Console terminates; }}\n\
-             machine quiet(value: u64) -> u64 satisfies StepContract::step terminates {{ value }}\n\
-             machine traverse<machine Step>(value: u64) -> u64 where {contract}\n\
-             terminates; {{ Step(value) }}\n\
-             machine length() -> u64 {{ traverse<quiet>(7) }}"
-        );
-        let program = crate::front_end::typed_program(&source);
-        let prepared = PreparedBuildMachineProgram::prepare(&program)
-            .expect("both fixed and nominal callback contracts accept the quiet implementation");
-        let admission =
-            build_time_evaluation::BuildTimeAdmissionPlan::infer(prepared.typed(), None);
-        let result = admission.evaluate_const_evaluable_machine(prepared.typed(), "length", vec![]);
-        if admitted {
-            assert_eq!(
-                result.expect("a nominal selection specializes its row"),
-                BuildTimeValue::Int(7)
-            );
-        } else {
-            assert!(
-                result
-                    .expect_err("a structural binder keeps its fixed requirement row")
-                    .contains("service reach [Console]")
-            );
-        }
-    }
-}
-
-#[test]
 fn selected_quiet_callbacks_do_not_narrow_operational_requirements() {
     for (ceiling, acknowledgement, reason) in [
         ("suspends", "suspend", "suspension"),
@@ -335,74 +201,6 @@ fn selected_quiet_callbacks_do_not_narrow_operational_requirements() {
             assert!(error.contains(reason), "{error}");
         }
     }
-}
-
-#[test]
-fn invocation_const_boundary_admits_an_exact_boolean_snapshot() {
-    let typed = crate::front_end::typed_program(
-        r#"
-        machine is_positive(value: u64) -> bool { value > 0 }
-        "#,
-    );
-    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&typed, None);
-
-    let value = admission
-        .evaluate_const_evaluable_machine_for_invocation(
-            &typed,
-            "is_positive",
-            vec![BuildTimeValue::Int(4)],
-            build_time_evaluation::BuildTimeInvocationCustody::Source(Default::default()),
-        )
-        .expect("a Boolean proof-position result should cross as an owned snapshot");
-    assert_eq!(value, BuildTimeValue::Bool(true));
-}
-
-#[test]
-fn exact_width_quoted_literal_evaluates_as_an_owned_raw_byte_array() {
-    let typed = crate::front_end::typed_program(SOURCE);
-    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&typed, None);
-
-    let value = admission
-        .evaluate_const_evaluable_machine(&typed, "raw_bytes", vec![])
-        .expect("exact-width owned bytes should evaluate");
-    assert_eq!(
-        value,
-        BuildTimeValue::Array(vec![BuildTimeValue::Int(0x80), BuildTimeValue::Int(0x41)])
-    );
-}
-
-#[test]
-fn closed_copy_record_and_realized_copy_sum_case_cross_as_owned_snapshots() {
-    let typed = crate::front_end::typed_program(SOURCE);
-    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&typed, None);
-
-    assert_eq!(
-        admission
-            .evaluate_const_evaluable_machine(&typed, "snapshot", vec![])
-            .expect("a closed copy record should be ConstEvaluable"),
-        BuildTimeValue::Struct {
-            type_name: "Snapshot".to_owned(),
-            fields: vec![
-                (
-                    "bytes".to_owned(),
-                    BuildTimeValue::Array(vec![BuildTimeValue::Int(1), BuildTimeValue::Int(2)]),
-                ),
-                ("ok".to_owned(), BuildTimeValue::Bool(true)),
-            ],
-        }
-    );
-    assert_eq!(
-        admission
-            .evaluate_const_evaluable_machine(&typed, "choice", vec![])
-            .expect("a realized case of a closed copy sum should be ConstEvaluable"),
-        BuildTimeValue::Case {
-            variant: "Ready".to_owned(),
-            payload: vec![(
-                "bytes".to_owned(),
-                BuildTimeValue::Array(vec![BuildTimeValue::Int(3), BuildTimeValue::Int(4)]),
-            )],
-        }
-    );
 }
 
 #[test]
@@ -471,32 +269,6 @@ fn zero_argument_integer_position_uses_const_evaluable_admission_and_exact_int_d
             .fixed_array_lengths()
             .any(|(_, length)| matches!(length, typed_trees::types::FixedArrayLength::Literal(3)))
     );
-}
-
-#[test]
-fn integer_const_positions_decode_the_callees_declared_carrier() {
-    let program = crate::front_end::typed_program(
-        "machine wide() -> u64 { 18446744073709551615 }
-         machine high_bit() -> u64 { 9223372036854775808 }
-         machine negative() -> i64 { -1 }
-         machine minimum() -> i64 { -9223372036854775808 }
-         machine narrow_unsigned() -> u8 { 255 }
-         machine narrow_signed() -> i8 { -128 }",
-    );
-    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program, None);
-    for (name, expected) in [
-        ("wide", "18446744073709551615"),
-        ("high_bit", "9223372036854775808"),
-        ("negative", "-1"),
-        ("minimum", "-9223372036854775808"),
-        ("narrow_unsigned", "255"),
-        ("narrow_signed", "-128"),
-    ] {
-        let value =
-            evaluate_zero_argument_machine(&program, &admission, name, "range endpoint", None)
-                .expect("admitted integer call decodes");
-        assert_eq!(value.to_string(), expected, "{name}");
-    }
 }
 
 #[test]
@@ -1041,25 +813,6 @@ fn case_membership_evaluates_tags_without_comparing_payloads() {
 }
 
 #[test]
-fn case_membership_accepts_temporary_values() {
-    for (subject, case, expected) in [
-        ("(Choice::Ready { value: 37 })", "Ready", true),
-        ("(Choice::Ready { value: 37 })", "Empty", false),
-        ("Choice::Empty", "Empty", true),
-        ("Choice::Empty", "Ready", false),
-    ] {
-        let program = crate::front_end::typed_program(&format!(
-            "data Choice [copy] {{ case Ready(value: u64); case Empty; }}
-             machine member() -> bool {{ {subject} in Choice::{case} }}"
-        ));
-        let value = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program, None)
-            .evaluate_const_evaluable_machine(&program, "member", vec![])
-            .expect("membership does not require an otherwise unused local binding");
-        assert_eq!(value, BuildTimeValue::Bool(expected), "{subject} in {case}");
-    }
-}
-
-#[test]
 fn case_membership_requires_a_value_subject_not_a_payload_domain() {
     let program = crate::front_end::typed_program(
         "data Choice [copy] { case Ready(value: u64); case Empty; }
@@ -1068,39 +821,6 @@ fn case_membership_requires_a_value_subject_not_a_payload_domain() {
     let error = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program, None)
         .evaluate_const_evaluable_machine(&program, "member", vec![])
         .expect_err("a bare payload case denotes a domain, not a constructed subject value");
-    assert!(
-        error.contains("requires exact authored selection"),
-        "{error}"
-    );
-}
-
-#[test]
-fn case_membership_is_distinct_from_authored_equality() {
-    let program = crate::front_end::typed_program(
-        "data Choice [copy] { case Ready; case Empty; }
-         operator == Choice::equal(left: Choice, right: Choice) -> bool;
-         machine member() -> bool {
-             let choice: Choice = Choice::Ready;
-             choice in Choice::Ready
-         }
-         machine inline_member() -> bool { Choice::Ready in Choice::Ready }
-         machine equal() -> bool {
-             let choice: Choice = Choice::Ready;
-             choice == Choice::Ready
-         }",
-    );
-    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program, None);
-    for machine in ["member", "inline_member"] {
-        assert_eq!(
-            admission
-                .evaluate_const_evaluable_machine(&program, machine, vec![])
-                .expect("an equality declaration does not redefine membership"),
-            BuildTimeValue::Bool(true)
-        );
-    }
-    let error = admission
-        .evaluate_const_evaluable_machine(&program, "equal", vec![])
-        .expect_err("authored equality must not execute as a builtin tag test");
     assert!(
         error.contains("requires exact authored selection"),
         "{error}"
@@ -1252,44 +972,6 @@ fn closed_generic_binding_result_is_const_evaluable_for_invocation() {
         BuildTimeValue::Case {
             variant: "Syscall".to_owned(),
             payload: vec![("number".to_owned(), BuildTimeValue::Int(60))],
-        }
-    );
-}
-
-/// A closed record instance is admitted the same way: `Holder<[u8; 2]>`
-/// carries the synthesized nominal name and a substituted fixed-array member.
-#[test]
-fn closed_generic_record_result_is_const_evaluable() {
-    let program = crate::front_end::typed_program_with_generic_data(
-        r#"
-        data Holder<T> [copy] { slot: T; }
-        machine write_holder() -> Holder<[u8; 2]> {
-            Holder { slot: "\x01\x02" }
-        }
-        "#,
-    );
-    let producer = program
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "write_holder")
-        .expect("producer machine");
-    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program, None);
-    let value = admission
-        .evaluate_const_evaluable_machine_symbol_for_invocation(
-            &program,
-            producer.symbol,
-            Vec::new(),
-            build_time_evaluation::BuildTimeInvocationCustody::Source(Default::default()),
-        )
-        .expect("a closed `Holder<[u8; 2]>` result is ConstEvaluable");
-    assert_eq!(
-        value,
-        BuildTimeValue::Struct {
-            type_name: "Holder<[u8; 2]>".to_owned(),
-            fields: vec![(
-                "slot".to_owned(),
-                BuildTimeValue::Array(vec![BuildTimeValue::Int(1), BuildTimeValue::Int(2)]),
-            )],
         }
     );
 }

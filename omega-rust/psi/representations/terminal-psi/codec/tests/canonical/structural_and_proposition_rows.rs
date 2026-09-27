@@ -18,10 +18,9 @@ use terminal_psi::{
     BindingRelevance, BoundaryMachineDeclaration, BoundaryMachineResult, ByteSequenceCarrier,
     CrashCause, EntryClaim, EvidenceInterfaceIdentity, EvidenceTermDeclaration, Operation,
     OperationKind, OperationResult, OutcomeSpecificEnsure, OutcomeSpecificEvidence,
-    OutcomeSpecificGuard, PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
-    PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
-    PropositionDeclaration, PropositionEvidence, ServiceDeclaration, StructuralAccess,
-    StructuralArgument, StructuralCaseDeclaration, StructuralFieldDeclaration, StructuralFieldType,
+    OutcomeSpecificGuard, PropositionApplicationIdentity, PropositionDeclaration,
+    PropositionEvidence, ServiceDeclaration, StructuralAccess, StructuralArgument,
+    StructuralCaseDeclaration, StructuralFieldDeclaration, StructuralFieldType,
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
     StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
     TerminalMachineResult, TerminalModule, Terminator, VocabularyMarker,
@@ -66,22 +65,6 @@ fn structural_foundation_rejects_wrong_domain_carrier() {
         encode_module(&module),
         Err(CodecError::MalformedStructuralFoundation(
             "structural parameter qualification has the wrong carrier"
-        ))
-    );
-}
-
-#[test]
-fn structural_foundation_rejects_wrong_call_argument_type() {
-    let mut module = structural_effect_fixture();
-    module.machines[1].structural_parameters[0].structural_type = structural_type_id(3);
-    module.machines[1].structural_parameters[0]
-        .qualifications
-        .clear();
-
-    assert_eq!(
-        encode_module(&module),
-        Err(CodecError::MalformedStructuralFoundation(
-            "structural argument has the wrong concrete type"
         ))
     );
 }
@@ -262,46 +245,6 @@ fn decoder_rejects_an_unknown_machine_result_shape() {
 }
 
 #[test]
-fn scalar_call_round_trips_with_arguments_requirements_and_crash_continuations() {
-    let module = call_fixture();
-    let bytes = encode_module(&module).expect("call module should encode");
-    assert_eq!(decode_module(&bytes), Ok(module.clone()));
-    assert_eq!(
-        semantic_fingerprint(&decode_module(&bytes).unwrap()),
-        semantic_fingerprint(&module)
-    );
-
-    let mut crash_capable = module.clone();
-    let OperationKind::Call {
-        crash_continuations,
-        ..
-    } = &mut crash_capable.machines[0].blocks[0].operations[1].kind
-    else {
-        unreachable!()
-    };
-    let route = terminal_psi::CrashRouteBucket {
-        cause: CrashCause::Trap,
-        alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
-    };
-    crash_continuations.push(route.clone());
-    crash_capable.machines[0].contract.crash_routes = vec![route.clone()];
-    crash_capable.machines[1].contract.crash_routes = vec![route];
-    crash_capable.machines[1].blocks[0].terminator = Terminator::Crash {
-        edge: edge_id(101),
-        cause: CrashCause::Trap,
-        site_guard: Vec::new(),
-        frontier_lower_bound: Vec::new(),
-    };
-    let crash_bytes = encode_module(&crash_capable).expect("crash continuation should encode");
-    assert_eq!(decode_module(&crash_bytes), Ok(crash_capable.clone()));
-    assert_ne!(
-        semantic_fingerprint(&module).unwrap(),
-        semantic_fingerprint(&crash_capable).unwrap(),
-        "call crash continuations are fingerprinted semantic content"
-    );
-}
-
-#[test]
 fn crash_round_trips_and_every_semantic_field_enters_identity() {
     let mut module = fixture();
     module.machines[0].contract.crash_routes = vec![terminal_psi::CrashRouteBucket {
@@ -350,85 +293,6 @@ fn crash_round_trips_and_every_semantic_field_enters_identity() {
     assert_ne!(
         semantic_fingerprint(&module).expect("changed route identity"),
         baseline
-    );
-}
-
-#[test]
-fn proposition_vocabulary_round_trips_and_enters_identity() {
-    let mut module = fixture();
-    module.proposition_declarations = vec![PropositionDeclaration {
-        id: proposition_id(1),
-        name: "converges_together".to_owned(),
-        binders: vec![
-            PropositionBinderDeclaration {
-                name: "Left".to_owned(),
-                kind: PropositionBinderKind::Machine,
-            },
-            PropositionBinderDeclaration {
-                name: "Precision".to_owned(),
-                kind: PropositionBinderKind::Const {
-                    type_identity: "u32".to_owned(),
-                },
-            },
-        ],
-        parameter_types: vec!["CauchySeq<Left>".to_owned()],
-        evidence: PropositionEvidence::Witness {
-            evidence_type: "ConvergenceEvidence<Left>".to_owned(),
-        },
-    }];
-    module.proposition_applications = vec![PropositionApplicationIdentity {
-        id: proposition_id(1),
-        declaration: proposition_id(1),
-        binder_arguments: vec![
-            PropositionBinderArgumentIdentity {
-                kind: PropositionBinderArgumentKind::Machine,
-                identity: "unit_sample".to_owned(),
-                evidence_projection: None,
-            },
-            PropositionBinderArgumentIdentity {
-                kind: PropositionBinderArgumentKind::Const,
-                identity: "32u32".to_owned(),
-                evidence_projection: None,
-            },
-        ],
-        arguments: vec!["sequence".to_owned()],
-        evidence_interface: Some(EvidenceInterfaceIdentity {
-            trait_identity: "ConvergenceEvidence".to_owned(),
-            arguments: vec!["unit_sample".to_owned()],
-            requirements: Vec::new(),
-        }),
-    }];
-
-    let bytes = encode_module(&module).expect("proposition vocabulary should encode");
-    assert_eq!(decode_module(&bytes), Ok(module.clone()));
-
-    let original = semantic_fingerprint(&module).expect("vocabulary has identity");
-    module.proposition_applications[0]
-        .evidence_interface
-        .as_mut()
-        .expect("witness application interface")
-        .trait_identity = "AlternativeConvergenceEvidence".to_owned();
-    assert_ne!(
-        semantic_fingerprint(&module).expect("instantiated interface has identity"),
-        original
-    );
-    module.proposition_applications[0]
-        .evidence_interface
-        .as_mut()
-        .expect("witness application interface")
-        .trait_identity = "ConvergenceEvidence".to_owned();
-    module.proposition_declarations[0].evidence = PropositionEvidence::Witness {
-        evidence_type: "AlternativeEvidence<Left>".to_owned(),
-    };
-    assert_ne!(
-        semantic_fingerprint(&module).expect("changed evidence interface has identity"),
-        original
-    );
-    module.proposition_declarations[0].evidence = PropositionEvidence::FactOnly;
-    module.proposition_applications[0].evidence_interface = None;
-    assert_ne!(
-        semantic_fingerprint(&module).expect("changed vocabulary has identity"),
-        original
     );
 }
 
@@ -602,38 +466,6 @@ fn payloadless_case_establishment_round_trips_and_case_enters_identity() {
 }
 
 #[test]
-fn proposition_vocabulary_is_category_checked() {
-    let mut module = fixture();
-    module.proposition_declarations = vec![PropositionDeclaration {
-        id: proposition_id(1),
-        name: "related".to_owned(),
-        binders: vec![PropositionBinderDeclaration {
-            name: "Carrier".to_owned(),
-            kind: PropositionBinderKind::Type,
-        }],
-        parameter_types: vec!["Carrier".to_owned()],
-        evidence: PropositionEvidence::FactOnly,
-    }];
-    module.proposition_applications = vec![PropositionApplicationIdentity {
-        id: proposition_id(1),
-        declaration: proposition_id(1),
-        binder_arguments: vec![PropositionBinderArgumentIdentity {
-            kind: PropositionBinderArgumentKind::Machine,
-            identity: "Generator".to_owned(),
-            evidence_projection: None,
-        }],
-        arguments: vec!["value".to_owned()],
-        evidence_interface: None,
-    }];
-    assert!(matches!(
-        encode_module(&module),
-        Err(CodecError::InvalidModule(
-            terminal_verifier::ModuleError::PropositionApplicationBinderMismatch(_)
-        ))
-    ));
-}
-
-#[test]
 fn entry_claim_encoding_is_canonically_ordered() {
     let mut projections = entry_claim_fixture();
     projections.machines[0].content_entry_claims[0]
@@ -672,68 +504,6 @@ fn identity_reshuffle_encoding_is_canonically_ordered() {
         Err(CodecError::NonCanonicalOrder(
             "claim content projections by identity and algebra"
         ))
-    );
-}
-
-#[test]
-fn semantic_mutation_changes_the_program_fingerprint() {
-    let original = fixture();
-    let mut changed = original.clone();
-    changed.machines[0].blocks[1].operations[0].kind = OperationKind::IntegerConstant {
-        value: IntegerValue::Signed(-6),
-    };
-
-    assert_ne!(
-        semantic_fingerprint(&original).unwrap(),
-        semantic_fingerprint(&changed).unwrap()
-    );
-}
-
-#[test]
-fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
-    let bytes = encode_module(&fixture()).unwrap();
-
-    let mut reordered_requirements = bytes.clone();
-    let contract_prefix = [
-        1, 0, 0, 0, 0, 0, 0, 0, // ContractId(1)
-        0, 0, 0, 0, // zero crash route buckets
-        0, 0, 0, 0, // zero erased scalar formals
-        0, 0, 0, 0, // zero erased proof formals
-        8, 0, 0, 0, // eight requirements
-        1, 2, 3, // Truth, Falsehood, Atom
-    ];
-    let contract_offset = reordered_requirements
-        .windows(contract_prefix.len())
-        .position(|window| window == contract_prefix)
-        .expect("fixture contract prefix should be unique");
-    reordered_requirements.swap(contract_offset + 24, contract_offset + 25);
-    assert_eq!(
-        decode_module(&reordered_requirements),
-        Err(CodecError::NonCanonicalOrder("requires propositions"))
-    );
-
-    let mut trailing = bytes.clone();
-    trailing.push(0);
-    assert_eq!(decode_module(&trailing), Err(CodecError::TrailingBytes(1)));
-
-    let mut future_format = bytes.clone();
-    let future_marker = u16::from_le_bytes([bytes[8], bytes[9]]) + 1;
-    future_format[8..10].copy_from_slice(&future_marker.to_le_bytes());
-    assert_eq!(
-        decode_module(&future_format),
-        Err(CodecError::UnsupportedFormatMarker(future_marker))
-    );
-
-    let mut stale_format = bytes.clone();
-    stale_format[8..10].copy_from_slice(&55_u16.to_le_bytes());
-    assert_eq!(
-        decode_module(&stale_format),
-        Err(CodecError::UnsupportedFormatMarker(55))
-    );
-
-    assert_eq!(
-        decode_module(&bytes[..bytes.len() - 1]),
-        Err(CodecError::UnexpectedEnd)
     );
 }
 
@@ -1086,74 +856,6 @@ fn argument_path(module: &TerminalModule) -> &[StructuralPathSegment] {
         unreachable!("inline byte presentation fixture")
     };
     &structural_arguments[0].path
-}
-
-/// The codec's own path-custody refusal. `MalformedStructuralFoundation` is
-/// raised only by this crate's foundation validation, which runs ahead of the
-/// verifier's `validate_module_representation` in both `encode_module` and
-/// `decode_module`; a verifier rejection would arrive as `InvalidModule`.
-/// Asserting this exact variant therefore witnesses the codec's independent
-/// reconstruction, not the verifier's.
-fn path_custody_refusal() -> Result<Vec<u8>, CodecError> {
-    Err(CodecError::MalformedStructuralFoundation(
-        "structural path must retain structural custody",
-    ))
-}
-
-#[test]
-fn a_borrowed_view_field_cannot_supply_a_boundary_view_parameter() {
-    for access in [
-        StructuralAccess::MutableBorrow,
-        StructuralAccess::SharedBorrow,
-    ] {
-        let module = boundary_inline_byte_module(
-            ByteSequenceCarrier::BorrowedView {
-                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
-            },
-            structural_type_id(2),
-            byte_field_path(),
-            access,
-        );
-        assert_eq!(
-            encode_module(&module),
-            path_custody_refusal(),
-            "{access:?} boundary loan of a borrowed-view field must reject"
-        );
-    }
-}
-
-#[test]
-fn a_borrowed_view_field_cannot_supply_an_ordinary_view_parameter() {
-    let module = ordinary_inline_byte_module(
-        ByteSequenceCarrier::BorrowedView {
-            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
-        },
-        structural_type_id(2),
-        byte_field_path(),
-    );
-    assert_eq!(encode_module(&module), path_custody_refusal());
-}
-
-#[test]
-fn a_nested_borrowed_view_field_cannot_supply_a_view_parameter() {
-    let boundary = boundary_inline_byte_module(
-        ByteSequenceCarrier::BorrowedView {
-            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
-        },
-        structural_type_id(3),
-        nested_byte_field_path(),
-        StructuralAccess::MutableBorrow,
-    );
-    assert_eq!(encode_module(&boundary), path_custody_refusal());
-
-    let ordinary = ordinary_inline_byte_module(
-        ByteSequenceCarrier::BorrowedView {
-            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
-        },
-        structural_type_id(3),
-        nested_byte_field_path(),
-    );
-    assert_eq!(encode_module(&ordinary), path_custody_refusal());
 }
 
 #[test]

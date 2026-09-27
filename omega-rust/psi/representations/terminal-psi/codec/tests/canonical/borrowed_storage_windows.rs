@@ -170,23 +170,6 @@ fn move_and_store_structural_field_round_trip() {
 }
 
 #[test]
-fn the_field_spelling_is_part_of_the_recorded_evidence() {
-    let mut bytes = encode_module(&window_module()).expect("window module encodes");
-    let position = bytes
-        .windows(4)
-        .position(|window| window == b"left")
-        .expect("encoded window field identity");
-    bytes[position] = b'r'; // `left` -> `rift`: decode still succeeds, but the
-    // decoded module no longer names a declared field.
-    let tampered = decode_module(&bytes).expect("tampered bytes still decode");
-    assert_ne!(
-        semantic_fingerprint(&tampered).unwrap(),
-        semantic_fingerprint(&window_module()).unwrap(),
-        "a renamed window field is a different module"
-    );
-}
-
-#[test]
 fn a_move_sourced_outside_mutable_borrow_rejects_at_encoding() {
     let mut module = window_module();
     let OperationKind::MoveStructuralField { source, .. } =

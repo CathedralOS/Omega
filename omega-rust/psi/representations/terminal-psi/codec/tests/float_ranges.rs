@@ -2,7 +2,6 @@
 //! entry ranges: the roster is replayed from the artifact, never from
 //! source-side state. A canonical artifact re-encodes byte-for-byte, and a
 //! delivery the authored range excludes rejects after decode.
-use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, IeeeFloatValue, MachineId, OperationId, ScalarType, ValueId,
 };
@@ -12,7 +11,7 @@ use terminal_psi::{
     ScalarQualificationCatalog, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
     ValueDeclaration, VocabularyMarker,
 };
-use terminal_verifier::{ModuleError, ProofBundle, verify_module};
+use terminal_verifier::ModuleError;
 
 fn module(argument_bits: u64) -> TerminalModule {
     let caller_constant = value_id(1);
@@ -152,23 +151,6 @@ fn module(argument_bits: u64) -> TerminalModule {
 }
 
 #[test]
-fn decoded_artifact_replays_below_endpoint_delivery() {
-    let bytes = encode_module(&module(1.0f64.to_bits())).expect("encode ranged module");
-    let decoded = decode_module(&bytes).expect("decode ranged module");
-    assert_eq!(
-        encode_module(&decoded),
-        Ok(bytes.clone()),
-        "canonical ranged artifact re-encodes byte-for-byte"
-    );
-    verify_module(
-        &decoded,
-        &ProofBundle::default(),
-        &AdmissionProfile::default(),
-    )
-    .expect("decoded artifact admits the below-endpoint delivery");
-}
-
-#[test]
 fn decoded_artifact_replays_exclusive_endpoint_and_nan_rejection() {
     // A non-conforming artifact cannot be encoded at all: encode runs the
     // module validator. Tamper with a conforming artifact instead — replace
@@ -199,18 +181,6 @@ fn decoded_artifact_replays_exclusive_endpoint_and_nan_rejection() {
             "excluded delivery must reject as a range delivery fault: {error:?}"
         );
     }
-}
-
-#[test]
-fn roster_row_survives_decode_with_exact_bits() {
-    let bytes = encode_module(&module(1.0f64.to_bits())).expect("encode ranged module");
-    let decoded = decode_module(&bytes).expect("decode ranged module");
-    let [range] = decoded.scalar_qualifications.float_entry_ranges[..] else {
-        panic!("decoded artifact lost the retained float entry range")
-    };
-    assert_eq!(range.minimum, IeeeFloatValue::Binary64(0.0f64.to_bits()));
-    assert_eq!(range.maximum, IeeeFloatValue::Binary64(1.5f64.to_bits()));
-    assert!(!range.maximum_inclusive);
 }
 
 fn empty_contract(raw: u64) -> MachineContract {

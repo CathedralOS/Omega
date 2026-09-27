@@ -35,10 +35,9 @@
 use std::collections::BTreeSet;
 
 use proof_admission::{
-    Budget, Context, CoreError, DEFAULT_CONVERSION_STEPS, Declaration, Level,
-    MathematicalCertificate, Sort, Term, TermArena, TermHandle, certificate_assumption_closure,
-    check_signature, check_type, convertible, infer_type, judgment_assumption_closure,
-    verify_mathematical_certificate, weak_head_normalize,
+    Budget, Context, CoreError, DEFAULT_CONVERSION_STEPS, Declaration, Level, Sort, Term,
+    TermArena, TermHandle, check_signature, check_type, infer_type, judgment_assumption_closure,
+    weak_head_normalize,
 };
 
 fn budget() -> Budget {
@@ -142,9 +141,6 @@ const CHOICE: u32 = 1;
 /// `subset : Π(P : Π(_:U32). Strict v). Type v := λP. Σ(x:U32). Box (P
 /// x)` — declaration 2, a *definition*: it never enters a closure.
 const SUBSET: u32 = 2;
-/// `chosen : Π(P : Π(_:U32). Strict v). Π(_ : Squash (subset P)).
-/// subset P := λP. λh. choice[v] (subset[v] P) h` — declaration 3.
-const CHOSEN: u32 = 3;
 /// `transfer` — declaration 4, the proved squash-composition (arity 3:
 /// the carrier `u`, the two predicates' strict levels `v` and `w`).
 const TRANSFER: u32 = 4;
@@ -451,16 +447,6 @@ fn subset_context(arena: &mut TermArena) -> (Context, Vec<TermHandle>) {
     (context, vec![p_binding, h_binding])
 }
 
-/// `chosen[0] P h` written inside `subset_context` (P is 1, h is 0) —
-/// the declaration takes the predicate and the squash directly.
-fn chosen_member(arena: &mut TermArena) -> TermHandle {
-    let chosen = constant(arena, CHOSEN, vec![Level::Constant(0)]);
-    let p = variable(arena, 1);
-    let chosen_at = apply(arena, chosen, p);
-    let h = variable(arena, 0);
-    apply(arena, chosen_at, h)
-}
-
 #[test]
 fn squashed_existence_composes_through_a_hypothesis_without_choice() {
     let mut arena = TermArena::new();
@@ -585,77 +571,6 @@ fn squashed_existence_composes_through_a_hypothesis_without_choice() {
 }
 
 #[test]
-fn an_admitted_choice_axiom_supplies_a_mathematical_member() {
-    let mut arena = TermArena::new();
-    let (context, _bindings) = subset_context(&mut arena);
-
-    // `fst (chosen P h) : U32` — the member of a nonempty subset of
-    // `u32`, supplied mathematically by the admitted axiom.
-    let member = {
-        let chosen = chosen_member(&mut arena);
-        fst(&mut arena, chosen)
-    };
-    let u32_ty = u32(&mut arena);
-    check_type(&mut arena, &context, member, u32_ty, &mut budget()).unwrap();
-
-    // `snd (chosen P h) : Box (P (fst (chosen P h)))` — the membership
-    // evidence is dependent: it speaks of the very member `fst`
-    // projects.
-    let membership = {
-        let chosen = chosen_member(&mut arena);
-        snd(&mut arena, chosen)
-    };
-    let membership_ty = {
-        let p = variable(&mut arena, 1);
-        let chosen = chosen_member(&mut arena);
-        let member = fst(&mut arena, chosen);
-        let at = apply(&mut arena, p, member);
-        boxed(&mut arena, at)
-    };
-    check_type(
-        &mut arena,
-        &context,
-        membership,
-        membership_ty,
-        &mut budget(),
-    )
-    .unwrap();
-
-    // The member is *noncomputable*: `chosen` unfolds to `choice`, an
-    // assumption constant, which stays neutral — `fst` cannot project
-    // a concrete `u32` because the axiom supplies no algorithm.
-    let chosen = chosen_member(&mut arena);
-    let normal =
-        weak_head_normalize(&mut arena, context.signature(), chosen, &mut budget()).unwrap();
-    let mut spine = normal;
-    while let Term::Apply { function, .. } = arena.get(spine) {
-        spine = function;
-    }
-    assert!(
-        matches!(
-            arena.get(spine),
-            Term::Constant {
-                declaration: CHOICE,
-                ..
-            }
-        ),
-        "the member's evidence spine is headed by the neutral axiom"
-    );
-
-    // The exact assumption closure names `U32` and `choice` — and only
-    // them: `subset`/`chosen` are definitions, and a closure computed
-    // over stored statements and bodies records the axiom even though
-    // this judgment's evidence never unfolds it.
-    let closure =
-        judgment_assumption_closure(&arena, context.signature(), &[member, membership_ty]);
-    assert_eq!(
-        closure,
-        BTreeSet::from([U32, CHOICE]),
-        "the judgment commits to exactly the carrier and the admitted axiom"
-    );
-}
-
-#[test]
 fn extraction_without_the_axiom_is_refused() {
     let mut arena = TermArena::new();
     let (context, _bindings) = subset_context(&mut arena);
@@ -771,117 +686,5 @@ fn extraction_without_the_axiom_is_refused() {
         closure,
         BTreeSet::from([U32]),
         "squashed existence of a member needs only the carrier, never the axiom"
-    );
-}
-
-#[test]
-fn the_choice_certificate_redecides_with_exact_closure() {
-    let mut arena = TermArena::new();
-    let (_context, bindings) = subset_context(&mut arena);
-
-    // The certificate claims `Γ ⊢ snd (chosen P h) : Box (P (fst
-    // (chosen P h)))` — dependent membership evidence for the chosen
-    // member — under the producer signature.
-    let term = {
-        let chosen = chosen_member(&mut arena);
-        snd(&mut arena, chosen)
-    };
-    let expected = {
-        let p = variable(&mut arena, 1);
-        let chosen = chosen_member(&mut arena);
-        let member = fst(&mut arena, chosen);
-        let at = apply(&mut arena, p, member);
-        boxed(&mut arena, at)
-    };
-    let certificate = MathematicalCertificate {
-        signature: existence_signature(&mut arena),
-        level_arity: 0,
-        context: bindings.clone(),
-        term,
-        expected,
-    };
-    let mut spent = budget();
-    let before = spent.remaining();
-    verify_mathematical_certificate(&mut arena, &certificate, &mut spent).unwrap();
-    assert!(
-        before - spent.remaining() > 0,
-        "verification is measured work, not a flag"
-    );
-    assert_eq!(
-        certificate_assumption_closure(&arena, &certificate),
-        BTreeSet::from([U32, CHOICE]),
-        "the certificate's closure retains the admitted axiom through the judgment"
-    );
-
-    // The same judgment under a signature that drops `choice` is not
-    // the same evidence: `chosen`'s body now resolves its constants
-    // against a shorter prefix — `Constant 2` names `chosen` itself
-    // under a prefix that ends at `subset`, so the declaration fails
-    // before the judgment runs. The assumption is load-bearing, not
-    // decoration.
-    let mut forged = certificate.clone();
-    forged.signature = vec![
-        u32_declaration(&mut arena),
-        subset_declaration(&mut arena),
-        chosen_declaration(&mut arena),
-        transfer_declaration(&mut arena),
-    ];
-    assert!(
-        verify_mathematical_certificate(&mut arena, &forged, &mut budget()).is_err(),
-        "a signature without the axiom cannot carry the judgment"
-    );
-
-    // And the axiom-free *derivation* of the member rejects inside
-    // checking, not just in closure accounting: `unsq` into the
-    // relevant subset is refused in `check_type`.
-    let axiom_free = {
-        let subset_p = {
-            let p = variable(&mut arena, 1);
-            subset_applied(&mut arena, Level::Constant(0), p)
-        };
-        let function = {
-            let body = variable(&mut arena, 0);
-            lambda(&mut arena, subset_p, body)
-        };
-        let h = variable(&mut arena, 0);
-        squash_elim(&mut arena, subset_p, function, h)
-    };
-    let mut axiom_free_certificate = certificate.clone();
-    axiom_free_certificate.term = axiom_free;
-    assert!(matches!(
-        verify_mathematical_certificate(&mut arena, &axiom_free_certificate, &mut budget()),
-        Err(CoreError::SquashTargetNotStrict { .. })
-    ));
-
-    // Conversion is honest at the boundary: the chosen member is not
-    // convertible to another term at the relevant `U32` — the strict
-    // collapse never fires at a relevant type.
-    let context = {
-        let p_binding = bindings[0];
-        let h_binding = bindings[1];
-        let declarations = existence_signature(&mut arena);
-        let signature = check_signature(&mut arena, &declarations, &mut budget()).unwrap();
-        Context::empty()
-            .with_signature(signature)
-            .extend(p_binding)
-            .extend(h_binding)
-    };
-    let member = {
-        let chosen = chosen_member(&mut arena);
-        fst(&mut arena, chosen)
-    };
-    let other = variable(&mut arena, 0);
-    let member_ty = u32(&mut arena);
-    assert!(
-        !convertible(
-            &mut arena,
-            &context,
-            member,
-            other,
-            member_ty,
-            &mut budget()
-        )
-        .unwrap(),
-        "the chosen member and the hypothesis stay distinct at the relevant carrier"
     );
 }

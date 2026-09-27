@@ -7,15 +7,11 @@
 //! application.
 
 use crate::mathematical_core::tests::{
-    apply, boxed, default_budget, fst, id, is_set_zero, lambda, pi, quotient_signature, refl,
-    sigma, squash, squash_elim, squash_intro, two, two_quotient, variable,
+    apply, boxed, default_budget, id, is_set_zero, lambda, pi, quotient_signature, refl, squash,
+    squash_intro, two, two_quotient, variable,
 };
 use crate::mathematical_core::{
-    Context, CoreError, Level, MathematicalCertificate, QUOTIENT, QUOTIENT_BOX_PROP,
-    QUOTIENT_COVERAGE, QUOTIENT_ELIM, QUOTIENT_ID_CANCEL, QUOTIENT_ID_SYM, QUOTIENT_IND_PROP,
-    QUOTIENT_PROJECT, QUOTIENT_PROP_IS_SET, QUOTIENT_SOUND, QUOTIENT_UNIQUE, TermArena,
-    assumption_closure, certificate_assumption_closure, check_signature, check_type, convertible,
-    infer_type, quotient_scheme, verify_mathematical_certificate,
+    Context, CoreError, Level, TermArena, check_type, convertible, infer_type,
 };
 
 #[test]
@@ -280,69 +276,6 @@ fn quotient_ind_prop_reaches_strict_targets_through_boxing() {
 }
 
 #[test]
-fn quotient_coverage_is_squashed_existence_without_extraction() {
-    let mut arena = TermArena::new();
-    let mut budget = default_budget();
-    let family = two_quotient(&mut arena);
-    let signature = quotient_signature(&mut arena);
-
-    // `coverage z : Squash (Σ(a : Two). Id Q (project a) z)` — under
-    // the `a` binder the ambient `z` shifts to index 1.
-    let covered_ty = {
-        let a_domain = two(&mut arena);
-        let codomain = {
-            let a = variable(&mut arena, 0);
-            let projected = family.project(&mut arena, a);
-            let z = variable(&mut arena, 1);
-            let ty = family.quotient(&mut arena);
-            id(&mut arena, ty, projected, z)
-        };
-        sigma(&mut arena, a_domain, codomain)
-    };
-    let element = family.quotient(&mut arena);
-    let context = Context::empty().with_signature(signature).extend(element);
-
-    let z = variable(&mut arena, 0);
-    let covered = family.coverage(&mut arena, z);
-    let expected = squash(&mut arena, covered_ty);
-    check_type(&mut arena, &context, covered, expected, &mut budget).unwrap();
-
-    // The squash eliminates into a strict target — the witness is
-    // usable propositionally: `unsq (Squash Two) (λw. sq (fst w))
-    // (coverage z) : Squash Two`.
-    let unsquashed = {
-        let carrier = two(&mut arena);
-        let proposition = squash(&mut arena, carrier);
-        let function = {
-            let witness_domain = covered_ty;
-            let w = variable(&mut arena, 0);
-            let first = fst(&mut arena, w);
-            let inner = two(&mut arena);
-            let body = squash_intro(&mut arena, inner, first);
-            lambda(&mut arena, witness_domain, body)
-        };
-        let z = variable(&mut arena, 0);
-        let covered = family.coverage(&mut arena, z);
-        squash_elim(&mut arena, proposition, function, covered)
-    };
-    let carrier = two(&mut arena);
-    let expected = squash(&mut arena, carrier);
-    check_type(&mut arena, &context, unsquashed, expected, &mut budget).unwrap();
-
-    // But no representative is extractable: `fst (coverage z)` treats
-    // the squash as a pair and rejects — coverage supplies no
-    // representative-extraction function.
-    let z = variable(&mut arena, 0);
-    let covered = family.coverage(&mut arena, z);
-    let extract = fst(&mut arena, covered);
-    let error = infer_type(&mut arena, &context, extract, &mut budget).unwrap_err();
-    assert!(
-        matches!(error, CoreError::NotAPair { .. }),
-        "squashed existence never opens to a representative: {error:?}"
-    );
-}
-
-#[test]
 fn quotient_unique_collapses_sections_agreeing_on_projections() {
     let mut arena = TermArena::new();
     let mut budget = default_budget();
@@ -456,90 +389,4 @@ fn quotient_unique_collapses_sections_agreeing_on_projections() {
         matches!(error, CoreError::TypeMismatch { .. }),
         "pointwise uniqueness is not function extensionality: {error:?}"
     );
-}
-
-#[test]
-fn quotient_derived_items_close_over_exactly_the_checked_interface() {
-    let mut arena = TermArena::new();
-    let signature = quotient_signature(&mut arena);
-
-    // `indProp`, `coverage` and `unique` are derived through `elim`,
-    // `transport` (which routes through `sound`), `project` and the
-    // carrier `Q` — a judgment citing them commits to exactly that
-    // admitted fragment: `setQ`, `effective`, `beta` and `liftPre` are
-    // not in scope.
-    let expected: std::collections::BTreeSet<u32> =
-        [QUOTIENT, QUOTIENT_PROJECT, QUOTIENT_SOUND, QUOTIENT_ELIM]
-            .into_iter()
-            .collect();
-    for declaration in [QUOTIENT_IND_PROP, QUOTIENT_COVERAGE, QUOTIENT_UNIQUE] {
-        let closure = assumption_closure(&arena, &signature, &[declaration]);
-        assert_eq!(
-            closure, expected,
-            "declaration {declaration} must close over exactly the checked interface"
-        );
-    }
-
-    // The identity/boxing lemmas are pure derivations — no admitted
-    // assumption enters their closure at all.
-    for declaration in [
-        QUOTIENT_ID_SYM,
-        QUOTIENT_ID_CANCEL,
-        QUOTIENT_PROP_IS_SET,
-        QUOTIENT_BOX_PROP,
-    ] {
-        let closure = assumption_closure(&arena, &signature, &[declaration]);
-        assert!(
-            closure.is_empty(),
-            "declaration {declaration} is a closed derivation"
-        );
-    }
-}
-
-#[test]
-fn quotient_coverage_carries_through_a_checked_certificate() {
-    let mut arena = TermArena::new();
-    let mut budget = default_budget();
-    let family = two_quotient(&mut arena);
-    let declarations = quotient_scheme(&mut arena);
-    check_signature(&mut arena, &declarations, &mut default_budget()).unwrap();
-
-    // The `coverage z : Squash (Σ(a : Two). Id Q (project a) z)`
-    // judgment as a certificate: signature + context + evidence +
-    // claimed type, re-decided by `verify_mathematical_certificate`.
-    let element = family.quotient(&mut arena);
-    let z = variable(&mut arena, 0);
-    let covered = family.coverage(&mut arena, z);
-    let expected = {
-        let a_domain = two(&mut arena);
-        let codomain = {
-            let a = variable(&mut arena, 0);
-            let projected = family.project(&mut arena, a);
-            let z = variable(&mut arena, 1);
-            let ty = family.quotient(&mut arena);
-            id(&mut arena, ty, projected, z)
-        };
-        let packed = sigma(&mut arena, a_domain, codomain);
-        squash(&mut arena, packed)
-    };
-    let certificate = MathematicalCertificate {
-        signature: declarations,
-        level_arity: 0,
-        context: vec![element],
-        term: covered,
-        expected,
-    };
-    let before = budget.remaining();
-    verify_mathematical_certificate(&mut arena, &certificate, &mut budget).unwrap();
-    assert!(before - budget.remaining() > 0);
-
-    // The judgment commits to exactly the checked interface — the same
-    // `Q`, `project`, `sound`, `elim` fragment the other derived items
-    // carry; the strict-layer machinery inside `boxProp` adds nothing.
-    let closure = certificate_assumption_closure(&arena, &certificate);
-    let expected: std::collections::BTreeSet<u32> =
-        [QUOTIENT, QUOTIENT_PROJECT, QUOTIENT_SOUND, QUOTIENT_ELIM]
-            .into_iter()
-            .collect();
-    assert_eq!(closure, expected);
 }

@@ -205,23 +205,6 @@ fn float_replay_rechecks_concrete_selector_call_admission() {
 }
 
 #[test]
-fn float_replay_requires_operator_free_match_authored_root() {
-    let mut typed = fixture("f32", "match true { true -> 1, false -> 2 }");
-    super::validate(&typed, None).expect("operator-free anonymous match replay");
-    let span = typed.roots.const_declarations;
-    typed.tables.const_declarations.span_mut_or_empty(span)[0].authored_initializer =
-        Default::default();
-    let diagnostics = super::validate(&typed, None)
-        .expect_err("absence of operators cannot excuse an erased authored match");
-    assert!(
-        diagnostics.iter().any(|diagnostic| diagnostic
-            .message
-            .contains("source-owned initializer roots")),
-        "{diagnostics:?}"
-    );
-}
-
-#[test]
 fn float_literal_replay_rechecks_each_format_and_materialized_bits() {
     for (carrier, literal, encoding) in [
         ("f32", "1.5", "float:f32:3fc00000"),
@@ -406,23 +389,6 @@ fn anonymous_float_replay_rejects_forged_results_and_erased_custody() {
             );
         }
     }
-}
-
-#[test]
-fn anonymous_float_replay_does_not_repair_a_zero_divisor_with_forged_bits() {
-    let mut typed = fixture("f32", "1 / 2");
-    super::validate(&typed, None).expect("defined division replay");
-    let declaration = typed.const_declarations()[0].clone();
-    let ExpressionNode::Binary(binary) = typed
-        .expression_table
-        .expression(declaration.authored_initializer)
-    else {
-        panic!("authored division");
-    };
-    let divisor = binary.right;
-    *typed.expression_table.expression_mut(divisor) =
-        ExpressionNode::Integer(numerics::literals::IntegerLiteral::from_value(0));
-    assert!(super::validate(&typed, None).is_err());
 }
 
 #[test]

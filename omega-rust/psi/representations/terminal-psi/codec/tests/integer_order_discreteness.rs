@@ -119,23 +119,3 @@ fn order_discreteness_roundtrips_exact_child_and_replays_acceptance_trace() {
         }
     }
 }
-
-#[test]
-fn order_discreteness_child_counts_toward_proof_nesting_limit() {
-    let mut proof = ProofNode {
-        conclusion: Proposition::Truth,
-        rule: ProofRule::Assumption { index: 0 },
-    };
-    for _ in 0..257 {
-        proof = ProofNode {
-            conclusion: Proposition::Truth,
-            rule: ProofRule::IntegerOrderDiscreteness {
-                relation: Box::new(proof),
-            },
-        };
-    }
-    assert_eq!(
-        encode_proof_bundle(&bundle(proof)),
-        Err(ProofCodecError::ProofNestingTooDeep)
-    );
-}

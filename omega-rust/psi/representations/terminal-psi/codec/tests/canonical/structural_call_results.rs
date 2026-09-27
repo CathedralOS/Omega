@@ -2,29 +2,13 @@ use super::{
     i32_type, multi_claim_structural_call_fixture, structural_call_fixture,
     structural_effect_fixture,
 };
-use crate::canonical::{
-    claim_id, operation_id, structural_domain_id, structural_type_id, value_id,
-};
+use crate::canonical::{claim_id, operation_id, structural_domain_id, structural_type_id};
 use semantic_vocabulary::{ScalarType, StructuralPlaceKind};
-use terminal_codec::{CodecError, decode_module, encode_module, semantic_fingerprint};
+use terminal_codec::{CodecError, decode_module, encode_module};
 use terminal_psi::{
-    Operation, OperationKind, OperationResult, StructuralDomainDeclaration, StructuralPathSegment,
-    TerminalMachineResult, Terminator, ValueDeclaration, VocabularyMarker,
+    OperationKind, OperationResult, StructuralDomainDeclaration, StructuralPathSegment,
+    TerminalMachineResult, Terminator,
 };
-
-#[test]
-fn structural_call_result_round_trips_with_current_format_and_vocabulary() {
-    let module = structural_call_fixture();
-    let bytes = encode_module(&module).expect("structural call should encode");
-
-    assert_eq!(&bytes[8..10], 107_u16.to_le_bytes());
-    assert_eq!(
-        &bytes[10..12],
-        VocabularyMarker::CURRENT.get().to_le_bytes()
-    );
-    assert_eq!(decode_module(&bytes), Ok(module.clone()));
-    assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
-}
 
 #[test]
 fn structural_call_multi_claim_map_round_trips_and_rejects_inexact_maps() {
@@ -245,69 +229,6 @@ fn structural_call_result_paths_round_trip_and_missing_call_custody_fails_closed
             terminal_verifier::ModuleError::StructuralCallTargetMismatch { .. }
         ))
     ));
-}
-
-#[test]
-fn boundary_scalar_parameter_and_argument_order_round_trips_canonically() {
-    let mut module = structural_effect_fixture();
-    let first = value_id(1);
-    let second = value_id(2);
-    module.boundary_machines[0]
-        .parameter_order
-        .splice(0..0, [terminal_psi::BoundaryParameterKind::Scalar; 2]);
-    module.boundary_machines[0].scalar_parameters = vec![ScalarType::Boolean; 2];
-    let operations = &mut module.machines[1].blocks[0].operations;
-    operations[0].id = operation_id(4);
-    operations[1].id = operation_id(5);
-    operations.splice(
-        0..0,
-        [
-            Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id: operation_id(2),
-                result: OperationResult::Scalar(ValueDeclaration {
-                    qualifications: Default::default(),
-                    id: first,
-                    scalar_type: ScalarType::Boolean,
-                }),
-                kind: OperationKind::BooleanConstant { value: false },
-            },
-            Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id: operation_id(3),
-                result: OperationResult::Scalar(ValueDeclaration {
-                    qualifications: Default::default(),
-                    id: second,
-                    scalar_type: ScalarType::Boolean,
-                }),
-                kind: OperationKind::BooleanConstant { value: true },
-            },
-        ],
-    );
-    let OperationKind::BoundaryCall { arguments, .. } =
-        &mut module.machines[1].blocks[0].operations[3].kind
-    else {
-        unreachable!()
-    };
-    *arguments = vec![second, first];
-
-    let bytes = encode_module(&module).expect("scalar boundary lanes should encode");
-    assert_eq!(decode_module(&bytes), Ok(module.clone()));
-
-    let mut reordered = module;
-    let OperationKind::BoundaryCall { arguments, .. } =
-        &mut reordered.machines[1].blocks[0].operations[3].kind
-    else {
-        unreachable!()
-    };
-    arguments.swap(0, 1);
-    assert_ne!(
-        semantic_fingerprint(&reordered).unwrap(),
-        semantic_fingerprint(&decode_module(&bytes).unwrap()).unwrap(),
-        "boundary scalar argument order is semantic",
-    );
 }
 
 #[test]

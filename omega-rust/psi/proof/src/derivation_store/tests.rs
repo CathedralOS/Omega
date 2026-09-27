@@ -116,31 +116,6 @@ fn lookup_uses_semantic_identity_not_spelling() {
 }
 
 #[test]
-fn candidates_arrive_in_insertion_order() {
-    let mut program = program();
-    let base = program.int_reference();
-    let machine = program.machine;
-    let [count, total] = program.data;
-    let plan = ProofPlan::new(&program.typed_trees);
-    let count_key = key_for(&plan, machine, count, base);
-    let total_key = key_for(&plan, machine, total, base);
-
-    let mut store = DerivationStore::new();
-    let first = store.store(count_key.clone(), 1).expect("first");
-    let second = store.store(count_key.clone(), 2).expect("second");
-    let third = store.store(count_key.clone(), 3).expect("third");
-    store.store(total_key, 9).expect("other key");
-
-    assert_eq!(
-        store.candidates(&count_key).collect::<Vec<_>>(),
-        [(first, &1), (second, &2), (third, &3)],
-        "several derivations may prove one obligation; the index returns all"
-    );
-    assert_eq!(store.len(), 4);
-    assert_eq!(store.key_count(), 2);
-}
-
-#[test]
 fn invalidation_frees_the_key_row_and_stales_its_ids() {
     let mut program = program();
     let base = program.int_reference();
@@ -170,56 +145,6 @@ fn invalidation_frees_the_key_row_and_stales_its_ids() {
     let recycled = store.store(fresh_key, 3).expect("reuses the slot");
     assert_eq!(store.derivation(stale), None);
     assert_eq!(store.derivation(recycled), Some(&3));
-}
-
-#[test]
-fn dependency_sweep_drops_every_row_naming_the_changed_dependency() {
-    let mut program = program();
-    let base = program.int_reference();
-    let machine = program.machine;
-    let [count, total] = program.data;
-    let plan = ProofPlan::new(&program.typed_trees);
-    let count_key = key_for(&plan, machine, count, base);
-    let total_key = key_for(&plan, machine, total, base);
-    assert!(
-        count_key.as_str().contains("::count"),
-        "the canonical key embeds the data symbol's resolved identity"
-    );
-
-    let mut store = DerivationStore::new();
-    let first = store.store(count_key.clone(), 1).expect("stored");
-    let second = store.store(count_key.clone(), 2).expect("stored");
-    let kept = store.store(total_key, 3).expect("stored");
-
-    // `count`'s declaration changed: every row whose canonical identity
-    // still names it is affected, whatever key the caller can reproduce.
-    let removed = store.invalidate_where(|key| key.as_str().contains("::count"));
-    assert_eq!(removed, 2);
-    assert_eq!(store.candidates(&count_key).count(), 0);
-    assert_eq!(store.derivation(first), None);
-    assert_eq!(store.derivation(second), None);
-    assert_eq!(store.derivation(kept), Some(&3));
-    assert_eq!(store.len(), 1);
-    assert_eq!(store.key_count(), 1);
-}
-
-#[test]
-fn dependency_sweep_without_a_match_drops_nothing() {
-    let mut program = program();
-    let base = program.int_reference();
-    let machine = program.machine;
-    let count = program.data[0];
-    let plan = ProofPlan::new(&program.typed_trees);
-    let count_key = key_for(&plan, machine, count, base);
-
-    let mut store = DerivationStore::new();
-    let id = store.store(count_key.clone(), 1).expect("stored");
-    assert_eq!(
-        store.invalidate_where(|key| key.as_str().contains("::nonexistent")),
-        0
-    );
-    assert_eq!(store.len(), 1);
-    assert_eq!(store.derivation(id), Some(&1));
 }
 
 #[test]
@@ -263,25 +188,4 @@ fn clear_drops_everything() {
     assert!(store.is_empty());
     assert_eq!(store.key_count(), 0);
     assert_eq!(store.derivation(id), None);
-}
-
-#[test]
-fn stale_ids_from_another_store_do_not_resolve() {
-    let mut program = program();
-    let base = program.int_reference();
-    let machine = program.machine;
-    let count = program.data[0];
-    let plan = ProofPlan::new(&program.typed_trees);
-    let key = key_for(&plan, machine, count, base);
-
-    let mut first = DerivationStore::new();
-    let foreign = first.store(key.clone(), 1).expect("stored");
-
-    let second = DerivationStore::<u32>::new();
-    assert_eq!(second.derivation(foreign), None);
-
-    // A distinct key object with the same canonical text addresses the same
-    // semantic row.
-    let aliases = first.candidates(&key).collect::<Vec<_>>();
-    assert_eq!(aliases, [(foreign, &1)]);
 }

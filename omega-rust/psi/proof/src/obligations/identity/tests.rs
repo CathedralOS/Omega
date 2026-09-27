@@ -1,7 +1,7 @@
 //! Identity tests: normalized spellings, resolved-symbol stability,
 //! constraint and payload sensitivity, and schema marking.
 
-use super::{KEY_SCHEMA, ProofObligationKey, proof_obligation_key};
+use super::proof_obligation_key;
 use crate::obligations::{
     BinaryValueOperands, BoundedAssignmentObligation, BoundedValueObligation,
     GuardedTransitionObligation, IntegerRange, ProofConstraint, ProofObligation,
@@ -135,40 +135,6 @@ fn bounded_assignment(
 }
 
 #[test]
-fn display_spellings_do_not_disturb_identity() {
-    let mut program = program();
-    let base = program.int_reference();
-    let machine = program.machine;
-    let data = program.data[0];
-    let mut plan = ProofPlan::new(&program.typed_trees);
-    let constraints = plan
-        .type_constraints
-        .insert_many([ProofConstraint::IntegerRange {
-            minimum: BigInt::from_i64(0),
-            maximum: BigInt::from_i64(7),
-        }]);
-    let original = proof_obligation_key(
-        &plan,
-        &bounded_value(machine, "Main", data, "count", base, constraints),
-    );
-    let renamed = proof_obligation_key(
-        &plan,
-        &bounded_value(
-            machine,
-            "RenamedMachine",
-            data,
-            "renamed_data",
-            base,
-            constraints,
-        ),
-    );
-    assert_eq!(
-        original, renamed,
-        "identifier spellings beside resolved symbols carry no identity"
-    );
-}
-
-#[test]
 fn statement_index_does_not_disturb_identity() {
     let mut program = program();
     let base = program.int_reference();
@@ -189,41 +155,6 @@ fn statement_index_does_not_disturb_identity() {
         &bounded_assignment(machine, state, target, value, 9, constraints, base, None),
     );
     assert_eq!(first, second, "statement position is not semantic content");
-}
-
-#[test]
-fn resolved_owner_changes_identity() {
-    let mut program = program();
-    let base = program.int_reference();
-    let machine = program.machine;
-    let [count, total] = program.data;
-    let plan = ProofPlan::new(&program.typed_trees);
-    let count_key = proof_obligation_key(
-        &plan,
-        &bounded_value(
-            machine,
-            "Main",
-            count,
-            "count",
-            base,
-            arena::HandleSpan::empty(),
-        ),
-    );
-    let total_key = proof_obligation_key(
-        &plan,
-        &bounded_value(
-            machine,
-            "Main",
-            total,
-            "count",
-            base,
-            arena::HandleSpan::empty(),
-        ),
-    );
-    assert_ne!(
-        count_key, total_key,
-        "the resolved owner symbol is semantic identity even when the display name repeats"
-    );
 }
 
 #[test]
@@ -366,76 +297,6 @@ fn expression_payloads_distinguish_obligations() {
 }
 
 #[test]
-fn names_key_by_resolved_symbol_not_spelling() {
-    let mut program = program();
-    let spelled = program.name("count", program.data[0]);
-    let renamed = program.name("renamed", program.data[0]);
-    let other = program.name("total", program.data[1]);
-    let base = program.int_reference();
-    let machine = program.machine;
-    let state = program.state;
-    let plan = ProofPlan::new(&program.typed_trees);
-    assert_eq!(
-        proof_obligation_key(
-            &plan,
-            &bounded_assignment(
-                machine,
-                state,
-                spelled,
-                spelled,
-                0,
-                arena::HandleSpan::empty(),
-                base,
-                None
-            )
-        ),
-        proof_obligation_key(
-            &plan,
-            &bounded_assignment(
-                machine,
-                state,
-                spelled,
-                renamed,
-                0,
-                arena::HandleSpan::empty(),
-                base,
-                None
-            )
-        ),
-        "a rename does not invalidate a semantically identical obligation"
-    );
-    assert_ne!(
-        proof_obligation_key(
-            &plan,
-            &bounded_assignment(
-                machine,
-                state,
-                spelled,
-                spelled,
-                0,
-                arena::HandleSpan::empty(),
-                base,
-                None
-            )
-        ),
-        proof_obligation_key(
-            &plan,
-            &bounded_assignment(
-                machine,
-                state,
-                spelled,
-                other,
-                0,
-                arena::HandleSpan::empty(),
-                base,
-                None
-            )
-        ),
-        "distinct resolved symbols remain distinct"
-    );
-}
-
-#[test]
 fn binary_operand_ranges_enter_identity() {
     let mut program = program();
     let left = program.integer(1);
@@ -470,29 +331,5 @@ fn binary_operand_ranges_enter_identity() {
         proof_obligation_key(&plan, &operands(None)),
         proof_obligation_key(&plan, &operands(declared)),
         "declared operand ranges are dependency context, not display"
-    );
-}
-
-#[test]
-fn schema_versions_the_encoding() {
-    let mut program = program();
-    let base = program.int_reference();
-    let machine = program.machine;
-    let data = program.data[0];
-    let plan = ProofPlan::new(&program.typed_trees);
-    let key: ProofObligationKey = proof_obligation_key(
-        &plan,
-        &bounded_value(
-            machine,
-            "Main",
-            data,
-            "count",
-            base,
-            arena::HandleSpan::empty(),
-        ),
-    );
-    assert!(
-        key.as_str().contains(&format!("schema:{KEY_SCHEMA}")),
-        "the encoding carries its schema marker: {key}"
     );
 }

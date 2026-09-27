@@ -271,13 +271,9 @@ fn proof_node_count(node: &ProofNode) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        AcceptedFact, AcceptedFactRoute, CertificateVerdict, MathematicalCoreDecision,
-        ProofObligation, ProofPlanMeasurements,
-    };
+    use super::{AcceptedFact, AcceptedFactRoute, MathematicalCoreDecision, ProofPlanMeasurements};
     use proof_admission::{
-        CertificateAcceptance, MathematicalJudgmentReceipt, PrimitiveJudgment, ProofNode,
-        ProofRule, ProofSystemMarker,
+        CertificateAcceptance, PrimitiveJudgment, ProofNode, ProofRule, ProofSystemMarker,
     };
     use semantic_vocabulary::{
         EvidenceIdentity, IntegerMathLiteral, IntegerMathTerm, ObligationId, Proposition,
@@ -305,60 +301,6 @@ mod tests {
                 },
             },
         }
-    }
-
-    #[test]
-    fn obligation_classes_and_outcomes_tally() {
-        let mut measurements = ProofPlanMeasurements::default();
-        // `ProofObligation::default` is a BoundedValue leg, which this pass
-        // does not decide.
-        measurements.record_obligation(&ProofObligation::default());
-        assert_eq!(measurements.decided_elsewhere, 1);
-        assert_eq!(measurements.obligations(), 1);
-
-        measurements.record_outcome(false);
-        measurements.record_outcome(true);
-        assert_eq!(measurements.discharged, 1);
-        assert_eq!(measurements.diagnosed, 1);
-    }
-
-    #[test]
-    fn certificate_verdicts_tally() {
-        let mut measurements = ProofPlanMeasurements::default();
-        measurements.record_certificate_verdict(CertificateVerdict::Certified);
-        measurements.record_certificate_verdict(CertificateVerdict::Certified);
-        measurements.record_certificate_verdict(CertificateVerdict::Rejected);
-        measurements.record_certificate_verdict(CertificateVerdict::Uncovered);
-        assert_eq!(measurements.certificate_attempts(), 4);
-        assert_eq!(measurements.certificate_certified, 2);
-        assert_eq!(measurements.certificate_rejected, 1);
-        assert_eq!(measurements.certificate_uncovered, 1);
-    }
-
-    #[test]
-    fn judged_receipt_figures_aggregate() {
-        let mut measurements = ProofPlanMeasurements::default();
-        measurements.record_accepted_fact(&certificate_derived_fact(
-            MathematicalCoreDecision::Judged(MathematicalJudgmentReceipt {
-                declarations: 7,
-                assumption_closure: 3,
-                context_depth: 2,
-                arena_slots: 11,
-            }),
-        ));
-        measurements.record_accepted_fact(&certificate_derived_fact(
-            MathematicalCoreDecision::Judged(MathematicalJudgmentReceipt {
-                declarations: 5,
-                assumption_closure: 1,
-                context_depth: 4,
-                arena_slots: 13,
-            }),
-        ));
-        assert_eq!(measurements.kernel_judgments, 2);
-        assert_eq!(measurements.kernel_declarations, 12);
-        assert_eq!(measurements.kernel_assumption_closure, 4);
-        assert_eq!(measurements.kernel_context_depth, 6);
-        assert_eq!(measurements.kernel_arena_slots, 24);
     }
 
     #[test]

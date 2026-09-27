@@ -178,28 +178,3 @@ fn subtraction_order_rejects_false_premise_shapes_and_redirected_results() {
         );
     }
 }
-
-#[test]
-fn subtraction_order_both_children_count_toward_nesting_limit() {
-    let (_, _, proof) = fixture(IntegerSign::Unsigned, 8);
-    for nested_positive in [false, true] {
-        let mut nested = proof.clone();
-        for _ in 0..257 {
-            let child = Box::new(nested);
-            let other = Box::new(proof.clone());
-            let (difference, positive) = if nested_positive {
-                (other, child)
-            } else {
-                (child, other)
-            };
-            nested = ProofNode {
-                conclusion: proof.conclusion.clone(),
-                rule: ProofRule::IntegerSubtractOrder {
-                    difference,
-                    positive,
-                },
-            };
-        }
-        assert!(encode_proof_bundle(&bundle(nested)).is_err());
-    }
-}

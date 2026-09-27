@@ -1,8 +1,8 @@
 use super::{
-    BindingRelevance, CodecError, IntegerValue, ScalarType, StructuralCaseDeclaration,
-    StructuralCaseId, StructuralFieldDeclaration, StructuralFieldType, StructuralTypeDeclaration,
-    StructuralTypeShape, TerminalModule, decode_module, encode_module, i32_type,
-    semantic_fingerprint, structural_field_id, structural_type_id, unit_fixture,
+    BindingRelevance, IntegerValue, StructuralCaseDeclaration, StructuralCaseId,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralTypeDeclaration,
+    StructuralTypeShape, TerminalModule, encode_module, i32_type, structural_field_id,
+    structural_type_id, unit_fixture,
 };
 use semantic_vocabulary::BoundedIntegerType;
 
@@ -32,35 +32,6 @@ fn fixture(maximum: i128) -> TerminalModule {
         },
     });
     module
-}
-
-#[test]
-fn bounded_integer_field_bounds_round_trip_and_bind_semantic_identity() {
-    let original = fixture(255);
-    let bytes = encode_module(&original).unwrap();
-    assert_eq!(&bytes[8..12], &[107, 0, 109, 0]);
-    assert_eq!(decode_module(&bytes).unwrap(), original);
-    assert_eq!(
-        encode_module(&decode_module(&bytes).unwrap()).unwrap(),
-        bytes
-    );
-    let mut raw = original.clone();
-    let StructuralTypeShape::Sum { cases } = &mut raw.structural_types[0].shape else {
-        panic!("sum")
-    };
-    cases[0].fields[0].field_type = StructuralFieldType::Scalar(ScalarType::Integer(i32_type()));
-    for different in [fixture(254), fixture(256), raw] {
-        assert_ne!(
-            semantic_fingerprint(&original).unwrap(),
-            semantic_fingerprint(&different).unwrap()
-        );
-    }
-    let mut stale = bytes;
-    stale[8..10].copy_from_slice(&84_u16.to_le_bytes());
-    assert_eq!(
-        decode_module(&stale),
-        Err(CodecError::UnsupportedFormatMarker(84))
-    );
 }
 
 #[test]

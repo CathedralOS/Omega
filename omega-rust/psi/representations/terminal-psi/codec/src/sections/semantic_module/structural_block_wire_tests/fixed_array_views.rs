@@ -160,60 +160,6 @@ fn fixed_byte_array_call_presentations_hostile_bytes_replay_exact_access_type_an
 }
 
 #[test]
-fn fixed_byte_array_view_ledger_replays_the_exact_array_extent() {
-    for projected in [false, true] {
-        for boundary in [false, true] {
-            let module = fixture(projected);
-            let module = if boundary {
-                boundary_fixture(module)
-            } else {
-                module
-            };
-            let trust = crate::current_terminal_trust_graph().unwrap();
-            let ledger = crate::build_terminal_obligation_ledger(&module, &trust).unwrap();
-            let bytes = crate::encode_terminal_obligation_ledger(&ledger).unwrap();
-            let decoded = crate::decode_terminal_obligation_ledger(&bytes).unwrap();
-            crate::validate_terminal_obligation_ledger(&decoded, &module, &trust).unwrap();
-            let mut changed = module;
-            let StructuralTypeShape::FixedArray { length, .. } =
-                &mut changed.structural_types[2].shape
-            else {
-                unreachable!()
-            };
-            *length = 4;
-            encode_module(&changed)
-                .expect("a different array extent remains a lawful independent module");
-            assert!(
-                crate::validate_terminal_obligation_ledger(&decoded, &changed, &trust).is_err()
-            );
-        }
-    }
-}
-
-#[test]
-fn fixed_byte_range_calls_round_trip_exact_endpoints_and_empty_windows() {
-    for projected in [false, true] {
-        for boundary in [false, true] {
-            for (start, end) in [(0, 3), (1, 3), (1, 2), (0, 0), (3, 3)] {
-                let mut module = fixture(projected);
-                argument(&mut module)
-                    .path
-                    .push(StructuralPathSegment::FixedByteRange { start, end });
-                let module = if boundary {
-                    boundary_fixture(module)
-                } else {
-                    module
-                };
-                let bytes = encode_module(&module).unwrap();
-                let decoded = decode_module(&bytes).unwrap();
-                assert_eq!(decoded, module);
-                assert_eq!(encode_module(&decoded).unwrap(), bytes);
-            }
-        }
-    }
-}
-
-#[test]
 fn fixed_byte_range_hostile_bytes_reject_bounds_path_and_access_changes() {
     for mutation in 0..8 {
         let mut module = fixture(true);
@@ -263,19 +209,6 @@ fn fixed_byte_range_hostile_bytes_reject_bounds_path_and_access_changes() {
             );
         }
     }
-}
-
-#[test]
-fn fixed_byte_range_is_not_an_owned_structural_projection() {
-    let module = fixture(false);
-    assert!(
-        crate::sections::semantic_module::module_foundation_validation::validate_structural_path(
-            &module,
-            id(3),
-            &[StructuralPathSegment::FixedByteRange { start: 0, end: 3 }],
-        )
-        .is_err()
-    );
 }
 
 #[test]

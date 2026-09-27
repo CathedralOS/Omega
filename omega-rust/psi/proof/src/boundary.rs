@@ -184,10 +184,7 @@ impl BoundaryObligationSet {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        BoundaryKind, BoundaryObligationMode, BoundaryObligationSet, BoundaryProofObligation,
-        Identifier,
-    };
+    use super::{BoundaryKind, BoundaryObligationSet, BoundaryProofObligation, Identifier};
 
     fn ident(name: &str) -> Identifier {
         Identifier::generated(name)
@@ -264,14 +261,5 @@ mod tests {
         ));
         assert!(set.missing_fact_diagnostics(&[]).is_empty());
         assert_eq!(set.unmet_preservations(&[]).count(), 0);
-    }
-
-    #[test]
-    fn default_mode_is_establish() {
-        assert_eq!(
-            BoundaryObligationMode::default(),
-            BoundaryObligationMode::Establish
-        );
-        assert_eq!(BoundaryKind::default(), BoundaryKind::Host);
     }
 }

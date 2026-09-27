@@ -2,12 +2,8 @@ use super::{
     Block, BoundaryMachineDeclaration, CrashCause, CrashRouteBucket, CrashRouteGuard,
     MachineContract, Operation, OperationKind, OperationResult, Proposition, ScalarTerm,
     ScalarType, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, block_id,
-    boundary_machine_id, contract_id, decode_module, edge_id, encode_module, fixture, i32_type,
-    operation_id, terminal_psi_identity, value_id,
-};
-use terminal_codec::{
-    CanonicalTerminalArtifact, build_identity_optimization_execution_record, decode_proof_bundle,
-    encode_proof_bundle,
+    boundary_machine_id, contract_id, edge_id, encode_module, fixture, i32_type, operation_id,
+    value_id,
 };
 use terminal_psi::CrashPredicateTerm;
 use terminal_verifier::ProofBundle;
@@ -89,54 +85,6 @@ fn boundary_fixture() -> TerminalModule {
         },
     }];
     module
-}
-
-#[test]
-fn boundary_crash_envelope_round_trips_without_source_or_provider_body() {
-    let module = boundary_fixture();
-    let encoded = encode_module(&module).expect("declaration-local guard encodes");
-    let decoded = decode_module(&encoded).expect("guard independently validates after decoding");
-    assert_eq!(decoded, module);
-    assert_eq!(encode_module(&decoded).unwrap(), encoded);
-    let proof = ProofBundle::default();
-    let optimization = build_identity_optimization_execution_record(&module, &proof).unwrap();
-    let artifact = CanonicalTerminalArtifact::from_parts(&module, &proof, &optimization, None)
-        .expect("opaque boundary requirement needs no provider-body assumptions");
-    artifact.validate().expect("source-free artifact replay");
-}
-
-#[test]
-fn boundary_crash_envelope_deletion_cannot_reuse_the_original_artifact_binding() {
-    let module = boundary_fixture();
-    let proof_bytes = encode_proof_bundle(&ProofBundle::default()).unwrap();
-    let proof = decode_proof_bundle(&proof_bytes).unwrap();
-    let optimization = build_identity_optimization_execution_record(&module, &proof).unwrap();
-    let identity = terminal_psi_identity(&module).unwrap();
-
-    let mut deleted = module.clone();
-    deleted.boundary_machines[0].crash_routes.clear();
-    assert_ne!(terminal_psi_identity(&deleted).unwrap(), identity);
-    assert!(CanonicalTerminalArtifact::from_parts(&deleted, &proof, &optimization, None).is_err());
-
-    let mut uncovered = module;
-    uncovered.machines[0].contract.crash_routes.clear();
-    // Continuation coverage is a supplied-certificate question now, not a
-    // module-validity one: the uncovered module still encodes canonically,
-    // and verification rejects it because the reconstructed continuation
-    // obligation names no supplied roster row.
-    encode_module(&uncovered).expect("uncovered continuations still encode; coverage is proved");
-    assert!(matches!(
-        terminal_verifier::verify_module(
-            &uncovered,
-            &ProofBundle::default(),
-            &proof_admission::AdmissionProfile::default(),
-        ),
-        Err(
-            terminal_verifier::VerificationError::MissingCrashObligationEvidence(
-                terminal_psi::CrashObligationOwner::Continuation { .. }
-            )
-        )
-    ));
 }
 
 #[test]

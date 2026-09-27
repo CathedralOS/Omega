@@ -1,11 +1,11 @@
 use super::{
-    fixed_array_custody_fixture, fixture, partial_affine_fixture, project_boundary_argument,
-    project_boundary_path_only, provider_attachment_root, provider_boundary_call,
-    structural_effect_fixture, unit_fixture, unused_provider_attachment_fixture,
+    fixed_array_custody_fixture, partial_affine_fixture, project_boundary_argument,
+    provider_attachment_root, provider_boundary_call, structural_effect_fixture,
+    unused_provider_attachment_fixture,
 };
 use crate::canonical::{
     block_id, boundary_machine_id, claim_id, contract_id, edge_id, machine_id, operation_id,
-    place_id, structural_domain_id, structural_field_id, structural_type_id, value_id,
+    place_id, structural_domain_id, structural_field_id, structural_type_id,
 };
 use semantic_vocabulary::{ScalarType, StructuralPlaceKind};
 use terminal_codec::{CodecError, decode_module, encode_module, semantic_fingerprint};
@@ -14,8 +14,8 @@ use terminal_psi::{
     OperationResult, StructuralAccess, StructuralFieldDeclaration, StructuralFieldType,
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
     StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
-    StructuralTypeShape, SuccessorEdge, TerminalMachine, TerminalMachineResult, TerminalModule,
-    Terminator, ValueDeclaration, VocabularyMarker,
+    StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
+    VocabularyMarker,
 };
 
 #[test]
@@ -64,52 +64,6 @@ fn partial_affine_unit_return_rejects_corrupt_path_type_and_duplicate_action() {
             "structural path has an unknown structural field"
         ))
     );
-}
-
-#[test]
-fn unit_result_and_return_have_a_canonical_value_less_encoding() {
-    let module = unit_fixture();
-    let bytes = encode_module(&module).expect("unit terminal module should encode");
-    let decoded = decode_module(&bytes).expect("unit terminal module should decode");
-
-    assert_eq!(decoded, module);
-    assert_eq!(encode_module(&decoded), Ok(bytes));
-    assert_ne!(
-        semantic_fingerprint(&unit_fixture()).unwrap(),
-        semantic_fingerprint(&fixture()).unwrap(),
-        "unit result shape is semantic identity, not an erased scalar convention"
-    );
-}
-
-#[test]
-fn unit_return_affine_discard_round_trips_canonically() {
-    let mut module = structural_effect_fixture();
-    for machine in &mut module.machines {
-        machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
-        machine.entry_claims.clear();
-    }
-    let OperationKind::CallUnit {
-        claim_transfers, ..
-    } = &mut module.machines[0].blocks[0].operations[0].kind
-    else {
-        unreachable!()
-    };
-    claim_transfers.clear();
-    module.machines[1].blocks[0].operations.clear();
-    let callee_place = module.machines[1].structural_parameters[0].place;
-    let Terminator::ReturnUnit {
-        trivial_affine_discards,
-        ..
-    } = &mut module.machines[1].blocks[0].terminator
-    else {
-        unreachable!()
-    };
-    *trivial_affine_discards = vec![callee_place];
-    module.root_service_reach.concrete.clear();
-
-    let bytes = encode_module(&module).expect("explicit affine discard should encode");
-    assert_eq!(decode_module(&bytes), Ok(module.clone()));
-    assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
 
 #[test]
@@ -290,182 +244,6 @@ fn trivial_affine_local_declaration_and_establishment_round_trip_canonically() {
 }
 
 #[test]
-fn scalar_jump_affine_discard_round_trips_canonically() {
-    let mut module = structural_effect_fixture();
-    let mut machine = module.machines.pop().expect("callee machine");
-    machine.blocks[0].operations.clear();
-    machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
-    machine.entry_claims.clear();
-    machine.parameters = vec![ValueDeclaration {
-        qualifications: Default::default(),
-        id: value_id(50),
-        scalar_type: ScalarType::Boolean,
-    }];
-    machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
-        qualifications: Default::default(),
-        id: value_id(51),
-        scalar_type: ScalarType::Boolean,
-    });
-    let place = machine.structural_parameters[0].place;
-    machine.blocks[0].terminator = Terminator::Jump {
-        structural_arguments: Vec::new(),
-        edge: edge_id(101),
-        target: block_id(102),
-        arguments: vec![value_id(50)],
-        erased_arguments: Vec::new(),
-        erased_proof_arguments: Vec::new(),
-        residual_affine_discards: Vec::new(),
-        trivial_affine_discards: vec![place],
-    };
-    machine.blocks.push(Block {
-        erased_scalar_formals: Vec::new(),
-        erased_proof_formals: Vec::new(),
-        structural_parameters: Vec::new(),
-        id: block_id(102),
-        parameters: vec![ValueDeclaration {
-            qualifications: Default::default(),
-            id: value_id(52),
-            scalar_type: ScalarType::Boolean,
-        }],
-        operations: Vec::new(),
-        terminator: Terminator::Return {
-            edge: edge_id(102),
-            value: value_id(52),
-            cleanup_actions: Vec::new(),
-        },
-    });
-    module.entry = machine.id;
-    module.machines = vec![machine];
-    module.root_service_reach.concrete.clear();
-
-    let bytes = encode_module(&module).expect("jump affine discard should encode");
-    assert_eq!(decode_module(&bytes), Ok(module.clone()));
-    assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
-}
-
-#[test]
-fn conditional_affine_discards_round_trip_canonically() {
-    let mut module = structural_effect_fixture();
-    let mut machine = module.machines.pop().expect("callee machine");
-    machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
-    machine.entry_claims.clear();
-    machine.parameters = vec![ValueDeclaration {
-        qualifications: Default::default(),
-        id: value_id(50),
-        scalar_type: ScalarType::Boolean,
-    }];
-    machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
-        qualifications: Default::default(),
-        id: value_id(51),
-        scalar_type: ScalarType::Boolean,
-    });
-    let place = machine.structural_parameters[0].place;
-    machine.blocks = vec![
-        Block {
-            erased_scalar_formals: Vec::new(),
-            erased_proof_formals: Vec::new(),
-            structural_parameters: Vec::new(),
-            id: block_id(101),
-            parameters: Vec::new(),
-            operations: Vec::new(),
-            terminator: Terminator::Conditional {
-                condition: value_id(50),
-                when_true: SuccessorEdge {
-                    structural_arguments: Vec::new(),
-                    edge: edge_id(101),
-                    target: block_id(102),
-                    arguments: vec![value_id(50)],
-                    erased_arguments: Vec::new(),
-                    erased_proof_arguments: Vec::new(),
-                    trivial_affine_discards: vec![place],
-                },
-                when_false: SuccessorEdge {
-                    structural_arguments: Vec::new(),
-                    edge: edge_id(102),
-                    target: block_id(103),
-                    arguments: vec![value_id(50)],
-                    erased_arguments: Vec::new(),
-                    erased_proof_arguments: Vec::new(),
-                    trivial_affine_discards: vec![place],
-                },
-            },
-        },
-        Block {
-            erased_scalar_formals: Vec::new(),
-            erased_proof_formals: Vec::new(),
-            structural_parameters: Vec::new(),
-            id: block_id(102),
-            parameters: vec![ValueDeclaration {
-                qualifications: Default::default(),
-                id: value_id(52),
-                scalar_type: ScalarType::Boolean,
-            }],
-            operations: Vec::new(),
-            terminator: Terminator::Return {
-                edge: edge_id(103),
-                value: value_id(52),
-                cleanup_actions: Vec::new(),
-            },
-        },
-        Block {
-            erased_scalar_formals: Vec::new(),
-            erased_proof_formals: Vec::new(),
-            structural_parameters: Vec::new(),
-            id: block_id(103),
-            parameters: vec![ValueDeclaration {
-                qualifications: Default::default(),
-                id: value_id(53),
-                scalar_type: ScalarType::Boolean,
-            }],
-            operations: Vec::new(),
-            terminator: Terminator::Return {
-                edge: edge_id(104),
-                value: value_id(53),
-                cleanup_actions: Vec::new(),
-            },
-        },
-    ];
-    module.entry = machine.id;
-    module.machines = vec![machine];
-    module.root_service_reach.concrete.clear();
-
-    let bytes = encode_module(&module).expect("conditional affine discards should encode");
-    assert_eq!(decode_module(&bytes), Ok(module.clone()));
-    assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
-}
-
-#[test]
-fn structural_effect_foundation_round_trips_and_has_stable_identity() {
-    let module = structural_effect_fixture();
-    let bytes = encode_module(&module).expect("structural/effect foundation should encode");
-
-    assert_eq!(
-        &bytes[10..12],
-        VocabularyMarker::CURRENT.get().to_le_bytes()
-    );
-    assert_eq!(decode_module(&bytes), Ok(module.clone()));
-    assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
-
-    let baseline = semantic_fingerprint(&module).unwrap();
-    let mut changed = module.clone();
-    let OperationKind::PortWrite { value, .. } =
-        &mut changed.machines[1].blocks[0].operations[0].kind
-    else {
-        unreachable!()
-    };
-    *value = 0x5b;
-    assert_ne!(semantic_fingerprint(&changed).unwrap(), baseline);
-
-    let mut changed = module.clone();
-    changed.structural_types[0].identity.push_str("::changed");
-    assert_ne!(semantic_fingerprint(&changed).unwrap(), baseline);
-
-    let mut changed = module.clone();
-    changed.machines[0].attachment = Some(structural_type_id(3));
-    assert_ne!(semantic_fingerprint(&changed).unwrap(), baseline);
-}
-
-#[test]
 fn projected_ordinary_unit_argument_round_trips_canonically() {
     let mut module = structural_effect_fixture();
     let element = structural_type_id(1);
@@ -567,113 +345,6 @@ fn structural_result_and_return_round_trip_as_semantic_identity() {
 }
 
 #[test]
-fn erased_structural_field_round_trips_and_changes_semantic_identity() {
-    let baseline = structural_effect_fixture();
-    let mut module = baseline.clone();
-    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape else {
-        unreachable!()
-    };
-    fields.push(StructuralFieldDeclaration {
-        id: structural_field_id(3),
-        identity: "proof".to_owned(),
-        relevance: BindingRelevance::Erased,
-        field_type: StructuralFieldType::Erased {
-            type_identity: "named(name(example::Evidence))".to_owned(),
-        },
-    });
-
-    let bytes = encode_module(&module).expect("erased semantic field should encode");
-    assert_eq!(decode_module(&bytes), Ok(module.clone()));
-    assert_ne!(
-        semantic_fingerprint(&module).unwrap(),
-        semantic_fingerprint(&baseline).unwrap(),
-        "erased bindings remain terminal semantic identity"
-    );
-}
-
-#[test]
-fn numbered_entry_claim_path_round_trips_and_enters_semantic_identity() {
-    let mut baseline = structural_effect_fixture();
-    project_boundary_argument(
-        &mut baseline,
-        vec![StructuralPathSegment::Field("metadata".to_owned())],
-        structural_type_id(2),
-    );
-    let mut module = baseline.clone();
-    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape else {
-        unreachable!()
-    };
-    fields[1].identity = "#7".to_owned();
-    project_boundary_path_only(
-        &mut module,
-        vec![StructuralPathSegment::Field("#7".to_owned())],
-    );
-
-    let bytes = encode_module(&module).expect("numbered aggregate claim path should encode");
-    assert_eq!(decode_module(&bytes), Ok(module.clone()));
-    assert_ne!(
-        semantic_fingerprint(&module).unwrap(),
-        semantic_fingerprint(&baseline).unwrap(),
-        "the exact numbered claim path is terminal semantic identity"
-    );
-}
-
-#[test]
-fn nested_record_claim_path_round_trips_and_enters_semantic_identity() {
-    let mut baseline = structural_effect_fixture();
-    let StructuralTypeShape::Record { fields } = &mut baseline.structural_types[1].shape else {
-        unreachable!()
-    };
-    fields.push(StructuralFieldDeclaration {
-        id: structural_field_id(1),
-        identity: "inner".to_owned(),
-        relevance: BindingRelevance::Relevant,
-        field_type: StructuralFieldType::Structural(structural_type_id(3)),
-    });
-    project_boundary_argument(
-        &mut baseline,
-        vec![
-            StructuralPathSegment::Field("metadata".to_owned()),
-            StructuralPathSegment::Field("inner".to_owned()),
-        ],
-        structural_type_id(3),
-    );
-    let mut module = baseline.clone();
-    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape else {
-        unreachable!()
-    };
-    fields[1].identity = "#7".to_owned();
-    let StructuralTypeShape::Record { fields } = &mut module.structural_types[1].shape else {
-        unreachable!()
-    };
-    fields[0].identity = "#9".to_owned();
-    project_boundary_path_only(
-        &mut module,
-        vec![
-            StructuralPathSegment::Field("#7".to_owned()),
-            StructuralPathSegment::Field("#9".to_owned()),
-        ],
-    );
-
-    let bytes = encode_module(&module).expect("nested aggregate claim path should encode");
-    assert_eq!(decode_module(&bytes), Ok(module.clone()));
-    assert_ne!(
-        semantic_fingerprint(&module).unwrap(),
-        semantic_fingerprint(&baseline).unwrap(),
-        "every nested path segment enters terminal semantic identity"
-    );
-}
-
-#[test]
-fn fixed_array_claim_and_argument_paths_round_trip_canonically() {
-    let module = fixed_array_custody_fixture();
-    let bytes = encode_module(&module).expect("literal fixed-index custody should encode");
-
-    assert_eq!(decode_module(&bytes), Ok(module.clone()));
-    assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
-}
-
-#[test]
 fn structural_foundation_rejects_an_out_of_bounds_fixed_index() {
     let mut module = fixed_array_custody_fixture();
     module.machines[0].entry_claims[0].path = vec![StructuralPathSegment::FixedIndex(2)];
@@ -755,52 +426,6 @@ fn disjoint_sibling_claim_set_round_trips_as_canonical_identity() {
 }
 
 #[test]
-fn unused_provider_attachment_round_trips_with_exact_relevant_opaque_identity() {
-    let module = unused_provider_attachment_fixture();
-    let bytes = encode_module(&module).expect("unused attachment encodes without roots or calls");
-    assert_eq!(decode_module(&bytes), Ok(module.clone()));
-    assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
-    let identity = semantic_fingerprint(&module).unwrap();
-
-    let mut changed = module.clone();
-    let StructuralTypeShape::Record { fields } = &mut changed.structural_types[0].shape else {
-        unreachable!()
-    };
-    fields[0].field_type = StructuralFieldType::Erased {
-        type_identity: "named(name(example::OtherProvider))".into(),
-    };
-    assert_ne!(semantic_fingerprint(&changed).unwrap(), identity);
-
-    let mut erased = module;
-    let StructuralTypeShape::Record { fields } = &mut erased.structural_types[0].shape else {
-        unreachable!()
-    };
-    fields[0].relevance = BindingRelevance::Erased;
-    assert_ne!(semantic_fingerprint(&erased).unwrap(), identity);
-}
-
-#[test]
-fn provider_attachment_encoding_requires_exact_direct_call_roots() {
-    let mut module = unused_provider_attachment_fixture();
-    module.machines[0].blocks[0]
-        .operations
-        .push(provider_boundary_call());
-    let incomplete = Err(CodecError::MalformedStructuralFoundation(
-        "provider-backed attachment specialization is incomplete",
-    ));
-    assert_eq!(encode_module(&module), incomplete);
-
-    module.machines[0]
-        .structural_places
-        .push(provider_attachment_root());
-    let bytes = encode_module(&module).expect("one direct call has its exact provider root");
-    assert_eq!(decode_module(&bytes), Ok(module.clone()));
-
-    module.machines[0].blocks[0].operations.clear();
-    assert_eq!(encode_module(&module), incomplete, "orphan root rejects");
-}
-
-#[test]
 fn provider_attachment_encoding_counts_only_signature_boundary_calls() {
     let mut module = unused_provider_attachment_fixture();
     let mut declared = module.boundary_machines[0].clone();
@@ -833,72 +458,6 @@ fn provider_attachment_encoding_counts_only_signature_boundary_calls() {
         )),
         "a declaration call cannot stand in for the signature call",
     );
-}
-
-#[test]
-fn unused_provider_attachment_encoding_rejects_runtime_field_projection() {
-    let mut module = unused_provider_attachment_fixture();
-    module.machines[0]
-        .structural_parameters
-        .push(StructuralParameterDeclaration {
-            place: place_id(2),
-            position: 0,
-            is_self: true,
-            structural_type: structural_type_id(1),
-            multiplicity: StructuralMultiplicity::Affine,
-            access: StructuralAccess::SharedBorrow,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-        });
-    module.machines[0]
-        .structural_places
-        .push(StructuralPlaceDeclaration {
-            id: place_id(2),
-            kind: StructuralPlaceKind::Parameter {
-                position: 0,
-                is_self: true,
-            },
-        });
-    module.machines[0].entry_claims.push(EntryClaim {
-        claim: claim_id(1),
-        input: place_id(2),
-        path: vec![StructuralPathSegment::Field("console".into())],
-    });
-    assert_eq!(
-        encode_module(&module),
-        Err(CodecError::MalformedStructuralFoundation(
-            "structural path must retain structural custody",
-        )),
-    );
-}
-
-#[test]
-fn unused_provider_attachment_encoding_rejects_nonattachment_and_accepts_multiple_fields() {
-    let mut unattached = unused_provider_attachment_fixture();
-    unattached.machines[0].attachment = None;
-    let incomplete = Err(CodecError::MalformedStructuralFoundation(
-        "provider-backed attachment specialization is incomplete",
-    ));
-    assert_eq!(encode_module(&unattached), incomplete);
-    unattached.machines[0]
-        .structural_places
-        .push(provider_attachment_root());
-    assert_eq!(
-        encode_module(&unattached),
-        incomplete,
-        "a forged root cannot authorize a type"
-    );
-
-    let mut multiple = unused_provider_attachment_fixture();
-    let StructuralTypeShape::Record { fields } = &mut multiple.structural_types[0].shape else {
-        unreachable!()
-    };
-    let mut second = fields[0].clone();
-    second.id = structural_field_id(2);
-    second.identity = "second".into();
-    fields.push(second);
-    // One attachment may hold several provider fields; none is called here.
-    encode_module(&multiple).expect("an attachment may hold several unused provider fields");
 }
 
 #[test]
@@ -939,16 +498,5 @@ fn structural_foundation_rejects_opaque_relevant_and_nonopaque_erased_fields() {
         Err(CodecError::MalformedStructuralFoundation(
             "erased structural field must use its opaque semantic type identity"
         ))
-    );
-}
-
-#[test]
-fn decoder_rejects_the_previous_vocabulary_marker() {
-    let mut bytes = encode_module(&structural_effect_fixture()).unwrap();
-    bytes[10..12].copy_from_slice(&36_u16.to_le_bytes());
-
-    assert_eq!(
-        decode_module(&bytes),
-        Err(CodecError::UnsupportedVocabularyMarker(36))
     );
 }

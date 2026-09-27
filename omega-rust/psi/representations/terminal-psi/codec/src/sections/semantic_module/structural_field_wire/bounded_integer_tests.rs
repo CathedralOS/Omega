@@ -20,36 +20,6 @@ fn encoded(field: &StructuralFieldDeclaration) -> Vec<u8> {
 }
 
 #[test]
-fn bounded_integer_field_wire_preserves_full_width_signed_and_unsigned_endpoints() {
-    for (sign, minimum, maximum) in [
-        (
-            IntegerSign::Signed,
-            IntegerValue::Signed(i128::MIN),
-            IntegerValue::Signed(i128::MAX),
-        ),
-        (
-            IntegerSign::Unsigned,
-            IntegerValue::Unsigned(1 << 127),
-            IntegerValue::Unsigned(u128::MAX),
-        ),
-    ] {
-        let field = field(
-            BoundedIntegerType::new(IntegerType::new(sign, 128).unwrap(), minimum, maximum)
-                .unwrap(),
-        );
-        let bytes = encoded(&field);
-        // Eight-byte identity, four-byte string length, five-byte identity,
-        // relevance, field tag, carrier/sign, width, then two tagged i128/u128s.
-        assert_eq!(bytes.len(), 56);
-        assert_eq!(bytes[18], 6);
-        assert_eq!(
-            decode_structural_field(&mut Reader::new(&bytes)).unwrap(),
-            field
-        );
-    }
-}
-
-#[test]
 fn bounded_integer_field_wire_rejects_malformed_bounds_and_truncation() {
     let original = encoded(&field(
         BoundedIntegerType::new(

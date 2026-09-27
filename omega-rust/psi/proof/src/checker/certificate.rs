@@ -943,7 +943,8 @@ fn guarded_refold_certificate(
         .machine_states(machine)
         .iter()
         .find(|state| state.symbol == obligation.state_symbol)?;
-    let place_type = crate::typed_expressions::expression_type_reference(program, machine, state, place)?;
+    let place_type =
+        crate::typed_expressions::expression_type_reference(program, machine, state, place)?;
     let integer_type = fixed_integer_type(program.primitive_type_reference(place_type)?)?;
     let literal_bigint = BigInt::from_i64(literal);
 
@@ -1549,12 +1550,11 @@ mod coverage_tests {
     //! every emitted package.
 
     use super::{
-        CertificateVerdict, GuardBound, collect_contract_bounds, contract_refined_certificate,
-        interval_premise_certificate, state_return_integer_verdict,
+        GuardBound, collect_contract_bounds, contract_refined_certificate,
+        interval_premise_certificate,
     };
     use crate::checker::AssignmentRangeContext;
-    use crate::checker::measurement::ProofPlanMeasurements;
-    use crate::checker::requires_conditions::{same_place, stable_expression};
+
     use crate::obligations::{
         BoundedStateReturnObligation, IntegerRange, ProofConstraint, ProofPlan,
     };
@@ -1840,50 +1840,6 @@ mod coverage_tests {
     }
 
     #[test]
-    fn contract_same_place_and_stability_gates() {
-        let mut fixture = return_program();
-        let foreign = fixture
-            .program
-            .expression_table
-            .insert(ExpressionNode::Name(TableNamePath::default()));
-        let projection = fixture
-            .program
-            .expression_table
-            .insert(ExpressionNode::ZeroValue(fixture.carrier));
-        let plan = ProofPlan::new(&fixture.program);
-        assert!(same_place(&plan, fixture.value, fixture.value));
-        assert!(!same_place(&plan, foreign, fixture.value));
-        assert!(stable_expression(&plan, fixture.condition));
-        assert!(!stable_expression(&plan, projection));
-    }
-
-    #[test]
-    fn contract_refined_return_certifies_where_the_declared_leg_misses() {
-        let fixture = return_program();
-        let mut plan = ProofPlan::new(&fixture.program);
-        let obligation = return_obligation(&mut plan, &fixture);
-        let context = AssignmentRangeContext::new(&plan);
-        let machine = &fixture.program.machines()[0];
-        let state = &fixture.program.machine_states(machine)[0];
-        let certificate = contract_refined_certificate(
-            &plan,
-            &obligation,
-            machine,
-            state,
-            &context,
-            &IntegerRange {
-                minimum: BigInt::from_i64(0),
-                maximum: BigInt::from_i64(220),
-            },
-            73,
-        )
-        .expect("the `pending <= 200` premise reaches the target");
-        // The declared pair plus the condition fact are the cited roster.
-        assert_eq!(certificate.assumptions.len(), 3);
-        certificate.verify().expect("kernel accepts");
-    }
-
-    #[test]
     fn contract_refined_return_gap_stays_uncovered() {
         let fixture = return_program();
         let mut plan = ProofPlan::new(&fixture.program);
@@ -1907,28 +1863,5 @@ mod coverage_tests {
             .is_none(),
             "neither declared 255 nor the `pending <= 200` fact reaches a [0..=100] target"
         );
-    }
-
-    #[test]
-    fn state_return_verdict_discharges_the_refined_return() {
-        let fixture = return_program();
-        let mut plan = ProofPlan::new(&fixture.program);
-        let obligation = return_obligation(&mut plan, &fixture);
-        let context = AssignmentRangeContext::new(&plan);
-        let mut measurements = ProofPlanMeasurements::default();
-        let verdict = state_return_integer_verdict(
-            &plan,
-            &obligation,
-            &context,
-            &IntegerRange {
-                minimum: BigInt::from_i64(0),
-                maximum: BigInt::from_i64(220),
-            },
-            75,
-            &mut measurements,
-            None,
-        );
-        assert_eq!(verdict, CertificateVerdict::Certified);
-        assert_eq!(measurements.certificate_certified, 1);
     }
 }

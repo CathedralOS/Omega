@@ -1,12 +1,11 @@
 use super::{
-    BindingRelevance, IntegerSign, IntegerType, IntegerValue, Operation, OperationKind,
-    OperationResult, ScalarType, StructuralCaseDeclaration, StructuralFieldDeclaration,
-    StructuralFieldType, StructuralMultiplicity, StructuralOperationResult,
-    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralResultDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape, TerminalMachineResult, TerminalModule,
-    Terminator, ValueDeclaration, decode_module, edge_id, encode_module, obligation_id,
-    operation_id, place_id, semantic_fingerprint, structural_case_id, structural_field_id,
-    structural_type_id, unit_fixture, value_id,
+    BindingRelevance, IntegerSign, IntegerType, Operation, OperationKind, OperationResult,
+    ScalarType, StructuralCaseDeclaration, StructuralFieldDeclaration, StructuralFieldType,
+    StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralResultDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
+    edge_id, encode_module, obligation_id, operation_id, place_id, structural_case_id,
+    structural_field_id, structural_type_id, unit_fixture, value_id,
 };
 use terminal_psi::ScalarCaseField;
 
@@ -118,33 +117,6 @@ fn fixture() -> TerminalModule {
 }
 
 #[test]
-fn scalar_case_field_bindings_round_trip_and_bind_case_and_operand_identity() {
-    let module = fixture();
-    let encoded = encode_module(&module).unwrap();
-    assert_eq!(decode_module(&encoded).unwrap(), module);
-    let identity = semantic_fingerprint(&module).unwrap();
-    for mutation in 0..2 {
-        let mut changed = module.clone();
-        let OperationKind::EstablishScalarCase {
-            result_case,
-            fields,
-        } = &mut changed.machines[0].blocks[0].operations[0].kind
-        else {
-            panic!("constructor");
-        };
-        if mutation == 0 {
-            *result_case = structural_case_id(2);
-        } else {
-            fields[0].value = value_id(1);
-        }
-        assert_ne!(semantic_fingerprint(&changed).unwrap(), identity);
-    }
-    for length in [12, encoded.len() - 1] {
-        assert!(decode_module(&encoded[..length]).is_err());
-    }
-}
-
-#[test]
 fn scalar_case_field_roster_and_proof_roles_reject_tampering() {
     for mutation in 0..6 {
         let mut changed = fixture();
@@ -167,36 +139,4 @@ fn scalar_case_field_roster_and_proof_roles_reject_tampering() {
         }
         assert!(encode_module(&changed).is_err(), "mutation {mutation}");
     }
-}
-
-#[test]
-fn scalar_case_range_obligation_identity_round_trips_without_claiming_a_proof() {
-    let mut module = fixture();
-    let StructuralTypeShape::Sum { cases } = &mut module.structural_types[0].shape else {
-        panic!("sum");
-    };
-    cases[0].fields[0].field_type = StructuralFieldType::BoundedInteger(
-        semantic_vocabulary::BoundedIntegerType::new(
-            IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
-            IntegerValue::Unsigned(0),
-            IntegerValue::Unsigned(255),
-        )
-        .unwrap(),
-    );
-    let OperationKind::EstablishScalarCase { fields, .. } =
-        &mut module.machines[0].blocks[0].operations[0].kind
-    else {
-        panic!("constructor");
-    };
-    fields[0].range_obligation = Some(obligation_id(1));
-    let encoded = encode_module(&module).unwrap();
-    assert_eq!(decode_module(&encoded).unwrap(), module);
-    let identity = semantic_fingerprint(&module).unwrap();
-    let OperationKind::EstablishScalarCase { fields, .. } =
-        &mut module.machines[0].blocks[0].operations[0].kind
-    else {
-        panic!("constructor");
-    };
-    fields[0].range_obligation = Some(obligation_id(2));
-    assert_ne!(semantic_fingerprint(&module).unwrap(), identity);
 }

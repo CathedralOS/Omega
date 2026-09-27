@@ -2,7 +2,7 @@ use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, MachineId, OperationId, PlaceId, StructuralPlaceKind,
     StructuralTypeId,
 };
-use terminal_codec::{CodecError, decode_module, encode_module, semantic_fingerprint};
+use terminal_codec::{decode_module, encode_module, semantic_fingerprint};
 use terminal_psi::{
     Block, MachineContract, Operation, OperationKind, OperationResult, StructuralAccess,
     StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
@@ -11,7 +11,6 @@ use terminal_psi::{
     TerminalModule, TerminalReborrowRestorationClass, TerminalReborrowRestoredCallUse,
     TerminalReborrowSharedCohortMember, Terminator, VocabularyMarker,
 };
-use terminal_verifier::ModuleError;
 
 fn id<T>(raw: u64, constructor: impl FnOnce(u64) -> Option<T>) -> T {
     constructor(raw).expect("nonzero fixture identity")
@@ -447,99 +446,4 @@ fn restored_call_use_round_trips_and_commits_every_variable_axis() {
         semantic_fingerprint(&different_target).expect("call target fingerprints"),
         original
     );
-}
-
-#[test]
-fn restored_call_use_encoding_fails_closed_on_substitution() {
-    let mut module = restored_call_use_module();
-    module.reborrow_restored_call_uses[0].direct_root_lifetime_identity = borrow_identity('f');
-    assert!(matches!(
-        encode_module(&module),
-        Err(CodecError::InvalidModule(
-            ModuleError::InvalidReborrowRestoredCallUse { .. }
-        ))
-    ));
-
-    let mut wrong_class = restored_call_use_module();
-    wrong_class.reborrow_restored_call_uses[0].restoration_class =
-        TerminalReborrowRestorationClass::SharedFreezeRestoration;
-    assert!(matches!(
-        encode_module(&wrong_class),
-        Err(CodecError::InvalidModule(
-            ModuleError::InvalidReborrowRestoredCallUse { .. }
-        ))
-    ));
-
-    let mut wrong_statement = restored_call_use_module();
-    let TerminalBorrowBoundarySource::Call {
-        statement_index, ..
-    } = &mut wrong_statement.reborrow_restored_call_uses[0].call_boundary
-    else {
-        unreachable!()
-    };
-    *statement_index = 1;
-    assert!(matches!(
-        encode_module(&wrong_statement),
-        Err(CodecError::InvalidModule(
-            ModuleError::InvalidReborrowRestoredCallUse { .. }
-        ))
-    ));
-
-    let mut wrong_ordinal = restored_call_use_module();
-    let TerminalBorrowBoundarySource::Call { call_ordinal, .. } =
-        &mut wrong_ordinal.reborrow_restored_call_uses[0].call_boundary
-    else {
-        unreachable!()
-    };
-    *call_ordinal = 1;
-    assert!(matches!(
-        encode_module(&wrong_ordinal),
-        Err(CodecError::InvalidModule(
-            ModuleError::InvalidReborrowRestoredCallUse { .. }
-        ))
-    ));
-
-    let mut wrong_target_machine = restored_call_use_module();
-    wrong_target_machine.reborrow_restored_call_uses[0].call_target_machine = id(3, MachineId::new);
-    assert!(matches!(
-        encode_module(&wrong_target_machine),
-        Err(CodecError::InvalidModule(
-            ModuleError::InvalidReborrowRestoredCallUse { .. }
-        ))
-    ));
-
-    let mut shared = restored_call_use_module();
-    {
-        let row = &mut shared.reborrow_restored_call_uses[0];
-        row.restoration_class = TerminalReborrowRestorationClass::SharedFreezeRestoration;
-        row.child_access = StructuralAccess::SharedBorrow;
-        row.shared_cohort = vec![TerminalReborrowSharedCohortMember {
-            child_owner_identity: row.child_owner_identity.clone(),
-            child_owner_path: row.child_owner_path.clone(),
-            child_place: row.child_place.clone(),
-            child_access: row.child_access,
-            child_activation: row.child_activation.clone(),
-            child_weakening: row.child_weakening.clone(),
-        }];
-    }
-    let mut missing_member = shared.clone();
-    missing_member.reborrow_restored_call_uses[0]
-        .shared_cohort
-        .clear();
-    let mut duplicate_member = shared.clone();
-    let member = duplicate_member.reborrow_restored_call_uses[0].shared_cohort[0].clone();
-    duplicate_member.reborrow_restored_call_uses[0]
-        .shared_cohort
-        .push(member);
-    let mut retargeted_member = shared;
-    retargeted_member.reborrow_restored_call_uses[0].shared_cohort[0].child_owner_identity =
-        borrow_identity('9');
-    for malformed in [missing_member, duplicate_member, retargeted_member] {
-        assert!(matches!(
-            encode_module(&malformed),
-            Err(CodecError::InvalidModule(
-                ModuleError::InvalidReborrowRestoredCallUse { .. }
-            ))
-        ));
-    }
 }

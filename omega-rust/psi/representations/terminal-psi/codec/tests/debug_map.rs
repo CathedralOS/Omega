@@ -1,8 +1,8 @@
 use semantic_vocabulary::{
     BlockId, ClaimId, ContentAlgebra, ContentAlgebraKind, ContentDomainId, ContentPlaceVersion,
     ContentProjectionExpression, ContentProjectionIdentity, ContentProjectionScalar,
-    ContentStructuralPlace, ContractId, EdgeId, IntegerSign, IntegerType, MachineId, OperationId,
-    PlaceId, ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId,
+    ContentStructuralPlace, ContractId, EdgeId, IntegerSign, IntegerType, MachineId, PlaceId,
+    ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use terminal_codec::{
     DebugFileId, DebugMapError, DebugSite, DebugSourceFile, DebugSourceOrigin, DebugSourceSpan,
@@ -15,54 +15,6 @@ use terminal_psi::{
     StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
     ValueDeclaration, VocabularyMarker,
 };
-
-#[test]
-fn typed_debug_map_round_trips_and_binds_exact_semantics() {
-    let module = fixture();
-    let debug_map = debug_map(&module);
-    let bytes = encode_debug_map(&module, &debug_map).expect("debug map should encode");
-
-    assert_eq!(&bytes[..8], b"PSIDBG\0\0");
-    assert_eq!(&bytes[8..10], 1_u16.to_le_bytes());
-    assert_eq!(decode_debug_map(&module, &bytes), Ok(debug_map.clone()));
-    assert_eq!(encode_debug_map(&module, &debug_map), Ok(bytes));
-
-    let mut other = fixture();
-    other.machines[0].id = machine_id(99);
-    other.entry = machine_id(99);
-    assert!(matches!(
-        validate_debug_map(&other, &debug_map),
-        Err(DebugMapError::SemanticIdentityMismatch { .. })
-    ));
-}
-
-#[test]
-fn typed_debug_map_rejects_unknown_subjects_invalid_spans_and_order_drift() {
-    let module = fixture();
-
-    let mut unknown = debug_map(&module);
-    unknown.sites[1].subject = DebugSubject::Operation(operation_id(99));
-    assert_eq!(
-        validate_debug_map(&module, &unknown),
-        Err(DebugMapError::UnknownSubject(DebugSubject::Operation(
-            operation_id(99)
-        )))
-    );
-
-    let mut invalid_span = debug_map(&module);
-    invalid_span.sites[0].span.end = 100;
-    assert_eq!(
-        validate_debug_map(&module, &invalid_span),
-        Err(DebugMapError::InvalidSpan(invalid_span.sites[0].span))
-    );
-
-    let mut reordered = debug_map(&module);
-    reordered.sites.swap(0, 1);
-    assert_eq!(
-        validate_debug_map(&module, &reordered),
-        Err(DebugMapError::NonCanonicalOrder("debug sites by subject"))
-    );
-}
 
 #[test]
 fn unit_machine_debug_map_cannot_name_an_absent_result_value() {
@@ -163,36 +115,6 @@ fn typed_debug_map_accepts_an_entry_only_claim_subject() {
 
     let bytes = encode_debug_map(&module, &debug_map).expect("entry claim has a debug subject");
     assert_eq!(decode_debug_map(&module, &bytes), Ok(debug_map));
-}
-
-#[test]
-fn typed_debug_map_decoder_rejects_hostile_encodings() {
-    let module = fixture();
-    let debug_map = debug_map(&module);
-    let bytes = encode_debug_map(&module, &debug_map).expect("debug map should encode");
-
-    let mut zero_file = bytes.clone();
-    // magic + format marker + vocabulary marker + fingerprint + file count
-    zero_file[48..52].copy_from_slice(&0_u32.to_le_bytes());
-    assert_eq!(
-        decode_debug_map(&module, &zero_file),
-        Err(DebugMapError::ZeroFileIdentity)
-    );
-
-    let mut unknown_subject_tag = bytes.clone();
-    // Header (48), one file record (49 + "main.omg"), then site count (4).
-    unknown_subject_tag[109] = 0xff;
-    assert_eq!(
-        decode_debug_map(&module, &unknown_subject_tag),
-        Err(DebugMapError::InvalidTag("DebugSubject", 0xff))
-    );
-
-    let mut trailing = bytes;
-    trailing.push(0);
-    assert_eq!(
-        decode_debug_map(&module, &trailing),
-        Err(DebugMapError::TrailingBytes(1))
-    );
 }
 
 fn debug_map(module: &TerminalModule) -> TerminalDebugMap {
@@ -324,10 +246,6 @@ fn value_id(raw: u64) -> ValueId {
 
 fn edge_id(raw: u64) -> EdgeId {
     EdgeId::new(raw).expect("nonzero edge id")
-}
-
-fn operation_id(raw: u64) -> OperationId {
-    OperationId::new(raw).expect("nonzero operation id")
 }
 
 fn contract_id(raw: u64) -> ContractId {

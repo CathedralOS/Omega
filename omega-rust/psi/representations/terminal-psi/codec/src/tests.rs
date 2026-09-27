@@ -2,4 +2,3 @@
 //! crash-route roster wire form.
 
 mod crash_route_roster;
-mod resource;

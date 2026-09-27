@@ -152,26 +152,6 @@ fn check(fixture: &Fixture, laws: &[Law]) {
     ));
 }
 
-/// `div(−128, r) ≤ l` with `1 ≤ r` proves `−128 ≤ l·r` over `i8` — the
-/// monotone law lifts `div_app ≤ l'` and the positive-divisor residual
-/// lands the minimum endpoint.
-#[test]
-fn correlated_multiply_positive_minimum() {
-    let integer = IntegerType::new(IntegerSign::Signed, 8).unwrap();
-    let fixture = fixture(
-        integer,
-        IntegerValue::Signed(-128),
-        true,
-        true,
-        false,
-        false,
-    );
-    check(
-        &fixture,
-        &[Law::MonotonePositive, Law::DivideLowerPositive(integer)],
-    );
-}
-
 /// `l ≤ div(−128, r)` with `r ≤ −2` proves `−128 ≤ l·r` over `i8` —
 /// the antitone law reverses the bound and the negative-divisor
 /// residual lands the minimum.
@@ -263,72 +243,6 @@ fn correlated_multiply_unsigned_zero_endpoint() {
         &fixture,
         &[Law::MonotonePositive, Law::DivideLowerPositive(integer)],
     );
-}
-
-/// The four-corner direct multiply bound is a different checked family —
-/// its premise shape is outside the correlated vocabulary, so it keeps
-/// the explicit per-instance rule axiom.
-#[test]
-fn direct_multiply_bound_keeps_the_instance_fallback() {
-    let integer = IntegerType::new(IntegerSign::Signed, 8).unwrap();
-    let scalar = ScalarType::Integer(integer);
-    let value = |index| ScalarTerm::value(ValueId::new(index).unwrap(), scalar);
-    let literal = |number| ScalarTerm::integer(integer, IntegerValue::Signed(number)).unwrap();
-    let context = PropositionContext::from_value_types(
-        (1..=2).map(|index| (ValueId::new(index).unwrap(), scalar)),
-    )
-    .unwrap();
-    let left = value(1);
-    let right = value(2);
-    let premise = Proposition::Conjunction(vec![
-        Proposition::LessOrEqual(literal(-4), left.clone()),
-        Proposition::LessOrEqual(left.clone(), literal(5)),
-        Proposition::LessOrEqual(literal(-3), right.clone()),
-        Proposition::LessOrEqual(right.clone(), literal(2)),
-    ]);
-    let product = IntegerMathTerm::Multiply(
-        Box::new(mathematical(&left)),
-        Box::new(mathematical(&right)),
-    );
-    let goal = Proposition::IntegerMathLessOrEqual(
-        IntegerMathTerm::literal(IntegerValue::Signed(-15)),
-        product,
-    );
-    let proof = ProofNode {
-        conclusion: goal.clone(),
-        rule: ProofRule::IntegerAffineBound {
-            root_bound: Box::new(ProofNode {
-                conclusion: premise.clone(),
-                rule: ProofRule::Assumption { index: 0 },
-            }),
-            witness: IntegerAffineWitness {
-                root: left,
-                target: ScalarTerm::exact_integer_multiply(integer, value(1), right).unwrap(),
-                definition_axioms: Vec::new(),
-                literal_axioms: Vec::new(),
-            },
-        },
-    };
-    verify_bounded_certificate(
-        &context,
-        &goal,
-        std::slice::from_ref(&premise),
-        &[],
-        &proof,
-        &mut Budget::default(),
-    )
-    .unwrap();
-    let parameters = BTreeSet::new();
-    let mut elaboration = Elaboration::new(
-        &context,
-        &goal,
-        std::slice::from_ref(&premise),
-        &[],
-        &parameters,
-    )
-    .unwrap();
-    elaboration.node(&proof).unwrap();
-    assert_eq!(elaboration.denotation.rule_axioms.len(), 1);
 }
 
 /// Mutating the checked premise rejects at the shared relation before

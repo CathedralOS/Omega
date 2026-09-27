@@ -87,7 +87,7 @@ use diagnostics::Diagnostic;
 #[cfg(test)]
 use numerics::{
     arithmetic::ArithmeticDomain,
-    literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType},
+    literals::{IntegerLanding, IntegerLiteral, LandedIntegerType},
 };
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -172,15 +172,7 @@ pub(super) struct EndpointCallee {
     pub(super) static_application: bool,
 }
 
-impl EndpointCallee {
-    #[cfg(test)]
-    pub(super) fn plain(machine: symbols::SymbolHandle) -> Self {
-        Self {
-            instance: machine,
-            static_application: false,
-        }
-    }
-}
+impl EndpointCallee {}
 
 /// Resolve the executable callee in the prepared tree. A static application
 /// must have been rewritten there to its concrete instance; a call that still

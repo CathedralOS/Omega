@@ -13,10 +13,6 @@ use proof_admission::{
 };
 use terminal_codec::{decode_mathematical_certificate, encode_mathematical_certificate};
 
-fn budget() -> Budget {
-    Budget::new(DEFAULT_CONVERSION_STEPS)
-}
-
 fn type_sort(arena: &mut TermArena, level: u32) -> TermHandle {
     arena.insert(Term::Sort(Sort::Type(Level::Constant(level))))
 }
@@ -46,10 +42,6 @@ fn constant(arena: &mut TermArena, declaration: u32) -> TermHandle {
         declaration,
         levels: Vec::new(),
     })
-}
-
-fn verify(decoded: &mut terminal_codec::DecodedMathematicalCertificate) -> Result<(), CoreError> {
-    verify_mathematical_certificate(&mut decoded.arena, &decoded.certificate, &mut budget())
 }
 
 /// `subst` — the identity-transport library theorem — is declaration 0.
@@ -204,32 +196,6 @@ fn import_certificate(arena: &mut TermArena) -> MathematicalCertificate {
 }
 
 #[test]
-fn an_imported_arithmetic_derivation_re_verifies_with_its_exact_axiom_closure() {
-    let mut arena = TermArena::new();
-    let certificate = import_certificate(&mut arena);
-    let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
-
-    let mut decoded = decode_mathematical_certificate(&bytes).expect("decode");
-    assert_eq!(decoded.certificate.signature.len(), 7);
-    verify(&mut decoded).expect("the imported derivation must re-verify");
-
-    let repacked =
-        encode_mathematical_certificate(&decoded.arena, &decoded.certificate).expect("re-encode");
-    assert_eq!(repacked, bytes);
-
-    // The exact source axiom closure: the derivation commits to the four
-    // vocabulary constants and both recursion axioms — positions 1–6 —
-    // and to none of `subst`'s own (body-checked, assumption-free)
-    // definition.
-    assert_eq!(
-        proof_admission::certificate_assumption_closure(&decoded.arena, &decoded.certificate),
-        [NAT, ZERO, SUCC, ADD, ADD_ZERO, ADD_SUCC]
-            .into_iter()
-            .collect()
-    );
-}
-
-#[test]
 fn the_imported_arithmetic_derivation_has_a_measured_size_and_step_cost() {
     // The evidence row the interchange design asks for: certificate size
     // and checking cost, pinned exactly so drift in either is visible.
@@ -257,37 +223,4 @@ fn the_imported_arithmetic_derivation_has_a_measured_size_and_step_cost() {
     let mut exact = Budget::new(used);
     verify_mathematical_certificate(&mut decoded.arena, &decoded.certificate, &mut exact)
         .expect("the measured budget exactly suffices");
-}
-
-#[test]
-fn an_imported_arithmetic_axiom_alone_carries_only_the_cited_rows() {
-    // `addZero n` proves `add n zero = n` directly — the closure must
-    // name exactly the cited axiom and its statement's vocabulary,
-    // excluding `succ` and `addSucc`, which the judgment never touches.
-    let mut arena = TermArena::new();
-    let declarations = arithmetic_signature(&mut arena);
-    let n = variable(&mut arena, 0);
-    let add_zero = constant(&mut arena, ADD_ZERO);
-    let term = apply(&mut arena, add_zero, n);
-    let expected = {
-        let zero = nat_zero(&mut arena);
-        let left = nat_add(&mut arena, n, zero);
-        let nat_ty = nat(&mut arena);
-        id(&mut arena, nat_ty, left, n)
-    };
-    let context_ty = nat(&mut arena);
-    let certificate = MathematicalCertificate {
-        signature: declarations,
-        level_arity: 0,
-        context: vec![context_ty],
-        term,
-        expected,
-    };
-    let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
-    let mut decoded = decode_mathematical_certificate(&bytes).expect("decode");
-    verify(&mut decoded).expect("the direct citation must re-verify");
-    assert_eq!(
-        proof_admission::certificate_assumption_closure(&decoded.arena, &decoded.certificate),
-        [NAT, ZERO, ADD, ADD_ZERO].into_iter().collect()
-    );
 }

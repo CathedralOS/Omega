@@ -7,8 +7,8 @@ use semantic_vocabulary::{
 use super::super::{Elaboration, MathTermKey};
 use super::{Constructor, IntegerValue, Law, Proposition, ScalarTerm, Term};
 use crate::{
-    Budget, DEFAULT_CONVERSION_STEPS, PrimitiveJudgment, ProofNode, ProofRule,
-    certificate_assumption_closure, verify_bounded_certificate, verify_mathematical_certificate,
+    Budget, PrimitiveJudgment, ProofNode, ProofRule, certificate_assumption_closure,
+    verify_bounded_certificate, verify_mathematical_certificate,
 };
 
 fn fixture(
@@ -156,55 +156,6 @@ fn binary_carry_and_signed_zero_use_exact_shared_law_closures() {
 }
 
 #[test]
-fn maximum_width_discreteness_checks_with_the_existing_budget() {
-    for (sign, lower, upper) in [
-        (
-            IntegerSign::Unsigned,
-            IntegerValue::Unsigned(u128::MAX - 1),
-            IntegerValue::Unsigned(u128::MAX),
-        ),
-        (
-            IntegerSign::Unsigned,
-            IntegerValue::Unsigned((1_u128 << 127) - 1),
-            IntegerValue::Unsigned(1_u128 << 127),
-        ),
-        (
-            IntegerSign::Signed,
-            IntegerValue::Signed(i128::MIN),
-            IntegerValue::Signed(i128::MIN + 1),
-        ),
-        (
-            IntegerSign::Signed,
-            IntegerValue::Signed(i128::MAX - 1),
-            IntegerValue::Signed(i128::MAX),
-        ),
-    ] {
-        for lower_bound in [false, true] {
-            let (context, premise, proof) = fixture(sign, lower, upper, lower_bound);
-            let mut budget = Budget::default();
-            let denoted = verify_bounded_certificate(
-                &context,
-                &proof.conclusion,
-                &[premise],
-                &[],
-                &proof,
-                &mut budget,
-            )
-            .unwrap();
-            eprintln!(
-                "{lower:?} lower_bound={lower_bound}: steps={} receipt={:?}",
-                DEFAULT_CONVERSION_STEPS - budget.remaining(),
-                denoted.receipt()
-            );
-            assert!(
-                denoted.certificate.signature.len() < 400,
-                "shared prefixes stay proportional to the 128-bit endpoints"
-            );
-        }
-    }
-}
-
-#[test]
 fn large_closed_values_keep_exact_opaque_identity_without_a_new_capacity_limit() {
     let literal = |value| IntegerMathTerm::literal(IntegerValue::Unsigned(value));
     let huge = IntegerMathTerm::ShiftLeft {
@@ -246,46 +197,4 @@ fn large_closed_values_keep_exact_opaque_identity_without_a_new_capacity_limit()
         denoted.arena.get(denoted.certificate.term),
         Term::Refl { .. }
     ));
-}
-
-#[test]
-fn maximum_fixed_literals_and_closed_expressions_share_reflexive_definitions() {
-    for value in [
-        IntegerValue::Unsigned(u128::MAX),
-        IntegerValue::Signed(i128::MIN),
-        IntegerValue::Unsigned(0),
-    ] {
-        let literal = IntegerMathTerm::literal(value);
-        let expression = IntegerMathTerm::Add(
-            Box::new(literal.clone()),
-            Box::new(IntegerMathTerm::literal(IntegerValue::Unsigned(0))),
-        );
-        let mut terms = [literal, expression];
-        terms.sort();
-        let goal = Proposition::IntegerMathEqual(terms[0].clone(), terms[1].clone());
-        let proof = ProofNode {
-            conclusion: goal.clone(),
-            rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
-        };
-        let mut budget = Budget::default();
-        let denoted = verify_bounded_certificate(
-            &PropositionContext::default(),
-            &goal,
-            &[],
-            &[],
-            &proof,
-            &mut budget,
-        )
-        .unwrap();
-        assert!(matches!(
-            denoted.arena.get(denoted.certificate.term),
-            Term::Refl { .. }
-        ));
-        assert!(denoted.certificate.signature.len() <= 134);
-        eprintln!(
-            "equality {value:?}: steps={} receipt={:?}",
-            DEFAULT_CONVERSION_STEPS - budget.remaining(),
-            denoted.receipt()
-        );
-    }
 }

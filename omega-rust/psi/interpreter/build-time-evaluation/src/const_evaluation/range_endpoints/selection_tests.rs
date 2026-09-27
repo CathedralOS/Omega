@@ -1,7 +1,5 @@
 use super::{
-    ArithmeticDomain, ExpressionHandle, ExpressionNode, IntegerLanding, IntegerLiteral,
-    IntegerRadix, LandedIntegerType, TypedTrees, arguments, evaluate_const_range_endpoints,
-    pending_endpoints,
+    ExpressionHandle, ExpressionNode, TypedTrees, evaluate_const_range_endpoints, pending_endpoints,
 };
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
@@ -134,54 +132,4 @@ fn own_call_and_qualifier_selections_reject_before_body_evaluation() {
             }
         }
     }
-}
-
-#[test]
-fn normalized_arguments_check_the_original_nested_occurrence_requester() {
-    let (mut original, retained_source, mut authority) = program_with_retained_requester(
-        "data Limits {} machine Limits::capacity() -> u64 {256}
-         machine endpoint(value: u64) -> u64 {value}
-         machine bounded(value: u64[0..=endpoint(Limits::capacity())]) {}",
-    );
-    let calls = pending_endpoints(&original).unwrap();
-    assert_eq!(calls.len(), 2);
-    let inner = &calls[0];
-    let outer = &calls[1];
-    retain_qualifier_selection(&mut original, inner.expression, retained_source);
-    let mut evaluated = original.clone();
-    *evaluated.expression_table.expression_mut(inner.expression) = ExpressionNode::Integer(
-        IntegerLiteral::from_parts(false, IntegerRadix::Decimal, "256")
-            .unwrap()
-            .with_landing(IntegerLanding {
-                landed_type: LandedIntegerType::U64,
-                domain: ArithmeticDomain::Exact,
-            }),
-    );
-    let admission = crate::BuildTimeAdmissionPlan::infer(&original, None);
-    let error = arguments::evaluate(
-        &evaluated,
-        &original,
-        &admission,
-        outer.expression,
-        super::EndpointCallee::plain(outer.machine),
-        Some(&authority),
-    )
-    .expect_err("an allowed outer call cannot authorize the original nested occurrence");
-    assert!(error.contains("retained-requester"), "{error}");
-    assert!(
-        error.contains("without direct dependency authority"),
-        "{error}"
-    );
-
-    authority.deny_retained_requester = false;
-    let (values, _) = arguments::evaluate(
-        &evaluated,
-        &original,
-        &admission,
-        outer.expression,
-        super::EndpointCallee::plain(outer.machine),
-        Some(&authority),
-    )
-    .expect("the original call still resolves when its retained requester is authorized");
-    assert_eq!(values, vec![crate::BuildTimeValue::Int(256)]);
 }

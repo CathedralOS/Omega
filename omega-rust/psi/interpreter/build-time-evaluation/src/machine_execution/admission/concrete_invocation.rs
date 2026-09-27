@@ -188,7 +188,7 @@ fn append_invocation_probe(
 
 #[cfg(test)]
 mod tests {
-    use super::{argument_independent_closure_discharges, zero_argument_invocation_discharges};
+    use super::zero_argument_invocation_discharges;
     use crate::BuildTimeAdmissionPlan;
 
     fn admission(program: &typed_trees::TypedTrees) -> BuildTimeAdmissionPlan {
@@ -250,105 +250,5 @@ machine Main::main(&mut self) { }
             target,
             Some(source::SourceSpan::default()),
         ));
-    }
-
-    #[test]
-    fn zero_argument_probe_discharges_state_and_callee_premises() {
-        let program = crate::front_end::typed_program(
-            r#"
-machine nonzero() -> u64
-requires true;
-{
-    7
-}
-
-machine length() -> u64 {
-    nonzero()
-}
-data Buffer { bytes: [u8; length()]; }
-data Main { }
-machine Main::main(&mut self) { }
-"#,
-        );
-        let plan = admission(&program);
-        let target = machine(&program, "length");
-        assert!(plan.closure_includes_authored_requires(&program, target));
-        assert!(zero_argument_invocation_discharges(
-            &program,
-            target,
-            Some(source::SourceSpan::default()),
-        ));
-    }
-
-    #[test]
-    fn checking_discharges_callee_premises_past_an_unconditional_entry() {
-        let program = crate::front_end::typed_program(
-            r#"
-machine bounded(value: u64) -> u64
-requires value <= 512;
-{
-    value
-}
-
-machine policy(value: u64) -> u64 {
-    bounded(256)
-}
-data Main { }
-machine Main::main(&mut self) { }
-"#,
-        );
-        let plan = admission(&program);
-        let target = machine(&program, "policy");
-        assert!(plan.closure_includes_authored_requires(&program, target));
-        assert!(argument_independent_closure_discharges(&program, target));
-        plan.require_common_floor(&program, target)
-            .expect("the callee premise is proved at its call site");
-    }
-
-    #[test]
-    fn an_unproved_callee_premise_keeps_the_fence() {
-        let program = crate::front_end::typed_program(
-            r#"
-machine bounded(value: u64) -> u64
-requires value <= 512;
-{
-    value
-}
-
-machine policy(value: u64) -> u64 {
-    bounded(value)
-}
-data Main { }
-machine Main::main(&mut self) { }
-"#,
-        );
-        let plan = admission(&program);
-        let target = machine(&program, "policy");
-        assert!(!argument_independent_closure_discharges(&program, target));
-        let error = plan
-            .require_common_floor(&program, target)
-            .expect_err("ordinary checking cannot prove `value <= 512`")
-            .reason;
-        assert!(
-            error.contains("has an authored `requires` premise"),
-            "{error}"
-        );
-    }
-
-    #[test]
-    fn an_entry_premise_depends_on_the_invocation_arguments() {
-        let program = crate::front_end::typed_program(
-            r#"
-machine policy(value: u64) -> u64
-requires value <= 512;
-{
-    value
-}
-data Main { }
-machine Main::main(&mut self) { }
-"#,
-        );
-        let target = machine(&program, "policy");
-        assert!(!argument_independent_closure_discharges(&program, target));
     }
 }

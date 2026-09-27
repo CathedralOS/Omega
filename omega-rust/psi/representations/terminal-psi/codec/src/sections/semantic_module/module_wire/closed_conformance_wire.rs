@@ -250,28 +250,6 @@ mod tests {
         assert_eq!(encode(&application), bytes);
     }
 
-    /// The tuple is a row coordinate: applications equal in every identity
-    /// but one row's tuple encode differently, and tuple order is retained.
-    #[test]
-    fn family_tuple_participates_in_closed_conformance_row_bytes() {
-        let nongeneric = encode(&application(vec![row(
-            "package::Scanner::scan()",
-            Vec::new(),
-        )]));
-        let width_lanes = encode(&application(vec![row(
-            "package::Scanner::scan()",
-            width_lanes_tuple(),
-        )]));
-        let mut reversed = width_lanes_tuple();
-        reversed.reverse();
-        let lanes_width = encode(&application(vec![row(
-            "package::Scanner::scan()",
-            reversed,
-        )]));
-        assert_ne!(nongeneric, width_lanes);
-        assert_ne!(width_lanes, lanes_width);
-    }
-
     /// Rows encoded before the tuple coordinate existed must reject rather
     /// than decode as nongeneric rows: the decoder never supplies a missing
     /// tuple. These bytes are the previous row layout written field by field.

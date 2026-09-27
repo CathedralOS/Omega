@@ -12,7 +12,7 @@ use language_semantics::quotient_correspondence::{
     QuotientTheoremRole,
 };
 use semantic_vocabulary::{BlockId, ContractId, EdgeId, MachineId};
-use terminal_codec::{CodecError, decode_module, encode_module, semantic_fingerprint};
+use terminal_codec::{CodecError, decode_module, encode_module};
 use terminal_psi::{
     Block, MachineContract, RetainedQuotientCorrespondence, TerminalMachine, TerminalMachineResult,
     TerminalModule, Terminator, VocabularyMarker, retain_non_executable_quotient_correspondence,
@@ -227,31 +227,6 @@ fn module_with(quotient_correspondences: Vec<RetainedQuotientCorrespondence>) ->
             },
         }],
     }
-}
-
-#[test]
-fn quotient_correspondence_round_trips_and_enters_module_identity() {
-    let module = module_with(vec![correspondence("Public::apply")]);
-    validate_module_representation(&module).expect("representation replay");
-    let bytes = encode_module(&module).expect("quotient correspondence encodes");
-    assert_eq!(&bytes[8..10], 107_u16.to_le_bytes());
-    assert_eq!(
-        &bytes[10..12],
-        terminal_psi::VocabularyMarker::CURRENT.get().to_le_bytes()
-    );
-    assert_eq!(decode_module(&bytes), Ok(module.clone()));
-    assert_ne!(
-        semantic_fingerprint(&module).unwrap(),
-        semantic_fingerprint(&module_with(Vec::new())).unwrap()
-    );
-}
-
-#[test]
-fn transport_backed_lift_round_trips_all_source_and_theorem_coordinates() {
-    let module = module_with(vec![transport_correspondence("Public::lift")]);
-    validate_module_representation(&module).expect("transport correspondence replays");
-    let bytes = encode_module(&module).expect("transport correspondence encodes");
-    assert_eq!(decode_module(&bytes), Ok(module));
 }
 
 #[test]

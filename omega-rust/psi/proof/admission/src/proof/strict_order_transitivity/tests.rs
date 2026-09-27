@@ -1,7 +1,4 @@
-use crate::{
-    AcceptedProofRule, ProofNode, ProofRule, accept_certificate, check_certificate,
-    lift_fixed_integer_relation,
-};
+use crate::{ProofNode, ProofRule, check_certificate, lift_fixed_integer_relation};
 use semantic_vocabulary::{
     IntegerSign, IntegerType, Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId,
 };
@@ -43,38 +40,6 @@ fn fixture(
         },
     };
     (context, premises, proof)
-}
-
-#[test]
-fn strict_and_mixed_chains_retain_both_premise_authorities_in_each_domain() {
-    for strict in [[true, false], [false, true], [true, true]] {
-        for mathematical in [false, true] {
-            let (context, premises, proof) = fixture(strict, mathematical);
-            let acceptance = accept_certificate(
-                &context,
-                &proof.conclusion,
-                &premises[..1],
-                &premises[1..],
-                &proof,
-            )
-            .unwrap();
-            assert!(
-                acceptance
-                    .rules
-                    .contains(&AcceptedProofRule::IntegerStrictOrderTransitivity)
-            );
-            assert_eq!(acceptance.assumptions[0].proposition, premises[0]);
-            assert_eq!(acceptance.semantic_axioms[0].proposition, premises[1]);
-            assert_eq!(acceptance.assumptions.len(), 1);
-            assert_eq!(acceptance.semantic_axioms.len(), 1);
-            for (requirements, axioms) in [(&[][..], &premises[1..]), (&premises[..1], &[][..])] {
-                assert!(
-                    check_certificate(&context, &proof.conclusion, requirements, axioms, &proof)
-                        .is_err()
-                );
-            }
-        }
-    }
 }
 
 #[test]

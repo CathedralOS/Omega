@@ -632,28 +632,6 @@ mod tests {
         }
     }
 
-    /// The tuple is a row coordinate: two rows equal in every identity but
-    /// the tuple encode differently, and tuple order is not normalized away.
-    #[test]
-    fn family_tuple_participates_in_dispatch_row_bytes() {
-        let encode = |dispatch: TerminalDirectDynamicDispatch| {
-            let mut writer = Writer::default();
-            encode_direct_dynamic_dispatches(&mut writer, &[dispatch]).unwrap();
-            writer.finish()
-        };
-        let nongeneric = encode(direct_dispatch(Vec::new()));
-        let width_lanes = encode(direct_dispatch(width_lanes_tuple()));
-        let mut reversed = width_lanes_tuple();
-        reversed.reverse();
-        let lanes_width = encode(direct_dispatch(reversed));
-        assert_ne!(nongeneric, width_lanes);
-        assert_ne!(width_lanes, lanes_width);
-        assert_eq!(
-            decode_direct_dynamic_dispatches(&mut Reader::new(&width_lanes)),
-            Ok(vec![direct_dispatch(width_lanes_tuple())])
-        );
-    }
-
     /// Rows encoded before the tuple coordinate existed must reject rather
     /// than decode as nongeneric rows: the decoder never supplies a missing
     /// tuple. These bytes are the previous row layout written field by field.

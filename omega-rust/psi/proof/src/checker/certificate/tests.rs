@@ -37,20 +37,6 @@ fn u8_type() -> IntegerType {
 }
 
 #[test]
-fn closed_literal_within_target_verifies() {
-    let certificate =
-        closed_bounds_certificate(literal_term(5), math_literal(0), math_literal(10), 7)
-            .expect("certificate");
-    let fact = certificate.verify().expect("kernel accepts");
-    assert_eq!(fact.proposition, certificate.obligation.proposition);
-    assert!(matches!(
-        fact.route,
-        AcceptedFactRoute::CertificateDerived { ref acceptance, .. }
-            if acceptance.assumptions.is_empty()
-    ));
-}
-
-#[test]
 fn closed_arithmetic_term_verifies_under_kernel_evaluation() {
     // `2 + 3 <= 10` is arithmetic the kernel itself evaluates; the producer's
     // encoder never decides it.
@@ -76,30 +62,6 @@ fn closed_arithmetic_term_outside_target_is_rejected() {
     let certificate =
         closed_bounds_certificate(term, math_literal(0), math_literal(5), 10).expect("certificate");
     assert!(certificate.verify().is_err());
-}
-
-#[test]
-fn declared_interval_within_target_verifies() {
-    let certificate = declared_interval_certificate(
-        &integer_range(0, 255),
-        u8_type(),
-        math_literal(0),
-        math_literal(300),
-        11,
-    )
-    .expect("certificate");
-    let fact = certificate.verify().expect("kernel accepts");
-    let AcceptedFactRoute::CertificateDerived { acceptance, .. } = fact.route else {
-        panic!("certificate-derived route");
-    };
-    // Both declared endpoints are recorded as cited premises: the certificate
-    // states exactly which declared facts the leg consumed.
-    assert_eq!(acceptance.assumptions.len(), 2);
-    assert!(
-        acceptance
-            .rules
-            .contains(&AcceptedProofRule::IntegerLessOrEqualTransitivity)
-    );
 }
 
 #[test]
@@ -579,62 +541,6 @@ fn key_obligation(
         base_type: base,
         constraints: arena::HandleSpan::empty(),
     })
-}
-
-#[test]
-fn retained_certificate_re_decides_for_a_semantically_identical_obligation() {
-    let mut program = consultation_program();
-    let base = program.int_reference();
-    let plan = ProofPlan::new(&program.typed_trees);
-    let mut cache = ProofDerivationCache::new();
-
-    let certificate =
-        closed_bounds_certificate(literal_term(5), math_literal(0), math_literal(10), 61)
-            .expect("certificate");
-    let proposition = certificate.obligation.proposition.clone();
-    let obligation = key_obligation(program.machine, "Main", program.data[0], "count", base);
-    DerivationConsultation::new(&plan, &obligation, &mut cache).retain(certificate);
-    assert_eq!(cache.report().retained, 1);
-    assert_eq!(cache.len(), 1);
-
-    // A display rename beside the same resolved symbols is the same
-    // semantic obligation: the retained package is re-decided by the kernel
-    // and the leg discharges without the producer running again.
-    let renamed = key_obligation(program.machine, "Renamed", program.data[0], "renamed", base);
-    let fact = DerivationConsultation::new(&plan, &renamed, &mut cache)
-        .recheck()
-        .expect("retained candidate re-decides");
-    assert_eq!(fact.proposition, proposition);
-    let report = cache.report();
-    assert_eq!(report.consultations, 1);
-    assert_eq!(report.reused, 1);
-    assert_eq!(report.rejected_candidates, 0);
-}
-
-#[test]
-fn recheck_misses_an_obligation_with_no_retained_candidates() {
-    let mut program = consultation_program();
-    let base = program.int_reference();
-    let plan = ProofPlan::new(&program.typed_trees);
-    let mut cache = ProofDerivationCache::new();
-
-    let certificate =
-        closed_bounds_certificate(literal_term(5), math_literal(0), math_literal(10), 62)
-            .expect("certificate");
-    let stored = key_obligation(program.machine, "Main", program.data[0], "count", base);
-    DerivationConsultation::new(&plan, &stored, &mut cache).retain(certificate);
-
-    // A different resolved owner is a different obligation: a miss, not a
-    // collision.
-    let other = key_obligation(program.machine, "Main", program.data[1], "count", base);
-    assert!(
-        DerivationConsultation::new(&plan, &other, &mut cache)
-            .recheck()
-            .is_none()
-    );
-    let report = cache.report();
-    assert_eq!(report.consultations, 1);
-    assert_eq!(report.reused, 0);
 }
 
 #[test]

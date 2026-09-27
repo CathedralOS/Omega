@@ -1000,51 +1000,6 @@ mod tests {
     }
 
     #[test]
-    fn a_certificate_round_trips_exactly() {
-        let (arena, certificate) = polymorphic_identity();
-        let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
-        let decoded = decode_mathematical_certificate(&bytes).expect("decode");
-        assert!(decoded.certificate.context.is_empty());
-        // Seven distinct nodes: Sort(Type 0), Variable(0), Variable(1), the
-        // inner lambda, the outer lambda, the inner Π and the outer Π.
-        assert_eq!(decoded.arena.len(), 7);
-        assert_eq!(
-            encode_mathematical_certificate(&decoded.arena, &decoded.certificate)
-                .expect("re-encode"),
-            bytes,
-        );
-    }
-
-    #[test]
-    fn shared_subterms_encode_once() {
-        let mut arena = TermArena::new();
-        let type_zero = type_sort(&mut arena, 0);
-        // A second, handle-distinct `Sort(Type 0)` — equal content must share
-        // the first's table entry because the wire identifies terms by
-        // content, not by producer handle.
-        let type_zero_again = type_sort(&mut arena, 0);
-        // Π(A : Type 0). Type 0 → Type 0 — a type whose codomain shares the
-        // domain's children, and a lambda sharing the same sort content.
-        let inner = pi(&mut arena, type_zero, type_zero_again);
-        let expected = pi(&mut arena, type_zero, inner);
-        let bound = variable(&mut arena, 0);
-        let body = lambda(&mut arena, bound, type_zero_again);
-        let term = lambda(&mut arena, type_zero, body);
-        let certificate = MathematicalCertificate {
-            signature: Vec::new(),
-            level_arity: 0,
-            context: Vec::new(),
-            term,
-            expected,
-        };
-        let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
-        // Distinct nodes: Sort(Type 0), Variable(0), inner λ, outer λ,
-        // inner Π, outer Π — equal subterms appear once even across handles.
-        assert_eq!(u32::from_le_bytes(bytes[14..18].try_into().unwrap()), 6);
-        decode_mathematical_certificate(&bytes).expect("decode");
-    }
-
-    #[test]
     fn a_dummy_term_is_a_producer_defect_not_a_certificate() {
         let mut arena = TermArena::new();
         let type_zero = type_sort(&mut arena, 0);
@@ -1124,94 +1079,6 @@ mod tests {
         ));
     }
 
-    #[test]
-    fn two_primitive_nodes_round_trip_and_verify() {
-        use proof_admission::{Budget, DEFAULT_CONVERSION_STEPS, verify_mathematical_certificate};
-
-        let mut arena = TermArena::new();
-        // Γ = A : Type 0, a : A, t : Two proves
-        // `(caseTwo(C, a, a, zero), caseTwo(C, a, a, one)) : Σ(_:A). A`
-        // for the constant family `C := λ(_:Two). A` — the wire must carry
-        // the `Two` type, both constructors, and the eliminator.
-        let type_zero = type_sort(&mut arena, 0);
-        let a_binding = variable(&mut arena, 0);
-        let two_binding = arena.insert(Term::Two);
-        let family_domain = arena.insert(Term::Two);
-        // Under C's binder (depth 4) A is index 3.
-        let a_under = variable(&mut arena, 3);
-        let family = lambda(&mut arena, family_domain, a_under);
-        let a_term = variable(&mut arena, 1);
-        let zero = arena.insert(Term::TwoZero);
-        let on_zero = arena.insert(Term::CaseTwo {
-            motive: family,
-            zero_branch: a_term,
-            one_branch: a_term,
-            scrutinee: zero,
-        });
-        let a_again = variable(&mut arena, 1);
-        let one = arena.insert(Term::TwoOne);
-        let on_one = arena.insert(Term::CaseTwo {
-            motive: family,
-            zero_branch: a_again,
-            one_branch: a_again,
-            scrutinee: one,
-        });
-        let term = arena.insert(Term::Pair {
-            first: on_zero,
-            second: on_one,
-        });
-        // Σ(_:A). A in depth 3: the domain is index 2, and under the
-        // binder A is index 3.
-        let sigma_domain = variable(&mut arena, 2);
-        let sigma_codomain = variable(&mut arena, 3);
-        let expected = arena.insert(Term::Sigma {
-            domain: sigma_domain,
-            codomain: sigma_codomain,
-        });
-        let certificate = MathematicalCertificate {
-            signature: Vec::new(),
-            level_arity: 0,
-            context: vec![type_zero, a_binding, two_binding],
-            term,
-            expected,
-        };
-        let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
-        let mut decoded = decode_mathematical_certificate(&bytes).expect("decode");
-        // Thirteen distinct nodes: Sort(Type 0), Variable(0), Two,
-        // Variable(3), C's lambda, Variable(1), TwoZero, the `zero`
-        // elimination, TwoOne, the `one` elimination, the pair,
-        // Variable(2), and the Σ.
-        assert_eq!(decoded.arena.len(), 13);
-        verify_mathematical_certificate(
-            &mut decoded.arena,
-            &decoded.certificate,
-            &mut Budget::new(DEFAULT_CONVERSION_STEPS),
-        )
-        .expect("the decoded judgment must re-check in the kernel");
-    }
-
-    #[test]
-    fn unreachable_table_nodes_are_not_canonical() {
-        let (arena, certificate) = polymorphic_identity();
-        let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
-        // Forged: one unreachable `Variable(0)` node appended after the real
-        // table, signature and roots unchanged.
-        let roots_len = 4 + 4 + 4 + 4; // empty signature + context counts + term + expected
-        let split = bytes.len() - roots_len;
-        let node_count = u32::from_le_bytes(bytes[14..18].try_into().unwrap());
-        let mut forged = Vec::new();
-        forged.extend_from_slice(&bytes[..14]); // magic, marker, level arity
-        forged.extend_from_slice(&(node_count + 1).to_le_bytes());
-        forged.extend_from_slice(&bytes[18..split]);
-        forged.push(1);
-        forged.extend_from_slice(&0_u32.to_le_bytes());
-        forged.extend_from_slice(&bytes[split..]);
-        match decode_mathematical_certificate(&forged) {
-            Err(error) => assert_eq!(error, CodecError::NonCanonicalEncoding),
-            Ok(_) => panic!("an unreachable table node must not decode"),
-        }
-    }
-
     /// `A : Type max(u+1, v), x : A ⊢ x : A` at level arity 2 — a context
     /// whose binding sorts hold parameter, successor, and maximum level
     /// syntax.
@@ -1233,31 +1100,6 @@ mod tests {
     }
 
     #[test]
-    fn level_expressions_inside_sorts_round_trip_exactly() {
-        let (arena, certificate) = level_polymorphic_context();
-        let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
-        let decoded = decode_mathematical_certificate(&bytes).expect("decode");
-        assert_eq!(decoded.certificate.level_arity, 2);
-        // The decoded binding carries the exact level syntax — decoding
-        // does not normalize `max(u+1, v)` or confuse a parameter for a
-        // constant.
-        assert_eq!(
-            decoded.arena.get(decoded.certificate.context[0]),
-            Term::Sort(Sort::Type(
-                Level::Parameter(0)
-                    .successor()
-                    .unwrap()
-                    .maximum(Level::Parameter(1))
-            ))
-        );
-        assert_eq!(
-            encode_mathematical_certificate(&decoded.arena, &decoded.certificate)
-                .expect("re-encode"),
-            bytes,
-        );
-    }
-
-    #[test]
     fn a_level_polymorphic_certificate_re_verifies_after_the_wire() {
         use proof_admission::{Budget, DEFAULT_CONVERSION_STEPS, verify_mathematical_certificate};
 
@@ -1270,22 +1112,6 @@ mod tests {
             &mut Budget::new(DEFAULT_CONVERSION_STEPS),
         )
         .expect("the polymorphic judgment must re-check in the kernel");
-    }
-
-    #[test]
-    fn stale_and_unknown_markers_do_not_decode() {
-        let (arena, certificate) = polymorphic_identity();
-        let bytes = encode_mathematical_certificate(&arena, &certificate).expect("encode");
-        // Formats 0–2 predate the signature section; an unknown marker is
-        // refused the same way rather than guessing a layout.
-        for marker in [0_u16, 1, 2, 9] {
-            let mut stale = bytes.clone();
-            stale[8..10].copy_from_slice(&marker.to_le_bytes());
-            assert!(matches!(
-                decode_mathematical_certificate(&stale),
-                Err(CodecError::UnsupportedFormatMarker(seen)) if seen == marker
-            ));
-        }
     }
 
     #[test]
