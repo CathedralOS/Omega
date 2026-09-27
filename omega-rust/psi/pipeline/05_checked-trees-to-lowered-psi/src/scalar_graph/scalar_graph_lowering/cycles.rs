@@ -19,6 +19,8 @@ use terminal_psi::StructuralTypeShape;
 mod tests;
 
 pub(crate) struct ScalarLoopPlan {
+    /// Full binding roster: the receiver keeps its machine place, while
+    /// explicit state formals receive fresh loop-header places.
     pub parameters: Vec<StructuralParameterDeclaration>,
     pub rank: Option<checked_trees::CheckedStructuralRankedSccPlan>,
 }
@@ -57,6 +59,12 @@ pub(super) fn prepare(
         return unsupported("scalar loop has a foreign source state");
     }
     if parameters.iter().any(|parameter| {
+        // The independently replayed shared receiver is machine-scoped. It
+        // remains the same loan throughout recursion and never binds on a
+        // backedge; only explicit formals need loop-carrier admission here.
+        if parameter.is_self {
+            return parameter.access != StructuralAccess::SharedBorrow;
+        }
         // A borrowed runtime-length view rebinds as a shared loan on the
         // backedge: it carries no owned disposal, so the plain-owned loop
         // rule does not apply, but every other custody shape still rejects.
@@ -101,7 +109,11 @@ pub(super) fn prepare(
         }
     }
     let mut loop_parameters = parameters.to_vec();
-    for (position, parameter) in loop_parameters.iter_mut().enumerate() {
+    for (position, parameter) in loop_parameters
+        .iter_mut()
+        .filter(|parameter| !parameter.is_self)
+        .enumerate()
+    {
         parameter.position = u32::try_from(position)
             .map_err(|_| LoweringError::Unsupported("scalar loop descriptor index exceeds u32"))?;
         parameter.place = place_id(allocate_dense(next_place)?);

@@ -401,6 +401,65 @@ impl ScalarBindings {
         self
     }
 
+    /// Resolve an independently replayed immutable view to the activation's
+    /// live descriptor. A range never substitutes an equal-typed backing.
+    pub(crate) fn shared_view_source(
+        &self,
+        root: checked_trees::CheckedStorageRoot,
+        parameters: &[checked_trees::signature::StateParameter],
+        checked: &CheckedTrees,
+        structural_type: StructuralTypeId,
+        bytes: bool,
+    ) -> Result<(symbols::SymbolHandle, PlaceId), LoweringError> {
+        match root {
+            checked_trees::CheckedStorageRoot::Parameter { index } => {
+                let (position, parameter) = parameters
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, parameter)| {
+                        !parameter.relevance.is_erased()
+                            && checked
+                                .primitive_type_reference(parameter.type_reference)
+                                .is_none()
+                    })
+                    .nth(index as usize)
+                    .ok_or(LoweringError::Unsupported(
+                        "computed view source parameter is absent",
+                    ))?;
+                let mut matching = self
+                    .structural_parameters
+                    .iter()
+                    .filter(|(authored, _)| *authored as usize == position);
+                let (_, source) = matching.next().ok_or(LoweringError::Unsupported(
+                    "computed view source has no live descriptor",
+                ))?;
+                if matching.next().is_some()
+                    || source.structural_type != structural_type
+                    || source.access != StructuralAccess::SharedBorrow
+                    || source.multiplicity != StructuralMultiplicity::Unrestricted
+                    || !source.qualifications.is_empty()
+                    || !source.projected_qualifications.is_empty()
+                    || bytes == self.element_views.contains_key(&structural_type)
+                {
+                    return unsupported("computed view source changed type or shared custody");
+                }
+                Ok((parameter.symbol, source.place))
+            }
+            checked_trees::CheckedStorageRoot::ViewLocal { symbol } => {
+                let local = view_locals::resolve(&self.view_locals, symbol)?;
+                if local.structural_type != structural_type
+                    || bytes != (local.carrier == view_locals::ViewCarrier::Bytes)
+                {
+                    return unsupported("computed view local changed type or family");
+                }
+                Ok((symbol, local.place))
+            }
+            checked_trees::CheckedStorageRoot::OwnedLocal { .. } => {
+                unsupported("computed view source cannot be owned storage")
+            }
+        }
+    }
+
     /// Retain places established by the ordinary structural operation sequence.
     pub(crate) fn with_structural_locals(
         mut self,

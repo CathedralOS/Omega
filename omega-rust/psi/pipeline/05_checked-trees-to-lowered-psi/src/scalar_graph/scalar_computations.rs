@@ -33,6 +33,7 @@ pub(crate) mod fields;
 mod selection;
 mod source_custody;
 mod structural_arguments;
+pub(crate) mod subslices;
 mod value_types;
 pub(crate) use value_types::computation_value_type;
 
@@ -61,6 +62,7 @@ pub(crate) struct Expansion<'a> {
     states: Vec<LoweredScalarBranchState>,
     calls: Vec<SourceCallCoordinate>,
     arrays: Vec<arrays::Slot>,
+    subslices: Vec<subslices::Slot>,
     cases: Vec<cases::Slot>,
     fields: &'a [fields::Binding],
     /// Selection-local computations already carried in the current input prefix.
@@ -83,6 +85,7 @@ impl<'a> Expansion<'a> {
             states: Vec::new(),
             calls: Vec::new(),
             arrays: Vec::new(),
+            subslices: Vec::new(),
             cases: Vec::new(),
             fields: &[],
             completed: Vec::new(),
@@ -121,6 +124,11 @@ impl<'a> Expansion<'a> {
 
     pub(crate) fn with_arrays(mut self, arrays: &[arrays::Slot]) -> Self {
         self.arrays = arrays.to_vec();
+        self
+    }
+
+    pub(crate) fn with_subslices(mut self, subslices: &[subslices::Slot]) -> Self {
+        self.subslices = subslices.to_vec();
         self
     }
 

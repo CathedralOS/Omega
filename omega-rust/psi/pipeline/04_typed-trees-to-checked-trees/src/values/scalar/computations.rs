@@ -119,6 +119,7 @@ pub(crate) fn build_checked_value_computation_plans(
                     operators,
                     flow,
                     borrow,
+                    pure,
                     exact_integer_casts,
                     machine: machine.symbol,
                     state: state.symbol,
@@ -743,6 +744,7 @@ struct Builder<'program, 'plans> {
     operators: &'program CheckedOperatorFacts,
     flow: &'program FlowFacts,
     borrow: &'program checked_trees::BorrowFacts,
+    pure: &'program CheckedScalarExpressionPlans,
     exact_integer_casts: &'program [validation::ExactIntegerCastFact],
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -1132,6 +1134,15 @@ impl Builder<'_, '_> {
                             *argument,
                             parameter,
                         )
+                        .or_else(|| {
+                            let argument_ordinal = structural_arguments.len()
+                                .checked_sub(usize::from(has_runtime_receiver))?;
+                            crate::execution::terminal_unit::calls::subslice_computation_argument(
+                                self.program, self.operators, self.pure, self.borrow,
+                                self.machine, state, self.flow.control.calls.get(source_call),
+                                *argument, parameter, u32::try_from(argument_ordinal).ok()?,
+                            )
+                        })
                         .or_else(|| {
                             // A `"literal"` actual loans a byte sequence the
                             // callee reads as a borrowed view; places alone

@@ -1,7 +1,9 @@
 //! Bind source-checked structural operands to the enclosing machine's places.
 
 use super::super::{Multiplicity, StructuralAccess, terminal_scalar_type};
-use super::{CheckedTrees, LoweringError, StructuralArgument, arrays, cases, storage, unsupported};
+use super::{
+    CheckedTrees, LoweringError, StructuralArgument, arrays, cases, storage, subslices, unsupported,
+};
 pub(super) fn lower(
     checked: &CheckedTrees,
     target_machine: symbols::SymbolHandle,
@@ -11,6 +13,7 @@ pub(super) fn lower(
     bindings: &storage::ScalarBindings,
     arrays: &[arrays::Slot],
     cases: &[cases::Slot],
+    subslices: &[subslices::Slot],
 ) -> Result<Vec<StructuralArgument>, LoweringError> {
     if arguments.is_empty() {
         return Ok(Vec::new());
@@ -193,6 +196,22 @@ pub(super) fn lower(
             if parameter.access == checked_trees::CheckedStructuralAccess::SharedBorrow
                 && checked.primitive_type_reference(*referee).is_none()
             {
+                if let Some((_, expression, _, _, _)) = subslices::range(argument) {
+                    let slot = subslices
+                        .iter()
+                        .find(|slot| slot.expression == expression)
+                        .ok_or(LoweringError::Unsupported(
+                            "computed range has no reserved structural result",
+                        ))?;
+                    if !argument.path.is_empty() {
+                        return unsupported("computed range cannot project its descriptor");
+                    }
+                    return Ok(StructuralArgument {
+                        place: slot.place,
+                        path: Vec::new(),
+                        access: StructuralAccess::SharedBorrow,
+                    });
+                }
                 return bindings.shared_structural_argument(
                     argument,
                     caller_machine,

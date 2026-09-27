@@ -456,6 +456,25 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     );
     structural_places.append(&mut catalogs.temporary_places);
     structural_places.extend(catalogs.result_places.drain(result_places_start..));
+    // The computation scan also encounters subslices whose ordinary call
+    // or edge already owns a declaration. Reuse only that exact declaration;
+    // a reused identity with different provenance remains an error.
+    for declaration in blocks.iter().flat_map(|block| {
+        crate::scalar_graph::scalar_computations::subslices::declarations(&block.operations)
+    }) {
+        match structural_places
+            .iter()
+            .find(|existing| existing.id == declaration.id)
+        {
+            Some(existing) if *existing != declaration => {
+                return unsupported(
+                    "computed subslice conflicts with an existing place declaration",
+                );
+            }
+            Some(_) => {}
+            None => structural_places.push(declaration),
+        }
+    }
     structural_places.sort_by_key(|place| place.id);
     let attachment = plan
         .attachment_type_identity

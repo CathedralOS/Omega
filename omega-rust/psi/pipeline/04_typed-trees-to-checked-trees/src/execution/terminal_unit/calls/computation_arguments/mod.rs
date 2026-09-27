@@ -68,34 +68,7 @@ pub(crate) fn structural_computation_argument(
     )?;
     crate::flow::normalize_attached_place_root(program, machine, state.symbol, &mut place);
     rejoin_computation_accesses(program, borrow, machine, state.symbol, call)?;
-    let target_state = crate::semantic::calls::find_state(program, call.target_symbol)?;
-    let target_position = program
-        .state_parameters(target_state)
-        .iter()
-        .position(|parameter| parameter == target)?;
-    let ExpressionNode::Call(authored) = program
-        .expression_table
-        .expression(call.authored_expression)
-    else {
-        return None;
-    };
-    let target_parameters = program.state_parameters(target_state);
-    let receiver_count = target_parameters
-        .iter()
-        .filter(|parameter| parameter.is_self)
-        .count();
-    let exact_actual = if target.is_self {
-        receiver_count == 1 && target_position == 0 && authored.receiver == expression
-    } else {
-        program
-            .expression_table
-            .expression_handles(authored.arguments)
-            .get(target_position.checked_sub(receiver_count)?)
-            == Some(&expression)
-    };
-    if authored.target_symbol != call.target_symbol || !exact_actual {
-        return None;
-    }
+    exact_actual(program, call, expression, target)?;
     if target_access == CheckedStructuralAccess::SharedBorrow
         && let Some(argument) =
             shared_nominal_argument(program, borrow, machine, state, call, &place, target)
@@ -221,6 +194,132 @@ pub(crate) fn structural_computation_argument(
         type_identity: base_type_identity(program, target.type_reference, &[])?,
         access,
     })
+}
+
+/// The range is still an actual of this exact checked call, not merely an
+/// equal-typed view expression. Its bounds use dense explicit structural
+/// ordinals, which exclude the implicit receiver.
+pub(crate) fn subslice_computation_argument(
+    program: &TypedTrees,
+    operators: &checked_trees::CheckedOperatorFacts,
+    expressions: &checked_trees::CheckedScalarExpressionPlans,
+    borrow: &checked_trees::BorrowFacts,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
+    call: &checked_trees::FlowCallFact,
+    expression: typed_trees::expression::ExpressionHandle,
+    target: &StateParameter,
+    argument_ordinal: u32,
+) -> Option<CheckedUnitStructuralArgumentPlan> {
+    if target.is_self || target.is_const {
+        return None;
+    }
+    exact_actual(program, call, expression, target)?;
+    rejoin_computation_accesses(program, borrow, machine, state.symbol, call)?;
+    let owner = program
+        .machines()
+        .iter()
+        .find(|owner| owner.symbol == machine)?;
+    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    let ExpressionNode::Name(source) = program.expression_table.expression(indexed.collection)
+    else {
+        return None;
+    };
+    // A local view already owns its descriptor identity. Only a parameter
+    // root needs the caller's structural signature namespace; rebuilding the
+    // enclosing attachment for a local would unnecessarily require every
+    // unrelated field (including service bindings) to be scalar-graph storage.
+    let parameters = if !program
+        .state_parameters(state)
+        .iter()
+        .any(|parameter| parameter.symbol == source.symbol)
+    {
+        Vec::new()
+    } else if owner.attached_data.is_some() {
+        super::ambient_self_scalar_graph_signature(program, owner, state)?.0
+    } else {
+        super::free_structural_scalar_signature(
+            program,
+            &mut ShapeCollector::new(program),
+            state,
+            &[],
+        )?
+        .0
+    };
+    let subslice = super::view_subslice::admit_resolved(
+        program,
+        operators,
+        expressions,
+        owner,
+        state,
+        &parameters,
+        target.type_reference,
+        expression,
+        call.statement_index,
+        checked_trees::CheckedSubsliceSite::CallArgument {
+            call_ordinal: u32::try_from(call.call_ordinal).ok()?,
+            argument_ordinal,
+        },
+    )?;
+    let argument = subslice.argument();
+    let mut place = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        call.statement_index,
+        expression,
+    )?;
+    crate::flow::normalize_attached_place_root(program, machine, state.symbol, &mut place);
+    (argument.path.is_empty()
+        && exact_structural_borrow_access(
+            program,
+            borrow,
+            machine,
+            state.symbol,
+            call,
+            &place,
+            CheckedStructuralAccess::SharedBorrow,
+            &[],
+        )? == CheckedStructuralAccess::SharedBorrow)
+        .then_some(argument)
+}
+
+fn exact_actual(
+    program: &TypedTrees,
+    call: &checked_trees::FlowCallFact,
+    expression: typed_trees::expression::ExpressionHandle,
+    target: &StateParameter,
+) -> Option<()> {
+    let target_state = crate::semantic::calls::find_state(program, call.target_symbol)?;
+    let target_position = program
+        .state_parameters(target_state)
+        .iter()
+        .position(|parameter| parameter == target)?;
+    let ExpressionNode::Call(authored) = program
+        .expression_table
+        .expression(call.authored_expression)
+    else {
+        return None;
+    };
+    let target_parameters = program.state_parameters(target_state);
+    let receiver_count = target_parameters
+        .iter()
+        .filter(|parameter| parameter.is_self)
+        .count();
+    let exact_actual = if target.is_self {
+        receiver_count == 1 && target_position == 0 && authored.receiver == expression
+    } else {
+        program
+            .expression_table
+            .expression_handles(authored.arguments)
+            .get(target_position.checked_sub(receiver_count)?)
+            == Some(&expression)
+    };
+    if authored.target_symbol != call.target_symbol || !exact_actual {
+        return None;
+    }
+    Some(())
 }
 
 /// A readable nominal argument borrows its existing parameter or local result
@@ -513,8 +612,10 @@ fn shared_nominal_argument(
                 | CheckedUnitStructuralTypeShape::FixedArray { .. }
         )
     });
-    let whole_structural_sum = structural_root
-        && path.is_empty()
+    // A projected receiver still loans the complete selected referent. Its
+    // transitive field closure is identical to a whole parameter's; the exact
+    // root/path checks above retain custody of the enclosing storage.
+    let plain_structural_referent = structural_root
         && matches!(
             program.type_multiplicity(reference),
             Multiplicity::Affine | Multiplicity::Unrestricted
@@ -557,7 +658,7 @@ fn shared_nominal_argument(
         });
     if identity != target_identity
         || !parameter_qualifications(program, &mut shapes, reference, &[])?.is_empty()
-        || (!whole_structural_sum
+        || (!plain_structural_referent
             && !whole_primitive_scalar
             && !shapes.types.values().all(|shape| {
                 matches!(&shape.shape, CheckedUnitStructuralTypeShape::Record { fields }

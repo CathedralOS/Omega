@@ -271,6 +271,7 @@ impl Evaluation {
             1,
         )
         .with_arrays(&self.arrays)
+        .with_subslices(&self.subslices)
         .with_cases(&self.cases)
         .with_fields(&self.record_fields)
         .enter_proof_scope(&self.erased_proof_formals);

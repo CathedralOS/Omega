@@ -148,6 +148,21 @@ pub(crate) fn rejoin(
                     children.push(indexed.index);
                     (None, BorrowAccessKind::Read)
                 }
+                ExpressionNode::Indexed(indexed)
+                    if matches!(table.expression(indexed.index), ExpressionNode::Range(_)) =>
+                {
+                    children.push(indexed.index);
+                    (Some(expression), BorrowAccessKind::Read)
+                }
+                ExpressionNode::Range(range) => {
+                    if range.start.is_valid() {
+                        children.push(range.start);
+                    }
+                    if range.end.is_valid() {
+                        children.push(range.end);
+                    }
+                    (None, BorrowAccessKind::Read)
+                }
                 ExpressionNode::Boolean(_)
                 | ExpressionNode::Integer(_)
                 | ExpressionNode::Float(_)
@@ -167,14 +182,21 @@ pub(crate) fn rejoin(
                 // unlike a projection from an ordinary parameter. Reuse the
                 // source rejoin instead of guessing capture identity from the
                 // spelling of the final Name/Member chain.
-                let source = crate::emission::call_source_custody::projected_receivers::source(
-                    checked,
-                    machine,
-                    state,
-                    statement as usize,
-                    named,
-                )?;
-                let captured = source.captured_place();
+                let captured = if matches!(table.expression(named), ExpressionNode::Indexed(indexed)
+                    if matches!(table.expression(indexed.index), ExpressionNode::Range(_)))
+                {
+                    super::view_subslices::captured_range(checked, named)?
+                } else {
+                    crate::emission::call_source_custody::projected_receivers::source(
+                        checked,
+                        machine,
+                        state,
+                        statement as usize,
+                        named,
+                    )?
+                    .captured_place()
+                    .clone()
+                };
                 let row = rows.get(position).ok_or(LoweringError::Unsupported(
                     "computed shared borrow omits an authored observation",
                 ))?;

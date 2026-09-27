@@ -70,6 +70,12 @@ pub(crate) fn emit_call_leaf(
             &catalogs.structural_types,
             &mut catalogs.next_place,
         )?,
+        subslices: crate::scalar_graph::scalar_computations::subslices::prepare(
+            checked,
+            machine,
+            &catalogs.structural_types,
+            &mut catalogs.next_place,
+        )?,
         cases: crate::scalar_graph::scalar_computations::cases::prepare(
             checked,
             machine,

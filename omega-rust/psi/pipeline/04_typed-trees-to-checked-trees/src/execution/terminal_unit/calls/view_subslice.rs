@@ -75,7 +75,7 @@ pub(in crate::execution) struct ViewRange {
 /// One admitted range with its present endpoints, copied from the unique
 /// source-bound `SubsliceStart`/`SubsliceEnd` facts at its site.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(in crate::execution) struct ViewSubslice {
+pub(crate) struct ViewSubslice {
     pub(in crate::execution) range: ViewRange,
     pub(in crate::execution) expression: ExpressionHandle,
     pub(in crate::execution) start: Option<CheckedScalarExpression>,
@@ -85,7 +85,7 @@ pub(in crate::execution) struct ViewSubslice {
 impl ViewSubslice {
     /// The shared-borrow argument plan a call, a return or a view-local
     /// binding carries for this range.
-    pub(in crate::execution) fn argument(self) -> CheckedUnitStructuralArgumentPlan {
+    pub(crate) fn argument(self) -> CheckedUnitStructuralArgumentPlan {
         let ViewSubslice {
             range,
             expression,
@@ -144,9 +144,40 @@ pub(in crate::execution) fn admit(
     statement_index: usize,
     site: CheckedSubsliceSite,
 ) -> Option<ViewSubslice> {
+    let subslice = admit_resolved(
+        program,
+        &facts.operators,
+        &facts.values.scalar_expressions,
+        machine,
+        state,
+        parameters,
+        target,
+        expression,
+        statement_index,
+        site,
+    )?;
+    (subslice.range.collection.is_empty()
+        || lends_field_collection(program, facts, machine, state, statement_index, expression))
+    .then_some(subslice)
+}
+
+/// Shared admission also serves computation construction, before CheckFacts
+/// is assembled. Operator meaning and source-bound endpoint facts are both
+/// required; a range with omitted endpoints still needs the operator veto.
+pub(crate) fn admit_resolved(
+    program: &TypedTrees,
+    operators: &checked_trees::CheckedOperatorFacts,
+    expressions: &CheckedScalarExpressionPlans,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    parameters: &[CheckedUnitStructuralParameterPlan],
+    target: TypeReferenceHandle,
+    expression: ExpressionHandle,
+    statement_index: usize,
+    site: CheckedSubsliceSite,
+) -> Option<ViewSubslice> {
     let spelling = language_core::OperatorSpelling::Range;
-    if facts
-        .operators
+    if operators
         .expression_use(expression)
         .is_some_and(|selected| {
             selected.spelling != spelling
@@ -161,9 +192,9 @@ pub(in crate::execution) fn admit(
     {
         return None;
     }
-    let subslice = admit_replayed(
+    admit_replayed(
         program,
-        &facts.values.scalar_expressions,
+        expressions,
         machine,
         state,
         parameters,
@@ -171,10 +202,7 @@ pub(in crate::execution) fn admit(
         expression,
         statement_index,
         site,
-    )?;
-    (subslice.range.collection.is_empty()
-        || lends_field_collection(program, facts, machine, state, statement_index, expression))
-    .then_some(subslice)
+    )
 }
 
 /// Whether checked borrow admission recorded the `let` at `statement_index`
