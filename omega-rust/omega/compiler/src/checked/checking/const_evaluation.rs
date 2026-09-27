@@ -106,6 +106,7 @@ pub(super) fn selected_provider_bodies(
         let Some(operator) = typed
             .operators()
             .iter()
+            .chain(typed.machine_token_bindings())
             .find(|operator| operator.symbol == fact.selected_operator_symbol)
         else {
             continue;
@@ -113,14 +114,9 @@ pub(super) fn selected_provider_bodies(
         if !operator.is_boundary {
             continue;
         }
-        let identity =
-            typed_trees::operator::boundary_operator_requirement_identity(typed, operator);
-        let matching: Vec<_> = plans
-            .plans()
-            .iter()
-            .filter(|plan| plan.schema.trait_name == identity)
-            .collect();
-        let [plan] = matching.as_slice() else {
+        let Some((_, plan)) =
+            provider_planning::selected_requirement_plan(typed, plans.plans(), operator.symbol)
+        else {
             continue;
         };
         let Some(row) =
@@ -138,6 +134,7 @@ pub(super) fn selected_provider_bodies(
         let Some(operator) = typed
             .operators()
             .iter()
+            .chain(typed.machine_token_bindings())
             .find(|operator| operator.symbol == fact.selected_operator_symbol)
         else {
             continue;
@@ -145,14 +142,9 @@ pub(super) fn selected_provider_bodies(
         if !operator.is_boundary {
             continue;
         }
-        let identity =
-            typed_trees::operator::boundary_operator_requirement_identity(typed, operator);
-        let matching: Vec<_> = plans
-            .plans()
-            .iter()
-            .filter(|plan| plan.schema.trait_name == identity)
-            .collect();
-        let [plan] = matching.as_slice() else {
+        let Some((_, plan)) =
+            provider_planning::selected_requirement_plan(typed, plans.plans(), operator.symbol)
+        else {
             continue;
         };
         let Some(row) =
@@ -168,6 +160,25 @@ pub(super) fn selected_provider_bodies(
     Ok(selected)
 }
 
+/// A token binding is a signature view, not a legacy `operator` declaration.
+/// Its actual machine owns the requirement identity and schema method; inventing
+/// an `operator::...`/`realize` identity for that view cannot rejoin the selected
+/// machine ProviderPlan. Both forms reuse the schema owner's canonical mapping.
+fn provider_body_requirement_schema(
+    typed: &TypedTrees,
+    operator: &typed_trees::operator::OperatorDefinition,
+) -> Option<effects::provider_plan::ServiceSchema> {
+    if let Some(requirement) = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == operator.symbol)
+    {
+        provider_planning::service_schema::from_typed_boundary_requirement(typed, requirement)
+    } else {
+        provider_planning::service_schema::from_typed_operator(typed, operator)
+    }
+}
+
 /// One retained boundary-operator use whose settled plan may execute at build
 /// time. A spelled use selects through its token spelling; a named use
 /// already carries the exact requirement its call path resolved, so it has no
@@ -180,7 +191,7 @@ enum SelectedOperatorUse<'a> {
 /// Resolve one settled ProviderPlan row to its exact checked adapter body.
 /// Mirrors the checked-side settlement's adapter resolution: the plan must
 /// bind the requirement's canonical overload identity through its single
-/// `realize` method, the binding must be a checked adapter owned by the
+/// schema method, the binding must be a checked adapter owned by the
 /// nominal provider type, and the machine must be a concrete checked body with
 /// an executable entry state. Specializing applications stay rejected here --
 /// their closed substitution belongs to the artifact-qualified path.
@@ -194,8 +205,15 @@ fn selected_provider_body_row(
         SelectedOperatorUse::Spelled(fact) => (fact.expression, fact.origin),
         SelectedOperatorUse::Named(fact) => (fact.expression, fact.origin),
     };
-    let overload_identity =
-        typed_trees::operator::boundary_operator_requirement_identity(typed, operator);
+    let Some(schema) = provider_body_requirement_schema(typed, operator) else {
+        return Ok(None);
+    };
+    let [required_method] = schema.methods.as_slice() else {
+        return Err(Diagnostic::error(
+            "selected build-time requirement must retain exactly one schema method",
+        ));
+    };
+    let overload_identity = &required_method.requirement_identity;
     if overload_identity.is_empty() {
         return Err(Diagnostic::error(format!(
             "selected build-time operator at expression {:?} has an empty canonical overload identity",
@@ -214,12 +232,7 @@ fn selected_provider_body_row(
             plan.name,
         )));
     };
-    if plan.schema.trait_name != overload_identity
-        || method.name != "realize"
-        || method.requirement_owner != overload_identity
-        || method.requirement_identity != overload_identity
-        || !plan.schema.row_binds_method(row, method)
-    {
+    if plan.schema != schema || !plan.schema.row_binds_method(row, method) {
         return Err(Diagnostic::error(format!(
             "selected build-time operator ProviderPlan `{}` does not bind exact overload `{overload_identity}`",
             plan.name,

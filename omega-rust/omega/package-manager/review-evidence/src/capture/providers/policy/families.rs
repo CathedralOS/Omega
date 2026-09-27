@@ -1,3 +1,9 @@
+//! Project families after `policy::replay::validate` has independently rejoined
+//! their complete typed rosters, declaration symbols, static telescopes and
+//! selected plans. Retain each plan's exact schema kind here: a machine token
+//! binding is a signature view, not a legacy operator declaration whose identity
+//! this projection may reconstruct instead.
+
 use super::rejected;
 use crate::capture::PackageReviewInput;
 use crate::capture::semantics::declarations::{
@@ -72,23 +78,6 @@ pub(super) fn project(
         }
         let mut coordinates = Vec::with_capacity(family.coordinates().len());
         for coordinate in family.coordinates() {
-            let operator =
-                typed_trees::operator::declaration_by_symbol(&compilation.typed, coordinate.symbol)
-                    .ok_or_else(|| {
-                        rejected("family coordinate has no exact typed operator declaration")
-                    })?;
-            let static_parameter_count = operator.lifetime_parameters.len()
-                + compilation.operator_type_parameters(operator).len();
-            if static_parameter_count != coordinate.static_parameter_count
-                || typed_trees::operator::boundary_operator_requirement_identity(
-                    &compilation.typed,
-                    operator,
-                ) != coordinate.requirement_identity
-            {
-                return Err(rejected(
-                    "family coordinate differs from its declaration telescope or overload",
-                ));
-            }
             let operator_declaration = nominal_identity(compilation, coordinate.symbol)?;
             if operator_declaration != family_identity {
                 return Err(rejected(
@@ -106,9 +95,11 @@ pub(super) fn project(
                         && plan.provider_type_declaration() == Some(&provider_type_declaration)
                         && selects(&retained.selected_by, authority, selection)
                 })
-                .map(|(index, _)| index)
+                .map(|(index, (original_index, _))| {
+                    (index, provenance[*original_index].provider.schema)
+                })
                 .collect::<Vec<_>>();
-            let [index] = matches.as_slice() else {
+            let [(index, schema)] = matches.as_slice() else {
                 return Err(rejected(
                     "operator coordinate has no unique normalized selected plan",
                 ));
@@ -116,9 +107,7 @@ pub(super) fn project(
             coordinates.push(PackagePolicyProviderFamilyCoordinate {
                 requirement_identity: policy_provider_requirement_identity(
                     compilation,
-                    provider_planning::ProviderSchemaDeclaration::BoundaryOperator(
-                        coordinate.symbol,
-                    ),
+                    *schema,
                     coordinate.symbol,
                 )?
                 .path,
