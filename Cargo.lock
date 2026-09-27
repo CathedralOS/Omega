@@ -1324,6 +1324,7 @@ dependencies = [
  "layout",
  "mimalloc",
  "numerics",
+ "optimization-core",
  "package-compilation",
  "provider-planning",
  "representation-planning",

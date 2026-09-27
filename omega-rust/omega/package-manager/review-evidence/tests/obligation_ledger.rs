@@ -1,6 +1,16 @@
 use crate::support;
 
+mod custody_fields;
+
 use compiler::CheckedCompileRequest;
+use custody_fields::{
+    DERIVATION_PROJECTION_HEADER, KIND_PUBLIC_CONST, LEDGER_TARGET, ObligationLedgerCheck,
+    ObligationLedgerCustodyFieldForTest, RISK_BLOCKING, RISK_OPAQUE_BLOCKING,
+    classify_obligation_ledger_rejection, crafted_obligation_ledger_fixture,
+    obligation_ledger_custody, obligation_ledger_custody_outcome,
+    substitute_obligation_ledger_for_test,
+};
+use optimization_core::OneFieldSubstitutionMatrix;
 use support::*;
 
 #[test]
@@ -747,128 +757,38 @@ fn package_source_consumption_commitment_binds_loaded_bytes_not_cache_location()
 /// fingerprint diverges and whose replay against a real checked compilation
 /// rejects.
 ///
-/// The fixture is hand-encoded through the public row-recovery envelope and
-/// the canonical dependency-closure constructor, so the codec gates run on
-/// hosts that cannot compile a package-aware fixture. The replay leg joins a
-/// real checked compilation whenever the host offers a native target profile.
+/// The record is the ledger's canonical encoding — the ledger type exposes no
+/// field mutation surface — so the representable legs run through the shared
+/// `run_one_field_substitution_matrix` driver over the declared
+/// `ObligationLedgerCustodyFieldForTest` inventory in `custody_fields.rs` as
+/// byte splices that must still decode. The fixture is hand-encoded through
+/// the public row-recovery envelope and the canonical dependency-closure
+/// constructor in `crafted_obligation_ledger_fixture`, so the codec gates run
+/// on hosts that cannot compile a package-aware fixture; the replay leg joins
+/// a real `linux_x86_64` checked compilation, which is host-independent, so
+/// validation reaches the closure and row arms on every host.
 #[test]
 fn ordinary_package_obligation_ledger_rejects_every_one_field_substitution() {
     use package_compilation::PackageDependencyClosure;
-    use package_evidence::ledger::OrdinaryPackageObligationLedger;
 
+    let custody_fields::CraftedLedgerFixture {
+        closure,
+        decoded_rows,
+        ledger,
+        encoded,
+    } = crafted_obligation_ledger_fixture();
     let package = package_identity();
     let dependency = PackageKeyIdentity::from_digest([42; 32]).expect("dependency identity");
-    let secondary = PackageKeyIdentity::from_digest([43; 32]).expect("secondary identity");
-    let target = "linux_x86_64";
-
-    // Raw row wire tags; the canonical-risk join requires these exact pairs.
-    const KIND_PROJECTION_HEADER: u8 = 0;
-    const KIND_PUBLIC_TRAIT: u8 = 1;
-    const KIND_PUBLIC_DATA: u8 = 3;
-    const KIND_SELECTED_PROVIDER_SET: u8 = 7;
-    const KIND_PUBLIC_CONST: u8 = 12;
-    const RISK_BLOCKING: u8 = 0;
-    const RISK_OPAQUE_BLOCKING: u8 = 2;
-    const DERIVATION_PROJECTION_HEADER: u8 = 0;
-    const DERIVATION_EMPTY_PROVIDER_SET: u8 = 1;
-    const ROLE_DECLARATION: u8 = 0;
-
-    let canonical_rows = [
-        crafted_canonical_row(
-            package,
-            target,
-            KIND_PROJECTION_HEADER,
-            RISK_BLOCKING,
-            b"header",
-            b"header-value",
-        ),
-        crafted_canonical_row(
-            package,
-            target,
-            KIND_PUBLIC_DATA,
-            RISK_BLOCKING,
-            b"data/token",
-            b"token-value",
-        ),
-        crafted_canonical_row(
-            package,
-            target,
-            KIND_SELECTED_PROVIDER_SET,
-            RISK_OPAQUE_BLOCKING,
-            b"providers",
-            b"provider-set",
-        ),
-    ];
-    let envelopes = [
-        crafted_row_envelope(&canonical_rows[0], &[DERIVATION_PROJECTION_HEADER]),
-        crafted_authored_row_envelope(
-            &canonical_rows[1],
-            package,
-            "main.omg",
-            0,
-            12,
-            ROLE_DECLARATION,
-        ),
-        crafted_row_envelope(&canonical_rows[2], &[DERIVATION_EMPTY_PROVIDER_SET]),
-    ];
-    let decoded_rows = envelopes
-        .iter()
-        .map(|bytes| {
-            decode_package_review_canonical_row(bytes)
-                .expect("crafted row recovery envelope should decode")
-        })
-        .collect::<Vec<_>>();
-
-    let closure = PackageDependencyClosure::from_canonical_parts(
-        package,
-        BuildDeclarationKind::Package,
-        vec![package, dependency, secondary],
-        vec![
-            PackageDependencyBinding::new(package, "alpha_dep", dependency),
-            PackageDependencyBinding::new(package, "beta_dep", secondary),
-        ],
-    )
-    .expect("crafted dependency closure should validate");
-    let ledger = recover_ordinary_package_obligation_ledger(closure.clone(), &decoded_rows)
-        .expect("crafted rows should form a canonical ledger");
-    let encoded =
-        encode_ordinary_package_obligation_ledger(&ledger).expect("crafted ledger should encode");
-    assert_eq!(
-        decode_ordinary_package_obligation_ledger(&encoded).expect("crafted ledger should decode"),
-        ledger
-    );
-    let fingerprint =
-        ordinary_package_obligation_ledger_fingerprint(&ledger).expect("base fingerprint");
+    let target = LEDGER_TARGET;
 
     let spans = ledger_field_spans(&encoded);
     assert_eq!(spans.packages.len(), 3);
     assert_eq!(spans.dependencies.len(), 2);
-    assert_eq!(spans.rows.len(), canonical_rows.len());
+    assert_eq!(spans.rows.len(), 3);
 
     // The schema identity is deliberately not independently representable:
     // construction always seals the current vocabulary and decode rejects any
     // other version before a record can form, which is itself asserted below.
-
-    let mut decodable_substitutions: Vec<(&'static str, OrdinaryPackageObligationLedger)> =
-        Vec::new();
-    let divergent = |name: &'static str, bytes: &[u8]| {
-        let mutated = decode_ordinary_package_obligation_ledger(bytes)
-            .unwrap_or_else(|error| panic!("{name} should still decode: {}", error.message()));
-        assert_ne!(mutated, ledger, "{name} must change the recovered record");
-        assert_eq!(
-            encode_ordinary_package_obligation_ledger(&mutated)
-                .expect("substituted ledger should re-encode"),
-            bytes,
-            "{name} must stay canonical once decoded"
-        );
-        let mutated_fingerprint = ordinary_package_obligation_ledger_fingerprint(&mutated)
-            .expect("substituted ledger fingerprint");
-        assert_ne!(
-            mutated_fingerprint, fingerprint,
-            "{name} must diverge the whole-ledger fingerprint"
-        );
-        mutated
-    };
 
     // --- framing and vocabulary fields reject at decode ---
 
@@ -967,14 +887,8 @@ fn ordinary_package_obligation_ledger_rejects_every_one_field_substitution() {
         .expect_err("a workspace root role must reject");
     assert!(error.message().contains("workspace role"));
 
-    // The package-role bit is independently representable: it decodes to a
-    // different record, diverges the fingerprint, and replay rejects it.
-    let mut mutated = encoded.clone();
-    mutated[spans.root_role] = 1;
-    decodable_substitutions.push((
-        "application root role",
-        divergent("application root role", &mutated),
-    ));
+    // The package-role bit is independently representable: the inventory's
+    // `RootRoleApplication` leg exercises it through the matrix.
 
     let mut mutated = encoded.clone();
     mutated[spans.package_count.clone()].copy_from_slice(&65_537u64.to_le_bytes());
@@ -1062,27 +976,10 @@ fn ordinary_package_obligation_ledger_rejects_every_one_field_substitution() {
         .expect_err("an edge target outside the roster must reject");
     assert!(error.message().contains("open edge"));
 
-    // A same-length snake_case alias rename that keeps edge order is
-    // representable: it decodes to a different closure, diverges the
-    // fingerprint, and replay rejects it.
-    let mut renamed_alias = encoded.clone();
-    renamed_alias[spans.dependencies[1].alias.clone()].copy_from_slice(b"zeta_dep");
-    decodable_substitutions.push((
-        "dependency alias",
-        divergent("dependency alias", &renamed_alias),
-    ));
-
-    // Swapped edge targets stay closed and reachable: representable, divergent,
-    // and rejected by replay.
-    let mut swapped_targets = encoded.clone();
-    let alpha_target = swapped_targets[spans.dependencies[0].target.clone()].to_vec();
-    let beta_target = swapped_targets[spans.dependencies[1].target.clone()].to_vec();
-    swapped_targets[spans.dependencies[0].target.clone()].copy_from_slice(&beta_target);
-    swapped_targets[spans.dependencies[1].target.clone()].copy_from_slice(&alpha_target);
-    decodable_substitutions.push((
-        "swapped edge targets",
-        divergent("swapped edge targets", &swapped_targets),
-    ));
+    // A same-length snake_case alias rename and swapped edge targets stay
+    // closed, reachable, and canonically ordered: representable legs that the
+    // inventory exercises through the matrix (`DependencyAliasRenamed`,
+    // `DependencyTargetsSwapped`).
 
     // Reordered edge frames break strict (requester, alias) ordering.
     let edge_frames_start = spans.dependencies[0].requester.start;
@@ -1157,14 +1054,9 @@ fn ordinary_package_obligation_ledger_rejects_every_one_field_substitution() {
         .expect_err("dropping the selected-provider-set row must reject");
     assert!(error.message().contains("no selected-provider set"));
 
-    // A dropped ordinary row is representable: the smaller roster still
-    // decodes, diverges the fingerprint, and replay rejects it.
-    let mut dropped_row = encoded.clone();
-    dropped_row[spans.row_count.clone()].copy_from_slice(&2u64.to_le_bytes());
-    let tail = dropped_row[spans.rows[1].end..].to_vec();
-    dropped_row.truncate(spans.rows[1].start);
-    dropped_row.extend_from_slice(&tail);
-    decodable_substitutions.push(("dropped row", divergent("dropped row", &dropped_row)));
+    // A dropped ordinary row keeps the required rows standing: the smaller
+    // roster still decodes — the `OrdinaryRowDropped` inventory leg exercises
+    // it through the matrix.
 
     // A duplicated row frame collides on the strict (kind, key) coordinate.
     let row_frame = encoded[spans.rows[1].clone()].to_vec();
@@ -1285,22 +1177,10 @@ fn ordinary_package_obligation_ledger_rejects_every_one_field_substitution() {
         .expect_err("a noncanonical kind/risk pair must reject");
     assert!(error.message().contains("invalid canonical row"));
 
-    // A kind substitution that keeps canonical risk and roster order is
-    // representable: it decodes to a different record and replay rejects it.
-    let mut rekinded = encoded.clone();
-    rekinded[row_content_start + inner.kind] = KIND_PUBLIC_TRAIT;
-    decodable_substitutions.push(("row kind", divergent("row kind", &rekinded)));
-
-    // A key-byte substitution keeps framing and order but changes identity.
-    let mut rekeyed = encoded.clone();
-    rekeyed[absolute(&inner.key).start] = b'X';
-    decodable_substitutions.push(("row key", divergent("row key", &rekeyed)));
-
-    // A value-byte substitution is opaque to framing but enters the retained
-    // canonical bytes, so the fingerprint still binds it.
-    let mut revalued = encoded.clone();
-    revalued[absolute(&inner.value).start] ^= 0x01;
-    decodable_substitutions.push(("row value", divergent("row value", &revalued)));
+    // A kind substitution that keeps canonical risk and roster order, a
+    // key-byte substitution, and a value-byte substitution are representable:
+    // the `RowKindSubstituted`, `RowKeySubstituted`, and `RowValueSubstituted`
+    // inventory legs exercise them through the matrix.
 
     // A truncated envelope and trailing bytes reject at the frame bounds.
     let mut mutated = encoded.clone();
@@ -1387,100 +1267,121 @@ fn ordinary_package_obligation_ledger_rejects_every_one_field_substitution() {
         .expect_err("a closure rooted elsewhere must reject");
     assert!(error.message().contains("different root package"));
 
-    // A forged row admitted through framing is representable: the extended
-    // roster still finishes a ledger whose fingerprint diverges and whose
-    // replay rejects.
-    let forged_row = decode_package_review_canonical_row(&crafted_row_envelope(
-        &crafted_canonical_row(
-            package,
-            target,
-            KIND_PUBLIC_CONST,
-            RISK_BLOCKING,
-            b"extra",
-            b"v",
-        ),
-        &[DERIVATION_PROJECTION_HEADER],
-    ))
-    .expect("forged row should decode");
-    let mut forged_rows = decoded_rows.clone();
-    forged_rows.push(forged_row);
-    let forged = recover_ordinary_package_obligation_ledger(closure.clone(), &forged_rows)
-        .expect("a forged row still forms a structurally valid ledger");
-    assert_ne!(
-        ordinary_package_obligation_ledger_fingerprint(&forged).expect("forged ledger fingerprint"),
-        fingerprint,
-        "a forged row must diverge the whole-ledger fingerprint"
-    );
-    decodable_substitutions.push(("forged row", forged));
+    // A forged row admitted through framing is representable: the
+    // `ForeignRowAppended` inventory leg splices the same canonical row frame
+    // into the retained bytes and exercises it through the matrix.
 
     // --- replay: a real checked compilation rejects every carried record ---
 
-    if let Some(host_target) = host_target_name() {
-        let fixture_package = TempPackage::new();
-        fixture_package.write("main.omg", "pub data Token { value: u64; }\n");
-        fixture_package.write(
-            "build.omg",
-            "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
-        );
-        let checked = compile_review_fixture(CheckedCompileRequest {
-            package_inputs: Some(package_inputs(&fixture_package.0)),
-            ..CheckedCompileRequest::new(&fixture_package.0.join("main.omg"), Some(host_target))
-        })
-        .expect("replay fixture should check");
-        let honest_rows = project_checked_package_review(&checked)
-            .expect("replay review should project")
-            .canonical_rows()
-            .expect("replay review rows");
-        let honest = ordinary_package_obligation_ledger_from_compiler_rows(
-            checked
-                .custody
-                .dependency_closure()
-                .cloned()
-                .expect("replay compilation retains its closure"),
-            &honest_rows,
-        )
-        .expect("replay ledger should form");
-        validate_ordinary_package_obligation_ledger(&honest, &checked)
-            .expect("the honest ledger should replay");
+    // A checked compilation is host-independent. The replay fixture compiles
+    // the same three-package, two-edge dependency closure the crafted ledger
+    // carries, for the ledger's own target, so validation reaches the
+    // substituted arm — closure legs reject at the dependency-closure
+    // comparison and row legs at the first diverging row — instead of every
+    // leg stopping at a closure that could never match.
+    let build = "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n";
+    let root_package = TempPackage::new();
+    root_package.write("main.omg", "pub data Token { value: u64; }\n");
+    root_package.write("build.omg", build);
+    let dependency_package = TempPackage::new();
+    dependency_package.write("main.omg", "pub data DependencyToken {}\n");
+    dependency_package.write("build.omg", build);
+    let secondary_package = TempPackage::new();
+    secondary_package.write("main.omg", "pub data SecondaryToken {}\n");
+    secondary_package.write("build.omg", build);
+    let secondary = PackageKeyIdentity::from_digest([43; 32]).expect("secondary identity");
+    let replay_inputs = PackageCompilationInputs::new_package(
+        package,
+        vec![
+            PackageSourceBinding::new(package, "review_fixture", root_package.0.clone()),
+            PackageSourceBinding::new(dependency, "graph_dependency", dependency_package.0.clone()),
+            PackageSourceBinding::new(
+                secondary,
+                "secondary_dependency",
+                secondary_package.0.clone(),
+            ),
+        ],
+        vec![
+            PackageDependencyBinding::new(package, "alpha_dep", dependency),
+            PackageDependencyBinding::new(package, "beta_dep", secondary),
+        ],
+    )
+    .expect("replay three-package graph should validate");
+    let checked = compile_review_fixture(CheckedCompileRequest {
+        package_inputs: Some(replay_inputs),
+        ..CheckedCompileRequest::new(&root_package.0.join("main.omg"), Some(target))
+    })
+    .expect("replay fixture should check");
+    let honest_rows = project_checked_package_review(&checked)
+        .expect("replay review should project")
+        .canonical_rows()
+        .expect("replay review rows");
+    let honest = ordinary_package_obligation_ledger_from_compiler_rows(
+        checked
+            .custody
+            .dependency_closure()
+            .cloned()
+            .expect("replay compilation retains its closure"),
+        &honest_rows,
+    )
+    .expect("replay ledger should form");
+    validate_ordinary_package_obligation_ledger(&honest, &checked)
+        .expect("the honest ledger should replay");
 
-        // The crafted ledger is well-formed yet was never issued by this
-        // compilation; replay must reject it like every substitution.
-        assert!(
-            validate_ordinary_package_obligation_ledger(&ledger, &checked).is_err(),
-            "a foreign well-formed ledger must not settle"
-        );
-        for (name, mutated) in &decodable_substitutions {
-            assert!(
-                validate_ordinary_package_obligation_ledger(mutated, &checked).is_err(),
-                "{name} must reject at local reconstruction replay"
-            );
-        }
+    // The crafted ledger is well-formed yet was never issued by this
+    // compilation; replay must reject it like every substitution.
+    assert!(
+        validate_ordinary_package_obligation_ledger(&ledger, &checked).is_err(),
+        "a foreign well-formed ledger must not settle"
+    );
 
-        // A wire-level row drop on the real encoding decodes to a different
-        // ledger whose replay rejects in the other direction.
-        let honest_bytes =
-            encode_ordinary_package_obligation_ledger(&honest).expect("honest encode");
-        let honest_spans = ledger_field_spans(&honest_bytes);
-        let dropped = honest_rows
-            .iter()
-            .position(|row| row.kind() == PackageReviewCanonicalRowKind::PublicData)
-            .expect("replay fixture should produce a public-data row");
-        let mut mutated = honest_bytes.clone();
-        mutated[honest_spans.row_count.clone()]
-            .copy_from_slice(&(u64::try_from(honest_spans.rows.len()).unwrap() - 1).to_le_bytes());
-        let tail = mutated[honest_spans.rows[dropped].end..].to_vec();
-        mutated.truncate(honest_spans.rows[dropped].start);
-        mutated.extend_from_slice(&tail);
-        let smaller = decode_ordinary_package_obligation_ledger(&mutated)
-            .expect("a dropped non-required row still decodes");
-        assert_ne!(
-            ordinary_package_obligation_ledger_fingerprint(&smaller)
-                .expect("dropped-row fingerprint"),
-            ordinary_package_obligation_ledger_fingerprint(&honest).expect("honest fingerprint")
-        );
-        assert!(
-            validate_ordinary_package_obligation_ledger(&smaller, &checked).is_err(),
-            "a dropped real row must reject at local reconstruction replay"
-        );
-    }
+    // Every representable substitution decodes to a different canonical ledger
+    // whose honestly recomputed fingerprint diverges and whose replay against
+    // the checked compilation rejects with the leg's named custody arm. The
+    // donor is the compilation's own encoded ledger: an authentic record of a
+    // different issuance of the same family.
+    optimization_core::run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "ordinary package obligation ledger",
+        fields: ObligationLedgerCustodyFieldForTest::INVENTORY,
+        honest: &|| encoded.clone(),
+        donor: encode_ordinary_package_obligation_ledger(&honest).expect("honest ledger encodes"),
+        custody: &|record: &Vec<u8>| obligation_ledger_custody(record),
+        substitute: &substitute_obligation_ledger_for_test,
+        check: &|bytes: &Vec<u8>| {
+            let ledger = decode_ordinary_package_obligation_ledger(bytes).map_err(|error| {
+                ObligationLedgerCheck::DecodeRejection(error.message().to_owned())
+            })?;
+            validate_ordinary_package_obligation_ledger(&ledger, &checked)
+                .map_err(|diagnostics| classify_obligation_ledger_rejection(&diagnostics))?;
+            Ok(ordinary_package_obligation_ledger_fingerprint(&ledger)
+                .expect("substituted ledger fingerprint"))
+        },
+        outcome: &obligation_ledger_custody_outcome,
+        joined_replay: None,
+    });
+
+    // A wire-level row drop on the real encoding decodes to a different
+    // ledger whose replay rejects in the other direction.
+    let honest_bytes = encode_ordinary_package_obligation_ledger(&honest).expect("honest encode");
+    let honest_spans = ledger_field_spans(&honest_bytes);
+    let dropped = honest_rows
+        .iter()
+        .position(|row| row.kind() == PackageReviewCanonicalRowKind::PublicData)
+        .expect("replay fixture should produce a public-data row");
+    let mut mutated = honest_bytes.clone();
+    mutated[honest_spans.row_count.clone()]
+        .copy_from_slice(&(u64::try_from(honest_spans.rows.len()).unwrap() - 1).to_le_bytes());
+    let tail = mutated[honest_spans.rows[dropped].end..].to_vec();
+    mutated.truncate(honest_spans.rows[dropped].start);
+    mutated.extend_from_slice(&tail);
+    let smaller =
+        decode_ordinary_package_obligation_ledger(&mutated).expect("a dropped row still decodes");
+    assert_ne!(
+        ordinary_package_obligation_ledger_fingerprint(&smaller).expect("dropped-row fingerprint"),
+        ordinary_package_obligation_ledger_fingerprint(&honest).expect("honest fingerprint")
+    );
+    assert!(
+        validate_ordinary_package_obligation_ledger(&smaller, &checked).is_err(),
+        "a dropped real row must reject at local reconstruction replay"
+    );
 }
