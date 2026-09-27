@@ -1,0 +1,63 @@
+// A value (machine) call omits whenever it is NOT the root of the expression
+// its construction site lowers. Any parent node over it is enough. Reduced
+// from `samples/cli/probes/value_call_in_expr`.
+//
+//   let r: i32 = self.twelve();            checks   (call is the whole thing)
+//   let r: i32 = (self.twelve());          checks   (parens are transparent)
+//   let r: i32 = self.twelve() + 0;        OMITTED  (this fixture)
+//   let r: i64 = self.twelve() as i64;     OMITTED  (a CAST parent, no
+//                                                   arithmetic at all)
+//   let f: bool = self.twelve() == 12;     OMITTED
+//   let r: i32 = 0 - self.twelve();        OMITTED
+//   let r: i32 = self.base + 0;            checks   (same arithmetic, no call)
+//
+// So it is neither the arithmetic nor the call, but the call having a parent.
+//
+// Ruled out, each by a checking control: the `in Saturating` policy (a
+// policy-free program omits, and `in Wrapping` omits identically -- this is NOT
+// another arithmetic-policy row removal, unlike the two composite gaps pinned
+// beside it); the FIELD receiver (`self.double_val(..)` with no `Calc` type in
+// the program omits); the call's ARGUMENT (a nullary callee omits); and the
+// `let` binding itself -- a field store and a transition guard omit too, each
+// at its own phase label, which is what says the label names the site rather
+// than the cause.
+//
+// The sample's header attributes this to one historical miscompile,
+// `self.base + self.calc.double_val(6) * 3`. The surviving trigger is far
+// broader: ` + 0` alone reproduces it with nothing of that statement left.
+//
+// ONE SHARP ASYMMETRY, worth having before repairing. In a transition GUARD the
+// left operand is a special case:
+//
+//   transition self.twelve() == 12 { .. }     checks
+//   transition self.base == self.twelve() { } OMITTED
+//   transition self.twelve() + z == 12 { }    OMITTED
+//
+// and the same depth-one comparison in a `let` initializer is not tolerated at
+// all. So whatever admits the guard's left-hand call is a narrow special case,
+// and generalizing it is the likely shape of the real repair.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    base: i32;
+}
+
+machine Main::twelve(&mut self) -> i32 {
+    transition { _ -> (12) }
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.base = 1;
+    transition { _ -> check() }
+
+    state check(&mut self) {
+        let result: i32 = self.twelve() + 0;
+        transition { _ -> good() }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(0);
+    }
+}

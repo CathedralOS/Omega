@@ -149,20 +149,52 @@ backend-visible; full corpus runs only at the end of an item.
   source` -- so pin no repair on either string. Acceptance: the pending fixture
   checks and `wire_protocol` leaves the omission cluster.
 
-- **RECORD-LITERAL-CALL-ARGUMENT.** (new-scope) A record literal written
-  directly as a call argument has no route; binding it to a local first and
-  passing that checks, with the same callee.
-  `samples/cli/systems/note_vault` spells it
-  `self.fs.write(File { fd: self.file_fd }, "vault v1\n")`. Pinned for the
-  ordinary-call half at `tests/omega/pending/calls/record_literal_call_argument`.
-  The two call kinds decline in different places and a repair should confirm
-  both: an ordinary machine call reports the CALLEE unavailable ("omitted at an
-  unavailable scalar target"), so the argument shape propagates into callee
-  availability rather than being refused at the call, while a boundary call
-  declines at `call operation: structural arguments: source symbol`, one line
-  after the trace mark, where the argument's place has no `PlaceRoot::Symbol`
-  because it is a literal. Acceptance: the pending fixture checks and
-  `note_vault` leaves the omission cluster.
+- **FIELD-SUBJECT-NAMED-ARM-CHAIN.** (new-scope) A case dispatch omits when
+  three things hold at once: the subject is a FIELD place, the chain has THREE
+  OR MORE named-case arms, and there is no authored `_`. Removing any one makes
+  the identical program check, and two of the three rescues are one-token
+  controls -- final arm to `_`, or subject to a local. (The third, dropping to
+  two arms, is confounded: with no `_`, coverage forces arm count to equal case
+  count, so "two arms" cannot be separated from "two-case sum".)
+  `samples/cli/basics/brightness_control`, pinned at
+  `tests/omega/pending/control_flow/field_subject_named_arm_chain`. Ruled out in
+  both directions: payload bindings, arithmetic in an arm target, which arm
+  carries the payload, being the body's tail, constant versus dynamic subject
+  (so const folding does not explain the local exemption), sum case count
+  alone, and successor collapsing. The reading that the terminator "admits an
+  ordered guarded chain ending in its authored `_` arm" is incomplete, not
+  wrong -- `_`-free chains ARE admitted with a local subject or with two arms
+  -- so a repair pinned on `_`-termination alone will be wrong. Acceptance: the
+  pending fixture checks and `brightness_control` leaves the omission cluster.
+
+- **VALUE-CALL-SUBEXPRESSION.** (new-scope) A value (machine) call omits
+  whenever it is not the ROOT of the expression its construction site lowers;
+  any parent node over it is enough. `self.twelve()` checks, `(self.twelve())`
+  checks, and `self.twelve() + 0`, `self.twelve() as i64`,
+  `self.twelve() == 12` and `0 - self.twelve()` all omit, while the same
+  arithmetic with no call checks. `samples/cli/probes/value_call_in_expr`,
+  pinned at `tests/omega/pending/calls/value_call_subexpression`. Ruled out
+  with checking controls: the arithmetic policy (a policy-free program omits
+  and `in Wrapping` omits identically -- this is NOT another member-policy row
+  removal, despite sitting beside two of those), the field receiver, the call's
+  argument, and the `let` binding itself, since a field store and a transition
+  guard omit too at their own phase labels. The sample's header attributes it
+  to one historical miscompile; ` + 0` alone reproduces it with nothing of that
+  statement left. Start the repair from the one asymmetry: in a transition
+  guard a call as the LEFT operand of `==` checks while the same call as the
+  RIGHT operand omits, and the same depth-one comparison in a `let` initializer
+  is not tolerated at all -- so a narrow special case already exists and
+  generalizing it is the likely shape. Acceptance: the pending fixture checks,
+  all the omitting forms above check, and the sample leaves the cluster.
+
+- **SUM-VALUE-STATE-PARAMETER.** (new-scope) Passing a SUM-typed value as a
+  state parameter omits at
+  `state graph: terminator: jump successor: parameter transfer`, with or
+  without a `_` arm in the dispatch that reaches it. Found while reducing
+  FIELD-SUBJECT-NAMED-ARM-CHAIN, where it blocked measuring the
+  parameter-subject axis. Not yet pinned and no sample attributed to it;
+  the first step is a fixture and a check of whether any refusing sample is
+  actually behind it.
 
 - **CARRIER-LENGTH-STORE-CARRIER.** (new-scope) A carrier `.len` reaches the
   arithmetic walk with no carrier of its own, so a store into anything but
@@ -899,15 +931,27 @@ the complete product bar; focused successes below do not establish that baseline
       "this machine has no unit plan", and a machine whose plan nobody
       needs must stay silent
     - one each: `state graph: terminator: unsupported tail: transition
-      chain` (`basics/brightness_control`), `structural field store: scalar
-      field type` (`collections/matrix_multiply`), `state graph: prefix
-      initializers: bound expression` (`probes/value_call_in_expr`),
+      chain` (`basics/brightness_control` -- now
+      FIELD-SUBJECT-NAMED-ARM-CHAIN), `structural field store: scalar
+      field type` (`collections/matrix_multiply` -- now
+      MEMBER-POLICY-REMOVES-COMPOSITE-ROWS), `state graph: prefix
+      initializers: bound expression` (`probes/value_call_in_expr` -- now
+      VALUE-CALL-SUBEXPRESSION),
       `call operation: projected operand support`
       (`systems/elapsed_timer`), `state graph: result custody accounting`
       (`systems/file_journal`), `call operation: structural arguments:
       source symbol` (`systems/note_vault`), and `state graph: terminator:
       conditional successors: parameter transfer`
       (`systems/vending_machine`, the case this row already maps in full).
+
+      `note_vault` has MOVED and this row is stale for it. Its record literal
+      in call-argument position was repaired upstream on 2026-09-27 -- a
+      fixture reduced against a nine-hour-old binary checked against a fresh
+      one, which is the reason to rebuild before believing any of these rows.
+      It now omits at an unavailable callee, `Filesystem::create_dir_all`,
+      itself omitted at `statement sequence: unsupported statement kind`, so
+      the remaining blocker is inside the bundled filesystem library rather
+      than in the sample. Unattributed; re-measure before picking it up.
 
     Two of those singletons are already worth more than one customer.
     `systems/elapsed_timer` omits at the SAME arm as both Omega-written
