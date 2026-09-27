@@ -230,6 +230,18 @@ impl BuildTimeAdmissionPlan {
                 continue;
             }
             visited.push(machine);
+            // Checking binds token-bearing machines as ordinary calls. Their
+            // bodyless requirements therefore appear in the reachable call
+            // closure, not just in the legacy operator-use facts below. Keep
+            // the application deferred until Omega supplies its selected body.
+            if program.machines().iter().any(|declaration| {
+                declaration.symbol == machine
+                    && declaration.spelling.is_some()
+                    && declaration.supply_mode
+                        == language_semantics::MachineSupplyMode::TopLevelRequirement
+            }) {
+                return true;
+            }
             let boundary_use = |selected_operator_symbol| {
                 program.operators().iter().any(|operator| {
                     operator.symbol == selected_operator_symbol && operator.is_boundary
@@ -781,4 +793,56 @@ fn project_operational_axes(
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    #[test]
+    fn normalized_token_requirement_calls_defer_only_their_reachable_closures() {
+        let typed = crate::front_end::typed_program(
+            "data Math {}
+             boundary machine % Math::remainder(left: u64, right: u64) -> u64;
+             machine + Math::add(left: Math, right: Math) -> Math { left }
+             machine spelled() -> u64 {
+                 let left: u64 = 7;
+                 let right: u64 = 2;
+                 left % right
+             }
+             machine named() -> u64 { Math::remainder(7u64, 2u64) }
+             machine indirect() -> u64 { spelled() }
+             machine checked_body(left: Math, right: Math) -> Math { left + right }
+             machine independent() -> u64 { 3u64 }",
+        );
+        let checked = typed_trees_to_checked_trees::lower_typed_trees(
+            typed,
+            &typed_trees_to_checked_trees::CheckingRequest::settled(),
+        )
+        .expect("token calls normalize through ordinary checking");
+        let program = &checked.typed;
+        let admission = super::BuildTimeAdmissionPlan::infer(program, None);
+        let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(program);
+        let spelled = program.realized_machine_named("spelled").unwrap();
+        let requirement = program.realized_machine_named("Math::remainder").unwrap();
+        assert!(admission.call_edges.iter().any(|edge| {
+            edge.source_machine_symbol == spelled.symbol
+                && edge.target_machine_symbol == requirement.symbol
+        }));
+        for (name, needs_selection) in [
+            ("spelled", true),
+            ("named", true),
+            ("indirect", true),
+            ("checked_body", false),
+            ("independent", false),
+        ] {
+            let machine = program.realized_machine_named(name).unwrap();
+            assert_eq!(
+                admission.closure_needs_operator_selection(program, machine.symbol, &facts),
+                needs_selection,
+                "{name}"
+            );
+            if needs_selection {
+                assert!(
+                    admission.require_common_floor(program, machine).is_err(),
+                    "deferral does not admit the unresolved body for {name}"
+                );
+            }
+        }
+    }
+}
