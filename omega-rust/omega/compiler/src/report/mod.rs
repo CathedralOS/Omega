@@ -93,7 +93,6 @@ mod executable_publication;
 mod batch_manifest;
 mod build_outputs;
 mod compile_report;
-mod optimization_rollback;
 mod package;
 mod pcc;
 mod production_manifest;
@@ -111,7 +110,7 @@ pub use executable_publication::{
     NativePublicationCertificateDigest, NativePublicationEvidenceDigest,
     executable_installation_evidence_digest,
 };
-pub use optimization_rollback::OptimizationRollbackReceipt;
+pub use optimization_core::OptimizationRollbackReceipt;
 pub use package::{NativePackagePublicationReceipt, PackagePublicationComponent};
 pub use pcc::{PccPublicationReceipt, verify_published_proof_pair};
 pub use production_manifest::{

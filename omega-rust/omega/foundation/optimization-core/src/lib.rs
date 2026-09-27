@@ -6,6 +6,8 @@
 //! stages), `manifest` (their common publication records) and `decisions`
 //! (baseline logs and the external decision wire schema, not candidate
 //! selection). This crate has no executable optimizer.
+//! `rollback` owns exact-name disabling, selection settlement and its receipt;
+//! callers decide which execution phases their requested product permits.
 
 mod optimization_core;
 
@@ -59,6 +61,10 @@ pub use optimization_core::mutation_matrix::{
     run_one_field_substitution_matrix,
 };
 pub use optimization_core::report_request::OptimizationReportRequest;
+pub use optimization_core::rollback::{
+    OptimizationRollback, OptimizationRollbackInputError, OptimizationRollbackReceipt,
+    OptimizationRollbackSettlement,
+};
 pub use optimization_core::{
     DuplicateOptimization, Optimization, OptimizationCatalogDescriptor, OptimizationExecutionPhase,
     OptimizationPhaseMismatch, OptimizationPhaseSelections, OptimizationSelectionIdentity,
