@@ -169,18 +169,24 @@ backend-visible; full corpus runs only at the end of an item.
   `tests/omega/pending/control_flow/deferred_local_initialization`, reduced
   from `pass/wire/runtime_wire_utf8_edge_verdicts_exit` (`let decoded:
   LabelSample;` then field assignments).
-  (1) WITHOUT `mut` the same authoring mistake is reported two ways -- a
-  scalar gets the correct "cannot write `x` because it is not mutable in this
-  state", a record gets a unit-plan omission with no mention of mutability.
-  The record should take the scalar's diagnostic; this is a wrong-error bug,
-  not a missing capability.
+  (1) CORRECTED from the version first filed, which called the non-`mut` row
+  one mistake reported two ways and asked for a diagnostic. It is not.
+  `value_custody/places.rs` gates only a BARE whole-local reassignment on
+  `let mut` and deliberately leaves MEMBER and INDEX writes ungated --
+  `contains_for_write` returns true for `!bare_reassignment` regardless of
+  mutability, for "the ZII construction-by-fill idiom". So `let x: i32; x = 1;`
+  is a real mutability error whose diagnostic is CORRECT and owes nothing,
+  while `let p: Plain; p.n = 1;` is a LEGAL fill whose omission is a MISSING
+  CAPABILITY. Both broken cells are missing capabilities; neither is a
+  wrong-error bug.
   (2) WITH `mut` the RECORD works and the SCALAR does not, which inverts every
   other gap in this corpus, where composites are the unsupported side. That is
   what the fixture pins. Its phase names a `structural field store:
   destination parameter` for a local that is neither field nor parameter --
   another route-name, not a cause.
-  Acceptance: both omitting cells clear, the non-`mut` record cell produces the
-  mutability diagnostic, and `runtime_wire_utf8_edge_verdicts_exit` moves.
+  Acceptance: both omitting cells clear -- the non-`mut` record fill and the
+  `mut` scalar deferred assignment both plan -- and
+  `runtime_wire_utf8_edge_verdicts_exit` moves.
 
 - **TRANSITION-TAIL-CALL-TO-MACHINE.** (new-scope) A transition whose target
   TAIL-CALLS ANOTHER MACHINE has no route. `transition { _ -> self.pick(1) }`
