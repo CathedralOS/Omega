@@ -61,6 +61,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
         .enumerate()
         .map(
             |(position, parameter)| LegalizedScalarArgument::Structural {
+                indices: Vec::new(),
                 semantic: StructuralArgument {
                     place: parameter.semantic.place,
                     path: Vec::new(),
@@ -76,6 +77,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
                     source_byte_offset: 0,
                     fixed_array_length: None,
                     element_stride: None,
+                    indices: Vec::new(),
                     source: call_plan.parameters[position].clone().into(),
                     destination: call_plan.parameters[position].clone(),
                 },

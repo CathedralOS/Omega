@@ -55,6 +55,7 @@ fn owned_array_arguments_replay_exact_home_type_and_fragments() {
                     source: legalized_operations::NativeCallOrigin::Authored,
                     callee: semantic_vocabulary::MachineId::new(2).unwrap(),
                     arguments: vec![legalized_operations::LegalizedScalarArgument::Structural {
+                        indices: Vec::new(),
                         semantic: terminal_psi::StructuralArgument {
                             place: input.place,
                             access: StructuralAccess::Owned,
@@ -70,6 +71,7 @@ fn owned_array_arguments_replay_exact_home_type_and_fragments() {
                             source_byte_offset: 0,
                             fixed_array_length: None,
                             element_stride: None,
+                            indices: Vec::new(),
                             source:
                                 target_operations::TargetStructuralArgumentSource::StructuralHome {
                                     psi_operation: producer,
@@ -400,6 +402,7 @@ fn with_borrowed_argument(
         panic!("call");
     };
     let argument = LegalizedScalarArgument::Structural {
+        indices: Vec::new(),
         semantic: terminal_psi::StructuralArgument {
             place,
             access: StructuralAccess::SharedBorrow,
@@ -415,6 +418,7 @@ fn with_borrowed_argument(
             source_byte_offset: 0,
             fixed_array_length: None,
             element_stride: None,
+            indices: Vec::new(),
             source: placement.clone().into(),
             destination: placement,
         },

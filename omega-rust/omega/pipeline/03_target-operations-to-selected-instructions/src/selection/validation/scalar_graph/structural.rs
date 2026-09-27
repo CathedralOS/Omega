@@ -41,7 +41,7 @@ mod scalar_array;
 mod scalar_case;
 mod zeroed;
 pub(super) use primitive_locals::read;
-mod runtime_address;
+pub(super) mod runtime_address;
 mod scalar_store;
 mod subslice;
 
@@ -411,7 +411,7 @@ pub(super) fn operation(
             && !call.arguments.is_empty()
             && call.call_plan == source.call_plan
             && call.arguments.iter().all(|argument| {
-                matches!(argument, LegalizedScalarArgument::Structural { semantic, target }
+                matches!(argument, LegalizedScalarArgument::Structural { semantic, target, .. }
                 if semantic.access == StructuralAccess::Owned
                     && semantic.path.is_empty()
                     && signature.parameters.iter().any(|parameter|
@@ -425,7 +425,7 @@ pub(super) fn operation(
             })
     });
     if !signature_equal_forward
-        && call.arguments.iter().all(|argument| !matches!(argument, LegalizedScalarArgument::Structural { semantic, target }
+        && call.arguments.iter().all(|argument| !matches!(argument, LegalizedScalarArgument::Structural { semantic, target, .. }
         if semantic.access == StructuralAccess::Owned
             && crate::selection::scalar_call_abi::owned_value_shape(source, target.structural_type).is_none())) {
         super::unit_call::validate(source, node, environment, replay)?;
@@ -443,7 +443,10 @@ pub(super) fn operation(
     }
     let mut pointers = Vec::new();
     for (argument_index, argument) in call.arguments.iter().enumerate() {
-        let LegalizedScalarArgument::Structural { semantic, target } = argument else {
+        let LegalizedScalarArgument::Structural {
+            semantic, target, ..
+        } = argument
+        else {
             return Err(replay.invalid());
         };
         let parameter = signature

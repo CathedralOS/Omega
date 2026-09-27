@@ -14,7 +14,7 @@ use crate::LegalizationError;
 use crate::structural_inputs::structural_reference_input::RuntimeElement;
 use legalized_operations::LegalizedRuntimeIndexOperand;
 use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit};
-use semantic_vocabulary::{OperationId, ScalarType, ValueId};
+use semantic_vocabulary::{OperationId, ScalarType, StructuralTypeId, ValueId};
 
 /// Join each runtime element of `operation`'s projection, in path order, to
 /// its selector's exact definition and to the accepted certificate for the
@@ -75,4 +75,33 @@ pub(in crate::legalization) fn defined_type(
         }))
         .find(|definition| definition.value == value)
         .map(|definition| definition.scalar_type)
+}
+
+/// The structural call argument's runtime elements: each `RuntimeIndex`
+/// segment on `path` joined to its selector's definition and certificate by
+/// `operands`. A static path mints none.
+pub(crate) fn structural_argument(
+    optimized: &PsiOptimizationFunction,
+    unit: &PsiOptimizationUnit,
+    operation: OperationId,
+    root: StructuralTypeId,
+    path: &[terminal_psi::StructuralPathSegment],
+    declarations: &[terminal_psi::StructuralTypeDeclaration],
+) -> Result<Vec<LegalizedRuntimeIndexOperand>, LegalizationError> {
+    if !path.iter().any(|segment| {
+        matches!(
+            segment,
+            terminal_psi::StructuralPathSegment::RuntimeIndex { .. }
+        )
+    }) {
+        return Ok(Vec::new());
+    }
+    let (_, _, elements) =
+        crate::structural_inputs::structural_reference_input::runtime_projection(
+            root,
+            path,
+            declarations,
+        )
+        .ok_or(LegalizationError::custody())?;
+    operands(optimized, unit, operation, &elements)
 }

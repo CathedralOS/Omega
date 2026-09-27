@@ -17,6 +17,7 @@ pub(super) fn argument_pointer(
     argument_index: usize,
     semantic: &terminal_psi::StructuralArgument,
     target: &target_operations::TargetStructuralArgument,
+    indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
 ) -> Result<Option<VirtualRegisterId>, SelectedInstructionError> {
     // A `.., Referent` argument transports the referent root's pointer:
     // `target.place` names that root while `semantic.place` is only the
@@ -52,6 +53,20 @@ pub(super) fn argument_pointer(
     };
     let pointer =
         structural::call_pointer(builder, operation, pointer_place, target.source_byte_offset)?;
+    let pointer = if indices.is_empty() {
+        pointer
+    } else {
+        // Each runtime selector scales onto the element address the borrow
+        // actually loans; the static prefix is already folded into `pointer`.
+        structural::runtime_address::scale(
+            builder,
+            operation,
+            pointer_place,
+            target.source_byte_offset,
+            pointer,
+            indices,
+        )?
+    };
     let pointer = if let Some(length) = target.fixed_array_length {
         structural::fixed_array_argument(
             builder,
@@ -173,8 +188,11 @@ pub(super) fn emit(
     )?;
     let mut operands = Vec::new();
     for (argument_index, argument) in call.arguments.iter().enumerate() {
-        if let legalized_operations::LegalizedScalarArgument::Structural { semantic, target } =
-            argument
+        if let legalized_operations::LegalizedScalarArgument::Structural {
+            semantic,
+            target,
+            indices,
+        } = argument
         {
             if semantic.access == StructuralAccess::Owned {
                 operands.extend(
@@ -191,9 +209,15 @@ pub(super) fn emit(
                 );
                 continue;
             }
-            if let Some(pointer) =
-                argument_pointer(builder, source, operation, argument_index, semantic, target)?
-            {
+            if let Some(pointer) = argument_pointer(
+                builder,
+                source,
+                operation,
+                argument_index,
+                semantic,
+                target,
+                indices,
+            )? {
                 operands.push((argument_index, pointer));
             }
             continue;

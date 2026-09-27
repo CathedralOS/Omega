@@ -102,6 +102,7 @@ pub(super) fn argument(
         source_byte_offset: 0,
         fixed_array_length: None,
         element_stride: None,
+        indices: Vec::new(),
         source,
         destination: destination.placement.clone(),
     })

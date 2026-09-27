@@ -193,6 +193,49 @@ pub(crate) fn replay_structural_projection(
     Some((structural_type, selected_shape?, total_offset))
 }
 
+/// Replay a path carrying at least one runtime index: returns the selected
+/// leaf type and shape, the static prefix byte offset, and one `(extent,
+/// stride)` row per `RuntimeIndex` segment in path order. Static segments
+/// resolve exactly as `replay_structural_projection` does; a runtime index
+/// adds no static offset — its reach is `stride * (extent - 1)` beyond the
+/// accumulated prefix at the largest in-bounds selector.
+pub(crate) fn replay_runtime_projection(
+    mut structural_type: StructuralTypeId,
+    path: &[terminal_psi::StructuralPathSegment],
+    declarations: &[terminal_psi::StructuralTypeDeclaration],
+) -> Option<(StructuralTypeId, ValueShape, u32, Vec<(u64, u32)>)> {
+    let mut total_offset = 0_u32;
+    let mut selected_shape = None;
+    let mut elements = Vec::new();
+    for segment in path {
+        if let terminal_psi::StructuralPathSegment::RuntimeIndex { .. } = segment {
+            let declaration = declarations
+                .iter()
+                .find(|declaration| declaration.id == structural_type)?;
+            let terminal_psi::StructuralTypeShape::FixedArray { element, length } =
+                declaration.shape
+            else {
+                return None;
+            };
+            let shape = replay_structural_value_shape(element, declarations)?;
+            let stride = checked_align_up(u32::from(shape.byte_size), u32::from(shape.alignment))?;
+            elements.push((length, stride));
+            structural_type = element;
+            selected_shape = Some(shape);
+        } else {
+            let (selected_type, shape, local_offset) = replay_structural_projection(
+                structural_type,
+                std::slice::from_ref(segment),
+                declarations,
+            )?;
+            total_offset = total_offset.checked_add(local_offset)?;
+            structural_type = selected_type;
+            selected_shape = Some(shape);
+        }
+    }
+    Some((structural_type, selected_shape?, total_offset, elements))
+}
+
 /// Replay a path whose last step names an inline bounded byte field: returns
 /// the field's byte offset inside the root and its declared capacity. The
 /// field has no catalog identity of its own, so this walks the record fields

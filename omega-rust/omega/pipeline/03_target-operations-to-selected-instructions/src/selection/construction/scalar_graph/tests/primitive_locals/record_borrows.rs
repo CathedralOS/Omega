@@ -251,7 +251,9 @@ fn shared_record_call_replays_original_home_and_consumed_scalar_result() {
         else {
             panic!("call");
         };
-        let LegalizedScalarArgument::Structural { semantic, target } = &mut call.arguments[0]
+        let LegalizedScalarArgument::Structural {
+            semantic, target, ..
+        } = &mut call.arguments[0]
         else {
             panic!("argument");
         };
@@ -298,7 +300,9 @@ fn shared_record_call_replays_original_home_and_consumed_scalar_result() {
         else {
             panic!("call");
         };
-        let LegalizedScalarArgument::Structural { semantic, target } = &mut call.arguments[0]
+        let LegalizedScalarArgument::Structural {
+            semantic, target, ..
+        } = &mut call.arguments[0]
         else {
             panic!("argument");
         };
@@ -314,7 +318,9 @@ fn shared_record_call_replays_original_home_and_consumed_scalar_result() {
             else {
                 panic!("call");
             };
-            let LegalizedScalarArgument::Structural { semantic, target } = &mut call.arguments[0]
+            let LegalizedScalarArgument::Structural {
+                semantic, target, ..
+            } = &mut call.arguments[0]
             else {
                 panic!("argument");
             };

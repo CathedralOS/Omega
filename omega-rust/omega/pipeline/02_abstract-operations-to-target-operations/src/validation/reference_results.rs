@@ -87,6 +87,29 @@ fn lookup(
         .find(|declaration| declaration.id == identity)
 }
 
+/// A record member that is realizable storage without a catalog contract of
+/// its own: a fixed array whose elements descend to record or scalar leaves.
+/// Its custody lives on the member's home row, exactly like a scalar array.
+fn aggregate_member_storage(
+    declarations: &[StructuralTypeDeclaration],
+    root: StructuralTypeId,
+) -> bool {
+    let mut pending = vec![root];
+    let mut visited = BTreeSet::new();
+    while let Some(current) = pending.pop() {
+        if !visited.insert(current) {
+            continue;
+        }
+        match lookup(declarations, current).map(|declaration| &declaration.shape) {
+            Some(StructuralTypeShape::FixedArray { element, .. }) => pending.push(*element),
+            Some(StructuralTypeShape::Record { .. })
+            | Some(StructuralTypeShape::PrimitiveScalar(_)) => {}
+            _ => return false,
+        }
+    }
+    true
+}
+
 /// Owned containment only: a reference's referent is not its payload.
 fn contains_reference(declarations: &[StructuralTypeDeclaration], root: StructuralTypeId) -> bool {
     let mut pending = vec![root];
@@ -581,6 +604,7 @@ fn establish_fields(
             )
         ) && !reference_bearing
             && terminal_semantics::scalar_array_leaf_shape(declarations.iter(), nested).is_none()
+            && !aggregate_member_storage(declarations, nested)
         {
             return None;
         }
@@ -756,6 +780,7 @@ fn apply(
             )?;
         }
         AbstractOperation::EstablishPrimitiveLocal { result, .. }
+        | AbstractOperation::EstablishZeroedStructural { result, .. }
         | AbstractOperation::EstablishScalarArray { result, .. } => {
             if custody
                 .homes

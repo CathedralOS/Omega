@@ -299,7 +299,54 @@ pub(crate) fn exact_borrowed_projection(
     {
         return false;
     }
-    let (leaf_type, expected_shape, byte_offset) = if argument
+    let leaf_is_material = |leaf_type| {
+        structural_types.iter().any(|declaration| {
+            declaration.id == leaf_type
+                && matches!(
+                    declaration.shape,
+                    terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
+                        | terminal_psi::StructuralTypeShape::Record { .. }
+                )
+        })
+    };
+    let (leaf_type, expected_shape, byte_offset, runtime_reach) = if argument.path.iter().any(
+        |segment| {
+            matches!(
+                segment,
+                terminal_psi::StructuralPathSegment::RuntimeIndex { .. }
+            )
+        },
+    ) {
+        let Some((leaf_type, leaf_shape, byte_offset, elements)) =
+            crate::object_artifact::replay::structural::condition_layout::replay_runtime_projection(
+                source.structural_type,
+                &argument.path,
+                structural_types,
+            )
+        else {
+            return false;
+        };
+        if !leaf_is_material(leaf_type) {
+            return false;
+        }
+        let Some(reach) = elements.iter().try_fold(
+            u64::from(leaf_shape.byte_size),
+            |reach, (extent, stride)| {
+                extent
+                    .checked_sub(1)?
+                    .checked_mul(u64::from(*stride))
+                    .and_then(|span| reach.checked_add(span))
+            },
+        ) else {
+            return false;
+        };
+        (
+            leaf_type,
+            ValueShape::borrowed_reference(leaf_shape.byte_size, leaf_shape.alignment),
+            byte_offset,
+            Some(reach),
+        )
+    } else if argument
         .path
         .iter()
         .any(|segment| matches!(segment, terminal_psi::StructuralPathSegment::FixedIndex(_)))
@@ -313,21 +360,14 @@ pub(crate) fn exact_borrowed_projection(
         else {
             return false;
         };
-        let leaf_is_material = structural_types.iter().any(|declaration| {
-            declaration.id == leaf_type
-                && matches!(
-                    declaration.shape,
-                    terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
-                        | terminal_psi::StructuralTypeShape::Record { .. }
-                )
-        });
-        if !leaf_is_material {
+        if !leaf_is_material(leaf_type) {
             return false;
         }
         (
             leaf_type,
             ValueShape::borrowed_reference(leaf_shape.byte_size, leaf_shape.alignment),
             byte_offset,
+            None,
         )
     } else {
         // An inline bounded byte field presents the callee's borrowed byte
@@ -364,6 +404,7 @@ pub(crate) fn exact_borrowed_projection(
             destination.structural_type,
             ValueShape::borrowed_reference(referent_size, 8),
             byte_offset,
+            None,
         )
     };
     let Some(root_shape) =
@@ -383,6 +424,11 @@ pub(crate) fn exact_borrowed_projection(
         && source.shape
             == ValueShape::borrowed_reference(root_shape.byte_size, root_shape.alignment)
         && argument.source_byte_offset == byte_offset
+        && runtime_reach.is_none_or(|reach| {
+            u64::from(byte_offset)
+                .checked_add(reach)
+                .is_some_and(|end| end <= u64::from(root_shape.byte_size))
+        })
         && *source_placement == source.source
         && source_placement.shape == source.shape
         && source

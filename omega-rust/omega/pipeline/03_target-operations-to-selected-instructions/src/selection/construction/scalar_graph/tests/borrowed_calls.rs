@@ -95,6 +95,7 @@ pub(super) fn borrowed_call(target: target::NativeTarget) -> LegalizedScalarFunc
             callee: MachineId::new(2).unwrap(),
             call_plan: source.call_plan.clone(),
             arguments: vec![LegalizedScalarArgument::Structural {
+                indices: Vec::new(),
                 semantic: StructuralArgument {
                     place,
                     access: StructuralAccess::SharedBorrow,
@@ -110,6 +111,7 @@ pub(super) fn borrowed_call(target: target::NativeTarget) -> LegalizedScalarFunc
                     source_byte_offset: 0,
                     fixed_array_length: None,
                     element_stride: None,
+                    indices: Vec::new(),
                     source: placement.clone().into(),
                     destination: placement,
                 },
@@ -392,7 +394,9 @@ fn borrowed_descriptor_call_forwards_pointer_and_replays_custody() {
             else {
                 unreachable!();
             };
-            let LegalizedScalarArgument::Structural { semantic, target } = &mut call.arguments[0]
+            let LegalizedScalarArgument::Structural {
+                semantic, target, ..
+            } = &mut call.arguments[0]
             else {
                 unreachable!();
             };

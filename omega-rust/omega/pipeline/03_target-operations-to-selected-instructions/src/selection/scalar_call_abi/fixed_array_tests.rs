@@ -113,6 +113,7 @@ fn fixed_array_call(
         source: legalized_operations::NativeCallOrigin::Authored,
         callee: MachineId::new(2).unwrap(),
         arguments: vec![LegalizedScalarArgument::Structural {
+            indices: Vec::new(),
             semantic: StructuralArgument {
                 place,
                 access: StructuralAccess::MutableBorrow,
@@ -128,6 +129,7 @@ fn fixed_array_call(
                 source_byte_offset: 0,
                 fixed_array_length: Some(17),
                 element_stride: Some(1),
+                indices: Vec::new(),
                 source: placement.into(),
                 destination: outgoing.parameters[0].clone(),
             },
@@ -151,7 +153,9 @@ fn fixed_byte_call_windows_replay_offset_extent_and_access() {
     ] {
         for (start, end) in [(0, 0), (17, 17), (1, 3), (0, 17)] {
             let (source, mut call) = fixed_array_call(native);
-            let LegalizedScalarArgument::Structural { semantic, target } = &mut call.arguments[0]
+            let LegalizedScalarArgument::Structural {
+                semantic, target, ..
+            } = &mut call.arguments[0]
             else {
                 unreachable!()
             };
@@ -168,8 +172,9 @@ fn fixed_byte_call_windows_replay_offset_extent_and_access() {
             );
             for mutation in 0..6 {
                 let mut changed = call.clone();
-                let LegalizedScalarArgument::Structural { semantic, target } =
-                    &mut changed.arguments[0]
+                let LegalizedScalarArgument::Structural {
+                    semantic, target, ..
+                } = &mut changed.arguments[0]
                 else {
                     unreachable!()
                 };

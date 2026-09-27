@@ -297,6 +297,7 @@ pub(in crate::legalization) fn structural_argument_at(
         source_byte_offset,
         fixed_array_length: None,
         element_stride: None,
+        indices: Vec::new(),
         source: caller_parameter.placement.clone().into(),
         destination: destination.clone(),
     })

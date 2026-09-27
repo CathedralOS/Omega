@@ -63,7 +63,7 @@ pub(super) fn validate(
                 structural_arguments,
                 claim_transfers,
                 returned_claim_transfers: expected_returns,
-                requirement_obligations,
+                requirement_obligations: _,
                 selected_evidence,
                 ..
             },
@@ -98,12 +98,12 @@ pub(super) fn validate(
                 || result.multiplicity != callee_result.multiplicity
                 || *result_home != expected_home
                 || *reference_results != expected_references
-                // These remain explicit implementation limits. Equality with
-                // the source alone would accidentally widen native admission.
+                // Claim rosters remain explicit implementation limits; the
+                // requirement roster is already replayed exactly by the
+                // enclosing call check and rides the legalized instruction.
                 || !claim_transfers.is_empty()
                 || !returned_claim_transfers.is_empty()
                 || !expected_returns.is_empty()
-                || !requirement_obligations.is_empty()
                 || !selected_evidence.is_empty()
             {
                 return Err(LegalizationError::custody());

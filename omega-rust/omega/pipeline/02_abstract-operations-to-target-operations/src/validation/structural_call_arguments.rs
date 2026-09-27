@@ -3248,6 +3248,35 @@ impl Replay<'_> {
             {
                 return Err(psi_operation);
             }
+        } else if semantic
+            .path
+            .iter()
+            .any(|segment| matches!(segment, StructuralPathSegment::RuntimeIndex { .. }))
+        {
+            // A runtime-indexed borrow carries no static descriptor: the
+            // retained byte offset is the projection's static prefix and each
+            // runtime segment's resolved operand and stride ride `indices`
+            // with the verified selector verbatim on `path`.
+            let (projected_type, byte_offset, elements) = structural_shapes::project_runtime_path(
+                root.structural_type,
+                &semantic.path,
+                self.declarations,
+            )
+            .map_err(|_| psi_operation)?;
+            if actual.root_structural_type != root.structural_type
+                || actual.structural_type != projected_type
+                || actual.source_byte_offset != byte_offset
+                || actual.indices.len() != elements.len()
+                || actual.indices.iter().zip(elements.iter()).any(
+                    |(retained, (selector, _, stride))| {
+                        retained.operand.source_value() != *selector || retained.stride != *stride
+                    },
+                )
+                || actual.fixed_array_length.is_some()
+                || actual.element_stride.is_some()
+            {
+                return Err(psi_operation);
+            }
         }
         Ok(())
     }

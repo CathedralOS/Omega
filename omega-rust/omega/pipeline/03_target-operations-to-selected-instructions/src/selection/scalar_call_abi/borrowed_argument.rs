@@ -14,8 +14,11 @@ pub(super) fn validate_borrowed_argument(
     argument_index: usize,
 ) -> Option<()> {
     let signature = source.structural.as_ref()?;
-    let LegalizedScalarArgument::Structural { semantic, target } =
-        call.arguments.get(argument_index)?
+    let LegalizedScalarArgument::Structural {
+        semantic,
+        target,
+        indices,
+    } = call.arguments.get(argument_index)?
     else {
         return None;
     };
@@ -104,22 +107,26 @@ pub(super) fn validate_borrowed_argument(
             })
         })
         .and_then(|root| {
-            let (selected, offset) = crate::structural_inputs::structural_reference_input::project(
-                root,
-                &semantic.path,
-                &signature.structural_types,
-            )?;
+            let (selected, offset, elements) =
+                crate::structural_inputs::structural_reference_input::runtime_projection(
+                    root,
+                    &semantic.path,
+                    &signature.structural_types,
+                )?;
             let shape = crate::structural_inputs::structural_reference_input::shape(
                 selected,
                 &signature.structural_types,
             )?;
             (target.root_structural_type == root
                 && target.structural_type == selected
-                && target.source_byte_offset == offset)
-                .then_some(ValueShape::borrowed_reference(
-                    shape.byte_size,
-                    shape.alignment,
+                && target.source_byte_offset == offset
+                && crate::structural_inputs::structural_reference_input::runtime_indices_match(
+                    indices, &elements,
                 ))
+            .then_some(ValueShape::borrowed_reference(
+                shape.byte_size,
+                shape.alignment,
+            ))
         });
     let byte_view = signature
         .parameters

@@ -927,6 +927,7 @@ pub(super) fn dynamic_conformance_table_plan() -> MachineCodePlan {
         source_byte_offset: 0,
         fixed_array_length: None,
         element_stride: None,
+        indices: Vec::new(),
         source: target_operations::TargetStructuralArgumentSource::Placement(
             empty_placement.clone(),
         ),
@@ -1304,6 +1305,7 @@ pub(super) fn stored_dynamic_call_plan() -> MachineCodePlan {
         source_byte_offset: 0,
         fixed_array_length: None,
         element_stride: None,
+        indices: Vec::new(),
         source: target_operations::TargetStructuralArgumentSource::Placement(
             empty_placement.clone(),
         ),

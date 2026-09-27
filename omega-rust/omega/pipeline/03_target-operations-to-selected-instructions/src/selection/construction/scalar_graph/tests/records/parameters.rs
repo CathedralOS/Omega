@@ -77,6 +77,7 @@ fn borrowed_owned_input_returns_current_home_instead_of_entry_fragments() {
             source: legalized_operations::NativeCallOrigin::Authored,
             callee: MachineId::new(10).unwrap(),
             arguments: vec![LegalizedScalarArgument::Structural {
+                indices: Vec::new(),
                 semantic: terminal_psi::StructuralArgument {
                     place,
                     access: StructuralAccess::MutableBorrow,
@@ -92,6 +93,7 @@ fn borrowed_owned_input_returns_current_home_instead_of_entry_fragments() {
                     source_byte_offset: 0,
                     fixed_array_length: None,
                     element_stride: None,
+                    indices: Vec::new(),
                     source: input.into(),
                     destination: call_plan.parameters[0].clone(),
                 },

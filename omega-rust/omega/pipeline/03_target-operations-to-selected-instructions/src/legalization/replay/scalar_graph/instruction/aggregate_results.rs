@@ -151,6 +151,14 @@ pub(super) fn validate(
                 )?;
                 if call.arguments[arguments.len() + position]
                     != (LegalizedScalarArgument::Structural {
+                        indices: crate::legalization::runtime_indices::structural_argument(
+                            optimized,
+                            unit,
+                            *psi_operation,
+                            target.root_structural_type,
+                            &semantic.path,
+                            &plan.structural_types,
+                        )?,
                         semantic: semantic.clone(),
                         target,
                     })

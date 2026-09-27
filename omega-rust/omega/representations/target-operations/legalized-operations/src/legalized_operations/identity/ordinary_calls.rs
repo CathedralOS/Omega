@@ -27,7 +27,9 @@ pub(super) fn encode_call(bytes: &mut Vec<u8>, call: &LegalizedScalarCall) {
                 bytes.extend_from_slice(&source.get().to_le_bytes());
                 encode_placement(bytes, placement);
             }
-            LegalizedScalarArgument::Structural { semantic, target } => {
+            LegalizedScalarArgument::Structural {
+                semantic, target, ..
+            } => {
                 bytes.push(1);
                 encode_structural_argument(bytes, semantic);
                 encode_target_structural_argument(bytes, target);

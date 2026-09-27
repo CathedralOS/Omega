@@ -33,9 +33,9 @@ pub(super) fn validate(
                 .arguments
                 .iter()
                 .filter_map(|argument| match argument {
-                    LegalizedScalarArgument::Structural { semantic, target } => {
-                        Some((semantic, target))
-                    }
+                    LegalizedScalarArgument::Structural {
+                        semantic, target, ..
+                    } => Some((semantic, target)),
                     LegalizedScalarArgument::Scalar { .. } => None,
                 })
                 .collect::<Vec<_>>();

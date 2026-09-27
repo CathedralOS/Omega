@@ -96,7 +96,7 @@ pub(super) fn argument(
             parameter.placement.clone().into(),
         )
     };
-    let (selected, shape, offset) = if argument.path.is_empty() {
+    let (selected, shape, offset, indices) = if argument.path.is_empty() {
         (
             root_type,
             crate::lowering::structural_layout::structural_shape(
@@ -106,15 +106,41 @@ pub(super) fn argument(
                 &mut BTreeSet::new(),
             )?,
             0,
+            Vec::new(),
         )
+    } else if argument
+        .path
+        .iter()
+        .all(|segment| matches!(segment, terminal_psi::StructuralPathSegment::Field(_)))
+    {
+        let (selected, shape, offset) =
+            crate::lowering::structural_layout::resolve_structural_field_path(
+                root_type,
+                &argument.path,
+                types,
+                &mut BTreeMap::new(),
+                &mut BTreeSet::new(),
+            )?;
+        (selected, shape, offset, Vec::new())
     } else {
-        crate::lowering::structural_layout::resolve_structural_field_path(
-            root_type,
-            &argument.path,
-            types,
-            &mut BTreeMap::new(),
-            &mut BTreeSet::new(),
-        )?
+        // A runtime selector loans one element: the path keeps the segment's
+        // verified bound verbatim and `indices` resolves each operand to its
+        // dominating scalar source — the same transport the leaf-copy sibling
+        // already carries.
+        let (selected, shape, offset, runs) =
+            crate::lowering::structural_layout::runtime_projection(
+                root_type,
+                &argument.path,
+                types,
+                &mut BTreeMap::new(),
+                &mut BTreeSet::new(),
+            )?;
+        let indices = super::scalar_sources::runtime_indices(
+            runs,
+            function,
+            &super::scalar_sources::ScalarSources::from(&*live),
+        )?;
+        (selected, shape, offset, indices)
     };
     if selected != declaration.structural_type {
         return Err(invalid());
@@ -132,6 +158,7 @@ pub(super) fn argument(
         source_byte_offset: offset,
         fixed_array_length: None,
         element_stride: None,
+        indices,
         source,
         destination: destination.placement.clone(),
     })

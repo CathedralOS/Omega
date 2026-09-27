@@ -136,8 +136,9 @@ pub(super) fn source(source: &mut LegalizedScalarFunction, scalar_count: usize, 
     let LegalizedScalarInstructionKind::Call(call) = &mut row.kind else {
         unreachable!();
     };
-    let LegalizedScalarArgument::Structural { semantic, target } =
-        &mut call.arguments[scalar_count]
+    let LegalizedScalarArgument::Structural {
+        semantic, target, ..
+    } = &mut call.arguments[scalar_count]
     else {
         unreachable!();
     };

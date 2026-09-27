@@ -14,7 +14,10 @@ pub(super) fn validate_owned_arguments(
         return None;
     }
     for argument in &call.arguments {
-        let LegalizedScalarArgument::Structural { semantic, target } = argument else {
+        let LegalizedScalarArgument::Structural {
+            semantic, target, ..
+        } = argument
+        else {
             continue;
         };
         if semantic.access != StructuralAccess::Owned {

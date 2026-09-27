@@ -112,6 +112,7 @@ fn owned_call(
         })
         .collect::<Vec<_>>();
     arguments.push(LegalizedScalarArgument::Structural {
+        indices: Vec::new(),
         semantic: terminal_psi::StructuralArgument {
             place: input.place,
             access: StructuralAccess::Owned,
@@ -127,6 +128,7 @@ fn owned_call(
             source_byte_offset: 0,
             fixed_array_length: None,
             element_stride: None,
+            indices: Vec::new(),
             source: input_source,
             destination: call_plan.parameters[scalar_count].clone(),
         },
@@ -464,8 +466,9 @@ fn indirect_owned_input_rejects_changed_access_type_producer_and_plan() {
                 }
                 let mut changed = source.clone();
                 let call = call_mut(&mut changed);
-                let LegalizedScalarArgument::Structural { semantic, target } =
-                    call.arguments.last_mut().unwrap()
+                let LegalizedScalarArgument::Structural {
+                    semantic, target, ..
+                } = call.arguments.last_mut().unwrap()
                 else {
                     panic!("owned argument");
                 };

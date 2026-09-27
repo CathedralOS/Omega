@@ -25,7 +25,7 @@ use semantic_vocabulary::{IntegerValue, PlaceId, ValueId};
 
 /// Join each runtime element's scaled selector to `address`, in path order,
 /// and return the register the access addresses with its static offset.
-pub(super) fn scale(
+pub(in crate::selection) fn scale(
     builder: &mut Builder<'_>,
     row: &LegalizedScalarInstruction,
     place: PlaceId,

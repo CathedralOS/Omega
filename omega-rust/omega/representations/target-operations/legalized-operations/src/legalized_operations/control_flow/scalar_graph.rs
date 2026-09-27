@@ -181,11 +181,16 @@ impl LegalizedScalarInstruction {
             | LegalizedScalarInstructionKind::BitwiseNot { operand }
             | LegalizedScalarInstructionKind::IntegerExactCast { operand, .. }
             | LegalizedScalarInstructionKind::TrappingConvert { operand, .. } => visit(*operand),
-            LegalizedScalarInstructionKind::Call(call) => call
-                .arguments
-                .iter()
-                .filter_map(LegalizedScalarArgument::scalar_source)
-                .for_each(visit),
+            // A call reads each argument in position order: a scalar source
+            // directly, a structural argument through its runtime selectors.
+            LegalizedScalarInstructionKind::Call(call) => {
+                call.arguments.iter().for_each(|argument| match argument {
+                    LegalizedScalarArgument::Scalar { source, .. } => visit(*source),
+                    LegalizedScalarArgument::Structural { indices, .. } => {
+                        indices.iter().for_each(|index| visit(index.operand.value))
+                    }
+                })
+            }
             LegalizedScalarInstructionKind::SaturatingAdd { left, right, .. }
             | LegalizedScalarInstructionKind::SaturatingSubtract { left, right, .. }
             | LegalizedScalarInstructionKind::SaturatingDivide { left, right, .. }
@@ -829,6 +834,10 @@ pub enum LegalizedScalarArgument {
     Structural {
         semantic: terminal_psi::StructuralArgument,
         target: target_operations::TargetStructuralArgument,
+        /// One joined row per `RuntimeIndex` segment in `semantic.path`, in
+        /// path order — the selector's exact operand, the element stride, and
+        /// the accepted certificate for its bound. Empty for a static path.
+        indices: Vec<LegalizedRuntimeIndexOperand>,
     },
 }
 

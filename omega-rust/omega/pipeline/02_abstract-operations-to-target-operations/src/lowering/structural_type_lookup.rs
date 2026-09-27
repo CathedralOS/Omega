@@ -78,6 +78,12 @@ impl<'a> StructuralTypeLookup<'a> {
                     StructuralPathSegment::FixedIndex(index),
                     StructuralTypeShape::FixedArray { element, length },
                 ) if index < length => *element,
+                // A runtime selector's bound is its own obligation; the
+                // resolved member type is the array's element.
+                (
+                    StructuralPathSegment::RuntimeIndex { .. },
+                    StructuralTypeShape::FixedArray { element, .. },
+                ) => *element,
                 _ => return None,
             };
         }

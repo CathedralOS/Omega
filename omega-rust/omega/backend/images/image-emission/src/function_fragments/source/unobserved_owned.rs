@@ -36,7 +36,7 @@ pub(in crate::function_fragments) fn arrivals(
         || !selected.boundary_settlements.is_empty()
         || selected.calls.iter().any(|call| {
             call.call.arguments.iter().any(|argument| {
-                matches!(argument, legalized_operations::LegalizedScalarArgument::Structural { semantic, target }
+                matches!(argument, legalized_operations::LegalizedScalarArgument::Structural { semantic, target, .. }
                     if !primitive_local(function, semantic.place)
                         || !matches!(target.source, target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal { .. })
                         || semantic.access == StructuralAccess::Owned)

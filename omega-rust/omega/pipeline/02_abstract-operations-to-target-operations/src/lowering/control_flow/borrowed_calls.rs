@@ -298,6 +298,7 @@ pub(super) fn argument(
             source_byte_offset,
             fixed_array_length: None,
             element_stride: None,
+            indices: Vec::new(),
             source: TargetStructuralArgumentSource::StructuralHome {
                 psi_operation: producer,
             },
@@ -362,6 +363,7 @@ pub(super) fn argument(
             source_byte_offset,
             fixed_array_length: None,
             element_stride: None,
+            indices: Vec::new(),
             source: source.placement.clone().into(),
             destination: destination.placement.clone(),
         });
@@ -421,6 +423,7 @@ pub(super) fn argument(
         source_byte_offset: 0,
         fixed_array_length: None,
         element_stride: None,
+        indices: Vec::new(),
         source,
         destination: destination.placement.clone(),
     })
@@ -490,6 +493,7 @@ pub(super) fn address_join_argument(
         source_byte_offset: 0,
         fixed_array_length: None,
         element_stride: None,
+        indices: Vec::new(),
         source: TargetStructuralArgumentSource::BlockParameter {
             block: entry.block,
             place: parameter.place,
@@ -574,6 +578,7 @@ fn byte_argument(
             source_byte_offset,
             fixed_array_length: Some(window.length),
             element_stride: Some(1),
+            indices: Vec::new(),
             source: source.placement.clone().into(),
             destination: destination.placement.clone(),
         });
@@ -662,6 +667,7 @@ fn byte_argument(
         source_byte_offset: 0,
         fixed_array_length: None,
         element_stride: None,
+        indices: Vec::new(),
         source,
         destination: destination.placement.clone(),
     })

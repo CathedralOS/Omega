@@ -55,7 +55,10 @@ fn structural_argument_mut(
     &mut StructuralArgument,
     &mut target_operations::TargetStructuralArgument,
 ) {
-    let LegalizedScalarArgument::Structural { semantic, target } = argument else {
+    let LegalizedScalarArgument::Structural {
+        semantic, target, ..
+    } = argument
+    else {
         panic!("structural argument fixture");
     };
     (semantic, target)

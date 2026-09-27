@@ -493,7 +493,7 @@ fn decode_scalar_home(
     })
 }
 
-fn encode_scalar_source(bytes: &mut Vec<u8>, source: TargetUnitScalarArgumentSource) {
+pub(super) fn encode_scalar_source(bytes: &mut Vec<u8>, source: TargetUnitScalarArgumentSource) {
     match source {
         TargetUnitScalarArgumentSource::IeeeFloatImmediate {
             defining_operation,
@@ -559,7 +559,7 @@ fn encode_scalar_source(bytes: &mut Vec<u8>, source: TargetUnitScalarArgumentSou
     }
 }
 
-fn decode_scalar_source(
+pub(super) fn decode_scalar_source(
     cursor: &mut Cursor<'_>,
 ) -> Result<TargetUnitScalarArgumentSource, FixedViewCopyDecodeError> {
     Ok(match cursor.byte()? {
