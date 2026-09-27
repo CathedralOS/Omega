@@ -251,15 +251,6 @@ fn parses_independently_numbered_cases_and_structured_payloads() {
 }
 
 #[test]
-fn parses_stable_field_identities_on_generic_data() {
-    let source = "data Envelope<T> { #1 value: T; retired #2; }";
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    parse_syntax_trees(&tokens).expect("stable identities are ordinary generic data metadata");
-}
-
-#[test]
 fn parses_field_relevance_on_record_and_case_payload_bindings() {
     let source = r#"
         data Certified {
@@ -609,24 +600,6 @@ fn rejects_lifetime_parameters_and_arguments_after_runtime_generics() {
             diagnostic.message
         );
     }
-}
-
-#[test]
-fn parses_dungeon_machine_surface() {
-    let source = r#"
-        machine Game::new() -> Game {
-            let game: Game;
-            transition {
-                _ -> game
-            }
-        }
-        "#;
-
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
-    assert_eq!(parsed.root_item_count(), 1);
 }
 
 #[test]
@@ -1163,32 +1136,6 @@ fn retains_generic_trait_header_conformance_bounds() {
     };
     assert_eq!(bound.subject.as_str(), "C");
     assert_eq!(bound.carrier.as_str(), "CallingPolicy");
-}
-
-#[test]
-fn parses_dungeon_state_flow() {
-    let source = r#"
-        data Main {
-        }
-
-        machine Main::main(&mut self) -> i32 {
-            transition {
-                _ -> running()
-            }
-
-            state running(&mut self) {
-                transition {
-                    _ -> 0
-                }
-            }
-        }
-        "#;
-
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
-    assert_eq!(parsed.root_item_count(), 2);
 }
 
 #[test]

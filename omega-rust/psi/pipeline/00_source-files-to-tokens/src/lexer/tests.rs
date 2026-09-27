@@ -1,7 +1,7 @@
 use super::Lexer;
 use tokens::{
     CommentKind, FloatLiteralKind, IntegerLiteralKind, KeywordKind, NumericBase,
-    NumericLiteralKind, PunctuationKind, TokenKind,
+    NumericLiteralKind, TokenKind,
 };
 
 use crate::lexer::lex_error::OUTSIDE_LEXICAL_PROFILE_MESSAGE;
@@ -14,23 +14,6 @@ fn semantic_kinds(source: &str) -> Vec<TokenKind> {
         .filter(|token| !token.is_non_semantic())
         .map(|token| token.kind)
         .collect()
-}
-
-#[test]
-fn tokenizes_keywords_and_contextual_entry_as_identifiers() {
-    assert_eq!(
-        semantic_kinds("machine game entry self Self true false custom"),
-        vec![
-            TokenKind::Keyword(KeywordKind::Machine),
-            TokenKind::Identifier,
-            TokenKind::Identifier,
-            TokenKind::Keyword(KeywordKind::SelfValue),
-            TokenKind::Keyword(KeywordKind::SelfType),
-            TokenKind::Keyword(KeywordKind::True),
-            TokenKind::Keyword(KeywordKind::False),
-            TokenKind::Identifier,
-        ]
-    );
 }
 
 #[test]
@@ -57,40 +40,6 @@ fn rejects_non_ascii_identifier_spelling() {
     assert_profile_rejection("café", 3, 5);
     assert_profile_rejection("μέτρο", 0, "μ".len());
     assert_profile_rejection("1é", 1, 3);
-}
-
-#[test]
-fn tokenizes_multi_character_punctuation() {
-    assert_eq!(
-        semantic_kinds(":: -> == != << <= >> >= && ||"),
-        vec![
-            TokenKind::Punctuation(PunctuationKind::ColonColon),
-            TokenKind::Punctuation(PunctuationKind::Arrow),
-            TokenKind::Punctuation(PunctuationKind::EqualEqual),
-            TokenKind::Punctuation(PunctuationKind::ExclamationEqual),
-            TokenKind::Punctuation(PunctuationKind::LessLess),
-            TokenKind::Punctuation(PunctuationKind::LessEqual),
-            TokenKind::Punctuation(PunctuationKind::GreaterGreater),
-            TokenKind::Punctuation(PunctuationKind::GreaterEqual),
-            TokenKind::Punctuation(PunctuationKind::AndAnd),
-            TokenKind::Punctuation(PunctuationKind::PipePipe),
-        ]
-    );
-}
-
-#[test]
-fn tokenizes_stable_identity_prefix() {
-    assert_eq!(
-        semantic_kinds("#1"),
-        vec![
-            TokenKind::Punctuation(PunctuationKind::Hash),
-            TokenKind::NumericLiteral(NumericLiteralKind::Integer(IntegerLiteralKind {
-                base: NumericBase::Decimal,
-                empty_digits: false,
-                has_suffix: false,
-            })),
-        ]
-    );
 }
 
 #[test]

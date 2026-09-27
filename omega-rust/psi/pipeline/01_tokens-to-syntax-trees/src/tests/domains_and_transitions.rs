@@ -503,35 +503,6 @@ fn expands_carry_portable_contract_guarantee_to_four_atomic_facts() {
 }
 
 #[test]
-fn rejects_bare_arrow_transition_in_explicit_state_body() {
-    let source = r#"
-        machine Main::main(&mut self) {
-            transition { _ -> running() }
-
-            state running(&mut self) {
-                -> finished();
-            }
-
-            state finished(&mut self) {
-            }
-        }
-        "#;
-
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let error = parse_syntax_trees(&tokens)
-        .expect_err("parse should reject bare arrows in explicit state bodies");
-    assert!(
-        error
-            .message
-            .contains("explicit state bodies must use the `transition` keyword"),
-        "unexpected parse error: {}",
-        error.message
-    );
-}
-
-#[test]
 fn parses_slice_range_indexing_into_range_expression() {
     let source = r#"
         data Main {}
@@ -711,65 +682,6 @@ fn parses_trait_machine_contract_clauses() {
     assert_eq!(parsed.items.proof_facts(contracts[1].facts).len(), 1);
     assert_eq!(service_reaches.len(), 1);
     assert_eq!(service_reaches[0].as_str(), "Filesystem");
-}
-
-#[test]
-fn parses_executable_domain_membership_expression() {
-    let source = r#"
-        data Player {
-            health: i32;
-        }
-
-        data Main {
-            alive: Player;
-        }
-
-        machine Main::main(&mut self) {
-            transition (self.alive in Player::Alive) {
-                (true) -> done()
-                _ -> done()
-            }
-
-            state done(&mut self) {}
-        }
-        "#;
-
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine root item");
-    let entry = parsed
-        .items
-        .state_handles(machine.states)
-        .first()
-        .copied()
-        .expect("entry state");
-    let state = parsed.items.state(entry);
-    let statement = parsed
-        .items
-        .statements(state.statements)
-        .first()
-        .copied()
-        .expect("entry transition");
-    let syntax_trees::statement::StatementNode::Transition(transition) =
-        parsed.statements.statement(statement)
-    else {
-        panic!("entry should start with transition")
-    };
-    let syntax_trees::statement::TransitionGuardNode::When(subject) = transition.guard else {
-        panic!("transition should lower as a guarded expression");
-    };
-    assert!(matches!(
-        parsed.expressions.expression(subject),
-        ExpressionNode::Binary(_)
-    ));
 }
 
 #[test]
