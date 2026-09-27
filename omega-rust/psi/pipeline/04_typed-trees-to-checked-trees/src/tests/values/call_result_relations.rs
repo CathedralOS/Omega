@@ -32,6 +32,43 @@ fn accepts(source: &str) {
 }
 
 #[test]
+fn attached_receiverless_call_preserves_its_integer_carrier_after_widening() {
+    accepts(
+        r#"
+        data Scalar {}
+        machine Scalar::identity(input: u8) -> u8 { input }
+        machine consume(input: u16) -> u16 { input }
+        machine widened(input: u8) -> u16 {
+            consume((Scalar::identity(Scalar::identity(input)) as u16) + 1u16)
+        }
+        "#,
+    );
+}
+
+#[test]
+fn attached_receiverless_call_does_not_hide_result_or_argument_overflow() {
+    for expression in [
+        "Scalar::identity(input) + 1u8",
+        "Scalar::identity(input + 1u8)",
+    ] {
+        let source = format!(
+            "data Scalar {{}}
+             machine Scalar::identity(input: u8) -> u8 {{ input }}
+             machine consume(input: u8) -> u8 {{ input }}
+             machine overflow(input: u8) -> u8 {{ consume({expression}) }}"
+        );
+        let diagnostics = lower_typed_trees(typed_program(&source), &CheckingRequest::settled())
+            .expect_err("a receiverless call does not discharge an overflow obligation");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("may overflow `u8`")),
+            "{source}\n{diagnostics:#?}"
+        );
+    }
+}
+
+#[test]
 fn disjoint_self_field_write_preserves_a_pure_call_input_relation() {
     accepts(&format!(
         r#"

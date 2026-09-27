@@ -1,8 +1,8 @@
 //! Call results: the bound a call's value brings to enclosing arithmetic.
 //!
 //! Sources are tried from the most specific to the least: a named float
-//! operation's policy, a named operator's declared carrier, a resolved free
-//! function's carrier, a selected constant call's result bounds, `min`/`max`
+//! operation's policy, a named operator's declared carrier, a resolved static
+//! machine's carrier, a selected constant call's result bounds, `min`/`max`
 //! over their operands, a declared or ensured return range, and finally a
 //! return interval inferred from the callee's body. A call none of them
 //! describes stays neutral.
@@ -55,7 +55,7 @@ pub(super) fn analyze(
         return result;
     }
     named_operator_result(walk.program, call)
-        .or_else(|| resolved_free_integer_call(walk.program, call))
+        .or_else(|| resolved_static_integer_call(walk.program, call))
         .or_else(|| selected_const_call_result(walk, expression))
         .or_else(|| bounding_builtin_result(walk, call))
         .or_else(|| declared_return_range(walk.program, call))
@@ -126,15 +126,16 @@ fn named_operator_result(program: &TypedTrees, call: &TableCallExpression) -> Op
     })
 }
 
-/// A resolved monomorphic free call has its declared carrier and policy even
-/// when no body or result-contract range is available. Unknown values are not
-/// untyped values: their full carrier range still constrains later operations.
-fn resolved_free_integer_call(
+/// A resolved monomorphic call without a self operand has its declared carrier
+/// and policy even when no body or result-contract range is available. Unknown
+/// values are not untyped values: their full carrier range still constrains
+/// later operations. An attached static call retains its exact Data receiver
+/// symbol, not a runtime place whose state or aliasing must be inferred.
+fn resolved_static_integer_call(
     program: &TypedTrees,
     call: &TableCallExpression,
 ) -> Option<Analysis> {
     if !call.target_symbol.is_valid()
-        || call.receiver.is_valid()
         || !call.machine_arguments.is_empty()
         || !call.selects_only_nominal_route()
     {
@@ -146,13 +147,23 @@ fn resolved_free_integer_call(
     });
     let (machine, state) = targets.next()?;
     if targets.next().is_some()
-        || machine.attached_data.is_some()
         || !program.machine_type_parameters(machine).is_empty()
         || !machine.lifetime_parameters.is_empty()
         || program
             .state_parameters(state)
             .iter()
             .any(|parameter| parameter.is_self)
+    {
+        return None;
+    }
+    if call.receiver.is_valid()
+        && !matches!(
+            program.expression_table.expression(call.receiver),
+            typed_trees::expression::ExpressionNode::Name(path)
+                if path.symbol.is_valid()
+                    && path.symbol == machine.attached_data_symbol
+                    && program.symbols.get(path.symbol).kind == symbols::SymbolKind::Data
+        )
     {
         return None;
     }
