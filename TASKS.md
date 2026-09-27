@@ -899,9 +899,8 @@ _rejected` and `expressions/bool_numeric_operand_mixing_rejected` each gained
   non-NaN and both bounds, so read it beside the float comparisons' own
   migration), `capabilities/windows_provides_import_exit` (host-gated:
   "foreign locator PeByName is not applicable to selected target
-  `macos_arm64`"), and `generics/declared_range_endpoint_inference` ("quoted
-  byte literal cannot initialize owned fixed byte array `[u8; ObjectLength]`:
-  its width must be a compile-known resolved integer literal").
+  `macos_arm64`"), and `generics/declared_range_endpoint_inference`, which is
+  diagnosed below.
 
   The const-data one was the assignment window re-proving a fact that has
   nothing to do with the write. `FixedBuffer<const N: u64> where N > 0 &&
@@ -916,11 +915,57 @@ _rejected` and `expressions/bool_numeric_operand_mixing_rejected` each gained
   `fail/dependent/case_where_payload_write_exit_open` before that exemption
   went in.
 
+  **`generics/declared_range_endpoint_inference` reduces to nine lines, and
+  the message names the wrong file.** It reports "quoted byte literal cannot
+  initialize owned fixed byte array `[u8; ObjectLength]`", which is std's
+  `process_exit_binding` storing `"kernel32.dll"` into
+  `DllImport<12, 11, 0>`. The fixture contains no byte literal. The
+  reduction, measured by deleting from the fixture down:
+
+  ```omega
+  use omega_language_std::console;
+  use omega::language::core::binding;
+  data RangeValue<T [copy]> [copy] { value: T; }
+  machine ranged() -> u64 {
+      let bounded: RangeValue<u64[0..=256]> = RangeValue { value: 0 };
+      bounded.value
+  }
+  data Main { console: Binding<Console>; }
+  machine Main::main(&mut self) reaches Console { self.console.exit_process(70); }
+  ```
+
+  Change the one type argument to `RangeValue<u64>` and it checks. What the
+  RANGE-CONSTRAINED argument does is suppress monomorphization of an
+  UNRELATED generic. Instrumented at the landing site
+  (`omega-rust/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/src/expressions/fixed_byte_array_literals.rs`),
+  alternating the two versions four times so no run's result stands alone:
+
+  | type argument | what the landing site sees |
+  | --- | --- |
+  | `u64[0..=256]` | `definition=DllImport candidates=["DllImport"]` |
+  | `u64` | `definition=DllImport<12, 11, 0> candidates=["DllImport", "DllImport<12, 11, 0>"]` |
+
+  So the instance is never MINTED, not mis-selected, and the byte-literal
+  message is a symptom two stages downstream that should not be touched. The
+  work is to find why one range-constrained argument stops
+  `DllImport<12, 11, 0>` from existing;
+  `omega-rust/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/synthesis.rs`
+  is where instances are synthesized and is the place to start.
+
+  One hazard, because it cost a false mechanism here: the compiler caches
+  resolved package snapshots under
+  `~/Library/Caches/CathedralOS/Omega`, so a probe counting how many times a
+  02 pass RUNS answers about the cache, not about the program -- measured
+  once as "entered in the control, never in the failing run", which did not
+  survive alternating the pair. Probe what a later stage OBSERVES instead,
+  and alternate.
+
   Attribution recipe, so nobody repeats the full pass: run the unfiltered
-  gate once, then rerun ONLY the moved names with
-  `--filter <comma list>` on the base you suspect, and read each row's own
-  diagnostics out of a `--baseline --record` file rather than the 300-column
-  gate summary.
+  gate once with `--write-moves <path>`, which dumps every moved fixture's
+  before and after records as JSON, untruncated -- the printed summary cuts
+  each field at 300 columns and hides the diagnostic that actually moved.
+  Then rerun ONLY the moved names with `--filter <comma list>` on the base
+  you suspect, and compare.
 
   When an item's acceptance names a pass fixture, check that the fixture's
   entry runs the thing. 103 of 704 pass fixtures end in an empty
