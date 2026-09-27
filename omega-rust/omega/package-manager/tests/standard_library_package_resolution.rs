@@ -26,13 +26,25 @@ struct TempTree(PathBuf);
 
 impl TempTree {
     fn new() -> Self {
-        let path = std::env::temp_dir().join(format!(
-            "omega-standard-library-package-resolution-{}-{}",
-            std::process::id(),
-            NEXT_TEMP.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir(&path).expect("create standard-library package test tree");
-        Self(path)
+        Self::with_counter(&NEXT_TEMP)
+    }
+
+    fn with_counter(counter: &AtomicU64) -> Self {
+        loop {
+            let path = std::env::temp_dir().join(format!(
+                "omega-standard-library-package-resolution-{}-{}",
+                std::process::id(),
+                counter.fetch_add(1, Ordering::Relaxed)
+            ));
+            // A reused process ID can meet a tree left by an interrupted run.
+            // Claim a fresh directory atomically; never reuse or clean another
+            // run's tree, including when tests execute in separate processes.
+            match fs::create_dir(&path) {
+                Ok(()) => return Self(path),
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(error) => panic!("create standard-library package test tree: {error}"),
+            }
+        }
     }
 
     fn package(&self, name: &str) -> PathBuf {
@@ -46,6 +58,20 @@ impl Drop for TempTree {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.0);
     }
+}
+
+#[test]
+fn temporary_tree_preserves_existing_directory_on_name_collision() {
+    let counter = AtomicU64::new(0);
+    let existing = TempTree::with_counter(&counter);
+    let sentinel = existing.0.join("retained.txt");
+    fs::write(&sentinel, "existing contents").expect("write collision sentinel");
+    counter.store(0, Ordering::Relaxed);
+
+    let fresh = TempTree::with_counter(&counter);
+    assert_ne!(fresh.0, existing.0);
+    drop(fresh);
+    assert_eq!(fs::read_to_string(sentinel).unwrap(), "existing contents");
 }
 
 fn repository_standard_library() -> PathBuf {
