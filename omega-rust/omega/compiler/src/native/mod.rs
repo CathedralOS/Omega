@@ -42,8 +42,7 @@ pub use native_artifact::{
 };
 pub use native_pipeline::{
     OptimizationPipelineReport, OptimizedVerifiedPhysicalPipelineError,
-    StagedOptimizedVerifiedPhysicalPipeline, optimization_pipeline_report,
-    optimization_pipeline_report_from_object_artifact,
+    optimization_pipeline_report, optimization_pipeline_report_from_object_artifact,
     optimization_pipeline_report_from_ordinary_callable_entry,
     stage_optimized_verified_physical_pipeline,
 };

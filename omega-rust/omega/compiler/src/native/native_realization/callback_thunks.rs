@@ -73,8 +73,7 @@ fn lower_callback_thunk(
         request.optimization_selections,
     )
     .map_err(|error| realization_error("callback thunk physical pipeline", error))?;
-    let emission_source = physical.into_function_fragment_emission_source();
-    let emitted = machine_emission::stage_optimized_function_fragment_emission(emission_source)
+    let emitted = machine_emission::stage_optimized_function_fragment_emission(physical)
         .map_err(|error| realization_error("callback thunk fragment emission", error))?;
     let applied = machine_emission::stage_function_fragment_frame_application(emitted)
         .map_err(|error| realization_error("callback thunk frame application", error))?;

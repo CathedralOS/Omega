@@ -231,6 +231,13 @@ then feed its validated plan into target lowering. The compiler retains only
 its product work-budget policy and callback/identity admission checks, with no
 parallel optimization request or stage-error model.
 
+[Object emission](src/native/native_realization/object_emission.rs) feeds the
+target-lowering result directly into the shared physical sequence. That sequence
+returns the backend's fragment-emission input, which publication, callback
+emission and optimization reporting consume directly. No compiler-owned program
+copy or result wrapper sits between these owners; the target stage retains its
+validated translation, and fragment emission independently replays physical custody.
+
 The result distinguishes direct and dynamic ELF artifacts; extracting a direct
 artifact cannot grant dynamic output installation authority. Every rejection
 returns the exact image request. Program-entry and callback-custody adapters
