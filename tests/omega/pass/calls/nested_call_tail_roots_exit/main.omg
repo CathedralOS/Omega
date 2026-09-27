@@ -1,0 +1,122 @@
+// WALL-POSITION PIN: the api census's "nested calls require a direct
+// initializer or Unit call root" gate (emission/call_source_custody/authored/
+// nested.rs statement-root arm) is already dead for every census shape —
+// tail calls returning the state's non-Unit type now mint their root. Each
+// shape below declines at a deeper wall instead, and this fixture pins the
+// first one:
+//   * tails passing `&self.items[i]` — InvalidStructuralArgumentPath in
+//     terminal-psi verification (indexed-member borrow argument paths)
+//   * `x.f()` / `self.f[i].f()` receiver tails — StructuralCallContractMismatch
+//     in abstract-operations initial validation
+//   * calls as or inside transition Value targets with runtime indexes —
+//     "nested structural arguments contain unsupported syntax" (the walk's
+//     Indexed arm only statically checks Integer/Range indexes)
+//   * case-payload parameters used as receivers — "Unit graph case-payload
+//     subject type drifted" (terminator/graph-side)
+// Landed as evidence for the census family; revisit as each wall opens.
+
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Item {
+    x: i32;
+}
+
+machine Item::clone(source: &Item) -> Item {
+    Item { x: source.x }
+}
+
+machine Item::default() -> Item {
+    Item { x: 0 }
+}
+
+data ItemList {
+    items: [Item; 64];
+    count: u64;
+}
+
+machine ItemList::get(&self, position: u64) -> Item {
+    transition position < self.count && position < 64 {
+        true -> clone_at(position)
+        false -> (Item::default())
+    }
+    state clone_at(&self, position: u64) -> Item {
+        Item::clone(&self.items[position])
+    }
+}
+
+machine ItemList::get_count(&self) -> u64 {
+    self.count
+}
+
+data Holder {
+    list: ItemList;
+}
+
+// receiver-form tail on a member-path field, structural return
+machine Holder::get(&self, position: u64) -> Item {
+    self.list.get(position)
+}
+
+// receiver-form tail on a member-path field, scalar return
+machine Holder::get_count(&self) -> u64 {
+    self.list.get_count()
+}
+
+// call spelled directly as a transition Value target
+machine Holder::get_cursor(&self, index: u64) -> Item {
+    transition index < 64 {
+        true -> (Item::clone(&self.list.items[index]))
+        false -> (Item::default())
+    }
+}
+
+data Parse {
+    case Parsed(value: Item);
+    case Refused;
+}
+
+// call nested inside a case-payload constructor in a Value target
+machine Holder::parse(&self, index: u64) -> Parse {
+    transition index < 64 && index < self.list.count {
+        true -> (Parse::Parsed { value: Item::clone(&self.list.items[index]) })
+        false -> (Parse::Refused)
+    }
+}
+
+data Wrap {
+    case Has(list: ItemList);
+    case Empty;
+}
+
+// case-payload parameter used as a call receiver, scalar tail
+machine Wrap::get_count(&self) -> u64 {
+    transition self {
+        Wrap::Has { list } -> at(list)
+        _ -> (0)
+    }
+    state at(&self, list: ItemList) -> u64 {
+        list.get_count()
+    }
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let holder: Holder = Holder { list: ItemList { count: 1 } };
+    let out: Item = holder.get(0);
+    let n: u64 = holder.get_count();
+    let c: Item = holder.get_cursor(0);
+    let p: Parse = holder.parse(0);
+    let w: Wrap = Wrap::Has { list: ItemList { count: 2 } };
+    let m: u64 = w.get_count();
+    transition {
+        _ -> done()
+    }
+
+    state done(&mut self) {
+        self.console.exit_process(0);
+    }
+}
