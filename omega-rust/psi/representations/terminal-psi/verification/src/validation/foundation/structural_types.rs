@@ -25,6 +25,15 @@ pub(super) fn register_structural_types(
         if declaration.identity.is_empty() || !type_names.insert(declaration.identity.as_str()) {
             return Err(ModuleError::InvalidStructuralTypeIdentity(declaration.id));
         }
+    }
+    let attachment_storage = attachment_storage_types(
+        &types,
+        module
+            .machines
+            .iter()
+            .filter_map(|machine| machine.attachment),
+    );
+    for declaration in &module.structural_types {
         if matches!(
             declaration.shape,
             StructuralTypeShape::ByteSequence(
@@ -33,12 +42,16 @@ pub(super) fn register_structural_types(
         ) {
             return Err(ModuleError::InvalidStructuralTypeIdentity(declaration.id));
         } else if let StructuralTypeShape::Record { fields } = &declaration.shape {
-            validate_structural_fields(module, declaration.id, fields, true)?;
+            validate_structural_fields(
+                declaration.id,
+                fields,
+                attachment_storage.contains(&declaration.id),
+            )?;
         } else if let StructuralTypeShape::Sum { cases } = &declaration.shape {
-            validate_structural_cases(module, declaration.id, cases)?;
+            validate_structural_cases(declaration.id, cases)?;
         } else if let StructuralTypeShape::Mixed { fields, cases } = &declaration.shape {
-            validate_structural_fields(module, declaration.id, fields, false)?;
-            validate_structural_cases(module, declaration.id, cases)?;
+            validate_structural_fields(declaration.id, fields, false)?;
+            validate_structural_cases(declaration.id, cases)?;
         } else if matches!(
             declaration.shape,
             StructuralTypeShape::FixedArray { length: 0, .. }
@@ -166,4 +179,52 @@ pub(super) fn register_structural_types(
         }
     }
     Ok(types)
+}
+
+/// Receiver storage retains nested provider declarations even when no method
+/// on the nested record is demanded. This closure admits declarations only:
+/// provider roots and calls must still join the calling machine's exact,
+/// direct attachment. References and views do not contain receiver storage.
+fn attachment_storage_types(
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    attachments: impl Iterator<Item = StructuralTypeId>,
+) -> BTreeSet<StructuralTypeId> {
+    use terminal_psi::{StructuralFieldType, StructuralTypeShape};
+    let mut pending: Vec<_> = attachments.collect();
+    let mut storage = BTreeSet::new();
+    while let Some(identity) = pending.pop() {
+        if !storage.insert(identity) {
+            continue;
+        }
+        let Some(declaration) = types.get(&identity) else {
+            // Ordinary graph and attachment validation reject unknown types.
+            continue;
+        };
+        let mut retain_fields = |fields: &[terminal_psi::StructuralFieldDeclaration]| {
+            pending.extend(fields.iter().filter_map(|field| match field.field_type {
+                StructuralFieldType::Structural(child) => Some(child),
+                _ => None,
+            }));
+        };
+        match &declaration.shape {
+            StructuralTypeShape::Record { fields } => retain_fields(fields),
+            StructuralTypeShape::Mixed { fields, cases } => {
+                retain_fields(fields);
+                for case in cases {
+                    retain_fields(&case.fields);
+                }
+            }
+            StructuralTypeShape::Sum { cases } => {
+                for case in cases {
+                    retain_fields(&case.fields);
+                }
+            }
+            StructuralTypeShape::FixedArray { element, .. } => pending.push(*element),
+            StructuralTypeShape::PrimitiveScalar(_)
+            | StructuralTypeShape::ByteSequence(_)
+            | StructuralTypeShape::Reference { .. }
+            | StructuralTypeShape::ElementView { .. } => {}
+        }
+    }
+    storage
 }

@@ -64,19 +64,29 @@ pub fn validate_fused_service_terminal_custody(
             })
             .collect::<Vec<_>>();
         if owner_symbols.is_empty() {
-            // A record attached only to boundary-supply machines carries no
-            // unit plan, yet its machines still hold it by `&mut self`:
-            // provider nominals and leg records are owned exactly by their
-            // attached boundary leaves. The owner stays unique — the shape
-            // identity is the data definition's exact normalized identity.
+            // A nested receiver record can retain an unused Binding without
+            // any demanded or authored method. Rejoin its nominal declaration
+            // directly; an executable attachment is not the identity of data.
+            // Field receipts and selected plans are still checked below.
             owner_symbols = checked
-                .machines()
+                .data_definitions()
                 .iter()
-                .filter(|machine| {
-                    attached_data_shape_identity(checked, machine).as_deref()
+                .filter(|definition| {
+                    data_shape_identity(checked, definition).as_deref()
                         == Some(plan.identity.as_str())
                 })
-                .map(|machine| machine.attached_data_symbol)
+                .map(|definition| definition.symbol)
+                .chain(checked.machines().iter().filter_map(|machine| {
+                    // A receiver-specialized machine may still refer to an
+                    // open generic data definition. Preserve its exact applied
+                    // identity even when it has no retained unit plan.
+                    (machine.attached_data_application.is_valid()
+                        && checked
+                            .normalized_type_identity(machine.attached_data_application)
+                            .as_str()
+                            == plan.identity)
+                        .then_some(machine.attached_data_symbol)
+                }))
                 .collect();
         }
         owner_symbols.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
@@ -302,24 +312,9 @@ fn data_field_identity(field: &DataField) -> String {
         .unwrap_or_else(|| field.name.as_str().to_owned())
 }
 
-/// The unit-plan attachment identity of a machine's declared owner, matching
-/// the shape collector's spelling: the exact applied reference when the
-/// machine carries one, else the non-generic data definition's own.
-fn attached_data_shape_identity(
-    checked: &CheckedTrees,
-    machine: &typed_trees::machine::Machine,
-) -> Option<String> {
-    if machine.attached_data_application.is_valid() {
-        return Some(
-            checked
-                .normalized_type_identity(machine.attached_data_application)
-                .into_string(),
-        );
-    }
-    let data = checked
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == machine.attached_data_symbol)?;
+/// The shape collector's exact nominal identity, including instantiated
+/// generic applications. Uninstantiated templates have no concrete shape.
+fn data_shape_identity(checked: &CheckedTrees, data: &DataDefinition) -> Option<String> {
     if let Some(application) = data.generic_instance {
         return Some(checked.normalized_type_identity(application).into_string());
     }
