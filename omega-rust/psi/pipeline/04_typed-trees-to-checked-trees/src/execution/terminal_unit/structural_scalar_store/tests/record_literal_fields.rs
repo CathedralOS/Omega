@@ -163,8 +163,10 @@ fn a_nested_addr_field_store_is_admitted_like_any_scalar() {
     assert_eq!(store.primitive_type, PrimitiveType::Addr);
 }
 
+/// A bound record's whole storage moves into the field through the window
+/// pair — the bound-value store arm of the sequence mints it directly.
 #[test]
-fn record_literal_field_store_rejects_a_non_literal_record_source() {
+fn record_literal_field_store_admits_a_bound_record_source() {
     let plan = plan(&format!(
         r#"
         {HOST}
@@ -176,10 +178,14 @@ fn record_literal_field_store_rejects_a_non_literal_record_source() {
             self.rc = self.fs.close(0);
         }}
     "#
-    ));
+    ))
+    .expect("a bound record moves into the field whole");
     assert!(
-        plan.is_none(),
-        "a bound record copy has no authored member computations to decompose"
+        plan.operations.iter().any(|operation| matches!(
+            operation,
+            CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
+        )),
+        "expected the bound record to store through the window pair"
     );
 }
 

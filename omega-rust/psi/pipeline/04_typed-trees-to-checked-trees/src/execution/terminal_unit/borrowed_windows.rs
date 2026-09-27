@@ -441,6 +441,7 @@ impl OpenWindows {
         assignment: &typed_trees::statement::TableAssignment,
         produced: &CheckedUnitStructuralResultBindingPlan,
         displaced_ordinal: u32,
+        value: CheckedUnitStructuralArgumentPlan,
     ) -> Option<FieldReplacement> {
         if produced.multiplicity == Multiplicity::Linear {
             return None;
@@ -487,14 +488,7 @@ impl OpenWindows {
             store: CheckedUnitEffectOperationPlan::StoreStructuralField {
                 statement_index,
                 destination: place,
-                value: CheckedUnitStructuralArgumentPlan {
-                    source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                        binding_ordinal: produced.binding_ordinal,
-                    },
-                    path: Vec::new(),
-                    type_identity: produced.type_identity.clone(),
-                    access: CheckedStructuralAccess::Owned,
-                },
+                value,
             },
             displaced_discard: (produced.multiplicity == Multiplicity::Affine).then(|| {
                 CheckedUnitPartialAffineDiscardPlan {

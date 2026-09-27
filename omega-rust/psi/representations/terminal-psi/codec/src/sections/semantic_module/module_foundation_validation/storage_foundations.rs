@@ -848,10 +848,7 @@ pub(super) fn validate_move_structural_field(
     let Some(parameter) = borrowed_field_store_root(machine, *source) else {
         return malformed("structural field move requires a mutable-borrowed parameter");
     };
-    let parent_type = validate_structural_path(module, parameter.structural_type, path)?;
-    let Some(field_type) = declared_structural_field_type(module, parent_type, *field) else {
-        return malformed("structural field move does not select a structural field");
-    };
+    let field_type = window_field_type(module, parameter.structural_type, path, *field)?;
     if result.structural_type != field_type {
         return malformed("structural field move result type does not match field");
     }
@@ -881,10 +878,7 @@ pub(super) fn validate_store_structural_field(
     let Some(parameter) = borrowed_field_store_root(machine, *destination) else {
         return malformed("structural field store requires a mutable-borrowed parameter");
     };
-    let parent_type = validate_structural_path(module, parameter.structural_type, path)?;
-    let Some(field_type) = declared_structural_field_type(module, parent_type, *field) else {
-        return malformed("structural field store does not select a structural field");
-    };
+    let field_type = window_field_type(module, parameter.structural_type, path, *field)?;
     if structural_place_type(machine, value.place) != Some(field_type) {
         return malformed("structural field store value type does not match field");
     }
@@ -913,6 +907,58 @@ fn borrowed_field_store_root(
                 .iter()
                 .any(|claim| claim.input.root == place)
     })
+}
+
+/// The declared hole type a window operation opens: a field leaf resolves
+/// through the walked parent record; an element leaf (the path ends in an
+/// index step) names the array's own field declaration in the enclosing
+/// record, and the hole's type is the element the spelled path selects.
+fn window_field_type(
+    module: &TerminalModule,
+    root_type: semantic_vocabulary::StructuralTypeId,
+    path: &[terminal_psi::StructuralPathSegment],
+    field: semantic_vocabulary::StructuralFieldId,
+) -> Result<semantic_vocabulary::StructuralTypeId, CodecError> {
+    if matches!(
+        path.last(),
+        Some(terminal_psi::StructuralPathSegment::FixedIndex(_))
+            | Some(terminal_psi::StructuralPathSegment::RuntimeIndex { .. })
+    ) {
+        let field_position = path
+            .iter()
+            .rposition(|segment| {
+                matches!(segment, terminal_psi::StructuralPathSegment::Field(_))
+            });
+        let Some(field_position) = field_position else {
+            return malformed("structural field move does not select a structural field");
+        };
+        let owner = validate_structural_path(module, root_type, &path[..field_position])?;
+        let fields = module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == owner)
+            .and_then(|declaration| match &declaration.shape {
+                StructuralTypeShape::Record { fields }
+                | StructuralTypeShape::Mixed { fields, .. } => Some(fields),
+                _ => None,
+            });
+        let Some(fields) = fields else {
+            return malformed("structural field move does not select a structural field");
+        };
+        if !fields.iter().any(|candidate| {
+            candidate.id == field
+                && !candidate.relevance.is_erased()
+                && matches!(candidate.field_type, StructuralFieldType::Structural(_))
+        }) {
+            return malformed("structural field move does not select a structural field");
+        }
+        return validate_structural_path(module, root_type, path);
+    }
+    let parent_type = validate_structural_path(module, root_type, path)?;
+    let Some(field_type) = declared_structural_field_type(module, parent_type, field) else {
+        return malformed("structural field move does not select a structural field");
+    };
+    Ok(field_type)
 }
 
 fn declared_structural_field_type(

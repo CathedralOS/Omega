@@ -1435,19 +1435,62 @@ impl OperationFrame<'_, '_> {
         destination: &CheckedUnitStructuralArgumentPlan,
         value: &CheckedUnitStructuralArgumentPlan,
     ) -> Result<(), LoweringError> {
-        let (Some(binding_ordinal), true, checked_trees::CheckedStructuralAccess::Owned) = (
-            value.source_structural_result_binding_ordinal(),
-            value.path.is_empty(),
-            value.access,
-        ) else {
+        if !value.path.is_empty() || value.access != checked_trees::CheckedStructuralAccess::Owned {
             return unsupported("borrowed-window repair value is not a whole owned result");
-        };
-        let repair = self
-            .results
-            .repair_value(binding_ordinal, self.operations)?;
-        let repair = BorrowedWindowRepairValue {
-            place: self.evaluation.current_structural_place(repair.place),
-            structural_type: repair.structural_type,
+        }
+        let repair = match value.source {
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal,
+            } => {
+                let repair = self
+                    .results
+                    .repair_value(binding_ordinal, self.operations)?;
+                BorrowedWindowRepairValue {
+                    place: self.evaluation.current_structural_place(repair.place),
+                    structural_type: repair.structural_type,
+                }
+            }
+            // An owned parameter's own storage supplies the repair whole.
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index,
+            } => {
+                let parameter = self
+                    .parameters
+                    .iter()
+                    .find(|parameter| parameter.position == parameter_index);
+                let Some(parameter) = parameter else {
+                    return unsupported(
+                        "borrowed-window repair value's parameter is not declared",
+                    );
+                };
+                if parameter.access != terminal_psi::StructuralAccess::Owned {
+                    return unsupported("borrowed-window repair value is not an owned parameter");
+                }
+                BorrowedWindowRepairValue {
+                    place: parameter.place,
+                    structural_type: parameter.structural_type,
+                }
+            }
+            // An owned local's established home supplies the repair whole.
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
+                let local = self
+                    .evaluation
+                    .structural_locals
+                    .iter()
+                    .find(|(candidate, _)| *candidate == symbol);
+                let Some((_, argument)) = local else {
+                    return unsupported(
+                        "borrowed-window repair value's local is not established",
+                    );
+                };
+                BorrowedWindowRepairValue {
+                    place: argument.place,
+                    structural_type: lookup_type_id(self.type_ids, &value.type_identity)?,
+                }
+            }
+            _ => {
+                return unsupported("borrowed-window repair value is not a whole owned result");
+            }
         };
         require_parameter_window_root(self.parameters, destination, self.evaluation)?;
         let mut evaluation = WindowEvaluation {

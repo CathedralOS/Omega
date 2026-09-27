@@ -9,11 +9,13 @@
 //! consumes it go back to the sequence, which plans the call first.
 use super::super::super::borrowed_windows::{FieldReplacement, OpenWindows};
 use super::{
-    CheckFacts, CheckedStructuralScalarParameterPlan, CheckedTrivialAffineStructuralLocalPlan,
-    CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan, CheckedUnitScalarResultBindingPlan,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan,
-    LocalConstructionTrace, Multiplicity, ScalarCalleePlans, ShapeCollector, SymbolHandle,
-    TypedTrees, checked_structural_result_type, consume_results, consume_value_places, is_unit,
+    CheckFacts, CheckedStructuralAccess, CheckedStructuralScalarParameterPlan,
+    CheckedTrivialAffineStructuralLocalPlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitEntryClaimPlan, CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralArgumentPlan,
+    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
+    CheckedUnitStructuralResultBindingPlan, LocalConstructionTrace, Multiplicity,
+    ScalarCalleePlans, ShapeCollector, SymbolHandle, TypedTrees,
+    checked_structural_result_type, consume_results, consume_value_places, is_unit,
     retain_selected_sources, statement_call_target, store_statement_index, structural_operands,
 };
 
@@ -180,6 +182,14 @@ pub(super) fn plan(
             assignment,
             &produced,
             produced.binding_ordinal.checked_add(1)?,
+            CheckedUnitStructuralArgumentPlan {
+                source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    binding_ordinal: produced.binding_ordinal,
+                },
+                path: Vec::new(),
+                type_identity: produced.type_identity.clone(),
+                access: CheckedStructuralAccess::Owned,
+            },
         )?;
         *structural_count = structural_count.checked_add(2)?;
         operations.push(CheckedUnitEffectOperationPlan::EstablishStructuralValue {
@@ -206,6 +216,48 @@ pub(super) fn plan(
             });
         }
         return Some(AssignmentPlan::Planned);
+    }
+    // The value names owned storage the caller already holds — a
+    // parameter or an established binding — moved into the window's hole
+    // as itself: the same pair, but no establishment precedes it.
+    if let Some((produced, value)) = bound_value_source(
+        program,
+        state,
+        structural_parameters,
+        structural_results,
+        statement_index,
+        assignment,
+    ) {
+        let baseline = trace.mark();
+        assignment_phase("statement sequence: assignment: bound value field store");
+        if let Some(replacement) = windows.replace(
+            program,
+            facts,
+            machine,
+            state,
+            structural_parameters,
+            statement_index,
+            assignment,
+            &produced,
+            u32::try_from(*structural_count).ok()?,
+            value,
+        ) {
+            operations.push(replacement.move_out);
+            consume_results(&mut *operations, &replacement.store)?;
+            operations.push(replacement.store);
+            if let Some(discard) = replacement.displaced_discard {
+                operations.push(CheckedUnitEffectOperationPlan::CallContinuationCleanup {
+                    coordinate: checked_trees::CheckedUnitCallCoordinate {
+                        statement_index,
+                        call_ordinal: 0,
+                    },
+                    affine_discards: vec![discard],
+                });
+            }
+            *structural_count = structural_count.checked_add(1)?;
+            return Some(AssignmentPlan::Planned);
+        }
+        trace.restore(&baseline);
     }
     // The store sequence deliberately left this assignment to the
     // ordinary call route: its right-hand side is the call this
@@ -271,10 +323,107 @@ pub(super) fn plan(
             assignment,
             &result,
             result.binding_ordinal.checked_add(1)?,
+            CheckedUnitStructuralArgumentPlan {
+                source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    binding_ordinal: result.binding_ordinal,
+                },
+                path: Vec::new(),
+                type_identity: result.type_identity.clone(),
+                access: CheckedStructuralAccess::Owned,
+            },
         )?;
         Some(AssignmentPlan::StructuralCall {
             result,
             replacement,
         })
     }
+}
+
+/// The store value when the assignment's right-hand side is whole
+/// structural storage the caller owns: a state parameter, or the binding
+/// an earlier establishment produced for a local. The returned plan is the
+/// store's `value`; the binding beside it describes the hole's type for the
+/// window pair — the establishment's own for a local, a stand-in naming the
+/// parameter's declared type for a parameter. Anything else is not this
+/// arm's shape.
+fn bound_value_source(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    structural_parameters: &[CheckedUnitStructuralParameterPlan],
+    structural_results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
+    statement_index: u32,
+    assignment: &typed_trees::statement::TableAssignment,
+) -> Option<(
+    CheckedUnitStructuralResultBindingPlan,
+    CheckedUnitStructuralArgumentPlan,
+)> {
+    let index = usize::try_from(statement_index).ok()?;
+    let value_place = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        index,
+        assignment.value,
+    )?;
+    if !value_place.segments.is_empty() {
+        return None;
+    }
+    let facts::PlaceRoot::Symbol(symbol) = value_place.root else {
+        return None;
+    };
+    if let Some(position) = program
+        .state_parameters(state)
+        .iter()
+        .position(|parameter| parameter.symbol == symbol)
+    {
+        let position = u32::try_from(position).ok()?;
+        let (dense, parameter) = structural_parameters
+            .iter()
+            .enumerate()
+            .find(|(_, plan)| plan.position == position)?;
+        if parameter.is_self
+            || parameter.access != CheckedStructuralAccess::Owned
+            || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
+        {
+            return None;
+        }
+        // Terminal declarations renumber parameters to their dense
+        // structural order: the authored position names the slot here, the
+        // dense index names it downstream.
+        let dense = u32::try_from(dense).ok()?;
+        return Some((
+            CheckedUnitStructuralResultBindingPlan {
+                statement_index,
+                binding_ordinal: 0,
+                type_identity: parameter.type_identity.clone(),
+                multiplicity: parameter.multiplicity,
+            },
+            CheckedUnitStructuralArgumentPlan {
+                source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    parameter_index: dense,
+                },
+                path: Vec::new(),
+                type_identity: parameter.type_identity.clone(),
+                access: CheckedStructuralAccess::Owned,
+            },
+        ));
+    }
+    let mut bindings = structural_results
+        .iter()
+        .filter(|(_, root)| *root == facts::PlaceRoot::Symbol(symbol));
+    let (binding, _) = bindings.next()?;
+    if bindings.next().is_some() {
+        return None;
+    }
+    Some((
+        binding.clone(),
+        CheckedUnitStructuralArgumentPlan {
+            source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal: binding.binding_ordinal,
+            },
+            path: Vec::new(),
+            type_identity: binding.type_identity.clone(),
+            access: CheckedStructuralAccess::Owned,
+        },
+    ))
 }
