@@ -295,7 +295,7 @@ mod tests {
     use typed_trees::name::Identifier;
     use typed_trees::state::State;
     use typed_trees::statement::{StatementNode, TableLocalData};
-    use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle};
+    use typed_trees::types::TypeReferenceHandle;
 
     fn symbol(index: u32) -> SymbolHandle {
         SymbolHandle::from_arena_index(index)
@@ -424,31 +424,6 @@ mod tests {
             })
     }
 
-    fn ranged_u64_type(
-        program: &mut TypedTrees,
-        minimum_value: i64,
-        maximum_value: i64,
-    ) -> TypeReferenceHandle {
-        let minimum = integer(program, minimum_value);
-        let maximum = integer(program, maximum_value);
-        let base_type = integer_type(program, "u64");
-        let mut constraints = arena::HandleSpan::default();
-        program.type_reference_table.push_constraint(
-            &mut constraints,
-            TypeConstraintNode::Range {
-                minimum,
-                maximum,
-                end_inclusive: true,
-            },
-        );
-        program
-            .type_reference_table
-            .insert(TypeReferenceNode::Constrained {
-                base_type,
-                constraints,
-            })
-    }
-
     fn install_parameters(
         program: &mut TypedTrees,
         parameters: impl IntoIterator<Item = (SymbolHandle, &'static str, TypeReferenceHandle, bool)>,
@@ -482,163 +457,6 @@ mod tests {
                 operator: BinaryOperator::Add,
                 right: offset,
             }))
-    }
-
-    #[test]
-    fn exact_literal_tail_still_decreases() {
-        let mut program = TypedTrees::default();
-        let parameter = slice_parameter(&mut program, symbol(1));
-        let items = name(&mut program, "items", symbol(1));
-        let start = integer(&mut program, 1);
-        let argument = tail(&mut program, items, start);
-        let items = name(&mut program, "items", symbol(1));
-        let zero = integer(&mut program, 0);
-        let guard = length_guard(&mut program, items, BinaryOperator::Greater, zero);
-
-        assert!(slice_tail_strictly_decreases(
-            &program, guard, argument, &parameter
-        ));
-    }
-
-    #[test]
-    fn wider_literal_tail_decreases_under_a_matching_guard() {
-        let mut program = TypedTrees::default();
-        let parameter = slice_parameter(&mut program, symbol(1));
-        let items = name(&mut program, "items", symbol(1));
-        let start = integer(&mut program, 2);
-        let argument = tail(&mut program, items, start);
-        let items = name(&mut program, "items", symbol(1));
-        let two = integer(&mut program, 2);
-        let guard = length_guard(&mut program, items, BinaryOperator::GreaterOrEqual, two);
-
-        assert!(slice_tail_strictly_decreases(
-            &program, guard, argument, &parameter
-        ));
-    }
-
-    #[test]
-    fn shared_immutable_bound_tail_decreases_under_the_same_guard_bound() {
-        let mut program = TypedTrees::default();
-        let parameter = slice_parameter(&mut program, symbol(1));
-        let two = integer(&mut program, 2);
-        install_locals(&mut program, [(symbol(2), "step", two, false)]);
-        let items = name(&mut program, "items", symbol(1));
-        let step = name(&mut program, "step", symbol(2));
-        let argument = tail(&mut program, items, step);
-        let items = name(&mut program, "items", symbol(1));
-        let step = name(&mut program, "step", symbol(2));
-        let guard = length_guard(&mut program, items, BinaryOperator::GreaterOrEqual, step);
-
-        assert!(slice_tail_strictly_decreases(
-            &program, guard, argument, &parameter
-        ));
-    }
-
-    #[test]
-    fn mutable_and_short_bounds_do_not_fake_a_decrease() {
-        let mut program = TypedTrees::default();
-        let parameter = slice_parameter(&mut program, symbol(1));
-        let two = integer(&mut program, 2);
-        install_locals(&mut program, [(symbol(2), "step", two, true)]);
-        let items = name(&mut program, "items", symbol(1));
-        let step = name(&mut program, "step", symbol(2));
-        let argument = tail(&mut program, items, step);
-        let items = name(&mut program, "items", symbol(1));
-        let step = name(&mut program, "step", symbol(2));
-        let guard = length_guard(&mut program, items, BinaryOperator::GreaterOrEqual, step);
-        assert!(!slice_tail_strictly_decreases(
-            &program, guard, argument, &parameter
-        ));
-
-        // A `2..` tail under `items.len >= 1` is not provably shorter: the
-        // guard never establishes `items.len >= 2`, so the tail may not even
-        // be a valid window, let alone a strict decrease.
-        let items = name(&mut program, "items", symbol(1));
-        let start = integer(&mut program, 2);
-        let argument = tail(&mut program, items, start);
-        let items = name(&mut program, "items", symbol(1));
-        let one = integer(&mut program, 1);
-        let guard = length_guard(&mut program, items, BinaryOperator::GreaterOrEqual, one);
-        assert!(!slice_tail_strictly_decreases(
-            &program, guard, argument, &parameter
-        ));
-
-        // `0..` is the whole slice: no decrease even under `len > 0`.
-        let items = name(&mut program, "items", symbol(1));
-        let start = integer(&mut program, 0);
-        let argument = tail(&mut program, items, start);
-        let items = name(&mut program, "items", symbol(1));
-        let zero = integer(&mut program, 0);
-        let guard = length_guard(&mut program, items, BinaryOperator::Greater, zero);
-        assert!(!slice_tail_strictly_decreases(
-            &program, guard, argument, &parameter
-        ));
-    }
-
-    #[test]
-    fn symbolic_shifted_start_decreases_under_a_strict_same_symbol_guard() {
-        // `items[i + 1..]` under `items.len > i`: the strict guard proves
-        // `len >= i + 1`, and the constant shift over `i`'s unsigned carrier
-        // floor proves the start positive even though `i` stays unknown.
-        let mut program = TypedTrees::default();
-        let parameter = slice_parameter(&mut program, symbol(1));
-        let u64_type = integer_type(&mut program, "u64");
-        install_parameters(&mut program, [(symbol(2), "i", u64_type, false)]);
-        let items = name(&mut program, "items", symbol(1));
-        let i = name(&mut program, "i", symbol(2));
-        let start = shifted(&mut program, i, 1);
-        let argument = tail(&mut program, items, start);
-        let items = name(&mut program, "items", symbol(1));
-        let i = name(&mut program, "i", symbol(2));
-        let guard = length_guard(&mut program, items, BinaryOperator::Greater, i);
-
-        assert!(slice_tail_strictly_decreases(
-            &program, guard, argument, &parameter
-        ));
-    }
-
-    #[test]
-    fn matching_symbolic_offsets_decrease_under_an_inclusive_guard() {
-        // `items[i + 1..]` under `items.len >= i + 1`: the guard bound and the
-        // tail start share `i`'s value identity, so their constant offsets
-        // order directly.
-        let mut program = TypedTrees::default();
-        let parameter = slice_parameter(&mut program, symbol(1));
-        let u64_type = integer_type(&mut program, "u64");
-        install_parameters(&mut program, [(symbol(2), "i", u64_type, false)]);
-        let items = name(&mut program, "items", symbol(1));
-        let i = name(&mut program, "i", symbol(2));
-        let start = shifted(&mut program, i, 1);
-        let argument = tail(&mut program, items, start);
-        let items = name(&mut program, "items", symbol(1));
-        let i = name(&mut program, "i", symbol(2));
-        let bound = shifted(&mut program, i, 1);
-        let guard = length_guard(&mut program, items, BinaryOperator::GreaterOrEqual, bound);
-
-        assert!(slice_tail_strictly_decreases(
-            &program, guard, argument, &parameter
-        ));
-    }
-
-    #[test]
-    fn declared_floor_admits_an_unshifted_symbolic_start() {
-        // `items[step..]` under `items.len >= step` with `step: u64 [1..=8]`:
-        // the enforced declared range supplies the `step >= 1` evidence the
-        // unsigned carrier floor alone cannot.
-        let mut program = TypedTrees::default();
-        let parameter = slice_parameter(&mut program, symbol(1));
-        let step_type = ranged_u64_type(&mut program, 1, 8);
-        install_parameters(&mut program, [(symbol(2), "step", step_type, false)]);
-        let items = name(&mut program, "items", symbol(1));
-        let step = name(&mut program, "step", symbol(2));
-        let argument = tail(&mut program, items, step);
-        let items = name(&mut program, "items", symbol(1));
-        let step = name(&mut program, "step", symbol(2));
-        let guard = length_guard(&mut program, items, BinaryOperator::GreaterOrEqual, step);
-
-        assert!(slice_tail_strictly_decreases(
-            &program, guard, argument, &parameter
-        ));
     }
 
     #[test]

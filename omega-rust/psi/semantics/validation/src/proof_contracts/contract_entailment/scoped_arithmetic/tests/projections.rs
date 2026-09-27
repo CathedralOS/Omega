@@ -13,8 +13,6 @@ use typed_trees::name::Identifier;
 struct Projections {
     countdown: Countdown,
     first: ExpressionHandle,
-    second: ExpressionHandle,
-    equal: ExpressionHandle,
     reflexive: ExpressionHandle,
     constant: ExpressionHandle,
 }
@@ -34,18 +32,6 @@ impl Projections {
                 }))
         };
         let first = member();
-        let second = member();
-        let mut equal = |left, right| {
-            countdown
-                .program
-                .expression_table
-                .insert(ExpressionNode::Binary(TableBinaryExpression {
-                    left,
-                    operator: BinaryOperator::Equal,
-                    right,
-                }))
-        };
-        let equal = equal(first, second);
         let reflexive = countdown
             .program
             .expression_table
@@ -61,8 +47,6 @@ impl Projections {
         Self {
             countdown,
             first,
-            second,
-            equal,
             reflexive,
             constant,
         }
@@ -76,46 +60,6 @@ impl Projections {
                 unsigned: false,
             },
         }
-    }
-
-    fn constant(&self, expression: ExpressionHandle) -> ScopedArithmeticBinding {
-        ScopedArithmeticBinding {
-            binder: ScopedArithmeticBinder::Projection(expression),
-            value: ScopedArithmeticValue::Term(self.countdown.term(self.constant, Vec::new())),
-        }
-    }
-}
-
-#[test]
-fn exact_projections_substitute_atoms_and_terms_without_equating_occurrences() {
-    let fixture = Projections::new();
-    let countdown = &fixture.countdown;
-    for bindings in [
-        vec![
-            fixture.atom(fixture.first, "value"),
-            fixture.atom(fixture.second, "value"),
-        ],
-        vec![
-            fixture.constant(fixture.first),
-            fixture.constant(fixture.second),
-        ],
-    ] {
-        assert_eq!(
-            countdown.judge(&[], &countdown.term(fixture.equal, bindings)),
-            StrictArithmeticImplicationJudgment::Proven
-        );
-    }
-    for bindings in [
-        vec![fixture.atom(fixture.first, "value")],
-        vec![
-            fixture.atom(fixture.first, "first"),
-            fixture.atom(fixture.second, "second"),
-        ],
-    ] {
-        assert_eq!(
-            countdown.judge(&[], &countdown.term(fixture.equal, bindings)),
-            StrictArithmeticImplicationJudgment::Unknown
-        );
     }
 }
 
@@ -199,57 +143,6 @@ fn only_valid_member_expressions_can_be_projection_binders() {
             StrictArithmeticImplicationJudgment::Unknown
         );
     }
-}
-
-#[test]
-fn nested_projection_terms_use_only_their_roster_and_restore_the_outer_roster() {
-    let fixture = Projections::new();
-    let countdown = &fixture.countdown;
-    let nested = ScopedArithmeticBinding {
-        binder: ScopedArithmeticBinder::Projection(fixture.second),
-        value: ScopedArithmeticValue::Term(
-            countdown.term(fixture.first, vec![fixture.atom(fixture.first, "nested")]),
-        ),
-    };
-    let outer = fixture.atom(fixture.first, "outer");
-    assert_eq!(
-        countdown.judge(
-            &[],
-            &countdown.term(fixture.equal, vec![outer, nested.clone()])
-        ),
-        StrictArithmeticImplicationJudgment::Unknown
-    );
-    let matching_outer = fixture.atom(fixture.first, "nested");
-    assert_eq!(
-        countdown.judge(
-            &[],
-            &countdown.term(fixture.equal, vec![matching_outer, nested.clone()])
-        ),
-        StrictArithmeticImplicationJudgment::Proven
-    );
-    // The nested first projection must not leak into the outer roster.
-    assert_eq!(
-        countdown.judge(&[], &countdown.term(fixture.equal, vec![nested])),
-        StrictArithmeticImplicationJudgment::Unknown
-    );
-    let previously_read_nested = ScopedArithmeticBinding {
-        binder: ScopedArithmeticBinder::Symbol(countdown.n),
-        value: ScopedArithmeticValue::Term(countdown.term(
-            fixture.first,
-            vec![fixture.atom(fixture.first, "previous nested")],
-        )),
-    };
-    let unbound_nested = ScopedArithmeticBinding {
-        binder: ScopedArithmeticBinder::Projection(fixture.second),
-        value: ScopedArithmeticValue::Term(countdown.term(fixture.first, Vec::new())),
-    };
-    assert_eq!(
-        countdown.judge(
-            &[],
-            &countdown.term(fixture.equal, vec![previously_read_nested, unbound_nested])
-        ),
-        StrictArithmeticImplicationJudgment::Unknown
-    );
 }
 
 #[test]

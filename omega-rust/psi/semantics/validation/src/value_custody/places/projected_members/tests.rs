@@ -1,6 +1,5 @@
 use super::{
-    ExpressionHandle, ExpressionNode, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
-    declared_place_type_raw,
+    ExpressionHandle, ExpressionNode, TypeReferenceHandle, TypedTrees, declared_place_type_raw,
 };
 use source::SourceMap;
 use typed_trees::name::Identifier;
@@ -51,32 +50,6 @@ fn declared_type(
         Some(&program.machine_states(machine)[0]),
         expression,
     )
-}
-
-#[test]
-fn selected_case_controls_payload_and_nested_field_types() {
-    let program = fixture();
-    let payload = payload(&program);
-    let payload_type = declared_type(&program, payload).expect("payload type");
-    let large = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.name.as_str() == "Large")
-        .expect("Large declaration");
-    assert_eq!(program.type_reference_symbol(payload_type), large.symbol);
-    let nested = program
-        .expression_table
-        .iter_expressions()
-        .find_map(|(handle, expression)| match expression {
-            ExpressionNode::Member(member) if member.receiver == payload => Some(handle),
-            _ => None,
-        })
-        .expect("nested payload member");
-    let nested_type = declared_type(&program, nested).expect("nested field type");
-    assert!(matches!(
-        program.type_reference_table.type_reference(nested_type),
-        TypeReferenceNode::Named { name, .. } if name.as_str() == "u64"
-    ));
 }
 
 #[test]

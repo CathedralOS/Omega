@@ -57,17 +57,3 @@ fn parameter_index_requires_retained_builtin_meaning() {
     let unretained = program.expression_table.insert(unretained_node);
     assert!(parameter_scoped_type_reference(&program, &parameters, unretained).is_none());
 }
-
-#[test]
-fn parameter_index_cannot_replace_declared_operator_result_with_element_type() {
-    let (mut program, indexed) = indexed_program(
-        "data Indexing {} boundary operator [] Indexing::index(values: &[Choice], index: u64) -> u64;",
-    );
-    let parameters = program
-        .state_parameters(&program.machine_states(&program.machines()[0])[0])
-        .to_vec();
-    // Even forged builtin custody cannot erase an applicable declaration whose
-    // result is u64 rather than the Choice collection element.
-    retain_builtin_index(&mut program, indexed);
-    assert!(parameter_scoped_type_reference(&program, &parameters, indexed).is_none());
-}

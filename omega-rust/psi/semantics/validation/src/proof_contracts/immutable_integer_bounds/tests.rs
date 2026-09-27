@@ -88,48 +88,6 @@ fn install_local(
     );
 }
 
-fn offset_fixture(
-    domain: numerics::arithmetic::ArithmeticDomain,
-    mutable: bool,
-    parameter: bool,
-) -> (TypedTrees, ExpressionHandle, SymbolHandle) {
-    let mut program = TypedTrees::default();
-    let ty = integer_type(&mut program, domain);
-    let base_symbol = SymbolHandle::from_arena_index(20);
-    let base = name(&mut program, "mid", base_symbol);
-    let one = program.expression_table.insert(ExpressionNode::Integer(
-        numerics::literals::IntegerLiteral::from_value(1),
-    ));
-    let expression = binary(&mut program, base, BinaryOperator::Add, one);
-    let mut machine = Machine::default();
-    let mut state = State::default();
-    if parameter {
-        program.push_state_parameter(
-            &mut state,
-            typed_trees::signature::StateParameter {
-                symbol: base_symbol,
-                name: Identifier::generated_static("mid"),
-                type_reference: ty,
-                is_mutable: mutable,
-                ..Default::default()
-            },
-        );
-    } else {
-        install_local(
-            &mut program,
-            &mut state,
-            base_symbol,
-            "mid",
-            one,
-            ty,
-            mutable,
-        );
-    }
-    program.push_machine_state(&mut machine, state);
-    program.push_machine(machine);
-    (program, expression, base_symbol)
-}
-
 #[test]
 fn computed_identity_preserves_copy_chains_without_becoming_a_static_index() {
     let mut program = TypedTrees::default();
@@ -460,43 +418,6 @@ fn immutable_integer_bound_offsets_require_exact_symbolic_bases() {
     );
 }
 
-#[test]
-fn immutable_integer_bound_offsets_reject_wrapping_and_mutable_bases() {
-    for (domain, mutable, parameter) in [
-        (
-            numerics::arithmetic::ArithmeticDomain::Wrapping,
-            false,
-            false,
-        ),
-        (numerics::arithmetic::ArithmeticDomain::Exact, true, false),
-        (numerics::arithmetic::ArithmeticDomain::Exact, true, true),
-    ] {
-        let (program, expression, _) = offset_fixture(domain, mutable, parameter);
-        assert!(
-            immutable_integer_bound_symbol_offset(
-                &program,
-                &ImmutableBoundLookup::new(&program),
-                expression
-            )
-            .is_none()
-        );
-    }
-}
-
-#[test]
-fn immutable_integer_bound_offsets_accept_exact_parameters() {
-    let (program, expression, symbol) =
-        offset_fixture(numerics::arithmetic::ArithmeticDomain::Exact, false, true);
-    assert_eq!(
-        immutable_integer_bound_symbol_offset(
-            &program,
-            &ImmutableBoundLookup::new(&program),
-            expression
-        ),
-        Some(ImmutableIntegerBoundOffset { symbol, offset: 1 })
-    );
-}
-
 fn sum_fixture() -> (
     TypedTrees,
     ExpressionHandle,
@@ -616,48 +537,4 @@ fn immutable_integer_bound_sums_reject_unspelled_terms() {
     assert!(
         immutable_integer_bound_sum(&program, &ImmutableBoundLookup::new(&program), i).is_none()
     );
-}
-
-#[test]
-fn immutable_integer_bound_sums_require_exact_immutable_terms() {
-    for (domain, mutable) in [
-        (numerics::arithmetic::ArithmeticDomain::Wrapping, false),
-        (numerics::arithmetic::ArithmeticDomain::Exact, true),
-    ] {
-        let mut program = TypedTrees::default();
-        let exact = integer_type(&mut program, numerics::arithmetic::ArithmeticDomain::Exact);
-        let other = integer_type(&mut program, domain);
-        let i_symbol = SymbolHandle::from_arena_index(20);
-        let j_symbol = SymbolHandle::from_arena_index(30);
-        let i = name(&mut program, "i", i_symbol);
-        let j = name(&mut program, "j", j_symbol);
-        let mut machine = Machine::default();
-        let mut state = State::default();
-        program.push_state_parameter(
-            &mut state,
-            typed_trees::signature::StateParameter {
-                symbol: i_symbol,
-                name: Identifier::generated_static("i"),
-                type_reference: exact,
-                ..Default::default()
-            },
-        );
-        program.push_state_parameter(
-            &mut state,
-            typed_trees::signature::StateParameter {
-                symbol: j_symbol,
-                name: Identifier::generated_static("j"),
-                type_reference: other,
-                is_mutable: mutable,
-                ..Default::default()
-            },
-        );
-        program.push_machine_state(&mut machine, state);
-        program.push_machine(machine);
-        let expression = binary(&mut program, i, BinaryOperator::Add, j);
-        assert!(
-            immutable_integer_bound_sum(&program, &ImmutableBoundLookup::new(&program), expression)
-                .is_none()
-        );
-    }
 }

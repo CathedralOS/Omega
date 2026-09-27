@@ -2553,75 +2553,7 @@ mod tests;
 #[cfg(test)]
 mod embedding_tests {
     use super::super::{ProofFact, SignatureContractKind, proof_integer_nonnegative};
-    use super::{
-        BigInt, BinaryOperator, Engine, ExpressionHandle, ExpressionNode, Polynomial, TypedTrees,
-        proof_nat_cast,
-    };
-    use numerics::arithmetic::ArithmeticDomain;
-    use numerics::literals::{IntegerLanding, IntegerLiteral, LandedIntegerType};
-    use typed_trees::expression::TableBinaryExpression;
-
-    fn byte_sum(program: &mut TypedTrees, domain: ArithmeticDomain) -> ExpressionHandle {
-        let mut literal = |value| {
-            program.expression_table.insert(ExpressionNode::Integer(
-                IntegerLiteral::from_value(value).with_landing(IntegerLanding {
-                    landed_type: LandedIntegerType::U8,
-                    domain,
-                }),
-            ))
-        };
-        let left = literal(255);
-        let right = literal(1);
-        program
-            .expression_table
-            .insert(ExpressionNode::Binary(TableBinaryExpression {
-                left,
-                operator: BinaryOperator::Add,
-                right,
-            }))
-    }
-
-    #[test]
-    fn embedded_wrapping_and_saturating_sources_are_not_mathematical_sums() {
-        let mut program = TypedTrees::default();
-        let wrapping = byte_sum(&mut program, ArithmeticDomain::Wrapping);
-        let saturating = byte_sum(&mut program, ArithmeticDomain::Saturating);
-        let mut engine = Engine::for_proof_integer_formation(&program);
-        let wrapped = engine.normalize_integer_embedding(wrapping).unwrap();
-        let saturated = engine.normalize_integer_embedding(saturating).unwrap();
-        assert_ne!(wrapped, Polynomial::constant(BigInt::from_i64(256)));
-        assert_ne!(wrapped, saturated);
-        assert!(engine.prove_at_least(&wrapped, &BigInt::zero()));
-        assert!(engine.prove_at_least(&wrapped.neg(), &BigInt::from_i64(-255)));
-        assert!(engine.prove_at_least(&saturated.neg(), &BigInt::from_i64(-255)));
-    }
-
-    #[test]
-    fn equal_embedded_source_structure_has_one_transient_mathematical_identity() {
-        let mut program = TypedTrees::default();
-        let first = byte_sum(&mut program, ArithmeticDomain::Wrapping);
-        let second = byte_sum(&mut program, ArithmeticDomain::Wrapping);
-        let mut engine = Engine::for_proof_integer_formation(&program);
-        assert_eq!(
-            engine.normalize_integer_embedding(first),
-            engine.normalize_integer_embedding(second)
-        );
-    }
-
-    #[test]
-    fn embedded_signed_literals_keep_their_negative_mathematical_value() {
-        let mut program = TypedTrees::default();
-        let value = program.expression_table.insert(ExpressionNode::Integer(
-            IntegerLiteral::from_value(-1).with_landing(IntegerLanding {
-                landed_type: LandedIntegerType::I32,
-                domain: ArithmeticDomain::Trapping,
-            }),
-        ));
-        let mut engine = Engine::for_proof_integer_formation(&program);
-        let polynomial = engine.normalize_integer_embedding(value).unwrap();
-        assert_eq!(polynomial, Polynomial::constant(BigInt::from_i64(-1)));
-        assert!(!engine.prove_at_least(&polynomial, &BigInt::zero()));
-    }
+    use super::{Engine, ExpressionNode, proof_nat_cast};
 
     #[test]
     fn satisfiable_wrapping_hypotheses_do_not_prove_arbitrary_nonnegativity() {

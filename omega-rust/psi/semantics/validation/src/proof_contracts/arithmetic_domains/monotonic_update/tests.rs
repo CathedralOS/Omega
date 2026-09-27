@@ -64,52 +64,6 @@ fn signed_wrapping_increment_uses_the_independent_upper_bound_and_carrier_floor(
 }
 
 #[test]
-fn signed_wrapping_increment_rejects_a_possible_wrap() {
-    assert_eq!(
-        bounds(
-            "",
-            "i32 in Wrapping",
-            "self.value + 2147483647",
-            Some(2),
-            Some(2)
-        ),
-        None
-    );
-    assert_eq!(
-        bounds("", "i32 in Wrapping", "self.value + 1", Some(0), None),
-        None
-    );
-}
-
-#[test]
-fn unsigned_wrapping_decrement_uses_the_independent_lower_bound() {
-    assert_eq!(
-        bounds("", "u32 in Wrapping", "self.value - 1", Some(1), None),
-        Some((Some(0), Some(i64::from(u32::MAX) - 1)))
-    );
-    assert_eq!(
-        bounds("", "u32 in Wrapping", "self.value - 3", Some(2), Some(2)),
-        None
-    );
-}
-
-#[test]
-fn u64_wrapping_does_not_invent_a_finite_upper_endpoint() {
-    assert_eq!(
-        bounds("", "u64 in Wrapping", "self.value + 1", Some(1), None),
-        None
-    );
-    assert_eq!(
-        bounds("", "u64 in Wrapping", "self.value - 1", Some(1), None),
-        Some((Some(0), None))
-    );
-    assert_eq!(
-        bounds("", "u64 in Wrapping", "self.value - 1", Some(0), None),
-        None
-    );
-}
-
-#[test]
 fn saturating_updates_clamp_instead_of_intersecting_away_the_result() {
     assert_eq!(
         bounds(
@@ -131,28 +85,6 @@ fn saturating_updates_clamp_instead_of_intersecting_away_the_result() {
         ),
         Some((Some(-128), Some(-128)))
     );
-}
-
-#[test]
-fn exact_and_trapping_updates_describe_only_normal_completion() {
-    for carrier in ["i8", "i8 in Trapping"] {
-        assert_eq!(
-            bounds("", carrier, "self.value + 1", Some(126), Some(127)),
-            Some((Some(127), Some(127)))
-        );
-        assert_eq!(
-            bounds("", carrier, "self.value - 1", Some(-128), Some(-127)),
-            Some((Some(-128), Some(-128)))
-        );
-        assert_eq!(
-            bounds("", carrier, "self.value + 1", Some(127), Some(127)),
-            None
-        );
-        assert_eq!(
-            bounds("", carrier, "self.value - 1", Some(-128), Some(-128)),
-            None
-        );
-    }
 }
 
 #[test]

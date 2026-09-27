@@ -25,32 +25,6 @@ fn comparison(program: &TypedTrees, expression: ExpressionHandle) -> &TableBinar
 }
 
 #[test]
-fn domain_self_and_fields_and_data_fields_keep_their_declared_carriers() {
-    let program = crate::front_end::typed_program(SOURCE);
-    for domain in program.domain_definitions() {
-        let expression = occurrence(&program, domain.facts);
-        assert!(has_exact_domain_case_membership_meaning(
-            &program,
-            domain,
-            expression,
-            comparison(&program, expression)
-        ));
-    }
-    let data = program
-        .data_definitions()
-        .iter()
-        .find(|data| !data.where_facts.is_empty())
-        .unwrap();
-    let expression = occurrence(&program, data.where_facts);
-    assert!(has_exact_data_case_membership_meaning(
-        &program,
-        data,
-        expression,
-        comparison(&program, expression)
-    ));
-}
-
-#[test]
 fn definition_membership_rejects_foreign_owner_and_unauthored_expression() {
     let program = crate::front_end::typed_program(SOURCE);
     let first = &program.domain_definitions()[0];

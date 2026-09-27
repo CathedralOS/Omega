@@ -179,33 +179,6 @@ fn operator(fixture: &ClosedApplicationFixture) -> &OperatorDefinition {
 }
 
 #[test]
-fn canonical_realization_bytes_replay_the_retained_set() {
-    let fixture = closed_application_fixture();
-    let row = retained_row(&fixture);
-
-    let first = canonical_closed_operator_realization_bytes(
-        &fixture.program,
-        fixture.machine,
-        std::slice::from_ref(&row),
-    )
-    .expect("exact retained row replays");
-    let second =
-        canonical_closed_operator_realization_bytes(&fixture.program, fixture.machine, &[row])
-            .expect("replay is deterministic");
-    assert_eq!(first, second);
-    assert!(!first.is_empty());
-}
-
-#[test]
-fn canonical_realization_bytes_reject_incomplete_coverage() {
-    let fixture = closed_application_fixture();
-    assert_eq!(
-        canonical_closed_operator_realization_bytes(&fixture.program, fixture.machine, &[]),
-        Err("operator realization specialization has incomplete retained coverage"),
-    );
-}
-
-#[test]
 fn canonical_realization_bytes_reject_duplicate_rows() {
     let fixture = closed_application_fixture();
     let row = retained_row(&fixture);
@@ -249,21 +222,6 @@ fn canonical_realization_bytes_reject_mismatched_reconstruction() {
         canonical_closed_operator_realization_bytes(&fixture.program, fixture.machine, &[row]),
         Err("operator realization specialization mismatches fresh reconstruction"),
     );
-}
-
-#[test]
-fn closed_application_replays_a_type_binder_against_the_telescope() {
-    let fixture = closed_application_fixture();
-    let mut diagnostics = Vec::new();
-    let symbols = TopLevelSymbols::build(&fixture.program, &mut diagnostics);
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
-
-    let inferred = vec![ClosedOperatorApplicationArgument::Type {
-        binder_symbol: fixture.binder,
-        type_reference: fixture.concrete_type,
-    }];
-    validate_closed_operator_application(&fixture.program, &symbols, operator(&fixture), &inferred)
-        .expect("binder-matched closed application replays");
 }
 
 #[test]

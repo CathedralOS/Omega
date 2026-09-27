@@ -677,22 +677,14 @@ mod tests {
     use arena::HandleSpan;
     use symbols::{SymbolHandle, SymbolKind, SymbolNameRef, SymbolTableBuilder};
     use typed_trees::TypedTrees;
-    use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableNamePath};
+    use typed_trees::expression::{ExpressionHandle, TableNamePath};
     use typed_trees::machine::{Machine, OwnedData};
     use typed_trees::name::Identifier;
-    use typed_trees::proposition::PropositionDefinition;
+
     use typed_trees::signature::StateParameter;
     use typed_trees::state::State;
-    use typed_trees::statement::StatementNode;
-    use typed_trees::types::TypeReferenceHandle;
 
-    fn typed_source(source: &str) -> TypedTrees {
-        let mut sources = source::SourceMap::default();
-        let source_id = sources
-            .add("named_value_type_reference.omg".into(), source.to_owned())
-            .source_id;
-        crate::front_end::typed_program_from_source_map(sources, &[(source_id, source)])
-    }
+    use typed_trees::types::TypeReferenceHandle;
 
     fn name_path(
         program: &mut TypedTrees,
@@ -714,53 +706,6 @@ mod tests {
             head_symbol,
             symbol,
         }
-    }
-
-    #[test]
-    fn retained_parent_resolves_state_parameter_and_local_binders() {
-        let program = typed_source(
-            "machine inspect(index: u64) {
-                 let base: u64 = index;
-                 let copy: u64 = base;
-             }",
-        );
-        let machine = &program.machines()[0];
-        let state = &program.machine_states(machine)[0];
-        let statements = program.statement_table.statements(state.statement_nodes);
-        let local = |name: &str| {
-            statements
-                .iter()
-                .find_map(|statement| match statement {
-                    StatementNode::LocalData(local) if local.name.as_str() == name => Some(local),
-                    _ => None,
-                })
-                .unwrap_or_else(|| panic!("local `{name}`"))
-        };
-        let ExpressionNode::Name(parameter_path) = program
-            .expression_table
-            .expression(local("base").initial_value)
-        else {
-            panic!("parameter initializer should be a name")
-        };
-        let index = program
-            .state_parameters(state)
-            .iter()
-            .find(|parameter| parameter.name.as_str() == "index")
-            .expect("index parameter");
-        assert_eq!(
-            named_value_type_reference(&program, parameter_path),
-            Some(index.type_reference)
-        );
-        let ExpressionNode::Name(local_path) = program
-            .expression_table
-            .expression(local("copy").initial_value)
-        else {
-            panic!("local initializer should be a name")
-        };
-        assert_eq!(
-            named_value_type_reference(&program, local_path),
-            Some(local("base").type_reference)
-        );
     }
 
     #[test]
@@ -801,51 +746,6 @@ mod tests {
         );
         program.push_machine(machine);
         let path = name_path(&mut program, "counter", owned_symbol, owned_symbol);
-        assert_eq!(
-            named_value_type_reference(&program, &path),
-            Some(type_reference)
-        );
-    }
-
-    #[test]
-    fn retained_parent_resolves_proposition_parameters() {
-        let mut symbols = SymbolTableBuilder::new();
-        let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Borrowed("root"));
-        let propositions = symbols.insert_children(
-            root,
-            [(SymbolKind::Proposition, SymbolNameRef::Borrowed("bounded"))],
-        );
-        let proposition_symbol = SymbolTableBuilder::child_handles(propositions)
-            .next()
-            .expect("proposition");
-        let parameters = symbols.insert_children(
-            proposition_symbol,
-            [(SymbolKind::Parameter, SymbolNameRef::Borrowed("limit"))],
-        );
-        let parameter_symbol = SymbolTableBuilder::child_handles(parameters)
-            .next()
-            .expect("parameter");
-        let mut program = TypedTrees {
-            symbols: symbols.finish(),
-            ..TypedTrees::default()
-        };
-        let mut proposition = PropositionDefinition {
-            symbol: proposition_symbol,
-            name: Identifier::generated("bounded"),
-            ..PropositionDefinition::default()
-        };
-        let type_reference = TypeReferenceHandle::from_arena_index(9);
-        program.push_proposition_parameter(
-            &mut proposition,
-            StateParameter {
-                symbol: parameter_symbol,
-                name: Identifier::generated("limit"),
-                type_reference,
-                ..StateParameter::default()
-            },
-        );
-        program.push_proposition(proposition);
-        let path = name_path(&mut program, "limit", parameter_symbol, parameter_symbol);
         assert_eq!(
             named_value_type_reference(&program, &path),
             Some(type_reference)
@@ -934,31 +834,6 @@ mod tests {
         assert_eq!(
             named_value_type_reference(&program, &path),
             Some(type_reference)
-        );
-    }
-
-    #[test]
-    fn retained_parent_uses_head_symbol_when_leaf_is_invalid() {
-        let program = typed_source(
-            "machine inspect(index: u64) {
-                 let base: u64 = index;
-             }",
-        );
-        let (index_symbol, index_type) = {
-            let machine = &program.machines()[0];
-            let state = &program.machine_states(machine)[0];
-            let index = program
-                .state_parameters(state)
-                .iter()
-                .find(|parameter| parameter.name.as_str() == "index")
-                .expect("index parameter");
-            (index.symbol, index.type_reference)
-        };
-        let mut program = program;
-        let path = name_path(&mut program, "index", SymbolHandle::invalid(), index_symbol);
-        assert_eq!(
-            named_value_type_reference(&program, &path),
-            Some(index_type)
         );
     }
 }

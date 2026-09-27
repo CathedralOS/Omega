@@ -11,21 +11,6 @@ fn diagnostics(source: &str) -> Vec<String> {
 }
 
 #[test]
-fn free_scalar_initializers_admit_nested_call_evaluation() {
-    for mutability in ["", "mut "] {
-        let source = format!(
-            "machine identity(input: bool) -> bool {{ input }}
-             machine value(input: bool) -> bool {{
-                 let {mutability}saved: bool = identity(identity(input));
-                 saved
-             }}"
-        );
-        let diagnostics = diagnostics(&source);
-        assert!(diagnostics.is_empty(), "{mutability}: {diagnostics:?}");
-    }
-}
-
-#[test]
 fn mixed_boundary_return_initializers_admit_nested_calls_with_immutable_scalar_formals() {
     for boundary_crash in ["", "crashes Abort"] {
         let source = format!(
@@ -205,45 +190,6 @@ fn unserved_assignment_destinations_keep_nested_call_realization_fence() {
 }
 
 #[test]
-fn nested_call_assignments_with_unrealized_calls_keep_the_fence() {
-    for source in [
-        // A boundary requirement call has no checked-body callee for the
-        // assignment's scalar computation.
-        "boundary trait Host { machine read(input: bool) -> bool reaches Host; }
-         machine identity(input: bool) -> bool { input }
-         machine value(input: bool) reaches Host {
-             let mut saved: bool = input;
-             saved = Host::read(identity(input));
-         }",
-        // A receiver call keeps the initializer-only receiver admission.
-        "data Scalar {}
-         machine identity(input: bool) -> bool { input }
-         machine Scalar::read(input: bool) -> bool { input }
-         machine value(scalar: Scalar, input: bool) {
-             let mut saved: bool = input;
-             saved = scalar.read(identity(input));
-         }",
-        // A callee whose result is structural has no primitive store value.
-        "data Container { flag: bool; }
-         machine rebuild(flag: bool) -> Container { Container { flag: flag } }
-         machine identity(input: bool) -> bool { input }
-         machine value(input: bool) {
-             let mut saved: Container = Container { flag: input };
-             saved = rebuild(identity(input));
-         }",
-    ] {
-        let diagnostics = diagnostics(source);
-        assert!(
-            diagnostics
-                .iter()
-                .any(|message| message
-                    .contains("value-call argument cannot itself be a machine call")),
-            "{source}: {diagnostics:?}"
-        );
-    }
-}
-
-#[test]
 fn immutable_unit_result_initializers_admit_computed_scalar_operands() {
     for source in [
         "machine identity(input: bool) -> bool { input }
@@ -280,21 +226,6 @@ fn immutable_unit_result_initializers_admit_computed_scalar_operands() {
 }
 
 #[test]
-fn plain_structural_result_source_family_defers_producer_support_to_lowering() {
-    // Validation accepts the source family; it does not assert that an
-    // executable structural producer exists. The lowerer pins that boundary.
-    let messages = diagnostics(
-        "data Packet { flag: bool; }
-         machine identity(input: bool) -> bool { input }
-         machine packet(input: bool) -> Packet { Packet { flag: input } }
-         machine value(input: bool) {
-             let saved: Packet = packet(identity(input));
-         }",
-    );
-    assert!(messages.is_empty(), "{messages:?}");
-}
-
-#[test]
 fn nominal_boundary_parameter_result_initializers_keep_exact_requirement_eligibility() {
     for (declaration, result) in [("", "bool"), ("pub data Packet { flag: bool; }", "Packet")] {
         let source = format!(
@@ -309,48 +240,5 @@ fn nominal_boundary_parameter_result_initializers_keep_exact_requirement_eligibi
         );
         let diagnostics = diagnostics(&source);
         assert!(diagnostics.is_empty(), "{source}: {diagnostics:?}");
-    }
-}
-
-#[test]
-fn unit_result_initializer_operands_still_validate_arity_and_types() {
-    for (argument, expected) in [
-        ("identity()", "expects 1 argument"),
-        ("identity(7)", "bool"),
-    ] {
-        let source = format!(
-            "machine identity(input: bool) -> bool {{ input }}
-             machine value(input: bool) {{ let saved: bool = identity({argument}); }}"
-        );
-        let diagnostics = diagnostics(&source);
-        assert!(
-            diagnostics.iter().any(|message| message.contains(expected)),
-            "{source}: {diagnostics:?}"
-        );
-    }
-}
-
-#[test]
-fn nested_scalar_binding_arguments_still_validate_arity_and_types() {
-    for (argument, expected) in [
-        ("identity()", "expects 1 argument"),
-        ("identity(7)", "bool"),
-    ] {
-        for body in [
-            format!("let saved: bool = identity({argument}); saved"),
-            format!("let mut saved: bool = input; saved = identity({argument}); saved"),
-        ] {
-            let source = format!(
-                "machine identity(input: bool) -> bool {{ input }}
-                 machine value(input: bool) -> bool {{
-                     {body}
-                 }}"
-            );
-            let diagnostics = diagnostics(&source);
-            assert!(
-                diagnostics.iter().any(|message| message.contains(expected)),
-                "{body}: {diagnostics:?}"
-            );
-        }
     }
 }

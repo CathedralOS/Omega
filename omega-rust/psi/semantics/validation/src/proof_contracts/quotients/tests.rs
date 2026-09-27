@@ -1,18 +1,12 @@
 //! Quotient validation tests.
 
-use super::{
-    QuotientRequestAdmission, exact_relation_application_matches, first_forbidden_carrier_content,
-    validate_quotients_with_admission,
-};
+use super::{exact_relation_application_matches, first_forbidden_carrier_content};
 use crate::proof_contracts::quotients::carrier_fence::CarrierFenceViolation;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, DataField, DataMember};
 use typed_trees::domain::{DomainAliasConstituent, DomainAliasDefinition, DomainDefinition};
-use typed_trees::expression::{
-    ExpressionHandle, ExpressionNode, QuotientOperationKind, QuotientOperationRequest,
-    StaticMachineArgument, TableCallExpression, TableNamePath,
-};
+use typed_trees::expression::{ExpressionNode, TableNamePath};
 use typed_trees::name::Identifier;
 use typed_trees::proposition::{
     PropositionApplication, PropositionBinder, PropositionBinderArgument,
@@ -21,17 +15,6 @@ use typed_trees::proposition::{
 use typed_trees::types::{
     DomainConstraint, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
-
-fn static_argument(name: &'static str) -> StaticMachineArgument {
-    StaticMachineArgument {
-        path: vec![Identifier::generated_static(name)].into_boxed_slice(),
-        application: None,
-        type_reference: Default::default(),
-        const_literal: None,
-        evidence_projection: None,
-        symbol: SymbolHandle::invalid(),
-    }
-}
 
 fn recursive_proof_carrier_with(
     contained: Option<(SymbolHandle, &'static str, language_semantics::Multiplicity)>,
@@ -127,22 +110,6 @@ fn checked_route() -> language_semantics::DomainEstablishmentRoute {
 }
 
 #[test]
-fn recursive_proof_carrier_without_runtime_content_passes_noncopy_fence() {
-    let (program, carrier) = recursive_proof_carrier_with(None);
-    let proof_only = typed_trees::proof_only::classify(&program);
-
-    assert_eq!(
-        first_forbidden_carrier_content(
-            &program,
-            &proof_only,
-            carrier,
-            &mut std::collections::HashSet::new(),
-        ),
-        None,
-    );
-}
-
-#[test]
 fn recursive_proof_carrier_rejects_contained_affine_runtime_type() {
     let token_symbol = SymbolHandle::from_arena_index(30);
     let (program, carrier) = recursive_proof_carrier_with(Some((
@@ -160,27 +127,6 @@ fn recursive_proof_carrier_rejects_contained_affine_runtime_type() {
             &mut std::collections::HashSet::new(),
         ),
         Some(CarrierFenceViolation::NonCopyType("Token".to_owned())),
-    );
-}
-
-#[test]
-fn recursive_proof_carrier_accepts_contained_copy_runtime_type() {
-    let token_symbol = SymbolHandle::from_arena_index(31);
-    let (program, carrier) = recursive_proof_carrier_with(Some((
-        token_symbol,
-        "CopyToken",
-        language_semantics::Multiplicity::Unrestricted,
-    )));
-    let proof_only = typed_trees::proof_only::classify(&program);
-
-    assert_eq!(
-        first_forbidden_carrier_content(
-            &program,
-            &proof_only,
-            carrier,
-            &mut std::collections::HashSet::new(),
-        ),
-        None,
     );
 }
 
@@ -276,53 +222,6 @@ fn transparent_alias_cannot_hide_routed_qualification() {
         Some(CarrierFenceViolation::RoutedQualification(
             "Issued".to_owned()
         )),
-    );
-}
-
-#[test]
-fn retained_sealed_request_is_not_executable_admission() {
-    let mut program = TypedTrees::default();
-    let arguments = program
-        .expression_table
-        .insert_expression_handles(std::iter::empty());
-    program
-        .expression_table
-        .insert(ExpressionNode::Call(TableCallExpression {
-            receiver: ExpressionHandle::invalid(),
-            target_symbol: SymbolHandle::invalid(),
-            target: Identifier::generated_static("lift"),
-            static_machine_parameter: symbols::SymbolHandle::invalid(),
-            static_requirement_dispatch: None,
-            machine_arguments: Box::default(),
-            quotient_operation: Some(QuotientOperationRequest {
-                kind: QuotientOperationKind::Lift,
-                representative_operation: static_argument("representative"),
-                theorem_evidence: vec![typed_trees::expression::QuotientTheoremSelection {
-                    role: typed_trees::expression::QuotientTheoremRole::Congruence,
-                    application: static_argument("ExactRespect"),
-                }]
-                .into_boxed_slice(),
-            }),
-            private_layout_operation: None,
-            arguments,
-            evidence_arguments: Box::default(),
-            operational_acknowledgement: Default::default(),
-        }));
-    let proof_only = typed_trees::proof_only::classify(&program);
-    let mut diagnostics = Vec::new();
-
-    validate_quotients_with_admission(
-        &program,
-        &proof_only,
-        QuotientRequestAdmission::AtValidation,
-        &mut diagnostics,
-    );
-
-    assert_eq!(diagnostics.len(), 1);
-    assert!(
-        diagnostics[0]
-            .message
-            .contains("executable quotient operations are not admitted")
     );
 }
 

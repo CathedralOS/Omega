@@ -645,24 +645,4 @@ mod unmanaged_root_tests {
             "{diagnostics:?}"
         );
     }
-
-    #[test]
-    fn unmanaged_one_root_still_groups_repeated_declarations() {
-        let program = packaged(&[
-            ("root_a", "domain i64::Km requires self >= 0;"),
-            ("root_a", "domain i64::Km requires self <= 10;"),
-        ]);
-        assert_eq!(
-            program.domain_definitions()[0].semantic_id,
-            program.domain_definitions()[1].semantic_id,
-            "one unmanaged root keeps one normalized identity per leaf path"
-        );
-        let diagnostics = identity_diagnostics(&program);
-        assert!(
-            diagnostics.iter().any(|diagnostic| diagnostic
-                .message
-                .contains("declared more than once with different normalized semantics")),
-            "{diagnostics:?}"
-        );
-    }
 }

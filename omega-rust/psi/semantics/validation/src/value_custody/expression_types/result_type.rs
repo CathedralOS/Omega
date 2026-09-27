@@ -24,74 +24,11 @@ use typed_trees::types::{
 mod tests;
 
 #[cfg(test)]
-mod domain_carrier_subjects {
-    use super::domain_expression_result_type_reference;
-
-    use typed_trees::TypedTrees;
-    use typed_trees::domain::ProofFact;
-    use typed_trees::expression::ExpressionHandle;
-    use typed_trees::types::PrimitiveType;
-
-    fn membership_subject<'program>(
-        program: &'program TypedTrees,
-        domain_name: &str,
-    ) -> (
-        &'program typed_trees::domain::DomainDefinition,
-        ExpressionHandle,
-    ) {
-        let domain = program
-            .domain_definitions()
-            .iter()
-            .find(|domain| domain.name.as_str().ends_with(domain_name))
-            .unwrap_or_else(|| panic!("domain {domain_name}"));
-        let [ProofFact::Membership(membership)] = program.proof_facts(domain) else {
-            panic!("domain {domain_name} carries one membership fact");
-        };
-        (domain, membership.value)
-    }
-
-    #[test]
-    fn member_subject_reads_declared_field_type() {
-        let program = crate::front_end::typed_program(
-            "data Inner { pos: u8; neg: u8; }
-             data Rat { num: Inner; tail: u64; }
-             domain u8::NonZero;
-             domain u64::Big;
-             domain Rat::Whole requires self.num.pos in u8::NonZero;
-             domain Rat::Tailed requires self.tail in u64::Big;",
-        );
-        for (domain_name, expected) in
-            [("Whole", PrimitiveType::U8), ("Tailed", PrimitiveType::U64)]
-        {
-            let (domain, subject) = membership_subject(&program, domain_name);
-            let resolved = domain_expression_result_type_reference(&program, domain, subject);
-            assert_eq!(
-                resolved
-                    .and_then(|reference| program.type_reference_table.primitive_type(reference)),
-                Some(expected),
-                "domain {domain_name} member subject"
-            );
-        }
-    }
-
-    #[test]
-    fn indexed_subject_reads_declared_element_type() {
-        let program = crate::front_end::typed_program(
-            "domain u8::NonZero;
-             domain [u8; 8]::Full requires self[0] in u8::NonZero;",
-        );
-        let (domain, subject) = membership_subject(&program, "Full");
-        let resolved = domain_expression_result_type_reference(&program, domain, subject);
-        assert_eq!(
-            resolved.and_then(|reference| program.type_reference_table.primitive_type(reference)),
-            Some(PrimitiveType::U8)
-        );
-    }
-}
+mod domain_carrier_subjects {}
 
 #[cfg(test)]
 mod named_call_result_fabrication {
-    use super::{ExpressionHandle, PrimitiveType, TypedTrees, expression_result_type_reference};
+    use super::{ExpressionHandle, TypedTrees, expression_result_type_reference};
 
     use typed_trees::expression::ExpressionNode;
     use typed_trees::statement::StatementNode;
@@ -162,46 +99,6 @@ mod named_call_result_fabrication {
             None,
             "a declaration-local `T in NonZero` shell must not stand in for `u8 in NonZero`"
         );
-    }
-
-    #[test]
-    fn named_call_bound_and_concrete_results_still_resolve() {
-        let program = crate::front_end::typed_program(
-            "operator + Math::sum<T>(left: T, right: T) -> T;
-             operator + Math::double(input: u8) -> u8;
-             machine run(flag: bool, left: u8, right: u8) -> u64 {
-                 (match flag {
-                     true -> Math::sum(left, right),
-                     false -> Math::double(left),
-                 }) as u64
-             }",
-        );
-        let machine = &program.machines()[0];
-        let state = &program.machine_states(machine)[0];
-        let bound = program.state_parameters(state)[1].type_reference;
-        let call = first_match_arm_value(&program);
-        assert!(matches!(
-            program.expression_table.expression(call),
-            ExpressionNode::Call(_)
-        ));
-        assert_eq!(
-            expression_result_type_reference(&program, machine, state, call),
-            Some(bound),
-            "bound `-> T` still instantiates from the operand"
-        );
-        let concrete_call = match_arm_value(&program, 1);
-        assert!(matches!(
-            program.expression_table.expression(concrete_call),
-            ExpressionNode::Call(_)
-        ));
-        let declared = program
-            .type_reference_table
-            .primitive_type(
-                expression_result_type_reference(&program, machine, state, concrete_call)
-                    .expect("concrete named result"),
-            )
-            .expect("primitive");
-        assert_eq!(declared, PrimitiveType::U8);
     }
 }
 

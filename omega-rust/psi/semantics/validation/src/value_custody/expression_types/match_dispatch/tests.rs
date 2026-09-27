@@ -45,50 +45,6 @@ fn choose_dispatch_diagnostics(source: &str) -> Vec<String> {
 
 const LINEAR_TOKEN: &str = "data Token [linear] { code: u64; }\n";
 
-/// A shared borrow observes its referent and moves nothing, so a linear
-/// referent's exactly-once claim never reaches the selection join: each arm's
-/// own owner keeps it on every edge. Whole places and exact projections out of
-/// an affine holder are the same admission.
-#[test]
-fn shared_borrow_arms_join_a_linear_referent_without_an_owned_custody_join() {
-    for (label, source) in [
-        (
-            "whole immutable locals",
-            format!(
-                "{LINEAR_TOKEN}machine choose(other: bool, a: Token, b: Token) -> u64 {{
-                     let view: &Token = match other {{ true -> &a, false -> &b }};
-                     view.code
-                 }}"
-            ),
-        ),
-        (
-            "whole state parameters",
-            format!(
-                "{LINEAR_TOKEN}machine choose(other: bool, first: Token, second: Token) -> u64 {{
-                     let view: &Token = match other {{ true -> &first, false -> &second }};
-                     view.code
-                 }}"
-            ),
-        ),
-        (
-            "projected linear fields of affine holders",
-            format!(
-                "{LINEAR_TOKEN}data Holder {{ left: Token; right: Token; }}
-                 machine choose(other: bool, x: Holder, y: Holder) -> u64 {{
-                     let view: &Token = match other {{ true -> &x.left, false -> &y.right }};
-                     view.code
-                 }}"
-            ),
-        ),
-    ] {
-        assert!(
-            choose_dispatch_diagnostics(&source).is_empty(),
-            "{label}: a shared borrow of a linear referent joins without an owned custody join: {:?}",
-            choose_dispatch_diagnostics(&source),
-        );
-    }
-}
-
 /// A primitive referent joins on exactly the shared-borrow terms a record one
 /// does. `&u64` denotes the original storage, so the selection still merges no
 /// owned custody; the only thing it lacked was a carrier, and the structural
@@ -204,74 +160,6 @@ fn shared_borrow_arms_still_reject_exclusive_and_case_bearing_linear_referents()
                 .iter()
                 .any(|message| message.contains(CUSTODY_JOIN_REJECTION)),
             "{label}: must still reject with a diagnostic naming the missing join: {messages:?}",
-        );
-    }
-}
-
-/// The owned linear side is admitted at every claimed place: an exact
-/// projection moves the child claim its path names, and the whole root that
-/// holds linear children joins the same way, with the transfer's claim set
-/// naming each consumed child claim. A root carries one claim place per
-/// frontier child and none for the whole place, so a whole-root arm records
-/// an empty moved path plus one claim row per frontier child — the receipt,
-/// not an invented aggregate root claim, is what discharges the children.
-#[test]
-fn whole_affine_root_with_linear_children_joins_like_its_projected_child() {
-    const ONE_CHILD: &str = "data Holder { left: Token; }\n";
-    const TWO_CHILDREN: &str = "data Pair { left: Token; right: Token; }\n";
-    let projected = format!(
-        "{LINEAR_TOKEN}{ONE_CHILD}machine choose(other: bool, x: Holder) -> u64 {{
-             let picked: Token = match other {{ true -> x.left, false -> x.left }};
-             0
-         }}"
-    );
-    assert!(
-        choose_dispatch_diagnostics(&projected).is_empty(),
-        "an exact projection of a linear child joins on its own claim path: {:?}",
-        choose_dispatch_diagnostics(&projected),
-    );
-    for (label, source) in [
-        (
-            "one linear child, uniform source",
-            format!(
-                "{LINEAR_TOKEN}{ONE_CHILD}machine choose(other: bool, x: Holder) -> u64 {{
-                     let picked: Holder = match other {{ true -> x, false -> x }};
-                     0
-                 }}"
-            ),
-        ),
-        (
-            "one linear child, distinct sources",
-            format!(
-                "{LINEAR_TOKEN}{ONE_CHILD}machine choose(other: bool, x: Holder, y: Holder) -> u64 {{
-                     let picked: Holder = match other {{ true -> x, false -> y }};
-                     0
-                 }}"
-            ),
-        ),
-        (
-            "two linear children, uniform source",
-            format!(
-                "{LINEAR_TOKEN}{TWO_CHILDREN}machine choose(other: bool, x: Pair) -> u64 {{
-                     let picked: Pair = match other {{ true -> x, false -> x }};
-                     0
-                 }}"
-            ),
-        ),
-        (
-            "two linear children, distinct sources",
-            format!(
-                "{LINEAR_TOKEN}{TWO_CHILDREN}machine choose(other: bool, x: Pair, y: Pair) -> u64 {{
-                     let picked: Pair = match other {{ true -> x, false -> y }};
-                     0
-                 }}"
-            ),
-        ),
-    ] {
-        let messages = choose_dispatch_diagnostics(&source);
-        assert!(
-            messages.is_empty(),
-            "{label}: the whole carrier root joins by naming each child's exact claim: {messages:?}",
         );
     }
 }

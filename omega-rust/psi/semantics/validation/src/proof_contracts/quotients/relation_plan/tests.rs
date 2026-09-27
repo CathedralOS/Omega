@@ -10,7 +10,6 @@ mod representatives;
 mod selected_theorems;
 mod transport;
 
-use super::correspondence_certificate::DirectLiftPreconditionProof;
 use super::theorem::SelectedTheoremTelescope;
 use super::theorem_schema::{
     TheoremContractFactLocation, TheoremContractOwner, derive_expected_theorem_schema,
@@ -18,10 +17,10 @@ use super::theorem_schema::{
 use super::theorem_schema_verification::verify_selected_theorem_schema;
 use super::transport_schema::verify_forward_precondition_transport_schema;
 use crate::proof_contracts::quotients::relation_plan::{
-    ExactQuotientRelation, InputRelation, RelationPlanError, RepresentativeContractFactLocation,
-    RepresentativeRuntimeParameter, RepresentativeStaticApplication, RepresentativeStaticBinding,
-    RepresentativeStaticBindingKind, RepresentativeTelescope,
-    derive_direct_lift_public_precondition_partition, derive_representative_precondition_partition,
+    ExactQuotientRelation, InputRelation, RelationPlanError, RepresentativeRuntimeParameter,
+    RepresentativeStaticApplication, RepresentativeStaticBinding, RepresentativeStaticBindingKind,
+    RepresentativeTelescope, derive_direct_lift_public_precondition_partition,
+    derive_representative_precondition_partition,
 };
 use arena::HandleSpan;
 use numerics::arithmetic::ArithmeticDomain;
@@ -46,15 +45,6 @@ use typed_trees::typed_trees::StaticRequirementDispatch;
 use typed_trees::types::{
     DomainConstraint, FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
-
-fn exact_public_location(
-    proof: &DirectLiftPreconditionProof,
-) -> RepresentativeContractFactLocation {
-    let DirectLiftPreconditionProof::ExactMatch { public } = proof else {
-        panic!("expected exact precondition match")
-    };
-    *public
-}
 
 fn symbol(index: u32) -> SymbolHandle {
     SymbolHandle::from_arena_index(index)
@@ -589,34 +579,6 @@ fn push_selected_theorem(program: &mut TypedTrees) -> StaticMachineArgument {
     program.push_machine(theorem);
     let mut selected = static_argument("selected_theorem");
     selected.symbol = symbol(701);
-    selected
-}
-
-fn push_custom_selected_theorem(
-    program: &mut TypedTrees,
-    supply_mode: language_semantics::MachineSupplyMode,
-    body_is_present: bool,
-    return_type: TypeReferenceHandle,
-) -> StaticMachineArgument {
-    let mut theorem = Machine {
-        symbol: symbol(710),
-        name: Identifier::generated_static("custom_theorem"),
-        supply_mode,
-        body_is_present,
-        ..Default::default()
-    };
-    program.push_machine_state(
-        &mut theorem,
-        State {
-            symbol: symbol(711),
-            name: Identifier::generated_static("prove"),
-            return_type,
-            ..Default::default()
-        },
-    );
-    program.push_machine(theorem);
-    let mut selected = static_argument("custom_theorem");
-    selected.symbol = symbol(711);
     selected
 }
 

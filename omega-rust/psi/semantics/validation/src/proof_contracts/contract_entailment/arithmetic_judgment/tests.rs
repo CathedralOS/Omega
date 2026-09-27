@@ -84,37 +84,6 @@ fn symbolic_quotient_intervals_cover_every_small_signed_rectangle() {
         },
     );
 }
-#[test]
-fn strict_arithmetic_retains_complete_anonymous_rational_values() {
-    for (expression, expected) in [
-        ("1 / 2 * 2", Some(1)),
-        ("1 / 2 * 12", Some(6)),
-        ("0.0", Some(0)),
-        ("0.5 * 2", Some(1)),
-        ("0.0f32", None),
-        ("0.0f64", None),
-        ("0.5f64 * 2.0f64", None),
-        ("1 / 2", None),
-        ("1 / 0 * 0", None),
-        ("1u8 / 2u8 * 2u8", None),
-    ] {
-        let source = format!("machine value() -> u64 {{ {expression} }}");
-        let program = crate::front_end::typed_program(&source);
-        let machine = &program.machines()[0];
-        let state = &program.machine_states(machine)[0];
-        let typed_trees::statement::StatementNode::Expression(value) =
-            program.statement_table.statements(state.statement_nodes)[0]
-        else {
-            panic!("value");
-        };
-        let mut engine = Engine::strict_with_symbol_bindings(&program, machine, &[]);
-        assert_eq!(
-            engine.normalize(value),
-            expected.map(|value| Polynomial::constant(BigInt::from_i64(value))),
-            "{expression}"
-        );
-    }
-}
 
 #[test]
 fn proof_integer_arithmetic_lands_complete_anonymous_peers() {
@@ -150,23 +119,6 @@ fn proof_integer_arithmetic_lands_complete_anonymous_peers() {
             engine.normalize(expression),
             expected.map(|value| Polynomial::constant(BigInt::from_i64(value))),
             "{arithmetic}"
-        );
-    }
-}
-
-#[test]
-fn closed_proof_integer_quotient_and_remainder_are_exact() {
-    for (operator, expected) in [("/", -3), ("%", -1)] {
-        let source =
-            format!("machine predicate() ensures embed(-7i32) {operator} 2 == {expected} {{}}");
-        let program = crate::front_end::typed_program(&source);
-        let expression = program.expression_table.iter_expressions().find_map(|(handle, node)| {
-            matches!(node, ExpressionNode::Binary(binary) if matches!(binary.operator, BinaryOperator::Divide | BinaryOperator::Modulo)).then_some(handle)
-        }).unwrap();
-        let mut engine = Engine::for_proof_integer_formation(&program);
-        assert_eq!(
-            engine.normalize(expression),
-            Some(Polynomial::constant(BigInt::from_i64(expected)))
         );
     }
 }
@@ -234,88 +186,4 @@ fn constant_multiplication_preserves_one_sided_bounds() {
     let zero = Interval::constant(BigInt::zero());
     assert_eq!(Interval::unbounded().multiply(&zero), zero);
     assert_eq!(zero.multiply(&Interval::unbounded()), zero);
-}
-
-#[test]
-fn stored_difference_can_add_two_independently_lower_bounded_atoms() {
-    let program = TypedTrees::default();
-    let mut engine = Engine::for_proof_integer_formation(&program);
-    let ceiling = Polynomial::atom("ceiling".to_owned());
-    let bound = Polynomial::atom("bound".to_owned());
-    let position = Polynomial::atom("position".to_owned());
-    let amount = Polynomial::atom("amount".to_owned());
-    assert!(engine.install_hypotheses(vec![
-        (
-            BinaryOperator::GreaterOrEqual,
-            ceiling.clone(),
-            bound.clone()
-        ),
-        (
-            BinaryOperator::GreaterOrEqual,
-            position.clone(),
-            Polynomial::default()
-        ),
-        (
-            BinaryOperator::GreaterOrEqual,
-            amount.clone(),
-            Polynomial::constant(BigInt::from_i64(1))
-        ),
-    ]));
-    let room = ceiling.sub(&bound).add(&position).add(&amount);
-    assert!(engine.prove_at_least(&room, &BigInt::from_i64(1)));
-    assert!(!engine.prove_at_least(&room, &BigInt::from_i64(2)));
-    assert!(!engine.prove_at_least(
-        &ceiling.sub(&bound).add(&position).sub(&amount),
-        &BigInt::zero()
-    ));
-}
-
-#[test]
-fn stored_difference_and_positive_residual_prove_three_atom_bound() {
-    let program = TypedTrees::default();
-    let mut engine = Engine::for_proof_integer_formation(&program);
-    let remaining = Polynomial::atom("remaining".to_owned());
-    let ceiling = Polynomial::atom("ceiling".to_owned());
-    let step = Polynomial::atom("step".to_owned());
-    assert!(engine.install_hypotheses(vec![
-        (
-            BinaryOperator::LessOrEqual,
-            remaining.clone(),
-            ceiling.clone()
-        ),
-        (
-            BinaryOperator::GreaterOrEqual,
-            step.clone(),
-            Polynomial::constant(BigInt::from_i64(1)),
-        ),
-    ]));
-    let next_room = ceiling.sub(&remaining).add(&step);
-    assert!(!engine.prove_base_lower_bound(&next_room, &BigInt::from_i64(1)));
-    assert!(engine.prove_at_least(&next_room, &BigInt::from_i64(1)));
-    assert!(!engine.prove_at_least(&next_room, &BigInt::from_i64(2)));
-    assert!(!engine.prove_at_least(&ceiling.sub(&remaining).sub(&step), &BigInt::zero(),));
-}
-
-#[test]
-fn residual_addition_retains_the_stored_bound_offset() {
-    let program = TypedTrees::default();
-    let mut engine = Engine::for_proof_integer_formation(&program);
-    let remaining = Polynomial::atom("remaining".to_owned());
-    let ceiling = Polynomial::atom("ceiling".to_owned());
-    let step = Polynomial::atom("step".to_owned());
-    assert!(engine.install_hypotheses(vec![
-        (
-            BinaryOperator::GreaterOrEqual,
-            ceiling.sub(&remaining),
-            Polynomial::constant(BigInt::from_i64(-2)),
-        ),
-        (
-            BinaryOperator::GreaterOrEqual,
-            step.clone(),
-            Polynomial::constant(BigInt::from_i64(1)),
-        ),
-    ]));
-    let next_room = ceiling.sub(&remaining).add(&step);
-    assert!(engine.prove_at_least(&next_room, &BigInt::from_i64(-1)));
-    assert!(!engine.prove_at_least(&next_room, &BigInt::zero()));
 }

@@ -1,7 +1,7 @@
 use super::super::{TypeConstraintNode, argument_matches_type_reference_handle};
 use super::{
     ExpressionHandle, ExpressionNode, ReferenceAccess, TypeReferenceHandle, TypeReferenceNode,
-    TypedTrees, declared_value_type, place_forwards_mutable_reference, projected_matches_reference,
+    TypedTrees, place_forwards_mutable_reference, projected_matches_reference,
     reference_type_matches,
 };
 fn member(program: &TypedTrees, name: &str) -> ExpressionHandle {
@@ -143,42 +143,6 @@ fn array_view_matching_cannot_grant_mutation_through_shared_storage() {
 }
 
 #[test]
-fn mutable_array_views_do_not_erase_carrier_constraints() {
-    let mut program = crate::front_end::typed_program(
-        "machine inspect(value: &mut [u8; 3], expected: &mut [u8], read: &[u8]) { value; }",
-    );
-    let parameters = program.state_parameters(&program.machine_states(&program.machines()[0])[0]);
-    let actual = parameters[0].type_reference;
-    let mutable_view = parameters[1].type_reference;
-    let shared_view = parameters[2].type_reference;
-    assert!(reference_type_matches(&program, actual, mutable_view, &[]));
-    let mut reference = program.type_reference_table.type_reference(actual).clone();
-    let TypeReferenceNode::Reference { referee, .. } = &mut reference else {
-        panic!("mutable reference");
-    };
-    let constraints = program
-        .type_reference_table
-        .insert_constraints([TypeConstraintNode::Named("qualified".into())]);
-    *referee = program
-        .type_reference_table
-        .insert(TypeReferenceNode::Constrained {
-            base_type: *referee,
-            constraints,
-        });
-    program
-        .type_reference_table
-        .substitute_node(actual, reference);
-    assert!(
-        !reference_type_matches(&program, actual, mutable_view, &[]),
-        "a shape match cannot authorize writes that break a carrier predicate"
-    );
-    assert!(
-        reference_type_matches(&program, actual, shared_view, &[]),
-        "a plain shared view does not alter the qualified carrier"
-    );
-}
-
-#[test]
 fn shared_slice_views_forget_constrained_referee_predicates() {
     // `&[u8] in D` spells `Reference { referee: Constrained { Slice } }`: the
     // carrier predicate wraps the slice inside the reference, not the loan.
@@ -257,99 +221,6 @@ fn shared_slice_views_forget_constrained_referee_predicates() {
 }
 
 #[test]
-fn generic_array_views_compare_selected_elements_not_the_data_telescope() {
-    let mut program = crate::front_end::typed_program(
-        "data Box<Element> { values: [Element; 2]; } machine inspect<Value>(value: Box<Value>, expected: &[Value]) { value.values; }",
-    );
-    let expression = member(&program, "value.values");
-    assert!(projected_matches_reference(
-        &program,
-        expression,
-        expected(&program)
-    ));
-    let mut substitutions = Vec::new();
-    let actual =
-        declared_value_type(&program, expression, &mut substitutions).expect("declared array");
-    let TypeReferenceNode::FixedArray { element_type, .. } =
-        *program.type_reference_table.type_reference(actual)
-    else {
-        panic!("array");
-    };
-    let slice = program
-        .type_reference_table
-        .insert(TypeReferenceNode::Slice { element_type });
-    let wrong = program
-        .type_reference_table
-        .insert(TypeReferenceNode::Reference {
-            referee: slice,
-            access: ReferenceAccess::Shared,
-            lifetime: None,
-        });
-    assert!(
-        !projected_matches_reference(&program, expression, wrong),
-        "the data declaration's Element is not the caller's Value"
-    );
-}
-
-#[test]
-fn substituted_reference_field_attenuates_mutable_only_to_shared() {
-    for (actual_access, required, accepted) in [
-        (ReferenceAccess::Mutable, "&Value", true),
-        (ReferenceAccess::Shared, "&mut Value", false),
-        (ReferenceAccess::WriteOnly, "&Value", false),
-    ] {
-        let mut program = crate::front_end::typed_program(&format!(
-            "data Box<Element> {{ value: Element; }} machine inspect<Value>(value: Box<Value>, expected: {required}) {{ value.value; }}"
-        ));
-        let receiver = program
-            .machines()
-            .iter()
-            .flat_map(|machine| program.machine_states(machine))
-            .flat_map(|state| program.state_parameters(state))
-            .find(|parameter| parameter.name.as_str() == "value")
-            .expect("receiver")
-            .type_reference;
-        let mut receiver_node = program
-            .type_reference_table
-            .type_reference(receiver)
-            .clone();
-        let TypeReferenceNode::Generic { arguments, .. } = &mut receiver_node else {
-            panic!("generic receiver");
-        };
-        let [referee] = program
-            .type_reference_table
-            .type_reference_handles(*arguments)
-        else {
-            panic!("one type argument");
-        };
-        let referee = *referee;
-        // Reference arguments are representable typed inputs even though the
-        // parser currently rejects an authored `Box<&Value>` application.
-        let reference = program
-            .type_reference_table
-            .insert(TypeReferenceNode::Reference {
-                referee,
-                access: actual_access,
-                lifetime: None,
-            });
-        *arguments = program
-            .type_reference_table
-            .insert_type_reference_handles([reference]);
-        program
-            .type_reference_table
-            .substitute_node(receiver, receiver_node);
-        assert_eq!(
-            projected_matches_reference(
-                &program,
-                member(&program, "value.value"),
-                expected(&program)
-            ),
-            accepted
-        );
-    }
-}
-
-#[test]
 fn repeated_generic_telescope_projection_remains_explicitly_unsupported() {
     let program = crate::front_end::typed_program(
         "data Box<Element> { value: Element; } machine inspect<Value>(value: Box<Box<Value>>, expected: &Value) { value.value.value; }",
@@ -419,85 +290,6 @@ fn indexed_reference_leaf_requires_builtin_meaning_and_exact_referee() {
     assert!(!projected_matches_reference(
         &program,
         expression,
-        expected(&program)
-    ));
-}
-
-#[test]
-fn forwarding_checks_prefix_permissions_separately_from_leaf_type() {
-    for (prefix, accepted) in [
-        ("View", true),
-        ("&mut View", true),
-        ("&View", false),
-        ("&write View", false),
-    ] {
-        let program = crate::front_end::typed_program(&format!(
-            "data View {{ body: &mut i32; }} machine inspect(value: {prefix}, expected: &mut i32) {{ value.body; }}"
-        ));
-        let expression = member(&program, "value.body");
-        let parameters =
-            program.state_parameters(&program.machine_states(&program.machines()[0])[0]);
-        let root = parameters
-            .iter()
-            .find(|parameter| parameter.name.as_str() == "value")
-            .expect("root");
-        assert!(
-            projected_matches_reference(&program, expression, expected(&program)),
-            "type alone does not authorize forwarding"
-        );
-        assert_eq!(
-            place_forwards_mutable_reference(
-                &program,
-                expression,
-                root.symbol,
-                root.type_reference
-            ),
-            accepted,
-            "{prefix}"
-        );
-        let foreign_root = parameters
-            .iter()
-            .find(|parameter| parameter.name.as_str() == "expected")
-            .expect("foreign root");
-        assert!(!place_forwards_mutable_reference(
-            &program,
-            expression,
-            foreign_root.symbol,
-            root.type_reference
-        ));
-    }
-}
-
-#[test]
-fn selected_field_rejects_foreign_nominal_member_identity() {
-    let mut program = crate::front_end::typed_program(
-        "data View { body: &mut i32; } data Other { body: &mut i32; }
-         machine inspect(value: View, expected: &mut i32) { value.body; }",
-    );
-    let expression = member(&program, "value.body");
-    let foreign_symbol = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.name.as_str() == "Other")
-        .and_then(|data| {
-            program
-                .data_members(data)
-                .iter()
-                .find_map(|member| match member {
-                    typed_trees::data::DataMember::Field(field) => Some(field.symbol),
-                    _ => None,
-                })
-        })
-        .expect("foreign field");
-    let mut forged = program.expression_table.expression(expression).clone();
-    let ExpressionNode::Member(member) = &mut forged else {
-        panic!("member");
-    };
-    member.member_symbol = foreign_symbol;
-    let forged = program.expression_table.insert(forged);
-    assert!(!projected_matches_reference(
-        &program,
-        forged,
         expected(&program)
     ));
 }

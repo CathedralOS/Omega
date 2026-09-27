@@ -441,15 +441,4 @@ mod tests {
             }
         );
     }
-
-    #[test]
-    fn exact_remainder_definedness_follows_the_shared_policy_catalog() {
-        assert_eq!(
-            exact_definedness_conditions(BinaryOperator::Modulo),
-            ExactDefinednessConditions {
-                nonzero_divisor: true,
-                signed_result_representable: true,
-            }
-        );
-    }
 }

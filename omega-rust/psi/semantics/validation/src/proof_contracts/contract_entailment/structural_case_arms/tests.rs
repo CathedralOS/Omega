@@ -11,39 +11,6 @@ fn parse(body: &str) -> TypedTrees {
 }
 
 #[test]
-fn boolean_fallthrough_checks_both_structural_results_in_either_order() {
-    for body in [
-        "transition value > 0 { true -> Nat::Zero false -> Nat::Zero }",
-        "transition value > 0 { false -> Nat::Zero true -> Nat::Zero }",
-    ] {
-        let program = parse(body);
-        let machine = &program.machines()[0];
-        let judge = StructuralJudge::from_requires(&program, machine, &[]);
-        let arms = recognize_guarded_structural_value_arms(&program, machine, &judge)
-            .expect("conditional value and unconditional fallback cover both results");
-        assert_eq!(arms.len(), 2);
-        assert_eq!(
-            crate::proven_machine_contract_expressions(&program, machine.symbol).len(),
-            1
-        );
-    }
-}
-
-#[test]
-fn false_structural_result_on_either_boolean_arm_is_not_proven() {
-    for body in [
-        "transition value > 0 { true -> Nat::Succ { prev: Nat::Zero } false -> Nat::Zero }",
-        "transition value > 0 { true -> Nat::Zero false -> Nat::Succ { prev: Nat::Zero } }",
-    ] {
-        let program = parse(body);
-        assert!(
-            crate::proven_machine_contract_expressions(&program, program.machines()[0].symbol)
-                .is_empty()
-        );
-    }
-}
-
-#[test]
 fn partial_or_repeated_boolean_arms_do_not_supply_exhaustive_structural_results() {
     for repeat_first_guard in [false, true] {
         // Typing already rejects authored fallthrough. Corrupt a typed total

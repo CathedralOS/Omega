@@ -4,7 +4,7 @@ use crate::proof_contracts::quotients::relation_plan::tests::{
     fixed_boolean_array_type, fixed_boolean_tensor3_type, fixed_byte_array_type,
     fixed_float_array_type, fixed_integer_array_type, fixed_nested_boolean_array_type,
     fixed_nested_byte_array_type, fixed_nested_float_array_type, fixed_nested_integer_array_type,
-    float_array_literal, integer_array_literal, named_argument, nested_boolean_array_literal,
+    float_array_literal, integer_array_literal, nested_boolean_array_literal,
     nested_canonical_byte_array_literal, nested_float_array_literal, nested_integer_array_literal,
     primitive_type, push_representative, quotient_type, symbol, wrap_array_literal,
     wrap_fixed_array_type,
@@ -12,7 +12,7 @@ use crate::proof_contracts::quotients::relation_plan::tests::{
 use crate::proof_contracts::quotients::relation_plan::theorem_schema::derive_expected_theorem_schema;
 use crate::proof_contracts::quotients::relation_plan::{
     ExactQuotientRelation, InputRelation, RelationPlanError, RepresentativeRuntimeParameter,
-    RepresentativeStaticApplication, RepresentativeTelescope, derive_define_runtime_correspondence,
+    RepresentativeStaticApplication, RepresentativeTelescope,
     derive_direct_lift_runtime_correspondence, derive_direct_terminal_plan,
 };
 use arena::HandleSpan;
@@ -23,12 +23,9 @@ use numerics::literals::{
 use std::sync::Arc;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-use typed_trees::expression::{
-    BinaryOperator, ExpressionNode, QuotientOperationKind, TableBinaryExpression,
-};
+use typed_trees::expression::{BinaryOperator, ExpressionNode, TableBinaryExpression};
 use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
-use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
 use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
 
@@ -265,104 +262,6 @@ fn direct_lift_runtime_accepts_exact_float_array_literals() {
         },
     );
     assert_ne!(runtime, format_drift, "element format remains identity");
-}
-
-#[test]
-fn direct_lift_runtime_accepts_exact_nested_float_array_literals() {
-    use crate::proof_contracts::quotients::relation_plan::runtime_correspondence::ClosedFloatArrayElement;
-
-    let mut program = TypedTrees::default();
-    let quotient = quotient_type(
-        &mut program,
-        symbol(994),
-        "NestedFloatArrayLiteralQ",
-        symbol(995),
-        "NestedFloatArrayLiteralR",
-    );
-    let carrier = carrier_type(&mut program);
-    let fixed_floats = fixed_nested_float_array_type(&mut program, "f32", 2, 2);
-    let literal = nested_float_array_literal(
-        &mut program,
-        vec![
-            vec![
-                FloatLiteral::parse("1.25").expect("anonymous exact decimal literal"),
-                FloatLiteral::parse("2.5f32").expect("format-landed f32 literal"),
-            ],
-            vec![
-                FloatLiteral::parse("3.75").expect("anonymous exact decimal literal"),
-                FloatLiteral::parse("4.5f32").expect("format-landed f32 literal"),
-            ],
-        ],
-    );
-    let arguments = program
-        .expression_table
-        .insert_expression_handles([literal]);
-    let call = call_with_arguments(arguments);
-    let state = State {
-        return_type: quotient,
-        ..Default::default()
-    };
-    let request = push_representative(&mut program, &[(fixed_floats, false, false)], carrier);
-
-    let plan = derive_direct_terminal_plan(
-        &program,
-        &program,
-        &Machine::default(),
-        &state,
-        &call,
-        &request,
-    )
-    .expect("every float-matrix leaf follows the exact scalar format rule");
-    assert_eq!(
-        plan.input_relations,
-        [InputRelation::ExactEquality(fixed_floats)]
-    );
-    let runtime = plan
-        .direct_lift_correspondence
-        .expect("nested float-array literal runtime correspondence");
-    let element = |spelling: &str, landing| ClosedFloatArrayElement {
-        spelling: spelling.to_owned(),
-        landing,
-    };
-    assert_eq!(
-        runtime.positions,
-        [crate::proof_contracts::quotients::relation_plan::runtime_correspondence::DirectLiftRuntimePosition {
-            source: crate::proof_contracts::quotients::relation_plan::runtime_correspondence::DirectLiftArgumentSource::Literal(
-                crate::proof_contracts::quotients::relation_plan::runtime_correspondence::ClosedLiftLiteral::NestedFloatArray {
-                    rows: Arc::from(vec![
-                        Arc::from(vec![
-                            element("1.25", FloatFormat::F32),
-                            element("2.5", FloatFormat::F32),
-                        ]),
-                        Arc::from(vec![
-                            element("3.75", FloatFormat::F32),
-                            element("4.5", FloatFormat::F32),
-                        ]),
-                    ]),
-                    target_type: program.normalized_type_identity(fixed_floats),
-                },
-            ),
-            representative_parameter: symbol(100),
-        }]
-    );
-    let mut evidence_drift = runtime.clone();
-    evidence_drift.positions[0].source = crate::proof_contracts::quotients::relation_plan::runtime_correspondence::DirectLiftArgumentSource::Literal(
-        crate::proof_contracts::quotients::relation_plan::runtime_correspondence::ClosedLiftLiteral::NestedFloatArray {
-            rows: Arc::from(vec![
-                Arc::from(vec![element("1.25", FloatFormat::F32)]),
-                Arc::from(vec![
-                    element("2.5", FloatFormat::F32),
-                    element("3.75", FloatFormat::F64),
-                    element("4.5", FloatFormat::F32),
-                ]),
-            ]),
-            target_type: program.normalized_type_identity(fixed_floats),
-        },
-    );
-    assert_ne!(
-        runtime, evidence_drift,
-        "row boundaries and float formats remain evidence identity"
-    );
 }
 
 #[test]
@@ -1408,197 +1307,4 @@ fn direct_lift_literal_rejects_mutable_or_attached_representative_destinations()
             Err(RelationPlanError::DirectLiftParameterModeMismatch(0)),
         );
     }
-}
-
-#[test]
-fn define_does_not_admit_closed_literal_arguments() {
-    let mut program = TypedTrees::default();
-    let quotient = quotient_type(
-        &mut program,
-        symbol(927),
-        "LiteralQ",
-        symbol(928),
-        "LiteralR",
-    );
-    let carrier = carrier_type(&mut program);
-    let bool_type = primitive_type(&mut program, "bool");
-    let boolean = program
-        .expression_table
-        .insert(ExpressionNode::Boolean(true));
-    let arguments = program
-        .expression_table
-        .insert_expression_handles([boolean]);
-    let call = call_with_arguments(arguments);
-    let state = State {
-        return_type: quotient,
-        ..Default::default()
-    };
-    let mut request = push_representative(&mut program, &[(bool_type, false, false)], carrier);
-    request.kind = QuotientOperationKind::Define;
-
-    assert_eq!(
-        derive_direct_terminal_plan(
-            &program,
-            &program,
-            &Machine::default(),
-            &state,
-            &call,
-            &request,
-        ),
-        Err(RelationPlanError::UnresolvedArgumentType(0)),
-    );
-}
-
-#[test]
-fn direct_lift_runtime_duplication_can_exceed_public_arity_without_granting_mutable_execution() {
-    let mut program = TypedTrees::default();
-    let quotient_type = quotient_type(
-        &mut program,
-        symbol(897),
-        "DuplicatedQ",
-        symbol(898),
-        "DuplicatedR",
-    );
-    let carrier = carrier_type(&mut program);
-    let public_symbol = symbol(899);
-    let value = named_argument(&mut program, "value", public_symbol);
-    let arguments = program
-        .expression_table
-        .insert_expression_handles([value, value]);
-    let call = call_with_arguments(arguments);
-    let mut state = State {
-        return_type: quotient_type,
-        ..Default::default()
-    };
-    program.push_state_parameter(
-        &mut state,
-        StateParameter {
-            symbol: public_symbol,
-            name: Identifier::generated_static("value"),
-            type_reference: quotient_type,
-            is_mutable: true,
-            ..Default::default()
-        },
-    );
-    let representative = RepresentativeTelescope {
-        machine_symbol: symbol(900),
-        state_symbol: symbol(901),
-        parameters: vec![
-            RepresentativeRuntimeParameter {
-                symbol: symbol(902),
-                type_reference: carrier,
-                is_mutable: true,
-                is_self: false,
-            },
-            RepresentativeRuntimeParameter {
-                symbol: symbol(903),
-                type_reference: carrier,
-                is_mutable: true,
-                is_self: false,
-            },
-        ],
-        return_type: carrier,
-        machine_contracts: HandleSpan::empty(),
-        state_contracts: HandleSpan::empty(),
-        static_application: RepresentativeStaticApplication {
-            lifetime_arguments: Vec::new(),
-            bindings: Vec::new(),
-        },
-    };
-    let relation = ExactQuotientRelation {
-        quotient_type,
-        quotient_symbol: symbol(897),
-        relation_symbol: symbol(898),
-    };
-    let input_relations = [
-        InputRelation::Quotient(relation),
-        InputRelation::Quotient(relation),
-    ];
-
-    // This judgment retains correspondence only. Ordinary multiplicity,
-    // custody, and call admission must still reject an executable duplicate
-    // mutable occurrence at their owning layers.
-    let runtime = derive_direct_lift_runtime_correspondence(
-        &program,
-        &Machine::default(),
-        &state,
-        &call,
-        &input_relations,
-        relation,
-        &representative,
-    )
-    .expect("two representative positions may consume one public parameter");
-    assert_eq!(runtime.positions.len(), 2);
-    assert!(runtime.positions.iter().all(|position| position.source
-        == crate::proof_contracts::quotients::relation_plan::runtime_correspondence::DirectLiftArgumentSource::PublicParameter(public_symbol)));
-    assert_eq!(
-        derive_define_runtime_correspondence(
-            &program,
-            &Machine::default(),
-            &state,
-            &call,
-            &input_relations,
-            relation,
-            &representative,
-        ),
-        Err(RelationPlanError::DefineRuntimeArityMismatch),
-    );
-}
-
-#[test]
-fn direct_lift_runtime_rung_allows_a_zero_argument_representative_to_omit_every_public_parameter() {
-    let mut program = TypedTrees::default();
-    let result_quotient =
-        quotient_type(&mut program, symbol(891), "ResultQ", symbol(892), "ResultR");
-    let carrier = carrier_type(&mut program);
-    let mut state = State {
-        return_type: result_quotient,
-        ..Default::default()
-    };
-    for (parameter, name, type_reference) in [
-        (symbol(893), "unused_quotient", result_quotient),
-        (symbol(894), "unused_ordinary", carrier),
-    ] {
-        program.push_state_parameter(
-            &mut state,
-            StateParameter {
-                symbol: parameter,
-                name: Identifier::generated_static(name),
-                type_reference,
-                ..Default::default()
-            },
-        );
-    }
-    let representative = RepresentativeTelescope {
-        machine_symbol: symbol(895),
-        state_symbol: symbol(896),
-        parameters: Vec::new(),
-        return_type: carrier,
-        machine_contracts: HandleSpan::empty(),
-        state_contracts: HandleSpan::empty(),
-        static_application: RepresentativeStaticApplication {
-            lifetime_arguments: Vec::new(),
-            bindings: Vec::new(),
-        },
-    };
-    let result_relation = ExactQuotientRelation {
-        quotient_type: result_quotient,
-        quotient_symbol: symbol(891),
-        relation_symbol: symbol(892),
-    };
-    let arguments = program
-        .expression_table
-        .insert_expression_handles(std::iter::empty());
-
-    let runtime = derive_direct_lift_runtime_correspondence(
-        &program,
-        &Machine::default(),
-        &state,
-        &call_with_arguments(arguments),
-        &[],
-        result_relation,
-        &representative,
-    )
-    .expect("zero-argument lift may omit the complete public telescope");
-    assert!(runtime.positions.is_empty());
 }

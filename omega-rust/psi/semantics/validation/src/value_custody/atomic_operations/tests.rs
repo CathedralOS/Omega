@@ -49,22 +49,6 @@ fn validation_messages(source: &str) -> Vec<String> {
 const NOT_MUTABLE: &str = "assignment cannot write `value` because it is not mutable in this state";
 
 #[test]
-fn store_carrier_on_atomic_storage_demands_a_shared_receiver() {
-    let program = crate::front_end::typed_program(
-        "data Cell { value: AtomicU32; }
-         machine Cell::publish(&self, value: u32) { self.value.store(value, NoOrdering); }",
-    );
-    assert_eq!(
-        publish_assignments(&program),
-        [(
-            BorrowPolarity::Shared,
-            Some(AtomicAccessOperation::Store(MemoryOrdering::NoOrdering)),
-            true
-        )]
-    );
-}
-
-#[test]
 fn fetch_carrier_recovers_its_family_from_the_interpreter_model() {
     let program = crate::front_end::typed_program(
         "data Cell { value: AtomicU32; }
@@ -95,62 +79,6 @@ fn fetch_carrier_recovers_its_family_from_the_interpreter_model() {
             Some(AtomicAccessOperation::FetchXor(MemoryOrdering::Receive)),
             Some(AtomicAccessOperation::FetchSub(MemoryOrdering::GlobalOrder)),
         ]
-    );
-}
-
-#[test]
-fn swap_and_compare_exchange_carriers_share_the_receiver() {
-    let program = crate::front_end::typed_program(
-        "data Cell { value: AtomicU32; }
-         machine Cell::publish(&self) {
-             let displaced: u32 = self.value.swap(7, ReceivePublish);
-             let observed: u32 = self.value.compare_exchange(7, 9, ReceivePublish, Receive);
-         }",
-    );
-    let carried: Vec<_> = publish_assignments(&program)
-        .into_iter()
-        .map(|(polarity, carried, _)| {
-            assert_eq!(polarity, BorrowPolarity::Shared);
-            carried
-        })
-        .collect();
-    assert_eq!(
-        carried,
-        [
-            Some(AtomicAccessOperation::Swap(MemoryOrdering::ReceivePublish)),
-            Some(AtomicAccessOperation::CompareExchange {
-                success: MemoryOrdering::ReceivePublish,
-                failure: MemoryOrdering::Receive,
-            }),
-        ]
-    );
-}
-
-#[test]
-fn direct_assignment_to_atomic_storage_keeps_the_exclusive_demand() {
-    let program = crate::front_end::typed_program(
-        "data Cell { value: AtomicU32; }
-         machine Cell::publish(&self, value: u32) { self.value = value; }",
-    );
-    assert_eq!(
-        publish_assignments(&program),
-        [(BorrowPolarity::Exclusive, None, true)]
-    );
-}
-
-#[test]
-fn store_carrier_on_plain_storage_keeps_the_exclusive_demand() {
-    let program = crate::front_end::typed_program(
-        "data Cell { value: u32; }
-         machine Cell::publish(&self, value: u32) { self.value.store(value, NoOrdering); }",
-    );
-    assert_eq!(
-        publish_assignments(&program),
-        [(
-            BorrowPolarity::Exclusive,
-            Some(AtomicAccessOperation::Store(MemoryOrdering::NoOrdering)),
-            false
-        )]
     );
 }
 

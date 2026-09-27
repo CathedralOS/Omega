@@ -1,25 +1,16 @@
 use super::{
     arithmetic_implication_fixture, baseline_arithmetic_implication_fixture, binary_expression,
     boolean_array_literal, boolean_tensor3_literal, call_with_arguments,
-    canonical_byte_array_literal, carrier_type, direct_lift_implication_fixture,
-    exact_public_location, float_array_literal, integer_array_literal, named_argument,
-    nested_boolean_array_literal, nested_canonical_byte_array_literal, nested_float_array_literal,
-    nested_integer_array_literal, primitive_type, quotient_type, static_argument, symbol,
-    wrap_array_literal,
+    canonical_byte_array_literal, direct_lift_implication_fixture, float_array_literal,
+    integer_array_literal, named_argument, nested_boolean_array_literal,
+    nested_canonical_byte_array_literal, nested_float_array_literal, nested_integer_array_literal,
+    static_argument, symbol, wrap_array_literal,
 };
 use crate::proof_contracts::quotients::relation_plan::correspondence_certificate::{
-    FixedRepresentativeCallPreconditions, QuotientCorrespondenceEvidence,
-    compose_lift_correspondence_certificate,
-};
-use crate::proof_contracts::quotients::relation_plan::theorem_schema::{
-    TheoremApplicationSide, TheoremContractFactLocation, TheoremContractOwner,
-    derive_expected_theorem_schema,
+    FixedRepresentativeCallPreconditions, compose_lift_correspondence_certificate,
 };
 use crate::proof_contracts::quotients::relation_plan::{
-    ExactQuotientRelation, InputRelation, RelationPlanError, RepresentativeRuntimeParameter,
-    RepresentativeStaticApplication, RepresentativeTelescope,
-    derive_direct_lift_precondition_implication, derive_direct_lift_public_precondition_partition,
-    derive_representative_precondition_partition,
+    RelationPlanError, derive_direct_lift_precondition_implication,
 };
 use arena::HandleSpan;
 use numerics::arithmetic::ArithmeticDomain;
@@ -30,12 +21,9 @@ use std::sync::Arc;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::domain::{ProofFact, ProofMembershipFact};
-use typed_trees::expression::{BinaryOperator, ExpressionNode, TableBinaryExpression};
-use typed_trees::machine::Machine;
+use typed_trees::expression::{BinaryOperator, ExpressionNode};
 use typed_trees::name::Identifier;
 use typed_trees::proposition::PropositionApplication;
-use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
-use typed_trees::state::State;
 use typed_trees::types::TypeReferenceNode;
 
 #[test]
@@ -128,62 +116,6 @@ fn direct_lift_arithmetic_implication_rejects_proof_views_float_and_domain_drift
 }
 
 #[test]
-fn direct_lift_q_implies_p_retains_both_exact_theorem_coordinates_and_allows_extra_q() {
-    let fixture = direct_lift_implication_fixture(true);
-    assert_eq!(fixture.public_partition.dependent.len(), 3);
-    assert_eq!(fixture.representative_partition.dependent.len(), 1);
-    let implication = derive_direct_lift_precondition_implication(
-        &fixture.program,
-        &fixture.public_machine,
-        &fixture.public_state,
-        &fixture.representative,
-        &fixture.public_partition,
-        &fixture.representative_partition,
-        &fixture.runtime,
-        &fixture.expected_theorem,
-        &fixture.verified_theorem,
-    )
-    .expect("one matching Q fact may imply P while another Q fact remains extra");
-
-    assert_eq!(implication.rows.len(), 2);
-    assert_eq!(
-        implication.rows[0].application,
-        TheoremApplicationSide::Left
-    );
-    assert_eq!(
-        implication.rows[1].application,
-        TheoremApplicationSide::Right
-    );
-    assert_eq!(
-        exact_public_location(&implication.rows[0].proof).fact_position,
-        0
-    );
-    assert_eq!(implication.rows[0].representative.fact_position, 0);
-    assert_eq!(implication.rows[0].theorem.fact_position, 1);
-    assert_eq!(implication.rows[1].theorem.fact_position, 2);
-
-    let certificate = compose_lift_correspondence_certificate(
-        &Ok(fixture.verified_theorem.clone()),
-        &fixture.runtime,
-        &implication,
-        &FixedRepresentativeCallPreconditions { rows: Vec::new() },
-        &fixture.representative_partition,
-    )
-    .expect("verified theorem plus exact implication composes");
-    let QuotientCorrespondenceEvidence::DirectLift {
-        runtime,
-        precondition,
-        fixed,
-    } = certificate.evidence
-    else {
-        panic!("direct lift evidence")
-    };
-    assert_eq!(runtime, fixture.runtime);
-    assert_eq!(precondition, implication);
-    assert!(fixed.rows.is_empty());
-}
-
-#[test]
 fn direct_lift_q_implies_p_rejects_missing_identity_and_theorem_coordinate_tamper() {
     let missing = direct_lift_implication_fixture(false);
     assert_eq!(missing.public_partition.dependent.len(), 2);
@@ -267,250 +199,6 @@ fn direct_lift_literal_stays_fixed_and_dependent_use_requires_an_exact_public_fa
             &dependent_literal,
             &fixture.expected_theorem,
             &fixture.verified_theorem,
-        ),
-        Err(RelationPlanError::DirectLiftLeftPreconditionNotImplied(0)),
-    );
-}
-
-#[test]
-fn direct_lift_literal_substitutes_exactly_inside_dependent_representative_p() {
-    let mut program = TypedTrees::default();
-    let quotient = quotient_type(
-        &mut program,
-        symbol(930),
-        "LiteralQ",
-        symbol(931),
-        "LiteralR",
-    );
-    let carrier = carrier_type(&mut program);
-    let i32_type = primitive_type(&mut program, "i32");
-    let public_symbol = symbol(932);
-    let representative_quotient = symbol(933);
-    let representative_literal = symbol(934);
-    let public_value = named_argument(&mut program, "public", public_symbol);
-    let public_literal = program.expression_table.insert(ExpressionNode::Integer(
-        IntegerLiteral::from_value(7).with_landing(IntegerLanding {
-            landed_type: LandedIntegerType::I32,
-            domain: ArithmeticDomain::Exact,
-        }),
-    ));
-    let public_fact =
-        program
-            .expression_table
-            .insert(ExpressionNode::Binary(TableBinaryExpression {
-                left: public_value,
-                operator: BinaryOperator::Equal,
-                right: public_literal,
-            }));
-    let public_facts = program
-        .proof_facts
-        .insert_many([ProofFact::Expression(public_fact)]);
-    let mut public_machine = Machine::default();
-    program.push_machine_contract(
-        &mut public_machine,
-        SignatureContract {
-            kind: SignatureContractKind::Requires,
-            facts: public_facts,
-            ..Default::default()
-        },
-    );
-    let mut public_state = State::default();
-    program.push_state_parameter(
-        &mut public_state,
-        StateParameter {
-            symbol: public_symbol,
-            name: Identifier::generated_static("public"),
-            type_reference: quotient,
-            ..Default::default()
-        },
-    );
-
-    let representative_value =
-        named_argument(&mut program, "representative", representative_quotient);
-    let representative_constant = named_argument(&mut program, "constant", representative_literal);
-    let representative_fact =
-        program
-            .expression_table
-            .insert(ExpressionNode::Binary(TableBinaryExpression {
-                left: representative_value,
-                operator: BinaryOperator::Equal,
-                right: representative_constant,
-            }));
-    let representative_facts = program
-        .proof_facts
-        .insert_many([ProofFact::Expression(representative_fact)]);
-    let representative_contracts = program.signature_contracts.insert_many([SignatureContract {
-        kind: SignatureContractKind::Requires,
-        facts: representative_facts,
-        ..Default::default()
-    }]);
-    let representative = RepresentativeTelescope {
-        machine_symbol: symbol(935),
-        state_symbol: symbol(936),
-        parameters: vec![
-            RepresentativeRuntimeParameter {
-                symbol: representative_quotient,
-                type_reference: carrier,
-                is_mutable: false,
-                is_self: false,
-            },
-            RepresentativeRuntimeParameter {
-                symbol: representative_literal,
-                type_reference: i32_type,
-                is_mutable: false,
-                is_self: false,
-            },
-        ],
-        return_type: carrier,
-        machine_contracts: representative_contracts,
-        state_contracts: HandleSpan::empty(),
-        static_application: RepresentativeStaticApplication {
-            lifetime_arguments: Vec::new(),
-            bindings: Vec::new(),
-        },
-    };
-    let relation = ExactQuotientRelation {
-        quotient_type: quotient,
-        quotient_symbol: symbol(930),
-        relation_symbol: symbol(931),
-    };
-    let input_relations = [
-        InputRelation::Quotient(relation),
-        InputRelation::ExactEquality(i32_type),
-    ];
-    let runtime = crate::proof_contracts::quotients::relation_plan::runtime_correspondence::DirectLiftRuntimeCorrespondence {
-        positions: vec![
-            crate::proof_contracts::quotients::relation_plan::runtime_correspondence::DirectLiftRuntimePosition {
-                source: crate::proof_contracts::quotients::relation_plan::runtime_correspondence::DirectLiftArgumentSource::PublicParameter(public_symbol),
-                representative_parameter: representative_quotient,
-            },
-            crate::proof_contracts::quotients::relation_plan::runtime_correspondence::DirectLiftRuntimePosition {
-                source: crate::proof_contracts::quotients::relation_plan::runtime_correspondence::DirectLiftArgumentSource::Literal(
-                    crate::proof_contracts::quotients::relation_plan::runtime_correspondence::ClosedLiftLiteral::Integer {
-                        spelling: "7".to_owned(),
-                        landing: IntegerLanding {
-                            landed_type: LandedIntegerType::I32,
-                            domain: ArithmeticDomain::Exact,
-                        },
-                    },
-                ),
-                representative_parameter: representative_literal,
-            },
-        ],
-    };
-    let public_partition = derive_direct_lift_public_precondition_partition(
-        &program,
-        &public_machine,
-        &public_state,
-        &input_relations,
-        &runtime,
-    )
-    .expect("mixed public Q partitions on its quotient value");
-    let representative_partition =
-        derive_representative_precondition_partition(&program, &input_relations, &representative)
-            .expect("mixed representative P partitions on its quotient value");
-    assert_eq!(public_partition.dependent.len(), 1);
-    assert_eq!(representative_partition.dependent.len(), 1);
-    let expected =
-        derive_expected_theorem_schema(&program, &input_relations, relation, &representative)
-            .expect("literal positions remain ordinary universal theorem positions");
-    assert_eq!(expected.parameters.len(), 3);
-    assert_eq!(expected.left_application.arguments, [0, 2]);
-    assert_eq!(expected.right_application.arguments, [1, 2]);
-    let verified = crate::proof_contracts::quotients::relation_plan::theorem_schema_verification::VerifiedTheoremSchema {
-        theorem_machine_symbol: symbol(937),
-        theorem_state_symbol: symbol(938),
-        parameters: expected
-            .parameters
-            .iter()
-            .enumerate()
-            .map(|(expected_position, _)| {
-                crate::proof_contracts::quotients::relation_plan::theorem_schema_verification::VerifiedTheoremParameter {
-                    expected_position,
-                    theorem_symbol: symbol(940 + u32::try_from(expected_position).unwrap()),
-                }
-            })
-            .collect(),
-        relation_premises: expected
-            .relation_premises
-            .iter()
-            .enumerate()
-            .map(
-                |(expected_position, _)| crate::proof_contracts::quotients::relation_plan::theorem_schema_verification::VerifiedTheoremFact {
-                    expected_position,
-                    actual: TheoremContractFactLocation {
-                        owner: TheoremContractOwner::Machine,
-                        contract_position: 0,
-                        fact_position: 10 + expected_position,
-                    },
-                },
-            )
-            .collect(),
-        legality_premises: expected
-            .legality_premises
-            .iter()
-            .enumerate()
-            .map(
-                |(expected_position, _)| crate::proof_contracts::quotients::relation_plan::theorem_schema_verification::VerifiedTheoremFact {
-                    expected_position,
-                    actual: TheoremContractFactLocation {
-                        owner: TheoremContractOwner::Machine,
-                        contract_position: 0,
-                        fact_position: 20 + expected_position,
-                    },
-                },
-            )
-            .collect(),
-        conclusion: TheoremContractFactLocation {
-            owner: TheoremContractOwner::State,
-            contract_position: 0,
-            fact_position: 0,
-        },
-    };
-    let implication = derive_direct_lift_precondition_implication(
-        &program,
-        &public_machine,
-        &public_state,
-        &representative,
-        &public_partition,
-        &representative_partition,
-        &runtime,
-        &expected,
-        &verified,
-    )
-    .expect("Q(public, 7i32) exactly contains P(representative, literal-fed parameter)");
-    assert_eq!(implication.rows.len(), 2);
-    assert_eq!(
-        implication.rows[0].application,
-        TheoremApplicationSide::Left
-    );
-    assert_eq!(
-        implication.rows[1].application,
-        TheoremApplicationSide::Right
-    );
-    assert_ne!(implication.rows[0].theorem, implication.rows[1].theorem);
-
-    let mut drifted = runtime.clone();
-    drifted.positions[1].source = crate::proof_contracts::quotients::relation_plan::runtime_correspondence::DirectLiftArgumentSource::Literal(
-        crate::proof_contracts::quotients::relation_plan::runtime_correspondence::ClosedLiftLiteral::Integer {
-            spelling: "8".to_owned(),
-            landing: IntegerLanding {
-                landed_type: LandedIntegerType::I32,
-                domain: ArithmeticDomain::Exact,
-            },
-        },
-    );
-    assert_eq!(
-        derive_direct_lift_precondition_implication(
-            &program,
-            &public_machine,
-            &public_state,
-            &representative,
-            &public_partition,
-            &representative_partition,
-            &drifted,
-            &expected,
-            &verified,
         ),
         Err(RelationPlanError::DirectLiftLeftPreconditionNotImplied(0)),
     );

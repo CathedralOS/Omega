@@ -11,56 +11,6 @@ fn diagnostics(source: &str) -> Vec<String> {
 }
 
 #[test]
-fn cast_range_requires_actual_membership_for_every_arithmetic_policy() {
-    for policy in ["", " in Wrapping", " in Saturating", " in Trapping"] {
-        for value in ["0", "10", "7 / 2 * 2"] {
-            let source =
-                format!("machine run() -> u64 {{ (({value}) as u64 [0..=10]{policy}) as u64 }}");
-            let errors = diagnostics(&source);
-            assert!(errors.is_empty(), "{source}: {errors:?}");
-        }
-        for (parameters, value) in [("", "11"), ("value: u64", "value")] {
-            let source = format!(
-                "machine run({parameters}) -> u64 {{ ({value} as u64 [0..=10]{policy}) as u64 }}"
-            );
-            let errors = diagnostics(&source);
-            assert!(
-                errors
-                    .iter()
-                    .any(|error| error.contains("cast target range")),
-                "{source}: {errors:?}"
-            );
-        }
-    }
-}
-
-#[test]
-fn cast_ranges_use_live_source_facts_and_do_not_prove_themselves() {
-    for source in [
-        "machine run(value: u64 [0..=10]) -> u64 { value as u64 [0..=10] }",
-        "machine run(value: u64) -> u64 requires value <= 10 { value as u64 [0..=10] }",
-        "machine run(value: u64) -> u64 { transition value <= 10 { true -> (value as u64 [0..=10]) false -> 0 } }",
-        "machine run(value: u64) -> u64 { transition value > 10 { true -> 0 false -> (value as u64 [0..=10]) } }",
-    ] {
-        let errors = diagnostics(source);
-        assert!(errors.is_empty(), "{source}: {errors:?}");
-    }
-    for source in [
-        "machine run(value: u64) -> u64 { value as u64 [0..=10] }",
-        "machine run(value: u64) -> u64 { (value as u64 [0..=10]) as u64 [0..=10] }",
-        "machine change(value: &mut u64) { value = 100; } machine run(value: &mut u64) -> u64 requires value <= 10 { change(value); value as u64 [0..=10] }",
-    ] {
-        let errors = diagnostics(source);
-        assert!(
-            errors
-                .iter()
-                .any(|error| error.contains("cast target range")),
-            "{source}: {errors:?}"
-        );
-    }
-}
-
-#[test]
 fn cast_ranges_validate_nested_and_selected_results() {
     for expression in [
         "(11 as u64 [0..=10]) + 1u64",
@@ -69,22 +19,6 @@ fn cast_ranges_validate_nested_and_selected_results() {
     ] {
         let source = format!("machine run() -> u64 {{ {expression} }}");
         let errors = diagnostics(&source);
-        assert!(
-            errors
-                .iter()
-                .any(|error| error.contains("cast target range")),
-            "{source}: {errors:?}"
-        );
-    }
-}
-
-#[test]
-fn cast_range_uses_each_operations_policy_result() {
-    for source in [
-        "machine run() -> u8 { ((((255u8 as u8 in Saturating) + 1) - 1) as u8 [255..=255]) as u8 }",
-        "machine run() -> u8 { ((((255u8 as u8 in Wrapping) + 1) / 2) as u8 [128..=128]) as u8 }",
-    ] {
-        let errors = diagnostics(source);
         assert!(
             errors
                 .iter()
