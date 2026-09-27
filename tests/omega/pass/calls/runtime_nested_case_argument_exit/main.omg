@@ -2,6 +2,8 @@
 // its nested enum or owned record. Both calls are reached, and the caller
 // observes the selected case through the factory's returned record. The
 // affine payload moves into its callee, which owns its selected-case cleanup.
+// The sibling Context argument owns both its explicit scalar field and the
+// synthesized zero initializer for padding; neither belongs to the case.
 use omega_language_std::console;
 use omega::language::core::binding;
 
@@ -15,15 +17,16 @@ data ScanCompareType [copy] {
 }
 
 data Payload { value: u64; }
+data Context { padding: [u64; 2]; value: u64; }
 data Message {
     case Present(payload: Payload);
     case Empty;
 }
 
 data Output { value: u64; }
-machine Output::from_compare(compare: ScanCompareType) -> Output {
+machine Output::from_compare(context: Context, compare: ScanCompareType) -> Output {
     transition compare {
-        ScanCompareType::Immediate { compare_type } -> (Output { value: 30 })
+        ScanCompareType::Immediate { compare_type } -> (Output { value: context.value })
         ScanCompareType::Relative -> (Output { value: 0 })
     }
 }
@@ -40,6 +43,7 @@ machine Output::forward(output: Output) -> Output {
 data Main { console: Binding<Console>; }
 machine Main::main(&mut self) reaches Console {
     let comparison: Output = Output::from_compare(
+        Context { value: 30 },
         ScanCompareType::Immediate { compare_type: ScanCompareTypeImmediate::Equal }
     );
     let message: Output = Output::from_message(
