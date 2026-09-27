@@ -121,8 +121,8 @@ fn merge_terminal_production_timings(
 /// Produce the retained Terminal product and its ordinary compiler report.
 /// The admitted entry product both routes leave through. Terminal production
 /// is keyed on the selected entry's exact machine symbol and retains the
-/// unoptimized module beside the artifact; production must hand back the
-/// checked entry receipt, and the authored behavior exclusions are judged on
+/// unoptimized module beside the artifact when exclusions need it. Production
+/// must hand back the checked entry receipt, and authored exclusions are judged on
 /// that unoptimized composition before either route continues. The routes
 /// differ only in the callback custody they carry through production, the
 /// product label their diagnostics wear, and what they do with the admitted
@@ -158,7 +158,7 @@ fn produce_admitted_entry_artifact<C>(
                 callback_custody,
                 // The authored behavior exclusions are judged against the
                 // unoptimized composition the artifact was published from.
-                retain_unoptimized: true,
+                retain_unoptimized: !checked.behavior_exclusions().is_empty(),
                 timings: &mut production_timings,
             })
         })
