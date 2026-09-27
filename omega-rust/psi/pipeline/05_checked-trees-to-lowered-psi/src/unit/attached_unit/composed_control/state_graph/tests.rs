@@ -41,6 +41,55 @@ fn plan(checked: &CheckedTrees) -> CheckedComposedUnitControlMachinePlan {
 }
 
 #[test]
+fn receiver_graph_accepts_shared_state_view_without_gaining_authority() {
+    let checked = crate::front_end::checked_program(
+        r#"
+        data Main { counter: u64; }
+        machine Main::main(&mut self) {
+            self.counter = 7;
+            transition { _ -> observe() }
+            state observe(&self) {
+                let observed: u64 = self.counter;
+                transition observed == 7 { true -> done() false -> done() }
+            }
+            state done(&self) {}
+        }
+    "#,
+    );
+    let original = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_machines
+        .iter()
+        .find(|plan| plan.states.len() == 3)
+        .expect("a mutable invocation may continue through shared receiver states");
+    admission::admit(&checked, original).expect("source-exact shared view");
+    assert!(!super::parameters::receiver_transfer_matches(
+        &original.states[1].structural_parameters[0],
+        &original.states[0].structural_parameters[0],
+    ));
+
+    let mut changed = original.clone();
+    changed.states[1].structural_parameters[0].access =
+        checked_trees::CheckedStructuralAccess::MutableBorrow;
+    assert!(admission::admit(&checked, &changed).is_err());
+    let mut changed = original.clone();
+    changed.states[1].structural_parameters[0].type_identity = "DifferentReceiver".into();
+    assert!(admission::admit(&checked, &changed).is_err());
+
+    let mut changed = original.clone();
+    let CheckedComposedUnitControlTerminatorPlan::Jump { successor } =
+        &mut changed.states[0].terminator
+    else {
+        panic!("entry jumps to observe");
+    };
+    successor.transfers[0].source =
+        checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 1 };
+    assert!(admission::admit(&checked, &changed).is_err());
+}
+
+#[test]
 fn receiver_graph_rejects_missing_and_reordered_effects() {
     let checked = fixture();
     let original = plan(&checked);

@@ -166,13 +166,15 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             let mut block_position = 0_u32;
             for (dense, parameter) in block_parameters.iter_mut().enumerate() {
                 if parameter.is_self {
-                    *parameter = parameters
+                    // Keep the state's admitted access view while referring
+                    // to the original invocation storage, never a copied receiver.
+                    parameter.place = parameters
                         .iter()
                         .find(|entry| entry.is_self)
                         .ok_or(LoweringError::Unsupported(
                             "Unit graph receiver invocation is missing",
                         ))?
-                        .clone();
+                        .place;
                 } else if let Some(root) = admitted
                     .claim_transport
                     .aliased

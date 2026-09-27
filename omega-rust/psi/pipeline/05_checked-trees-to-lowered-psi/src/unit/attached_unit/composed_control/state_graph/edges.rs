@@ -488,7 +488,7 @@ pub(super) fn validate_bindings(
             ))?;
         if transfer.target_parameter_index as usize != position
             || source.type_identity != target.type_identity
-            || source.access != target.access
+            || (!target.is_self && source.access != target.access)
             || source.multiplicity != target.multiplicity
         {
             return unsupported("Unit graph borrowed transfer type or order drifted");
@@ -499,7 +499,7 @@ pub(super) fn validate_bindings(
             } => return unsupported("Unit graph result was not independently rejoined"),
             checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { .. } => {
                 if target.is_self {
-                    if source != target {
+                    if !super::parameters::receiver_transfer_matches(source, target) {
                         return unsupported("Unit graph persistent receiver transfer drifted");
                     }
                 } else {

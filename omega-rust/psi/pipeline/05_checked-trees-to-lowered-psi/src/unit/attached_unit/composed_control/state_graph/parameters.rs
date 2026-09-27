@@ -1,4 +1,5 @@
-//! Persistent receivers retain the exact invocation declaration in every state.
+//! Persistent receivers keep the invocation place and type. A state may restrict
+//! mutable access to a shared view, but cannot gain authority on an edge.
 
 use super::super::super::{Multiplicity, unsupported};
 use super::super::{CheckedTrees, LoweringError};
@@ -27,12 +28,16 @@ pub(super) fn validate_receiver(
         || !parameter.qualifications.is_empty()
         || parameter.fused_service_erasure.is_some()
         || plan.attachment_type_identity.as_ref() != Some(&parameter.type_identity)
-        || plan.states.first().and_then(|state| {
-            state
-                .structural_parameters
-                .iter()
-                .find(|entry| entry.is_self)
-        }) != Some(parameter)
+        || !plan
+            .states
+            .first()
+            .and_then(|state| {
+                state
+                    .structural_parameters
+                    .iter()
+                    .find(|entry| entry.is_self)
+            })
+            .is_some_and(|entry| receiver_transfer_matches(entry, parameter))
     {
         return unsupported("Unit graph receiver lost its invocation authority");
     }
@@ -44,4 +49,22 @@ pub(super) fn validate_receiver(
         return unsupported("Unit graph receiver lost its exact structural type");
     }
     Ok(())
+}
+
+pub(super) fn receiver_transfer_matches(
+    source: &checked_trees::CheckedUnitStructuralParameterPlan,
+    target: &checked_trees::CheckedUnitStructuralParameterPlan,
+) -> bool {
+    if !source.is_self || !target.is_self {
+        return false;
+    }
+    // Compare the complete declaration after the sole permitted restriction,
+    // so position, type, domain and service custody cannot change with access.
+    let mut transferred = source.clone();
+    if transferred.access == checked_trees::CheckedStructuralAccess::MutableBorrow
+        && target.access == checked_trees::CheckedStructuralAccess::SharedBorrow
+    {
+        transferred.access = checked_trees::CheckedStructuralAccess::SharedBorrow;
+    }
+    transferred == *target
 }
