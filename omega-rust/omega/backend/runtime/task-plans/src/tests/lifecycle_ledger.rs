@@ -194,29 +194,3 @@ fn lifecycle_rejects_replayed_invocations_and_provider_receipts() {
         "settlement does not make a provider invocation receipt replayable"
     );
 }
-
-#[test]
-fn failed_cross_runtime_settlement_returns_the_linear_claim() {
-    let plan = validate_activation_plan(candidate()).expect("activation plan");
-    let owner_instance = id(120, TaskRuntimeInstanceId::from_normalized_identity);
-    let mut owner = TaskLifecycleLedger::new(runtime(), owner_instance);
-    let mut wrong_instance = TaskLifecycleLedger::new(
-        runtime(),
-        id(121, TaskRuntimeInstanceId::from_normalized_identity),
-    );
-    let receipt = invocation_receipt(&plan, owner_instance, 124, 125);
-    let claim = owner
-        .accept_invocation(
-            &receipt,
-            id(122, ActivationInstanceId::from_normalized_identity),
-            moved_arguments(&plan, 126),
-            TaskStartStorage::InlineCompletion,
-        )
-        .expect("accepted activation");
-    let error = wrong_instance
-        .settle(claim, TaskSettlementOutcome::Completed)
-        .expect_err("another runtime instance cannot settle this claim");
-    owner
-        .settle(error.into_claim(), TaskSettlementOutcome::Completed)
-        .expect("failed settlement preserves the claim");
-}

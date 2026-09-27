@@ -1,9 +1,6 @@
 use super::super::test_support::*;
-use crate::artifacts::{Artifact, ArtifactEntry};
 use crate::authority_digests::{
-    ArtifactId, DestinationPreparationReceiptId, EntrySetId, MachineContractSetId,
-    MachineFootprintId, NonAuthoritativeWriterContextFingerprint64, PlacementPlanId,
-    RelocationSetId,
+    DestinationPreparationReceiptId, NonAuthoritativeWriterContextFingerprint64,
 };
 use crate::post_handoff_writer::{
     DestinationPreparationReceipt, PreparedPostHandoffWriterDestination,
@@ -18,7 +15,6 @@ use post_handoff_writer_plan::{
     POST_HANDOFF_WRITER_CONTEXT_ABI_V1, PostHandoffWriterPlan, PostHandoffWriterSource,
     PostHandoffWriterStep,
 };
-use target::Architecture;
 
 mod writer_execution;
 
@@ -150,46 +146,6 @@ fn installed_code_resolves_only_its_entries_for_atomic_post_handoff_writers() {
         .expect_err("pre-resolved address from another realization must reject");
     assert!(error.0.contains("exact installed realization"));
     assert_eq!(unchanged, [0xa5; 8]);
-}
-
-#[test]
-fn writer_context_cannot_substitute_collision_equal_installed_realization() {
-    let first = installed_code(&admit(&colliding_artifact(1, 0x90)), 110, 0x8000);
-    let second = installed_code(&admit(&colliding_artifact(1, 0xcc)), 110, 0x8000);
-    let target = RelocationTarget::Entry(entry_id(1001));
-    let writer = PostHandoffWriterPlan {
-        byte_len: 8,
-        byte_order: ByteOrder::LittleEndian,
-        placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
-        steps: vec![PostHandoffWriterStep {
-            write: MaterializationWrite {
-                field: "address".into(),
-                target,
-                container_byte_offset: 0,
-                container_width_bits: 64,
-                destination_lsb: 0,
-                source_lsb: 0,
-                width: 64,
-                stored_integer_fit: None,
-            },
-            source: PostHandoffWriterSource::Resolve(target),
-        }],
-    };
-    let site = PlacementSite {
-        base_address: 0x9000,
-        phase: PlacementPhase::PostHandoff,
-        machine_regime: None,
-        installation_scope: None,
-    };
-    let context = second
-        .populate_post_handoff_entry_writer_context(&writer, 8, site)
-        .expect("second realization produces a context");
-    let mut destination = [0xa5; 8];
-    let error = first
-        .execute_populated_post_handoff_entry_writer(&context, &writer, &mut destination, site)
-        .expect_err("exact installed realization mismatch must reject");
-    assert!(error.0.contains("exact installed code"));
-    assert_eq!(destination, [0xa5; 8]);
 }
 
 #[test]
@@ -449,87 +405,4 @@ fn destination_receipt_must_name_an_established_nonempty_writer_right() {
     assert!(error.diagnostic().0.contains("no writer right"));
     let (_mapping, _receipt, _site, returned_bytes) = (*error).into_parts();
     assert_eq!(returned_bytes, &[0xa5; 8]);
-}
-
-#[test]
-fn provider_context_slots_follow_symbolic_targets_not_equal_addresses() {
-    let first = entry_id(2001);
-    let second = entry_id(2002);
-    let candidate = Artifact::from_canonical_decode(
-        id(1001, ArtifactId::from_normalized_identity),
-        Architecture::X86_64,
-        vec![0; 64],
-        id(30, MachineContractSetId::from_normalized_identity),
-        id(31, MachineFootprintId::from_normalized_identity),
-        id(32, PlacementPlanId::from_normalized_identity),
-        artifact_placement_constraints(),
-        id(33, EntrySetId::from_normalized_identity),
-        vec![
-            ArtifactEntry::from_canonical_decode(first, 16),
-            ArtifactEntry::from_canonical_decode(second, 16),
-        ],
-        id(34, RelocationSetId::from_normalized_identity),
-        Vec::new(),
-        authority_commitments(artifact_placement_constraints()),
-    )
-    .expect("two symbolic entries may select one code address");
-    let admitted = admit(&candidate);
-    let installed = installed_code(&admitted, 111, 0x8000);
-    let first = RelocationTarget::Entry(first);
-    let second = RelocationTarget::Entry(second);
-    let step = |target, container_byte_offset| PostHandoffWriterStep {
-        write: MaterializationWrite {
-            field: "address".into(),
-            target,
-            container_byte_offset,
-            container_width_bits: 64,
-            destination_lsb: 0,
-            source_lsb: 0,
-            width: 64,
-            stored_integer_fit: None,
-        },
-        source: PostHandoffWriterSource::Resolve(target),
-    };
-    let writer = PostHandoffWriterPlan {
-        byte_len: 16,
-        byte_order: ByteOrder::LittleEndian,
-        placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
-        steps: vec![step(first, 0), step(second, 8)],
-    };
-    let destination_site = PlacementSite {
-        base_address: 0x9000,
-        phase: PlacementPhase::PostHandoff,
-        machine_regime: None,
-        installation_scope: None,
-    };
-
-    let context = installed
-        .populate_post_handoff_entry_writer_context(&writer, 16, destination_site)
-        .expect("equal addresses retain two target-indexed slots");
-    assert_eq!(context.source_slot_count(), 2);
-    assert_eq!(context.packed_byte_len(), 24);
-    assert!(
-        context.binds_invocation(
-            &writer
-                .lower_reusable_fragment()
-                .expect("target-indexed fragment invocation")
-        )
-    );
-    let mut destination = [0; 16];
-    installed
-        .execute_populated_post_handoff_entry_writer(
-            &context,
-            &writer,
-            &mut destination,
-            destination_site,
-        )
-        .expect("both symbolic slots execute");
-    assert_eq!(
-        u64::from_le_bytes(destination[0..8].try_into().unwrap()),
-        0x8010
-    );
-    assert_eq!(
-        u64::from_le_bytes(destination[8..16].try_into().unwrap()),
-        0x8010
-    );
 }

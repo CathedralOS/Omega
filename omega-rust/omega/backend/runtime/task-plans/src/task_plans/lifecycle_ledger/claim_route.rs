@@ -44,18 +44,6 @@ impl TaskClaimRoute {
         }
     }
 
-    /// A raw field pair. Production mints routes only through `for_record`
-    /// on an accepted claim; this exists so tests can present the fabricated
-    /// and foreign pairs a runtime could read out of an arbitrary `Task<T>`
-    /// value.
-    #[cfg(test)]
-    pub(crate) const fn new(provider: u64, activation: u64) -> Self {
-        Self {
-            provider,
-            activation,
-        }
-    }
-
     /// The `provider` field of the source `Task<T>`: the minting runtime
     /// instance's normalized identity.
     pub const fn provider(self) -> u64 {

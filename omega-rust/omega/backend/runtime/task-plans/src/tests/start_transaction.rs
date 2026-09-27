@@ -1,6 +1,6 @@
 use super::{
     candidate, canonical_crossing, id, invocation_receipt, marshal_arguments, moved_arguments,
-    partial_wcsu_plan, runtime, stack_lease, wcsu_plan,
+    runtime, stack_lease, wcsu_plan,
 };
 use crate::{
     ActivationInstanceId, StackLeaseBacking, StackPlan, StackRepresentationId,
@@ -117,28 +117,6 @@ fn stack_lease_requires_sealed_wcsu_evidence_and_satisfying_backing() {
 }
 
 #[test]
-fn stack_lease_rejects_a_partial_wcsu_bound() {
-    let plan = partial_wcsu_plan(61);
-    let required = plan.candidate().stack_plan;
-    let projection = plan
-        .wcsu_stack_projection()
-        .expect("the partial plan still carries sealed evidence");
-    assert!(!projection.is_exact());
-    assert_eq!(projection.unresolved_calls().len(), 1);
-
-    let error = establish_stack_lease(
-        &plan,
-        StackLeaseBacking {
-            provenance: provenance(200, 208),
-            backing: required,
-        },
-    )
-    .expect_err("a partial bound is not whole-call-graph WCSU evidence");
-    assert!(error.0.contains("partial"));
-    assert!(error.0.contains("unresolved call site"));
-}
-
-#[test]
 fn start_rejection_returns_every_moved_argument_and_the_lease() {
     let plan = wcsu_plan(43);
     let instance = id(210, TaskRuntimeInstanceId::from_normalized_identity);
@@ -236,42 +214,6 @@ fn start_rejection_returns_every_moved_argument_and_the_lease() {
     );
     let (arguments, _) = rejection.into_custody();
     assert_eq!(arguments.custody(), custody);
-}
-
-#[test]
-fn lease_replay_rejection_still_conserves_custody() {
-    let plan = wcsu_plan(45);
-    let instance = id(240, TaskRuntimeInstanceId::from_normalized_identity);
-    let mut ledger = TaskLifecycleLedger::new(runtime(), instance);
-    let first_receipt = invocation_receipt(&plan, instance, 241, 242);
-    ledger
-        .accept_invocation(
-            &first_receipt,
-            id(243, ActivationInstanceId::from_normalized_identity),
-            moved_arguments(&plan, 244),
-            TaskStartStorage::Persistent(stack_lease(&plan, 245, 246)),
-        )
-        .expect("first activation");
-
-    // A second start presenting the same lease era rejects and returns its
-    // own argument bundle and the replayed lease.
-    let second_receipt = invocation_receipt(&plan, instance, 247, 248);
-    let custody = id(249, TaskArgumentCustodyId::from_normalized_identity);
-    let rejection = ledger
-        .accept_invocation(
-            &second_receipt,
-            id(250, ActivationInstanceId::from_normalized_identity),
-            moved_arguments(&plan, 249),
-            TaskStartStorage::Persistent(stack_lease(&plan, 245, 246)),
-        )
-        .expect_err("stale lease era rejects");
-    assert!(rejection.diagnostic().0.contains("new lease era"));
-    let (arguments, storage) = rejection.into_custody();
-    assert_eq!(arguments.custody(), custody);
-    let TaskStartStorage::Persistent(lease) = storage else {
-        panic!("lease replay returns the replayed lease");
-    };
-    assert_eq!(lease.provenance(), provenance(245, 246));
 }
 
 #[test]

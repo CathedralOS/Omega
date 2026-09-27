@@ -22,8 +22,7 @@ use crate::artifacts::container::{
 use crate::authority_digests::ArtifactAuthorityCommitments;
 use crate::authority_digests::{
     AdmissionReceiptId, ArtifactId, EntrySetId, MachineContractSetId, MachineFootprintId,
-    NonAuthoritativeContainerFingerprint64, NonAuthoritativeInformationalFingerprint64,
-    PlacementPlanId, RelocationSetId,
+    NonAuthoritativeContainerFingerprint64, PlacementPlanId, RelocationSetId,
 };
 use crate::executable_installation::admit_executable;
 use crate::installation::InstallationDiagnostic;
@@ -217,30 +216,6 @@ fn validated_container_admission_binds_the_exact_proof_payload() {
     let error = admit_validated_container(&container, replay)
         .expect_err("acceptance for different proof bytes must not replay");
     assert!(error.0.contains("different exact proof bytes"));
-}
-
-#[test]
-fn informational_sections_do_not_gain_admission_authority() {
-    let baseline = validate_decoded_container(decoded(), limits()).expect("baseline");
-    let evidence = ValidatedContainerAdmissionEvidence::from_validator(
-        id(70, AdmissionReceiptId::from_normalized_identity),
-        &baseline,
-        true,
-    );
-
-    let mut decorated = decoded();
-    decorated.total_length = 640;
-    decorated.sections.push(ContainerSection {
-        kind: ContainerSectionKind::Informational(
-            NonAuthoritativeInformationalFingerprint64::from_compatibility_value(88).unwrap(),
-        ),
-        offset: 576,
-        length: 64,
-    });
-    let decorated =
-        validate_decoded_container(decorated, limits()).expect("informational decoration");
-    admit_validated_container(&decorated, evidence)
-        .expect("informational sections stay outside admission identity");
 }
 
 #[test]

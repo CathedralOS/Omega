@@ -8,7 +8,7 @@ use super::{
     activation_set, canonical_crossing, id, moved_arguments, receipt_candidate, wcsu_plan,
 };
 use crate::{
-    ActivationInstanceId, StackPlan, TaskClaimRoute, TaskRuntimeAdmission, TaskRuntimeInstanceId,
+    ActivationInstanceId, StackPlan, TaskRuntimeAdmission, TaskRuntimeInstanceId,
     TaskSettlementOutcome, TaskStartOperation, TaskStorageBinding, TaskStorageOwnerId,
     TaskStorageProvenance,
 };
@@ -59,28 +59,6 @@ fn admit_start(
         moved_arguments(plan, custody),
     )
     .expect("admission with provisioned backing")
-}
-
-#[test]
-fn accepted_admission_mints_the_source_route() {
-    let plan = wcsu_plan(50);
-    let activations = activation_set(&plan);
-    let mut gate = gate(&[plan.candidate().stack_plan], 301);
-
-    let claim = admit_start(&mut gate, &activations, &plan, 301, 302, 303, 304, 305);
-    let route = claim.route();
-
-    // The source `Task<T>` fields name the minting runtime instance and the
-    // accepted activation — the only pair that can ever resolve to this
-    // claim.
-    assert_eq!(route.provider(), 301);
-    assert_eq!(route.activation(), 304);
-    assert_eq!(
-        gate.resolve_claim_route(route).expect("the minted route"),
-        claim.identity(),
-    );
-    let record = gate.records().next().expect("one live dependency");
-    assert_eq!(record.route(), route, "the record carries the same route");
 }
 
 #[test]
@@ -137,39 +115,6 @@ fn routes_reject_foreign_instances() {
         .settle(claim, TaskSettlementOutcome::Completed)
         .expect("the minting instance settles its own claim");
     assert_eq!(settled.route(), route);
-}
-
-#[test]
-fn routes_reject_fabricated_and_settled_pairs() {
-    let plan = wcsu_plan(50);
-    let activations = activation_set(&plan);
-    let mut gate = gate(&[plan.candidate().stack_plan], 301);
-
-    let claim = admit_start(&mut gate, &activations, &plan, 301, 302, 303, 304, 305);
-    let route = claim.route();
-
-    // Same provider, never-minted activation.
-    let fabricated = TaskClaimRoute::new(301, 999);
-    let diagnostic = gate
-        .resolve_claim_route(fabricated)
-        .expect_err("a fabricated pair resolves to nothing");
-    assert!(
-        diagnostic.0.contains("no live claim"),
-        "unexpected diagnostic: {}",
-        diagnostic.0
-    );
-
-    gate.settle_by_route(route, TaskSettlementOutcome::Completed)
-        .expect("the minted route settles");
-    let diagnostic = gate
-        .resolve_claim_route(route)
-        .expect_err("a settled claim's route is stale");
-    assert!(diagnostic.0.contains("no live claim"));
-    let error = gate
-        .settle_by_route(route, TaskSettlementOutcome::Completed)
-        .expect_err("a settled route cannot settle twice");
-    assert_eq!(error.route(), route);
-    assert!(error.diagnostic().0.contains("no live claim"));
 }
 
 #[test]

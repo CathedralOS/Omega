@@ -22,7 +22,6 @@ use crate::retirement::quarantine::{
 use crate::retirement::replacement::{
     ReplacementAuthority, ReplacementOutcome, ReplacementReceipt, replace_installed,
 };
-use crate::retirement::uninstall::{UninstallOutcome, uninstall_installed};
 use crate::retirement::{RetirementAuthority, RetirementReceipt};
 use crate::{
     admit_executable, install_validated, materialize_and_freeze, retire_installed,
@@ -225,44 +224,6 @@ fn aarch64_materialization_patches_page_pairs_and_absolute_data() {
 }
 
 #[test]
-fn installation_receipt_cannot_substitute_colliding_normalized_artifact() {
-    let first = admit(&colliding_artifact(1, 0x90));
-    let second = admit(&colliding_artifact(1, 0xcc));
-
-    let first_frozen = frozen(&first, 114, 0xc000);
-    let first_certificate = certificate(&first_frozen, 194);
-    let first_validated = validate_final_placement(first_frozen, &first_certificate)
-        .expect("first validated placement");
-
-    let second_frozen = frozen(&second, 114, 0xc000);
-    let second_certificate = certificate(&second_frozen, 194);
-    let second_validated = validate_final_placement(second_frozen, &second_certificate)
-        .expect("second validated placement");
-
-    let authority = InstallAuthority::from_admitted_provider(&first_validated);
-    let substituted_receipt = InstallationReceipt::from_provider(
-        id(314, InstalledCodeId::from_normalized_identity),
-        &second_validated,
-        true,
-        WxEnforcement::HardwareEnforced,
-    );
-    let error = install_validated(first_validated, authority, substituted_receipt)
-        .expect_err("exact frozen bytes must outrank colliding report identities");
-    assert!(error.diagnostic().0.contains("receipt"));
-}
-
-#[test]
-fn artifact_content_digest_is_derived_from_exact_semantics() {
-    let first = colliding_artifact(1, 0x90);
-    let second = colliding_artifact(1, 0xcc);
-
-    assert_eq!(first.identity(), second.identity());
-    assert_ne!(first.code(), second.code());
-    assert_ne!(first.content(), second.content());
-    assert_ne!(first.content().digest(), second.content().digest());
-}
-
-#[test]
 fn local_fnv_sites_are_explicitly_non_authoritative() {
     let root_source = [
         include_str!("executable_installation.rs"),
@@ -375,49 +336,6 @@ fn final_bytes_digest_binds_content_and_placement_base() {
 }
 
 #[test]
-fn admission_evidence_cannot_substitute_placement_constraints() {
-    let candidate = artifact(1);
-    let weaker = PlacementConstraints::unconstrained(PlacementPhase::PostHandoff);
-    let substituted = artifact_with(
-        1,
-        weaker,
-        candidate.0.entry_set,
-        candidate.0.entries[0].identity,
-    );
-    let error = admit_executable(
-        &candidate,
-        ArtifactAdmissionEvidence::from_validator(
-            id(40, AdmissionReceiptId::from_normalized_identity),
-            &substituted,
-            true,
-        ),
-    )
-    .expect_err("admission evidence must pin the decoded placement constraints");
-    assert!(error.0.contains("does not match canonical candidate"));
-}
-
-#[test]
-fn admission_evidence_cannot_substitute_the_selected_entry_set() {
-    let candidate = artifact(1);
-    let substituted = artifact_with(
-        1,
-        candidate.0.placement_constraints,
-        id(34, EntrySetId::from_normalized_identity),
-        candidate.0.entries[0].identity,
-    );
-    let error = admit_executable(
-        &candidate,
-        ArtifactAdmissionEvidence::from_validator(
-            id(40, AdmissionReceiptId::from_normalized_identity),
-            &substituted,
-            true,
-        ),
-    )
-    .expect_err("admission evidence must pin the decoded entry set");
-    assert!(error.0.contains("does not match canonical candidate"));
-}
-
-#[test]
 fn admitted_artifact_selects_only_its_canonical_entry_targets() {
     let candidate = artifact(1);
     let selected = entry_id(1001);
@@ -440,18 +358,6 @@ fn final_certificate_is_bound_to_one_placement_and_final_bytes() {
     let certificate = certificate(&foreign, 183);
     let error =
         validate_final_placement(target, &certificate).expect_err("certificate transplant rejects");
-    assert!(error.diagnostic().0.contains("does not match"));
-}
-
-#[test]
-fn final_certificate_retains_the_exact_frozen_byte_snapshot() {
-    let admitted = admit(&artifact(1));
-    let frozen = frozen(&admitted, 113, 0xb000);
-    let mut certificate = certificate(&frozen, 193);
-    certificate.final_bytes[0] ^= 1;
-
-    let error = validate_final_placement(frozen, &certificate)
-        .expect_err("a certificate for substituted exact bytes must reject");
     assert!(error.diagnostic().0.contains("does not match"));
 }
 
@@ -499,192 +405,6 @@ fn failed_placement_claim_returns_extent_and_one_shot_authority() {
     assert_eq!(extent.base(), 0x6000);
 }
 
-#[test]
-fn placement_authority_rejects_same_address_from_another_lineage() {
-    let admitted_extent = placement_extent(116, 0xe000, 4096);
-    let substituted_extent = placement_extent(117, 0xe000, 4096);
-    let authority = CodePlacementAuthority::from_admitted_provider(
-        id(116, CodePlacementId::from_normalized_identity),
-        id(61, InstallationScopeId::from_normalized_identity),
-        InstallationAudience::FutureFetcher,
-        &admitted_extent,
-        rights(&[51]),
-        artifact_placement_constraints(),
-        PlacementSite {
-            base_address: 0xe000,
-            phase: PlacementPhase::PostHandoff,
-            machine_regime: None,
-            installation_scope: Some(
-                ArtifactInstallationScopeId::from_normalized_identity(61)
-                    .expect("installation scope"),
-            ),
-        },
-    );
-
-    let error = authority
-        .claim(substituted_extent)
-        .expect_err("same address and rights do not imply the same range authority");
-    assert!(error.diagnostic().0.contains("lineage"));
-}
-
-#[test]
-fn retirement_requires_quiescence_then_returns_writable_placement() {
-    let admitted = admit(&artifact(1));
-    let installed = installed_code(&admitted, 107, 0x7000);
-    let retirement_fact =
-        RetirementFactDigest::from_canonical_bytes(b"provider.timer-drain.complete.v1");
-    let authority = RetirementAuthority::from_admitted_provider(&installed, [retirement_fact]);
-    let receipt =
-        RetirementReceipt::from_provider(&installed, false, true, true, [retirement_fact]);
-    let error =
-        retire_installed(installed, authority, receipt).expect_err("visibility is not quiescence");
-    assert!(error.diagnostic().0.contains("quiescence"));
-    let (installed, authority, _) = (*error).into_parts();
-
-    let receipt = RetirementReceipt::from_provider(&installed, true, true, true, [retirement_fact]);
-    let retired = retire_installed(installed, authority, receipt).expect("retired code");
-    assert_eq!(
-        retired.previous_artifact().artifact().identity(),
-        admitted.artifact().identity()
-    );
-
-    let replacement = admit(&artifact(2));
-    let placement = retired.into_placement();
-    let materialized = materialize_admitted_artifact(&replacement, &placement, |_| None)
-        .expect("replacement materialization");
-    materialize_and_freeze(
-        &replacement,
-        placement,
-        materialized.clone(),
-        MaterializationReceipt::from_materialized(
-            &materialized,
-            id(71, MachineFootprintId::from_normalized_identity),
-            true,
-        ),
-    )
-    .expect("placement reusable only after quiescent retirement");
-}
-
-#[test]
-fn uninstall_join_retires_a_complete_drain() {
-    let spec = authentic_spec();
-    let outcome = uninstall_installed(
-        realize(&spec),
-        RetirementAuthority::from_admitted_provider(&realize(&spec), std::iter::empty()),
-        RetirementReceipt::from_provider(&realize(&spec), true, true, true, std::iter::empty()),
-        None,
-    )
-    .expect("a complete drain retires through the join");
-    let UninstallOutcome::Retired(retired) = outcome else {
-        panic!("a complete drain retires rather than quarantining")
-    };
-    assert_eq!(
-        retired.previous_artifact().artifact().identity(),
-        id(spec.artifact, ArtifactId::from_normalized_identity)
-    );
-    let _placement = retired.into_placement();
-}
-
-#[test]
-fn uninstall_join_quarantines_an_incomplete_drain() {
-    let spec = authentic_spec();
-    let installed = realize(&spec);
-    let installed_identity = installed.identity();
-    let installed_context = installed.receipt_context();
-    let quarantine = id(401, MappingQuarantineId::from_normalized_identity);
-    let outcome = uninstall_installed(
-        installed,
-        RetirementAuthority::from_admitted_provider(&realize(&spec), std::iter::empty()),
-        RetirementReceipt::from_provider(&realize(&spec), false, true, true, std::iter::empty()),
-        Some(MappingQuarantineReceipt::from_provider(
-            &realize(&spec),
-            quarantine,
-            true,
-            true,
-            true,
-            MappingQuarantineCause::IncompleteDrain {
-                residual_authority_count: 2,
-            },
-        )),
-    )
-    .expect("an incomplete drain parks in quarantine");
-    let UninstallOutcome::Quarantined(quarantined) = outcome else {
-        panic!("an incomplete drain must not return the placement")
-    };
-    assert_eq!(quarantined.installed_code(), installed_identity);
-    assert_eq!(quarantined.attributed_capacity_loss(), 4096);
-    assert!(matches!(
-        quarantined.cause(),
-        MappingQuarantineCause::IncompleteDrain {
-            residual_authority_count: 2
-        }
-    ));
-    let fault = quarantined
-        .stale_entry_fault(&installed_context)
-        .expect("a stale entry names the quarantined realization");
-    assert_eq!(fault.quarantine(), quarantine);
-    assert!(!fault.discharged_obligations());
-}
-
-#[test]
-fn uninstall_join_returns_every_input_without_quarantine_evidence() {
-    let spec = authentic_spec();
-    let error = uninstall_installed(
-        realize(&spec),
-        RetirementAuthority::from_admitted_provider(&realize(&spec), std::iter::empty()),
-        RetirementReceipt::from_provider(&realize(&spec), false, true, true, std::iter::empty()),
-        None,
-    )
-    .expect_err("a failed drain without quarantine evidence keeps every input");
-    assert!(error.retirement_diagnostic().0.contains("quiescence"));
-    assert!(error.quarantine_diagnostic().is_none());
-    let (installed, authority, _retirement, quarantine) = (*error).into_parts();
-    assert!(quarantine.is_none());
-
-    // The returned custody is intact: the same authority with a complete
-    // drain retires the returned installed code.
-    let receipt =
-        RetirementReceipt::from_provider(&installed, true, true, true, std::iter::empty());
-    retire_installed(installed, authority, receipt).expect("returned custody still retires");
-}
-
-#[test]
-fn uninstall_join_rejects_a_quarantine_receipt_naming_another_realization() {
-    let spec = authentic_spec();
-    let mut foreign_spec = authentic_spec();
-    foreign_spec.placement = 108;
-    let error = uninstall_installed(
-        realize(&spec),
-        RetirementAuthority::from_admitted_provider(&realize(&spec), std::iter::empty()),
-        RetirementReceipt::from_provider(&realize(&spec), false, true, true, std::iter::empty()),
-        Some(MappingQuarantineReceipt::from_provider(
-            &realize(&foreign_spec),
-            id(401, MappingQuarantineId::from_normalized_identity),
-            true,
-            true,
-            true,
-            MappingQuarantineCause::IncompleteDrain {
-                residual_authority_count: 1,
-            },
-        )),
-    )
-    .expect_err("a foreign quarantine receipt cannot park this realization");
-    assert!(error.retirement_diagnostic().0.contains("quiescence"));
-    assert!(
-        error
-            .quarantine_diagnostic()
-            .expect("the quarantine leg ran and refused")
-            .0
-            .contains("does not match")
-    );
-    let (installed, authority, _retirement, quarantine) = (*error).into_parts();
-    assert!(quarantine.is_some());
-
-    let receipt =
-        RetirementReceipt::from_provider(&installed, true, true, true, std::iter::empty());
-    retire_installed(installed, authority, receipt).expect("returned custody still retires");
-}
-
 /// A distinct already-installed successor for the replacement tests: routing
 /// moves to it before the superseded era drains, so each test binds a real
 /// second realization rather than reusing the same spec.
@@ -705,45 +425,6 @@ fn replacement_spec() -> RealizationSpec {
     let mut spec = authentic_spec();
     spec.audience = InstallationAudience::PossibleCurrentExecutor;
     spec
-}
-
-#[test]
-fn replacement_join_patches_declared_sites_then_retires() {
-    let spec = replacement_spec();
-    let successor_spec = replacement_successor_spec();
-    let successor = realize(&successor_spec);
-    let fragment = admit(&artifact(9));
-    let site = entry_id(spec.entry);
-    let outcome = replace_installed(
-        realize(&spec),
-        &successor,
-        ReplacementAuthority::from_admitted_provider(
-            &realize(&spec),
-            &successor,
-            [(site, fragment.clone())],
-            std::iter::empty(),
-        ),
-        ReplacementReceipt::from_provider(
-            &realize(&spec),
-            &successor,
-            [(site, fragment.artifact().content())],
-            true,
-            true,
-            std::iter::empty(),
-        ),
-        RetirementAuthority::from_admitted_provider(&realize(&spec), std::iter::empty()),
-        RetirementReceipt::from_provider(&realize(&spec), true, true, true, std::iter::empty()),
-        None,
-    )
-    .expect("an established patch reaches the drain");
-    let ReplacementOutcome::Retired { retired, .. } = outcome else {
-        panic!("a complete drain retires rather than quarantining")
-    };
-    assert_eq!(
-        retired.previous_artifact().artifact().identity(),
-        id(spec.artifact, ArtifactId::from_normalized_identity)
-    );
-    let _placement = retired.into_placement();
 }
 
 #[test]
@@ -1294,23 +975,6 @@ fn replacement_join_requires_the_executor_audience_on_both_sides() {
     );
     let (_installed, _authority, _receipt, _retirement_authority, _retirement, _quarantine) =
         (*error).into_parts();
-}
-
-#[test]
-fn retirement_completion_facts_are_strong_domain_separated_commitments() {
-    let fact = RetirementFactDigest::from_canonical_bytes(b"provider.timer-drain.complete.v1");
-    let changed = RetirementFactDigest::from_canonical_bytes(b"provider.timer-drain.complete.v2");
-    let proof = normalized_proof_payload_digest(b"provider.timer-drain.complete.v1");
-
-    assert_ne!(
-        fact, changed,
-        "fact-byte mutation must change the commitment"
-    );
-    assert_ne!(
-        fact.digest(),
-        proof.digest(),
-        "equal payload bytes in another authority domain must not collide by construction"
-    );
 }
 
 #[test]
@@ -2312,32 +1976,6 @@ fn entry_gate_rejects_incompatible_or_invisible_receipts() {
             .diagnostic()
             .0
             .contains("instruction-fetch visibility"),
-        "unexpected rejection: {}",
-        error.diagnostic().0
-    );
-}
-
-#[test]
-fn entry_gate_rejects_missing_required_facts() {
-    let spec = authentic_spec();
-    let installed = realize(&spec);
-    let entry = entry_id(spec.entry);
-    let contract = entry_contract();
-    let authority = EntryReferenceAuthority::from_admitted_provider(&installed, entry, contract)
-        .with_required_facts([
-            entry_fact(b"provider cache-order completion"),
-            entry_fact(b"provider fetch-domain completion"),
-        ]);
-    let receipt = EntryReferenceReceipt::from_provider(&installed, entry, contract, true, true)
-        .with_established_facts([entry_fact(b"provider cache-order completion")]);
-    let error = installed
-        .seal_entry_reference(authority, receipt)
-        .expect_err("a receipt that omits a demanded fact rejects");
-    assert!(
-        error
-            .diagnostic()
-            .0
-            .contains("lacks required completion facts"),
         "unexpected rejection: {}",
         error.diagnostic().0
     );

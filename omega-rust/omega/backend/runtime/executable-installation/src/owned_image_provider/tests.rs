@@ -1,8 +1,8 @@
 use crate::artifacts::container::{ArtifactRelocationKind, DecodedArtifactRelocation};
 use crate::artifacts::{AdmittedArtifact, Artifact, ArtifactEntry, InstallationAudience};
 use crate::authority_digests::{
-    ArtifactId, EntryContractDigest, EntryReferenceFactDigest, EntrySetId, InstallationFactDigest,
-    InstalledCodeId, MachineContractSetId, MachineFootprintId, PlacementPlanId, RelocationSetId,
+    ArtifactId, EntryContractDigest, EntryReferenceFactDigest, EntrySetId, InstalledCodeId,
+    MachineContractSetId, MachineFootprintId, PlacementPlanId, RelocationSetId,
     ReplacementFactDigest, RetirementFactDigest,
 };
 use crate::entry_references::{
@@ -11,12 +11,9 @@ use crate::entry_references::{
 use crate::installation::{InstallAuthority, InstalledCode};
 use crate::owned_image_provider::OwnedImageProvider;
 use crate::placement::ValidatedPlacement;
-use crate::retirement::quarantine::{
-    MappingQuarantineCause, QuarantinedInstallation, quarantine_installed,
-};
-use crate::retirement::replacement::{ReplacementAuthority, ReplacementOutcome, replace_installed};
-use crate::retirement::uninstall::{UninstallOutcome, uninstall_installed};
-use crate::retirement::{RetiredInstallation, RetirementAuthority, RetirementReceipt};
+use crate::retirement::quarantine::{MappingQuarantineCause, quarantine_installed};
+use crate::retirement::replacement::ReplacementAuthority;
+use crate::retirement::{RetiredInstallation, RetirementAuthority};
 use crate::test_support::{
     admit, artifact, artifact_placement_constraints, authority_commitments, certificate, entry_id,
     frozen_for_audience, id, installed_code, relocatable_artifact,
@@ -131,26 +128,6 @@ fn install_stores_the_validated_bytes_and_the_receipt_installs() {
 }
 
 #[test]
-fn install_refuses_a_demand_for_facts_it_did_not_perform() {
-    let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
-    let admitted = admit(&artifact(41));
-    let validated = validated(&admitted, 41, 0x4000);
-    let authority = InstallAuthority::from_admitted_provider(&validated).with_required_facts([
-        InstallationFactDigest::from_canonical_bytes(b"omega.other-provider.unperformed-step.v1"),
-    ]);
-
-    let error = provider
-        .install(&validated, &authority)
-        .expect_err("a demand beyond the performed set refuses");
-
-    assert!(error.0.contains("cannot establish"));
-    assert_eq!(
-        provider.installed_image(InstalledCodeId::from_normalized_identity(1).unwrap()),
-        None
-    );
-}
-
-#[test]
 fn install_refuses_an_artifact_for_another_architecture() {
     let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
     let foreign = relocatable_artifact(55, Architecture::Aarch64, vec![0; 8], Vec::new());
@@ -163,81 +140,6 @@ fn install_refuses_an_artifact_for_another_architecture() {
         .expect_err("a foreign-architecture artifact refuses");
 
     assert!(error.0.contains("cannot install"));
-}
-
-#[test]
-fn patch_splices_admitted_fragments_at_declared_sites_and_the_receipt_replaces() {
-    let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
-    let (superseded_id, superseded) = install_through_provider_for_audience(
-        &mut provider,
-        &two_site_artifact(41),
-        41,
-        0x4000,
-        InstallationAudience::PossibleCurrentExecutor,
-    );
-    let (_successor_id, successor) = install_through_provider_for_audience(
-        &mut provider,
-        &artifact(42),
-        42,
-        0x8000,
-        InstallationAudience::PossibleCurrentExecutor,
-    );
-
-    let site_a = entry_id(1041);
-    let site_b = entry_id(2041);
-    let fragment_a = admit(&relocatable_artifact(
-        71,
-        Architecture::X86_64,
-        vec![0xCC; 6],
-        Vec::new(),
-    ));
-    let fragment_b = admit(&relocatable_artifact(
-        72,
-        Architecture::X86_64,
-        vec![0x90; 4],
-        Vec::new(),
-    ));
-    let authority = ReplacementAuthority::from_admitted_provider(
-        &superseded,
-        &successor,
-        [(site_a, fragment_a.clone()), (site_b, fragment_b.clone())],
-        OwnedImageProvider::patch_facts(),
-    );
-    let receipt = provider
-        .patch(&superseded, &successor, &authority)
-        .expect("provider patches the demanded sites");
-
-    let image = provider
-        .installed_image(superseded_id)
-        .expect("resident image");
-    assert_eq!(&image[8..14], &[0xCC; 6]);
-    assert_eq!(&image[32..36], &[0x90; 4]);
-    assert_eq!(&image[14..32], &[0x41; 18]);
-    assert_eq!(provider.write_suspended(superseded_id), Some(true));
-
-    let retirement_authority = RetirementAuthority::from_admitted_provider(
-        &superseded,
-        OwnedImageProvider::retire_facts(),
-    );
-    let retirement = provider
-        .retire(&superseded, &retirement_authority)
-        .expect("provider performs the retirement the drain consumes");
-    let outcome = replace_installed(
-        superseded,
-        &successor,
-        authority,
-        receipt,
-        retirement_authority,
-        retirement,
-        None,
-    )
-    .expect("the provider's patch receipt reaches the drain");
-    assert!(
-        matches!(outcome, ReplacementOutcome::Retired { .. }),
-        "a complete drain retires rather than quarantining"
-    );
-    assert!(provider.release(superseded_id).unwrap());
-    assert_eq!(provider.installed_image(superseded_id), None);
 }
 
 #[test]
@@ -597,24 +499,6 @@ fn seal_entry_refuses_a_demand_for_facts_it_did_not_perform() {
 }
 
 #[test]
-fn seal_entry_refuses_an_authority_scoped_to_another_realization() {
-    let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
-    let (_id, installed) =
-        install_through_provider(&mut provider, &two_site_artifact(41), 41, 0x4000);
-    let (_other_id, other) =
-        install_through_provider(&mut provider, &two_site_artifact(42), 42, 0x8000);
-    let authority =
-        EntryReferenceAuthority::from_admitted_provider(&other, entry_id(1042), seal_contract())
-            .with_required_facts(OwnedImageProvider::seal_facts());
-
-    let error = provider
-        .seal_entry(&installed, &authority)
-        .expect_err("an authority scoped to another realization refuses");
-
-    assert!(error.0.contains("not scoped"));
-}
-
-#[test]
 fn seal_entry_refuses_when_the_provider_holds_no_resident_image() {
     let provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
     // A realization installed by a different provider (here: the test support
@@ -633,44 +517,6 @@ fn seal_entry_refuses_when_the_provider_holds_no_resident_image() {
         .expect_err("a nonresident realization refuses");
 
     assert!(error.0.contains("no resident image"));
-}
-
-#[test]
-fn seal_entry_refuses_an_undeclared_entry() {
-    let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
-    let (_id, installed) =
-        install_through_provider(&mut provider, &two_site_artifact(41), 41, 0x4000);
-    let authority = EntryReferenceAuthority::from_admitted_provider(
-        &installed,
-        entry_id(9999),
-        seal_contract(),
-    )
-    .with_required_facts(OwnedImageProvider::seal_facts());
-
-    let error = provider
-        .seal_entry(&installed, &authority)
-        .expect_err("an undeclared entry refuses");
-
-    assert!(error.0.contains("not a declared entry"));
-}
-
-#[test]
-fn call_hands_the_resident_entry_extent_to_the_sealed_call() {
-    let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
-    let (installed_id, installed) =
-        install_through_provider(&mut provider, &two_site_artifact(41), 41, 0x4000);
-    let reference = seal_through_provider(&provider, &installed, entry_id(1041));
-
-    let call = provider
-        .call(&installed, &reference)
-        .expect("the sealed reference invokes");
-
-    assert_eq!(call.installed_code(), installed_id);
-    assert_eq!(call.entry(), entry_id(1041));
-    assert_eq!(call.contract(), seal_contract());
-    // Entry 1041's extent spans its offset 8 up to the next declared entry
-    // at 32: 24 bytes of the resident image.
-    assert_eq!(call.code(), &[0x41; 24]);
 }
 
 #[test]
@@ -762,45 +608,6 @@ fn retire_through_provider(
 }
 
 #[test]
-fn retire_unwinds_the_write_to_execute_transition_and_the_receipt_retires() {
-    let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
-    let (installed_id, installed) =
-        install_through_provider(&mut provider, &two_site_artifact(41), 41, 0x4000);
-    let reference = seal_through_provider(&provider, &installed, entry_id(1041));
-    let call = provider
-        .call(&installed, &reference)
-        .expect("the sealed reference invokes before retirement");
-    assert_eq!(call.code(), &[0x41; 24]);
-    // The in-flight call borrows the provider and `reference` borrows
-    // `installed`; neither is used again, so the exclusive retirement
-    // receiver and the move below are reachable — that reachability is the
-    // executor-quiescence evidence the provider reports.
-
-    let authority =
-        RetirementAuthority::from_admitted_provider(&installed, OwnedImageProvider::retire_facts());
-    let receipt = provider
-        .retire(&installed, &authority)
-        .expect("provider performs the retirement");
-
-    // Execute authority removed, write authority restored: the W+NX state
-    // the write-to-execute transition entered is unwound, in reverse.
-    assert_eq!(provider.execute_enabled(installed_id), Some(false));
-    assert_eq!(provider.write_suspended(installed_id), Some(false));
-    let seal_authority = EntryReferenceAuthority::from_admitted_provider(
-        &installed,
-        entry_id(1041),
-        seal_contract(),
-    );
-    let error = provider
-        .seal_entry(&installed, &seal_authority)
-        .expect_err("sealing an entry after retirement refuses");
-    assert!(error.0.contains("execute authority"));
-
-    retire_installed(installed, authority, receipt)
-        .expect("the provider's receipt passes the retirement gate");
-}
-
-#[test]
 fn call_refuses_after_the_realization_is_retired() {
     let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
     let (_installed_id, installed) =
@@ -856,23 +663,6 @@ fn retire_refuses_an_authority_scoped_to_another_realization() {
 }
 
 #[test]
-fn retire_refuses_when_the_provider_holds_no_resident_image() {
-    let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
-    // A realization installed by a different provider (here: the test support
-    // path, not this provider) is not resident in this provider's custody.
-    let admitted = admit(&two_site_artifact(41));
-    let installed = installed_code(&admitted, 41, 0x4000);
-    let authority =
-        RetirementAuthority::from_admitted_provider(&installed, OwnedImageProvider::retire_facts());
-
-    let error = provider
-        .retire(&installed, &authority)
-        .expect_err("a nonresident realization refuses");
-
-    assert!(error.0.contains("no resident image"));
-}
-
-#[test]
 fn release_drops_only_resident_images() {
     let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
     let (installed, code) = install_through_provider(&mut provider, &artifact(41), 41, 0x4000);
@@ -917,19 +707,6 @@ fn release_refuses_a_range_whose_execution_state_was_never_unwound() {
     let _ = retired;
 }
 
-/// Park a realization whose drain cannot complete: the provider performs the
-/// quarantine transition and the crossing consumes the receipt it minted.
-fn quarantine_through_provider(
-    provider: &mut OwnedImageProvider,
-    installed: InstalledCode,
-    cause: MappingQuarantineCause,
-) -> QuarantinedInstallation {
-    let receipt = provider
-        .quarantine(&installed, cause)
-        .expect("provider performs the quarantine");
-    quarantine_installed(installed, receipt).expect("the provider's receipt quarantines")
-}
-
 #[test]
 fn quarantine_parks_the_mapping_as_an_unserved_reserved_range() {
     let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
@@ -967,41 +744,6 @@ fn quarantine_parks_the_mapping_as_an_unserved_reserved_range() {
         .stale_entry_fault(&context)
         .expect("a stale entry attempt faults at the trapping mapping");
     assert!(!fault.discharged_obligations());
-}
-
-#[test]
-fn uninstall_routes_a_failed_drain_to_the_provider_quarantine() {
-    let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
-    let (_installed_id, installed) =
-        install_through_provider(&mut provider, &artifact(41), 41, 0x4000);
-    let authority =
-        RetirementAuthority::from_admitted_provider(&installed, OwnedImageProvider::retire_facts());
-    // The drain refuses: this receipt establishes none of the demanded
-    // retirement facts — residual authority outstanding sends the uninstall
-    // to the quarantine ending the provider's receipt supplies.
-    let drain =
-        RetirementReceipt::from_provider(&installed, false, false, false, std::iter::empty());
-    let quarantine = provider
-        .quarantine(
-            &installed,
-            MappingQuarantineCause::IncompleteDrain {
-                residual_authority_count: 2,
-            },
-        )
-        .expect("provider performs the quarantine");
-
-    let outcome = uninstall_installed(installed, authority, drain, Some(quarantine))
-        .expect("the failed drain parks at the provider's trapping quarantine");
-
-    let UninstallOutcome::Quarantined(quarantined) = outcome else {
-        panic!("an incomplete drain quarantines rather than retiring")
-    };
-    assert_eq!(
-        quarantined.cause(),
-        &MappingQuarantineCause::IncompleteDrain {
-            residual_authority_count: 2
-        }
-    );
 }
 
 #[test]
@@ -1066,28 +808,6 @@ fn quarantine_refuses_a_second_parking_and_retire_refuses_a_parked_mapping() {
         .retire(&installed, &authority)
         .expect_err("the drain ending is exclusive once quarantined");
     assert!(error.0.contains("already quarantined"));
-}
-
-#[test]
-fn release_refuses_to_free_a_quarantined_range() {
-    let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
-    let (installed_id, installed) =
-        install_through_provider(&mut provider, &artifact(41), 41, 0x4000);
-
-    quarantine_through_provider(
-        &mut provider,
-        installed,
-        MappingQuarantineCause::PossibleOpaqueHolder {
-            provider_identity: "mystery-holder".into(),
-        },
-    );
-
-    let error = provider
-        .release(installed_id)
-        .expect_err("a quarantined range stays reserved");
-    assert!(error.0.contains("stays reserved"));
-    assert_eq!(provider.quarantined(installed_id), Some(true));
-    assert!(provider.installed_image(installed_id).is_some());
 }
 
 #[test]

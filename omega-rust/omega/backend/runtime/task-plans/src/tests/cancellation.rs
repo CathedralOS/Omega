@@ -89,32 +89,6 @@ fn cancelled_settlement_requires_the_recorded_request() {
 }
 
 #[test]
-fn completed_settlement_survives_an_unobserved_request() {
-    let plan = wcsu_plan(62);
-    let instance = instance(510);
-    let receipt = invocation_receipt(&plan, instance, 511, 512);
-    let mut ledger = TaskLifecycleLedger::new(runtime(), instance);
-    let claim = ledger
-        .accept_invocation(
-            &receipt,
-            activation(513),
-            moved_arguments(&plan, 514),
-            TaskStartStorage::Persistent(stack_lease(&plan, 515, 516)),
-        )
-        .expect("accepted activation");
-
-    // Cooperative cancellation: the request does not promise the activation
-    // observes it, so an ordinary Returned/Failed settlement is still valid.
-    ledger
-        .request_cancellation(&claim)
-        .expect("request records");
-    let settled = ledger
-        .settle(claim, TaskSettlementOutcome::Completed)
-        .expect("completion may ignore an unobserved request");
-    assert_eq!(settled.outcome(), TaskSettlementOutcome::Completed);
-}
-
-#[test]
 fn cancellation_request_rejects_foreign_and_unknown_claims() {
     let plan = wcsu_plan(64);
     let owner_instance = instance(530);

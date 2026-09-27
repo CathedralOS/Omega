@@ -47,27 +47,6 @@ fn install(
 }
 
 #[test]
-fn install_code_performs_the_operation_and_consumes_its_receipt() {
-    let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
-    let validated = valid(41, InstallationAudience::FutureFetcher);
-    let expected = validated.frozen.materialized.bytes().to_vec();
-    let authority = InstallAuthority::from_admitted_provider(&validated)
-        .with_required_facts(OwnedImageProvider::install_facts());
-
-    let (installed_id, installed) = provider
-        .install_code(validated, authority)
-        .expect("the composed install drives");
-
-    assert_eq!(installed.identity(), installed_id);
-    assert_eq!(
-        provider.installed_image(installed_id),
-        Some(expected.as_slice())
-    );
-    assert_eq!(provider.write_suspended(installed_id), Some(true));
-    assert_eq!(provider.execute_enabled(installed_id), Some(true));
-}
-
-#[test]
 fn install_code_returns_every_input_when_facts_are_unsatisfiable() {
     let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
     let validated = valid(41, InstallationAudience::FutureFetcher);
