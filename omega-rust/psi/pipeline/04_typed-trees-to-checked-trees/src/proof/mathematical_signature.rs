@@ -108,6 +108,8 @@ use std::collections::{BTreeMap, HashMap};
 
 use numerics::bignum::BigInt;
 use numerics::literals::{FloatFormat, FloatLiteral, IntegerLiteral, LandedIntegerType};
+
+use crate::proof::{FixedCore, FixedCoreVocabulary};
 use proof_admission::{
     Budget, Context, DEFAULT_CONVERSION_STEPS, Declaration, Level, Signature, Sort, Term,
     TermArena, TermHandle, check_signature, infer_sort, shift,
@@ -267,6 +269,10 @@ struct Elaborator<'a> {
     /// Term scope for the declaration under elaboration: ordered
     /// telescope entries plus in-flight arrow binders.
     scope: Vec<ScopeEntry>,
+    /// The fixed `core::*` vocabulary's canonical symbols in this program,
+    /// resolved once — sort classification consults it before any authored
+    /// spelling.
+    fixed_core: FixedCoreVocabulary,
     /// Source span of the declaration under elaboration, for diagnostics.
     span: Option<SourceSpan>,
 }
@@ -309,6 +315,7 @@ pub(crate) fn check_mathematical_signature(
         level_names: Vec::new(),
         generalized_levels: 0,
         scope: Vec::new(),
+        fixed_core: FixedCoreVocabulary::resolve(&program.symbols),
         span: None,
     };
     for definition in program.mathematical_definitions() {
@@ -447,9 +454,11 @@ impl<'a> Elaborator<'a> {
     }
 
     /// Peel the fixed-core carrier vocabulary off a binder carrier without
-    /// elaborating it. Until the `core::*` declarations exist, authored
-    /// names carry the convention (the same rule the checked surface leg
-    /// uses); symbol identity replaces name matching once they land.
+    /// elaborating it. Identity is canonical: a resolved symbol is whatever
+    /// it resolves to, so only the fixed `core::*` declarations' own symbols
+    /// — or, until those declarations exist, the unresolved authored
+    /// spelling — classify as vocabulary (the same rule the checked surface
+    /// leg uses).
     fn carrier_head(&self, carrier: TypeReferenceHandle) -> CarrierHead {
         if !self
             .program
@@ -459,18 +468,21 @@ impl<'a> Elaborator<'a> {
             return CarrierHead::Term;
         }
         match self.program.type_reference_table.type_reference(carrier) {
-            TypeReferenceNode::Named { name, .. } => match name.as_str() {
-                "core::Level" => CarrierHead::Level,
-                "core::Type" => CarrierHead::Type(LevelArgument::Generalized),
-                _ => CarrierHead::Term,
-            },
+            TypeReferenceNode::Named { symbol, name } => {
+                match self.fixed_core.classify(*symbol, name) {
+                    Some(FixedCore::Level) => CarrierHead::Level,
+                    Some(FixedCore::Type) => CarrierHead::Type(LevelArgument::Generalized),
+                    _ => CarrierHead::Term,
+                }
+            }
             TypeReferenceNode::Generic {
+                base_symbol,
                 base_name,
                 arguments,
                 ..
-            } => match base_name.as_str() {
-                "core::Level" => CarrierHead::MalformedLevel,
-                "core::Type" => {
+            } => match self.fixed_core.classify(*base_symbol, base_name) {
+                Some(FixedCore::Level) => CarrierHead::MalformedLevel,
+                Some(FixedCore::Type) => {
                     let arguments = self
                         .program
                         .type_reference_table
@@ -638,8 +650,8 @@ impl<'a> Elaborator<'a> {
                     .to_vec();
                 let base_symbol = *base_symbol;
                 let base_name = base_name.clone();
-                match base_name.as_str() {
-                    "core::Type" => match arguments.as_slice() {
+                match self.fixed_core.classify(base_symbol, &base_name) {
+                    Some(FixedCore::Type) => match arguments.as_slice() {
                         [universe] => {
                             let level = self.elaborate_level(*universe)?;
                             Ok(self.arena.insert(Term::Sort(Sort::Type(level))))
@@ -649,7 +661,7 @@ impl<'a> Elaborator<'a> {
                             arguments.len()
                         ))),
                     },
-                    "core::Strict" => match arguments.as_slice() {
+                    Some(FixedCore::Strict) => match arguments.as_slice() {
                         [universe] => {
                             let level = self.elaborate_level(*universe)?;
                             Ok(self.arena.insert(Term::Sort(Sort::Strict(level))))
@@ -659,7 +671,7 @@ impl<'a> Elaborator<'a> {
                             arguments.len()
                         ))),
                     },
-                    "core::Squash" => match arguments.as_slice() {
+                    Some(FixedCore::Squash) => match arguments.as_slice() {
                         [ty] => {
                             let ty = self.elaborate_type_reference(*ty)?;
                             Ok(self.arena.insert(Term::Squash { ty }))
@@ -669,10 +681,10 @@ impl<'a> Elaborator<'a> {
                             arguments.len()
                         ))),
                     },
-                    "core::Level" => {
+                    Some(FixedCore::Level) => {
                         Err(self.refuse("`core::Level` is a universe level, not a type".to_owned()))
                     }
-                    _ => {
+                    None => {
                         if base_symbol.is_valid() && self.authored_index.contains_key(&base_symbol)
                         {
                             return Err(self.refuse(format!(
@@ -712,6 +724,19 @@ impl<'a> Elaborator<'a> {
         name: &Identifier,
     ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
         if symbol.is_valid() {
+            // Fixed-vocabulary identity wins over every other resolution
+            // outcome: scope binders and authored declarations carry their
+            // own symbols, so a reference that resolves to a fixed `core::*`
+            // declaration is the vocabulary however it was spelled — and a
+            // same-spelled foreign symbol is not.
+            if let Some(member) = self.fixed_core.classify(symbol, name) {
+                return match member {
+                    FixedCore::Level => {
+                        Err(self.refuse("`core::Level` is a universe level, not a type".to_owned()))
+                    }
+                    member => self.unapplied_core_type(member, name),
+                };
+            }
             if let Some(term) = self.scope_term_for_symbol(symbol) {
                 return Ok(term);
             }
@@ -721,20 +746,14 @@ impl<'a> Elaborator<'a> {
             if let Some(term) = self.carrier_for_symbol(symbol) {
                 return Ok(term);
             }
-            return match name.as_str() {
-                "core::Level" => {
-                    Err(self.refuse("`core::Level` is a universe level, not a type".to_owned()))
-                }
-                "core::Type" | "core::Strict" | "core::Squash" => self.unapplied_core_type(name),
-                _ => Err(self.refuse(format!("`{name}` is not a mathematical type"))),
-            };
+            return Err(self.refuse(format!("`{name}` is not a mathematical type")));
         }
-        match name.as_str() {
-            "core::Level" => {
+        match self.fixed_core.classify(symbol, name) {
+            Some(FixedCore::Level) => {
                 Err(self.refuse("`core::Level` is a universe level, not a type".to_owned()))
             }
-            "core::Type" | "core::Strict" | "core::Squash" => self.unapplied_core_type(name),
-            _ => {
+            Some(member) => self.unapplied_core_type(member, name),
+            None => {
                 if let Some(term) = self.scope_term_for_name(name) {
                     return Ok(term);
                 }
@@ -2426,17 +2445,19 @@ impl<'a> Elaborator<'a> {
     /// generalized level parameter — `x: core::Type` binds a type at a
     /// published universe parameter exactly as a bare `T` binder does.
     /// `core::Squash` needs a type argument, so it cannot generalize and
-    /// refuses.
+    /// refuses, as does `core::Level` unapplied (handled by its own arm in
+    /// `named_type`).
     fn unapplied_core_type(
         &mut self,
+        member: FixedCore,
         name: &Identifier,
     ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
-        match name.as_str() {
-            "core::Type" => {
+        match member {
+            FixedCore::Type => {
                 let level = self.generalized_level();
                 Ok(self.arena.insert(Term::Sort(Sort::Type(level))))
             }
-            "core::Strict" => {
+            FixedCore::Strict => {
                 let level = self.generalized_level();
                 Ok(self.arena.insert(Term::Sort(Sort::Strict(level))))
             }

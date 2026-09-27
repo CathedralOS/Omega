@@ -9,9 +9,10 @@
 //! - Generic binders classify by authored carrier: `u: core::Level` becomes a
 //!   universe `Level` binder, `A: core::Type<u>` a `Type` binder carrying its
 //!   level argument, `const` stays a compile-time value binder, and every
-//!   other carrier stays a `Value` subject binder. The fixed `core::*`
-//!   declarations do not exist yet, so carriers classify by resolved authored
-//!   name; symbol identity replaces name matching once they land.
+//!   other carrier stays a `Value` subject binder. Carriers classify by the
+//!   fixed `core::*` declarations' canonical identity — resolved symbols
+//!   first, the unresolved authored spelling only until those declarations
+//!   exist.
 //! - Telescope parameter and result types render to their nested-Pi
 //!   identity: `(x: A) -> B(x)` or `A -> B` for arrows, `callee(arg, ...)`
 //!   for applications, and the ordinary display spelling for ordinary
@@ -39,6 +40,8 @@ use typed_trees::mathematical::{
 use typed_trees::proposition::ProofSubstitutions;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+use crate::proof::{FixedCore, FixedCoreVocabulary};
+
 /// Build the checked mathematical-declaration surface for a typed program.
 ///
 /// One [`CheckedMathematicalDeclaration`] per authored declaration, in
@@ -50,22 +53,24 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 pub(crate) fn build_checked_mathematical_declarations(
     program: &TypedTrees,
 ) -> Result<Vec<CheckedMathematicalDeclaration>, Vec<diagnostics::Diagnostic>> {
+    let vocabulary = FixedCoreVocabulary::resolve(&program.symbols);
     program
         .mathematical_definitions()
         .iter()
-        .map(|definition| elaborate_declaration(program, definition))
+        .map(|definition| elaborate_declaration(program, &vocabulary, definition))
         .collect()
 }
 
 fn elaborate_declaration(
     program: &TypedTrees,
+    vocabulary: &FixedCoreVocabulary,
     definition: &MathematicalDefinition,
 ) -> Result<CheckedMathematicalDeclaration, Vec<diagnostics::Diagnostic>> {
     let binders = program
         .data_type_parameters
         .span_or_empty(definition.binders)
         .iter()
-        .map(|binder| elaborate_binder(program, definition, binder))
+        .map(|binder| elaborate_binder(program, vocabulary, definition, binder))
         .collect::<Result<_, _>>()?;
     let parameters = program
         .mathematical_parameters(definition.parameters)
@@ -98,6 +103,7 @@ fn elaborate_declaration(
 
 fn elaborate_binder(
     program: &TypedTrees,
+    vocabulary: &FixedCoreVocabulary,
     definition: &MathematicalDefinition,
     binder: &TypeParameter,
 ) -> Result<CheckedMathematicalBinder, Vec<diagnostics::Diagnostic>> {
@@ -117,7 +123,7 @@ fn elaborate_binder(
             type_identity: ordinary_type_identity(program, definition, *type_reference)?,
         },
         TypeParameterKind::Value { type_reference } => {
-            classify_subject_carrier(program, definition, binder, *type_reference)?
+            classify_subject_carrier(program, vocabulary, definition, binder, *type_reference)?
         }
         TypeParameterKind::Machine { .. } | TypeParameterKind::Proposition { .. } => {
             return Err(refuse(
@@ -139,10 +145,12 @@ fn elaborate_binder(
 /// Classify a `name: Carrier` binder by the fixed core declaration its
 /// carrier names: `core::Level` makes a universe binder and `core::Type` a
 /// type binder carrying its level argument; any other carrier stays an
-/// ordinary subject binder. Until the fixed `core::*` declarations exist the
-/// match is on the resolved authored name.
+/// ordinary subject binder. Identity is canonical — a carrier that resolved
+/// to a fixed `core::*` declaration is the vocabulary; the unresolved
+/// authored spelling is the transitional fallback only.
 fn classify_subject_carrier(
     program: &TypedTrees,
+    vocabulary: &FixedCoreVocabulary,
     definition: &MathematicalDefinition,
     binder: &TypeParameter,
     carrier: TypeReferenceHandle,
@@ -158,19 +166,20 @@ fn classify_subject_carrier(
         ));
     }
     match program.type_reference_table.type_reference(carrier) {
-        TypeReferenceNode::Named { name, .. } => match name.as_str() {
-            "core::Level" => Ok(CheckedMathematicalBinderKind::Level),
-            "core::Type" => Ok(CheckedMathematicalBinderKind::Type { universe: None }),
+        TypeReferenceNode::Named { symbol, name } => match vocabulary.classify(*symbol, name) {
+            Some(FixedCore::Level) => Ok(CheckedMathematicalBinderKind::Level),
+            Some(FixedCore::Type) => Ok(CheckedMathematicalBinderKind::Type { universe: None }),
             _ => Ok(CheckedMathematicalBinderKind::Value {
                 type_identity: ordinary_type_identity(program, definition, carrier)?,
             }),
         },
         TypeReferenceNode::Generic {
+            base_symbol,
             base_name,
             arguments,
             ..
-        } => match base_name.as_str() {
-            "core::Type" => {
+        } => match vocabulary.classify(*base_symbol, base_name) {
+            Some(FixedCore::Type) => {
                 let arguments = program
                     .type_reference_table
                     .type_reference_handles(*arguments);
@@ -189,7 +198,7 @@ fn classify_subject_carrier(
                     )),
                 }
             }
-            "core::Level" => Err(refuse(
+            Some(FixedCore::Level) => Err(refuse(
                 program,
                 definition,
                 format!(
