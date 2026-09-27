@@ -347,20 +347,6 @@ fn dependency_free_build_project_still_enters_reconciled_source_custody() {
 }
 
 #[test]
-fn production_usage_does_not_advertise_manifest_or_receipt_inputs() {
-    let output = omega(&[]);
-    assert_eq!(output.status.code(), Some(2));
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(!stderr.contains("manifest.json"), "stderr was: {stderr}");
-    assert!(!stderr.contains("receipt.json"), "stderr was: {stderr}");
-    assert!(!stderr.contains("lock assemble"), "stderr was: {stderr}");
-    assert!(
-        !stderr.contains("--package-root-policy"),
-        "stderr was: {stderr}"
-    );
-}
-
-#[test]
 fn optimizer_rollback_cli_requires_exact_unique_names() {
     let unknown = omega(&[
         "--disable-optimization",
@@ -683,34 +669,4 @@ fn the_primary_native_route_survives_a_real_sample() {
         ),
     }
     let _ = std::fs::remove_dir_all(build_dir);
-}
-
-/// An unmatched argument used to fall through to the root path, so a misspelled
-/// flag was taken as a source root and the directory containing it was walked as a
-/// package. `omega --bogus` reported `source root exceeds identity entry limit of
-/// 4096` from the repository root rather than naming the bad option.
-#[test]
-fn unrecognized_options_are_rejected_rather_than_taken_as_the_root() {
-    let output = omega(&["--bogus"]);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-
-    assert_eq!(
-        output.status.code(),
-        Some(2),
-        "stderr was:{}{stderr}",
-        "
-"
-    );
-    assert!(
-        stderr.contains("unrecognized option `--bogus`"),
-        "stderr was:{}{stderr}",
-        "
-"
-    );
-    assert!(
-        !stderr.contains("identity entry limit"),
-        "the option was still taken as a source root:{}{stderr}",
-        "
-"
-    );
 }

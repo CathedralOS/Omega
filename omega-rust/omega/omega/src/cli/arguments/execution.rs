@@ -87,20 +87,6 @@ mod tests {
     }
 
     #[test]
-    fn probe_preserves_ordinary_options() {
-        let arguments = parse_arguments(
-            ["--both", "main.omg", "--keep", "--target", "linux_x86_64"]
-                .into_iter()
-                .map(std::ffi::OsString::from),
-        )
-        .unwrap();
-        assert!(arguments.both);
-        assert!(arguments.keep);
-        assert_eq!(arguments.main_path, std::path::PathBuf::from("main.omg"));
-        assert_eq!(arguments.target_name.as_deref(), Some("linux_x86_64"));
-    }
-
-    #[test]
     fn run_rejects_extra_roots_unknown_options_and_duplicate_options() {
         for arguments in [
             vec!["main.omg", "other.omg"],

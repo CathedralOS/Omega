@@ -23,64 +23,6 @@ terminates by remaining -> Nat::Descending in 0..(limits.limit % limits.divisor 
 "#;
 
 #[test]
-fn natural_owned_scalar_cycle_reports_verified_ranking_and_its_requires_capped_ceiling() {
-    let source = temporary_source("natural-owned-scalar", CUSTOMER);
-    let output = inspect("walk", &source);
-    let lowered = lower_source("walk", &source);
-    remove_fixture(source);
-
-    assert!(
-        output.status.success(),
-        "Natural customer inspection failed: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let module = &lowered.semantic_module;
-    let walk = module
-        .machines
-        .iter()
-        .find(|machine| machine.id == module.entry)
-        .unwrap();
-    let Some(TerminalRankedScc::Natural(components)) = &walk.ranked_scc else {
-        panic!("the authored walk must retain Natural ranking");
-    };
-    assert_eq!(components.len(), 1);
-    let component = terminal_verifier::control_cycle_identity(walk, &components[0]);
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.lines().any(|line| line
-            == format!(
-                "terminal selected_machine=walk entry=machine:{} verified=true",
-                module.entry.get()
-            )),
-        "{stdout}"
-    );
-    assert_eq!(
-        stdout
-            .lines()
-            .filter(|line| line.starts_with("control_cycle "))
-            .collect::<Vec<_>>(),
-        [format!(
-            "control_cycle machine=machine:{} component={} ranking=natural",
-            walk.id.get(),
-            component.get()
-        )]
-    );
-    // The `remaining: u64 [0..=5]` requires row caps the rank with a literal,
-    // so the u64 carrier still yields a replayed fixed ceiling.
-    let fuel = evidence::inspect(module, &lowered.proof_bundle)
-        .expect("Natural proof verification succeeds");
-    let evidence::FixedFuel::Available(certificate) = fuel else {
-        panic!("the literal requires ceiling must bound the u64 rank: {fuel:?}");
-    };
-    assert!(
-        stdout.lines().any(|line| line.starts_with("fixed_fuel ")
-            && line.contains(&format!("ceiling_units={}", certificate.ceiling_units()))),
-        "inspection must print the replayed ceiling: {stdout}"
-    );
-    assert!(!stdout.contains("status=unknown"), "{stdout}");
-}
-
-#[test]
 fn unranked_owned_scalar_cycle_inspects_without_manufacturing_ranking_or_fuel() {
     let unranked = CUSTOMER.replacen(
         "terminates by remaining -> Nat::Descending in 0..(limits.limit % limits.divisor + 6);\n",

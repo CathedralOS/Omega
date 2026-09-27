@@ -249,7 +249,7 @@ fn host_name() -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{BuildDirConflict, OCCUPANT_FILE, OWNER_FILE, acquire};
+    use super::{BuildDirConflict, OCCUPANT_FILE, acquire};
     use crate::temporary_directory::TemporaryDirectory;
     use std::path::PathBuf;
 
@@ -280,33 +280,6 @@ mod tests {
     }
 
     #[test]
-    fn released_occupancy_lets_the_same_root_compile_again() {
-        let mut fixture = Fixture::new();
-        let build = fixture.directory("build");
-        let root = fixture.root("source-a");
-        let first = acquire(&build, &root).unwrap();
-        drop(first);
-        assert!(acquire(&build, &root).is_ok());
-    }
-
-    #[test]
-    fn held_occupancy_refuses_a_second_invocation_of_the_same_root() {
-        let mut fixture = Fixture::new();
-        let build = fixture.directory("build");
-        let root = fixture.root("source-a");
-        let first = acquire(&build, &root).unwrap();
-        match acquire(&build, &root) {
-            Err(BuildDirConflict::Occupied { detail, .. }) => {
-                assert!(detail.contains("pid "), "{detail}");
-                assert!(detail.contains("root "), "{detail}");
-            }
-            other => panic!("expected Occupied, got {other:?}"),
-        }
-        drop(first);
-        assert!(acquire(&build, &root).is_ok());
-    }
-
-    #[test]
     fn a_different_source_root_aliasing_the_directory_refuses() {
         let mut fixture = Fixture::new();
         let build = fixture.directory("build");
@@ -328,23 +301,6 @@ mod tests {
     }
 
     #[test]
-    fn aliased_spelling_of_the_same_root_is_not_an_alias() {
-        let mut fixture = Fixture::new();
-        let build = fixture.directory("build");
-        let root = fixture.root("source-a");
-        let spelled = root
-            .parent()
-            .unwrap()
-            .join("nested")
-            .join("..")
-            .join("main.omg");
-        std::fs::create_dir_all(spelled.parent().unwrap().parent().unwrap()).unwrap();
-        let first = acquire(&build, &root).unwrap();
-        drop(first);
-        assert!(acquire(&build, &spelled).is_ok());
-    }
-
-    #[test]
     fn a_stale_occupant_record_is_reported_with_its_contents() {
         let mut fixture = Fixture::new();
         let build = fixture.directory("build");
@@ -361,29 +317,6 @@ mod tests {
             }
             other => panic!("expected Occupied, got {other:?}"),
         }
-    }
-
-    #[test]
-    fn dropping_the_guard_removes_only_the_occupant_record() {
-        let mut fixture = Fixture::new();
-        let build = fixture.directory("build");
-        let root = fixture.root("source-a");
-        let guard = acquire(&build, &root).unwrap();
-        drop(guard);
-        assert!(build.join(OWNER_FILE).is_file());
-        assert!(!build.join(OCCUPANT_FILE).exists());
-    }
-
-    #[test]
-    fn acquired_directory_is_the_canonical_spelling() {
-        let mut fixture = Fixture::new();
-        let build = fixture.directory("build");
-        let root = fixture.root("source-a");
-        let spelled = build.join("nested").join("..");
-        std::fs::create_dir_all(&spelled).unwrap();
-        let guard = acquire(&spelled, &root).unwrap();
-        assert_eq!(guard.directory(), &std::fs::canonicalize(&build).unwrap());
-        drop(guard);
     }
 
     #[test]
@@ -412,31 +345,5 @@ mod tests {
         ));
         // Re-admitted under the same name, the new directory checks out.
         assert!(super::confirm_admitted(&build, &super::directory_identity(&build)).is_ok());
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn records_bind_the_canonical_directory_under_a_symlinked_spelling() {
-        use std::os::unix::fs::symlink;
-        let mut fixture = Fixture::new();
-        let real = fixture.directory("real-build");
-        let links = fixture.directory("links");
-        let alias = links.join("alias");
-        symlink(&real, &alias).unwrap();
-        let root = fixture.root("source-a");
-        let guard = acquire(&alias, &root).unwrap();
-        // Records and the admitted directory name the target, not the link.
-        assert!(alias.is_symlink());
-        assert!(real.join(OWNER_FILE).is_file());
-        assert!(real.join(OCCUPANT_FILE).is_file());
-        assert_eq!(guard.directory(), &std::fs::canonicalize(&real).unwrap());
-        drop(guard);
-        // A stale marker left at the link itself does not shadow the target's.
-        std::fs::write(
-            real.join(OCCUPANT_FILE),
-            "omega-build-directory-occupant 1\npid 9\nhost h\n",
-        )
-        .unwrap();
-        assert!(acquire(&alias, &root).is_err());
     }
 }

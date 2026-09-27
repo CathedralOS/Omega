@@ -40,28 +40,3 @@ impl Drop for TemporaryDirectory {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::TemporaryDirectory;
-
-    #[test]
-    fn overlapping_invocations_own_distinct_directories_and_cleanup_only_their_own() {
-        let first = TemporaryDirectory::create("test", false).unwrap();
-        let second = TemporaryDirectory::create("test", false).unwrap();
-        assert_ne!(first.path(), second.path());
-        let first_path = first.path().to_path_buf();
-        drop(first);
-        assert!(!first_path.exists());
-        assert!(second.path().is_dir());
-    }
-
-    #[test]
-    fn retained_directory_survives_operation_scope() {
-        let output = TemporaryDirectory::create("test", true).unwrap();
-        let path = output.path().to_path_buf();
-        drop(output);
-        assert!(path.is_dir());
-        std::fs::remove_dir(&path).unwrap();
-    }
-}

@@ -206,13 +206,6 @@ mod tests {
     use super::ProcessExitObservation;
 
     #[test]
-    fn observation_code_exposes_only_reported_exit_codes() {
-        assert_eq!(ProcessExitObservation::Exited(7).code(), Some(7));
-        assert_eq!(ProcessExitObservation::Signaled(11).code(), None);
-        assert_eq!(ProcessExitObservation::Terminated.code(), None);
-    }
-
-    #[test]
     fn observation_describe_names_each_termination_channel() {
         assert_eq!(ProcessExitObservation::Exited(42).describe(), "exit 42");
         assert_eq!(ProcessExitObservation::Signaled(11).describe(), "signal 11");

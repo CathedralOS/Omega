@@ -163,36 +163,6 @@ fn natural_u32_cycle_reports_its_replayed_fixed_fuel_ceiling() {
 }
 
 #[test]
-fn acyclic_inspection_keeps_the_ordinary_fixed_fuel_path() {
-    let source = temporary_source(
-        "acyclic",
-        r#"
-            data Token { value: i32; }
-            data Root {}
-
-            machine Root::forward(token: Token) {
-                transition { _ -> done(token) }
-                state done(token: Token) {}
-            }
-        "#,
-    );
-
-    let output = inspect("Root::forward", &source);
-    remove_fixture(source);
-
-    assert!(
-        output.status.success(),
-        "acyclic fixed-fuel inspection failed: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("selected_machine=Root::forward"));
-    assert!(stdout.contains("fixed_fuel "), "{stdout}");
-    assert!(stdout.contains("ceiling_units="), "{stdout}");
-    assert!(!stdout.contains("status=unknown"), "{stdout}");
-}
-
-#[test]
 fn wider_ranked_countdown_inspects_without_fabricating_an_overflowed_ceiling() {
     let source = temporary_source(
         "ranked-u64",

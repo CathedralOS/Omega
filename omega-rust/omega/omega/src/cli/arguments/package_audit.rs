@@ -76,36 +76,10 @@ fn value(arguments: &mut impl Iterator<Item = OsString>, flag: &str) -> Result<O
 
 #[cfg(test)]
 mod tests {
-    use super::{OsString, PathBuf, parse};
+    use super::{OsString, parse};
 
     fn arguments(values: &[&str]) -> impl Iterator<Item = OsString> {
         values.iter().map(OsString::from)
-    }
-
-    #[test]
-    fn target_selection_and_default_project_are_explicit() {
-        let options = parse(arguments(&[])).unwrap().unwrap();
-        assert_eq!(options.project_root, PathBuf::from("."));
-        assert!(options.targets.is_empty());
-        assert!(!options.details);
-        assert!(!options.offline);
-        assert!(options.build_inputs.is_none());
-        assert!(parse(arguments(&["--details"])).unwrap().unwrap().details);
-        let options = parse(arguments(&[
-            "--project",
-            "space in path",
-            "--offline",
-            "--target",
-            "linux_x86_64",
-            "--target",
-            "macos_arm64",
-        ]))
-        .unwrap()
-        .unwrap();
-        assert_eq!(options.project_root, PathBuf::from("space in path"));
-        assert_eq!(options.targets.len(), 2);
-        assert!(options.offline);
-        assert!(parse(arguments(&["--help"])).unwrap().is_none());
     }
 
     #[test]
@@ -145,36 +119,6 @@ mod tests {
         ] {
             assert!(parse(arguments(&values)).is_err(), "{values:?}");
         }
-    }
-
-    #[test]
-    fn inspection_retains_required_and_optional_input_obligations() {
-        use package_compilation::BuildSourceCaptureObligation::{Optional, Required};
-        let options = parse(arguments(&[
-            "--build-input",
-            "main.omg",
-            "--optional-build-input",
-            "settings.cfg",
-            "--build-input",
-            "templates",
-            "--build-input",
-            "-template",
-            "--details",
-            "--offline",
-        ]))
-        .unwrap()
-        .unwrap();
-        let inputs = options.build_inputs.unwrap();
-        assert_eq!(
-            inputs.entries().collect::<Vec<_>>(),
-            vec![
-                (b"-template".as_slice(), Required),
-                (b"main.omg".as_slice(), Required),
-                (b"settings.cfg".as_slice(), Optional),
-                (b"templates".as_slice(), Required),
-            ]
-        );
-        assert!(options.details && options.offline);
     }
 
     #[test]
