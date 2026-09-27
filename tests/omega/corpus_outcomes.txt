@@ -1067,15 +1067,16 @@ pass/calls/case_arm_payload_receiver_arg rejected 1242ms
 pass/calls/case_scrutinee_param_clone_exit rejected 1247ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`ScanResult::clone`), which was itself omitted at local construction at `result ownership`
 pass/calls/case_scrutinee_self_dispatch_exit rejected 1251ms
-	native-artifact Terminal production failed: Lowering(InvalidTerminalModule(UnknownStructuralArgument { operation: OperationId(4), argument_index: 0, place: PlaceId(7) }))
+	native artifact native artifact lowering failed: Lowering(UnsupportedStructuralCase(OperationId(3)))
 pass/calls/guarded_value_call_arm_exit checked 6158ms
 pass/calls/machine_self_call_recursion_compile checked 2855ms
 pass/calls/mutable_output_host_call checked 8515ms
 pass/calls/mutual_cycle_tail_admitted_exit checked 6333ms
+pass/calls/named_target_payload_dispatch checked 1934ms
 pass/calls/nested_call_runtime_index_arg_exit rejected 1280ms
 	native artifact canonical abstract optimization failed: explicit optimization pipeline failed: Run(InitialValidation(StructuralCallContractMismatch { machine: MachineId(1), block: BlockId(4), node: 1 }))
 pass/calls/nested_call_tail_roots_exit rejected 1189ms
-	native-artifact Terminal production failed: Lowering(InvalidTerminalModule(UnknownStructuralArgument { operation: OperationId(16), argument_index: 0, place: PlaceId(19) }))
+	native artifact native artifact lowering failed: Lowering(UnsupportedStructuralCase(OperationId(15)))
 pass/calls/nested_machine_continuation checked 6682ms
 pass/calls/nested_value_call_arg_compile rejected 5371ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `outer calls: unconsumed nested call in a local initializer` (state 0, statement 0)

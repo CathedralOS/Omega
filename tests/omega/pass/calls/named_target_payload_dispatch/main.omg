@@ -1,0 +1,45 @@
+// Named-target arm-bound payload dispatch: `transition self` binds the case
+// payload `list` and forwards it as the structural argument of the named
+// state's block parameter. The argument roster registers it and the machine
+// verifies end-to-end (the documented `UnknownStructuralArgument` on this
+// shape is dead). Companion wall pin: nested_call_tail_roots_exit.
+
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data ItemList {
+    items: [u64; 4];
+    count: u64;
+}
+
+machine ItemList::get_count(&self) -> u64 {
+    self.count
+}
+
+data Wrap {
+    case Has(list: ItemList);
+    case Empty;
+}
+
+machine Wrap::get_count(&self) -> u64 {
+    transition self {
+        Wrap::Has { list } -> at(list)
+        _ -> (0)
+    }
+    state at(&self, list: ItemList) -> u64 {
+        list.get_count()
+    }
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    transition {
+        _ -> done()
+    }
+    state done(&mut self) {
+        self.console.exit_process(0);
+    }
+}
