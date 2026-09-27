@@ -181,9 +181,6 @@ canonical source and evidence identities are byte-sensitive.
 - A diagnosis is not a delivered fix: continue when the design answers it,
   or hand off the exact missing dependency. Report which happened —
   implementation done, verification only, diagnosed blocker, still running.
-- Use Astra for coordination and judgment work (refactoring, ownership,
-  review); Luna only for execution where no tradeoff decisions remain. If
-  decisions emerge, stop and route to Astra.
 
 ## Commit naming
 
@@ -254,7 +251,9 @@ Commit messages carry no tool attribution: no "Generated with ..." line, no
 - **Never push to `main` directly.** Reserve and publish through
   `tools/landing.py` ([tools/landing.md](tools/landing.md)); history is
   linear — rebase onto `main` and fast-forward, never merge
-  (`git config pull.rebase true`).
+  (`git config pull.rebase true`). Once a publish completes, remove the
+  worktree and delete the candidate branch — a landed lane is dead
+  bookkeeping, not a record.
 - Before editing shared paths, check `python tools/claims.py status` for
   live session assignments and claim the work ([tools/claims](tools/claims.md)).
 - Keep sample coverage out of the shipped CLI.
