@@ -72,9 +72,16 @@ pub(super) fn project(
                 "a closed application without one exact selected operator overload",
             ));
         };
+        // A requirement machine's token view shares its symbol, but the
+        // provider slot is the machine: the coordinate uses the machine's
+        // named-callable overload identity, not the operator signature.
         let operator_coordinate = match requirement.as_operator() {
-            Some(operator) => project_operator_coordinate(compilation, operator)?,
-            None => project_requirement_coordinate(compilation, requirement.symbol)?,
+            Some(operator)
+                if requirement.kind == provider_planning::IntrinsicRequirementKind::Operator =>
+            {
+                project_operator_coordinate(compilation, operator)?
+            }
+            _ => project_requirement_coordinate(compilation, requirement.symbol)?,
         };
         if operator_coordinate.identity != checked.operator_declaration {
             return Err(rejected(

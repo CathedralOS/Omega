@@ -432,6 +432,53 @@ fn authored_application_selection_kind(
     }
 }
 
+/// A token-authored application of a token-bound machine is rewritten into an
+/// ordinary `Call` node (`bind_token_bound_machine_calls`); the rewritten node
+/// keeps its authored `Operator` selection occurrence while the operator use
+/// facts record the settled resolution as a named use. The named row names the
+/// declaration the token selected, not the authored surface, so when the site
+/// retains an `Operator` selection resolved to the requirement the use
+/// classifies `FixedToken` under the token binding's spelling instead.
+pub(super) fn token_authored_use_kind(
+    compilation: &PackageReviewInput<'_>,
+    expression: typed_trees::expression::ExpressionHandle,
+    requirement: symbols::SymbolHandle,
+) -> Option<selected_dispatch::CheckedOperatorAuthoredUseKind> {
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
+    };
+
+    let authored_token = compilation
+        .typed
+        .expression_table
+        .authored_selection_occurrences(expression)
+        .filter_map(|occurrence| {
+            compilation
+                .typed
+                .authored_declaration_selections()
+                .get(occurrence)
+        })
+        .any(|selection| {
+            selection.kind() == AuthoredDeclarationSelectionKind::Operator
+                && matches!(
+                    selection.target(),
+                    AuthoredDeclarationSelectionTarget::Resolved(target)
+                        if target.selected_symbol() == requirement
+                )
+        });
+    if !authored_token {
+        return None;
+    }
+    compilation
+        .typed
+        .machine_token_bindings()
+        .iter()
+        .chain(compilation.typed.operators())
+        .find(|operator| operator.symbol == requirement)
+        .and_then(|operator| operator.spelling)
+        .map(selected_dispatch::CheckedOperatorAuthoredUseKind::FixedToken)
+}
+
 fn same_application_key(
     left: &CheckedPackageBoundaryApplicationRealizationReview,
     right: &CheckedPackageBoundaryApplicationRealizationReview,
