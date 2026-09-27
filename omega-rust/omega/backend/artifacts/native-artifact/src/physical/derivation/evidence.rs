@@ -20,6 +20,9 @@ use crate::physical::derivation::hashing::{
 use crate::physical::derivation::hosted_builtins::{
     derive_hosted_builtin_child, hosted_builtin_settlement,
 };
+use crate::physical::derivation::provider_calls::{
+    boundary_internal_call_exists, derive_installed_provider_internal_call_child,
+};
 use crate::physical::derivation::provider_settlements::derive_admitted_provider_settlement_child;
 use crate::physical::dynamic_call_dispatch;
 use crate::physical::native_optimization_projection;
@@ -198,7 +201,13 @@ pub(crate) fn derive_physical_evidence(
         );
         let installed = settlements.get(&key);
         let foreign = foreign_calls.get(&(occurrence.machine(), occurrence.operation()));
-        if installed.is_some() && foreign.is_some() {
+        let internal_call = boundary_internal_call_exists(object, occurrence);
+        if [installed.is_some(), foreign.is_some(), internal_call]
+            .into_iter()
+            .filter(|present| *present)
+            .count()
+            > 1
+        {
             return Err("native physical evidence found two realizations for one boundary call");
         }
         let requirement = boundary_identities
@@ -276,12 +285,32 @@ pub(crate) fn derive_physical_evidence(
                 };
                 children.push(child);
             }
-            _ => {
-                return Ok(blocked(
-                    NativePhysicalEvidenceGapSubject::UnrealizedBoundaryOccurrence {
-                        occurrence: *occurrence,
-                    },
-                ));
+            (None, None) => {
+                // An installed provider realized inside this same artifact
+                // retains neither a settlement nor a normalized foreign call:
+                // it emitted an ordinary resolved internal call, and that
+                // retained custody binds the occurrence here.
+                if let Some(child) = derive_installed_provider_internal_call_child(
+                    &module,
+                    object,
+                    image,
+                    occurrence,
+                    projection.identity(),
+                    requirement,
+                    selected_plan,
+                    target,
+                )? {
+                    children.push(child);
+                } else {
+                    return Ok(blocked(
+                        NativePhysicalEvidenceGapSubject::UnrealizedBoundaryOccurrence {
+                            occurrence: *occurrence,
+                        },
+                    ));
+                }
+            }
+            (Some(_), Some(_)) => {
+                unreachable!("dual boundary realizations rejected above")
             }
         }
     }

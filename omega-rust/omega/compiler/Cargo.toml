@@ -113,3 +113,7 @@ harness = false
 [[test]]
 name = "callback_terminal_custody"
 path = "tests/callback_terminal_custody.rs"
+
+[[test]]
+name = "boundary_internal_call_evidence"
+path = "tests/boundary_internal_call_evidence.rs"
