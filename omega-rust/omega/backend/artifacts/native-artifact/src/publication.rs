@@ -2,9 +2,18 @@
 //! native pair validation, and the self-verifying
 //! [`ExecutablePublicationReceipt`] that ties published bytes to the artifact
 //! they came from.
+//! `PreparedExecutablePublication` admits the artifact's publication evidence
+//! before file installation and binds the resulting receipt to its destination.
+//! It does not write files or grant permission to execute them.
 
 use sha2::{Digest, Sha256};
 use std::path::PathBuf;
+
+mod preparation;
+pub use preparation::PreparedExecutablePublication;
+
+#[cfg(test)]
+mod tests;
 
 macro_rules! publication_digest {
     ($name:ident) => {
@@ -27,6 +36,8 @@ publication_digest!(NativePublicationCertificateDigest);
 publication_digest!(NativePublicationEvidenceDigest);
 publication_digest!(ExecutableContainerDigest);
 publication_digest!(ExecutableInstallationEvidenceDigest);
+publication_digest!(PackageComponentDigest);
+publication_digest!(NativePackageEvidenceDigest);
 
 pub fn executable_installation_evidence_digest(
     publication_evidence_digest: NativePublicationEvidenceDigest,
@@ -146,18 +157,14 @@ pub(crate) fn executable_container_digest(bytes: &[u8]) -> ExecutableContainerDi
 /// the coverage leg validates while the behavioral legs have no standalone
 /// checking yet — but `Reject` or a named resource limit means the emitted
 /// evidence cannot carry even its bounded claim, and refuses publication.
-pub(crate) fn validate_native_pair(
+pub fn validate_native_pair(
     executable_bytes: &[u8],
     sidecar: &terminal_codec::PccProofSidecar,
     admission_profile: &proof_admission::AdmissionProfile,
 ) -> Result<(), String> {
     let policy =
         terminal_codec::PccReceiverPolicy::for_offered_claim(sidecar, admission_profile.clone());
-    match native_artifact::verify_native_proof_sidecar(
-        executable_bytes,
-        &sidecar.to_bytes(),
-        &policy,
-    ) {
+    match crate::verify_native_proof_sidecar(executable_bytes, &sidecar.to_bytes(), &policy) {
         terminal_codec::PccVerificationOutcome::Complete(_)
         | terminal_codec::PccVerificationOutcome::Incomplete(
             terminal_codec::PccIncompleteness::UnsupportedEvidence {

@@ -13,6 +13,7 @@
 //! `native_artifact.rs` for artifact construction and replay,
 //! and its `emission.rs` for requested-image dispatch and complete native custody,
 //! `proof.rs` for standalone native proof construction and verification,
+//! `publication.rs` for executable publication evidence and receipt replay,
 //! `callable_entry.rs` for validated callable-entry staging, or
 //! `semantic_wrapper_object.rs` for the optimized ProgramStorage
 //! semantic-wrapper object records and codec that native realization stages.
@@ -24,6 +25,7 @@ mod native_artifact;
 pub mod optimized_semantic_wrapper_object;
 mod physical;
 mod proof;
+mod publication;
 mod semantic_wrapper_object;
 
 pub use callable_entry::{
@@ -59,6 +61,12 @@ pub use physical::{
     NormalizedForeignCallbackRelocation, NormalizedForeignCallbackRelocations,
     OptimizedBoundaryOccurrence, OptimizedOperatorOccurrence, PhysicalChildParent,
     PhysicalRelocationDisposition, ValidatedOptimizedNativePhysicalEvidenceScope,
+};
+pub use publication::{
+    ExecutableContainerDigest, ExecutableInstallationEvidenceDigest, ExecutablePublicationReceipt,
+    NativePackageEvidenceDigest, NativePublicationCertificateDigest,
+    NativePublicationEvidenceDigest, PackageComponentDigest, PreparedExecutablePublication,
+    executable_installation_evidence_digest, validate_native_pair,
 };
 pub use semantic_wrapper_object::{
     OptimizedProgramStorageSemanticWrapperCallResolution,

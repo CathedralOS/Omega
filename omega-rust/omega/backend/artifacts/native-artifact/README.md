@@ -45,6 +45,14 @@ from ELF, PE, and Mach-O bytes. Inventory and import-thunk checks still return
 `Incomplete` for unsupported behavioral proof. Compiler reporting owns file
 publication and dispatch between Psi and native proof products.
 
+[publication.rs](src/publication.rs) owns the executable publication digest
+domains, producer-side native proof-pair validation and self-verifying receipts.
+`PreparedExecutablePublication` admits the image's required text/function
+evidence before installation, then binds its receipt to the installed path.
+The compiler chooses products and installs files; it does not assemble the
+native digest chain. Receipt replay detects content and mode drift without
+granting receiving or execution authority.
+
 [callable_entry.rs](src/callable_entry.rs) is the separate entrance for staging
 and replaying optimized ordinary callable entries. Its model, reconstruction,
 and codec live under `callable_entry/`.
