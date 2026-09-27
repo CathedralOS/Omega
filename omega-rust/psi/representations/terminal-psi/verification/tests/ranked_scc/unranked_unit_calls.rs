@@ -398,6 +398,6 @@ fn immutable_byte_call_extension_does_not_admit_shared_record_calls() {
     module.machines[1].blocks[0].operations.clear();
     assert!(matches!(
         validate_module(&module),
-        Err(ModuleError::ControlCycle(_))
+        Err(ModuleError::ControlCycleIneligible { .. })
     ));
 }

@@ -222,7 +222,7 @@ fn cyclic_record_affine_result_keeps_the_cycle_fence() {
     result.multiplicity = StructuralMultiplicity::Affine;
     assert!(matches!(
         validate_module(&module),
-        Err(ModuleError::ControlCycle(block)) if block == id(1, BlockId::new)
+        Err(ModuleError::ControlCycleIneligible { block, .. }) if block == id(1, BlockId::new)
     ));
 }
 

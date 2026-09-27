@@ -101,12 +101,12 @@ pub(super) fn block_order(
     }
     let cyclic = order.len() != blocks.len();
     if cyclic {
-        if !super::unranked_cycles::eligible(module, machine) {
+        if let Some(reason) = super::unranked_cycles::ineligibility(module, machine) {
             let block = indegree
                 .iter()
                 .find_map(|(block, count)| (*count != 0).then_some(*block))
                 .expect("a cyclic graph leaves positive indegree");
-            return Err(ModuleError::ControlCycle(block));
+            return Err(ModuleError::ControlCycleIneligible { block, reason });
         }
         // Every target and reachable block has been checked before the shared
         // full-graph analysis. Validation below is independent of visit order.

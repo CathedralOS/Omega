@@ -1,8 +1,8 @@
 use super::{
-    AdmissionProfile, BlockId, EdgeId, ModuleError, ObligationId, Operation, OperationId,
-    OperationKind, OperationResult, ProofBundle, ScalarType, StructuralMultiplicity,
-    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, ValueId,
-    VerificationError, add_loop_preserved_affine_parameter, id, ranked_countdown,
+    AdmissionProfile, BlockId, ControlCycleIneligibility, EdgeId, ModuleError, ObligationId,
+    Operation, OperationId, OperationKind, OperationResult, ProofBundle, ScalarType,
+    StructuralMultiplicity, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
+    ValueId, VerificationError, add_loop_preserved_affine_parameter, id, ranked_countdown,
     unranked_scalar_cycle, validate_module, validate_module_representation, verify_module,
     verify_module_for_interpretation,
 };
@@ -239,7 +239,13 @@ fn unranked_scalar_cycle_preserves_plain_owned_custody_but_not_linear_inputs() {
         });
     let result = validate_module_representation(&module);
     assert!(
-        matches!(result, Err(ModuleError::ControlCycle(_))),
+        matches!(
+            result,
+            Err(ModuleError::ControlCycleIneligible {
+                reason: ControlCycleIneligibility::UnpinnedClaims,
+                ..
+            })
+        ),
         "linear input: {result:?}"
     );
 }
