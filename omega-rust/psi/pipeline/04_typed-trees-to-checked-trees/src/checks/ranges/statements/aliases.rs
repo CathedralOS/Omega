@@ -4,6 +4,8 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use super::super::expressions::ensured_call_result_bounds;
 use super::super::facts::RangeFacts;
 
+mod remainder_bounds;
+
 /// Seeds every fact a freshly bound name inherits from its value: the captured
 /// integer-place identity, the ensured call result bounds, and the source
 /// place's proven index/range facts (`alias_index`, with `alias_collection`
@@ -29,6 +31,7 @@ pub(in crate::checks::ranges) fn seed_local_alias_facts(
     }
     facts.alias_integer_place_value(program, machine, state, value, symbol, &target_label);
     seed_ensured_call_result_bounds(program, facts, &target_label, value);
+    remainder_bounds::seed(program, machine, state, facts, value, &target_label);
 
     // The local inherits the proven index/range facts of whatever stable place
     // the value aliases. The source label must be the full display name (e.g.
