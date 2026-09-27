@@ -589,6 +589,7 @@ fn cycle_operation_eligible(
                         && ((argument.access == StructuralAccess::MutableBorrow
                             && machine.structural_parameters.iter().any(|parameter| {
                                 parameter.place == argument.place
+                                    && parameter.access == StructuralAccess::MutableBorrow
                                     && persistent_receiver(module, parameter)
                             }))
                             || (argument.access != StructuralAccess::Owned
@@ -847,7 +848,10 @@ fn persistent_receiver(
     parameter: &StructuralParameterDeclaration,
 ) -> bool {
     parameter.is_self
-        && parameter.access == StructuralAccess::MutableBorrow
+        && matches!(
+            parameter.access,
+            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        )
         && parameter.multiplicity == StructuralMultiplicity::Unrestricted
         && parameter.qualifications.is_empty()
         && parameter.projected_qualifications.is_empty()

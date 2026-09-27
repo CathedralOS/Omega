@@ -338,8 +338,16 @@ fn arguments<'a>(
             });
             continue;
         }
-        let target_parameter_index = u32::try_from(rows.structural.len()).ok()?;
-        let target_parameter = target.structural_parameters.get(rows.structural.len())?;
+        // A retained shared receiver owns a machine parameter, not an
+        // authored re-entry actual or block transfer. Resolve the explicit
+        // formal in the full roster so its index still names the same target
+        // during independent replay and subslice endpoint reconstruction.
+        let (target_parameter_index, target_parameter) = target
+            .structural_parameters
+            .iter()
+            .enumerate()
+            .find(|(_, parameter)| !parameter.is_self && parameter.position == argument_ordinal)?;
+        let target_parameter_index = u32::try_from(target_parameter_index).ok()?;
         if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(*actual)
             && matches!(
                 program.expression_table.expression(indexed.index),

@@ -145,8 +145,9 @@ fn emit_ranged(
     )
 }
 
-/// The site's lowered endpoints after replaying its authored range.
-fn endpoints(
+/// Bind replayed endpoints into the current scalar namespace. Replay itself
+/// performs no evaluation and also serves computed-call source custody.
+pub(crate) fn endpoints(
     checked: &CheckedTrees,
     site: &ViewRangeSite<'_>,
     source_symbol: symbols::SymbolHandle,
@@ -156,6 +157,37 @@ fn endpoints(
     (
         Option<LoweredDirectExpression>,
         Option<LoweredDirectExpression>,
+    ),
+    LoweringError,
+> {
+    let (start, end) = replay(checked, site, source_symbol, collection)?;
+    let lower = |present: bool, role| {
+        present
+            .then(|| bindings.expression_at(checked, site.state, site.statement, role))
+            .transpose()
+    };
+    Ok((
+        lower(
+            start.is_some(),
+            CheckedScalarExpressionRole::SubsliceStart { site: site.site },
+        )?,
+        lower(
+            end.is_some(),
+            CheckedScalarExpressionRole::SubsliceEnd { site: site.site },
+        )?,
+    ))
+}
+
+/// The site's lowered endpoints after replaying its authored range.
+pub(crate) fn replay(
+    checked: &CheckedTrees,
+    site: &ViewRangeSite<'_>,
+    source_symbol: symbols::SymbolHandle,
+    collection: &[CheckedUnitStructuralPathSegment],
+) -> Result<
+    (
+        Option<CheckedScalarExpression>,
+        Option<CheckedScalarExpression>,
     ),
     LoweringError,
 > {
@@ -226,7 +258,7 @@ fn endpoints(
     let endpoint = |authored_endpoint: ExpressionHandle,
                     role: CheckedScalarExpressionRole,
                     retained: Option<&Option<CheckedScalarExpression>>|
-     -> Result<Option<LoweredDirectExpression>, LoweringError> {
+     -> Result<Option<CheckedScalarExpression>, LoweringError> {
         if !authored_endpoint.is_valid() {
             return Ok(None);
         }
@@ -245,9 +277,7 @@ fn endpoints(
         {
             return unsupported("view subslice endpoint differs from its source-bound plan");
         }
-        bindings
-            .expression_at(checked, site.state, site.statement, role)
-            .map(Some)
+        Ok(Some(selected.clone()))
     };
     Ok((
         endpoint(

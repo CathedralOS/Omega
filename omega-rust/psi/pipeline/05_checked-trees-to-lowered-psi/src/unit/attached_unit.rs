@@ -77,7 +77,7 @@ pub(crate) mod scalar_arrays;
 mod scalar_structural_calls;
 mod structural_calls;
 pub(crate) mod structural_values;
-mod view_ranges;
+pub(crate) mod view_ranges;
 
 // How a body completes: its scalar or structural result.
 mod scalar_completion;

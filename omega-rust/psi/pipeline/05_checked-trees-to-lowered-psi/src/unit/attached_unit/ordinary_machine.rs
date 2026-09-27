@@ -325,6 +325,12 @@ pub(super) fn emit(
         structural_types,
         &mut next_place,
     )?;
+    evaluation.subslices = crate::scalar_graph::scalar_computations::subslices::prepare(
+        checked,
+        plan.machine,
+        structural_types,
+        &mut next_place,
+    )?;
     evaluation.cases = crate::scalar_graph::scalar_computations::cases::prepare(
         checked,
         plan.machine,
@@ -778,6 +784,25 @@ pub(super) fn emit(
         .collect::<Vec<_>>();
     // Argument-time view producers interleave with reserved call results.
     // Declaration order is canonical identity order, not execution order.
+    // The computation scan also encounters subslices whose ordinary call
+    // or edge already owns a declaration. Reuse only that exact declaration;
+    // a reused identity with different provenance remains an error.
+    for declaration in evaluation.blocks.iter().flat_map(|block| {
+        crate::scalar_graph::scalar_computations::subslices::declarations(&block.operations)
+    }) {
+        match structural_places
+            .iter()
+            .find(|existing| existing.id == declaration.id)
+        {
+            Some(existing) if *existing != declaration => {
+                return unsupported(
+                    "computed subslice conflicts with an existing place declaration",
+                );
+            }
+            Some(_) => {}
+            None => structural_places.push(declaration),
+        }
+    }
     structural_places.sort_by_key(|place| place.id);
     if let Some((_, result)) = &structural_return {
         structural_places.push(StructuralPlaceDeclaration {

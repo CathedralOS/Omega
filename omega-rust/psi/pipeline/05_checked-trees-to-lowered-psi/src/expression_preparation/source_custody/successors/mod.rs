@@ -122,7 +122,12 @@ pub(super) fn validate(
         .ok_or(LoweringError::Unsupported(
             "scalar successor has an invalid scalar argument span",
         ))?;
-    if structural.len() != target.structural_parameters.len()
+    if structural.len()
+        != target
+            .structural_parameters
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+            .count()
         || scalar.len() != target.scalar_parameters.len()
     {
         return unsupported("scalar successor rows do not fill its complete authored signature");
@@ -156,7 +161,18 @@ pub(super) fn validate(
             continue;
         }
         let row = &structural[structural_position];
-        let retained_target = &target.structural_parameters[structural_position];
+        // The implicit receiver remains machine-scoped; explicit actuals
+        // rejoin their authored positions in the complete retained roster.
+        let (target_parameter_index, retained_target) = target
+            .structural_parameters
+            .iter()
+            .enumerate()
+            .find(|(_, parameter)| {
+                !parameter.is_self && parameter.position as usize == argument_position
+            })
+            .ok_or(LoweringError::Unsupported(
+                "scalar successor structural formal is absent",
+            ))?;
         match row.source {
             CheckedStructuralControlTransferSourcePlan::Parameter {
                 index: source_index,
@@ -185,7 +201,7 @@ pub(super) fn validate(
                     .is_some()
                     || source_index as usize != expected_source_index
                     || retained_source.position as usize != source_position
-                    || row.target_parameter_index as usize != structural_position
+                    || row.target_parameter_index as usize != target_parameter_index
                     || retained_target.position as usize != argument_position
                     || retained_source.type_identity != retained_target.type_identity
                     || retained_source.access != retained_target.access
@@ -240,7 +256,7 @@ pub(super) fn validate(
                         "scalar successor subslice lost its authored parameter",
                     ))?;
                 if expression != *actual
-                    || row.target_parameter_index as usize != structural_position
+                    || row.target_parameter_index as usize != target_parameter_index
                     || retained_target.position as usize != argument_position
                     || retained_source.type_identity != retained_target.type_identity
                     || retained_source.access != retained_target.access

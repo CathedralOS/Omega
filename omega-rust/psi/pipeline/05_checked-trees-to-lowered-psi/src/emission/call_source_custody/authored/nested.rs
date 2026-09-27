@@ -145,18 +145,53 @@ pub(crate) fn authored_postorder(
                             checked,
                             call.target_symbol,
                         )?;
-                    if (!direct_argument
-                        && checked
-                            .primitive_type_reference(target.return_type)
-                            .is_none())
+                    let scalar_result = checked
+                        .primitive_type_reference(target.return_type)
+                        .is_some();
+                    if (!direct_argument && !scalar_result)
                         || owner.supply_mode.is_boundary_declaration()
-                        || !checked
-                            .typed
-                            .call_has_no_runtime_receiver(call, owner, target)
                     {
                         return unsupported(
                             "nested call has no ordinary producer or scalar helper",
                         );
+                    }
+                    if !checked.call_has_no_runtime_receiver(call, owner, target) {
+                        // Scalar computations already own the shared receiver's
+                        // exact place and loan replay. This occurrence walk must
+                        // retain that ordinary call beneath casts and other
+                        // scalar operators without treating it as a static call.
+                        let shared_receiver =
+                            checked
+                                .state_parameters(target)
+                                .first()
+                                .is_some_and(|parameter| {
+                                    parameter.is_self
+                                        && matches!(
+                                            checked
+                                                .type_reference_table
+                                                .type_reference(parameter.type_reference),
+                                            checked_trees::types::TypeReferenceNode::Reference {
+                                                access: language_core::ReferenceAccess::Shared,
+                                                ..
+                                            }
+                                        )
+                                });
+                        if !scalar_result || !shared_receiver || !call.receiver.is_valid() {
+                            return unsupported(
+                                "nested call has no ordinary producer or scalar helper",
+                            );
+                        }
+                        crate::emission::call_source_custody::occurrences::validate(
+                            checked,
+                            machine.symbol,
+                            caller_state,
+                            checked_trees::CheckedUnitCallCoordinate {
+                                statement_index,
+                                call_ordinal: next_ordinal,
+                            },
+                            expression,
+                        )?;
+                        children.push((call.receiver, true, None));
                     }
                 }
                 if !call.carries_only_positional_arguments()

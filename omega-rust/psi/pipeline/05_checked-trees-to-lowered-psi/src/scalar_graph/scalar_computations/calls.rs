@@ -6,7 +6,7 @@ use super::{
     Argument, CheckedScalarComputationKind, CheckedScalarExpressionRole, CheckedTrees, Computation,
     Expansion, Handle, LoweringError, PreparedScalarQualifications, QualifiedScalarType, Site,
     arrays, cases, lower_scalar_call, parameter, source_custody, storage, structural_arguments,
-    unsupported,
+    subslices, unsupported,
 };
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::calls::{LoweredDirectCallBinding, ScalarCallCrashScope};
@@ -19,6 +19,7 @@ use arena::HandleSpan;
 use checked_trees::CheckedScalarComputationStructuralArgument;
 
 enum Operand {
+    ViewSubslice(LoweredScalarEffect),
     Scalar(Argument),
     Array {
         slot: arrays::Slot,
@@ -328,6 +329,7 @@ impl Expansion<'_> {
             site.bindings,
             &self.arrays,
             &self.cases,
+            &self.subslices,
         )?;
         let scalars = plans
             .operands
@@ -421,6 +423,41 @@ impl Expansion<'_> {
                         .collect();
                     operands.push(Operand::Case { slot, fields });
                 }
+                if let CheckedScalarComputationStructuralArgument::Place(argument) = argument
+                    && let Some((_, expression, _, _, _)) = subslices::range(argument)
+                {
+                    let slot = self
+                        .subslices
+                        .iter()
+                        .find(|slot| slot.expression == expression)
+                        .ok_or(LoweringError::Unsupported(
+                            "computed range has no reserved structural result",
+                        ))?;
+                    let receiver_count = usize::from(
+                        self.checked
+                            .state_parameters(source_state)
+                            .first()
+                            .is_some_and(|parameter| parameter.is_self),
+                    );
+                    let argument_ordinal = structural_ordinal
+                        .checked_sub(receiver_count)
+                        .and_then(|ordinal| u32::try_from(ordinal).ok())
+                        .ok_or(LoweringError::Unsupported(
+                            "computed range has no explicit structural ordinal",
+                        ))?;
+                    operands.push(Operand::ViewSubslice(subslices::effect(
+                        self.checked,
+                        site.state,
+                        site.statement,
+                        checked_trees::CheckedSubsliceSite::CallArgument {
+                            call_ordinal,
+                            argument_ordinal,
+                        },
+                        argument,
+                        slot,
+                        site.bindings,
+                    )?));
+                }
                 structural_ordinal += 1;
             } else {
                 let scalar = scalars
@@ -488,6 +525,22 @@ impl Expansion<'_> {
                 Operand::Scalar(argument) => {
                     self.argument(argument, prefix, continuation, site, active)?
                 }
+                Operand::ViewSubslice(effect) => self.push(LoweredScalarBranchState {
+                    structural_parameters: Vec::new(),
+                    parameter_types: prefix.clone(),
+                    erased_formal_types: Vec::new(),
+                    erased_proof_formals: Vec::new(),
+                    bindings: Vec::new(),
+                    structural_effects: vec![effect.clone()],
+                    terminator: LoweredScalarBranchTerminator::Jump {
+                        trivial_affine_discards: Vec::new(),
+                        target: continuation,
+                        arguments: super::parameters(prefix),
+                        erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
+                        structural_arguments: Vec::new(),
+                    },
+                }),
                 Operand::Array { slot, leaves } => {
                     let mut leaf_types = prefix.clone();
                     for leaf in leaves {

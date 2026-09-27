@@ -14,6 +14,7 @@ use crate::lowering_error::unsupported;
 
 pub(super) mod access_occurrences;
 mod arrays;
+mod view_subslices;
 
 /// Authored formal order, preserving scalar handles and structural occurrences.
 pub(crate) enum RejoinedComputationArgument {
@@ -235,6 +236,7 @@ pub(crate) fn rejoin_computation_call_arguments(
             expression: call.receiver,
         });
     }
+    let mut structural_ordinal = 0u32;
     for (formal_position, (parameter, expression)) in explicit_parameters
         .iter()
         .zip(authored.iter().copied())
@@ -277,6 +279,13 @@ pub(crate) fn rejoin_computation_call_arguments(
                 computation,
             });
         } else {
+            let argument_ordinal = structural_ordinal;
+            structural_ordinal =
+                structural_ordinal
+                    .checked_add(1)
+                    .ok_or(LoweringError::Unsupported(
+                        "computed structural ordinal overflows",
+                    ))?;
             let argument = structural.next().ok_or(LoweringError::Unsupported(
                 "computed invocation omits a structural argument",
             ))?;
@@ -333,6 +342,32 @@ pub(crate) fn rejoin_computation_call_arguments(
                             "computed owned argument has no positional source observation",
                         ))?,
                 )?
+            } else if matches!(
+                argument.source,
+                checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. }
+                    | checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice { .. }
+            ) {
+                let position = access_positions
+                    .as_ref()
+                    .map(|positions| positions[formal_position])
+                    .ok_or(LoweringError::Unsupported(
+                        "computed subslice lost its observation position",
+                    ))?;
+                view_subslices::validate(
+                    checked,
+                    caller_state,
+                    statement,
+                    parameter,
+                    expression,
+                    argument,
+                    borrow_call,
+                    position,
+                    checked_trees::CheckedSubsliceSite::CallArgument {
+                        call_ordinal: *call_ordinal,
+                        argument_ordinal,
+                    },
+                )?;
+                position
             } else if matches!(checked.type_reference_table.type_reference(parameter.type_reference),
                 checked_trees::types::TypeReferenceNode::Reference { referee, .. }
                     if checked.primitive_type_reference(*referee).is_none())

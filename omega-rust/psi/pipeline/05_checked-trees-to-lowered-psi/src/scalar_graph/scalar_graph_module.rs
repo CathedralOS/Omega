@@ -191,6 +191,15 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
         .iter()
         .map(|(_, parameter)| parameter.clone())
         .collect();
+    // A retained receiver remains a machine parameter across every iteration.
+    // The loop header owns only the explicit formals carried by source edges.
+    let loop_header_parameters = loop_plan.map(|plan| {
+        plan.parameters
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+            .cloned()
+            .collect::<Vec<_>>()
+    });
     let parameters = states[0]
         .parameter_types
         .iter()
@@ -367,15 +376,17 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
     // parameter_storage -> owned::validate must establish source no-code
     // eligibility before assembly; this pass only completes runtime custody.
     let graph_entry = scalar_source_block(identity_base, 0);
-    if let Some(plan) = loop_plan {
+    if let Some(parameters) = &loop_header_parameters {
         blocks
             .iter_mut()
             .find(|block| block.id == graph_entry)
             .ok_or(LoweringError::Unsupported("scalar loop header is absent"))?
-            .structural_parameters = plan.parameters.clone();
+            .structural_parameters = parameters.clone();
     }
     owned_parameters::complete(
-        loop_plan.map_or(&structural_parameters, |plan| plan.parameters.as_slice()),
+        loop_header_parameters
+            .as_deref()
+            .unwrap_or(&structural_parameters),
         scalar_source_block(identity_base, 0),
         &mut blocks,
     )?;
@@ -603,8 +614,8 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
             )?;
         }
     }
-    let entry = if let Some(plan) = loop_plan {
-        for parameter in &plan.parameters {
+    let entry = if let Some(loop_parameters) = &loop_header_parameters {
+        for parameter in loop_parameters {
             merge_content_place_declaration(
                 &mut structural_places,
                 StructuralPlaceDeclaration {
@@ -632,6 +643,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                 erased_proof_arguments: Vec::new(),
                 structural_arguments: structural_parameters
                     .iter()
+                    .filter(|parameter| !parameter.is_self)
                     .map(|parameter| StructuralArgument {
                         place: parameter.place,
                         path: Vec::new(),

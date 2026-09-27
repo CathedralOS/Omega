@@ -62,6 +62,12 @@ impl StateGraphEmission<'_, '_> {
                 &self.catalogs.structural_types,
                 &mut self.catalogs.next_place,
             )?,
+            subslices: crate::scalar_graph::scalar_computations::subslices::prepare(
+                checked,
+                plan.machine,
+                &self.catalogs.structural_types,
+                &mut self.catalogs.next_place,
+            )?,
             cases: crate::scalar_graph::scalar_computations::cases::prepare(
                 checked,
                 plan.machine,

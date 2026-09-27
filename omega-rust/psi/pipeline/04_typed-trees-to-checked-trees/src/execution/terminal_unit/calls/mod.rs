@@ -35,7 +35,9 @@ pub(crate) use boundary_admission::{
 };
 pub(in crate::execution) use call_operations::ExpectedCallValueResult;
 pub(in crate::execution) use call_operations::build_call_operation;
-pub(crate) use computation_arguments::structural_computation_argument;
+pub(crate) use computation_arguments::{
+    structural_computation_argument, subslice_computation_argument,
+};
 pub(crate) use signatures::{
     ambient_self_scalar_graph_signature, entry_claims, free_fused_service_scalar_signature,
     free_structural_scalar_signature, free_structural_scalar_signature_traced,
