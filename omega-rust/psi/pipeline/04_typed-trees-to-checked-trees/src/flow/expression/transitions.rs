@@ -84,6 +84,7 @@ impl Execution<'_, '_, '_> {
             self.context,
             self.machine,
             self.state,
+            self.statement_index,
             transition,
             target,
             *contexts,

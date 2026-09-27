@@ -59,6 +59,14 @@ pub(super) struct StateArgumentFacts {
     parameters: Vec<ParameterFacts>,
     index_proofs: MergedIndexProofs,
     receiver_lengths: Option<Vec<super::facts::ReceiverLength>>,
+    /// Argument-referent storage facts, spelled under the destination
+    /// parameter's name (`put(&mut buf)` delivers `buf.i`'s bound as
+    /// `param.i`'s bound). `None` is "not yet collected"; an edge that
+    /// supplies no row for a label drops it, exactly like the receiver
+    /// lengths above.
+    storage_upper_bounds: Option<Vec<(String, i64)>>,
+    storage_non_negatives: Option<Vec<String>>,
+    storage_minimum_lengths: Option<Vec<(String, i64)>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -128,17 +136,18 @@ enum MergedFact<T> {
 enum ParameterIndexProofSide {
     /// A destination parameter position -- the callee names it.
     Parameter(usize),
-    /// Machine storage (`self.field`) names the same place in every state of
-    /// this machine: a receiver transition hands off the live storage, so a
-    /// caller-seeded pair involving it rides the edge unchanged.
-    MachineStorage(String),
+    /// Storage spelled under a root that survives the edge: machine storage
+    /// (`self.field` names the same place in every state of this machine) or
+    /// a transition argument's referent spelled under the destination
+    /// parameter's name (`put(&mut buf)` delivers `buf.i` as `param.i`).
+    Storage(String),
 }
 
 impl ParameterIndexProofSide {
     fn label<'a>(&'a self, parameters: &'a [ParameterFacts]) -> Option<&'a str> {
         match self {
             Self::Parameter(position) => parameters.get(*position).map(|p| p.name.as_str()),
-            Self::MachineStorage(label) => Some(label.as_str()),
+            Self::Storage(label) => Some(label.as_str()),
         }
     }
 }
@@ -338,6 +347,48 @@ fn merge_contribution(collected: &mut Vec<StateArgumentFacts>, incoming: &StateA
             existing.receiver_lengths = Some(incoming.clone());
         }
     }
+    merge_storage_rows(
+        &mut existing.storage_upper_bounds,
+        &incoming.storage_upper_bounds,
+        |a, b| a.max(b),
+    );
+    merge_storage_rows(
+        &mut existing.storage_minimum_lengths,
+        &incoming.storage_minimum_lengths,
+        |a, b| a.min(b),
+    );
+    if let Some(incoming) = &incoming.storage_non_negatives {
+        if let Some(existing) = &mut existing.storage_non_negatives {
+            existing.retain(|label| incoming.contains(label));
+        } else {
+            existing.storage_non_negatives = Some(incoming.clone());
+        }
+    }
+}
+
+/// Meet an `Option<Vec<(label, bound)>>` storage table: rows must arrive on
+/// every edge, and the bound keeps `combine` of the two proofs (max for an
+/// exclusive upper bound, min for a length floor).
+fn merge_storage_rows(
+    existing: &mut Option<Vec<(String, i64)>>,
+    incoming: &Option<Vec<(String, i64)>>,
+    combine: fn(i64, i64) -> i64,
+) {
+    let Some(incoming) = incoming else {
+        return;
+    };
+    if let Some(existing) = existing {
+        existing.retain_mut(|(label, bound)| {
+            if let Some((_, incoming)) = incoming.iter().find(|(candidate, _)| candidate == label) {
+                *bound = combine(*bound, *incoming);
+                true
+            } else {
+                false
+            }
+        });
+    } else {
+        *existing = Some(incoming.clone());
+    }
 }
 
 #[cfg(test)]
@@ -471,6 +522,20 @@ pub(super) fn seed_state_argument_facts(
         if let Some(minimum) = parameter.minimum_length.get() {
             facts.prove_minimum_length(parameter.name.clone(), minimum);
         }
+    }
+
+    for (label, bound) in state_facts.storage_upper_bounds.as_deref().unwrap_or(&[]) {
+        facts.prove_index_upper_bound(label.clone(), *bound);
+    }
+    for label in state_facts.storage_non_negatives.as_deref().unwrap_or(&[]) {
+        facts.prove_non_negative(label.clone());
+    }
+    for (label, minimum) in state_facts
+        .storage_minimum_lengths
+        .as_deref()
+        .unwrap_or(&[])
+    {
+        facts.prove_minimum_length(label.clone(), *minimum);
     }
 
     for proof in state_facts.index_proofs.get() {
