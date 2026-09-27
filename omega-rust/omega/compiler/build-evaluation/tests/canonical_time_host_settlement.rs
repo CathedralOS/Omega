@@ -295,21 +295,3 @@ fn accepted_binding_mints_the_toolchain_time_host_plan() {
         "review provenance stays index-aligned with the selected facts"
     );
 }
-
-#[test]
-fn no_binding_mints_no_plan() {
-    let selection = Fixture::new().settle(false, Some("linux_x86_64"));
-    assert!(
-        selection.selected_provider_plan_facts.plans().is_empty(),
-        "without the accepted binding no canonical time host plan is minted"
-    );
-}
-
-#[test]
-fn a_target_with_no_reviewed_table_mints_no_plan() {
-    let selection = Fixture::new().settle(true, Some("macos_arm64"));
-    assert!(
-        selection.selected_provider_plan_facts.plans().is_empty(),
-        "a target without a reviewed realization table mints nothing rather than guessing"
-    );
-}

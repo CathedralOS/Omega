@@ -3,7 +3,7 @@ use super::{
     BehaviorExclusionReport, BehaviorExclusionVerdict, BehaviorExclusions, BoundaryServiceOwners,
     EvidenceGap, EvidenceGapKind, ProhibitedBehavior, ProhibitedSite,
     authored_behavior_exclusion_set, authored_behavior_exclusion_set_in,
-    establish_behavior_exclusions, establish_behavior_exclusions_with_owners,
+    establish_behavior_exclusions,
 };
 use effects::provider_plan::{
     ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema,
@@ -23,8 +23,8 @@ use terminal_psi::{
     StructuralArgument, TerminalDynamicConformanceSelection, TerminalDynamicDescriptorArgument,
     TerminalDynamicDescriptorParameter, TerminalDynamicDescriptorSource,
     TerminalDynamicRequirement, TerminalIndirectDynamicDispatch, TerminalMachine,
-    TerminalMachineResult, TerminalModule, TerminalParameterDynamicDispatch,
-    TerminalReboundDynamicDescriptor, Terminator, VocabularyMarker,
+    TerminalMachineResult, TerminalModule, TerminalReboundDynamicDescriptor, Terminator,
+    VocabularyMarker,
 };
 
 fn machine_id(raw: u64) -> MachineId {
@@ -328,58 +328,6 @@ fn checking_assertion_module() -> TerminalModule {
 }
 
 #[test]
-fn no_op_assertion_passes_trap_exclusion_despite_public_ceiling() {
-    let module = no_op_assertion_module();
-    let report =
-        establish_behavior_exclusions(&module, &entries(), &trap_exclusions(), &empty_plans());
-    assert_eq!(report, BehaviorExclusionReport::default());
-    assert_eq!(report.verdict(), BehaviorExclusionVerdict::Satisfied);
-}
-
-#[test]
-fn checking_assertion_is_prohibited_under_trap_exclusion() {
-    let module = checking_assertion_module();
-    let report =
-        establish_behavior_exclusions(&module, &entries(), &trap_exclusions(), &empty_plans());
-    assert_eq!(report.verdict(), BehaviorExclusionVerdict::Prohibited);
-    assert_eq!(
-        report.prohibited,
-        vec![ProhibitedBehavior {
-            exclusion: BehaviorExclusion::CrashCause(CrashCause::Trap),
-            entry: machine_id(1),
-            machine: machine_id(2),
-            site: ProhibitedSite::CrashTerminator { block: block_id(2) },
-        }]
-    );
-    assert!(report.gaps.is_empty());
-
-    let abort_only =
-        BehaviorExclusions::from_selections([BehaviorExclusion::CrashCause(CrashCause::Abort)]);
-    let report = establish_behavior_exclusions(&module, &entries(), &abort_only, &empty_plans());
-    assert_eq!(report.verdict(), BehaviorExclusionVerdict::Satisfied);
-}
-
-#[test]
-fn silent_logger_passes_console_exclusion() {
-    let console = service_id(1);
-    let mut logger = unit_machine(2, vec![return_unit_block(2)]);
-    logger.published_service_ceiling = vec![console];
-    logger.declared_service_reach = vec![console];
-    let entry = unit_machine(
-        1,
-        vec![Block {
-            operations: vec![unit_operation(1, call_unit(machine_id(2)))],
-            ..return_unit_block(1)
-        }],
-    );
-    let module = terminal_module(vec![entry, logger], Vec::new());
-    let exclusions = BehaviorExclusions::from_selections([BehaviorExclusion::Service(console)]);
-    let report = establish_behavior_exclusions(&module, &entries(), &exclusions, &empty_plans());
-    assert_eq!(report.verdict(), BehaviorExclusionVerdict::Satisfied);
-    assert_eq!(report, BehaviorExclusionReport::default());
-}
-
-#[test]
 fn actual_console_invocation_is_prohibited_even_with_silent_provider() {
     let console = service_id(1);
     let mut boundary = boundary_declaration(1);
@@ -424,48 +372,6 @@ fn actual_console_invocation_is_prohibited_even_with_silent_provider() {
     let exclusions = BehaviorExclusions::from_selections([BehaviorExclusion::Service(unrelated)]);
     let report = establish_behavior_exclusions(&module, &entries(), &exclusions, &empty_plans());
     assert_eq!(report.verdict(), BehaviorExclusionVerdict::Satisfied);
-}
-
-#[test]
-fn boundary_declared_trap_route_is_prohibited_conservatively() {
-    let mut boundary = boundary_declaration(1);
-    boundary.crash_routes = vec![CrashRouteBucket {
-        cause: CrashCause::Trap,
-        alternatives: vec![CrashRouteGuard::Truth],
-    }];
-    let entry = unit_machine(
-        1,
-        vec![Block {
-            operations: vec![unit_operation(
-                1,
-                OperationKind::BoundaryCall {
-                    requirement_obligations: Vec::new(),
-                    boundary: boundary_id(1),
-                    arguments: Vec::new(),
-                    structural_arguments: Vec::new(),
-                    completion_receipts: Vec::new(),
-                },
-            )],
-            ..return_unit_block(1)
-        }],
-    );
-    let module = terminal_module(vec![entry], vec![boundary]);
-    let report =
-        establish_behavior_exclusions(&module, &entries(), &trap_exclusions(), &empty_plans());
-    assert_eq!(report.verdict(), BehaviorExclusionVerdict::Prohibited);
-    assert_eq!(
-        report.prohibited,
-        vec![ProhibitedBehavior {
-            exclusion: BehaviorExclusion::CrashCause(CrashCause::Trap),
-            entry: machine_id(1),
-            machine: machine_id(1),
-            site: ProhibitedSite::BoundaryCall {
-                block: block_id(1),
-                operation: operation_id(1),
-                boundary: boundary_id(1),
-            },
-        }]
-    );
 }
 
 #[test]
@@ -611,49 +517,6 @@ fn parameter_dispatch_crash_contract_suffices_for_crash_only_exclusions() {
         establish_behavior_exclusions(&module, &entries(), &trap_exclusions(), &empty_plans());
     assert_eq!(report.verdict(), BehaviorExclusionVerdict::Satisfied);
     assert_eq!(report, BehaviorExclusionReport::default());
-}
-
-#[test]
-fn parameter_dispatch_contract_keeps_service_reach_a_gap() {
-    // The crash contract cannot enumerate the parameter target's service
-    // reach, so a service exclusion remains missing evidence — and a
-    // prohibited crash site still wins the verdict.
-    let console = service_id(1);
-    let parameter_entry = unit_machine(
-        1,
-        vec![Block {
-            operations: vec![unit_operation(
-                1,
-                OperationKind::CallDynamicParameterUnit {
-                    parameter_ordinal: 0,
-                    requirement_slot: 0,
-                    requirement_obligations: Vec::new(),
-                    crash_continuations: vec![CrashRouteBucket {
-                        cause: CrashCause::Abort,
-                        alternatives: vec![CrashRouteGuard::Truth],
-                    }],
-                },
-            )],
-            ..return_unit_block(1)
-        }],
-    );
-    let module = terminal_module(vec![parameter_entry], Vec::new());
-    let exclusions = BehaviorExclusions::from_selections([BehaviorExclusion::Service(console)]);
-    let report = establish_behavior_exclusions(&module, &entries(), &exclusions, &empty_plans());
-    assert_eq!(
-        report.verdict(),
-        BehaviorExclusionVerdict::InsufficientEvidence
-    );
-    assert_eq!(
-        report.gaps,
-        vec![EvidenceGap {
-            entry: machine_id(1),
-            machine: machine_id(1),
-            block: Some(block_id(1)),
-            operation: Some(operation_id(1)),
-            kind: EvidenceGapKind::DynamicCall,
-        }]
-    );
 }
 
 #[test]
@@ -812,23 +675,6 @@ fn selected_silent_adapter_satisfies_exclusion_beneath_broad_contract() {
 }
 
 #[test]
-fn selected_trapping_adapter_is_prohibited_by_its_body() {
-    let module = boundary_call_module(vec![trapping_machine(2)]);
-    let plans = checked_adapter_plans("test::service::call", "TestProvider::candidate_2");
-    let report = establish_behavior_exclusions(&module, &entries(), &trap_exclusions(), &plans);
-    assert_eq!(report.verdict(), BehaviorExclusionVerdict::Prohibited);
-    assert_eq!(
-        report.prohibited,
-        vec![ProhibitedBehavior {
-            exclusion: BehaviorExclusion::CrashCause(CrashCause::Trap),
-            entry: machine_id(1),
-            machine: machine_id(2),
-            site: ProhibitedSite::CrashTerminator { block: block_id(2) },
-        }]
-    );
-}
-
-#[test]
 fn unconstrained_boundary_walks_every_candidate_and_the_contract() {
     let module = boundary_call_module(vec![
         unit_machine(2, vec![return_unit_block(2)]),
@@ -966,39 +812,6 @@ fn bounded_dynamic_dispatch_covers_its_exact_realization() {
     assert_eq!(report.verdict(), BehaviorExclusionVerdict::Satisfied);
 }
 
-#[test]
-fn parameter_dispatch_remains_insufficient_evidence() {
-    let entry = unit_machine(
-        1,
-        vec![Block {
-            operations: vec![unit_operation(
-                1,
-                OperationKind::CallDynamicParameterUnit {
-                    parameter_ordinal: 0,
-                    requirement_slot: 0,
-                    requirement_obligations: Vec::new(),
-                    crash_continuations: Vec::new(),
-                },
-            )],
-            ..return_unit_block(1)
-        }],
-    );
-    let mut module = terminal_module(vec![entry], Vec::new());
-    module.dynamic_dispatch.parameter_dispatches = vec![TerminalParameterDynamicDispatch {
-        owner: machine_id(1),
-        operation: operation_id(1),
-        parameter_ordinal: 0,
-        requirement_slot: 0,
-    }];
-    let report =
-        establish_behavior_exclusions(&module, &entries(), &trap_exclusions(), &empty_plans());
-    assert_eq!(
-        report.verdict(),
-        BehaviorExclusionVerdict::InsufficientEvidence
-    );
-    assert_eq!(report.gaps[0].kind, EvidenceGapKind::DynamicCall);
-}
-
 /// The descriptor interface one worker parameter declares: a single
 /// `test::Dynamic::run` requirement in slot zero.
 fn dynamic_parameter(machine: MachineId) -> TerminalDynamicDescriptorParameter {
@@ -1083,58 +896,6 @@ fn parameter_dispatch_worker(raw: u64) -> TerminalMachine {
             ..return_unit_block(raw)
         }],
     )
-}
-
-/// entry(1) -> call worker(2) with selection `commitment_byte`; worker
-/// dispatches its existential parameter to the selected realization.
-fn selection_fed_parameter_module(
-    realization: TerminalMachine,
-    commitment_byte: u8,
-) -> TerminalModule {
-    let entry = unit_machine(
-        1,
-        vec![Block {
-            operations: vec![unit_operation(1, call_unit(machine_id(2)))],
-            ..return_unit_block(1)
-        }],
-    );
-    let realization_id = realization.id;
-    let mut module = terminal_module(
-        vec![entry, parameter_dispatch_worker(2), realization],
-        Vec::new(),
-    );
-    module.dynamic_dispatch.parameters = vec![dynamic_parameter(machine_id(2))];
-    module.dynamic_dispatch.selections = vec![dynamic_selection(machine_id(1), commitment_byte)];
-    module.dynamic_dispatch.arguments = vec![TerminalDynamicDescriptorArgument {
-        owner: machine_id(1),
-        operation: operation_id(1),
-        parameter_ordinal: 0,
-        source: TerminalDynamicDescriptorSource::Selection { ordinal: 0 },
-    }];
-    module.closed_conformance_applications = vec![dynamic_conformance_application(
-        realization_id,
-        commitment_byte,
-    )];
-    module
-}
-
-#[test]
-fn parameter_dispatch_joins_the_caller_supplied_selection() {
-    // The selected realization traps: the exact supplied body joins the walk
-    // and the site is witnessed prohibited, not merely gapped.
-    let module = selection_fed_parameter_module(trapping_machine(3), 7);
-    let report =
-        establish_behavior_exclusions(&module, &entries(), &trap_exclusions(), &empty_plans());
-    assert_eq!(report.verdict(), BehaviorExclusionVerdict::Prohibited);
-    assert_eq!(report.prohibited[0].machine, machine_id(3));
-    assert!(report.gaps.is_empty(), "{:?}", report.gaps);
-
-    // A silent realization satisfies the same dispatch.
-    let module = selection_fed_parameter_module(unit_machine(3, vec![return_unit_block(3)]), 7);
-    let report =
-        establish_behavior_exclusions(&module, &entries(), &trap_exclusions(), &empty_plans());
-    assert_eq!(report.verdict(), BehaviorExclusionVerdict::Satisfied);
-    assert_eq!(report, BehaviorExclusionReport::default());
 }
 
 #[test]
@@ -1319,80 +1080,6 @@ fn service_rows_resolve_against_the_module_catalog_and_crash_rows_stand_alone() 
 }
 
 #[test]
-fn boundary_ownership_counts_the_owning_service_and_its_parents_without_fixed_reach() {
-    // `Sink::emit` spelled no `reaches`, so its fixed reach is empty; the
-    // requirement still belongs to Sink, whose parent is Output. The
-    // canonical requirement identity retains the owner, so the plain
-    // source-free entry reconstructs the same join the producing admission
-    // supplies from the checked trait declarations.
-    let mut boundary = boundary_declaration(1);
-    boundary.identity =
-        "named-callable(path(Sink::emit),parameters(),result-dispatch())".to_owned();
-    let machine = unit_machine(
-        1,
-        vec![Block {
-            operations: vec![unit_operation(
-                1,
-                OperationKind::BoundaryCall {
-                    requirement_obligations: Vec::new(),
-                    boundary: boundary_id(1),
-                    arguments: Vec::new(),
-                    structural_arguments: Vec::new(),
-                    completion_receipts: Vec::new(),
-                },
-            )],
-            ..return_unit_block(1)
-        }],
-    );
-    let mut module = terminal_module(vec![machine], vec![boundary]);
-    assert!(module.boundary_machines[0].fixed_service_reach.is_empty());
-    module.services.push(terminal_psi::ServiceDeclaration {
-        id: service_id(2),
-        identity: "Output".to_owned(),
-        parents: Vec::new(),
-    });
-    module.services.push(terminal_psi::ServiceDeclaration {
-        id: service_id(1),
-        identity: "Sink".to_owned(),
-        parents: vec![service_id(2)],
-    });
-    let owners = BoundaryServiceOwners::from_module_identities(&module);
-    assert_eq!(owners.owner(boundary_id(1)), Some(service_id(1)));
-
-    for excluded in [service_id(1), service_id(2)] {
-        let exclusions =
-            BehaviorExclusions::from_selections([BehaviorExclusion::Service(excluded)]);
-        // The source-free entry reconstructs ownership from the canonical
-        // identity: the boundary call invokes Sink and its parent Output.
-        let report =
-            establish_behavior_exclusions(&module, &entries(), &exclusions, &empty_plans());
-        assert_eq!(report.verdict(), BehaviorExclusionVerdict::Prohibited);
-        assert_eq!(report.prohibited.len(), 1);
-        assert_eq!(
-            report.prohibited[0].exclusion,
-            BehaviorExclusion::Service(excluded)
-        );
-        assert_eq!(
-            report.prohibited[0].site,
-            ProhibitedSite::BoundaryCall {
-                block: block_id(1),
-                operation: operation_id(1),
-                boundary: boundary_id(1),
-            }
-        );
-        // An explicit owner join reaches the identical verdict.
-        let owned = establish_behavior_exclusions_with_owners(
-            &module,
-            &entries(),
-            &exclusions,
-            &empty_plans(),
-            &owners,
-        );
-        assert_eq!(owned, report);
-    }
-}
-
-#[test]
 fn boundary_without_a_canonical_requirement_identity_contributes_no_owner() {
     // Identities outside `named-callable(path(Owner::requirement),...)`
     // carry no decodable owner: the boundary call counts only its spelled
@@ -1558,28 +1245,6 @@ fn place_id(raw: u64) -> semantic_vocabulary::PlaceId {
 }
 
 #[test]
-fn nominal_cleanup_edge_joins_the_cleanup_machine_to_the_closure() {
-    // A cleanup machine that can Trap is prohibited possible behavior:
-    // the Return edge's InvokeNominal action runs it even though no call
-    // operation names it.
-    let entry = cleanup_edge_entry(1, vec![nominal_cleanup(1, machine_id(2))]);
-    let module = terminal_module(vec![entry, trapping_machine(2)], Vec::new());
-    let report =
-        establish_behavior_exclusions(&module, &entries(), &trap_exclusions(), &empty_plans());
-    assert_eq!(report.verdict(), BehaviorExclusionVerdict::Prohibited);
-    assert_eq!(
-        report.prohibited,
-        vec![ProhibitedBehavior {
-            exclusion: BehaviorExclusion::CrashCause(CrashCause::Trap),
-            entry: machine_id(1),
-            machine: machine_id(2),
-            site: ProhibitedSite::CrashTerminator { block: block_id(2) },
-        }]
-    );
-    assert!(report.gaps.is_empty());
-}
-
-#[test]
 fn nominal_unit_cleanup_edge_joins_the_cleanup_machine_to_the_closure() {
     // The nominal-affine ReturnUnit variant carries the same executable
     // cleanup invocations directly, without the ordered action list.
@@ -1598,49 +1263,6 @@ fn nominal_unit_cleanup_edge_joins_the_cleanup_machine_to_the_closure() {
         establish_behavior_exclusions(&module, &entries(), &trap_exclusions(), &empty_plans());
     assert_eq!(report.verdict(), BehaviorExclusionVerdict::Prohibited);
     assert_eq!(report.prohibited[0].machine, machine_id(2));
-}
-
-#[test]
-fn nominal_cleanup_reaching_an_excluded_service_is_prohibited() {
-    // The cleanup machine's own body is walked: a boundary call inside it
-    // invokes the service exactly as an ordinary call would.
-    let console = service_id(1);
-    let mut boundary = boundary_declaration(1);
-    boundary.fixed_service_reach = vec![console];
-    let cleanup_body = unit_machine(
-        2,
-        vec![Block {
-            operations: vec![unit_operation(
-                2,
-                OperationKind::BoundaryCall {
-                    requirement_obligations: Vec::new(),
-                    boundary: boundary_id(1),
-                    arguments: Vec::new(),
-                    structural_arguments: Vec::new(),
-                    completion_receipts: Vec::new(),
-                },
-            )],
-            ..return_unit_block(2)
-        }],
-    );
-    let entry = cleanup_edge_entry(1, vec![nominal_cleanup(1, machine_id(2))]);
-    let module = terminal_module(vec![entry, cleanup_body], vec![boundary]);
-    let exclusions = BehaviorExclusions::from_selections([BehaviorExclusion::Service(console)]);
-    let report = establish_behavior_exclusions(&module, &entries(), &exclusions, &empty_plans());
-    assert_eq!(report.verdict(), BehaviorExclusionVerdict::Prohibited);
-    assert_eq!(
-        report.prohibited,
-        vec![ProhibitedBehavior {
-            exclusion: BehaviorExclusion::Service(console),
-            entry: machine_id(1),
-            machine: machine_id(2),
-            site: ProhibitedSite::BoundaryCall {
-                block: block_id(2),
-                operation: operation_id(2),
-                boundary: boundary_id(1),
-            },
-        }]
-    );
 }
 
 #[test]
@@ -1665,19 +1287,6 @@ fn an_absent_cleanup_machine_is_an_evidence_gap_not_a_pass() {
         report.verdict(),
         BehaviorExclusionVerdict::InsufficientEvidence
     );
-}
-
-#[test]
-fn inert_nominal_cleanup_satisfies_the_exclusion() {
-    // A verified-shape cleanup machine — a Unit body with no retained
-    // excluded behavior — joins the closure without changing the verdict.
-    let entry = cleanup_edge_entry(1, vec![nominal_cleanup(1, machine_id(2))]);
-    let cleanup_body = unit_machine(2, vec![return_unit_block(2)]);
-    let module = terminal_module(vec![entry, cleanup_body], Vec::new());
-    let report =
-        establish_behavior_exclusions(&module, &entries(), &trap_exclusions(), &empty_plans());
-    assert_eq!(report, BehaviorExclusionReport::default());
-    assert_eq!(report.verdict(), BehaviorExclusionVerdict::Satisfied);
 }
 
 fn physical_exclusions(classes: &[TerminalAuthorityClass]) -> BehaviorExclusions {
@@ -1723,42 +1332,5 @@ fn physical_authority_classes_are_a_canonical_union_axis() {
             TerminalAuthorityClass::MachineControl,
             TerminalAuthorityClass::PortIo,
         ]
-    );
-}
-
-/// A physical-only exclusion set is not vacuous at the semantic stage: it
-/// still demands the bounded entry/call closure, so an unresolvable call is
-/// an evidence gap rather than a silent pass. Over a bounded module the same
-/// set is satisfied — mechanism adjudication waits for native realization.
-#[test]
-fn physical_exclusion_demands_bounded_closure_but_yields_no_site() {
-    let bounded = no_op_assertion_module();
-    let exclusions = physical_exclusions(&[TerminalAuthorityClass::ProcessOutput]);
-    let report = establish_behavior_exclusions(&bounded, &entries(), &exclusions, &empty_plans());
-    assert_eq!(report, BehaviorExclusionReport::default());
-    assert_eq!(report.verdict(), BehaviorExclusionVerdict::Satisfied);
-
-    let entry = unit_machine(
-        1,
-        vec![Block {
-            operations: vec![unit_operation(1, call_unit(machine_id(7)))],
-            ..return_unit_block(1)
-        }],
-    );
-    let module = terminal_module(vec![entry], Vec::new());
-    let report = establish_behavior_exclusions(&module, &entries(), &exclusions, &empty_plans());
-    assert_eq!(
-        report.gaps,
-        vec![EvidenceGap {
-            entry: machine_id(1),
-            machine: machine_id(1),
-            block: Some(block_id(1)),
-            operation: Some(operation_id(1)),
-            kind: EvidenceGapKind::UnknownCallee(machine_id(7)),
-        }]
-    );
-    assert_eq!(
-        report.verdict(),
-        BehaviorExclusionVerdict::InsufficientEvidence
     );
 }

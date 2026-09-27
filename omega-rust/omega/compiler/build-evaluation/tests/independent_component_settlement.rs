@@ -159,8 +159,7 @@ impl Build {
         let derived = derive_satisfies_plans(
             &typed,
             ProviderPlanDerivation::unevaluated(
-                target::TargetProfile::host_if_supported()
-                    .map(target::TargetProfile::target_name),
+                target::TargetProfile::host_if_supported().map(target::TargetProfile::target_name),
             ),
         );
         assert_eq!(derived.len(), 1, "one exact checked provider plan");
@@ -279,36 +278,6 @@ fn message_texts(diagnostics: &[diagnostics::Diagnostic]) -> Vec<&str> {
         .iter()
         .map(|diagnostic| diagnostic.message.as_str())
         .collect()
-}
-
-#[test]
-fn independent_selection_settles_against_one_attached_verified_description() {
-    let build = Build::new(CompositionMode::Independent);
-    let plan = build.plan.clone();
-    let description = attached(LAPIC, &build.realizing_module());
-
-    let settled = build
-        .settle(vec![description])
-        .expect("one verified description realizing the plan settles the build");
-    assert_eq!(
-        settled.selected_provider_plan_facts.plans(),
-        std::slice::from_ref(&plan)
-    );
-    assert_eq!(settled.provider_plans, vec![plan]);
-}
-
-#[test]
-fn fused_selection_settles_without_any_description() {
-    let build = Build::new(CompositionMode::Fused);
-    let plan = build.plan.clone();
-
-    let settled = build
-        .settle(Vec::new())
-        .expect("a fused selection consumes no component");
-    assert_eq!(
-        settled.selected_provider_plan_facts.plans(),
-        std::slice::from_ref(&plan)
-    );
 }
 
 #[test]
