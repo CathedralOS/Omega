@@ -374,7 +374,7 @@ fn produce_callback_thunk_artifact(
     })?;
     let artifact = produced.into_artifact();
     verify_terminal_artifact(&artifact, profile)?;
-    validate_direct_callback_thunk_shape(&artifact, placement)?;
+    validate_callback_thunk_inbound_custody(checked, &artifact, placement)?;
     crate::report::TerminalCallbackThunkArtifact::new(
         backend_plan::canonical_callback_private_symbol(placement),
         artifact,
@@ -410,67 +410,404 @@ fn scalar_value_shape(
     }
 }
 
-fn validate_direct_callback_thunk_shape(
+/// Requirement, ABI, and call-custody validation for one produced callback
+/// thunk artifact. This is deliberately not a body recognizer: any checked
+/// callback body of any inbound signature is admissible while this custody
+/// holds.
+///
+/// - Requirement: the placement rejoins exactly one target calling-plan
+///   realization for its satisfaction row, whose owner is the placement's
+///   canonical requirement overload.
+/// - ABI: the realization replays to a validated entry plan that must equal
+///   the retained `placement.boundary_entry_plan` with unaltered application
+///   identity, and the produced entry machine's declared interface must
+///   correspond to the requirement's materialized parameter/result roster —
+///   scalar slots by exact ABI shape, reference and aggregate slots by
+///   structural parameter presence (their physical shape is the plan's own
+///   target-selected evidence).
+/// - Call custody: the compiler-private channel carries no import custody, so
+///   the thunk module may declare no boundary machines.
+fn validate_callback_thunk_inbound_custody(
+    checked: &CheckedCompilation,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     placement: &backend_plan::BoundNominalCallbackPlacement,
 ) -> Result<(), Vec<Diagnostic>> {
+    backend_plan::validate_bound_nominal_callback_placement(placement).map_err(|error| {
+        vec![Diagnostic::error(format!(
+            "callback thunk placement failed boundary entry plan replay: {error}",
+        ))]
+    })?;
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).map_err(|error| {
         vec![Diagnostic::error(format!(
-            "callback thunk shape replay could not decode canonical semantics: {error}",
+            "callback thunk custody replay could not decode canonical semantics: {error}",
         ))]
     })?;
-    let [machine] = module.machines.as_slice() else {
+    let Some(machine) = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+    else {
         return Err(vec![Diagnostic::error(
-            "direct callback thunk currently requires exactly one Terminal machine",
+            "callback thunk module does not contain its entry machine",
         )]);
     };
-    let [parameter] = machine.parameters.as_slice() else {
+
+    // Requirement join: exactly one target calling-plan realization owns this
+    // satisfaction row, and the retained plan must be its exact evaluated
+    // inbound plan — replayed, not fingerprint-trusted.
+    let matching = checked
+        .boundary_calling_plan_realizations()
+        .iter()
+        .filter(|realization| {
+            realization.boundary_trait == placement.satisfaction_trait
+                && realization.requirement_machine == placement.satisfaction_requirement
+                && realization.boundary_arguments.is_empty()
+        })
+        .collect::<Vec<_>>();
+    let [realization] = matching.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "callback thunk requirement `{}` resolves to {} calling-plan realizations; exactly one is required",
+            placement.canonical_requirement_overload,
+            matching.len(),
+        ))]);
+    };
+    let materialized = realization.materialized_signature();
+    if materialized.owner_requirement_identity() != placement.canonical_requirement_overload {
+        return Err(vec![Diagnostic::error(format!(
+            "callback thunk requirement `{}` rejoins a realization owned by `{}`",
+            placement.canonical_requirement_overload,
+            materialized.owner_requirement_identity(),
+        ))]);
+    }
+    let (validated, report_fingerprint, commitment) = realization
+        .replayed_validated_application()
+        .map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "callback thunk inbound entry plan does not replay against its requirement: {error}",
+            ))]
+        })?;
+    if validated.plan() != &placement.boundary_entry_plan
+        || realization.exact_boundary_entry_plan() != &placement.boundary_entry_plan
+        || realization.report_fingerprint != report_fingerprint
+        || realization.commitment != commitment
+        || placement.boundary_calling_plan_report_fingerprint
+            != validated.contract_report_fingerprint()
+    {
         return Err(vec![Diagnostic::error(
-            "direct callback thunk currently requires exactly one scalar parameter",
+            "callback thunk inbound entry plan drifted from its requirement's evaluated application",
         )]);
-    };
-    // Custody check: the thunk machine's declared ABI must re-derive the exact
-    // signature the placement's boundary entry plan was evaluated for —
-    // parameter shapes, result shape, and the plan itself. Any body shape is
-    // admissible: downstream stages (thunk lowering, private-function replay)
-    // enforce call custody per call, not by recognizing leaf silhouettes.
-    let parameter_shape = scalar_value_shape(parameter.scalar_type).ok_or_else(|| {
-        vec![Diagnostic::error(
-            "direct callback thunk parameter type has no ABI scalar shape",
-        )]
-    })?;
-    let signature_result = match &machine.result {
-        terminal_psi::TerminalMachineResult::Scalar(result) => {
-            Some(scalar_value_shape(result.scalar_type).ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "direct callback thunk result type has no ABI scalar shape",
-                )]
-            })?)
-        }
-        terminal_psi::TerminalMachineResult::Unit => None,
-        _ => {
-            return Err(vec![Diagnostic::error(
-                "direct callback thunk result must be a scalar or Unit",
-            )]);
-        }
-    };
-    let signature = calling_conventions::CallSignature {
-        parameters: vec![parameter_shape],
-        result: signature_result,
-    };
-    let validated = calling_conventions::validate_boundary_entry_plan(
-        placement.boundary_entry_plan.clone(),
-        &signature,
-    )
-    .map_err(|error| {
-        vec![Diagnostic::error(format!(
-            "callback thunk boundary entry plan does not match its Terminal body: {error}",
-        ))]
-    })?;
-    if validated.plan() != &placement.boundary_entry_plan {
+    }
+
+    bind_thunk_machine_interface(machine, materialized)?;
+
+    // Call custody: the compiler-private channel carries no import custody.
+    // A thunk whose closure calls a boundary machine can never settle those
+    // imports, so the module may declare none.
+    if !module.boundary_machines.is_empty() {
         return Err(vec![Diagnostic::error(
-            "callback thunk boundary entry plan changed during canonical validation",
+            "callback thunk module carries boundary import custody the private channel cannot settle",
         )]);
     }
     Ok(())
+}
+
+/// Bind one produced thunk entry machine's declared interface to its
+/// requirement's materialized signature. The authored parameter roots order
+/// the walk: a scalar-classed root consumes one scalar machine parameter whose
+/// ABI shape must re-derive exactly; a reference or aggregate root consumes
+/// one structural machine parameter — its physical shape is the plan's own
+/// target-selected evidence, already replayed above. Either roster left over
+/// means the produced machine drifted from its requirement signature.
+fn bind_thunk_machine_interface(
+    machine: &terminal_psi::TerminalMachine,
+    materialized: &provider_planning::calling_policy_plans::MaterializedBoundarySignature,
+) -> Result<(), Vec<Diagnostic>> {
+    use provider_planning::calling_policy_plans::BoundaryValueClass as Class;
+    let mut scalar_parameters = machine.parameters.iter();
+    let mut structural_parameters = machine.structural_parameters.iter();
+    for (ordinal, root) in materialized.parameters().iter().copied().enumerate() {
+        let Some(shape) = materialized.shapes().get(usize::from(root)) else {
+            return Err(vec![Diagnostic::error(format!(
+                "callback thunk requirement parameter {ordinal} names an absent shape root",
+            ))]);
+        };
+        match shape.class() {
+            Class::Integer | Class::Float => {
+                let Some(parameter) = scalar_parameters.next() else {
+                    return Err(vec![Diagnostic::error(format!(
+                        "callback thunk machine declares too few scalar parameters for requirement parameter {ordinal}",
+                    ))]);
+                };
+                let expected = calling_conventions::ValueShape {
+                    class: match shape.class() {
+                        Class::Float => calling_conventions::ValueClass::Float,
+                        _ => calling_conventions::ValueClass::Integer,
+                    },
+                    byte_size: shape.byte_size(),
+                    alignment: shape.alignment(),
+                };
+                if scalar_value_shape(parameter.scalar_type) != Some(expected) {
+                    return Err(vec![Diagnostic::error(format!(
+                        "callback thunk scalar parameter {ordinal} does not carry its requirement's ABI shape",
+                    ))]);
+                }
+            }
+            Class::Reference | Class::FixedArray { .. } | Class::Record { .. } => {
+                if structural_parameters.next().is_none() {
+                    return Err(vec![Diagnostic::error(format!(
+                        "callback thunk machine declares too few structural parameters for requirement parameter {ordinal}",
+                    ))]);
+                }
+            }
+        }
+    }
+    if scalar_parameters.next().is_some() || structural_parameters.next().is_some() {
+        return Err(vec![Diagnostic::error(
+            "callback thunk machine declares parameters beyond its requirement signature",
+        )]);
+    }
+    match materialized.result() {
+        Some(root) => {
+            let Some(shape) = materialized.shapes().get(usize::from(root)) else {
+                return Err(vec![Diagnostic::error(
+                    "callback thunk requirement result names an absent shape root",
+                )]);
+            };
+            match shape.class() {
+                Class::Integer | Class::Float => {
+                    let terminal_psi::TerminalMachineResult::Scalar(result) = &machine.result
+                    else {
+                        return Err(vec![Diagnostic::error(
+                            "callback thunk requirement result is scalar but the machine declares none",
+                        )]);
+                    };
+                    let expected = calling_conventions::ValueShape {
+                        class: match shape.class() {
+                            Class::Float => calling_conventions::ValueClass::Float,
+                            _ => calling_conventions::ValueClass::Integer,
+                        },
+                        byte_size: shape.byte_size(),
+                        alignment: shape.alignment(),
+                    };
+                    if scalar_value_shape(result.scalar_type) != Some(expected) {
+                        return Err(vec![Diagnostic::error(
+                            "callback thunk scalar result does not carry its requirement's ABI shape",
+                        )]);
+                    }
+                }
+                Class::Reference | Class::FixedArray { .. } | Class::Record { .. } => {
+                    if !matches!(
+                        machine.result,
+                        terminal_psi::TerminalMachineResult::Structural(_)
+                    ) {
+                        return Err(vec![Diagnostic::error(
+                            "callback thunk requirement result is structural but the machine declares none",
+                        )]);
+                    }
+                }
+            }
+        }
+        None => {
+            if !matches!(machine.result, terminal_psi::TerminalMachineResult::Unit) {
+                return Err(vec![Diagnostic::error(
+                    "callback thunk requirement has no result but the machine declares one",
+                )]);
+            }
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn scalar_type(bits: u16) -> semantic_vocabulary::ScalarType {
+        semantic_vocabulary::ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, bits)
+                .expect("fixed-width integer type"),
+        )
+    }
+
+    fn scalar_parameter(id: u64, bits: u16) -> terminal_psi::ValueDeclaration {
+        terminal_psi::ValueDeclaration {
+            id: semantic_vocabulary::ValueId::new(id).expect("nonzero value id"),
+            scalar_type: scalar_type(bits),
+            qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
+        }
+    }
+
+    fn machine(
+        parameters: Vec<terminal_psi::ValueDeclaration>,
+        structural_parameters: Vec<terminal_psi::StructuralParameterDeclaration>,
+        result: terminal_psi::TerminalMachineResult,
+    ) -> terminal_psi::TerminalMachine {
+        terminal_psi::TerminalMachine {
+            id: semantic_vocabulary::MachineId::new(1).expect("nonzero machine id"),
+            attachment: None,
+            parameters,
+            structural_parameters,
+            ranked_scc: None,
+            result,
+            structural_places: Vec::new(),
+            entry_claims: Vec::new(),
+            declared_service_reach: Vec::new(),
+            closed_reach_application: None,
+            published_service_ceiling: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: semantic_vocabulary::BlockId::new(1).expect("nonzero block id"),
+            blocks: Vec::new(),
+            contract: terminal_psi::MachineContract {
+                id: semantic_vocabulary::ContractId::new(1).expect("nonzero contract id"),
+                crash_routes: Vec::new(),
+                erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
+            },
+        }
+    }
+
+    fn materialized(
+        signature: calling_conventions::CallSignature,
+    ) -> provider_planning::calling_policy_plans::MaterializedBoundarySignature {
+        provider_planning::calling_policy_plans::materialized_boundary_signature_from_abi(
+            &signature,
+        )
+        .expect("materialized signature")
+    }
+
+    #[test]
+    fn thunk_interface_binds_a_multi_parameter_scalar_signature() {
+        let signature = calling_conventions::CallSignature {
+            parameters: vec![
+                calling_conventions::ValueShape::integer(8, 8),
+                calling_conventions::ValueShape::integer(1, 1),
+            ],
+            result: Some(calling_conventions::ValueShape::integer(2, 2)),
+        };
+        let machine = machine(
+            vec![scalar_parameter(1, 64), scalar_parameter(2, 8)],
+            Vec::new(),
+            terminal_psi::TerminalMachineResult::Scalar(scalar_parameter(3, 16)),
+        );
+        bind_thunk_machine_interface(&machine, &materialized(signature))
+            .expect("multi-parameter scalar signature binds");
+    }
+
+    #[test]
+    fn thunk_interface_binds_a_parameterless_unit_signature() {
+        let signature = calling_conventions::CallSignature {
+            parameters: Vec::new(),
+            result: None,
+        };
+        let machine = machine(
+            Vec::new(),
+            Vec::new(),
+            terminal_psi::TerminalMachineResult::Unit,
+        );
+        bind_thunk_machine_interface(&machine, &materialized(signature))
+            .expect("parameterless Unit signature binds");
+    }
+
+    #[test]
+    fn thunk_interface_rejects_a_drifted_scalar_shape() {
+        let signature = calling_conventions::CallSignature {
+            parameters: vec![calling_conventions::ValueShape::integer(8, 8)],
+            result: None,
+        };
+        let machine = machine(
+            vec![scalar_parameter(1, 32)],
+            Vec::new(),
+            terminal_psi::TerminalMachineResult::Unit,
+        );
+        assert!(bind_thunk_machine_interface(&machine, &materialized(signature)).is_err());
+    }
+
+    #[test]
+    fn thunk_interface_rejects_extra_and_missing_machine_parameters() {
+        let signature = || {
+            materialized(calling_conventions::CallSignature {
+                parameters: vec![calling_conventions::ValueShape::integer(8, 8)],
+                result: None,
+            })
+        };
+        let extra = machine(
+            vec![scalar_parameter(1, 64), scalar_parameter(2, 64)],
+            Vec::new(),
+            terminal_psi::TerminalMachineResult::Unit,
+        );
+        assert!(bind_thunk_machine_interface(&extra, &signature()).is_err());
+        let missing = machine(
+            Vec::new(),
+            Vec::new(),
+            terminal_psi::TerminalMachineResult::Unit,
+        );
+        assert!(bind_thunk_machine_interface(&missing, &signature()).is_err());
+    }
+
+    #[test]
+    fn thunk_interface_binds_float_and_boolean_shapes() {
+        let signature = calling_conventions::CallSignature {
+            parameters: vec![
+                calling_conventions::ValueShape::float(8),
+                calling_conventions::ValueShape::integer(1, 1),
+            ],
+            result: Some(calling_conventions::ValueShape::float(4)),
+        };
+        let machine = machine(
+            vec![
+                terminal_psi::ValueDeclaration {
+                    id: semantic_vocabulary::ValueId::new(1).expect("nonzero value id"),
+                    scalar_type: semantic_vocabulary::ScalarType::IeeeFloat(
+                        semantic_vocabulary::IeeeFloatFormat::Binary64,
+                    ),
+                    qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
+                },
+                terminal_psi::ValueDeclaration {
+                    id: semantic_vocabulary::ValueId::new(2).expect("nonzero value id"),
+                    scalar_type: semantic_vocabulary::ScalarType::Boolean,
+                    qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
+                },
+            ],
+            Vec::new(),
+            terminal_psi::TerminalMachineResult::Scalar(terminal_psi::ValueDeclaration {
+                id: semantic_vocabulary::ValueId::new(3).expect("nonzero value id"),
+                scalar_type: semantic_vocabulary::ScalarType::IeeeFloat(
+                    semantic_vocabulary::IeeeFloatFormat::Binary32,
+                ),
+                qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
+            }),
+        );
+        bind_thunk_machine_interface(&machine, &materialized(signature))
+            .expect("float and boolean shapes bind");
+    }
+
+    #[test]
+    fn thunk_interface_rejects_result_presence_drift() {
+        let unit_requirement = materialized(calling_conventions::CallSignature {
+            parameters: Vec::new(),
+            result: None,
+        });
+        let scalar_machine = machine(
+            Vec::new(),
+            Vec::new(),
+            terminal_psi::TerminalMachineResult::Scalar(scalar_parameter(1, 64)),
+        );
+        assert!(bind_thunk_machine_interface(&scalar_machine, &unit_requirement).is_err());
+
+        let scalar_requirement = materialized(calling_conventions::CallSignature {
+            parameters: Vec::new(),
+            result: Some(calling_conventions::ValueShape::integer(8, 8)),
+        });
+        let unit_machine = machine(
+            Vec::new(),
+            Vec::new(),
+            terminal_psi::TerminalMachineResult::Unit,
+        );
+        assert!(bind_thunk_machine_interface(&unit_machine, &scalar_requirement).is_err());
+    }
 }
