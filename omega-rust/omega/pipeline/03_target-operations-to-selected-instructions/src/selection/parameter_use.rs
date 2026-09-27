@@ -49,7 +49,7 @@ pub(super) fn referent_used(source: &LegalizedScalarFunction, place: PlaceId) ->
                     ..
                 } => destination.place == place,
                 LegalizedScalarInstructionKind::StoreStructuralField { destination, .. } => {
-                    destination.place == place
+                    destination.place() == place
                 }
                 LegalizedScalarInstructionKind::StructuralScalarFieldStore {
                     destination, ..

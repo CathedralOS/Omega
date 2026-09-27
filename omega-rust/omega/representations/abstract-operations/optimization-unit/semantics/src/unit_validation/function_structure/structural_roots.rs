@@ -489,7 +489,7 @@ pub(crate) fn validate_structural_root_operations(
                     let valid = borrowed_window_root(function, source, &place_kinds)
                         && window_field_type(
                             structural_types,
-                            source.structural_type,
+                            source.structural_type(),
                             path,
                             *field,
                         ) == Some(result.structural_type)
@@ -532,7 +532,7 @@ pub(crate) fn validate_structural_root_operations(
                         && value.path.is_empty()
                         && window_field_type(
                             structural_types,
-                            destination.structural_type,
+                            destination.structural_type(),
                             path,
                             *field,
                         )
@@ -832,35 +832,75 @@ fn readable_field_type(
 /// verifier's `borrowed_window_root` admitted.
 fn borrowed_window_root(
     function: &PsiOptimizationFunction,
-    parameter: &terminal_psi::StructuralParameterDeclaration,
+    root: &abstract_operations::StructuralWindowRoot,
     place_kinds: &BTreeMap<PlaceId, StructuralPlaceKind>,
 ) -> bool {
-    function
-        .structural_parameters
-        .iter()
-        .find(|candidate| candidate.place == parameter.place)
-        == Some(parameter)
-        && parameter.access == terminal_psi::StructuralAccess::MutableBorrow
-        && matches!(
-            parameter.multiplicity,
-            terminal_psi::StructuralMultiplicity::Unrestricted
-                | terminal_psi::StructuralMultiplicity::Affine
-        )
-        && parameter.qualifications.is_empty()
-        && parameter.projected_qualifications.is_empty()
-        && function
-            .entry_claim_declarations
-            .iter()
-            .all(|claim| claim.input != parameter.place)
-        && function
-            .content_entry_claims
-            .iter()
-            .all(|claim| claim.input.root != parameter.place)
-        && matches!(
-            place_kinds.get(&parameter.place),
-            Some(StructuralPlaceKind::Parameter { position, is_self })
-                if *position == parameter.position && *is_self == parameter.is_self
-        )
+    match root {
+        abstract_operations::StructuralWindowRoot::BorrowedParameter(parameter) => {
+            function
+                .structural_parameters
+                .iter()
+                .find(|candidate| candidate.place == parameter.place)
+                == Some(parameter)
+                && parameter.access == terminal_psi::StructuralAccess::MutableBorrow
+                && matches!(
+                    parameter.multiplicity,
+                    terminal_psi::StructuralMultiplicity::Unrestricted
+                        | terminal_psi::StructuralMultiplicity::Affine
+                )
+                && parameter.qualifications.is_empty()
+                && parameter.projected_qualifications.is_empty()
+                && function
+                    .entry_claim_declarations
+                    .iter()
+                    .all(|claim| claim.input != parameter.place)
+                && function
+                    .content_entry_claims
+                    .iter()
+                    .all(|claim| claim.input.root != parameter.place)
+                && matches!(
+                    place_kinds.get(&parameter.place),
+                    Some(StructuralPlaceKind::Parameter { position, is_self })
+                        if *position == parameter.position && *is_self == parameter.is_self
+                )
+        }
+        abstract_operations::StructuralWindowRoot::OwnedResult { producer, result } => {
+            // An owned completed local home: the retained producer names an
+            // operation in the home-completing set whose structural result
+            // row is exactly this one under clean transferable custody, and
+            // the place roster records it as that operation's result.
+            let producer_admits =
+                function
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.nodes)
+                    .any(|node| {
+                        matches!(
+                            node.operation,
+                            O::EstablishRecord { .. }
+                                | O::EstablishZeroedStructural { .. }
+                                | O::CallStructural { .. }
+                                | O::StructuralLeafCopy { .. }
+                        ) && node.operation.psi_operation() == Some(*producer)
+                    });
+            producer_admits
+                && matches!(
+                    result.multiplicity,
+                    terminal_psi::StructuralMultiplicity::Unrestricted
+                        | terminal_psi::StructuralMultiplicity::Affine
+                )
+                && result.qualifications.is_empty()
+                && result.projected_qualifications.is_empty()
+                && result.claims.is_empty()
+                && matches!(
+                    place_kinds.get(&result.place),
+                    Some(StructuralPlaceKind::OperationResult {
+                        producer: recorded,
+                        structural_type,
+                    }) if *recorded == *producer && *structural_type == result.structural_type
+                )
+        }
+    }
 }
 
 /// The declared `Structural` type of the field a window operation names,

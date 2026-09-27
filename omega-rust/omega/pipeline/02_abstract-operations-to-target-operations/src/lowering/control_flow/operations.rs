@@ -73,8 +73,8 @@ pub(super) fn lower_operation(
             Some(destination.place())
         }
         AbstractOperation::EstablishPrimitiveLocal { result, .. } => Some(result.place),
-        AbstractOperation::MoveStructuralField { source, .. } => Some(source.place),
-        AbstractOperation::StoreStructuralField { destination, .. } => Some(destination.place),
+        AbstractOperation::MoveStructuralField { source, .. } => Some(source.place()),
+        AbstractOperation::StoreStructuralField { destination, .. } => Some(destination.place()),
         _ => None,
     };
     if accessed_root.is_some_and(|place| super::references::check_root_access(live, place)) {

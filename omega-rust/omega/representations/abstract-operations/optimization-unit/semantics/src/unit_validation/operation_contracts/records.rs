@@ -271,12 +271,22 @@ fn record_type(
         if !active.insert(current) {
             return false;
         }
-        let Some(terminal_psi::StructuralTypeDeclaration {
-            shape: StructuralTypeShape::Record { fields },
-            ..
-        }) = types.get(&current).copied()
-        else {
-            return false;
+        // A record may embed a completed sum or mixed member as a whole
+        // field — the walk descends through every member-bearing shape.
+        let fields: Vec<&terminal_psi::StructuralFieldDeclaration> = match types
+            .get(&current)
+            .copied()
+            .map(|declaration| &declaration.shape)
+        {
+            Some(StructuralTypeShape::Record { fields }) => fields.iter().collect(),
+            Some(StructuralTypeShape::Sum { cases }) => {
+                cases.iter().flat_map(|case| case.fields.iter()).collect()
+            }
+            Some(StructuralTypeShape::Mixed { fields, cases }) => fields
+                .iter()
+                .chain(cases.iter().flat_map(|case| case.fields.iter()))
+                .collect(),
+            _ => return false,
         };
         pending.push((current, true));
         for field in fields {

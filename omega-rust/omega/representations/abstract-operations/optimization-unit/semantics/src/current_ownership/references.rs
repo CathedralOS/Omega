@@ -516,7 +516,7 @@ pub(super) fn apply_operation(
             // path beneath this root with the spelled hole. Sibling loans
             // stay legal — only a carrier inside (or carrying) the vacancy
             // would point at relocated storage.
-            let hole = window_hole(structural_types, source.structural_type, path, *field)
+            let hole = window_hole(structural_types, source.structural_type(), path, *field)
                 .ok_or_else(|| {
                     invalid(
                         function,
@@ -526,7 +526,7 @@ pub(super) fn apply_operation(
                     )
                 })?;
             if live.iter().any(|reference| {
-                reference.carrier == source.place
+                reference.carrier == source.place()
                     && (reference.carrier_path.starts_with(hole.as_slice())
                         || hole.starts_with(&reference.carrier_path))
             }) {

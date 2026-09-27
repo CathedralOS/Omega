@@ -30,8 +30,7 @@ use semantic_vocabulary::StructuralFieldId;
 use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
 use terminal_psi::{
-    StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralTypeShape,
+    StructuralAccess, StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape,
 };
 
 pub(super) fn move_field(
@@ -54,18 +53,18 @@ pub(super) fn move_field(
     else {
         return Err(invalid());
     };
-    if !window_root(function, prepared, source)
+    if !window_root(function, prepared, live, source)
         || super::references::contains_reference(types, result.structural_type)
     {
         return Err(invalid());
     }
-    let path = field_path(types, source.structural_type, path, *field).ok_or_else(invalid)?;
+    let path = field_path(types, source.structural_type(), path, *field).ok_or_else(invalid)?;
     super::leaf_copy::copy_extent(
         *psi_operation,
         result,
-        source.place,
+        source.place(),
         &path,
-        source.structural_type,
+        source.structural_type(),
         function,
         types,
         live,
@@ -94,17 +93,17 @@ pub(super) fn store_field(
     else {
         return Err(invalid());
     };
-    if !window_root(function, prepared, destination)
+    if !window_root(function, prepared, live, destination)
         || value.access != StructuralAccess::Owned
         || !value.path.is_empty()
     {
         return Err(invalid());
     }
     let full_path =
-        field_path(types, destination.structural_type, path, *field).ok_or_else(invalid)?;
+        field_path(types, destination.structural_type(), path, *field).ok_or_else(invalid)?;
     let (field_type, shape, byte_offset, indices) =
         crate::lowering::structural_layout::runtime_projection(
-            destination.structural_type,
+            destination.structural_type(),
             &full_path,
             types,
             &mut BTreeMap::new(),
@@ -158,14 +157,37 @@ pub(super) fn store_field(
 fn window_root(
     function: &AbstractFunction,
     prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
-    root: &StructuralParameterDeclaration,
+    live: &LiveDefinitions,
+    root: &abstract_operations::StructuralWindowRoot,
 ) -> bool {
-    root.access == StructuralAccess::MutableBorrow
-        && function.structural_parameters.contains(root)
-        && super::structural_case::parameter_root(prepared, root.place).is_some_and(|parameter| {
-            parameter.access == StructuralAccess::MutableBorrow
-                && parameter.structural_type == root.structural_type
-        })
+    match root {
+        abstract_operations::StructuralWindowRoot::BorrowedParameter(root) => {
+            root.access == StructuralAccess::MutableBorrow
+                && function.structural_parameters.contains(root)
+                && super::structural_case::parameter_root(prepared, root.place).is_some_and(
+                    |parameter| {
+                        parameter.access == StructuralAccess::MutableBorrow
+                            && parameter.structural_type == root.structural_type
+                    },
+                )
+        }
+        // An owned local home's authority is its live home row: the producer
+        // completed it under clean transferable custody and nothing else may
+        // have claimed it since.
+        abstract_operations::StructuralWindowRoot::OwnedResult { result, .. } => live
+            .structural_homes
+            .get(&result.place)
+            .is_some_and(|home| {
+                home.structural_type() == result.structural_type
+                    && matches!(
+                        home.multiplicity(),
+                        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                    )
+                    && !home.has_claims()
+                    && home.qualifications().is_empty()
+                    && home.projected_qualifications().is_empty()
+            }),
+    }
 }
 
 /// The spelled window path extended by the vacated field's own segment, so

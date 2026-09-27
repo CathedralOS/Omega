@@ -99,7 +99,7 @@ pub(super) fn operation(
             graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| match row {
                 TargetUnitOperation::StructuralLeafCopy { psi_operation: retained, result_home, source: retained_source, path: retained_path, indices, .. }
                     if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result))
-                        && *retained_source == source.place => {
+                        && *retained_source == source.place() => {
                     let runtime_segments = retained_path.iter().filter(|segment|
                         matches!(segment, terminal_psi::StructuralPathSegment::RuntimeIndex { .. })).count();
                     if indices.len() != runtime_segments {

@@ -6,7 +6,7 @@
 use super::{
     CanonicalBytes, IntegerSign, IntegerType, IntegerValue, PsiSemanticId, ScalarType,
     StructuralAccess, StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathSegment, ValueBinding,
+    StructuralPathSegment, ValueBinding, structural_encoding::encode_structural_operation_result,
 };
 pub(super) fn encode_binding(bytes: &mut CanonicalBytes, binding: &ValueBinding) {
     bytes.id(binding.parameter);
@@ -160,4 +160,23 @@ pub(super) fn encode_multiplicity(
         StructuralMultiplicity::Affine => 2,
         StructuralMultiplicity::Linear => 3,
     });
+}
+
+/// The window-root authority: a retained borrowed parameter row (tag 0) or an
+/// owned completed home's producer and result row (tag 1).
+pub(super) fn encode_window_root(
+    bytes: &mut CanonicalBytes,
+    root: &abstract_operations::StructuralWindowRoot,
+) {
+    match root {
+        abstract_operations::StructuralWindowRoot::BorrowedParameter(parameter) => {
+            bytes.u8(0);
+            encode_structural_parameter(bytes, parameter);
+        }
+        abstract_operations::StructuralWindowRoot::OwnedResult { producer, result } => {
+            bytes.u8(1);
+            bytes.id(*producer);
+            encode_structural_operation_result(bytes, result);
+        }
+    }
 }

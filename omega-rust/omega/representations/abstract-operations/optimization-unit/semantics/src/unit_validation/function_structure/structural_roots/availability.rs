@@ -181,10 +181,10 @@ pub(crate) fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
         } => vec![*destination, *source],
         // Both sides of a window observe the borrowed root; the repair also
         // consumes its owned value place, which must dominate the store.
-        O::MoveStructuralField { source, .. } => vec![source.place],
+        O::MoveStructuralField { source, .. } => vec![source.place()],
         O::StoreStructuralField {
             destination, value, ..
-        } => vec![destination.place, value.place],
+        } => vec![destination.place(), value.place],
         // A leaf copy reads through its borrowed root; the root must
         // dominate the copy.
         O::StructuralLeafCopy { source, .. } => vec![*source],

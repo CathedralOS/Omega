@@ -2,7 +2,7 @@
 
 use crate::optimization_unit::identity::carrier_encoding::{
     encode_abstract_result, encode_ids, encode_structural_argument, encode_structural_parameter,
-    encode_structural_path_segment,
+    encode_structural_path_segment, encode_window_root,
 };
 use crate::optimization_unit::identity::structural_encoding::{
     encode_place_declaration, encode_structural_operation_result, encode_structural_type,
@@ -283,7 +283,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.u8(81);
             bytes.id(*psi_operation);
             encode_structural_operation_result(bytes, result);
-            encode_structural_parameter(bytes, source);
+            encode_window_root(bytes, source);
             bytes.slice(path, encode_structural_path_segment);
             bytes.id(*field);
         }
@@ -296,7 +296,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
         } => {
             bytes.u8(82);
             bytes.id(*psi_operation);
-            encode_structural_parameter(bytes, destination);
+            encode_window_root(bytes, destination);
             bytes.slice(path, encode_structural_path_segment);
             bytes.id(*field);
             encode_structural_argument(bytes, value);

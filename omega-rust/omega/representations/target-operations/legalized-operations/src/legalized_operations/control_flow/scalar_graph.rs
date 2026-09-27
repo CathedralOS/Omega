@@ -357,7 +357,7 @@ pub enum LegalizedScalarInstructionKind {
     /// bytes land at `byte_offset` beneath `destination`'s referent, the
     /// resolved offset of `field` under the spelled `path`.
     StoreStructuralField {
-        destination: terminal_psi::StructuralParameterDeclaration,
+        destination: abstract_operations::StructuralWindowRoot,
         path: Vec<terminal_psi::StructuralPathSegment>,
         field: semantic_vocabulary::StructuralFieldId,
         value: semantic_vocabulary::PlaceId,

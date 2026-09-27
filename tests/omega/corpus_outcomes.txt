@@ -529,7 +529,7 @@ fail/generics/const_generic_runtime_argument rejected 814ms expected
 	a value call to generic machine `prefix_count` cannot derive a complete type/const/machine/conformance specialization tuple from its argument and result types; add a concrete destination annotation or provide concrete argument type evidence
 fail/generics/machine_bound_violated_at_call rejected 137ms expected
 	generic machine `Main::copy_it` has a concrete specialization tuple that does not satisfy its authored type bounds
-fail/generics/nominal_binder_structural_coincidence_rejected rejected 138ms expected
+fail/generics/nominal_binder_structural_coincidence_rejected rejected 29ms expected
 	static machine argument `lookalike` for nominal parameter `Selected` retains 0 authored satisfaction row(s) for exact requirement `Handler::call`; exactly one is required and structural coincidence establishes none
 fail/generics/omitted_data_binder_explicit_conflict rejected 172ms expected
 	generic data `TinyBytes` where equation binds `Capacity` to 256 but its explicit argument is 512
@@ -690,7 +690,7 @@ fail/proofs/nat_metric_false_gap_zero rejected 990ms expected
 	machine `false_gap_zero` ensures contract proof fact `nat_gap(Nat, Nat) == Nat` is disproved structurally: under the requires hypotheses the sides resolve to constructor forms that contradict the claim
 fail/proofs/nat_nondescending_recursion_rejected rejected 898ms expected
 	`spin(..)` cannot prove the measure `n` structurally decreases at this self-call: the call does not prove a strict predecessor of ranking subject `n`. Pass a case-payload subterm (`Nat::Succ { prev } -> .. spin(prev)`) or, for an integer measure, `n - 1` in the taken value of its dominating `n > 0` arm; a slice-length measure admits `items[1..]` under its own nonempty guard
-fail/proofs/nat_structural_disproof_refuted rejected 898ms expected
+fail/proofs/nat_structural_disproof_refuted rejected 176ms expected
 	machine `bogus` ensures contract proof fact `a != Nat` is disproved structurally: under the requires hypotheses the sides resolve to constructor forms that contradict the claim
 fail/proofs/nat_unmeasured_recursion_rejected rejected 865ms expected
 	recursive proof machine `spin` needs a single structural measure: declare `terminates by <param>;` naming one proof-data parameter -- a cycle without a measure is an unproven termination claim (measured recursion, both strata)
@@ -755,7 +755,7 @@ fail/proofs/ring_law_unproven_rejected rejected 891ms expected
 	machine `lawless` satisfies `RingOps2::add_assoc` but proves no ensures matching the declared law `plus(plus(a, b), c) == plus(a, plus(b, c))` -- a law requirement's satisfier must carry that equation as a machine-checked ensures, general in every law parameter
 fail/proofs/ring_rearrange_unlicensed_rejected rejected 877ms expected
 	machine `needs_rearrange` ensures contract proof fact `plus(b, plus(a, c)) == plus(a, plus(b, c))` speaks about proof-only `Peano`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
-fail/proofs/structural_ensures_unjudged_rejected rejected 892ms expected
+fail/proofs/structural_ensures_unjudged_rejected rejected 217ms expected
 	machine `bogus` ensures contract proof fact `result == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or wait for the structural extraction tier (math roster N3)
 fail/proofs/value_call_refuted_inequality_rejected rejected 802ms expected
 	machine `invalid_nonzero_identity` state `entry` value call to `nonzero_identity` violates required fact `value != Nat`: the instantiated fact is structurally false
@@ -1228,7 +1228,7 @@ pass/control_flow/runtime_tuple_case_destructure_exit rejected 730ms
 pass/control_flow/runtime_tuple_transition_exit rejected 4855ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable scalar target (`Main::run`), which was itself omitted at local construction at `state graph: terminator: guarded jump successors: receiver transfer` (state 1, statement 0)
 pass/control_flow/self_case_payload_both_arms_exit checked 5954ms
-pass/control_flow/structural_result_transition_tail rejected 4746ms
+pass/control_flow/structural_result_transition_tail rejected 2767ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: unsupported tail: guarded pair without exact false fallback` (state 0)
 pass/control_flow/sum_field_storage_roundtrip rejected 4775ms
 	native-artifact Terminal production failed: Lowering(Unsupported("runtime field observation requires a record-only field path"))
@@ -1337,7 +1337,7 @@ pass/dungeon/runtime_threaded_mut_arg_interrupt_soak_exit rejected 5020ms
 pass/effects/generic_callback_schema_reach checked 2021ms
 pass/effects/nominal_callback_const_reach checked 2085ms
 pass/effects/nominal_callback_dependency checked 1883ms
-pass/effects/structural_callback_reach checked 1994ms
+pass/effects/structural_callback_reach checked 780ms
 pass/entry/service_borrowed_slice_call checked 2682ms
 pass/errors/runtime_result_match_exit rejected 5207ms
 	native-artifact Terminal production failed: Lowering(Unsupported("runtime field observation requires a record-only field path"))
@@ -1707,7 +1707,7 @@ pass/proofs/proof_integer_embedding checked 2514ms
 pass/proofs/proof_integer_quotient_remainder checked 2425ms
 pass/proofs/proof_linear_range_sum checked 2118ms
 pass/proofs/proof_multiplication_distributivity checked 3090ms
-pass/proofs/proof_nat_structural_lemmas checked 4343ms
+pass/proofs/proof_nat_structural_lemmas checked 649ms
 pass/proofs/proof_nonlinear_square_range checked 2546ms
 pass/proofs/proof_order_antisymmetry checked 2480ms
 pass/proofs/proof_order_transitivity checked 2175ms
@@ -1721,7 +1721,7 @@ pass/proofs/quotient_lift_managed_compile rejected 5334ms
 pass/proofs/ring_full_polynomial_compile checked 5742ms
 pass/proofs/ring_law_conformance checked 9930ms
 pass/proofs/runtime_decreases_u64_measure_exit checked 7538ms
-pass/proofs/runtime_nat_structural_recursion_exit checked 8693ms
+pass/proofs/runtime_nat_structural_recursion_exit checked 3257ms
 pass/proofs/runtime_ranked_accumulator_guarantee_exit checked 7398ms
 pass/providers/boundary_scalar_field_store checked 4007ms
 pass/providers/checked_boundary_operator_const_application_alternate_exit rejected 3014ms
@@ -1741,9 +1741,9 @@ pass/providers/provider_type_target_default_override checked 2837ms
 pass/providers/runtime_adapter_dispatch_exit checked 4961ms
 pass/providers/runtime_result_domain_requirement_overload_exit checked 7361ms
 pass/providers/service_fused_root_establishment checked 3280ms
-pass/providers/specialized_mixed_structural_result_operator_hosted_native rejected 5385ms
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(Indexing::index$specialized$089023feb447f889$0),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,generic\\(name\\(Buffer\\)\\,named\\(name\\(i32\\)\\)\\,named\\(integer-const\\(4\\)\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-pass/providers/specialized_structural_fixed_operator_terminal_custody checked 4013ms
+pass/providers/specialized_mixed_structural_result_operator_hosted_native rejected 1847ms
+	native artifact native artifact replay failed: native physical evidence cannot rejoin one exact selected provider plan
+pass/providers/specialized_structural_fixed_operator_terminal_custody checked 655ms
 pass/providers/token_machine_family_override_exit checked 8397ms
 pass/range/runtime_funnel_guard_agreement_exit checked 8966ms
 pass/range/runtime_guarded_runtime_index_increment_exit rejected 5629ms
@@ -1856,16 +1856,14 @@ pass/structs/zeroed_record_member_wide_array_exit rejected 5042ms
 	native artifact canonical abstract optimization failed: explicit optimization pipeline failed: Run(InitialValidation(StructuralCatalogMismatch { machine: Some(MachineId(1)) }))
 pass/structs/zeroed_record_members_exit rejected 5076ms
 	native artifact canonical abstract optimization failed: explicit optimization pipeline failed: Run(InitialValidation(StructuralCatalogMismatch { machine: Some(MachineId(1)) }))
-pass/structural/case_field_local_store rejected 5272ms
-	native artifact native artifact lowering failed: Lowering(InvalidBorrowedStorageWindow(OperationId(9)))
-pass/structural/case_field_member_store rejected 5795ms
-	native artifact canonical abstract optimization failed: explicit optimization pipeline failed: Run(InitialValidation(StructuralCallContractMismatch { machine: MachineId(1), block: BlockId(2), node: 0 }))
-pass/structural/case_payload_record_member_read rejected 4751ms
+pass/structural/case_field_local_store checked 2457ms
+pass/structural/case_field_member_store checked 2956ms
+pass/structural/case_payload_record_member_read rejected 1848ms
 	native-artifact Terminal production failed: Lowering(InvalidTerminalModule(UnknownStructuralArgument { operation: OperationId(3), argument_index: 1, place: PlaceId(4) }))
-pass/structural/element_store rejected 4870ms
-	native artifact canonical abstract optimization failed: explicit optimization pipeline failed: Run(InitialValidation(StructuralCallContractMismatch { machine: MachineId(1), block: BlockId(2), node: 1 }))
-pass/structural/local_record_receivers checked 1805ms
-pass/structural/sum_attachment_receiver_compile checked 1534ms
+pass/structural/element_store rejected 1992ms
+	native artifact canonical abstract optimization failed: explicit optimization pipeline failed: Run(InitialValidation(StructuralCatalogMismatch { machine: Some(MachineId(2)) }))
+pass/structural/local_record_receivers checked 726ms
+pass/structural/sum_attachment_receiver_compile checked 549ms
 pass/targets/aarch64_hfa_entry_argument checked 8026ms
 pass/targets/efi_vtable_call checked 2239ms
 pass/targets/single_target_internal_machine_skipped checked 5011ms
@@ -1880,8 +1878,8 @@ pass/terminal_psi/selected_empty_component checked 2392ms
 pass/terminal_psi/selected_lowering_optimizer_component rejected 2245ms
 	selected optimization `X86SelectXorZeroI64MaterializationV1` failed in the complete verified optimizer pipeline during selected/physical validation: common physical staging failed: UnconsumedPostTerminalPhase(PostAllocationMachine); no alternate compiler route was run and no output was installed
 pass/terminal_psi/selected_optimizer_component checked 2297ms
-pass/terminal_psi/structural_content_passthrough checked 1851ms
-pass/terminal_psi/structural_scalar_trait_operator checked 2335ms
+pass/terminal_psi/structural_content_passthrough checked 547ms
+pass/terminal_psi/structural_scalar_trait_operator checked 579ms
 pass/terminal_psi/unsupported_optimizer_component checked 2289ms
 pass/termination/auxiliary_payload_computed_arrival checked 1869ms
 pass/termination/bounded_distance_named_view checked 1843ms

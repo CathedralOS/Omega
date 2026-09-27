@@ -13,7 +13,7 @@
 //! physical ABI shape. The dynamic debt itself needs no replay here: the
 //! spelled pairs reach Omega only through a verified module.
 
-use abstract_operations::AbstractOperation;
+use abstract_operations::{AbstractOperation, StructuralWindowRoot};
 use semantic_vocabulary::{PlaceId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId};
 use terminal_psi::{
     Operation, OperationKind, OperationResult, StructuralAccess, StructuralArgument,
@@ -90,7 +90,7 @@ fn lower_move(
         return Err(invalid());
     }
     let source = borrowed_window_root(machine, source).ok_or_else(invalid)?;
-    if declared_window_field_type(structural_types, source.structural_type, path, field)
+    if declared_window_field_type(structural_types, source.structural_type(), path, field)
         != Some(result.structural_type)
     {
         return Err(invalid());
@@ -122,7 +122,7 @@ fn lower_store(
     }
     let destination = borrowed_window_root(machine, destination).ok_or_else(invalid)?;
     let Some(field_type) =
-        declared_window_field_type(structural_types, destination.structural_type, path, field)
+        declared_window_field_type(structural_types, destination.structural_type(), path, field)
     else {
         return Err(invalid());
     };
@@ -141,25 +141,59 @@ fn lower_store(
     })
 }
 
-/// The borrowed machine parameter a window operation may name: mutable-borrow
-/// authority, a transferable multiplicity, and no qualifications or entry
-/// claims, resolved through the exact parameter row so the abstract operation
-/// carries the authority the verifier admitted rather than a bare place.
-fn borrowed_window_root(
-    machine: &TerminalMachine,
-    place: PlaceId,
-) -> Option<StructuralParameterDeclaration> {
-    let parameter = exact_parameter(machine, place)?;
-    if parameter.access != StructuralAccess::MutableBorrow
-        || !matches!(
-            parameter.multiplicity,
-            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-        )
-        || !has_empty_structural_custody(machine, place)
-    {
-        return None;
+/// The root a window operation may name: a mutable-borrowed machine parameter
+/// (borrow authority, a transferable multiplicity, and no qualifications or
+/// entry claims, resolved through the exact parameter row), or an owned local
+/// home a producer operation completed under the same custody — the exact
+/// admission the Terminal verifier's `completed_source` and the codec's
+/// `borrowed_field_store_root_type` apply. The abstract operation carries the
+/// authority the verifier admitted rather than a bare place.
+fn borrowed_window_root(machine: &TerminalMachine, place: PlaceId) -> Option<StructuralWindowRoot> {
+    if let Some(parameter) = exact_parameter(machine, place) {
+        if parameter.access == StructuralAccess::MutableBorrow
+            && matches!(
+                parameter.multiplicity,
+                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+            )
+            && has_empty_structural_custody(machine, place)
+        {
+            return Some(StructuralWindowRoot::BorrowedParameter(parameter));
+        }
     }
-    Some(parameter)
+    machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter(|producer| {
+            matches!(
+                producer.kind,
+                OperationKind::EstablishRecord { .. }
+                    | OperationKind::EstablishZeroedStructural { .. }
+                    | OperationKind::CallStructural { .. }
+                    | OperationKind::CallStructuralWithScalarArguments { .. }
+                    | OperationKind::StructuralLeafCopy { .. }
+                    | OperationKind::StructuralCaseLeafCopy { .. }
+            )
+        })
+        .find_map(|producer| {
+            producer
+                .result
+                .structural()
+                .filter(|result| {
+                    result.place == place
+                        && matches!(
+                            result.multiplicity,
+                            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                        )
+                        && result.qualifications.is_empty()
+                        && result.projected_qualifications.is_empty()
+                        && result.claims.is_empty()
+                })
+                .map(|result| StructuralWindowRoot::OwnedResult {
+                    producer: producer.id,
+                    result: result.clone(),
+                })
+        })
 }
 
 /// The declared `Structural` type of the field a window operation names,

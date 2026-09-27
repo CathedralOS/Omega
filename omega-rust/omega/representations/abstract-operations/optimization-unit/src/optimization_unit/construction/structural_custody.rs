@@ -90,13 +90,13 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
             places.insert(*source);
         }
         O::MoveStructuralField { source, result, .. } => {
-            places.insert(source.place);
+            places.insert(source.place());
             places.insert(result.place);
         }
         O::StoreStructuralField {
             destination, value, ..
         } => {
-            places.insert(destination.place);
+            places.insert(destination.place());
             places.insert(value.place);
         }
         O::StructuralByteSequenceFieldStore {

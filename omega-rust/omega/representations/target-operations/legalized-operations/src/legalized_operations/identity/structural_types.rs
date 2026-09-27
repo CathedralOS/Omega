@@ -9,6 +9,23 @@ use terminal_psi::{
     StructuralTypeDeclaration, StructuralTypeShape,
 };
 
+pub(super) fn encode_window_root(
+    bytes: &mut Vec<u8>,
+    root: &abstract_operations::StructuralWindowRoot,
+) {
+    match root {
+        abstract_operations::StructuralWindowRoot::BorrowedParameter(parameter) => {
+            bytes.push(0);
+            encode_structural_parameter(bytes, parameter);
+        }
+        abstract_operations::StructuralWindowRoot::OwnedResult { producer, result } => {
+            bytes.push(1);
+            bytes.extend_from_slice(&producer.get().to_le_bytes());
+            super::structural_result::encode_operation_result(bytes, result);
+        }
+    }
+}
+
 #[cfg(test)]
 mod block_parameter_tests;
 #[cfg(test)]

@@ -73,6 +73,8 @@ pub(super) fn fields(
                         && matches!(
                             declaration.shape,
                             StructuralTypeShape::Record { .. }
+                                | StructuralTypeShape::Sum { .. }
+                                | StructuralTypeShape::Mixed { .. }
                                 | StructuralTypeShape::Reference { .. }
                         )
                 })
@@ -128,6 +130,14 @@ pub(super) fn fields(
                                         ..
                                     }
                                     | LegalizedScalarInstructionKind::EstablishScalarArray {
+                                        result,
+                                        ..
+                                    }
+                                    | LegalizedScalarInstructionKind::EstablishScalarCase {
+                                        result,
+                                        ..
+                                    }
+                                    | LegalizedScalarInstructionKind::EstablishZeroedStructural {
                                         result,
                                         ..
                                     }
