@@ -132,17 +132,19 @@ fn carrier_match_moves_the_whole_claim_frontier_and_reconsumes_each_child() {
         // the join, so per-child `Token::settle` use checks. The claim-bearing
         // local itself still waits on unit-control local construction: the
         // machine stops at the documented consumer gap rather than lowering.
-        assert_eq!(
-            format!(
-                "{:?}",
-                checked_trees_to_lowered_psi::lower_machine(
-                    &checked,
-                    TerminalMachineSelection::Name("choose")
-                )
-                .unwrap_err()
+        let formatted = format!(
+            "{:?}",
+            checked_trees_to_lowered_psi::lower_machine(
+                &checked,
+                TerminalMachineSelection::Name("choose")
+            )
+            .unwrap_err()
+        );
+        assert!(
+            formatted.starts_with(
+                r#"Unsupported("machine has no source-independent checked scalar control plan"#
             ),
-            r#"Unsupported("machine has no source-independent checked scalar control plan")"#,
-            "{name}: a claim-bearing local has no scalar control plan yet"
+            "{name}: a claim-bearing local has no scalar control plan yet ({formatted})"
         );
     }
 }

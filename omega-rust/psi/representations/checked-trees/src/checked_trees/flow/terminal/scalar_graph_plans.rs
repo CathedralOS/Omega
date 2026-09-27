@@ -26,6 +26,21 @@ pub struct CheckedScalarGraphPlans {
     /// the same guard and selected-destination correspondence.
     pub guarded_exits: arena::Arena<CheckedScalarGuardedExit>,
     pub guarded_tails: Vec<CheckedScalarGuardedTail>,
+    /// Machines whose graph admission declined, paired with the diagnostic
+    /// naming the refusing stage — lowering surfaces it instead of a bare
+    /// admission absence.
+    pub declined: Vec<(SymbolHandle, &'static str)>,
+}
+
+impl CheckedScalarGraphPlans {
+    /// The decline-stage diagnostic recorded for a machine whose scalar graph
+    /// admission failed, if any stage named the refusal.
+    pub fn declined_reason(&self, machine: SymbolHandle) -> Option<&'static str> {
+        self.declined
+            .iter()
+            .find(|(symbol, _)| *symbol == machine)
+            .map(|(_, reason)| *reason)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
