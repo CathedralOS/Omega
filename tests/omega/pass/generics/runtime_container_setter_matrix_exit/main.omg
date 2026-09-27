@@ -17,7 +17,9 @@ machine Cell::set<T>(&mut self, v: T) {
     self.value = v;
     self.touched = self.touched + 1;
 }
-machine Cell::get<T>(&self) -> T {
+// Returning the field through a shared receiver copies it. The container
+// and setter do not need this getter-only bound.
+machine Cell::get<T [copy]>(&self) -> T {
     transition { _ -> (self.value) }
 }
 machine Cell::touch_count(&self) -> i32 in Wrapping {
