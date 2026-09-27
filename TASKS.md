@@ -850,6 +850,65 @@ _rejected` and `expressions/bool_numeric_operand_mixing_rejected` each gained
   Lowering(InvalidTerminalModule(InvalidBlockStructuralParameter { block:
   BlockId(6), place: PlaceId(7) }))", which is the gate named above.
 
+  The PASS tier is where the red moved to, and it is now attributed. Measured
+  unfiltered at 63c72b29128: 1144 fixtures, 22 moves, every one of them in
+  the pass tier. Five were fixtures other lanes added without a golden row,
+  which exits the gate 1 for everyone; they are recorded. The remaining
+  seventeen are status regressions -- `checked` to `rejected` -- and all
+  seventeen reproduce on a base without the guard-facts fix, so none of them
+  is that work. THIRTEEN of the seventeen are the `operator` to `machine`
+  token migration arriving in four different places:
+
+  - **Nested value-call arguments, six rows.**
+    `float/{x86_fma_plan_association,build_runtime_semantics_twins_x86_baseline,
+    build_runtime_semantics_twins_windows_x64,named_provider_directed_divide_exit,
+    named_provider_fused_multiply_add_exit,named_provider_multiply_then_add_exit}`
+    all stop at "a value-call argument cannot itself be a machine call yet
+    (`subtract(..)` nested in `multiply_then_add(..)` would read a garbage
+    result) -- bind the inner call to a local". This is the migration's
+    largest consequence and it is not float-specific: once a spelled
+    arithmetic operator routes as an ordinary call, `a * b + c` IS a nested
+    value call, and the value-call lane does not support one. Either the lane
+    learns nested calls or every authored arithmetic composition over
+    token-bearing machines needs a temporary.
+  - **Implicit domain weakening at a provider argument, three rows.**
+    `float/{float_saturating_arithmetic_exit,float_trapping_overflow_traps,
+    float_trapping_propagated_nan_traps}` pass an `f32 in Saturating` or
+    `in Trapping` value to a `f32` parameter and are refused by
+    **IMPLICIT-STORE-CONVERSION** plus the older domain-weakening rule.
+    Spelling `as f32` is NOT the repair here: it erases the very policy each
+    canary exists to exercise. They want the Saturating/Trapping overloads
+    `core/float_operations.omg` does not declare -- the same block this row
+    already records for `named_provider_multiply_then_add_exit`.
+  - **No body supply outside binary and indexed uses, three rows.**
+    `expressions/match_float_{interpretation,patterns,subjects}` report
+    "`Float::equal` was selected for its fixed operator token `==` in a
+    position whose body supply is not implemented; only binary and indexed
+    expression uses bind the declaration's own body". A match subject or
+    pattern is neither.
+  - **A lost authored target selection, one row.**
+    `providers/checked_boundary_operator_const_application_alternate_exit`:
+    "const-generic application evaluation failed: constant call lost its
+    exact authored target selection".
+
+  All thirteen belong with **OPERATOR-BOUNDARY-CALLS**. The other four are
+  separate and unrelated to each other:
+  `float/float_to_int_exact_proofs_exit` ("cannot prove Exact float-to-`i32`
+  cast operand `self.unbounded` is finite and in range"),
+  `capabilities/windows_provides_import_exit` (host-gated: "foreign locator
+  PeByName is not applicable to selected target `macos_arm64`"),
+  `generics/runtime_const_data_where_fact_exit` ("write to
+  `self.buffer.used` cannot PROVE data `FixedBuffer<4>`'s default domain"),
+  and `generics/declared_range_endpoint_inference` ("quoted byte literal
+  cannot initialize owned fixed byte array `[u8; ObjectLength]`: its width
+  must be a compile-known resolved integer literal").
+
+  Attribution recipe, so nobody repeats the full pass: run the unfiltered
+  gate once, then rerun ONLY the moved names with
+  `--filter <comma list>` on the base you suspect, and read each row's own
+  diagnostics out of a `--baseline --record` file rather than the 300-column
+  gate summary.
+
   When an item's acceptance names a pass fixture, check that the fixture's
   entry runs the thing. 103 of 704 pass fixtures end in an empty
   `machine X::main(&mut self) {}`. Only one is named `_exit`, so the naming
