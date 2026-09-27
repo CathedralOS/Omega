@@ -4,9 +4,8 @@
 //
 // 200 + 100 = 300 overflows u8, so `u8 in Trapping` traps -- the program never
 // reaches the transition and never exits 70. This compiles cleanly (the trap is
-// a runtime event); the abort is asserted by the native-only test
-// `arithmetic_domain_trapping_overflow_aborts` (a trap is not a clean exit the
-// differential oracle can compare).
+// a runtime event); expected_native_exit.txt requires the exact target trap.
+// A clean exit, missing execution or a different crash cannot satisfy it.
 
 use omega_language_std::console;
 use omega::language::core::binding;
