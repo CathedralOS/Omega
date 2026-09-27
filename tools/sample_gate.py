@@ -68,7 +68,11 @@ CLUSTER_NOTES: dict[str, str] = {
     "unit-plan omission":
         "the downstream symptom — route each by the operation its "
         "`omitted at local construction at ...` phase names, not by this "
-        "shared line (STATE-LOCAL-VALUE-FRONTIER)",
+        "shared line (STATE-LOCAL-VALUE-FRONTIER). CONFIRM the phase "
+        "against the `(state N, statement M)` printed beside it: the trace "
+        "records the last phase ENTERED, so a label can name a site the "
+        "program never reaches — `dutch_flag` reports a local-data phase "
+        "and contains no `let` at all",
     "implicit store conversion":
         "the sample stores across an integer type or policy without "
         "spelling the cast; the repair is the `as` the diagnostic names "
@@ -148,6 +152,7 @@ def first_error(output: str) -> str:
 # own message, and that phase — not the shared rejoins line — is what routes
 # the sample to a capability.
 OMISSION_PHASE = re.compile(r"omitted at local construction at `([^`]+)`")
+OMISSION_SITE = re.compile(r"\(state (\d+), statement (\d+)\)")
 
 
 def cluster_of(message: str) -> str:
@@ -160,6 +165,11 @@ def cluster_of(message: str) -> str:
 def detail_of(message: str) -> str | None:
     found = OMISSION_PHASE.search(message)
     return found.group(1) if found else None
+
+
+def site_of(message: str) -> str | None:
+    found = OMISSION_SITE.search(message)
+    return f"state {found.group(1)}, statement {found.group(2)}" if found else None
 
 
 def check_one(cli: Path, scratch: Path, directory: Path) -> dict:
@@ -179,6 +189,9 @@ def check_one(cli: Path, scratch: Path, directory: Path) -> dict:
         detail = detail_of(message)
         if detail:
             record["detail"] = detail
+        site = site_of(message)
+        if site:
+            record["site"] = site
     return record
 
 
@@ -250,8 +263,13 @@ def main() -> int:
                                           key=lambda item: (-len(item[1]),
                                                             item[0])):
                 print(f"   [{len(samples)}] {detail}")
-                for sample in sorted(samples):
-                    print(f"       {sample}")
+                for record in sorted(members,
+                                     key=lambda record: record["sample"]):
+                    if record["detail"] != detail:
+                        continue
+                    site = record.get("site")
+                    print(f"       {record['sample']}"
+                          + (f"  ({site})" if site else ""))
             continue
         for record in members:
             print(f"   {record['sample']}\n       {record['diagnostic'][:160]}")
