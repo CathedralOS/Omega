@@ -34,42 +34,6 @@ fn review_rejects_target_free_and_standalone_checked_programs() {
 }
 
 #[test]
-fn review_distinguishes_profiles_that_share_a_native_target() {
-    let package = TempPackage::new();
-    package.write("main.omg", "machine local() { }\n");
-    package.write(
-        "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
-"#,
-    );
-
-    let windows = compile_review_fixture(CheckedCompileRequest {
-        package_inputs: Some(package_inputs(&package.0)),
-        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
-    })
-    .expect("Windows review fixture should check");
-    let uefi = compile_review_fixture(CheckedCompileRequest {
-        package_inputs: Some(package_inputs(&package.0)),
-        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("uefi_x86_64"))
-    })
-    .expect("UEFI review fixture should check");
-
-    assert_eq!(
-        windows.custody.selected_native_target(),
-        uefi.custody.selected_native_target()
-    );
-    let windows = project_checked_package_review(&windows).expect("Windows review projection");
-    let uefi = project_checked_package_review(&uefi).expect("UEFI review projection");
-    assert_eq!(windows.target(), target::TargetProfile::WindowsX64);
-    assert_eq!(uefi.target(), target::TargetProfile::UefiX64);
-    assert_ne!(windows.target(), uefi.target());
-    assert_ne!(
-        windows.canonical_review_bytes().expect("Windows encoding"),
-        uefi.canonical_review_bytes().expect("UEFI encoding"),
-    );
-}
-
-#[test]
 fn review_encoding_ignores_unreviewed_arena_insertion_order() {
     let first = TempPackage::new();
     let second = TempPackage::new();

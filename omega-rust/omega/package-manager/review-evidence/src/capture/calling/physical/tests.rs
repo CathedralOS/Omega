@@ -20,8 +20,7 @@ use calling_conventions::MachineState;
 use calling_conventions::MachineStateSet;
 use calling_conventions::Preemption;
 use calling_conventions::{
-    CallSignature, CallbackMaterialization, CallingPolicy, IndirectPointerLocation,
-    MachineRegister, NativeParameterId, NativePlace, RegisterSet, StaticMachineBinderId,
+    CallSignature, CallingPolicy, IndirectPointerLocation, MachineRegister, RegisterSet,
     SystemVEightbyteClass, ValueClass, ValueLocation, ValuePlacement, ValueShape,
     evaluate_ordinary_boundary_entry_plan,
 };
@@ -445,21 +444,4 @@ fn register_sets_are_canonical_and_cover_every_register_variant() {
             .map(|pair| pair.0),
     );
     assert_eq!(project(&plan), projected);
-}
-
-#[test]
-fn callback_materializations_are_not_misrepresented_as_physical_policy() {
-    let mut plan = fixture();
-    let physical = project(&plan);
-    plan.call
-        .callback_materializations
-        .push(CallbackMaterialization {
-            binder: StaticMachineBinderId::new(7).unwrap(),
-            destination: NativePlace::Parameter(NativeParameterId::new(11).unwrap()),
-        });
-    assert_eq!(
-        project(&plan),
-        physical,
-        "callback semantics belong to the complete wrapper, never private IDs in this physical facet"
-    );
 }

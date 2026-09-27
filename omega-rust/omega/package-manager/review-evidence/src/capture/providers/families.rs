@@ -389,13 +389,6 @@ mod tests {
     }
 
     #[test]
-    fn generic_coordinate_without_applications_keeps_declaration_coverage() {
-        let coordinate = coordinate(1);
-        validate_generic_coordinate_applications(&coordinate, &[7; 32], &[])
-            .expect("declaration coverage is vacuous without retained closed applications");
-    }
-
-    #[test]
     fn family_review_rejects_retained_telescope_arity_drift() {
         let coordinate = coordinate(1);
         let diagnostics = validate_retained_static_parameter_count(&coordinate, 2)

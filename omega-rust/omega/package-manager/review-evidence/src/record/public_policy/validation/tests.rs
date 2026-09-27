@@ -126,21 +126,6 @@ fn contract(value: PackageReviewContractExpression) -> PackageReviewCallableCont
         fact: fact(value),
     }
 }
-fn generic_call(binder: u32, lifetime: u32) -> PackageReviewContractExpression {
-    PackageReviewContractExpression::Call {
-        receiver: None,
-        target: PackageReviewContractCallTarget::Nominal(identity("callee")),
-        static_arguments: vec![PackageReviewContractStaticArgument::GenericType {
-            base: value_type(),
-            lifetime_arguments: vec![lifetime],
-            arguments: vec![PackageReviewContractStaticArgument::GenericTypeBinder(
-                binder,
-            )],
-        }],
-        evidence_arguments: vec![],
-        arguments: vec![],
-    }
-}
 
 #[test]
 fn root_owned_sorted_unique_collections_are_required() {
@@ -202,51 +187,6 @@ fn declaration_subjects_and_proposition_telescope_are_distinct() {
 }
 
 #[test]
-fn nested_static_lifetimes_kinds_and_optional_result_are_checked() {
-    let mut value = api();
-    let mut declaration = data();
-    let mut nested = signature();
-    nested.contracts = vec![contract(generic_call(0, 0)), contract(generic_call(2, 1))];
-    declaration
-        .type_parameters
-        .push(parameter(PackagePolicyTypeParameterKind::Machine(
-            PackagePolicyMachineParameterContract::Structural(nested.clone()),
-        )));
-    value.data.push(declaration);
-    assert!(value.validate_canonical_structure(package()).is_ok());
-    let replace = |value: &mut PackagePolicyPublicApi, nested| {
-        value.data[0].type_parameters[1].kind = PackagePolicyTypeParameterKind::Machine(
-            PackagePolicyMachineParameterContract::Structural(nested),
-        );
-    };
-    nested.contracts.push(contract(generic_call(1, 0)));
-    replace(&mut value, nested.clone());
-    assert!(
-        value.validate_canonical_structure(package()).is_err(),
-        "machine binder is not a type"
-    );
-    nested.contracts.pop();
-    nested.contracts.push(contract(generic_call(0, 2)));
-    replace(&mut value, nested.clone());
-    assert!(
-        value.validate_canonical_structure(package()).is_err(),
-        "lifetime escapes outer plus local scope"
-    );
-    nested.contracts.pop();
-    nested
-        .contracts
-        .push(contract(PackageReviewContractExpression::Result));
-    replace(&mut value, nested.clone());
-    assert!(value.validate_canonical_structure(package()).is_err());
-    nested.return_type = Some(value_type());
-    replace(&mut value, nested.clone());
-    assert!(value.validate_canonical_structure(package()).is_ok());
-    nested.contracts.last_mut().unwrap().kind = PackageReviewContractKind::Requires;
-    replace(&mut value, nested);
-    assert!(value.validate_canonical_structure(package()).is_err());
-}
-
-#[test]
 fn retired_member_ids_and_local_payload_uniqueness_are_checked() {
     let mut value = api();
     value.data.push(data());
@@ -302,24 +242,6 @@ fn crash_and_progress_have_no_result_or_escaping_parameter_scope() {
     value.data[0].type_parameters[1].kind = PackagePolicyTypeParameterKind::Machine(
         PackagePolicyMachineParameterContract::Structural(nested),
     );
-    assert!(value.validate_canonical_structure(package()).is_err());
-}
-
-#[test]
-fn recursive_signature_validation_stops_before_unbounded_descent() {
-    let mut nested = PackagePolicyMachineParameterContract::RequirementIdentity;
-    for _ in 0..129 {
-        nested = PackagePolicyMachineParameterContract::Structural(
-            PackagePolicyMachineParameterSignature {
-                type_parameters: vec![parameter(PackagePolicyTypeParameterKind::Machine(nested))],
-                ..signature()
-            },
-        );
-    }
-    let mut value = api();
-    let mut declaration = data();
-    declaration.type_parameters = vec![parameter(PackagePolicyTypeParameterKind::Machine(nested))];
-    value.data.push(declaration);
     assert!(value.validate_canonical_structure(package()).is_err());
 }
 

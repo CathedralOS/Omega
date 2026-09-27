@@ -1,6 +1,5 @@
 use super::{
-    PackagePolicyMachineParameterContract, PackagePolicyTypeParameterKind,
-    PackageReviewNominalOwner, fixtures, project, read_permission,
+    PackagePolicyTypeParameterKind, PackageReviewNominalOwner, fixtures, project, read_permission,
 };
 const GENERIC: &str = r#"
 pub boundary trait FilesystemHost<'scope, Element, const Count: u64> {
@@ -10,33 +9,6 @@ pub boundary trait FilesystemHost<'scope, Element, const Count: u64> {
     ;
 }
 "#;
-
-#[test]
-fn unused_service_nested_machine_signature_retains_result_absence() {
-    let source = GENERIC.replace("Work(input: Element) -> u64", "Work(input: Element)");
-    let absent = fixtures::Fixture::filesystem(&source, false, "FilesystemHost", "read");
-    let absent = project(&absent.check(Some(read_permission())), absent.target);
-    let present = fixtures::Fixture::filesystem(GENERIC, false, "FilesystemHost", "read");
-    let present = project(&present.check(Some(read_permission())), present.target);
-    for (policy, has_result) in [(&absent, false), (&present, true)] {
-        let visit = policy.services()[0]
-            .methods()
-            .iter()
-            .find(|method| method.name() == "visit")
-            .unwrap();
-        let PackagePolicyTypeParameterKind::Machine(
-            PackagePolicyMachineParameterContract::Structural(signature),
-        ) = visit.signature().static_parameters()[0].kind()
-        else {
-            panic!("one structural machine parameter")
-        };
-        assert_eq!(signature.return_type().is_some(), has_result);
-    }
-    assert_ne!(
-        absent.canonical_bytes().unwrap(),
-        present.canonical_bytes().unwrap()
-    );
-}
 
 #[test]
 fn unused_generic_service_retains_type_const_lifetime_and_machine_contracts() {

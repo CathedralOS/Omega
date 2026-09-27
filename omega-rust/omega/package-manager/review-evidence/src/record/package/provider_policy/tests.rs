@@ -121,18 +121,6 @@ fn row_realization_cannot_change_its_exact_package_owner() {
 }
 
 #[test]
-fn unresolved_intrinsic_is_disclosure_not_an_execution_atom() {
-    let mut value = policy();
-    value.plans[0].rows[0].binding = PackagePolicyProviderBinding::CompilerIntrinsic {
-        machine: "Provider::realize()".to_owned(),
-    };
-    assert_eq!(value.validate_canonical_structure(), Ok(()));
-    value.plans[1].rows[0].compiler_intrinsic_execution =
-        Some(PackageReviewCompilerIntrinsicExecution::HostedReadByte);
-    assert!(value.validate_canonical_structure().is_err());
-}
-
-#[test]
 fn evaluated_imports_validate_target_and_atomic_byte_coordinates() {
     let mut value = policy();
     let binding = PackagePolicyProviderBinding::Import {

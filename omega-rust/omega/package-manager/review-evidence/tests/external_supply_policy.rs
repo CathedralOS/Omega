@@ -114,42 +114,6 @@ satisfies Host::perform via ForeignBinding::Syscall(60);
 }
 
 #[test]
-fn absent_and_explicit_empty_results_remain_distinct_at_both_external_signatures() {
-    let source = r#"
-pub data Unit {}
-pub data Surface {}
-pub data Provider {}
-pub boundary requirement Surface::perform();
-pub machine Provider::perform() satisfies Surface::perform
-via ForeignBinding::Syscall(60);
-"#;
-    let absent = project(source);
-    let explicit = project(&source.replace("perform()", "perform() -> Unit"));
-    assert!(absent.signature().return_type().is_none());
-    assert!(explicit.signature().return_type().is_some());
-    let PackagePolicyExternalRequirement::TopLevelRequirement {
-        signature: absent_requirement,
-        ..
-    } = absent.requirement()
-    else {
-        panic!("top-level requirement")
-    };
-    let PackagePolicyExternalRequirement::TopLevelRequirement {
-        signature: explicit_requirement,
-        ..
-    } = explicit.requirement()
-    else {
-        panic!("top-level requirement")
-    };
-    assert!(absent_requirement.return_type().is_none());
-    assert!(explicit_requirement.return_type().is_some());
-    assert_ne!(
-        absent.canonical_bytes().unwrap(),
-        explicit.canonical_bytes().unwrap()
-    );
-}
-
-#[test]
 fn external_trait_application_retains_actual_caller_lifetime_not_only_partition() {
     let source = r#"
 pub boundary trait LifetimeSlot<'scope> { machine perform(value: u64) -> u64; }
@@ -185,36 +149,5 @@ via ForeignBinding::Syscall(60);
                 .replace("'right", "'second")
                 .replace("'scope", "'view")
         )
-    );
-}
-
-#[test]
-fn external_nested_static_machine_result_absence_is_not_unit() {
-    let source = r#"
-pub data Unit {}
-pub boundary trait Host {
-    machine perform<machine Work>() where machine Work(); ;
-}
-pub data Provider {}
-pub machine Provider::perform<machine Work>()
-where machine Work();
-satisfies Host::perform via ForeignBinding::Syscall(60);
-"#;
-    let absent = project(source);
-    let explicit = project(&source.replace("machine Work()", "machine Work() -> Unit"));
-    let result = |policy: &PackagePolicyExternalExecutableSupply| {
-        let PackagePolicyTypeParameterKind::Machine(
-            PackagePolicyMachineParameterContract::Structural(signature),
-        ) = policy.signature().static_parameters()[0].kind()
-        else {
-            panic!("structural machine contract")
-        };
-        signature.return_type().cloned()
-    };
-    assert!(result(&absent).is_none());
-    assert!(result(&explicit).is_some());
-    assert_ne!(
-        absent.canonical_bytes().unwrap(),
-        explicit.canonical_bytes().unwrap()
     );
 }

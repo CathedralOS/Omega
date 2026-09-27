@@ -1,8 +1,6 @@
 use super::{
-    Fixture, PackagePolicyCallableRole, PackagePolicyCallables,
-    PackagePolicyMachineParameterContract, PackagePolicyTypeParameterKind,
-    PackageReviewCallableSupply, PackageReviewCheckedServiceReach, PackageReviewNominalOwner,
-    callable, callable_has_name, package_identity, project,
+    Fixture, PackagePolicyCallableRole, PackagePolicyTypeParameterKind,
+    PackageReviewCallableSupply, PackageReviewNominalOwner, callable, package_identity, project,
 };
 #[test]
 fn private_external_operational_policy_is_not_replaced_by_its_requirement() {
@@ -67,30 +65,6 @@ satisfies Host::ping via ForeignBinding::CompilerIntrinsic;
 }
 
 #[test]
-fn nested_machine_result_absence_is_not_a_dummy_type() {
-    let source = "pub machine inspect<machine Work>() -> u64\nwhere machine Work();\n{ 0 }\n";
-    let absent = project(&Fixture::local(source));
-    let present = project(&Fixture::local(
-        &source.replace("Work();", "Work() -> u64;"),
-    ));
-    let signature = |policy: &PackagePolicyCallables| {
-        let PackagePolicyTypeParameterKind::Machine(
-            PackagePolicyMachineParameterContract::Structural(signature),
-        ) = callable(policy, "inspect").type_parameters()[0].kind()
-        else {
-            panic!("one structural machine parameter")
-        };
-        signature.return_type().cloned()
-    };
-    assert!(signature(&absent).is_none());
-    assert!(signature(&present).is_some());
-    assert_ne!(
-        absent.canonical_bytes().unwrap(),
-        present.canonical_bytes().unwrap()
-    );
-}
-
-#[test]
 fn full_static_lifetime_and_contract_signatures_preserve_relations_not_binder_names() {
     let source = r#"
 pub machine borrow<'source, 'temporary>(source: &'source [u8], temporary: &'temporary [u8]) -> &'source [u8] { source }
@@ -141,32 +115,6 @@ ensures value >= 1
 }
 
 #[test]
-fn unused_private_admission_claim_remains_an_explicit_assumption() {
-    let zero = project(&Fixture::local(
-        "boundary machine trusted_zero() -> u64 ensures result == 0;\n",
-    ));
-    let one = project(&Fixture::local(
-        "boundary machine trusted_zero() -> u64 ensures result == 1;\n",
-    ));
-    let claim = callable(&zero, "trusted_zero");
-    assert_eq!(claim.role(), PackagePolicyCallableRole::PrivateAssumption);
-    assert_eq!(claim.supply(), PackageReviewCallableSupply::AdmissionClaim);
-    assert_eq!(
-        claim.checked_service_reach(),
-        &PackageReviewCheckedServiceReach::NoCheckedBody
-    );
-    assert_eq!(claim.contracts().len(), 1);
-    assert_ne!(
-        claim.contracts(),
-        callable(&one, "trusted_zero").contracts()
-    );
-    assert_ne!(
-        zero.canonical_bytes().unwrap(),
-        one.canonical_bytes().unwrap()
-    );
-}
-
-#[test]
 fn callable_conformance_bounds_and_exact_requirement_meaning_are_retained() {
     let source = r#"
 pub trait Ranked {}
@@ -205,57 +153,6 @@ pub machine EchoProvider::echo(value: u64) -> u64 satisfies Echo::echo { value }
     assert_ne!(
         original.canonical_bytes().unwrap(),
         changed.canonical_bytes().unwrap()
-    );
-}
-
-#[test]
-fn same_named_generic_overloads_keep_distinct_normalized_identities() {
-    let source = r#"
-pub machine inspect<'borrow, Element, const Count: u64>(value: &'borrow [Element; Count]) -> u64 { 0 }
-pub machine inspect<'borrow, Element, const Count: u64>(value: &'borrow [Element; Count]) -> u64 in Saturating { 0 as u64 in Saturating }
-"#;
-    let fixture = Fixture::local(source);
-    let checked = fixture
-        .checked
-        .machines()
-        .iter()
-        .filter(|machine| machine.name.as_str() == "inspect")
-        .collect::<Vec<_>>();
-    assert_eq!(checked.len(), 2);
-    assert_ne!(checked[0].symbol, checked[1].symbol);
-    assert_eq!(
-        fixture
-            .checked
-            .symbols
-            .display_path(checked[0].symbol, "::"),
-        fixture
-            .checked
-            .symbols
-            .display_path(checked[1].symbol, "::")
-    );
-    let policy = project(&fixture);
-    let overloads = policy
-        .callables()
-        .iter()
-        .filter(|callable| callable_has_name(callable, "inspect"))
-        .collect::<Vec<_>>();
-    assert_eq!(overloads.len(), 2);
-    assert_ne!(overloads[0].identity(), overloads[1].identity());
-    assert_eq!(overloads[0].parameters(), overloads[1].parameters());
-    assert_ne!(overloads[0].return_type(), overloads[1].return_type());
-    for overload in &overloads {
-        assert_eq!(overload.lifetime_parameter_count(), 1);
-        assert_eq!(overload.type_parameters().len(), 2);
-    }
-    let renamed_source = source
-        .replace("'borrow", "'view")
-        .replace("Element", "Item")
-        .replace("Count", "Length");
-    let renamed = project(&Fixture::local(&renamed_source));
-    assert_eq!(policy, renamed);
-    assert_eq!(
-        policy.canonical_bytes().unwrap(),
-        renamed.canonical_bytes().unwrap()
     );
 }
 

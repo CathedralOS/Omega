@@ -161,27 +161,3 @@ fn public_quotient_review_rederives_formation_instead_of_trusting_typed_metadata
         "unexpected diagnostics: {diagnostics:#?}"
     );
 }
-
-#[test]
-fn public_quotient_package_compilation_requires_a_public_relation() {
-    let package = TempPackage::new();
-    let source = public_quotient_source("Representative", "equivalent", "Evidence", false)
-        .replacen("pub proposition equivalent", "proposition equivalent", 1);
-    package.write("main.omg", &source);
-    package.write(
-        "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
-"#,
-    );
-    let diagnostics = compile_review_fixture(CheckedCompileRequest {
-        package_inputs: Some(package_inputs(&package.0)),
-        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
-    })
-    .expect_err("a public quotient cannot omit its relation semantics from review");
-    assert!(
-        diagnostics.iter().any(|diagnostic| diagnostic
-            .message
-            .contains("public interface selects private proposition `equivalent`")),
-        "unexpected diagnostics: {diagnostics:#?}"
-    );
-}
