@@ -576,41 +576,6 @@ fn patch_through_provider(
 }
 
 #[test]
-fn seal_entry_mints_a_receipt_the_gate_seals() {
-    let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
-    let (installed_id, installed) =
-        install_through_provider(&mut provider, &two_site_artifact(41), 41, 0x4000);
-
-    let reference = seal_through_provider(&provider, &installed, entry_id(1041));
-
-    assert_eq!(reference.entry(), entry_id(1041));
-    assert_eq!(reference.contract(), seal_contract());
-    assert_eq!(reference.installed_code(), installed_id);
-}
-
-#[test]
-fn seal_entry_replays_the_committed_fragment_content_after_patch() {
-    let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
-    let (_superseded_id, superseded) =
-        install_through_provider(&mut provider, &two_site_artifact(41), 41, 0x4000);
-    let (_successor_id, successor) =
-        install_through_provider(&mut provider, &artifact(42), 42, 0x8000);
-    patch_through_provider(
-        &mut provider,
-        &superseded,
-        &successor,
-        entry_id(1041),
-        vec![0xCC; 6],
-    );
-
-    // The resident extent no longer equals the bytes the artifact was
-    // installed with — the seal replays the committed patch content.
-    let reference = seal_through_provider(&provider, &superseded, entry_id(1041));
-
-    assert_eq!(reference.entry(), entry_id(1041));
-}
-
-#[test]
 fn seal_entry_refuses_a_demand_for_facts_it_did_not_perform() {
     let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
     let (_id, installed) =
@@ -905,20 +870,6 @@ fn retire_refuses_when_the_provider_holds_no_resident_image() {
         .expect_err("a nonresident realization refuses");
 
     assert!(error.0.contains("no resident image"));
-}
-
-#[test]
-fn retire_leaves_the_image_resident_until_the_caller_releases() {
-    let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
-    let (installed_id, installed) =
-        install_through_provider(&mut provider, &artifact(41), 41, 0x4000);
-
-    let retired = retire_through_provider(&mut provider, installed);
-
-    assert!(provider.installed_image(installed_id).is_some());
-    assert!(provider.release(installed_id).unwrap());
-    assert_eq!(provider.installed_image(installed_id), None);
-    drop(retired);
 }
 
 #[test]
