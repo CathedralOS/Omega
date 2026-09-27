@@ -89,7 +89,7 @@ def homebrew_upgrade(previous, current, base_url, workspace):
 
 def winget_upgrade(previous, current, base_url, workspace):
     executable = Path(os.environ["LOCALAPPDATA"]) / "Microsoft/WinGet/Links/omega.exe"
-    installed = False
+    installed_manifest = None
     try:
         for operation, (archive, manifest) in zip(("install", "upgrade"), (previous, current)):
             archives = {manifest["host"]: (archive.name, hashlib.sha256(archive.read_bytes()).hexdigest())}
@@ -101,15 +101,15 @@ def winget_upgrade(previous, current, base_url, workspace):
             package.run(["winget", operation, "--manifest", path, "--scope", "user",
                          "--accept-source-agreements", "--accept-package-agreements", "--disable-interactivity"],
                         timeout=1200)
-            installed = True
+            installed_manifest = path
             installed_identity(executable, manifest, workspace)
             if operation == "install":
                 package.git_source_smoke(executable, manifest, workspace)
             else:
                 return rebuild_existing_project(executable, workspace)
     finally:
-        if installed:
-            package.run(["winget", "uninstall", "--id", "CathedralOS.Omega", "--exact",
+        if installed_manifest is not None:
+            package.run(["winget", "uninstall", "--manifest", installed_manifest,
                          "--accept-source-agreements", "--disable-interactivity"], timeout=600)
 
 
