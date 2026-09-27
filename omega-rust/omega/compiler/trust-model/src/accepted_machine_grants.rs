@@ -1,5 +1,6 @@
-//! Non-provider trust grants: resolving the grant a package makes to an
-//! accepted machine outside provider selection, and rejecting the rest.
+//! Accepted-machine grant selection and exact typed-definition lookup.
+//! Root package-grant policy belongs to `root_grants`; provider selectors
+//! resolve independently against selected provider plans.
 
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
@@ -112,36 +113,4 @@ pub(crate) fn accepted_machine(
         }));
     };
     Ok(*machine)
-}
-
-pub fn reject_package_non_provider_grants(
-    typed: &TypedTrees,
-    root_grants: &[String],
-    provider_plans: &[effects::provider_plan::ProviderPlan],
-    selected_provider_plans: &effects::SelectedProviderPlanFacts,
-) -> Result<(), Vec<Diagnostic>> {
-    let provider_grants = crate::resolve_selected_provider_grants(
-        provider_plans,
-        selected_provider_plans,
-        root_grants,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
-    for grant in root_grants {
-        if provider_grants
-            .iter()
-            .any(|provider_grant| provider_grant.selector == *grant)
-        {
-            continue;
-        }
-        match resolve_non_provider_trust_grant(typed, grant)
-            .map_err(|diagnostic| vec![diagnostic])?
-        {
-            NonProviderTrustGrant::AcceptedMachine(_) => {
-                return Err(vec![Diagnostic::error(format!(
-                    "package-aware compilation cannot admit individual accepted machine `{grant}`; package claims require complete package-level review",
-                ))]);
-            }
-        }
-    }
-    Ok(())
 }

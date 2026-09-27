@@ -26,26 +26,14 @@ pub fn admit_checked_compilation(
     checked: &CheckedCompilation,
     accepted: &[TrustAdmission],
 ) -> Result<CheckedAdmission, Vec<Diagnostic>> {
-    let obligations = trust_model::reconstruct_trust_obligations(
-        &checked.typed,
+    let settlement = trust_model::reconstruct_trust_settlement(
         checked,
         checked.root_grants(),
         checked.provider_plans(),
         checked.selected_provider_plans(),
         checked.accepted_template_classifications(),
         checked.package_identity().is_some(),
+        accepted,
     )?;
-    let settlement = trust_model::settle_trust_admissions(obligations, accepted)
-        .map_err(|diagnostic| vec![diagnostic])?;
-    let trust_report = trust_model::reconstruct_trust_report(
-        checked,
-        checked.root_grants(),
-        checked.provider_plans(),
-        checked.selected_provider_plans(),
-        checked.accepted_template_classifications(),
-    )?;
-    trust_report
-        .validate()
-        .map_err(|diagnostic| vec![diagnostic])?;
     Ok(CheckedAdmission { settlement })
 }

@@ -19,6 +19,26 @@ pub fn reconstruct_trust_report(
     selected_provider_plans: &effects::SelectedProviderPlanFacts,
     accepted_template_classifications: &crate::AcceptedTemplateClassifications,
 ) -> Result<TrustReport, Vec<Diagnostic>> {
+    reconstruct_report(
+        checked,
+        root_grants,
+        provider_plans,
+        selected_provider_plans,
+        accepted_template_classifications,
+        None,
+    )
+}
+
+/// Reuse only grant meanings from the same checked-admission invocation.
+/// All selected-candidate, selected-grant and report evidence checks still run.
+pub(crate) fn reconstruct_report(
+    checked: &checked_trees::CheckedTrees,
+    root_grants: &[String],
+    provider_plans: &[effects::provider_plan::ProviderPlan],
+    selected_provider_plans: &effects::SelectedProviderPlanFacts,
+    accepted_template_classifications: &crate::AcceptedTemplateClassifications,
+    resolved_grants: Option<&crate::root_grants::ResolvedRootGrants<'_>>,
+) -> Result<TrustReport, Vec<Diagnostic>> {
     let typed = &checked.typed;
     let mut report = TrustReport {
         selected_provider_closure_report_fingerprint: selected_provider_plans
@@ -41,13 +61,19 @@ pub fn reconstruct_trust_report(
             ))]);
         }
     }
-    let provider_grants = crate::resolve_selected_provider_grants(
-        provider_plans,
-        selected_provider_plans,
-        root_grants,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
-    for grant in &provider_grants {
+    let reconstructed_providers;
+    let provider_grants = if let Some(grants) = resolved_grants {
+        &grants.providers
+    } else {
+        reconstructed_providers = crate::resolve_selected_provider_grants(
+            provider_plans,
+            selected_provider_plans,
+            root_grants,
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
+        &reconstructed_providers
+    };
+    for grant in provider_grants {
         let exact_selected_matches = selected_provider_plans
             .plans()
             .iter()
@@ -60,20 +86,25 @@ pub fn reconstruct_trust_report(
             ))]);
         }
     }
-    let mut non_provider_grants = Vec::new();
-    for grant in root_grants {
-        if provider_grants
-            .iter()
-            .any(|provider_grant| provider_grant.selector == *grant)
-        {
-            continue;
+    let mut reconstructed_non_providers = Vec::new();
+    let non_provider_grants = if let Some(grants) = resolved_grants {
+        &grants.non_providers
+    } else {
+        for grant in root_grants {
+            if provider_grants
+                .iter()
+                .any(|provider_grant| provider_grant.selector == *grant)
+            {
+                continue;
+            }
+            reconstructed_non_providers.push((
+                grant.as_str(),
+                crate::resolve_non_provider_trust_grant(typed, grant)
+                    .map_err(|diagnostic| vec![diagnostic])?,
+            ));
         }
-        non_provider_grants.push((
-            grant.as_str(),
-            crate::resolve_non_provider_trust_grant(typed, grant)
-                .map_err(|diagnostic| vec![diagnostic])?,
-        ));
-    }
+        &reconstructed_non_providers
+    };
     // PRV3: derived provider plans -- one row each, dev-active with the
     // standing warning until the final build grants the plan by exact name or
     // exact selected slot, report fingerprint shown so drift is visible at a
