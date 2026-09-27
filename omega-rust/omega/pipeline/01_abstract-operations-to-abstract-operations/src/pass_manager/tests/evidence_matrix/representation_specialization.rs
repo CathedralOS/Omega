@@ -5,9 +5,12 @@ use super::super::{
     verified_forwarded_field_value_unit, verified_representation_specialization_unit,
 };
 use super::{
-    SelectionMatrix, VerifiedPsiOptimizationSession, assert_corruption_legs, assert_disabled_leg,
-    assert_empty_selection_leg, assert_full_entrance_leg, assert_negative_leg, budget,
-    publish_optimization_run, run_psi_pipeline, selections_of,
+    SelectionMatrix, VerifiedPsiOptimizationSession, assert_boundary_leg, assert_composition_leg,
+    assert_corruption_legs, assert_determinism_leg, assert_disabled_leg,
+    assert_downstream_replay_leg, assert_empty_selection_leg, assert_fixed_point_leg,
+    assert_full_entrance_leg, assert_malformed_carrier_legs, assert_measured_budget_leg,
+    assert_negative_leg, assert_stale_evidence_leg, budget, publish_optimization_run,
+    run_psi_pipeline, selections_of,
 };
 use crate::rules::{CaseMembershipSpecializationRule, FieldValueSpecializationRule};
 use optimization_core::{Optimization, OptimizationRuleIdentity};
@@ -29,6 +32,9 @@ const CASE: SelectionMatrix = SelectionMatrix {
     // commits exactly once.
     expected_commits: 1,
     positive: verified_representation_specialization_unit,
+    // A proven membership inside an authenticated cyclic component: the
+    // frozen-territory edge of admission.
+    boundary: verified_cyclic_membership_unit,
     sibling: Optimization::DeadPureScalarElimination,
 };
 
@@ -50,6 +56,31 @@ fn empty_selection_leaves_the_unit_untouched() {
 #[test]
 fn negative_leaves_an_empty_unit_untouched() {
     assert_negative_leg(&CASE);
+}
+
+#[test]
+fn boundary_workload_declines_and_publishes() {
+    assert_boundary_leg(&CASE);
+}
+
+#[test]
+fn measured_budget_admits_exact_usage_and_refuses_one_less() {
+    assert_measured_budget_leg(&CASE);
+}
+
+#[test]
+fn runs_are_deterministic() {
+    assert_determinism_leg(&CASE);
+}
+
+#[test]
+fn published_unit_is_the_fixed_point() {
+    assert_fixed_point_leg(&CASE);
+}
+
+#[test]
+fn malformed_carriers_fail_admission() {
+    assert_malformed_carrier_legs(&CASE);
 }
 
 #[test]
@@ -104,12 +135,20 @@ const FIELD: SelectionMatrix = SelectionMatrix {
     // no membership is present to draw a second commit.
     expected_commits: 1,
     positive: verified_field_value_unit,
+    // A proven field read inside an authenticated cyclic component: the
+    // frozen-territory edge of admission.
+    boundary: verified_cyclic_field_value_unit,
     sibling: Optimization::DeadPureScalarElimination,
 };
 
 #[test]
 fn full_entrance_specializes_field_values() {
     assert_full_entrance_leg(&FIELD);
+}
+
+#[test]
+fn boundary_field_read_declines_and_publishes() {
+    assert_boundary_leg(&FIELD);
 }
 
 #[test]
@@ -126,6 +165,7 @@ const FORWARDED_FIELD: SelectionMatrix = SelectionMatrix {
     expected_rule: expected_field_rule,
     expected_commits: 1,
     positive: verified_forwarded_field_value_unit,
+    boundary: verified_cyclic_field_value_unit,
     sibling: Optimization::DeadPureScalarElimination,
 };
 
@@ -221,4 +261,19 @@ fn cyclic_machine_field_read_stays_frozen() {
         "no field read inside frozen territory specializes"
     );
     assert_eq!(run.session().unit().identity, input_identity);
+}
+
+#[test]
+fn recorded_decisions_drive_downstream_replay() {
+    assert_downstream_replay_leg(&CASE);
+}
+
+#[test]
+fn stale_and_foreign_context_logs_reject() {
+    assert_stale_evidence_leg(&CASE);
+}
+
+#[test]
+fn unsupported_compositions_decline() {
+    assert_composition_leg(&CASE);
 }

@@ -77,7 +77,7 @@ const MULTI_ENTRY_SOURCE: &str = r#"
 /// to `scale` on one entry and to `outer`'s own parameter on the other, so
 /// invariance fails too; the boundary declines the whole component even
 /// though `header` still dominates the exit.
-const MULTI_SOURCE_ENTRY_SOURCE: &str = r#"
+pub(crate) const MULTI_SOURCE_ENTRY_SOURCE: &str = r#"
     data Root {}
 
     machine Root::scan(scale: u32 in Wrapping, pick: bool, remaining: u32 [0..=5])
