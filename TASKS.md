@@ -156,6 +156,33 @@ backend-visible; full corpus runs only at the end of an item.
   pin no repair on any of the strings. Extended acceptance: both pending
   fixtures check and the four `flow call` corpus rows move.
 
+- **TRANSITION-TAIL-CALL-TO-MACHINE.** (new-scope) A transition whose target
+  TAIL-CALLS ANOTHER MACHINE has no route. `transition { _ -> self.pick(1) }`
+  omits; `transition { _ -> done() }` to a state here checks; and
+  `self.pick(1);` as an ordinary statement followed by a plain transition
+  checks. So it is the two together -- a cross-machine call in TARGET
+  position -- and parameters are irrelevant, the bare no-argument form omits
+  too. Pinned at `tests/omega/pending/calls/transition_tail_call_to_machine`.
+  THE LABEL FLIPS WITH AN UNRELATED STATEMENT, the sharpest instance of the
+  phase hazard this corpus has produced: the same program reports `scalar
+  field store sequence: write frame agreement` with a `self.n = 1;` before
+  the transition and `statement sequence: call count agreement` without it.
+  Adding a field store the transition does not touch renames the failure, so
+  those two phases are ONE gap and the `write frame agreement` group is not
+  about write frames.
+  Three of that group's six fixtures carry this shape
+  (`collections/runtime_frame_indexed_param_read_exit`,
+  `slices/domained_runtime_end_subslice_exit`,
+  `termination/runtime_shrinking_slice_recursion_exit`); the other three --
+  `wire/runtime_wire_decode_byte_slice_exit`,
+  `wire/runtime_wire_utf8_edge_verdicts_exit`,
+  `filesystem/dir_walk_wrappers_exit` -- are UNATTRIBUTED and are the next
+  diagnosis here. `runtime_frame_indexed_param_read_exit` also passes a fixed
+  array by value and looks like BOUNDARY-PRIMITIVE-ARRAY-PARAMETER; it is
+  not, since the same program with no array parameter omits identically.
+  Acceptance: the pending fixture checks, both phase spellings clear, and the
+  three attributed corpus rows move.
+
 - **CASE-FIELD-TYPE-STORE-SHAPES.** (new-scope) `structural field store: case
   field type` is THREE distinct causes, not one. Six corpus fixtures sit
   there, found by attributing the macOS arm64 native roster, and a bare
