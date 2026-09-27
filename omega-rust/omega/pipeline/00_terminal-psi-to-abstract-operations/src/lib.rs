@@ -14,9 +14,13 @@
 //! `entry_settlement` and `callback_settlement` admit native entry sidecars
 //! against already-produced Terminal artifacts. These checks do not create
 //! another program stage or grant artifact-publication authority.
+//! `comparison_settlement` rejoins emitted comparison occurrences to authored
+//! applications and this target's selected providers. It produces source-free
+//! comparison records, not a substitute for canonical artifact admission.
 
 mod artifact_admission;
 mod callback_settlement;
+mod comparison_settlement;
 mod entry_settlement;
 mod lowering;
 mod optimization;
@@ -29,6 +33,9 @@ pub use artifact_admission::{
 pub use callback_settlement::{
     CallbackRegistrarOccurrence, settle_callback_registrar_imports,
     validate_callback_thunk_settlement,
+};
+pub use comparison_settlement::{
+    settle_ieee_float_comparison_occurrences, settle_integer_comparison_occurrences,
 };
 pub use entry_settlement::{
     NativeProgramEntrySettlement, NativeProgramEntrySettlementError,
