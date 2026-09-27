@@ -7,9 +7,10 @@
 //!
 //! `program_validation::validate` runs this module's program-wide checks at
 //! three points. First, before any other validator,
-//! `validate_anonymous_remainders` (`integer_remainder`) and
+//! `validate_anonymous_remainders` (`integer_remainder`),
+//! `validate_anonymous_bitwise` (`integer_bitwise`) and
 //! `validate_anonymous_divisions` (`float_landing`); validation stops if
-//! either reports a diagnostic. Later, in this order, `validate_literal_widths`
+//! any reports a diagnostic. Later, in this order, `validate_literal_widths`
 //! (`literal_widths`), `validate_suffix_landings` and
 //! `validate_suffix_magnitudes`. `validate_suffix_landings` checks each
 //! struct-literal field, state result, assignment, local initializer and
@@ -114,8 +115,10 @@ pub use constant_arrays::{
 };
 pub(crate) use record_projection::closed_record_integer_projection;
 pub use record_projection::closed_record_scalar_projection;
+mod integer_bitwise;
 mod integer_landing;
 mod integer_remainder;
+pub(crate) use integer_bitwise::validate_anonymous_bitwise;
 pub(crate) use integer_landing::anonymous_integer_landing_warnings;
 pub(crate) use integer_landing::{anonymous_numeric_value, evaluate_anonymous_numeric_equality};
 pub use integer_landing::{

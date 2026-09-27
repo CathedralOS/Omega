@@ -36,7 +36,10 @@ pub(crate) fn validate_anonymous_remainders(
     }
 }
 
-fn is_anonymous_numeric_expression(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+pub(super) fn is_anonymous_numeric_expression(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> bool {
     enum Step {
         Enter(ExpressionHandle),
         Leave,

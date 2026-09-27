@@ -707,6 +707,19 @@ the complete product bar; focused successes below do not establish that baseline
   - **default-domain field requirement, 2** -- `cli/basics/print_number`
     ("return from `Main::main`: `self.out` requires `[u8; N]::Utf8`") and
     `cli/rendering/dungeon_render`.
+
+    One sample has moved off this list since it was taken.
+    `cli/systems/file_permissions` omitted at `structural field store: pure
+    source: scalar expression row` because `self.mode = 4 | 2;` has NO
+    CARRIER: measured over all ten binary operators, `+ - * /` land, `%`
+    already had its own refusal, and all five of `| & ^ << >>` silently
+    omitted the plan. [numeric values](wiki/spec/language/numeric_values.md)
+    says bitwise operations "preserve their signed/unsigned carrier and are
+    total at its width" and a shift count is proven against that carrier's
+    `value_width`, so an anonymous operand has no defined result -- exactly
+    the `%` situation. It now reports "builtin `|` requires an
+    integer-typed operand", and the sample wants `4i32 | 2`, which is
+    `samples/cli`'s owner to spell.
   - **non-tail self recursion, 1** -- `cli/arithmetic/stats_compute`.
 
   `cli/simulation/game_of_life_glider` alone took over two minutes to check,
