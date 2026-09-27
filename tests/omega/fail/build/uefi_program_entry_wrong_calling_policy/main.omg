@@ -1,3 +1,38 @@
+// FAIL canary for the two-surface program entry's PHYSICAL calling-convention
+// check: `uefi_x86_64::ProgramEntry` declares MicrosoftX64, this package's
+// `WrongUefiPolicy` plans SystemVAMD64, and admission must refuse the
+// mismatch ("... evaluates physical requirement ... with SystemVAMD64, but
+// `uefi_x86_64::ProgramEntry` requires MicrosoftX64",
+// `build-evaluation/src/admission/selection.rs`).
+//
+// It does NOT reach that check, and the reason is structural rather than a
+// repair this fixture can make. The slot resolves its schema by BARE NAME
+// over every loaded boundary trait, and the bundled std declares an
+// application schema for all six targets that name one -- UefiApplication,
+// MacosApplication, LinuxX86_64Application, LinuxArm64Application,
+// MacosX64Application, WindowsX86_64Application. A package that declares its
+// own therefore always makes two, and the slot stops at "requires exactly one
+// loaded `UefiApplication` boundary schema, but found 2".
+//
+// Measured: the duplicate does not come from this file's imports. Dropping
+// `use omega::language::std::calling;` leaves the count at 2, because the
+// library's target entry loads with the target rather than with the import.
+// Nor can the policy be varied from the library surface, which is the other
+// half of the trap: `CallingPolicy` lives only in `std/calling.omg`, and the
+// library's schema is bound to `Calling<UefiX86_64>`, which plans
+// MicrosoftX64 on every route. So a package can supply a wrong policy only by
+// declaring its own schema, and declaring its own schema is what stops it
+// here.
+//
+// Giving this rule a source-level customer means deciding what a locally
+// declared schema MEANS against the target's own -- shadow, or conflict --
+// and resolving the slot by owning package or requirement identity rather
+// than by bare name. That is the entry-slot owner's call, so the fixture
+// stays pinned `unexpected` rather than repinned onto the duplicate: pinning
+// the duplicate would cement one answer to that question. The rule has no
+// Rust-side customer either; `BoundaryCallingPlanRealization` seals
+// `exact_boundary_entry_plan` and `materialized_signature` to
+// `provider-planning`, so a `build-evaluation` unit test cannot build one.
 use omega::language::core::extent;
 use omega::language::std::calling;
 
