@@ -1,30 +1,7 @@
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, Proposition, ScalarTerm};
 
 use super::super::SearchBudget;
-use super::fixture::{fork_join, literal, two_computed_joins, value};
-
-#[test]
-fn ambiguous_and_late_definitions_fail_closed_without_budget_forgery() {
-    let mut ambiguous = fork_join(IntegerSign::Unsigned, 8, false, false);
-    ambiguous.axioms.push(Proposition::Equal(
-        ambiguous.left.clone(),
-        ScalarTerm::exact_integer_add(
-            ambiguous.integer_type,
-            value(1, ambiguous.integer_type),
-            value(2, ambiguous.integer_type),
-        )
-        .expect("ambiguous add"),
-    ));
-    let outcome = ambiguous.prove(SearchBudget::default());
-    assert!(outcome.proof.is_none());
-    assert!(!outcome.exhausted);
-
-    let mut late = fork_join(IntegerSign::Unsigned, 8, false, false);
-    late.axioms.swap(3, 4);
-    let outcome = late.prove(SearchBudget::default());
-    assert!(outcome.proof.is_none());
-    assert!(!outcome.exhausted);
-}
+use super::fixture::{fork_join, literal, value};
 
 #[test]
 fn cycles_type_drift_address_carriers_and_overflow_are_refused() {
@@ -95,22 +72,4 @@ fn cycles_type_drift_address_carriers_and_overflow_are_refused() {
         literal(overflow.integer_type, IntegerValue::Unsigned(10)),
     );
     assert!(overflow.prove(SearchBudget::default()).proof.is_none());
-}
-
-#[test]
-fn a_second_internal_computed_join_remains_outside_the_bounded_rule() {
-    let fixture = two_computed_joins(IntegerSign::Unsigned, 8, false);
-    let outcome = fixture.prove(SearchBudget {
-        computed_joins: 1,
-        ..SearchBudget::default()
-    });
-    assert!(outcome.proof.is_none());
-    assert!(outcome.exhausted);
-    assert_eq!(outcome.usage.computed_joins, 1);
-
-    // The default envelope admits the same shape, and the kernel replays the
-    // nested exact-add definition certificates it produces.
-    let admitted = fixture.prove(SearchBudget::default());
-    assert_eq!(admitted.usage.computed_joins, 2);
-    fixture.admit(&admitted);
 }

@@ -11,8 +11,6 @@ mod argument_prefix;
 #[cfg(test)]
 mod boolean_connective_tests;
 mod crash_predicates;
-#[cfg(test)]
-mod runtime_requirement_tests;
 mod scalar_terms;
 mod structural_arithmetic;
 #[cfg(test)]

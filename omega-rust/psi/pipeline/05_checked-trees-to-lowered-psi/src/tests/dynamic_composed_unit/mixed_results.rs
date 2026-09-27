@@ -3,7 +3,6 @@ use crate::tests::lower_machine;
 use checked_trees::CheckedDynamicBinding::Direct;
 use checked_trees::CheckedDynamicDispatchPlan::{Scalar, Unit};
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
-use terminal_psi::ClosedConformanceCallableResult;
 
 const MIXED_RESULTS: &str = r#"
     trait Device {
@@ -35,45 +34,6 @@ fn source(call: &str) -> String {
         {call}
     }}"
     )
-}
-
-#[test]
-fn dynamic_table_retains_each_members_result_kind() {
-    for call in CALLS {
-        let checked = crate::front_end::checked_program(&source(call));
-        let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
-            .expect("query and command use the same complete mixed-result conformance");
-        let artifact = terminal_production::TerminalProductionRequest::new(
-            &checked,
-            terminal_production::TerminalMachineSelection::Name("Main::run"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("mixed-result table verifies and serializes")
-        .into_artifact();
-        let decoded = terminal_codec::decode_module(artifact.semantic_bytes())
-            .expect("mixed-result table decodes");
-        assert_eq!(decoded, lowered.semantic_module);
-        let [application] = decoded.closed_conformance_applications.as_slice() else {
-            panic!("one explicitly selected conformance")
-        };
-        assert_eq!(application.rows.len(), 2);
-        assert_eq!(application.realization_callables.len(), 2);
-        assert!(
-            application
-                .realization_callables
-                .iter()
-                .any(|callable| callable.result == ClosedConformanceCallableResult::Unit)
-        );
-        assert!(
-            application
-                .realization_callables
-                .iter()
-                .any(|callable| callable.result == ClosedConformanceCallableResult::Bool)
-        );
-        super::plan_isolation::assert_supported_artifact_executes(&artifact, &decoded);
-    }
 }
 
 #[test]

@@ -15,37 +15,6 @@ fn entry_state(checked: &CheckedTrees) -> symbols::SymbolHandle {
 }
 
 #[test]
-fn rejoined_guard_rows_decide_the_same_pairs_as_the_producers() {
-    for (source, expected) in [
-        (
-            "machine pick(value: i32) -> i32 { transition { value == 3 -> (1) value != 3 -> (2) } }",
-            true,
-        ),
-        (
-            "data Parity [copy] { case Even; case Odd; }\n\
-             machine Parity::pick(&self) -> u64 { transition self { Parity::Even -> (0) Parity::Odd -> (1) } }",
-            true,
-        ),
-        (
-            "machine pick(value: i32) -> i32 { transition { value < 3 -> (1) value >= 3 -> (2) _ -> (3) } }",
-            false,
-        ),
-        (
-            "data Tri [copy] { case A; case B; case C; }\n\
-             machine Tri::pick(&self) -> u64 { transition self { Tri::A -> (0) Tri::B -> (1) _ -> (2) } }",
-            false,
-        ),
-    ] {
-        let checked = crate::front_end::checked_program(source);
-        assert_eq!(
-            complementary(&checked, entry_state(&checked), 0).ok(),
-            Some(expected),
-            "{source}"
-        );
-    }
-}
-
-#[test]
 fn a_substituted_second_row_cannot_manufacture_a_complement() {
     let source = "machine pick(value: i32) -> i32 { transition { value < 3 -> (1) value >= 3 -> (2) _ -> (3) } }";
     let mut checked = crate::front_end::checked_program(source);

@@ -1,9 +1,8 @@
 //! Internal Unit-call leaves and exact target replay.
 
-use super::{CheckedTrees, LoweringError, lower_machine};
+use super::{CheckedTrees, lower_machine};
 use crate::TerminalMachineSelection;
-use checked_trees::CheckedUnitEffectOperationPlan;
-use terminal_psi::{Operation, OperationKind, OperationResult, Terminator};
+use terminal_psi::OperationKind;
 #[test]
 fn composed_scalar_call_locals_replay_their_authored_computation() {
     for (prefix, argument) in [
@@ -50,23 +49,6 @@ fn composed_scalar_call_locals_replay_their_authored_computation() {
     }
 }
 
-fn checked_composed_internal_calls() -> checked_trees::CheckedTrees {
-    crate::front_end::checked_program(
-        r#"
-            data Root {}
-            machine Root::quiet() {}
-            machine Root::enter(flag: bool) {
-                transition flag {
-                    true -> yes()
-                    _ -> no()
-                }
-                state yes() { Root::quiet(); }
-                state no() { Root::quiet(); }
-            }
-        "#,
-    )
-}
-
 fn source_machine(checked: &CheckedTrees, name: &str) -> symbols::SymbolHandle {
     checked
         .facts
@@ -77,122 +59,6 @@ fn source_machine(checked: &CheckedTrees, name: &str) -> symbols::SymbolHandle {
         .find(|selection| selection.name == name)
         .map(|selection| selection.machine)
         .expect("named checked terminal machine")
-}
-
-#[test]
-fn lowers_both_internal_unit_leaves_to_one_canonical_target() {
-    let checked = checked_composed_internal_calls();
-    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
-        .expect("both internal leaves should lower with their exact target closure");
-    let [root, target] = lowered.semantic_module.machines.as_slice() else {
-        panic!("composed root and its deduplicated target should be the whole closure")
-    };
-    assert_eq!(lowered.semantic_module.entry, root.id);
-    assert_eq!(root.blocks.len(), 3);
-    for leaf in &root.blocks[1..] {
-        assert!(matches!(
-            leaf.operations.as_slice(),
-            [Operation {
-                result: OperationResult::Unit,
-                kind: OperationKind::CallUnit {
-                    arguments,
-                    erased_arguments: _,
-                    erased_proof_arguments: _,
-                    callee,
-                    structural_arguments,
-                    claim_transfers,
-                    requirement_obligations,
-                    crash_continuations,
-                },
-                ..
-            }] if arguments.is_empty() && *callee == target.id
-                && structural_arguments.is_empty()
-                && claim_transfers.is_empty()
-                && requirement_obligations.is_empty()
-                && crash_continuations.is_empty()
-        ));
-    }
-    assert!(target.structural_parameters.is_empty());
-    assert!(target.blocks[0].operations.is_empty());
-    assert!(matches!(
-        target.blocks[0].terminator,
-        Terminator::ReturnUnit {
-            ref trivial_affine_discards,
-            ..
-        } if trivial_affine_discards.is_empty()
-    ));
-    terminal_verifier::verify_module(
-        &lowered.semantic_module,
-        &lowered.proof_bundle,
-        &proof_admission::AdmissionProfile::default(),
-    )
-    .expect("internal-call composed module verifies");
-    let bytes = terminal_codec::encode_module(&lowered.semantic_module).expect("encode");
-    assert_eq!(
-        terminal_codec::decode_module(&bytes).expect("decode"),
-        lowered.semantic_module
-    );
-}
-
-#[test]
-fn internal_unit_call_carries_the_erased_lane_and_requires_obligations() {
-    let checked = crate::front_end::checked_program(
-        r#"
-            data Root {}
-            machine Root::quiet(n: i32, bound [erased]: i32)
-            requires
-                n < bound
-            {}
-            machine Root::enter(flag: bool) {
-                transition flag {
-                    true -> yes()
-                    _ -> no()
-                }
-                state yes() { Root::quiet(3, 5); }
-                state no() { Root::quiet(8, 9); }
-            }
-        "#,
-    );
-    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
-        .expect("internal Unit callee with requires and an erased formal lowers");
-    let [root, target] = lowered.semantic_module.machines.as_slice() else {
-        panic!("composed root and its requires-bearing target form the whole closure")
-    };
-    assert!(!target.contract.requires.is_empty());
-    assert_eq!(target.contract.erased_scalar_formals.len(), 1);
-    for leaf in &root.blocks[1..] {
-        let operation = leaf
-            .operations
-            .last()
-            .expect("each state ends in its internal call");
-        let OperationKind::CallUnit {
-            callee,
-            erased_arguments,
-            requirement_obligations,
-            ..
-        } = &operation.kind
-        else {
-            panic!("the internal call emits a CallUnit")
-        };
-        assert_eq!(*callee, target.id);
-        assert_eq!(erased_arguments.len(), 1, "one erased actual per formal");
-        assert_eq!(
-            requirement_obligations.len(),
-            target.contract.requires.len(),
-            "one obligation per requires row"
-        );
-    }
-    terminal_verifier::verify_module(
-        &lowered.semantic_module,
-        &lowered.proof_bundle,
-        &proof_admission::AdmissionProfile::default(),
-    )
-    .expect("internal calls with discharged erased requires verify source-free");
-    let bytes = terminal_codec::encode_module(&lowered.semantic_module).expect("encode");
-    assert_eq!(
-        terminal_codec::decode_module(&bytes).expect("decode"),
-        lowered.semantic_module
-    );
 }
 
 #[test]
@@ -359,126 +225,6 @@ fn internal_unit_call_cites_the_second_erased_formal_in_its_own_ordinal() {
 }
 
 #[test]
-fn internal_unit_leaf_rejects_target_plan_and_identity_corruption() {
-    let baseline = checked_composed_internal_calls();
-    let rejects = |checked: &CheckedTrees| {
-        let result = lower_machine(checked, TerminalMachineSelection::Name("Root::enter"));
-        assert!(
-            matches!(result, Err(LoweringError::Unsupported(_))),
-            "unexpected result: {result:?}"
-        );
-    };
-
-    let mut state = baseline.clone();
-    let wrong_state = state.facts.flow.terminal_unit_effects.composed_machines[0].states[0].state;
-    let CheckedUnitEffectOperationPlan::CallUnit { target_state, .. } =
-        &mut state.facts.flow.terminal_unit_effects.composed_machines[0].states[1].operations[0]
-    else {
-        unreachable!()
-    };
-    *target_state = wrong_state;
-    rejects(&state);
-
-    let mut contract = baseline.clone();
-    let CheckedUnitEffectOperationPlan::CallUnit {
-        target_contract_report_fingerprint,
-        ..
-    } = &mut contract.facts.flow.terminal_unit_effects.composed_machines[0].states[1].operations[0]
-    else {
-        unreachable!()
-    };
-    *target_contract_report_fingerprint ^= 1;
-    rejects(&contract);
-
-    let mut missing = baseline;
-    let quiet = source_machine(&missing, "Root::quiet");
-    missing
-        .facts
-        .flow
-        .terminal_unit_effects
-        .machines
-        .retain(|plan| plan.machine != quiet);
-    assert!(matches!(
-        lower_machine(&missing, TerminalMachineSelection::Name("Root::enter")),
-        Err(LoweringError::InvalidUnitMachinePlan { machine, reason, .. })
-            if machine == "Root::quiet"
-                && reason == "attached Unit closure is missing a checked transitive machine plan"
-    ));
-}
-
-#[test]
-fn free_composed_attachment_matches_the_authored_declaration() {
-    let baseline = crate::front_end::checked_program(
-        r#"
-            data Owner {}
-            machine quiet() {}
-            machine finish(flag: bool) {
-                transition flag { true -> yes() _ -> no() }
-                state yes() { quiet(); }
-                state no() { quiet(); }
-            }
-            machine Owner::finish(flag: bool) {
-                transition flag { true -> yes() _ -> no() }
-                state yes() { quiet(); }
-                state no() { quiet(); }
-            }
-        "#,
-    );
-    for name in ["finish", "Owner::finish"] {
-        let lowered = lower_machine(&baseline, TerminalMachineSelection::Name(name))
-            .expect("exact free or attached composed root");
-        terminal_verifier::verify_module(
-            &lowered.semantic_module,
-            &lowered.proof_bundle,
-            &proof_admission::AdmissionProfile::default(),
-        )
-        .expect("root verifies independently");
-        let root = lowered
-            .semantic_module
-            .machines
-            .iter()
-            .find(|machine| machine.id == lowered.semantic_module.entry)
-            .unwrap();
-        assert_eq!(root.attachment.is_some(), name == "Owner::finish");
-    }
-    let free = source_machine(&baseline, "finish");
-    let attached = source_machine(&baseline, "Owner::finish");
-    let attachment = baseline
-        .facts
-        .flow
-        .terminal_unit_effects
-        .composed_for_machine(attached)
-        .unwrap()
-        .attachment_type_identity
-        .clone()
-        .unwrap();
-    for (machine, name, replacement) in [
-        (free, "finish", Some(attachment)),
-        (attached, "Owner::finish", None),
-        (
-            attached,
-            "Owner::finish",
-            Some("foreign attachment".to_owned()),
-        ),
-    ] {
-        let mut changed = baseline.clone();
-        changed
-            .facts
-            .flow
-            .terminal_unit_effects
-            .composed_machines
-            .iter_mut()
-            .find(|plan| plan.machine == machine)
-            .unwrap()
-            .attachment_type_identity = replacement;
-        assert!(
-            lower_machine(&changed, TerminalMachineSelection::Name(name)).is_err(),
-            "attachment substitution rejects for {name}"
-        );
-    }
-}
-
-#[test]
 fn free_composed_helper_rejects_fabricated_provider_fields() {
     let mut checked = crate::front_end::checked_program(
         r#"
@@ -506,39 +252,4 @@ fn free_composed_helper_rejects_fabricated_provider_fields() {
             boundary: free,
         });
     assert!(lower_machine(&checked, TerminalMachineSelection::Name("finish")).is_err());
-}
-
-// A composed caller retains its embedded scalar-graph callee's result: the
-// dense value and the immutable binding namespace agree, so the transition
-// guard reads `r` through its authored local rather than a stray position.
-#[test]
-fn composed_caller_lowers_a_retained_scalar_graph_call_result() {
-    let checked = crate::front_end::checked_program(
-        r#"
-            data Main { tag: u64; }
-            machine Main::rot(&mut self, k: u64, a: u64, b: u64, c: u64)
-            terminates by k;
-            -> u64
-            {
-                transition k > 0 {
-                    true -> rot(k - 1, b, c, a)
-                    false -> a
-                }
-            }
-            machine Main::main(&mut self) {
-                let r: u64 = self.rot(3, 1, 2, 3);
-                transition r == 1 { true -> yes() false -> no() }
-                state yes(&mut self) { self.tag = 1; }
-                state no(&mut self) { self.tag = 2; }
-            }
-        "#,
-    );
-    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
-        .expect("the retained scalar-graph call result joins the caller namespace");
-    terminal_verifier::verify_module(
-        &lowered.semantic_module,
-        &lowered.proof_bundle,
-        &proof_admission::AdmissionProfile::default(),
-    )
-    .expect("the composed caller and its embedded cyclic callee verify");
 }

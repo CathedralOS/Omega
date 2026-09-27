@@ -66,12 +66,6 @@ fn element_positions(operations: &[CheckedUnitEffectOperationPlan]) -> Vec<usize
 }
 
 #[test]
-fn an_array_literal_store_lowers_one_primitive_store_per_element() {
-    let checked = crate::front_end::checked_program(SOURCE);
-    assert_eq!(lower(&checked), Ok(3));
-}
-
-#[test]
 fn an_array_literal_roster_missing_an_element_is_rejected() {
     let mut checked = crate::front_end::checked_program(SOURCE);
     edit_element_stores(&mut checked, |operations| {

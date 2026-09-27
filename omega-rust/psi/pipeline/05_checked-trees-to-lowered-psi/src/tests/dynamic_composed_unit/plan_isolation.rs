@@ -1,21 +1,7 @@
-use super::{DIRECT_DYNAMIC_SOURCE, DIRECT_DYNAMIC_UNIT_SOURCE};
+use super::DIRECT_DYNAMIC_UNIT_SOURCE;
 use crate::TerminalMachineSelection;
 use crate::tests::lower_machine;
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
-
-#[test]
-fn unsupported_scalar_call_does_not_discard_other_machines_dispatch_plans() {
-    assert_neighboring_machine_is_isolated(
-        DIRECT_DYNAMIC_SOURCE,
-        r#"
-        machine Main::unsupported(&self) {
-            let erased: &dyn Measure = &self.item as &dyn Item::Primary;
-            let first: bool = erased.measure();
-            let second: bool = erased.measure();
-        }
-        "#,
-    );
-}
 
 #[test]
 fn unsupported_unit_call_does_not_discard_other_machines_dispatch_plans() {

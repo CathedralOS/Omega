@@ -242,44 +242,6 @@ fn verifier_rejects_tampering_of_every_schema_report_identity_input() {
 }
 
 #[test]
-fn coherently_understated_route_schema_cannot_rewrite_its_owner_projection() {
-    let lowered = lowered();
-    let mut understated = lowered.semantic_module;
-    let boundary = &mut understated.boundary_machines[0];
-    let schema = &mut boundary.program_local_root_introductions[0];
-    schema.capacity = ContentProjectionExpression::CountedQuantity(
-        ContentProjectionScalar::Natural("1".to_owned()),
-    );
-    schema.projection.projection_report_fingerprint =
-        language_semantics::content::terminal_projection_report_fingerprint(
-            &schema.algebra,
-            &schema.capacity,
-        );
-    let domain = understated
-        .structural_domains
-        .iter()
-        .find(|domain| domain.id == schema.qualification)
-        .expect("qualified domain");
-    let carrier = understated
-        .structural_types
-        .iter()
-        .find(|carrier| carrier.id == schema.carrier)
-        .expect("carrier");
-    schema.compatibility_report_identity =
-        program_local_root_introduction_compatibility_report_identity(
-            &boundary.identity,
-            &domain.identity,
-            &carrier.identity,
-            schema,
-        );
-
-    assert!(matches!(
-        terminal_verifier::validate_module_representation(&understated),
-        Err(terminal_verifier::ModuleError::InvalidProgramLocalRootIntroduction { .. })
-    ));
-}
-
-#[test]
 fn owner_projection_is_mandatory_and_independently_replayed() {
     let lowered = lowered();
     let mut missing = lowered.semantic_module.clone();

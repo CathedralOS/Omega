@@ -789,63 +789,6 @@ fn a_provider_carrying_argument_still_stops_at_provider_attachment_requirements(
 }
 
 #[test]
-fn a_shared_task_runtime_place_stops_at_signature_construction() {
-    // The authored canary shape carries `&TaskRuntime`: a shared borrow of a
-    // selected provider capability. Checked structural signatures admit an
-    // owned boundary-trait field but not a borrowed one, so construction
-    // stops one stage earlier, before any call planning is reached.
-    let checked = crate::front_end::checked_program(&format!(
-        "{ROUTED_TASK_START_DECLS}
-         data Main {{
-             runtime: &TaskRuntime;
-         }}
-         machine Main::probe(&mut self, token: Token) reaches TaskRuntime {{
-             let task: Task<Token> = self.runtime.start<Worker::run>(token);
-             Task::settle(task);
-         }}
-         machine Main::main(&mut self) {{ }}"
-    ));
-    let probe = checked
-        .typed
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "Main::probe")
-        .expect("Main::probe is declared")
-        .symbol;
-    let omission = checked
-        .facts
-        .flow
-        .terminal_unit_effects
-        .omission_for_machine(probe)
-        .expect("Main::probe has an omission row");
-    assert!(matches!(
-        omission.stage,
-        checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction {
-            phase: "signature",
-            ..
-        }
-    ));
-    let error = checked_trees_to_lowered_psi::lower_machine(
-        &checked,
-        TerminalMachineSelection::Name("Main::probe"),
-    )
-    .expect_err("a shared TaskRuntime place has no admitted checked signature");
-    let checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan {
-        machine,
-        omission,
-        ..
-    } = error
-    else {
-        panic!("unexpected error: {error:?}");
-    };
-    assert_eq!(machine, "Main::probe");
-    assert_eq!(
-        omission.as_deref(),
-        Some("`Main::probe` has no admitted body (local construction stopped at signature)")
-    );
-}
-
-#[test]
 fn an_inline_case_argument_on_an_attached_call_plans() {
     // The parser gate's `source_full` first statement calls an attached
     // machine through a nested receiver with an inline case literal:

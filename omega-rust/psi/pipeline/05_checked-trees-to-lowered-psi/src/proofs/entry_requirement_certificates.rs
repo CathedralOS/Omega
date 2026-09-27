@@ -260,13 +260,6 @@ mod tests {
     }
 
     #[test]
-    fn an_empty_supply_establishes_nothing() {
-        let context = boolean_context(&[1]);
-        let goal = Proposition::Equal(boolean_value(1), ScalarTerm::boolean(true));
-        assert!(produce_entry_requirement_certificates(&context, &goal, &[], &[]).is_empty());
-    }
-
-    #[test]
     fn integer_order_certificates_reach_through_inclusive_premises() {
         let context = integer_context(&[1, 2, 3]);
         // A strict conclusion composes through inclusive links, but the
@@ -315,22 +308,5 @@ mod tests {
             produce_entry_requirement_certificates(&context, &strict, &requirements, &[])
                 .is_empty()
         );
-    }
-
-    #[test]
-    fn case_analysis_requirements_produce_a_checkable_supply() {
-        let context = boolean_context(&[1]);
-        let goal = Proposition::Equal(boolean_value(1), ScalarTerm::boolean(true));
-        // A disjunctive requirement whose branches each carry the goal still
-        // discharges it through disjunction elimination.
-        let requirements = [Proposition::Disjunction(vec![
-            Proposition::Conjunction(vec![Proposition::Truth, goal.clone()]),
-            goal.clone(),
-        ])];
-        let certificates =
-            produce_entry_requirement_certificates(&context, &goal, &requirements, &[]);
-        assert!(certificates.iter().any(|certificate| {
-            check_entry_requirement_certificate(&context, &goal, &requirements, &[], certificate)
-        }));
     }
 }

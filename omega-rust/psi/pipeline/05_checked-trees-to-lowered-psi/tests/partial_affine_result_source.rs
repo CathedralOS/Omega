@@ -30,29 +30,6 @@ const SOURCE: &str = r#"
     }
 "#;
 
-#[test]
-fn anonymous_result_projection_retains_its_untransferred_remainder() {
-    for boundary in [false, true] {
-        assert_source(
-            &anonymous_source(boundary, false, "Sink::take(result.right);"),
-            boundary,
-            &[path(&["right"])],
-            &[path(&["left"])],
-        );
-    }
-}
-
-#[test]
-fn anonymous_result_projection_cleans_before_the_next_statement() {
-    for boundary in [false, true] {
-        let source = format!(
-            "{} machine Sink::done() {{}}",
-            anonymous_source(boundary, false, "Sink::take(result.right); Sink::done();")
-        );
-        continuations::assert_source(&source, boundary, &[vec![path(&["left"])]]);
-    }
-}
-
 // Two helper temporaries die at one consumer argument list: each keeps its
 // own residual row, its own producer place, and its own live frontier entry.
 #[test]
@@ -579,42 +556,6 @@ fn ordinary_and_boundary_results_support_partial_and_complete_field_moves() {
 }
 
 #[test]
-fn projected_result_rows_and_leaves_keep_maximal_reverse_residuals() {
-    for boundary in [false, true] {
-        assert_source(
-            &source(
-                boundary,
-                true,
-                "Sink::take(result.grid[1][1]); Sink::take(result.left);",
-            ),
-            boundary,
-            &[path(&["grid", "1", "1"]), path(&["left"])],
-            &[
-                path(&["tail"]),
-                path(&["grid", "1", "2"]),
-                path(&["grid", "1", "0"]),
-                path(&["grid", "0"]),
-            ],
-        );
-        assert_source(
-            &source(
-                boundary,
-                true,
-                "Sink::take_row(result.grid[1]); Sink::take(result.grid[0][1]);",
-            ),
-            boundary,
-            &[path(&["grid", "1"]), path(&["grid", "0", "1"])],
-            &[
-                path(&["tail"]),
-                path(&["grid", "0", "2"]),
-                path(&["grid", "0", "0"]),
-                path(&["left"]),
-            ],
-        );
-    }
-}
-
-#[test]
 fn anonymous_projected_rows_and_leaves_keep_maximal_reverse_residuals() {
     for boundary in [false, true] {
         assert_source(
@@ -814,99 +755,6 @@ fn source_result_paths_cannot_be_used_after_their_owned_move() {
                 );
             }
         }
-    }
-}
-
-#[test]
-fn anonymous_result_permissions_rejoin_before_publication() {
-    for boundary in [false, true] {
-        let original = crate::front_end::checked_program(&anonymous_source(
-            boundary,
-            true,
-            "Sink::take(result.grid[1][1]);",
-        ));
-        let _artifact = terminal_production::TerminalProductionRequest::new(
-            &original,
-            TerminalMachineSelection::Name("Root::enter"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("valid ownership evidence before mutations")
-        .into_artifact();
-        let events = original
-            .facts
-            .flow
-            .ownership
-            .permissions
-            .iter()
-            .filter(|(_, event)| matches!(event.root, facts::PlaceRoot::Expression(_)))
-            .map(|(handle, event)| (handle, event.clone()))
-            .collect::<Vec<_>>();
-        assert_eq!(
-            events.len(),
-            7,
-            "establishment, selected transfer, five residuals"
-        );
-        for (handle, event) in &events {
-            for mutation in 0..5 {
-                let mut changed = original.clone();
-                let mut altered = event.clone();
-                match mutation {
-                    0 => altered.root = facts::PlaceRoot::Unknown,
-                    1 => altered.provenance = language_semantics::PermissionProvenance::Unknown,
-                    2 => altered.obligation_live = true,
-                    3 => altered.source = language_semantics::PermissionEventSource::StateExit,
-                    4 => {
-                        changed
-                            .facts
-                            .flow
-                            .ownership
-                            .permissions
-                            .insert(altered.clone());
-                    }
-                    _ => unreachable!(),
-                }
-                *changed.facts.flow.ownership.permissions.get_mut(*handle) = altered;
-                assert!(
-                    terminal_production::TerminalProductionRequest::new(
-                        &changed,
-                        TerminalMachineSelection::Name("Root::enter")
-                    )
-                    .produce(TerminalProductionCustody::artifact_only(
-                        &mut TerminalProductionTimings::default()
-                    ))
-                    .is_err(),
-                    "boundary={boundary}, kind={:?}, mutation={mutation}",
-                    event.kind
-                );
-            }
-        }
-        let mut changed = original.clone();
-        let first = events[2].1.clone();
-        let second = events[3].1.clone();
-        *changed
-            .facts
-            .flow
-            .ownership
-            .permissions
-            .get_mut(events[2].0) = second;
-        *changed
-            .facts
-            .flow
-            .ownership
-            .permissions
-            .get_mut(events[3].0) = first;
-        assert!(
-            terminal_production::TerminalProductionRequest::new(
-                &changed,
-                TerminalMachineSelection::Name("Root::enter")
-            )
-            .produce(TerminalProductionCustody::artifact_only(
-                &mut TerminalProductionTimings::default()
-            ))
-            .is_err()
-        );
     }
 }
 

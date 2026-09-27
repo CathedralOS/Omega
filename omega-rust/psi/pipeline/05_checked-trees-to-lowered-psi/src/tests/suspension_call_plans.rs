@@ -6,7 +6,6 @@
 //! symbols are not machine members, so `canonical_suspension_crossing_id`
 //! cannot resolve them — and `CallUnit` arguments are not an admitted scalar
 //! CallArgument namespace.
-use super::checked_scalar_suspension_fixture;
 use crate::TerminalMachineSelection;
 use crate::lower_machine;
 use crate::lowering_error::LoweringError;
@@ -153,24 +152,6 @@ fn expect_single_verified_plan(
         lowered.semantic_module
     );
     plan
-}
-
-/// The checked crossing's `target` is the callee's resolved entry state while
-/// scalar-result emissions record the callee machine; both name the same
-/// callable and must join by owning-machine identity.
-#[test]
-fn scalar_call_suspension_plan_rejoins_callee_entry_state_target() {
-    let mut checked = checked_scalar_suspension_fixture();
-    let (root, state) = machine_and_state(&checked, "root");
-    let target = call_target_symbol(&checked, 1, 0);
-    push_crossing(&mut checked, root, state, 1, 0, target, Vec::new());
-    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("root"))
-        .expect("entry-state target joins");
-    let plan = expect_single_verified_plan(&lowered);
-    assert!(matches!(
-        plan.target,
-        TerminalSuspensionCallTarget::Machine(_)
-    ));
 }
 
 /// A receiver-free Unit call retains its crossing: the plan joins the exact

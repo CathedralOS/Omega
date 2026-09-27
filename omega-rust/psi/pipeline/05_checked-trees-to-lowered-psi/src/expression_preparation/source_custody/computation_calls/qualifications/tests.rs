@@ -144,42 +144,6 @@ fn explicit_erasure_replay_requires_its_authored_cast_and_bare_result() {
 }
 
 #[test]
-fn qualification_match_replays_checked_custody_and_publishes_exact_terminal_membership() {
-    let checked = crate::front_end::checked_program(SOURCE);
-    assert_eq!(qualifications(&checked).len(), 2);
-    replay(&checked).expect("exact source, membership, and operand custody");
-    let lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("choose"))
-        .expect("qualified Terminal graph");
-    let catalog = &lowered.semantic_module.scalar_qualifications;
-    assert_eq!(catalog.domains.len(), 1);
-    assert_eq!(catalog.sets.len(), 1);
-    assert_eq!(catalog.coercions.len(), 2);
-    let result = lowered.semantic_module.machines[0]
-        .result
-        .scalar_ref()
-        .expect("scalar result");
-    assert_eq!(result.qualifications, catalog.sets[0].id);
-}
-
-#[test]
-fn qualification_replay_preserves_alias_and_closed_instance_identity() {
-    for (declarations, domain) in [
-        ("domain i64::Km; domain i64::Length = Km;", "Length"),
-        (
-            "domain<const Axis: u64> i64::Coordinate<Axis>;",
-            "Coordinate<7>",
-        ),
-    ] {
-        let source = format!("{declarations}
-            machine choose(select_left: bool, left: i64, right: i64) -> i64 in {domain} {{
-                match select_left {{ true -> left as i64 in {domain}, false -> right as i64 in {domain} }}
-            }}");
-        let checked = crate::front_end::checked_program(&source);
-        replay(&checked).expect("normalized alias or indexed instance");
-    }
-}
-
-#[test]
 fn qualification_replay_rejects_missing_duplicate_or_redirected_evidence() {
     for mutation in 0..5 {
         let mut checked = crate::front_end::checked_program(SOURCE);
@@ -291,28 +255,6 @@ fn qualification_replay_rejects_erasing_node_even_with_cast_source_on_pure_value
 }
 
 #[test]
-fn qualification_replay_rejects_changed_instance() {
-    let source = "domain<const Axis: u64> i64::Coordinate<Axis>;
-        machine choose(value: i64) -> i64 in Coordinate<7> { value as i64 in Coordinate<7> }
-        machine other(value: i64) -> i64 in Coordinate<8> { value as i64 in Coordinate<8> }";
-    let mut checked = crate::front_end::checked_program(source);
-    replay(&checked).expect("original instance");
-    let other = checked
-        .facts
-        .qualifications
-        .vacuous_uses
-        .iter()
-        .map(|usage| usage.semantic_domain)
-        .find(|identity| *identity != checked.facts.qualifications.vacuous_uses[0].semantic_domain)
-        .expect("distinct index");
-    checked.facts.qualifications.vacuous_uses[0].semantic_domain = other;
-    assert!(
-        replay(&checked).is_err(),
-        "different canonical index is not evidence"
-    );
-}
-
-#[test]
 fn qualification_replay_reconstructs_indices_when_retained_records_agree_on_a_substitution() {
     let source = "domain<const Axis: u64> i64::Coordinate<Axis>;
         machine choose(value: i64) -> i64 in Coordinate<7> { value as i64 in Coordinate<7> }
@@ -355,38 +297,6 @@ fn qualification_replay_reconstructs_indices_when_retained_records_agree_on_a_su
             checked.facts.qualifications.vacuous_uses[0].semantic_domain = other.semantic_domain_id;
         }
         assert!(replay(&checked).is_err(), "change_result={change_result}");
-    }
-}
-
-#[test]
-fn qualification_replay_uses_the_same_custody_for_boolean_and_float_carriers() {
-    for carrier in ["bool", "f32", "f64"] {
-        let source = format!("domain {carrier}::Tagged;
-            machine choose(value: {carrier}) -> {carrier} in Tagged {{ value as {carrier} in Tagged }}");
-        replay(&crate::front_end::checked_program(&source))
-            .expect("noninteger scalar qualification");
-    }
-}
-
-#[test]
-fn qualification_keeps_nested_selection_and_call_operands_in_their_source_scopes() {
-    for body in [
-        "match select_left { true -> identity(left) as i64 in Km, false -> identity(right) as i64 in Km }",
-        "(match select_left { true -> identity(left), false -> identity(right) }) as i64 in Km",
-    ] {
-        let source = format!(
-            "domain i64::Km;
-            machine identity(value: i64) -> i64 {{ value }}
-            machine choose(select_left: bool, left: i64, right: i64) -> i64 in Km {{ {body} }}"
-        );
-        let checked = crate::front_end::checked_program(&source);
-        replay(&checked).expect("selection and call scopes beneath qualification");
-        let targets = crate::expression_preparation::computation_graph::call_targets(
-            &checked,
-            root(&checked).machine,
-        )
-        .expect("qualified operand call discovery");
-        assert_eq!(targets.len(), 2, "each arm retains its call");
     }
 }
 

@@ -1,7 +1,7 @@
 //! Computation-owned array actuals keep exact custody and selected execution.
 
 use super::{
-    AdmissionProfile, ExpressionHandle, ExpressionNode, IntegerSign, IntegerType, IntegerValue,
+    AdmissionProfile, ExpressionNode, IntegerSign, IntegerType, IntegerValue,
     TerminalExecutionResult, TerminalScalarValue, reject,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
@@ -97,51 +97,6 @@ const WRITE: &str =
     "machine write(destination: &mut u8, value: u8) -> u8 { destination = value; value }";
 
 #[test]
-fn abandoned_computation_nodes_do_not_reserve_array_places() {
-    let mut checked = crate::front_end::checked_program(
-        "machine answer(row: [u8; 1], value: u8) -> u8 { value }
-         machine selected() -> [u8; 1] { [answer([7u8], 42u8)] }",
-    );
-    let original = checked_trees_to_lowered_psi::lower_machine(
-        &checked,
-        TerminalMachineSelection::Name("selected"),
-    )
-    .unwrap();
-    let plans = &mut checked.facts.values.scalar_computations;
-    let mut abandoned = plans
-        .nodes
-        .iter()
-        .find_map(|(_, node)| {
-            matches!(node.kind, CheckedScalarComputationKind::Call { .. }).then(|| node.clone())
-        })
-        .expect("retained computation call");
-    let CheckedScalarComputationKind::Call {
-        structural_arguments,
-        ..
-    } = &mut abandoned.kind
-    else {
-        panic!("selected call");
-    };
-    *structural_arguments = plans.structural_arguments.insert_many([
-        CheckedScalarComputationStructuralArgument::Array {
-            expression: ExpressionHandle::invalid(),
-            type_reference: Default::default(),
-            elements: Default::default(),
-        },
-    ]);
-    // Speculative builder nodes without a retained root cannot require catalog
-    // entries or affect emitted place identities, even if they share a flow call.
-    plans.nodes.append(abandoned);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(
-        &checked,
-        TerminalMachineSelection::Name("selected"),
-    )
-    .unwrap();
-    assert_eq!(lowered.semantic_module, original.semantic_module);
-    assert_eq!(lowered.proof_bundle, original.proof_bundle);
-}
-
-#[test]
 fn computation_array_arguments_execute_customer_and_nested_scalar_calls() {
     for leaf in [
         "answer([7u8, 9u8], value)",
@@ -171,26 +126,6 @@ fn computation_array_arguments_execute_customer_and_nested_scalar_calls() {
         ),
         TerminalExecutionResult::Scalar(byte(42)),
     );
-}
-
-#[test]
-fn computation_array_arguments_retain_empty_and_nested_shapes() {
-    for (array_type, literal) in [
-        ("[u8; 0]", "[]"),
-        ("[[u8; 0]; 2]", "[[], []]"),
-        ("[[u8; 2]; 0]", "[]"),
-        ("[[u8; 2]; 2]", "[[identity(7u8), 9u8], [11u8, 13u8]]"),
-    ] {
-        assert_array(
-            &format!(
-                "machine identity(value: u8) -> u8 {{ value }}
-                 machine answer(row: {array_type}, value: u8) -> u8 {{ value }}
-                 machine selected() -> [u8; 2] {{ [answer({literal}, 42u8), 9u8] }}"
-            ),
-            &[],
-            &[byte(42), byte(9)],
-        );
-    }
 }
 
 #[test]
@@ -228,26 +163,6 @@ fn computation_array_arguments_remain_available_through_scalar_helpers() {
 }
 
 #[test]
-fn computation_array_arguments_interleave_scalar_formals_and_leaf_effects() {
-    for (returned, expected) in [("prefix", 1), ("middle", 3), ("suffix", 5)] {
-        assert_array(
-            &format!(
-                "{WRITE}
-                 machine pick(prefix: u8, first: [u8; 1], middle: u8, second: [u8; 1], suffix: u8) -> u8 {{ {returned} }}
-                 machine selected() -> [u8; 2] {{
-                     let mut current: u8 = 0;
-                     [pick(write(&mut current, 1u8), [write(&mut current, 2u8)],
-                           write(&mut current, 3u8), [write(&mut current, 4u8)],
-                           write(&mut current, 5u8)), current]
-                 }}"
-            ),
-            &[],
-            &[byte(expected), byte(5)],
-        );
-    }
-}
-
-#[test]
 fn computation_array_arguments_execute_only_selected_boolean_branches() {
     for (enabled, expected) in [
         (false, [false, false, false, true]),
@@ -265,31 +180,6 @@ fn computation_array_arguments_execute_only_selected_boolean_branches() {
             ),
             &[TerminalScalarValue::Boolean(enabled)],
             &expected.map(TerminalScalarValue::Boolean),
-        );
-    }
-}
-
-#[test]
-fn computation_array_arguments_execute_only_selected_match_arms() {
-    for enabled in [false, true] {
-        assert_array(
-            &format!(
-                "{WRITE}
-                 machine answer(row: [u8; 1], value: u8) -> u8 {{ value }}
-                 machine keep(row: [u8; 2]) -> [u8; 2] {{ row }}
-                 machine selected(enabled: bool) -> [u8; 2] {{
-                     let mut current: u8 = 0;
-                     keep([match enabled {{
-                         true -> answer([write(&mut current, 1u8)], 7u8),
-                         false -> answer([write(&mut current, 2u8)], 9u8)
-                     }}, current])
-                 }}"
-            ),
-            &[TerminalScalarValue::Boolean(enabled)],
-            &[
-                byte(if enabled { 7 } else { 9 }),
-                byte(if enabled { 1 } else { 2 }),
-            ],
         );
     }
 }

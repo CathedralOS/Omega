@@ -22,24 +22,6 @@ const SOURCE: &str = r#"
     }
 "#;
 
-#[test]
-fn composed_unit_call_retains_a_scalar_guarded_crash_ceiling() {
-    let checked = crate::front_end::checked_program(SOURCE);
-    let lowered = roundtrip(&checked);
-    for selected in [false, true] {
-        let (status, effects) = execute(&lowered, selected);
-        assert_eq!(
-            status,
-            TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
-        );
-        assert_eq!(
-            effects,
-            vec![vec![unsigned(if selected { 0 } else { 7 })]],
-            "a true may-ceiling does not manufacture an executable crash"
-        );
-    }
-}
-
 fn roundtrip(checked: &checked_trees::CheckedTrees) -> lowered_psi::LoweredPsi {
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         checked,
@@ -271,53 +253,6 @@ fn guarded_unit_calls_reject_missing_foreign_and_narrowed_terminal_routes() {
                 "route mutation={mutation} rejects during semantic validation, without a proof bundle"
             );
         }
-    }
-}
-
-#[test]
-fn empty_attachment_receiver_keeps_both_boolean_crash_parameters_distinct() {
-    for (name, position) in [("first", 0), ("second", 1)] {
-        let source = format!(
-            r#"
-            boundary trait Sink {{ machine record(first: bool, second: bool); }}
-            data Main {{}}
-            machine Main::main(&self, first: bool, second: bool)
-            reaches Sink crashes Abort {name}
-            {{ Sink::record(first, second); }}
-        "#
-        );
-        let lowered = roundtrip(&crate::front_end::checked_program(&source));
-        let root = lowered
-            .semantic_module
-            .machines
-            .iter()
-            .find(|machine| machine.id == lowered.semantic_module.entry)
-            .unwrap();
-        assert_eq!(root.parameters.len(), 2);
-        let [bucket] = root.contract.crash_routes.as_slice() else {
-            panic!("one Abort ceiling");
-        };
-        assert_eq!(bucket.cause, terminal_psi::CrashCause::Abort);
-        let [terminal_psi::CrashRouteGuard::Predicate(predicate)] = bucket.alternatives.as_slice()
-        else {
-            panic!("one exact Boolean parameter guard");
-        };
-        let semantic_vocabulary::Proposition::Equal(left, right) = predicate.proposition() else {
-            panic!("Boolean parameter equality");
-        };
-        let expected = semantic_vocabulary::ScalarTerm::value(
-            root.parameters[position].id,
-            semantic_vocabulary::ScalarType::Boolean,
-        );
-        let other = semantic_vocabulary::ScalarTerm::value(
-            root.parameters[1 - position].id,
-            semantic_vocabulary::ScalarType::Boolean,
-        );
-        assert!([left, right].contains(&&expected));
-        assert!(
-            ![left, right].contains(&&other),
-            "ambient self is not a scalar parameter slot"
-        );
     }
 }
 

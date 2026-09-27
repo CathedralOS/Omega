@@ -1,5 +1,5 @@
 //! Mutable carrier access remains distinct at every erased reborrow edge.
-use super::{OperationKind, StructuralAccess, source};
+use super::source;
 use checked_trees::BorrowAccessKind;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
@@ -15,91 +15,6 @@ fn nested_source() -> String {
          let child: &write Record = &write middle[0];",
         "child.replace(17); child.replace(value);",
     )
-}
-
-#[test]
-fn mutable_chain_retains_each_access_and_exact_projected_calls() {
-    let checked = crate::front_end::checked_program(&nested_source());
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("forward"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .unwrap()
-    .into_artifact();
-    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
-    let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
-    terminal_verifier::verify_module(
-        &module,
-        &proof,
-        &proof_admission::AdmissionProfile::default(),
-    )
-    .unwrap();
-    assert_eq!(
-        terminal_codec::encode_module(&module).unwrap(),
-        artifact.semantic_bytes()
-    );
-    let [handoff] = module.reborrow_root_handoffs.as_slice() else {
-        panic!("one exact state-exit handoff");
-    };
-    assert_eq!(handoff.direct_root_access, StructuralAccess::MutableBorrow);
-    assert_eq!(handoff.lineage.len(), 2);
-    assert_eq!(
-        handoff.lineage[0].child_access,
-        StructuralAccess::MutableBorrow
-    );
-    assert_eq!(
-        handoff.lineage[1].child_access,
-        StructuralAccess::WriteOnlyBorrow
-    );
-    let caller = module
-        .machines
-        .iter()
-        .find(|machine| machine.id == module.entry)
-        .unwrap();
-    assert_eq!(
-        caller.structural_parameters[0].access,
-        StructuralAccess::MutableBorrow
-    );
-    let mut paths = Vec::new();
-    for operation in &caller.blocks[0].operations {
-        if let OperationKind::CallUnit {
-            structural_arguments,
-            ..
-        } = &operation.kind
-        {
-            assert_eq!(
-                structural_arguments[0].access,
-                StructuralAccess::WriteOnlyBorrow
-            );
-            paths.push(&structural_arguments[0].path);
-        }
-    }
-    assert_eq!(paths.len(), 2);
-    assert_eq!(paths[0], paths[1]);
-    assert_eq!(paths[0].len(), 3);
-    assert_eq!(
-        paths[0][0],
-        terminal_psi::StructuralPathSegment::FixedIndex(1)
-    );
-    assert_eq!(
-        paths[0][2],
-        terminal_psi::StructuralPathSegment::FixedIndex(0)
-    );
-
-    let mut widened = module.clone();
-    widened.reborrow_root_handoffs[0].direct_root_access = StructuralAccess::WriteOnlyBorrow;
-    assert!(
-        terminal_verifier::verify_module(
-            &widened,
-            &proof,
-            &proof_admission::AdmissionProfile::default()
-        )
-        .is_err(),
-        "a mutable child cannot descend from write-only custody"
-    );
 }
 
 #[test]

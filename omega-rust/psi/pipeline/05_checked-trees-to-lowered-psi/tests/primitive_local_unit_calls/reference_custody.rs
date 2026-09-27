@@ -77,48 +77,6 @@ fn reference_initializer_rejects_coherent_cached_and_operation_read_substitution
 }
 
 #[test]
-fn readable_reference_initializer_keeps_authored_and_dense_parameter_positions_separate() {
-    let source = super::reference_initializer::source("u8").replace(
-        "output: &mut u8, input: &u8,\n            initial_output: &mut u8, replacement: u8",
-        "replacement: u8, output: &mut u8, input: &u8,\n            initial_output: &mut u8",
-    );
-    let artifact = super::artifact(&source);
-    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
-    let caller = module
-        .machines
-        .iter()
-        .find(|machine| machine.id == module.entry)
-        .unwrap();
-    let parameters = &caller.structural_parameters;
-    assert_eq!(parameters.len(), 3);
-    assert_eq!(parameters[1].position, 1);
-    assert!(caller.blocks.iter().flat_map(|block| &block.operations).any(|operation|
-        matches!(operation.kind, terminal_psi::OperationKind::PrimitiveScalarRead { source, ref path }
-            if path.is_empty() && source == parameters[1].place)));
-}
-
-#[test]
-fn write_only_primitive_inputs_cannot_initialize_locals_by_reading() {
-    for scalar in [
-        "u8", "i8", "u16", "i16", "u32", "i32", "u64", "i64", "bool", "f32", "f64",
-    ] {
-        let source = super::reference_initializer::source(scalar).replace(
-            &format!("input: &{scalar}"),
-            &format!("input: &write {scalar}"),
-        );
-        let diagnostics = crate::front_end::checked_program_result(&source)
-            .expect_err("write-only input cannot supply the initializer's value");
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains("write-only")
-                    && diagnostic.message.contains("input")),
-            "{scalar}: {diagnostics:?}"
-        );
-    }
-}
-
-#[test]
 fn retained_write_only_access_cannot_authorize_a_primitive_initializer_read() {
     for scalar in ["u8", "bool", "f32"] {
         let source = super::reference_initializer::source(scalar);

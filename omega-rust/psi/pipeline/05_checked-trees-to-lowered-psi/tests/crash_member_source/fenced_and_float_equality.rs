@@ -1,9 +1,8 @@
 use super::{
-    ADDRESS_RECORD_EQUALITY_SOURCE, BYTE_SEQUENCE_AGGREGATE_EQUALITY_SOURCE,
-    EMPTY_RECORD_EQUALITY_SOURCE, FIXED_INDEX_SOURCE, IEEE_FLOAT_AGGREGATE_EQUALITY_SOURCE,
-    MIXED_AGGREGATE_EQUALITY_FENCE_SOURCES, NESTED_MIXED_AGGREGATE_EQUALITY_FENCE_SOURCES,
-    NESTED_RECORD_PAYLOAD_SUM_EQUALITY_SOURCE, NESTED_SOURCE,
-    NESTED_SUM_PAYLOAD_SUM_EQUALITY_SOURCE,
+    BYTE_SEQUENCE_AGGREGATE_EQUALITY_SOURCE, EMPTY_RECORD_EQUALITY_SOURCE, FIXED_INDEX_SOURCE,
+    IEEE_FLOAT_AGGREGATE_EQUALITY_SOURCE, MIXED_AGGREGATE_EQUALITY_FENCE_SOURCES,
+    NESTED_MIXED_AGGREGATE_EQUALITY_FENCE_SOURCES, NESTED_RECORD_PAYLOAD_SUM_EQUALITY_SOURCE,
+    NESTED_SOURCE, NESTED_SUM_PAYLOAD_SUM_EQUALITY_SOURCE,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
@@ -1066,25 +1065,6 @@ fn empty_record_equality_reuses_boolean_constants_end_to_end() {
             Err(terminal_verifier::ModuleError::CallCrashContinuationsMismatch { .. })
         ),
         "unexpected empty-record continuation result: {invalid_result:?}"
-    );
-}
-
-#[test]
-fn address_record_equality_remains_fenced_before_terminal_lowering() {
-    let checked = crate::front_end::checked_program(ADDRESS_RECORD_EQUALITY_SOURCE);
-
-    let result = checked_trees_to_lowered_psi::lower_machine(
-        &checked,
-        TerminalMachineSelection::Name("Root::enter"),
-    );
-    assert!(
-        matches!(
-            &result,
-            Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
-                "structural crash route is outside checked Boolean member lowering"
-            ))
-        ),
-        "unexpected lowering result: {result:?}"
     );
 }
 

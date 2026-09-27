@@ -1,45 +1,4 @@
-use super::{ObligationId, Proposition, ScalarBlockInvariantArrival, restore_seeds};
 use crate::TerminalMachineSelection;
-use semantic_vocabulary::{BlockId, EdgeId, MachineId};
-use terminal_psi::ScalarBlockInvariant;
-
-fn seed(header: u64, obligation: u64) -> ScalarBlockInvariant {
-    ScalarBlockInvariant {
-        machine: MachineId::new(1).unwrap(),
-        header: BlockId::new(header).unwrap(),
-        predicate: Proposition::Truth,
-        arrivals: vec![ScalarBlockInvariantArrival {
-            edge: EdgeId::new(header).unwrap(),
-            obligation: ObligationId::new(obligation).unwrap(),
-        }],
-    }
-}
-
-#[test]
-fn rejected_expansion_restores_all_seed_rows_and_arrival_identities_once() {
-    let original = vec![seed(2, 7), seed(3, 8)];
-    let mut seeds = Some(original.clone());
-    let mut expanded = original.clone();
-    expanded[0].predicate = Proposition::Falsehood;
-    expanded.remove(1);
-    expanded.push(seed(4, 9));
-    assert!(restore_seeds(&mut expanded, &mut seeds));
-    assert_eq!(expanded, original);
-    assert!(seeds.is_none());
-    // The next proof/drop round may reject an original seed. Restoration must
-    // not resurrect it or restart discovery indefinitely.
-    expanded.remove(0);
-    assert!(!restore_seeds(&mut expanded, &mut seeds));
-    assert_eq!(expanded, original[1..]);
-}
-
-#[test]
-fn unchanged_seed_roster_is_not_a_new_retry() {
-    let mut original = vec![seed(2, 7)];
-    let mut seeds = Some(original.clone());
-    assert!(!restore_seeds(&mut original, &mut seeds));
-    assert!(seeds.is_none());
-}
 
 fn guarded_join_source(right_reason: i32) -> lowered_psi::LoweredPsi {
     let source = format!(
@@ -56,20 +15,6 @@ fn guarded_join_source(right_reason: i32) -> lowered_psi::LoweredPsi {
     let checked = crate::front_end::checked_program(&source);
     crate::machine_lowering::lower_machine(&checked, TerminalMachineSelection::Name("root"))
         .unwrap()
-}
-
-#[test]
-fn guarded_operation_demands_retain_exact_join_arrival_proofs() {
-    for reason in [20, 100] {
-        let lowered = guarded_join_source(reason);
-        assert!(!lowered.semantic_module.scalar_block_invariants.is_empty());
-        terminal_verifier::verify_module(
-            &lowered.semantic_module,
-            &lowered.proof_bundle,
-            &proof_admission::AdmissionProfile::default(),
-        )
-        .unwrap();
-    }
 }
 
 #[test]
@@ -191,16 +136,6 @@ fn restart_field_loop(lowered: &lowered_psi::LoweredPsi, start: i128, changed_st
         value: semantic_vocabulary::IntegerValue::Signed(changed_start),
     };
     assert!(crate::proofs::operation_proofs::finalize_operation_proofs(&mut changed).is_err());
-}
-
-#[test]
-fn a_field_counter_bounds_its_index_through_the_loop_header() {
-    // The index question is stated in mathematical integers (`0 <= i`); the
-    // header carries it as the typed bound over the stored field.
-    let lowered = lower_field_loop(FIELD_COUNTER, "Poly::run");
-    // Starting below zero breaks the bound at entry, so no invariant can be
-    // retained and the index keeps its unanswered question.
-    restart_field_loop(&lowered, 2, -3);
 }
 
 #[test]

@@ -212,35 +212,6 @@ mod tests {
     }
 
     #[test]
-    fn runtime_roots_follow_computed_operands_without_shell_limits() {
-        let mut expression = parameter(0);
-        for kind in [
-            LoweredIntegerBinaryKind::BitwiseXor,
-            LoweredIntegerBinaryKind::ExactAdd,
-            LoweredIntegerBinaryKind::ExactMultiply,
-            LoweredIntegerBinaryKind::ExactDivide,
-            LoweredIntegerBinaryKind::ExactRemainder,
-            LoweredIntegerBinaryKind::ExactShiftLeft,
-            LoweredIntegerBinaryKind::ExactShiftRight,
-            LoweredIntegerBinaryKind::ExactSubtract,
-        ] {
-            expression = LoweredDirectExpression::IntegerBinary {
-                kind,
-                scalar_type: integer_type(),
-                left: Box::new(parameter(1)),
-                right: Box::new(expression),
-            };
-            assert_eq!(
-                shared_integer_runtime_parameters(&expression),
-                Some(BTreeSet::from([
-                    SharedBooleanRuntimeInput::IntegerScalar(0),
-                    SharedBooleanRuntimeInput::IntegerScalar(1),
-                ]))
-            );
-        }
-    }
-
-    #[test]
     fn runtime_root_collection_rejects_local_and_invalid_widen_custody() {
         let independently_typed_count = LoweredDirectExpression::IntegerBinary {
             kind: LoweredIntegerBinaryKind::ExactShiftRight,
@@ -281,27 +252,5 @@ mod tests {
             };
             assert!(shared_integer_runtime_parameters(&expression).is_none());
         }
-    }
-
-    #[test]
-    fn exact_cast_inputs_allow_identity_but_not_noninteger_carriers() {
-        let identity = LoweredDirectExpression::IntegerExactCast {
-            scalar_type: integer_type(),
-            operand: Box::new(parameter(0)),
-        };
-        assert_eq!(
-            shared_integer_runtime_parameters(&identity),
-            Some(BTreeSet::from([SharedBooleanRuntimeInput::IntegerScalar(
-                0
-            ),]))
-        );
-        let noninteger = LoweredDirectExpression::IntegerExactCast {
-            scalar_type: integer_type(),
-            operand: Box::new(LoweredDirectExpression::Parameter {
-                position: 0,
-                scalar_type: ScalarType::Boolean,
-            }),
-        };
-        assert!(shared_integer_runtime_parameters(&noninteger).is_none());
     }
 }

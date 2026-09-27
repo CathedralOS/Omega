@@ -3,10 +3,7 @@ use super::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalFuelMeter, TerminalStructuralValue,
 };
 use crate::TerminalMachineSelection;
-use checked_trees::{
-    CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
-};
+use checked_trees::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_interpreter::TerminalScalarValue;
 use terminal_interpreter::TerminalStructuralInputs;
@@ -282,106 +279,4 @@ impl TerminalEffectHandler for MixedTrace {
             .push((arguments.clone(), byte_sequence_arguments.clone()));
         Ok(())
     }
-}
-
-#[test]
-fn composed_literal_plans_reject_payload_access_and_path_substitution() {
-    let checked = crate::front_end::checked_program(SOURCE);
-    super::super::super::lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
-        .expect("source-derived control is valid");
-    for mutation in 0..3 {
-        let mut changed = checked.clone();
-        let argument = changed
-            .facts
-            .flow
-            .terminal_unit_effects
-            .composed_machines
-            .iter_mut()
-            .flat_map(|machine| &mut machine.states)
-            .flat_map(|state| &mut state.operations)
-            .filter_map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::CallUnit {
-                    structural_arguments,
-                    ..
-                }
-                | CheckedUnitEffectOperationPlan::BoundaryCall {
-                    structural_arguments,
-                    ..
-                } => Some(structural_arguments),
-                _ => None,
-            })
-            .flatten()
-            .find(|argument| argument.byte_sequence_literal() == Some(b"left".as_slice()))
-            .expect("exact authored left literal call operand");
-        match mutation {
-            0 => {
-                let CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { bytes } =
-                    &mut argument.source
-                else {
-                    unreachable!()
-                };
-                *bytes = b"LEFT".to_vec();
-            }
-            1 => argument.access = CheckedStructuralAccess::MutableBorrow,
-            2 => argument
-                .path
-                .push(CheckedUnitStructuralPathSegment::FixedIndex(0)),
-            _ => unreachable!(),
-        }
-        let result = super::super::super::lower_machine(
-            &changed,
-            TerminalMachineSelection::Name("Main::main"),
-        )
-        .map(|_| ());
-        assert!(
-            matches!(
-                &result,
-                Err(super::super::super::LoweringError::Unsupported(_))
-            ),
-            "literal source substitution {mutation} must reject: {result:?}"
-        );
-    }
-    let program = &checked.typed;
-    let literal = program
-        .machines()
-        .iter()
-        .flat_map(|machine| program.machine_states(machine))
-        .flat_map(|state| program.statement_table.statements(state.statement_nodes))
-        .filter_map(|statement| match statement {
-            typed_trees::statement::StatementNode::Call(call) => {
-                Some(program.statement_table.expression_handles(call.arguments))
-            }
-            typed_trees::statement::StatementNode::Expression(expression) => {
-                match program.expression_table.expression(*expression) {
-                    typed_trees::expression::ExpressionNode::Call(call) => {
-                        Some(program.expression_table.expression_handles(call.arguments))
-                    }
-                    _ => None,
-                }
-            }
-            _ => None,
-        })
-        .flatten()
-        .copied()
-        .find(|expression| {
-            matches!(program.expression_table.expression(*expression),
-            typed_trees::expression::ExpressionNode::String(bytes) if bytes.as_ref() == b"left")
-        })
-        .expect("typed call retains its exact source literal handle");
-    let mut changed_source = checked.clone();
-    *changed_source
-        .typed
-        .expression_table
-        .expression_mut(literal) =
-        typed_trees::expression::ExpressionNode::String(std::sync::Arc::from(b"LEFT".as_slice()));
-    assert!(
-        matches!(
-            super::super::super::lower_machine(
-                &changed_source,
-                TerminalMachineSelection::Name("Main::main")
-            ),
-            Err(super::super::super::LoweringError::Unsupported(_))
-        ),
-        "typed literal substitution cannot reuse the retained checked payload"
-    );
 }

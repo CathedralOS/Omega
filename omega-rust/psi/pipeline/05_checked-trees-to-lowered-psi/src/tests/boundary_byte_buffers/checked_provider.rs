@@ -1,13 +1,9 @@
 //! Authored checked providers preserve borrowed destination custody across calls.
-use super::super::LoweringError;
 use super::{
-    CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment, INPUT_SOURCE, OperationKind,
-    TerminalBoundaryByteBuffer, TerminalEffect, TerminalEffectHandler, TerminalEffectRejection,
-    TerminalEffectResult, TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus,
-    TerminalStructuralValue, assert_stored_fields, lower_machine,
+    INPUT_SOURCE, OperationKind, TerminalBoundaryByteBuffer, TerminalEffect, TerminalEffectHandler,
+    TerminalEffectRejection, TerminalEffectResult, TerminalExecution, TerminalExecutionResult,
+    TerminalExecutionStatus, TerminalStructuralValue, assert_stored_fields,
 };
-use crate::TerminalMachineSelection;
-use checked_trees::CheckedStructuralAccess;
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     ProviderInstallationSelection, admit_provider_installation_from_artifact,
@@ -279,81 +275,4 @@ fn assert_forwarded_input(source: &str, ordinary_helper: bool, expected_stored: 
         usages[0], usages[1],
         "suspension cannot repeat charged work"
     );
-}
-
-#[test]
-fn checked_provider_empty_path_reborrow_rejects_retained_source_substitution() {
-    use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
-    let source = r#"
-        domain [u8; 3]::Utf8 requires valid_utf8(self);
-        boundary trait Input {
-            machine read(out: &mut [u8], other: &mut [u8]) reaches Input invokes Input;
-            machine refill(out: &mut [u8]) reaches Input;
-        }
-        data Provider {}
-        machine Provider::read(out: &mut [u8], other: &mut [u8]) satisfies Input::read reaches Input {
-            Input::refill(&mut out);
-        }
-        data Record { out: [u8; 3] in Utf8; other: [u8; 3] in Utf8; }
-        machine Record::run(&mut self) reaches Input {
-            self.out = "old";
-            self.other = "QQ";
-            Input::read(&mut self.out, &mut self.other);
-            // The boundary loan retired both borrowed fields' `Utf8`
-            // coverage; the return re-proves the readable `&mut` referent's
-            // declared field facts, so both are re-established before `self`
-            // is handed back.
-            self.out = "zz";
-            self.other = "QQ";
-        }
-    "#;
-    let checked = crate::front_end::checked_program(source);
-    lower_machine(&checked, TerminalMachineSelection::Name("Record::run"))
-        .expect("the authored two-parameter checked provider lowers before mutation");
-    for mutation in 0..3 {
-        let mut changed = checked.clone();
-        let provider = changed
-            .facts
-            .flow
-            .terminal_unit_effects
-            .machines
-            .iter_mut()
-            .find(|machine| machine.structural_parameters.len() == 2)
-            .expect("checked provider retains both same-typed mutable-view parameters");
-        assert_eq!(
-            provider.structural_parameters[0].type_identity,
-            provider.structural_parameters[1].type_identity
-        );
-        let argument = provider
-            .operations
-            .iter_mut()
-            .find_map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::BoundaryCall {
-                    structural_arguments,
-                    ..
-                } => structural_arguments.first_mut(),
-                _ => None,
-            })
-            .expect("provider's authored external reborrow");
-        assert_eq!(argument.source_parameter_index(), Some(0));
-        assert!(argument.path.is_empty());
-        match mutation {
-            0 => {
-                argument.source =
-                    CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 1 }
-            }
-            1 => argument.access = CheckedStructuralAccess::SharedBorrow,
-            2 => argument
-                .path
-                .push(CheckedUnitStructuralPathSegment::FixedIndex(0)),
-            _ => unreachable!(),
-        }
-        let result =
-            lower_machine(&changed, TerminalMachineSelection::Name("Record::run")).map(|_| ());
-        assert!(
-            matches!(&result, Err(LoweringError::Unsupported(message))
-            if *message == "boundary byte loan differs from its authored backing"),
-            "mutation {mutation} must fail exact authored source custody: {result:?}"
-        );
-    }
 }

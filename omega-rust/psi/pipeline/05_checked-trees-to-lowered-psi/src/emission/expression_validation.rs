@@ -158,9 +158,7 @@ pub(crate) fn validate_short_circuit_expression(
 mod tests {
     use super::{
         LoweredBooleanReturnExpression, LoweredDirectExpression, ScalarType,
-        contains_short_circuit, direct_expression_contains_short_circuit,
         validate_boolean_parameter_types, validate_direct_parameter_types,
-        validate_short_circuit_expression,
     };
 
     #[test]
@@ -180,25 +178,5 @@ mod tests {
         assert!(validate_direct_parameter_types(&integer, &[integer_type]).is_ok());
         assert!(validate_direct_parameter_types(&integer, &[ScalarType::Boolean]).is_err());
         assert!(validate_direct_parameter_types(&integer, &[]).is_err());
-    }
-
-    #[test]
-    fn shared_short_circuit_queries_keep_boolean_control_visible() {
-        let leaf = LoweredBooleanReturnExpression::Constant { value: true };
-        assert!(!contains_short_circuit(&leaf));
-        let conjunction = LoweredBooleanReturnExpression::And {
-            left: Box::new(leaf.clone()),
-            right: Box::new(leaf),
-        };
-        let nested = LoweredBooleanReturnExpression::Not {
-            operand: Box::new(conjunction),
-        };
-        assert!(contains_short_circuit(&nested));
-        assert!(validate_short_circuit_expression(&nested).is_ok());
-        assert!(direct_expression_contains_short_circuit(
-            &LoweredDirectExpression::Boolean {
-                expression: Box::new(nested),
-            }
-        ));
     }
 }

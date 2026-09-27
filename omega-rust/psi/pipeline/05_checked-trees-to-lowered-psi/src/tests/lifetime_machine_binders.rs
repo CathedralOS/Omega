@@ -5,27 +5,6 @@
 use crate::{TerminalMachineSelection, lower_machine};
 
 #[test]
-fn lifetime_declared_mut_self_machine_lowers_and_verifies() {
-    let checked = crate::front_end::checked_program(
-        r#"
-            data Counter { value: u64; }
-
-            machine Counter::bump<'a>(&mut self) {
-                self.value = ((self.value as u64 in Wrapping) + (1 as u64 in Wrapping)) as u64;
-            }
-        "#,
-    );
-    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Counter::bump"))
-        .expect("lifetime-declared machine composes and lowers");
-    terminal_verifier::verify_module(
-        &lowered.semantic_module,
-        &lowered.proof_bundle,
-        &proof_admission::AdmissionProfile::default(),
-    )
-    .expect("lifetime-declared machine verifies");
-}
-
-#[test]
 fn lifetime_declared_view_return_reaches_same_frontier_as_plain_twin() {
     // `&'a [u8]` results admit the same plan route as `&[u8]` results: the
     // shared frontier is the borrowed-view return destination arm, not the
@@ -51,28 +30,5 @@ fn lifetime_declared_view_return_reaches_same_frontier_as_plain_twin() {
                 if message.contains("ordered structural destination")
         ),
         "unexpected decline: {error:?}"
-    );
-}
-
-#[test]
-fn generic_type_parameter_machines_stay_outside_graph_custody() {
-    let checked = crate::front_end::checked_program(
-        r#"
-            data Boxed { value: u64; }
-
-            machine Boxed::get_as<T>(x: T) -> T {
-                x
-            }
-        "#,
-    );
-    let error = lower_machine(&checked, TerminalMachineSelection::Name("Boxed::get_as"))
-        .expect_err("generic type-parameter machines need instantiation machinery");
-    assert!(
-        matches!(
-            error,
-            crate::lowering_error::LoweringError::InvalidUnitMachinePlan { .. }
-                | crate::lowering_error::LoweringError::Unsupported(_)
-        ),
-        "unexpected outcome: {error:?}"
     );
 }

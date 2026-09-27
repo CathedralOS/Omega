@@ -48,21 +48,6 @@ const PRODUCED_SOURCE: &str = r#"
     }
 "#;
 
-const EMPTY_PRODUCER_SOURCE: &str = r#"
-    trait Evidence<T> {}
-
-    proposition ready<T>() evidence Evidence<T>;
-
-    ConcreteEvidence: satisfies Evidence<i32> {}
-
-    data Root {}
-    machine Root::produce()
-    ensures outgoing: ready<i32>()
-    {
-        outgoing = ConcreteEvidence;
-    }
-"#;
-
 const PROOF_OUTPUT_SOURCE: &str = r#"
     trait Evidence {}
     proposition ready() evidence Evidence;
@@ -369,39 +354,6 @@ const STATIC_REQUIREMENT_BOOL_RUNTIME_BASELINE_SOURCE: &str = r#"
     }
 "#;
 
-const ORDINARY_ATTACHED_SCALAR_SOURCE: &str = r#"
-    data Root {}
-
-    machine Root::f(value: i64) -> bool
-    requires true == true
-    ensures true == true
-    {
-        true
-    }
-"#;
-
-const DUPLICATE_ARGUMENTED_PROOF_OUTPUT_SOURCE: &str = r#"
-    trait Evidence {}
-    proposition ready() evidence Evidence;
-    data Root {}
-
-    machine Root::produce()
-    requires first: ready()
-    requires second: ready()
-    ensures copied: ready()
-    {
-        copied = second;
-    }
-
-    machine Root::relay()
-    requires source: ready()
-    ensures relayed: ready()
-    {
-        let (; copied: local) = Root::produce(; source, source);
-        relayed = local;
-    }
-"#;
-
 const RUNTIME_UNIT_PROOF_OUTPUT_SOURCE: &str = r#"
     trait Evidence {}
     proposition ready() evidence Evidence;
@@ -528,54 +480,6 @@ const REPEATED_MULTI_FIELD_PROOF_OUTPUT_SOURCE: &str = r#"
         let (; first: local_second_one, second: local_second_two) = Root::produce();
         second_one = local_second_one;
         second_two = local_second_two;
-    }
-"#;
-
-const REPEATED_PROOF_OUTPUT_SOURCE: &str = r#"
-    trait Evidence {}
-    proposition ready() evidence Evidence;
-    ConcreteEvidence: satisfies Evidence {}
-
-    data Root {}
-    machine Root::produce()
-    ensures outgoing: ready()
-    {
-        outgoing = ConcreteEvidence;
-    }
-
-    machine Root::relay()
-    ensures first: ready()
-    ensures second: ready()
-    {
-        let (; outgoing: local_first) = Root::produce();
-        first = local_first;
-        let (; outgoing: local_second) = Root::produce();
-        second = local_second;
-    }
-"#;
-
-const DISTINCT_PROOF_OUTPUT_PRODUCERS_SOURCE: &str = r#"
-    trait Evidence {}
-    proposition ready() evidence Evidence;
-    ConcreteEvidence: satisfies Evidence {}
-
-    data Root {}
-    machine Root::produce_first()
-    ensures outgoing: ready()
-    { outgoing = ConcreteEvidence; }
-
-    machine Root::produce_second()
-    ensures outgoing: ready()
-    { outgoing = ConcreteEvidence; }
-
-    machine Root::relay()
-    ensures first: ready()
-    ensures second: ready()
-    {
-        let (; outgoing: local_first) = Root::produce_first();
-        first = local_first;
-        let (; outgoing: local_second) = Root::produce_second();
-        second = local_second;
     }
 "#;
 

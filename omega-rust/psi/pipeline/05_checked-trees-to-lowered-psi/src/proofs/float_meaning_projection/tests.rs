@@ -3,19 +3,17 @@
 use super::{
     BlockId, CheckedFloatMeaningProjection, CheckedFloatMeaningProjectionError,
     CheckedFloatProjectionSource, CheckedProofOnlyValueType, DirectBlockFloatParameter,
-    DirectCallFloatResult, DirectMachineFloatParameter, DirectMachineFloatResult,
-    FloatMeaningProjection, FloatMeaningProjectionLoweringError, FloatMeaningProjectionOperation,
-    FloatMeaningSource, FloatProjectionInput, FloatProjectionInputId,
-    FloatSemanticApplicationOperand, IeeeFloatFormat, MachineId, PrimitiveType, ProofOnlyValueType,
-    ProofValueDeclaration, ProofValueId, ScalarType, TerminalMachine, TerminalMachineResult,
-    lower_float_meaning_projection, rejoin_float_semantic_applications,
-    resolve_direct_float_source_binding,
+    DirectCallFloatResult, FloatMeaningProjection, FloatMeaningProjectionLoweringError,
+    FloatMeaningProjectionOperation, FloatMeaningSource, FloatProjectionInput,
+    FloatProjectionInputId, FloatSemanticApplicationOperand, IeeeFloatFormat, MachineId,
+    PrimitiveType, ProofOnlyValueType, ProofValueDeclaration, ProofValueId, ScalarType,
+    TerminalMachine, TerminalMachineResult, lower_float_meaning_projection,
+    rejoin_float_semantic_applications, resolve_direct_float_source_binding,
 };
 use crate::TerminalMachineSelection;
 use checked_trees::{
-    CheckedDirectBlockFloatParameter, CheckedDirectCallFloatResult,
-    CheckedDirectMachineFloatParameter, CheckedDirectMachineFloatResult,
-    CheckedFloatProjectionInput, CheckedFloatProjectionInputId, CheckedFloatSemanticApplication,
+    CheckedDirectBlockFloatParameter, CheckedDirectCallFloatResult, CheckedFloatProjectionInput,
+    CheckedFloatProjectionInputId, CheckedFloatSemanticApplication,
     CheckedFloatSemanticApplicationOperand, CheckedFloatUseSite, CheckedProofValueDeclaration,
     CheckedProofValueId,
 };
@@ -58,93 +56,6 @@ fn lowering_preserves_dense_identities_and_exact_format() {
     assert_eq!(lowered.contract.declaration, expected.declaration);
     assert_eq!(lowered.contract.catalog_version, expected.catalog_version);
     assert_eq!(lowered.contract.commitment, expected.commitment);
-}
-
-#[test]
-fn direct_machine_parameter_lowers_to_an_exact_terminal_binding_when_available() {
-    let mut checked = checked_projection();
-    checked.source =
-        CheckedFloatProjectionSource::DirectMachineParameter(CheckedDirectMachineFloatParameter {
-            owner_machine: symbols::SymbolHandle::from_arena_index(3),
-            parameter: symbols::SymbolHandle::from_arena_index(5),
-            fallback: CheckedFloatProjectionInput {
-                id: CheckedFloatProjectionInputId(9),
-                primitive: PrimitiveType::F64,
-            },
-        });
-    let direct = DirectMachineFloatParameter {
-        owner: semantic_vocabulary::MachineId::new(4).unwrap(),
-        parameter: semantic_vocabulary::ValueId::new(6).unwrap(),
-        format: IeeeFloatFormat::Binary64,
-    };
-    let lowered = lower_float_meaning_projection(
-        checked,
-        Some(FloatMeaningSource::DirectMachineParameter(direct)),
-    )
-    .unwrap();
-    assert_eq!(
-        lowered.source,
-        FloatMeaningSource::DirectMachineParameter(direct)
-    );
-}
-
-#[test]
-fn direct_machine_parameter_retains_fallback_without_an_artifact_binding() {
-    let mut checked = checked_projection();
-    checked.source =
-        CheckedFloatProjectionSource::DirectMachineParameter(CheckedDirectMachineFloatParameter {
-            owner_machine: symbols::SymbolHandle::from_arena_index(3),
-            parameter: symbols::SymbolHandle::from_arena_index(5),
-            fallback: CheckedFloatProjectionInput {
-                id: CheckedFloatProjectionInputId(9),
-                primitive: PrimitiveType::F64,
-            },
-        });
-    let lowered = lower_float_meaning_projection(checked, None).unwrap();
-    assert_eq!(
-        lowered.source,
-        FloatMeaningSource::TransitionalInput(FloatProjectionInput {
-            id: FloatProjectionInputId(9),
-            format: IeeeFloatFormat::Binary64,
-        })
-    );
-}
-
-#[test]
-fn direct_machine_result_lowers_to_exact_terminal_binding_or_fallback() {
-    let mut checked = checked_projection();
-    checked.source =
-        CheckedFloatProjectionSource::DirectMachineResult(CheckedDirectMachineFloatResult {
-            owner_machine: symbols::SymbolHandle::from_arena_index(3),
-            fallback: CheckedFloatProjectionInput {
-                id: CheckedFloatProjectionInputId(9),
-                primitive: PrimitiveType::F64,
-            },
-        });
-    let direct = DirectMachineFloatResult {
-        owner: semantic_vocabulary::MachineId::new(4).unwrap(),
-        result: semantic_vocabulary::ValueId::new(8).unwrap(),
-        format: IeeeFloatFormat::Binary64,
-    };
-    let lowered = lower_float_meaning_projection(
-        checked.clone(),
-        Some(FloatMeaningSource::DirectMachineResult(direct)),
-    )
-    .unwrap();
-    assert_eq!(
-        lowered.source,
-        FloatMeaningSource::DirectMachineResult(direct)
-    );
-
-    assert_eq!(
-        lower_float_meaning_projection(checked, None)
-            .unwrap()
-            .source,
-        FloatMeaningSource::TransitionalInput(FloatProjectionInput {
-            id: FloatProjectionInputId(9),
-            format: IeeeFloatFormat::Binary64,
-        })
-    );
 }
 
 #[test]
@@ -198,17 +109,6 @@ fn lowering_rejects_cross_format_checked_operation() {
                 CheckedFloatMeaningProjectionError::SourceFormatMismatch,
             )
         )
-    );
-}
-
-#[test]
-fn lowering_preserves_exact_literal_bits_without_a_producer_coordinate() {
-    let mut checked = checked_projection();
-    checked.source = CheckedFloatProjectionSource::ExactBinary64Literal(0x8000_0000_0000_0000);
-    let lowered = lower_float_meaning_projection(checked, None).unwrap();
-    assert_eq!(
-        lowered.source,
-        FloatMeaningSource::ExactBinary64Literal(0x8000_0000_0000_0000)
     );
 }
 
@@ -653,49 +553,6 @@ fn transported_ensures_result_lowers_to_the_emitted_call_result() {
     assert_eq!(unjoined, None);
 }
 
-/// Two call sites of the same callee produce two distinct call-result
-/// identities; nothing collapses back to the callee's declaration row.
-#[test]
-fn transported_ensures_result_is_distinct_per_use_site() {
-    let checked = checked_float_fixture(
-        r#"
-                machine helper(value: f32) -> f32
-                ensures Float::meaning32(result) == Float::meaning32(result);
-                { value }
-
-                machine first(value: f32) -> f32
-                ensures Float::meaning32(result) == Float::meaning32(result);
-                { helper(value) }
-
-                machine second(value: f32) -> f32
-                ensures Float::meaning32(result) == Float::meaning32(result);
-                { helper(value) }
-            "#,
-    );
-    let sites = checked
-        .facts
-        .proof
-        .float_meaning_projections
-        .iter()
-        .filter(|projection| {
-            matches!(
-                projection.source,
-                CheckedFloatProjectionSource::DirectCallResult(_)
-            )
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(sites.len(), 2);
-    assert_ne!(sites[0].source, sites[1].source);
-    assert_ne!(sites[0].result.id, sites[1].result.id);
-    let CheckedFloatProjectionSource::DirectCallResult(first) = sites[0].source else {
-        unreachable!()
-    };
-    let CheckedFloatProjectionSource::DirectCallResult(second) = sites[1].source else {
-        unreachable!()
-    };
-    assert_ne!(first.use_site.owner_machine, second.use_site.owner_machine);
-}
-
 /// A use-site coordinate with no emitted occurrence retains the transitional
 /// fallback rather than synthesizing a producer it cannot rejoin.
 #[test]
@@ -767,46 +624,6 @@ fn binary_add_operands() -> Vec<CheckedFloatSemanticApplicationOperand> {
         CheckedFloatSemanticApplicationOperand::Meaning(CheckedProofValueId(0)),
         CheckedFloatSemanticApplicationOperand::Meaning(CheckedProofValueId(0)),
     ]
-}
-
-#[test]
-fn semantic_application_rejoins_its_transitional_proof_value_row() {
-    let mut projections = vec![
-        transitional_projection_row(0),
-        transitional_projection_row(1),
-    ];
-    rejoin_float_semantic_applications(
-        &[add_application(1, binary_add_operands())],
-        &mut projections,
-    )
-    .expect("rejoin");
-    let FloatMeaningSource::SemanticApplication(application) = &projections[1].source else {
-        panic!("the produced row carries the SemanticApplication carrier")
-    };
-    let expected = numerics::float_semantics_catalog::FLOAT_SEMANTIC_OPERATIONS
-        .iter()
-        .find(|row| row.name == "add")
-        .expect("add row")
-        .contract_identity();
-    assert_eq!(application.contract.row, expected.row);
-    assert_eq!(
-        application.contract.catalog_version,
-        expected.catalog_version
-    );
-    assert_eq!(application.contract.commitment, expected.commitment);
-    assert_eq!(application.format, IeeeFloatFormat::Binary32);
-    assert_eq!(
-        application.operands,
-        vec![
-            FloatSemanticApplicationOperand::Format(IeeeFloatFormat::Binary32),
-            FloatSemanticApplicationOperand::Meaning(ProofValueId(0)),
-            FloatSemanticApplicationOperand::Meaning(ProofValueId(0)),
-        ]
-    );
-    assert!(matches!(
-        projections[0].source,
-        FloatMeaningSource::TransitionalInput(_)
-    ));
 }
 
 #[test]

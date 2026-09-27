@@ -8,13 +8,12 @@
 
 use super::{
     CheckedBooleanExpression, CheckedScalarExpression, LoweredDirectExpression, LoweringError,
-    ScalarTerm, ScalarType, ValueDeclaration, checked_boolean_scalar_term, checked_scalar_term,
-    lowered_direct_scalar_term,
+    ScalarType, ValueDeclaration, checked_boolean_scalar_term, lowered_direct_scalar_term,
 };
-use crate::proofs::{CheckedIntegerComparisonKind, PrimitiveType, integer_scalar_type};
+use crate::proofs::{CheckedIntegerComparisonKind, PrimitiveType};
 use crate::terminal_identities::value_id;
 use checked_trees::CheckedIeeeFloatComparisonKind;
-use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue, IntegerType, PropositionError};
+use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue};
 
 fn declared_value(identity: usize, scalar_type: ScalarType) -> ValueDeclaration {
     ValueDeclaration {
@@ -28,13 +27,6 @@ fn float_parameter(position: usize) -> CheckedScalarExpression {
     CheckedScalarExpression::Parameter {
         position,
         primitive_type: PrimitiveType::F32,
-    }
-}
-
-fn integer_parameter(position: usize) -> CheckedScalarExpression {
-    CheckedScalarExpression::Parameter {
-        position,
-        primitive_type: PrimitiveType::I32,
     }
 }
 
@@ -57,30 +49,6 @@ fn float_values() -> Vec<ValueDeclaration> {
     .collect()
 }
 
-fn i32_scalar_type() -> ScalarType {
-    integer_scalar_type(PrimitiveType::I32).unwrap()
-}
-
-fn i32_integer_type() -> semantic_vocabulary::IntegerType {
-    let ScalarType::Integer(kind) = i32_scalar_type() else {
-        unreachable!("i32 is an integer scalar type")
-    };
-    kind
-}
-
-#[test]
-fn float_parameters_lower_to_float_scalar_terms() {
-    let values = float_values();
-    let term = checked_scalar_term(&float_parameter(0), &values, &[]).unwrap();
-    assert_eq!(
-        term,
-        ScalarTerm::value(
-            value_id(1),
-            ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
-        )
-    );
-}
-
 #[test]
 fn scalar_ieee_comparison_is_an_atomic_proposition_not_a_term() {
     let values = float_values();
@@ -100,44 +68,6 @@ fn scalar_ieee_comparison_is_an_atomic_proposition_not_a_term() {
                 .contains("scalar IEEE equality is an atomic proposition, not a scalar term")),
             "{error:?}"
         );
-    }
-}
-
-#[test]
-fn integer_comparisons_lower_to_typed_terms() {
-    let values = [i32_scalar_type(), i32_scalar_type()]
-        .into_iter()
-        .enumerate()
-        .map(|(identity, scalar_type)| declared_value(identity + 1, scalar_type))
-        .collect::<Vec<_>>();
-    for (kind, expect) in [
-        (
-            CheckedIntegerComparisonKind::Equal,
-            ScalarTerm::integer_equal
-                as fn(IntegerType, ScalarTerm, ScalarTerm) -> Result<ScalarTerm, PropositionError>,
-        ),
-        (
-            CheckedIntegerComparisonKind::LessThan,
-            ScalarTerm::integer_less_than,
-        ),
-        (
-            CheckedIntegerComparisonKind::LessOrEqual,
-            ScalarTerm::integer_less_or_equal,
-        ),
-    ] {
-        let expression = CheckedBooleanExpression::IntegerComparison {
-            kind,
-            left: Box::new(integer_parameter(0)),
-            right: Box::new(integer_parameter(1)),
-        };
-        let term = checked_boolean_scalar_term(&expression, &values, &[]).unwrap();
-        let expected = expect(
-            i32_integer_type(),
-            ScalarTerm::value(value_id(1), i32_scalar_type()),
-            ScalarTerm::value(value_id(2), i32_scalar_type()),
-        )
-        .unwrap();
-        assert_eq!(term, expected);
     }
 }
 

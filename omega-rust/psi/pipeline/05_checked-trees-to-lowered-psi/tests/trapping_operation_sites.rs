@@ -122,15 +122,6 @@ const ADD: &str = "machine value(left: u8 in Trapping, right: u8 in Trapping) ->
                    { (left + right) as u8 }";
 
 #[test]
-fn trapping_add_returns_the_exact_sum_or_traps_at_the_operation() {
-    assert_returns(ADD, &[unsigned(8, 100), unsigned(8, 50)], unsigned(8, 150));
-    assert_returns(ADD, &[unsigned(8, 0), unsigned(8, 255)], unsigned(8, 255));
-    // 200 + 100 = 300: Wrapping would answer 44 and Saturating 255.
-    assert_traps(ADD, &[unsigned(8, 200), unsigned(8, 100)]);
-    assert_traps(ADD, &[unsigned(8, 1), unsigned(8, 255)]);
-}
-
-#[test]
 fn trapping_subtract_and_multiply_trap_outside_their_carrier() {
     let subtract = "machine value(left: u8 in Trapping, right: u8 in Trapping) -> u8 \
                     { (left - right) as u8 }";

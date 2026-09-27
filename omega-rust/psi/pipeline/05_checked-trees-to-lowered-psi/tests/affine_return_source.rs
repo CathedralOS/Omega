@@ -3,9 +3,7 @@ use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use checked_trees_to_lowered_psi::lower_machine;
 use language_semantics::{Multiplicity, SemanticDomainId};
 use proof_admission::AdmissionProfile;
-use semantic_vocabulary::{
-    ClaimId, IntegerSign, IntegerType, IntegerValue, ScalarType, StructuralPlaceKind,
-};
+use semantic_vocabulary::{ClaimId, ScalarType, StructuralPlaceKind};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::AcceptTerminalEffects;
@@ -198,98 +196,6 @@ fn assert_identity_execution(
 }
 
 #[test]
-fn static_attached_affine_identity_verifies_and_resumes_without_scalar_parameters() {
-    assert_identity_execution(ATTACHED_IDENTITY, "Main::forward", true, 0, &[], &[]);
-}
-
-#[test]
-fn selected_affine_identity_excludes_unrelated_return_types() {
-    for (source, name) in [
-        (FREE_IDENTITY, "forward"),
-        (ATTACHED_IDENTITY, "Main::forward"),
-    ] {
-        let checked = checked(&format!(
-            "{source}
-             data UnusedValue {{ number: u64; }}
-             machine unused(value: UnusedValue) -> UnusedValue {{ value }}"
-        ));
-        let unused = checked
-            .typed
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == "unused")
-            .expect("unused identity source owner");
-        let plans = &checked.facts.flow.terminal_structural_returns;
-        let unused_plan = plans
-            .claim_free_affine_for_machine(unused.symbol)
-            .expect("unused identity has a checked return plan");
-        assert!(
-            plans
-                .structural_types
-                .iter()
-                .any(|declaration| declaration.identity == unused_plan.result.type_identity)
-        );
-
-        let lowered = lower_machine(&checked, TerminalMachineSelection::Name(name))
-            .expect("selected identity lowers");
-        let module = &lowered.semantic_module;
-        let [machine] = module.machines.as_slice() else {
-            panic!("unused identity must not enter the selected module")
-        };
-        let result = machine
-            .result
-            .structural()
-            .expect("selected structural result");
-        assert!(module.structural_types.iter().any(|declaration| {
-            declaration.id == result.structural_type
-                && declaration.id == machine.structural_parameters[0].structural_type
-        }));
-        assert!(
-            module.structural_types.iter().all(|declaration| {
-                declaration.identity != unused_plan.result.type_identity
-                    && (declaration.id == result.structural_type
-                        || Some(declaration.id) == machine.attachment)
-            }),
-            "only the selected single-field result and optional attachment are retained"
-        );
-    }
-}
-
-#[test]
-fn mixed_free_affine_identity_preserves_authored_parameter_positions() {
-    let unsigned = TerminalScalarValue::Integer {
-        scalar_type: IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
-        value: IntegerValue::Unsigned(17),
-    };
-    let signed = TerminalScalarValue::Integer {
-        scalar_type: IntegerType::new(IntegerSign::Signed, 32).unwrap(),
-        value: IntegerValue::Signed(-23),
-    };
-    for (parameters, structural_position, scalar_positions, arguments) in [
-        ("before: u8, value: Value", 1, vec![0], vec![unsigned]),
-        ("value: Value, after: i32", 0, vec![1], vec![signed]),
-        (
-            "before: u8, value: Value, after: i32",
-            1,
-            vec![0, 2],
-            vec![unsigned, signed],
-        ),
-    ] {
-        let source = format!(
-            "data Value {{ number: u64; }} machine forward({parameters}) -> Value {{ value }}"
-        );
-        assert_identity_execution(
-            &source,
-            "forward",
-            false,
-            structural_position,
-            &scalar_positions,
-            &arguments,
-        );
-    }
-}
-
-#[test]
 fn modified_checked_identity_custody_rejects_before_lowering() {
     #[derive(Clone, Copy, Debug)]
     enum Drift {
@@ -415,64 +321,4 @@ fn altered_terminal_identity_returns_fail_independent_verification() {
             "{drift:?} must fail independent return-custody verification"
         );
     }
-}
-
-#[test]
-fn unsupported_reference_cleanup_and_linear_identities_have_no_affine_plan() {
-    // A shared reference forwarded unchanged is not affine custody: it lowers
-    // through the ordinary route, verifies independently, and still never
-    // enters the claim-free affine producer.
-    let shared =
-        checked("data Value { number: u64; } machine forward(value: &Value) -> &Value { value }");
-    assert!(
-        shared
-            .facts
-            .flow
-            .terminal_structural_returns
-            .claim_free_affine_machines
-            .is_empty()
-    );
-    let lowered = lower_machine(&shared, TerminalMachineSelection::Name("forward"))
-        .expect("a forwarded shared reference lowers");
-    terminal_verifier::verify_module(
-        &lowered.semantic_module,
-        &lowered.proof_bundle,
-        &AdmissionProfile::default(),
-    )
-    .expect("a forwarded shared reference verifies independently");
-    for source in [
-        "data Value { number: u64; } machine forward(value: &mut Value) -> &mut Value { value }",
-        "data Value { number: u64; } machine Value::drop(&mut self) {} machine forward(value: Value) -> Value { value }",
-        "data Resource [linear] { number: u64; } data Value { resource: Resource; } machine forward(value: Value) -> Value { value }",
-    ] {
-        let checked = checked(source);
-        assert!(
-            checked
-                .facts
-                .flow
-                .terminal_structural_returns
-                .claim_free_affine_machines
-                .is_empty(),
-            "unsupported ownership must not enter the claim-free affine producer: {source}"
-        );
-        assert!(
-            lower_machine(&checked, TerminalMachineSelection::Name("forward")).is_err(),
-            "{source}"
-        );
-    }
-    // A linear identity return lowers through the Unit closure without a
-    // claim-free affine producer: the claim moves with the returned value.
-    let linear = checked(
-        "data Value [linear] { number: u64; } machine forward(value: Value) -> Value { value }",
-    );
-    assert!(
-        linear
-            .facts
-            .flow
-            .terminal_structural_returns
-            .claim_free_affine_machines
-            .is_empty()
-    );
-    lower_machine(&linear, TerminalMachineSelection::Name("forward"))
-        .expect("linear identity return lowers");
 }

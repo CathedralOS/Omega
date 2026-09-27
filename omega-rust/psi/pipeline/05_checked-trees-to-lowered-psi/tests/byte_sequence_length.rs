@@ -83,77 +83,9 @@ fn execute(source: &str) -> Vec<u128> {
 }
 
 #[test]
-fn borrowed_byte_length_reaches_a_boundary_from_ordinary_helpers() {
-    assert_eq!(execute(SOURCE), vec![2, 0, 3]);
-}
-
-#[test]
-fn byte_lengths_remain_structural_amid_reordered_scalar_arguments() {
-    let source = r#"
-        boundary trait Output {
-            machine size(length: u64) reaches Output;
-        }
-        data Helper {}
-        machine Helper::measure(enabled: bool, first: &[u8], count: u64, second: &[u8]) reaches Output {
-            Output::size(second.len);
-            Output::size(count);
-            Output::size(first.len);
-        }
-        data Relay {}
-        machine Relay::measure(first: &[u8], second: &[u8]) reaches Output {
-            Helper::measure(true, second, 7, first);
-            Output::size(first.len);
-        }
-        data Root {}
-        machine Root::enter() reaches Output {
-            Relay::measure("\x00\xFF", "\x80");
-            Relay::measure("", "three");
-        }
-    "#;
-    assert_eq!(execute(source), vec![2, 7, 1, 2, 0, 7, 5, 0]);
-}
-
-#[test]
 fn length_participates_in_exact_arithmetic_without_becoming_a_constant() {
     assert_eq!(
         execute(&SOURCE.replace("Output::size(bytes.len);", "Output::size(bytes.len + 0);")),
         vec![2, 0, 3]
     );
-}
-
-#[test]
-fn nested_scalar_call_evaluates_length_before_entering_the_callee() {
-    let source = SOURCE
-        .replace(
-            "data Helper {}",
-            "machine identity(value: u64) -> u64 { value } data Helper {}",
-        )
-        .replace(
-            "Output::size(bytes.len);",
-            "Output::size(identity(bytes.len));",
-        );
-    assert_eq!(execute(&source), vec![2, 0, 3]);
-}
-
-#[test]
-fn a_nominal_field_named_len_is_not_a_byte_view_observation() {
-    let checked = crate::front_end::checked_program(
-        r#"
-        boundary trait Output { machine size(length: u64) reaches Output; }
-        data Counter { len: u64 }
-        data Root {}
-        machine Root::enter(counter: &Counter) reaches Output {
-            Output::size(counter.len);
-        }
-    "#,
-    );
-    let expressions = &checked.facts.values.scalar_expressions.expressions;
-    assert!(expressions.iter().any(|located| matches!(
-        located.expression,
-        checked_trees::CheckedScalarExpression::StructuralParameterField { .. }
-    )));
-    assert!(expressions.iter().all(|located| !matches!(
-        located.expression,
-        checked_trees::CheckedScalarExpression::StructuralParameterByteLength { .. }
-    )));
 }

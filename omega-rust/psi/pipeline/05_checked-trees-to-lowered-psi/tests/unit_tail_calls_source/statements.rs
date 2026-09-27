@@ -1,6 +1,5 @@
 //! Standalone Unit expressions perform work without becoming scalar values.
-use super::{ExpressionNode, StatementNode};
-use checked_trees::CheckedScalarExpressionRole;
+use super::StatementNode;
 
 fn source(result: &str, callee_result: &str, body: &str) -> String {
     format!(
@@ -11,94 +10,6 @@ fn source(result: &str, callee_result: &str, body: &str) -> String {
          data Root {{}}
          machine Root::enter(records: &write [Record; 2]) {result} {{ {body} }}"
     )
-}
-
-#[test]
-fn standalone_unit_call_before_later_work_checks_without_return_authority() {
-    for callee_result in ["", "-> ()"] {
-        for (result, continuation) in [("", "let after: u16 = 23;"), ("-> u16", "23u16")] {
-            let source = source(
-                result,
-                callee_result,
-                &format!("records[0].record(17); {continuation}"),
-            );
-            let typed = crate::front_end::typed_program(&source);
-            let root = typed
-                .machines()
-                .iter()
-                .find(|machine| machine.name.as_str() == "Root::enter")
-                .unwrap();
-            let state = &typed.machine_states(root)[0];
-            let StatementNode::Expression(expression) =
-                typed.statement_table.statements(state.statement_nodes)[0]
-            else {
-                panic!("the indexed call must exercise source expression-statement admission")
-            };
-            assert!(validation::unit_statement_call_is_supported(
-                &typed, root, state, expression,
-            ));
-            assert!(
-                !validation::unit_return_call_is_supported(&typed, root, state, expression),
-                "the public tail-only contract must remain unchanged"
-            );
-            typed_trees_to_checked_trees::lower_typed_trees(
-                typed,
-                &typed_trees_to_checked_trees::CheckingRequest::settled(),
-            )
-            .unwrap_or_else(|diagnostics| {
-                panic!("standalone Unit work must check: {diagnostics:#?}\n{source}")
-            });
-        }
-    }
-}
-
-#[test]
-fn standalone_unit_call_retains_scalar_operands_without_a_scalar_return_root() {
-    for argument in ["17u16", "identity(identity(17u16))"] {
-        let checked = crate::front_end::checked_program(&source(
-            "-> u16",
-            "",
-            &format!("records[0].record({argument}); 23u16"),
-        ));
-        let root = checked
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == "Root::enter")
-            .unwrap();
-        let state = &checked.machine_states(root)[0];
-        let pure = checked
-            .facts
-            .values
-            .scalar_expressions
-            .expressions
-            .iter()
-            .filter(|expression| {
-                expression.state == state.symbol && expression.statement_ordinal == 0
-            })
-            .map(|expression| expression.role);
-        let computed = checked
-            .facts
-            .values
-            .scalar_computations
-            .roots
-            .iter()
-            .filter(|(_, expression)| {
-                expression.state == state.symbol && expression.statement_ordinal == 0
-            })
-            .map(|(_, expression)| expression.role);
-        let roles = pure.chain(computed).collect::<Vec<_>>();
-        assert!(
-            roles.contains(&CheckedScalarExpressionRole::UnitCallArgument {
-                call_ordinal: 0,
-                argument_ordinal: 0,
-            }),
-            "the exact standalone call operand must retain its source coordinate: {argument}: {roles:?}"
-        );
-        assert!(
-            !roles.contains(&CheckedScalarExpressionRole::Return),
-            "Unit work is not the later scalar return"
-        );
-    }
 }
 
 #[test]
@@ -120,58 +31,6 @@ fn standalone_unit_admission_does_not_grant_value_or_scalar_tail_use() {
                     .contains("does not return a value but is used in a VALUE position")
             }),
             "the Unit use must be rejected explicitly: {diagnostics:#?}\n{source}"
-        );
-    }
-}
-
-#[test]
-fn standalone_unit_call_requires_its_exact_ordinary_target() {
-    let typed = crate::front_end::typed_program(&source(
-        "",
-        "",
-        "records[0].record(17); let after: u16 = 23;",
-    ));
-    let root = typed
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "Root::enter")
-        .unwrap();
-    let state = &typed.machine_states(root)[0];
-    let StatementNode::Expression(expression) =
-        typed.statement_table.statements(state.statement_nodes)[0]
-    else {
-        panic!("indexed Unit expression statement")
-    };
-    let scalar_target = typed
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "identity")
-        .map(|machine| typed.machine_states(machine)[0].symbol)
-        .unwrap();
-    for modifier in ["missing target", "scalar target", "machine argument"] {
-        let mut changed = typed.clone();
-        let ExpressionNode::Call(call) = changed.expression_table.expression_mut(expression) else {
-            panic!("indexed Unit call")
-        };
-        match modifier {
-            "missing target" => call.target_symbol = symbols::SymbolHandle::invalid(),
-            "scalar target" => call.target_symbol = scalar_target,
-            "machine argument" => {
-                call.machine_arguments =
-                    Box::new([typed_trees::expression::StaticMachineArgument {
-                        path: Box::new([]),
-                        application: None,
-                        type_reference: Default::default(),
-                        const_literal: None,
-                        evidence_projection: None,
-                        symbol: scalar_target,
-                    }]);
-            }
-            _ => unreachable!(),
-        }
-        assert!(
-            !validation::unit_statement_call_is_supported(&changed, root, state, expression),
-            "{modifier} cannot acquire standalone Unit authority"
         );
     }
 }

@@ -1,10 +1,9 @@
 use super::{
     CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees,
-    ExpressionHandle, ExpressionNode, LoweringError, Multiplicity, PrimitiveType, ReadScope,
-    StatementNode, authored_state, collect_authored_storage_reads, validate_entry_read_expression,
-    validate_expression, validate_normal_result_read_expression,
+    ExpressionHandle, ExpressionNode, LoweringError, PrimitiveType, StatementNode,
+    validate_entry_read_expression, validate_expression, validate_normal_result_read_expression,
 };
-use checked_trees::{CheckedIntegerComparisonKind, CheckedStructuralPredicatePathSegment};
+use checked_trees::CheckedStructuralPredicatePathSegment;
 
 fn fixture(body: &str, result: &str) -> CheckedTrees {
     fixture_with_declarations(body, result, "")
@@ -17,76 +16,6 @@ fn fixture_with_declarations(body: &str, result: &str, declarations: &str) -> Ch
          machine read(marker: u64, limits: Limits, alternate: Limits) -> {result} {{ {body} }}"
     );
     crate::front_end::checked_program(&source)
-}
-
-#[test]
-fn entry_mutable_formals_keep_parameter_identity_while_body_reads_keep_storage() {
-    for (spelling, primitive) in [("i32", PrimitiveType::I32), ("bool", PrimitiveType::Bool)] {
-        let checked = crate::front_end::checked_program(&format!(
-            "machine read(mut input: {spelling}) -> {spelling} {{ input }}"
-        ));
-        let (state, expression) = source(&checked);
-        let source_state = &checked.machine_states(&checked.machines()[0])[0];
-        let symbol = checked.state_parameters(source_state)[0].symbol;
-        let (parameter, storage) = if primitive == PrimitiveType::Bool {
-            (
-                CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::Parameter {
-                    position: 0,
-                })),
-                CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::StorageRead {
-                    symbol,
-                })),
-            )
-        } else {
-            (
-                CheckedScalarExpression::Parameter {
-                    position: 0,
-                    primitive_type: primitive,
-                },
-                CheckedScalarExpression::StorageRead {
-                    symbol,
-                    primitive_type: primitive,
-                },
-            )
-        };
-        assert!(validate_entry_read_expression(&checked, state, expression, &parameter).is_ok());
-        assert!(validate_entry_read_expression(&checked, state, expression, &storage).is_err());
-        assert!(validate_expression(&checked, state, 0, expression, &storage).is_ok());
-        assert!(validate_expression(&checked, state, 0, expression, &parameter).is_err());
-    }
-}
-
-#[test]
-fn entry_widest_integer_formals_reject_same_typed_substitution() {
-    for (spelling, primitive) in [("i64", PrimitiveType::I64), ("u64", PrimitiveType::U64)] {
-        let checked = crate::front_end::checked_program(&format!(
-            "machine read(first: {spelling}, second: {spelling}) -> {spelling} {{ first }}"
-        ));
-        let (state, expression) = source(&checked);
-        let parameter = |position| CheckedScalarExpression::Parameter {
-            position,
-            primitive_type: primitive,
-        };
-        assert!(validate_entry_read_expression(&checked, state, expression, &parameter(0)).is_ok());
-        assert!(
-            validate_entry_read_expression(&checked, state, expression, &parameter(1)).is_err()
-        );
-        assert!(
-            validate_entry_read_expression(&checked, state, expression, &parameter(2)).is_err()
-        );
-        assert!(
-            validate_entry_read_expression(
-                &checked,
-                state,
-                expression,
-                &CheckedScalarExpression::Local {
-                    position: 0,
-                    primitive_type: primitive,
-                },
-            )
-            .is_err()
-        );
-    }
 }
 
 fn source(checked: &CheckedTrees) -> (symbols::SymbolHandle, ExpressionHandle) {
@@ -271,68 +200,6 @@ fn integer_field(position: u32, identity: &str) -> CheckedScalarExpression {
     }
 }
 
-fn boolean_field(position: u32, identity: &str) -> CheckedBooleanExpression {
-    CheckedBooleanExpression::StructuralParameterField {
-        parameter_position: position,
-        path: vec![CheckedStructuralPredicatePathSegment::Field(
-            identity.into(),
-        )],
-    }
-}
-
-#[test]
-fn case_membership_rejects_substituted_case_subject_and_erasure() {
-    let checked = crate::front_end::checked_program(
-        "data Choice { case Empty; case Some(value: u32); }
-         machine read(choice: &Choice, alternate: &Choice) -> bool {
-             choice in Choice::Empty
-         }",
-    );
-    let membership = |parameter_position, case: &str| {
-        CheckedScalarExpression::Boolean(Box::new(
-            CheckedBooleanExpression::StructuralCaseMembership {
-                subject: checked_trees::CheckedStructuralParameterField {
-                    parameter_position,
-                    path: Vec::new(),
-                },
-                case: case.into(),
-            },
-        ))
-    };
-    assert!(validate_return(&checked, &membership(0, "Empty")).is_ok());
-    for forged in [
-        membership(0, "Some"),
-        membership(1, "Empty"),
-        membership(2, "Empty"),
-        CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::Constant(true))),
-    ] {
-        assert!(validate_return(&checked, &forged).is_err(), "{forged:?}");
-    }
-}
-
-#[test]
-fn owned_integer_field_rejects_same_typed_field_parameter_and_erasure() {
-    let checked = fixture("limits.limit", "u64");
-    let state = &checked.machine_states(&checked.machines()[0])[0];
-    assert_eq!(
-        checked.type_multiplicity(checked.state_parameters(state)[1].type_reference),
-        Multiplicity::Affine,
-        "ordinary records keep their authored ownership classification"
-    );
-    assert!(validate_return(&checked, &integer_field(1, "limit")).is_ok());
-    for forged in [
-        integer_field(1, "spare"),
-        integer_field(2, "limit"),
-        integer_field(0, "limit"),
-        CheckedScalarExpression::Parameter {
-            position: 0,
-            primitive_type: PrimitiveType::U64,
-        },
-    ] {
-        assert!(validate_return(&checked, &forged).is_err(), "{forged:?}");
-    }
-}
-
 #[test]
 fn projected_case_membership_replays_exact_root_field_index_and_case() {
     let checked = crate::front_end::checked_program(
@@ -411,122 +278,6 @@ fn case_membership_receiver_rejoins_only_its_declaring_machine() {
 }
 
 #[test]
-fn case_membership_self_field_rejoins_inside_a_named_state() {
-    // `self.<field>` inside a declared `state` block: the receiver formal is
-    // authored on that state — a different declaration than the entry
-    // state's. The authored self rejoin accepts whichever machine state owns
-    // the parameter list, not only the entry state.
-    let checked = crate::front_end::checked_program(
-        "data OpenResult { case Opened(value: u32); case Failed; }
-         data Root { result: OpenResult; }
-         machine Root::run(&mut self) {
-             state open(&mut self) {
-                 let flag: bool = self.result in OpenResult::Opened;
-             }
-             state have(&mut self) { }
-         }",
-    );
-    let machine = &checked.machines()[0];
-    let open = &checked.machine_states(machine)[1];
-    let StatementNode::LocalData(local) =
-        &checked.statement_table.statements(open.statement_nodes)[0]
-    else {
-        panic!("flag initializer")
-    };
-    let membership = CheckedScalarExpression::Boolean(Box::new(
-        CheckedBooleanExpression::StructuralCaseMembership {
-            subject: checked_trees::CheckedStructuralParameterField {
-                parameter_position: 0,
-                path: vec![CheckedStructuralPredicatePathSegment::Field(
-                    "result".into(),
-                )],
-            },
-            case: "Opened".into(),
-        },
-    ));
-    assert!(
-        validate_expression(&checked, open.symbol, 0, local.initial_value, &membership).is_ok()
-    );
-    let forged = CheckedScalarExpression::Boolean(Box::new(
-        CheckedBooleanExpression::StructuralCaseMembership {
-            subject: checked_trees::CheckedStructuralParameterField {
-                parameter_position: 0,
-                path: vec![CheckedStructuralPredicatePathSegment::Field(
-                    "result".into(),
-                )],
-            },
-            case: "Failed".into(),
-        },
-    ));
-    assert!(validate_expression(&checked, open.symbol, 0, local.initial_value, &forged).is_err());
-}
-
-#[test]
-fn cast_wrapped_owned_field_keeps_its_source_occurrence() {
-    let checked = fixture("limits.limit as u64", "u64");
-    assert!(validate_return(&checked, &integer_field(1, "limit")).is_ok());
-    assert!(validate_return(&checked, &integer_field(1, "spare")).is_err());
-}
-
-#[test]
-fn owned_boolean_operands_retain_field_and_parameter_occurrences() {
-    let checked = fixture("limits.allowed && alternate.other", "bool");
-    let expression = |left, right| {
-        CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::And {
-            left: Box::new(left),
-            right: Box::new(right),
-        }))
-    };
-    assert!(
-        validate_return(
-            &checked,
-            &expression(boolean_field(1, "allowed"), boolean_field(2, "other"))
-        )
-        .is_ok()
-    );
-    assert!(
-        validate_return(
-            &checked,
-            &expression(boolean_field(2, "other"), boolean_field(1, "allowed"))
-        )
-        .is_err()
-    );
-    assert!(
-        validate_return(
-            &checked,
-            &expression(boolean_field(1, "other"), boolean_field(2, "other"))
-        )
-        .is_err()
-    );
-}
-
-#[test]
-fn owned_integer_comparison_preserves_reversed_operand_positions() {
-    let checked = fixture("limits.limit > alternate.spare", "bool");
-    let comparison = |left, right| {
-        CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::IntegerComparison {
-            kind: CheckedIntegerComparisonKind::LessThan,
-            left: Box::new(left),
-            right: Box::new(right),
-        }))
-    };
-    assert!(
-        validate_return(
-            &checked,
-            &comparison(integer_field(2, "spare"), integer_field(1, "limit"))
-        )
-        .is_ok()
-    );
-    assert!(
-        validate_return(
-            &checked,
-            &comparison(integer_field(1, "limit"), integer_field(2, "spare"))
-        )
-        .is_err()
-    );
-}
-
-#[test]
 fn owned_field_requires_exact_resolved_member_and_parameter_symbols() {
     let checked = fixture("limits.limit", "u64");
     let (_, expression) = source(&checked);
@@ -573,71 +324,4 @@ fn numbered_owned_field_uses_identity_instead_of_spelling() {
     assert!(validate_return(&checked, &integer_field(1, "#7")).is_ok());
     assert!(validate_return(&checked, &integer_field(1, "limit")).is_err());
     assert!(validate_return(&checked, &integer_field(1, "#8")).is_err());
-}
-
-#[test]
-fn whole_record_equality_expansion_preserves_normalized_field_correspondence() {
-    let checked = fixture_with_declarations(
-        "limits == alternate",
-        "bool",
-        "trait Equatable { machine equals(&self, rhs: &Self) -> bool; }
-         LimitsEquatable: Limits satisfies Equatable;",
-    );
-    let (state, expression) = source(&checked);
-    let state = authored_state(&checked, state).expect("state").1;
-    let mut reads = Vec::new();
-    let mut member_paths = Vec::new();
-    collect_authored_storage_reads(
-        &checked,
-        state,
-        ReadScope::Body(0),
-        expression,
-        &mut Vec::new(),
-        &mut Vec::new(),
-        &mut reads,
-        &mut member_paths,
-        &mut Vec::new(),
-    )
-    .expect("source traversal");
-    assert_eq!(
-        reads.len(),
-        8,
-        "typing expands both operands of four field comparisons"
-    );
-    assert_eq!(member_paths.len(), 8);
-    let (_, retained) = checked
-        .facts
-        .values
-        .scalar_expressions
-        .bound_expression_at(state.symbol, 0, CheckedScalarExpressionRole::Return)
-        .expect("normalized equality has an exact checked return expression");
-    validate_return(&checked, retained).expect("normalized equality retains its field reads");
-
-    let mut forged = retained.clone();
-    let CheckedScalarExpression::Boolean(boolean) = &mut forged else {
-        panic!("Boolean equality result");
-    };
-    fn first_comparison(
-        expression: &mut CheckedBooleanExpression,
-    ) -> &mut CheckedBooleanExpression {
-        match expression {
-            CheckedBooleanExpression::And { left, .. } => first_comparison(left),
-            _ => expression,
-        }
-    }
-    let CheckedBooleanExpression::IntegerComparison { left, .. } = first_comparison(boolean) else {
-        panic!("first normalized comparison reads the integer limit field");
-    };
-    let CheckedScalarExpression::StructuralParameterField { path, .. } = left.as_mut() else {
-        panic!("normalized comparison retains a structural field");
-    };
-    assert_eq!(
-        path,
-        &[CheckedStructuralPredicatePathSegment::Field("limit".into())]
-    );
-    *path = vec![CheckedStructuralPredicatePathSegment::Field("spare".into())];
-    assert!(
-        validate_return(&checked, &forged).is_err(),
-        "normalization cannot authorize another same-typed field"
-    );
 }

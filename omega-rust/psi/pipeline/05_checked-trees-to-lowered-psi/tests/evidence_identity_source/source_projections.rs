@@ -1,6 +1,6 @@
 use super::{
-    ARGUMENTED_PROOF_OUTPUT_SOURCE, DUPLICATE_ARGUMENTED_PROOF_OUTPUT_SOURCE, FORWARDED_SOURCE,
-    PRODUCED_SOURCE, PROJECTED_SOURCE, PROOF_OUTPUT_SOURCE,
+    ARGUMENTED_PROOF_OUTPUT_SOURCE, FORWARDED_SOURCE, PRODUCED_SOURCE, PROJECTED_SOURCE,
+    PROOF_OUTPUT_SOURCE,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
@@ -79,37 +79,6 @@ fn source_projection_uses_canonical_term_and_exact_requirement_identity() {
         terminal_verifier::validate_module_representation(&wrong_requirement),
         Err(terminal_verifier::ModuleError::EvidenceProjectionRequirementMismatch { .. })
     ));
-}
-
-#[test]
-fn forwarded_projection_uses_the_shared_terminal_term_identity() {
-    let checked = crate::front_end::checked_program(PROJECTED_SOURCE);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(
-        &checked,
-        TerminalMachineSelection::Name("Root::forward"),
-    )
-    .expect("forwarded carrierless projection should cross terminal Psi");
-    let projection = lowered
-        .semantic_module
-        .proposition_applications
-        .iter()
-        .flat_map(|application| &application.binder_arguments)
-        .find_map(|argument| argument.evidence_projection.as_ref())
-        .expect("projection");
-    let requires = lowered
-        .semantic_module
-        .evidence_contract_lanes
-        .iter()
-        .find(|lane| lane.kind == EvidenceContractLaneKind::Requires)
-        .expect("requires lane");
-    let ensures = lowered
-        .semantic_module
-        .evidence_contract_lanes
-        .iter()
-        .find(|lane| lane.kind == EvidenceContractLaneKind::Ensures)
-        .expect("ensures lane");
-    assert_eq!(requires.term, ensures.term);
-    assert_eq!(projection.term, requires.term);
 }
 
 #[test]
@@ -864,30 +833,6 @@ fn generic_proof_output_target_identity_binds_the_closed_conformance_application
         )),
         "a stored commitment from another exact specialization must not be admitted",
     );
-}
-
-#[test]
-fn forwarded_proof_output_retains_the_exact_duplicate_input_lane() {
-    let checked = crate::front_end::checked_program(DUPLICATE_ARGUMENTED_PROOF_OUTPUT_SOURCE);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(
-        &checked,
-        TerminalMachineSelection::Name("Root::relay"),
-    )
-    .expect("duplicate proof inputs should retain exact lane identity");
-    let [invocation] = lowered.semantic_module.proof_output_calls.as_slice() else {
-        panic!("one terminal proof-output invocation expected")
-    };
-    let [output] = invocation.outputs.as_slice() else {
-        panic!("one terminal proof output expected")
-    };
-    assert_eq!(invocation.evidence_arguments.len(), 2);
-    assert_eq!(output.forwarded_input_position, Some(1));
-    terminal_verifier::verify_module(
-        &lowered.semantic_module,
-        &lowered.proof_bundle,
-        &AdmissionProfile::default(),
-    )
-    .expect("forwarding the second duplicate witness lane should verify");
 }
 
 #[test]

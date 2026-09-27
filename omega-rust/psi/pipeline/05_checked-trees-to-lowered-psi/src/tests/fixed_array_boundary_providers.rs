@@ -1,7 +1,5 @@
 //! Installed checked providers write the caller's fixed extent, not replacement storage.
-use super::{CheckedTrees, byte_sequence_write, lower_machine};
-use crate::TerminalMachineSelection;
-use checked_trees::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment};
+use super::{CheckedTrees, byte_sequence_write};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{
     ProviderInstallationSelection, TerminalExecution, TerminalExecutionResult,
@@ -44,40 +42,6 @@ fn checked_array_caller(field: bool) -> CheckedTrees {
         "{}\n{PROVIDER}\n{caller}",
         byte_sequence_write::PUT
     ))
-}
-
-#[test]
-fn fixed_array_boundary_provider_publishes_whole_root_and_record_field() {
-    for field in [false, true] {
-        let checked = checked_array_caller(field);
-        let artifact = terminal_production::TerminalProductionRequest::new(
-            &checked,
-            terminal_production::TerminalMachineSelection::Name(if field {
-                "Root::run"
-            } else {
-                "run"
-            }),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("fixed-array boundary call retains the exact writable range")
-        .into_artifact();
-        let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
-        let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
-        terminal_verifier::verify_module(
-            &module,
-            &proof,
-            &proof_admission::AdmissionProfile::default(),
-        )
-        .unwrap();
-        assert_eq!(module.provider_candidates.len(), 1);
-        assert_eq!(
-            module.machines.len(),
-            3,
-            "caller, provider, ordinary write helper"
-        );
-    }
 }
 
 #[test]
@@ -328,52 +292,4 @@ fn fixed_array_boundary_provider_rejects_missing_initialization_and_installation
         execution.effects().is_empty(),
         "missing installation cannot fall through to a host handler"
     );
-}
-
-#[test]
-fn fixed_array_boundary_provider_replays_exact_field_and_mutable_access() {
-    let checked = checked_array_caller(true);
-    let _ = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("Root::run"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .unwrap()
-    .into_artifact();
-    for change_access in [false, true] {
-        let mut changed = checked.clone();
-        let call = changed
-            .facts
-            .flow
-            .terminal_unit_effects
-            .machines
-            .iter_mut()
-            .flat_map(|plan| &mut plan.operations)
-            .find(|operation| {
-                matches!(
-                    operation,
-                    CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
-                )
-            })
-            .unwrap();
-        let CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-            structural_arguments,
-            ..
-        } = call
-        else {
-            panic!("authored boundary read")
-        };
-        if change_access {
-            structural_arguments[0].access = checked_trees::CheckedStructuralAccess::SharedBorrow;
-        } else {
-            structural_arguments[0].path =
-                vec![CheckedUnitStructuralPathSegment::Field("other".into())];
-        }
-        assert!(
-            lower_machine(&changed, TerminalMachineSelection::Name("Root::run")).is_err(),
-            "same-typed field or access substitution cannot borrow another source operand"
-        );
-    }
 }

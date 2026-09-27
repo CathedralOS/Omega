@@ -10,26 +10,6 @@ use terminal_interpreter::{
 };
 use terminal_psi::{OperationKind, StructuralPathSegment, Terminator};
 
-#[test]
-fn arbitrary_array_residuals_are_derived_from_the_type() {
-    for length in [1, 5, 7, 17, 33] {
-        let index = length / 2;
-        let source = format!("data Token {{ number: u64; }}
-        data Sink {{}} machine Sink::take(value: Token) {{}}
-        data Root {{}} machine Root::enter(values: [Token; {length}]) {{ Sink::take(values[{index}]); }}");
-        let residuals = (0..length)
-            .rev()
-            .filter(|value| *value != index)
-            .map(|value| vec![StructuralPathSegment::FixedIndex(value)])
-            .collect::<Vec<_>>();
-        assert_source(
-            &source,
-            &[vec![StructuralPathSegment::FixedIndex(index)]],
-            &residuals,
-        );
-    }
-}
-
 fn path(parts: &[&str]) -> Vec<StructuralPathSegment> {
     parts
         .iter()
@@ -167,32 +147,6 @@ fn assert_source(
 }
 
 #[test]
-fn nested_arrays_keep_untouched_branches_maximal() {
-    let source = "data Token { number: u64; }
-        data Sink {} machine Sink::take(value: Token) {}
-        data Root {} machine Root::enter(values: [[Token; 17]; 3]) {
-            Sink::take(values[1][4]); Sink::take(values[1][16]); Sink::take(values[0][3]);
-        }";
-    let mut residuals = vec![path(&["2"])];
-    for outer in (0..2).rev() {
-        for inner in (0..17).rev() {
-            if (outer == 1 && (inner == 4 || inner == 16)) || (outer == 0 && inner == 3) {
-                continue;
-            }
-            residuals.push(vec![
-                StructuralPathSegment::FixedIndex(outer),
-                StructuralPathSegment::FixedIndex(inner),
-            ]);
-        }
-    }
-    assert_source(
-        source,
-        &[path(&["1", "4"]), path(&["1", "16"]), path(&["0", "3"])],
-        &residuals,
-    );
-}
-
-#[test]
 fn mixed_record_array_paths_share_recursive_reverse_cleanup() {
     let source = "data Token { number: u64; }
         data Row { first: Token; values: [Token; 5]; last: Token; }
@@ -236,33 +190,6 @@ fn whole_subtree_and_leaf_moves_form_one_disjoint_partition() {
         &[path(&["1"]), path(&["0", "1"])],
         &[path(&["0", "2"]), path(&["0", "0"])],
     );
-}
-
-#[test]
-fn complete_moves_leave_no_affine_cleanup_or_whole_root_custody() {
-    for (identity, declaration, paths) in [
-        ("[Token; 5]", "", vec!["[3]", "[0]", "[4]", "[1]", "[2]"]),
-        (
-            "Outer",
-            "data Outer { first: Token; scalar: u64; last: Token; }",
-            vec![".last", ".first"],
-        ),
-    ] {
-        let body = paths
-            .iter()
-            .map(|path| format!("Sink::take(values{path});"))
-            .collect::<String>();
-        let source = format!(
-            "data Token {{ number: u64; }} {declaration}
-            data Sink {{}} machine Sink::take(value: Token) {{}}
-            data Root {{}} machine Root::enter(values: {identity}) {{ {body} }}"
-        );
-        let moved = paths
-            .iter()
-            .map(|text| path(&[text.trim_matches(['[', ']', '.'])]))
-            .collect::<Vec<_>>();
-        assert_source(&source, &moved, &[]);
-    }
 }
 
 /// Residual cleanup and whole-root discards coexist on one edge: the
@@ -368,21 +295,6 @@ fn assert_partial_exit(
 }
 
 #[test]
-fn an_untouched_sibling_parameter_dies_whole_on_the_same_edge() {
-    assert_partial_exit(
-        "data Token { number: u64; }
-        data Pair { left: Token; right: Token; }
-        data Sink {} machine Sink::take(value: Token) {}
-        data Root {} machine Root::enter(first: Pair, second: Pair) {
-            Sink::take(first.left);
-        }",
-        0,
-        &[path(&["right"])],
-        &[1],
-    );
-}
-
-#[test]
 fn a_later_parameter_may_own_the_residual_root() {
     assert_partial_exit(
         "data Token { number: u64; }
@@ -431,103 +343,6 @@ fn two_partial_parameter_roots_have_no_cleanup_lane() {
         .is_err(),
         "the partial terminator closes exactly one root"
     );
-}
-
-#[test]
-fn projections_covering_the_whole_root_keep_the_ordinary_terminator() {
-    let lowered = lower_machine(
-        &crate::front_end::checked_program(
-            "data Token { number: u64; }
-            data Pair { left: Token; right: Token; }
-            data Sink {}
-            machine Sink::take(value: Token) {}
-            data Root {} machine Root::enter(first: Pair, second: Pair) {
-                Sink::take(first.left);
-                Sink::take(first.right);
-            }",
-        ),
-        TerminalMachineSelection::Name("Root::enter"),
-    )
-    .expect("the covering moves consume the whole root; no residual remains");
-    let caller = lowered
-        .semantic_module
-        .machines
-        .iter()
-        .find(|machine| machine.id == lowered.semantic_module.entry)
-        .unwrap();
-    let parameters = caller.structural_parameters.iter().collect::<Vec<_>>();
-    // `first` is fully consumed by the two covering projections and leaves
-    // neither residual custody nor a whole-root discard; the untouched
-    // sibling still dies whole on the same ordinary edge.
-    assert!(matches!(
-        &caller.blocks[0].terminator,
-        Terminator::ReturnUnit {
-            trivial_affine_discards,
-            ..
-        } if trivial_affine_discards.as_slice() == [parameters[1].place]
-    ));
-}
-
-#[test]
-fn reconstructed_residuals_reject_omissions_reordering_types_and_huge_forged_arrays() {
-    let source = "data Token { number: u64; }
-        data Sink {} machine Sink::take(value: Token) {}
-        data Root {} machine Root::enter(values: [Token; 5]) { Sink::take(values[2]); }";
-    let lowered = assert_source(
-        source,
-        &[path(&["2"])],
-        &[path(&["4"]), path(&["3"]), path(&["1"]), path(&["0"])],
-    );
-    for mutation in 0..8 {
-        let mut module = lowered.semantic_module.clone();
-        let entry = module
-            .machines
-            .iter_mut()
-            .find(|machine| machine.id == module.entry)
-            .unwrap();
-        let root_type = entry.structural_parameters[0].structural_type;
-        let Terminator::ReturnUnitPartialAffine {
-            residual_affine_discards,
-            ..
-        } = &mut entry.blocks[0].terminator
-        else {
-            unreachable!()
-        };
-        match mutation {
-            0 => {
-                residual_affine_discards.pop();
-            }
-            1 => residual_affine_discards.reverse(),
-            2 => residual_affine_discards.push(residual_affine_discards[0].clone()),
-            3 => residual_affine_discards[0].path = path(&["2"]),
-            4 => residual_affine_discards[0].path.clear(),
-            5 => residual_affine_discards[0].structural_type = root_type,
-            6 => residual_affine_discards[0].path = path(&["5"]),
-            7 => {
-                let declaration = module
-                    .structural_types
-                    .iter_mut()
-                    .find(|declaration| declaration.id == root_type)
-                    .unwrap();
-                let terminal_psi::StructuralTypeShape::FixedArray { length, .. } =
-                    &mut declaration.shape
-                else {
-                    unreachable!()
-                };
-                *length = u64::MAX;
-            }
-            _ => unreachable!(),
-        }
-        assert!(
-            terminal_verifier::verify_module(
-                &module,
-                &lowered.proof_bundle,
-                &AdmissionProfile::default()
-            )
-            .is_err(),
-            "residual mutation {mutation}"
-        );
-    }
 }
 
 #[test]

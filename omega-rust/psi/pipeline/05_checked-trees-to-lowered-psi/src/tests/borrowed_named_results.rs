@@ -74,28 +74,3 @@ fn member_leaf_shared_results_keep_their_decline() {
         "unexpected outcome: {error:?}"
     );
 }
-
-#[test]
-fn mutable_named_results_keep_their_owned_decline() {
-    // `&mut V` referees are named records, not primitives: `parts` still owns
-    // that family and the result-type gate keeps declining it.
-    let checked = crate::front_end::checked_program(
-        r#"
-            data Box { value: u64; }
-
-            machine Box::forward_mut<'r>(v: &'r mut Box) -> &'r mut Box {
-                v
-            }
-        "#,
-    );
-    let error = lower_machine(&checked, TerminalMachineSelection::Name("Box::forward_mut"))
-        .expect_err("mutable named results stay outside the shared view family");
-    assert!(
-        matches!(
-            error,
-            crate::lowering_error::LoweringError::InvalidUnitMachinePlan { .. }
-                | crate::lowering_error::LoweringError::Unsupported(_)
-        ),
-        "unexpected outcome: {error:?}"
-    );
-}

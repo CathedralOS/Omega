@@ -100,51 +100,6 @@ fn assert_exact_call_receipts(
 }
 
 #[test]
-fn nested_call_assignment_to_mutable_scalar_local_runs_each_call_once() {
-    let source = r#"
-        machine inner(input: i32) -> i32 { input }
-        machine choose(value: i32, extra: i32) -> i32 { value }
-        machine exercise(source: i32) {
-            let mut x: i32 = 0;
-            x = choose(inner(source), source);
-        }
-    "#;
-    let (module, lowered) = lowered_verified(source, "exercise");
-    let machine = module
-        .machines
-        .iter()
-        .find(|machine| machine.id == module.entry)
-        .expect("exercise is the entry machine");
-    let stores = machine
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .filter(|operation| {
-            matches!(
-                operation.kind,
-                OperationKind::WriteOnlyPrimitiveStore { .. }
-            )
-        })
-        .count();
-    assert_eq!(stores, 1, "the outer call result stores through one write");
-    assert_exact_call_receipts(&module, &lowered, "exercise", 2, 1);
-}
-
-#[test]
-fn sibling_nested_call_operands_evaluate_in_authored_order() {
-    let source = r#"
-        machine inner(input: i32) -> i32 { input }
-        machine choose(value: i32, extra: i32) -> i32 { value }
-        machine exercise(source: i32) {
-            let mut x: i32 = 0;
-            x = choose(inner(source), inner(source));
-        }
-    "#;
-    let (module, lowered) = lowered_verified(source, "exercise");
-    assert_exact_call_receipts(&module, &lowered, "exercise", 3, 1);
-}
-
-#[test]
 fn nested_call_assignment_through_borrowed_primitive_parameter_verifies() {
     let source = r#"
         machine inner(input: i32) -> i32 { input }

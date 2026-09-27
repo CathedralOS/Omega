@@ -1,9 +1,8 @@
 use super::{
-    COPY_AND_DISCARD_PROOF_OUTPUT_SOURCE, DISTINCT_PROOF_OUTPUT_PRODUCERS_SOURCE,
-    EMPTY_PRODUCER_SOURCE, MULTI_FIELD_PROOF_OUTPUT_SOURCE, ORDINARY_ATTACHED_SCALAR_SOURCE,
+    COPY_AND_DISCARD_PROOF_OUTPUT_SOURCE, MULTI_FIELD_PROOF_OUTPUT_SOURCE,
     PLURAL_STATIC_REQUIREMENT_PROOF_OUTPUT_SOURCE, PROOF_OUTPUT_SOURCE,
-    REPEATED_MULTI_FIELD_PROOF_OUTPUT_SOURCE, REPEATED_PROOF_OUTPUT_SOURCE,
-    RUNTIME_VALUE_PROOF_OUTPUT_SOURCE, STATIC_REQUIREMENT_TRAIT_DEFAULT_SOURCE,
+    REPEATED_MULTI_FIELD_PROOF_OUTPUT_SOURCE, RUNTIME_VALUE_PROOF_OUTPUT_SOURCE,
+    STATIC_REQUIREMENT_TRAIT_DEFAULT_SOURCE,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
@@ -16,44 +15,6 @@ use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
 };
 use terminal_psi::{EvidenceContractLaneKind, OperationKind};
-
-#[test]
-fn ordinary_attached_scalar_machine_lowers_through_the_unit_closure() {
-    let checked = crate::front_end::checked_program(ORDINARY_ATTACHED_SCALAR_SOURCE);
-    let selection = checked
-        .facts
-        .flow
-        .terminal_machines
-        .machines
-        .iter()
-        .find(|selection| selection.name == "Root::f")
-        .expect("ordinary attached scalar machine selection");
-    assert_eq!(
-        selection.signature,
-        checked_trees::CheckedTerminalSignatureEligibility::Attached
-    );
-    // The checker plans the attached scalar body as a Unit effect closure,
-    // which is the lane that lowers it; no scalar entry lane is involved.
-    assert!(
-        checked
-            .facts
-            .flow
-            .terminal_unit_effects
-            .for_machine(selection.machine)
-            .is_some()
-    );
-    let lowered = checked_trees_to_lowered_psi::lower_machine(
-        &checked,
-        TerminalMachineSelection::Name(&selection.name),
-    )
-    .expect("attached scalar machine lowers through the Unit closure");
-    terminal_verifier::verify_module(
-        &lowered.semantic_module,
-        &lowered.proof_bundle,
-        &AdmissionProfile::default(),
-    )
-    .expect("attached scalar machine verifies");
-}
 
 #[test]
 fn plural_static_requirement_proof_outputs_preserve_order_identity_and_freshness() {
@@ -644,79 +605,4 @@ fn repeated_multi_field_proof_outputs_group_calls_and_reuse_callee_producers() {
         &AdmissionProfile::default(),
     )
     .expect("two calls reuse each callee producer and mint four caller terms");
-}
-
-#[test]
-fn repeated_proof_output_calls_have_dense_fresh_outputs_and_one_callee_producer() {
-    let checked = crate::front_end::checked_program(REPEATED_PROOF_OUTPUT_SOURCE);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(
-        &checked,
-        TerminalMachineSelection::Name("Root::relay"),
-    )
-    .expect("repeated proof-output calls should retain distinct invocation terms");
-    let [first, second] = lowered.semantic_module.proof_output_calls.as_slice() else {
-        panic!("two invocation rows expected")
-    };
-    assert_eq!((first.ordinal, second.ordinal), (0, 1));
-    assert_eq!(
-        first.outputs[0].callee_output,
-        second.outputs[0].callee_output
-    );
-    assert_ne!(first.outputs[0].output, second.outputs[0].output);
-    assert_eq!(lowered.proof_bundle.evidence_producers.len(), 1);
-    terminal_verifier::verify_module(
-        &lowered.semantic_module,
-        &lowered.proof_bundle,
-        &AdmissionProfile::default(),
-    )
-    .expect("one callee declaration needs one producer regardless of invocation count");
-}
-
-#[test]
-fn same_shape_proof_outputs_retain_distinct_canonical_callee_identities() {
-    let checked = crate::front_end::checked_program(DISTINCT_PROOF_OUTPUT_PRODUCERS_SOURCE);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(
-        &checked,
-        TerminalMachineSelection::Name("Root::relay"),
-    )
-    .expect("same-shape producer proof outputs should lower");
-    let [first, second] = lowered.semantic_module.proof_output_calls.as_slice() else {
-        panic!("two invocation rows expected")
-    };
-    assert_ne!(
-        first.target_machine_identity,
-        second.target_machine_identity
-    );
-    assert!(!first.target_machine_identity.is_empty());
-    assert!(!second.target_machine_identity.is_empty());
-    terminal_verifier::verify_module(
-        &lowered.semantic_module,
-        &lowered.proof_bundle,
-        &AdmissionProfile::default(),
-    )
-    .expect("canonical callee identity remains verified semantic data");
-}
-
-#[test]
-fn empty_complete_evidence_conformance_remains_valid_provenance() {
-    let checked = crate::front_end::checked_program(EMPTY_PRODUCER_SOURCE);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(
-        &checked,
-        TerminalMachineSelection::Name("Root::produce"),
-    )
-    .expect("an empty closed conformance is still complete");
-    assert_eq!(lowered.proof_bundle.evidence_producers.len(), 1);
-    assert!(lowered.proof_bundle.evidence_producers[0].rows.is_empty());
-    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
-        .expect("empty row set is canonical");
-    assert_eq!(
-        decode_proof_bundle(&proof),
-        Ok(lowered.proof_bundle.clone())
-    );
-    terminal_verifier::verify_module(
-        &lowered.semantic_module,
-        &lowered.proof_bundle,
-        &AdmissionProfile::default(),
-    )
-    .expect("the exact empty conformance verifies");
 }

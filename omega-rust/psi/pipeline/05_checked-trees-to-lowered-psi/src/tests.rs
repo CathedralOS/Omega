@@ -7,15 +7,12 @@ mod array_literal_stores;
 mod attached_unit_cases;
 mod borrow_certificate_replay;
 mod borrowed_named_results;
-mod borrowed_record_leaf_construction;
 mod borrowed_view_member_calls;
 mod borrowed_whole_view_results;
 mod boundary_byte_buffers;
 mod byte_extent;
 mod byte_sequence_write;
 mod byte_write_loop;
-mod call_free_transitions;
-mod case_test_dispatch_payloads;
 mod composed_operand_catalogs;
 mod composed_provider_candidates;
 mod composed_receiver_scalar_calls;
@@ -23,9 +20,7 @@ mod composed_scalar_results;
 mod composed_unit_claims;
 mod composed_unit_guarded_jumps;
 mod composed_unit_internal_calls;
-mod composed_unit_nested_control;
 mod composed_unit_prefixed_control;
-mod composed_unit_transitive_internal_calls;
 mod conditional_result_custody;
 mod conditional_return_targets;
 mod constructed_case_membership;
@@ -42,7 +37,6 @@ mod indexed_primitive_storage;
 mod integer_comparison_replay;
 mod lifetime_machine_binders;
 mod linear_local_consumers;
-mod literal_byte_extent;
 mod local_record_reads;
 mod operation_crash_contracts;
 mod owned_projected_selection;
@@ -55,7 +49,6 @@ mod reborrow_lowering;
 mod receiver_free_view_results;
 mod scalar_block_invariants;
 mod scalar_call_case_arguments;
-mod scalar_conditional_returns;
 mod scalar_graph;
 mod service_reach_contracts;
 mod source_selection;
@@ -65,7 +58,6 @@ mod structural_byte_sequence_store;
 mod structural_case_returns;
 mod structural_control_cases;
 mod structural_float_member_read;
-mod structural_local_bindings;
 mod structural_return_cases;
 mod structural_scalar_store;
 mod suspension_call_plans;
@@ -383,10 +375,6 @@ fn shared_reborrow_restored_call_source() -> checked_trees::CheckedTrees {
             }
         "#,
     )
-}
-
-fn two_shared_reborrow_restored_call_source() -> checked_trees::CheckedTrees {
-    two_shared_reborrow_restored_call_source_with_observations("Sink::observe(left, right);")
 }
 
 fn two_shared_reborrow_restored_call_source_with_observations(

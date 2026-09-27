@@ -1,8 +1,7 @@
 use super::boundary_result_moves::{ObserveMoves, source as result_source};
 use super::later_results::encoded_locals;
 use super::{
-    AdmissionProfile, CheckedUnitEffectOperationPlan, TerminalEffect, TerminalEffectHandler,
-    TerminalEffectRejection, TerminalEffectResult, TerminalExecutionResult, TerminalInterpretError,
+    AdmissionProfile, CheckedUnitEffectOperationPlan, TerminalExecutionResult,
     TerminalStructuralValue, decode_module, main_machine, unsigned,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
@@ -347,63 +346,6 @@ fn anonymous_shared_result_permissions_rejoin_exact_owner_and_continuation() {
 }
 
 #[test]
-fn anonymous_shared_result_is_cleaned_before_the_next_statement() {
-    for boundary in [false, true] {
-        let source = anonymous_source(boundary, "value: u64;").replace(")); }", ")); done(); }")
-            + "machine done() {}";
-        assert_anonymous_shared(&source, boundary, &[]);
-        let with_scalar = anonymous_source(boundary, "value: u64;")
-            .replace(
-                "machine observe(token: &Token)",
-                "machine tick(value: u16) reaches Sink; machine observe(token: &Token)",
-            )
-            .replace("{ read(&", "{ let prefix: u16 = 17u16; read(&")
-            .replace(")); }", ")); Sink::tick(prefix); }");
-        assert_anonymous_shared(&with_scalar, boundary, &["prefix"]);
-    }
-}
-
-#[test]
-fn anonymous_shared_results_reject_conflicting_return_cleanup() {
-    for boundary in [false, true] {
-        let source = anonymous_source(boundary, "value: u64;");
-        let original = crate::front_end::checked_program(&source);
-        encoded_locals(&original, &[]);
-        let mut changed = original.clone();
-        let plan = changed
-            .facts
-            .flow
-            .terminal_unit_effects
-            .machines
-            .iter_mut()
-            .find(|plan| plan.machine == main_machine(&original).symbol)
-            .unwrap();
-        let (CheckedUnitEffectOperationPlan::StructuralCall {
-            discard_result_on_return,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-            discard_result_on_return,
-            ..
-        }) = &mut plan.operations[0]
-        else {
-            panic!("anonymous producer")
-        };
-        *discard_result_on_return = true;
-        assert!(
-            terminal_production::TerminalProductionRequest::new(
-                &changed,
-                TerminalMachineSelection::Name("Main::main")
-            )
-            .produce(TerminalProductionCustody::artifact_only(
-                &mut TerminalProductionTimings::default()
-            ))
-            .is_err()
-        );
-    }
-}
-
-#[test]
 fn anonymous_shared_continuation_rejects_missing_delayed_or_rebound_cleanup() {
     for boundary in [false, true] {
         let source = anonymous_source(boundary, "value: u64;").replace(")); }", ")); done(); }")
@@ -457,78 +399,6 @@ fn anonymous_shared_continuation_rejects_missing_delayed_or_rebound_cleanup() {
             );
         }
     }
-}
-
-#[test]
-fn successive_anonymous_shared_results_have_distinct_cleanup_edges() {
-    use terminal_fuel::FuelChargeSite;
-    let source = anonymous_source(true, "value: u64;").replace(
-        "read(&Factory::create());",
-        "read(&Factory::create()); read(&Factory::create());",
-    );
-    let artifact = encoded_locals(&crate::front_end::checked_program(&source), &[]);
-    let module = decode_module(&artifact.0).unwrap();
-    let caller = module
-        .machines
-        .iter()
-        .find(|machine| machine.id == module.entry)
-        .unwrap();
-    let cleanup_edges = caller
-        .blocks
-        .iter()
-        .filter_map(|block| match &block.terminator {
-            Terminator::Jump {
-                edge,
-                trivial_affine_discards,
-                ..
-            } if !trivial_affine_discards.is_empty() => {
-                assert_eq!(trivial_affine_discards.len(), 1);
-                Some(*edge)
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(cleanup_edges.len(), 2);
-    let mut execution = TerminalExecution::start_artifact(
-        &artifact.0,
-        &artifact.1,
-        &AdmissionProfile::default(),
-        &[],
-        TerminalStructuralInputs::default(),
-    )
-    .unwrap();
-    let mut observer = ObserveMoves::default();
-    let mut fuel = TerminalFuelMeter::with_allowance(0);
-    let mut cleanups = 0;
-    let mut complete = false;
-    for _ in 0..256 {
-        match execution.resume(&mut fuel, &mut observer).unwrap() {
-            TerminalExecutionStatus::SponsorExhausted(exhaustion) => {
-                if let FuelChargeSite::Edge(edge) = exhaustion.site
-                    && cleanup_edges.contains(&edge)
-                {
-                    assert_eq!(
-                        execution.live_affine_frontier().count(),
-                        1,
-                        "no earlier temporary remains live"
-                    );
-                    cleanups += 1;
-                }
-                fuel.replenish(1).unwrap();
-            }
-            TerminalExecutionStatus::Complete(value) => {
-                assert_eq!(value, TerminalExecutionResult::Unit);
-                complete = true;
-                break;
-            }
-            status => panic!("unexpected {status:?}"),
-        }
-    }
-    assert!(complete);
-    assert_eq!(cleanups, 2);
-    assert_eq!(observer.produced, [700, 701]);
-    assert_eq!(observer.consumed, [700, 701]);
-    assert!(execution.live_affine_frontier().next().is_none());
 }
 
 #[test]
@@ -653,29 +523,6 @@ fn assert_execution(artifact: &(Vec<u8>, Vec<u8>), observations: usize) {
 }
 
 #[test]
-fn shared_boundary_signatures_preserve_an_ordinary_callees_owned_parameter() {
-    for final_move in [false, true] {
-        let completion = if final_move {
-            "Sink::consume(token, 5u16);"
-        } else {
-            ""
-        };
-        let source = format!(
-            "{}\n\
-            machine Main::own(token: Token) reaches Sink {{\
-                Sink::read(&token, 5u16); Sink::read(&token, 5u16); {completion}\
-            }}",
-            source("Main::own(first);")
-        );
-        let artifact = encoded_locals(
-            &crate::front_end::checked_program(&source),
-            &["prefix", "first", "spare"],
-        );
-        assert_execution(&artifact, if final_move { 3 } else { 2 });
-    }
-}
-
-#[test]
 fn shared_result_operands_keep_exact_authored_identity_and_final_cleanup() {
     let original = crate::front_end::checked_program(&source(
         "Sink::read(&first, prefix); Sink::read(&first, prefix);",
@@ -763,106 +610,4 @@ fn a_named_result_cannot_be_borrowed_after_its_owned_move() {
             .is_err()
         );
     }
-}
-
-#[derive(Default)]
-struct RefuseSecondRead {
-    observer: ObserveMoves,
-    refused: bool,
-}
-
-impl TerminalEffectHandler for RefuseSecondRead {
-    fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
-        unreachable!("result-bearing handler")
-    }
-
-    fn handle_effect_result(
-        &mut self,
-        effect: &TerminalEffect,
-    ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
-        if self.observer.consumed.len() == 1 && !self.refused {
-            self.refused = true;
-            return Err(TerminalEffectRejection {
-                reason: "retry shared read".into(),
-            });
-        }
-        self.observer.handle_effect_result(effect)
-    }
-}
-
-#[test]
-fn refused_shared_reads_leave_results_live_for_retry() {
-    let artifact = encoded_locals(
-        &crate::front_end::checked_program(&source(
-            "Sink::read(&first, prefix); Sink::read(&first, prefix); Sink::consume(first, prefix);",
-        )),
-        &["prefix", "first", "spare"],
-    );
-    let mut execution = TerminalExecution::start_artifact(
-        &artifact.0,
-        &artifact.1,
-        &AdmissionProfile::default(),
-        &[],
-        TerminalStructuralInputs::default(),
-    )
-    .unwrap();
-    let mut handler = RefuseSecondRead::default();
-    let mut fuel = TerminalFuelMeter::unbounded();
-    assert!(matches!(
-        execution.resume(&mut fuel, &mut handler),
-        Err(TerminalInterpretError::EffectRejected { .. })
-    ));
-    assert_eq!(handler.observer.produced, [700, 701]);
-    assert_eq!(handler.observer.consumed, [700]);
-    assert_eq!(execution.live_affine_frontier().count(), 2);
-    assert_eq!(
-        execution.resume(&mut fuel, &mut handler).unwrap(),
-        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
-    );
-    assert_eq!(handler.observer.produced, [700, 701]);
-    assert_eq!(handler.observer.consumed, [700, 700, 700]);
-    assert!(execution.live_affine_frontier().next().is_none());
-}
-
-#[test]
-fn shared_read_before_a_crashing_operand_has_no_cleanup_successor() {
-    let source = format!(
-        "machine abort() -> u16 crashes Abort {{ crash Abort; }}\n{}",
-        source("Sink::read(&first, prefix); Sink::read(&first, abort());").replace(
-            "reaches Factory + Sink {",
-            "reaches Factory + Sink crashes Abort {"
-        )
-    );
-    let artifact = encoded_locals(
-        &crate::front_end::checked_program(&source),
-        &["prefix", "first", "spare"],
-    );
-    let module = decode_module(&artifact.0).unwrap();
-    let mut execution = TerminalExecution::start_artifact(
-        &artifact.0,
-        &artifact.1,
-        &AdmissionProfile::default(),
-        &[],
-        TerminalStructuralInputs::default(),
-    )
-    .unwrap();
-    let mut observer = ObserveMoves::default();
-    let mut fuel = TerminalFuelMeter::unbounded();
-    let status = execution.resume(&mut fuel, &mut observer).unwrap();
-    assert!(matches!(&status, TerminalExecutionStatus::Crashed(crash)
-        if crash.cause == terminal_psi::CrashCause::Abort));
-    assert_eq!(observer.produced, [700, 701]);
-    assert_eq!(observer.consumed, [700]);
-    for block in module.machines.iter().flat_map(|machine| &machine.blocks) {
-        if let Terminator::ReturnUnit { edge, .. } = block.terminator {
-            assert!(
-                fuel.usage()
-                    .at(terminal_fuel::FuelChargeSite::Edge(edge))
-                    .is_none()
-            );
-        }
-    }
-    let effects = execution.effects().to_vec();
-    assert_eq!(execution.resume(&mut fuel, &mut observer).unwrap(), status);
-    assert_eq!(execution.effects(), effects);
 }

@@ -11,8 +11,8 @@ use terminal_interpreter::{
     TerminalStructuralValue, interpret_terminal_artifact_measured,
 };
 use terminal_psi::{
-    OperationKind, OperationResult, StructuralFieldType, StructuralMultiplicity,
-    StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachineResult, Terminator,
+    OperationKind, StructuralFieldType, StructuralTypeShape, TerminalAffineCleanupAction,
+    Terminator,
 };
 
 #[path = "nominal_affine_source/affine_cast.rs"]

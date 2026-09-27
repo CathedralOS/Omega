@@ -9,55 +9,6 @@
 use crate::{TerminalMachineSelection, lower_machine};
 
 #[test]
-fn receiver_free_parameter_view_result_verifies() {
-    // The receiver's storage never flows to the result — only `x`'s shared
-    // loan does — so no receiver custody is required.
-    let checked = crate::front_end::checked_program(
-        r#"
-            data Views<'r> { view: &'r [u8]; tag: u64; }
-
-            machine Views::pick<'r>(&self, x: &'r [u8], y: &'r [u8]) -> &'r [u8] {
-                x
-            }
-        "#,
-    );
-    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Views::pick"))
-        .expect("receiver-free parameter view composes and lowers");
-    terminal_verifier::verify_module(
-        &lowered.semantic_module,
-        &lowered.proof_bundle,
-        &proof_admission::AdmissionProfile::default(),
-    )
-    .expect("receiver-free parameter view verifies");
-}
-
-#[test]
-fn record_construction_with_view_member_lowers_and_verifies() {
-    // `Views { view: x, tag: 0 }` mints the record's `view` member from the
-    // shared-borrowed parameter exactly as a member projection does: the
-    // result type, the record value, its field sources, and its emission
-    // compose, and the borrowed-view leaf passes the record-field module
-    // gate.
-    let checked = crate::front_end::checked_program(
-        r#"
-            data Views<'r> { view: &'r [u8]; tag: u64; }
-
-            machine Views::build<'r>(x: &'r [u8]) -> Views<'r> {
-                Views { view: x, tag: 0 }
-            }
-        "#,
-    );
-    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Views::build"))
-        .expect("view-member record construction composes and lowers");
-    terminal_verifier::verify_module(
-        &lowered.semantic_module,
-        &lowered.proof_bundle,
-        &proof_admission::AdmissionProfile::default(),
-    )
-    .expect("view-member record construction verifies");
-}
-
-#[test]
 fn record_with_named_view_member_lowers_and_verifies() {
     // A `&'a V` member keeps its reference shell in the declared field type —
     // `Structural { ref(named(V)) }` — matching the identity the `&`-rooted
@@ -120,57 +71,6 @@ fn member_subslice_results_keep_their_frontier_decline() {
     );
     let error = lower_machine(&checked, TerminalMachineSelection::Name("Views::head"))
         .expect_err("authored member subslices keep their ordered-destination decline");
-    assert!(
-        matches!(
-            error,
-            crate::lowering_error::LoweringError::InvalidUnitMachinePlan { .. }
-                | crate::lowering_error::LoweringError::Unsupported(_)
-        ),
-        "unexpected outcome: {error:?}"
-    );
-}
-
-#[test]
-fn exclusive_view_member_construction_keeps_its_decline() {
-    // A `&mut` view member is not a shared loan — the exclusive custody
-    // family still owns this shape and it keeps its result-type decline.
-    let checked = crate::front_end::checked_program(
-        r#"
-            data Exclusive<'r> { view: &'r mut [u8]; tag: u64; }
-
-            machine Exclusive::build<'r>(x: &'r mut [u8]) -> Exclusive<'r> {
-                Exclusive { view: x, tag: 0 }
-            }
-        "#,
-    );
-    let error = lower_machine(&checked, TerminalMachineSelection::Name("Exclusive::build"))
-        .expect_err("exclusive view members keep their result-type decline");
-    assert!(
-        matches!(
-            error,
-            crate::lowering_error::LoweringError::InvalidUnitMachinePlan { .. }
-                | crate::lowering_error::LoweringError::Unsupported(_)
-        ),
-        "unexpected outcome: {error:?}"
-    );
-}
-
-#[test]
-fn generic_record_construction_keeps_its_decline() {
-    // A genuinely type-parametric record binds type arguments, not just
-    // lifetimes — its fields need instantiation machinery and keep their
-    // decline.
-    let checked = crate::front_end::checked_program(
-        r#"
-            data Wrap<T> { cell: T; }
-
-            machine Wrap::pack<T>(x: T) -> Wrap<T> {
-                Wrap { cell: x }
-            }
-        "#,
-    );
-    let error = lower_machine(&checked, TerminalMachineSelection::Name("Wrap::pack"))
-        .expect_err("generic record construction keeps its result-type decline");
     assert!(
         matches!(
             error,

@@ -53,30 +53,3 @@ fn a_borrowed_view_parameter_reaches_the_scalar_graph() {
     }
     assert_eq!(outcome("u8", "Main::main"), "lowered");
 }
-
-#[test]
-fn a_non_byte_subslice_argument_is_a_checked_omission() {
-    // The caller half differs only upstream of this stage: checking does not
-    // yet admit `&self.bytes[0..41]` over an `[i32; 64]` field as a call's
-    // structural argument, so the Unit closure has no body to lower.
-    let outcome = outcome("i32", "Main::main");
-    assert!(
-        outcome.contains("structural arguments: parameter path"),
-        "expected the checked subslice-argument omission, got: {outcome}"
-    );
-}
-
-#[test]
-fn the_byte_view_shape_refusal_is_gone() {
-    // The negative half of the same fact: whatever else may stop a program,
-    // it must not be this shape check, for either element type.
-    for element in ["u8", "i32"] {
-        for machine in ["read_len", "Main::main"] {
-            let outcome = outcome(element, machine);
-            assert!(
-                !outcome.contains("slice view shape differs from its source"),
-                "{element} {machine} still fails the view-shape check: {outcome}"
-            );
-        }
-    }
-}

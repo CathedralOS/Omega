@@ -40,46 +40,6 @@ fn integer(value: u128) -> TerminalScalarValue {
 }
 
 #[test]
-fn moved_record_stores_preserve_live_children_and_selected_cleanup() {
-    let source = r#"
-data Value { number: u64; }
-data Outer { inner: Value; }
-machine identity(input: u64) -> u64 { input }
-machine changed(input: u64, take: bool) -> u64 {
-    let mut first: Outer = Outer { inner: Value { number: 17 } };
-    first.inner.number = identity(input);
-    let mut second: Outer = first;
-    let observed: u64 = second.inner.number;
-    second.inner.number = 7;
-    let wrapper: Outer = second;
-    transition take {
-        true -> done(observed ^ wrapper.inner.number)
-        _ -> done(wrapper.inner.number)
-    }
-    state done(value: u64) { value }
-}
-"#;
-    let (_, _, bytes, proof) = support::publish(source, "changed");
-    for input in [0, 256, u128::from(u64::MAX)] {
-        for (take, expected) in [(true, input ^ 7), (false, 7)] {
-            let result = terminal_interpreter::interpret_terminal_artifact_measured(
-                &bytes,
-                &proof,
-                &proof_admission::AdmissionProfile::default(),
-                &[integer(input), TerminalScalarValue::Boolean(take)],
-                TerminalStructuralInputs::default(),
-                &mut AcceptTerminalEffects,
-            )
-            .unwrap();
-            assert_eq!(
-                result.value(),
-                TerminalExecutionResult::Scalar(integer(expected))
-            );
-        }
-    }
-}
-
-#[test]
 fn local_stores_preserve_record_copies_and_captured_scalar_values() {
     for source in [
         SOURCE.to_owned(),

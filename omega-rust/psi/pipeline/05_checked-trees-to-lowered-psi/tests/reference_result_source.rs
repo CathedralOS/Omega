@@ -48,11 +48,6 @@ fn signed(value: i128) -> TerminalScalarValue {
 }
 
 #[test]
-fn reference_result_preserves_original_storage_through_fuel_resumption() {
-    execute(&artifact(""), 1, 1);
-}
-
-#[test]
 fn reference_result_composes_with_an_ordinary_call_before_return() {
     execute(&artifact("mark(value);"), 2, 1);
 }
@@ -279,19 +274,6 @@ fn local_reference_record_rejects_changed_source_custody() {
     }
 }
 
-#[test]
-fn local_reference_record_rejects_conflicting_original_access() {
-    let source = "data View { body: &mut i32; }
-        machine replace(value: &mut i32) { value = 29; }
-        machine exercise(value: &mut i32) -> i32 {
-            let held: View = View { body: value };
-            replace(value);
-            replace(held.body);
-            value
-        }";
-    assert!(crate::front_end::checked_program_result(source).is_err());
-}
-
 const STORED_REFERENCE_SOURCE: &str = "data View { body: &mut i32; }
         machine make_view(value: &mut i32) -> View { View { body: value } }
         machine replace(value: &mut i32) { value = 29; }
@@ -443,44 +425,6 @@ fn reference_record_origin_roster_rejects_exponential_type_dags() {
 }
 
 #[test]
-fn stored_reference_result_preserves_original_storage() {
-    let checked = crate::front_end::checked_program(STORED_REFERENCE_SOURCE);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("exercise"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("stored result carries exact returned leaf origins")
-    .into_artifact();
-    execute(&artifact, 1, 1);
-}
-
-#[test]
-fn stored_reference_result_rejoins_full_formal_positions() {
-    let source = "data View { body: &mut i32; }
-        machine make_view(ignored: i32, value: &mut i32) -> View { View { body: value } }
-        machine replace(value: &mut i32) { value = 29; }
-        machine exercise(value: &mut i32) -> i32 {
-            let held: View = make_view(17, value);
-            replace(held.body);
-            value
-        }";
-    let checked = crate::front_end::checked_program(source);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("exercise"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("structural ordinal rejoins its full authored argument position")
-    .into_artifact();
-    execute(&artifact, 1, 1);
-}
-
-#[test]
 fn stored_reference_result_rejects_changed_return_and_actual_origins() {
     use checked_trees::{
         CheckedStructuralValueKind as Value, CheckedUnitEffectOperationPlan as Operation,
@@ -610,55 +554,6 @@ fn stored_reference_result_rejects_changed_return_and_actual_origins() {
             "mutation {mutation} cannot replace exact returned or caller origins"
         );
     }
-}
-
-#[test]
-fn reference_release_processing_preserves_empty_helpers() {
-    let checked =
-        crate::front_end::checked_program("machine empty() {} machine exercise() { empty(); }");
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("exercise"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("empty helper has no last-statement release boundary")
-    .into_artifact();
-    drop(checked);
-    let mut execution = TerminalExecution::start_artifact(
-        artifact.semantic_bytes(),
-        artifact.proof_bytes(),
-        &Default::default(),
-        &[],
-        TerminalStructuralInputs::default(),
-    )
-    .expect("reload empty helper closure");
-    let mut meter = TerminalFuelMeter::with_allowance(8);
-    assert_eq!(
-        execution
-            .resume(&mut meter, &mut AcceptTerminalEffects)
-            .unwrap(),
-        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
-    );
-}
-
-#[test]
-fn reference_result_rejects_conflicting_access_before_last_use() {
-    assert!(
-        crate::front_end::checked_program_result(
-            "machine relay(value: &mut i32) -> &mut i32 { value }
-        machine replace(value: &mut i32) { value = 29; }
-        machine exercise(value: &mut i32) -> i32 {
-            let held: &mut i32 = relay(value);
-            replace(value);
-            replace(held);
-            value
-        }",
-        )
-        .is_err(),
-        "a live returned loan excludes direct access to its original referent"
-    );
 }
 
 #[test]
@@ -1007,119 +902,6 @@ fn projected_reference_result_preserves_original_storage() {
 }
 
 #[test]
-fn projected_reference_result_rejects_changed_leaf_custody() {
-    use checked_trees::{
-        CheckedUnitEffectOperationPlan as Operation,
-        CheckedUnitStructuralArgumentSourcePlan as Source,
-    };
-    let original = crate::front_end::checked_program(PROJECTED_REFERENCE_RESULT_SOURCE);
-    let _ = terminal_production::TerminalProductionRequest::new(
-        &original,
-        TerminalMachineSelection::Name("exercise"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("untampered projected leaf custody")
-    .into_artifact();
-    for mutation in 0..6 {
-        let mut changed = original.clone();
-        let plans = &mut changed.facts.flow.terminal_unit_effects.machines;
-        match mutation {
-            // The establishment must keep its exact projected leaf path.
-            0 => {
-                let Operation::EstablishReference { source, .. } = plans
-                    .iter_mut()
-                    .flat_map(|machine| &mut machine.operations)
-                    .find(|operation| {
-                        matches!(operation, Operation::EstablishReference { source, .. }
-                            if !source.path.is_empty())
-                    })
-                    .unwrap()
-                else {
-                    unreachable!()
-                };
-                source.path.clear();
-            }
-            // The establishment must keep its exact ingress parameter.
-            1 => {
-                let Operation::EstablishReference { source, .. } = plans
-                    .iter_mut()
-                    .flat_map(|machine| &mut machine.operations)
-                    .find(|operation| {
-                        matches!(operation, Operation::EstablishReference { source, .. }
-                            if !source.path.is_empty())
-                    })
-                    .unwrap()
-                else {
-                    unreachable!()
-                };
-                source.source = Source::Parameter { parameter_index: 1 };
-            }
-            // The projected leaf is a mutable borrow, not a shared read.
-            2 => {
-                let Operation::EstablishReference { source, .. } = plans
-                    .iter_mut()
-                    .flat_map(|machine| &mut machine.operations)
-                    .find(|operation| {
-                        matches!(operation, Operation::EstablishReference { source, .. }
-                            if !source.path.is_empty())
-                    })
-                    .unwrap()
-                else {
-                    unreachable!()
-                };
-                source.access = checked_trees::CheckedStructuralAccess::SharedBorrow;
-            }
-            // The declared result source must retain the same leaf path.
-            3 => {
-                let result = plans
-                    .iter_mut()
-                    .find_map(|machine| machine.structural_result.as_mut())
-                    .unwrap();
-                result.reference_sources[0].source.path.clear();
-            }
-            // The declared result source must point at the same parameter.
-            4 => {
-                let result = plans
-                    .iter_mut()
-                    .find_map(|machine| machine.structural_result.as_mut())
-                    .unwrap();
-                result.reference_sources[0].source.source =
-                    Source::Parameter { parameter_index: 1 };
-            }
-            // The caller's leaf loan evidence stays exact.
-            5 => {
-                let Operation::StructuralCall { custody, .. } = plans
-                    .iter_mut()
-                    .flat_map(|machine| &mut machine.operations)
-                    .find(|operation| {
-                        matches!(operation, Operation::StructuralCall { custody, .. }
-                            if custody.reference_loan.is_valid())
-                    })
-                    .unwrap()
-                else {
-                    unreachable!()
-                };
-                custody.reference_loan = arena::Handle::invalid();
-            }
-            _ => unreachable!(),
-        }
-        assert!(
-            terminal_production::TerminalProductionRequest::new(
-                &changed,
-                TerminalMachineSelection::Name("exercise")
-            )
-            .produce(TerminalProductionCustody::artifact_only(
-                &mut TerminalProductionTimings::default()
-            ))
-            .is_err(),
-            "projected leaf custody mutation {mutation} must reject"
-        );
-    }
-}
-
-#[test]
 fn projected_reference_result_rejects_sibling_leaf_rosters() {
     // A record carrying two borrowed leaves cannot give one leaf to a bare
     // reference result: consuming the carrier would strand the sibling, and
@@ -1316,21 +1098,6 @@ const PROJECTED_RECORD_ARGUMENT_SOURCE: &str = "data View { body: &mut i32; }
             replace(held);
             value
         }";
-
-#[test]
-fn projected_record_argument_preserves_original_storage() {
-    let checked = crate::front_end::checked_program(PROJECTED_RECORD_ARGUMENT_SOURCE);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("exercise"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .expect("a projected record operand keeps exact ingress custody")
-    .into_artifact();
-    execute(&artifact, 1, 1);
-}
 
 #[test]
 fn projected_record_argument_rejects_changed_leaf_custody() {

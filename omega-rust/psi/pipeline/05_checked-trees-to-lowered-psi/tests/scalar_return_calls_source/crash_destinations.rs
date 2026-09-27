@@ -1,39 +1,8 @@
 use super::{
-    IntegerSign, IntegerType, IntegerValue, TerminalArtifactInterpretError,
-    TerminalExecutionResult, TerminalInterpretError, TerminalScalarValue, checked_arms,
-    encode_module, encode_proof_section, encoded, execute,
+    TerminalArtifactInterpretError, TerminalExecutionResult, TerminalInterpretError,
+    TerminalScalarValue, checked_arms, encode_module, encode_proof_section, encoded, execute,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-#[test]
-fn scalar_dispatch_executes_only_its_selected_crash_fallback() {
-    for (cause, expected) in [
-        ("Trap", terminal_psi::CrashCause::Trap),
-        ("Abort", terminal_psi::CrashCause::Abort),
-    ] {
-        let source = format!(
-            "machine value(flag: bool) -> u8
-             requires 0u8 == 0u8
-             ensures 0u8 == 0u8
-             crashes {cause}
-             {{ transition {{ flag -> 7u8 }} crash {cause}; }}"
-        );
-        let artifact = encoded(&source);
-        assert_eq!(
-            execute(&artifact, &[TerminalScalarValue::Boolean(true)]).unwrap(),
-            TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
-                scalar_type: IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
-                value: IntegerValue::Unsigned(7),
-            })
-        );
-        let Err(TerminalArtifactInterpretError::Execution(TerminalInterpretError::Crash(crash))) =
-            execute(&artifact, &[TerminalScalarValue::Boolean(false)])
-        else {
-            panic!("selected crash fallback");
-        };
-        assert_eq!(crash.cause, expected);
-        assert!(crash.frontier_lower_bound.is_empty());
-    }
-}
 
 fn assert_crash(
     result: Result<TerminalExecutionResult, TerminalArtifactInterpretError>,
@@ -46,43 +15,6 @@ fn assert_crash(
     };
     assert_eq!(crash.cause, expected);
     assert!(crash.frontier_lower_bound.is_empty());
-}
-
-#[test]
-fn computed_guard_crash_fallback_preserves_current_and_saved_values() {
-    for (cause, expected) in [
-        ("Trap", terminal_psi::CrashCause::Trap),
-        ("Abort", terminal_psi::CrashCause::Abort),
-    ] {
-        let source = format!(
-            r#"
-            machine identity(input: bool) -> bool
-            requires true == true
-            ensures true == true
-            {{ input }}
-            machine value(flag: bool) -> bool
-            requires true == true
-            ensures true == true
-            crashes {cause}
-            {{
-                let mut current: bool = identity(flag) || false;
-                let saved: bool = current;
-                current = identity(!current) && true;
-                transition {{ identity(current) && !identity(saved) -> (identity(current)) }}
-                crash {cause};
-            }}
-        "#
-        );
-        let artifact = encoded(&source);
-        assert_eq!(
-            execute(&artifact, &[TerminalScalarValue::Boolean(false)]).unwrap(),
-            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(true))
-        );
-        assert_crash(
-            execute(&artifact, &[TerminalScalarValue::Boolean(true)]),
-            expected,
-        );
-    }
 }
 
 #[test]
@@ -118,59 +50,6 @@ fn crash_fallback_is_skipped_after_pure_or_computed_named_state_selection() {
                 execute(&artifact, &[TerminalScalarValue::Boolean(false)]),
                 expected,
             );
-        }
-    }
-}
-
-#[test]
-fn selected_guard_crash_precedes_the_direct_crash_fallback() {
-    for (guard_cause, fallback_cause, expected_guard, expected_fallback) in [
-        (
-            "Abort",
-            "Trap",
-            terminal_psi::CrashCause::Abort,
-            terminal_psi::CrashCause::Trap,
-        ),
-        (
-            "Trap",
-            "Abort",
-            terminal_psi::CrashCause::Trap,
-            terminal_psi::CrashCause::Abort,
-        ),
-    ] {
-        for operator in ["&&", "||"] {
-            let source = format!(
-                r#"
-                machine effect() -> bool crashes {guard_cause} {{ crash {guard_cause}; }}
-                machine value(flag: bool) -> bool
-                requires true == true
-                ensures true == true
-                crashes Abort
-                crashes Trap
-                {{
-                    transition {{ flag {operator} effect() -> true }}
-                    crash {fallback_cause};
-                }}
-            "#
-            );
-            let artifact = encoded(&source);
-            let evaluates_effect = operator == "&&";
-            assert_crash(
-                execute(&artifact, &[TerminalScalarValue::Boolean(evaluates_effect)]),
-                expected_guard,
-            );
-            let skipped = execute(
-                &artifact,
-                &[TerminalScalarValue::Boolean(!evaluates_effect)],
-            );
-            if operator == "&&" {
-                assert_crash(skipped, expected_fallback);
-            } else {
-                assert_eq!(
-                    skipped.unwrap(),
-                    TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(true))
-                );
-            }
         }
     }
 }

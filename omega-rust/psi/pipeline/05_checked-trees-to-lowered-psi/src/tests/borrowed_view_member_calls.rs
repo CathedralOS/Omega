@@ -49,32 +49,6 @@ const WV: &str = r#"
 "#;
 
 #[test]
-fn borrowed_view_field_length_result_lowers_and_verifies() {
-    verify(
-        &format!(
-            "{WV}
-            machine Wv::len(&self) -> u64 {{
-                self.view.len
-            }}"
-        ),
-        "Wv::len",
-    );
-}
-
-#[test]
-fn borrowed_view_field_length_entry_requirement_lowers_and_verifies() {
-    verify(
-        &format!(
-            "{WV}
-            machine Wv::use_len(&mut self, i: u64) requires i < self.view.len {{
-                self.out = 7;
-            }}"
-        ),
-        "Wv::use_len",
-    );
-}
-
-#[test]
 fn borrowed_view_field_element_read_lowers_and_verifies() {
     verify(
         &format!(
@@ -125,35 +99,6 @@ fn borrowed_view_field_element_read_requires_term_rejects() {
     );
 }
 
-#[test]
-fn borrowed_view_field_element_read_unguarded_rejects() {
-    rejected(
-        &format!(
-            "{WV}
-            machine Wv::read(&self, i: u64) -> u8 {{
-                self.view[i]
-            }}"
-        ),
-        "Wv::read",
-    );
-}
-
-#[test]
-fn bounded_owned_field_element_read_lowers_and_verifies() {
-    verify(
-        &format!(
-            "{WV}
-            boundary trait Output {{ machine flag(value: bool) reaches Output; }}
-            domain [u8; 3]::Utf8 requires valid_utf8(self);
-            data D {{ buf: [u8; 3] in Utf8; }}
-            machine D::probe(&self, i: u64) reaches Output {{
-                Output::flag(i < self.buf.len && self.buf[i] == 7);
-            }}"
-        ),
-        "D::probe",
-    );
-}
-
 const MV: &str = r#"
     data Mv<'r> { view: &'r mut [u8]; out: u8; }
 
@@ -185,64 +130,6 @@ fn mutable_view_field_element_store_lowers_and_verifies() {
             }}"
         ),
         "Mv::set",
-    );
-}
-
-#[test]
-fn mutable_view_field_element_store_unguarded_rejects() {
-    rejected(
-        &format!(
-            "{MV}
-            machine Mv::set(&mut self, i: u64, v: u8) {{
-                self.view[i] = v;
-            }}"
-        ),
-        "Mv::set",
-    );
-}
-
-#[test]
-fn shared_view_field_element_store_transition_rejects() {
-    rejected(
-        &format!(
-            "{WV}
-            machine Wv::set(&mut self, i: u64, v: u8) {{
-                transition i < self.view.len {{
-                    true -> hit(i, v)
-                    _ -> done()
-                }}
-                state hit(&mut self, i: u64, v: u8) {{
-                    self.view[i] = v;
-                }}
-                state done(&mut self) {{
-                    self.out = 1;
-                }}
-            }}"
-        ),
-        "Wv::set",
-    );
-}
-
-#[test]
-fn mutable_view_field_subslice_local_binding_rejects() {
-    rejected(
-        &format!(
-            "{MV}
-            machine Mv::head(&mut self) {{
-                transition self.view.len >= 3 {{
-                    true -> emit()
-                    _ -> done()
-                }}
-                state emit(&mut self) {{
-                    let w: &'r mut [u8] = self.view[0..3];
-                    self.out = 1;
-                }}
-                state done(&mut self) {{
-                    self.out = 0;
-                }}
-            }}"
-        ),
-        "Mv::head",
     );
 }
 

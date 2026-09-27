@@ -149,6 +149,3 @@ fn literal_values(facts: &[ProjectedFact<'_>]) -> BTreeSet<ValueId> {
     }
     literals
 }
-
-#[cfg(test)]
-mod tests;

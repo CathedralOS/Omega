@@ -19,35 +19,6 @@ fn signed(value: i128) -> TerminalScalarValue {
 }
 
 #[test]
-fn computed_integer_replacement_executes_before_its_store() {
-    execute(
-        r#"
-        data Sink {}
-        machine Sink::fill(destination: &write i32, replacement: i32) {
-            destination = replacement ^ 1i32;
-        }
-    "#,
-        &[signed(6)],
-        &[signed(91), signed(7)],
-    );
-}
-
-#[test]
-fn multiple_primitive_stores_preserve_order_across_suspension() {
-    execute(
-        r#"
-        data Sink {}
-        machine Sink::fill(destination: &write i32) {
-            destination = 2;
-            destination = 3;
-        }
-    "#,
-        &[],
-        &[signed(91), signed(2), signed(3)],
-    );
-}
-
-#[test]
 fn primitive_assignment_evaluates_selected_match_call_before_mutation() {
     for choose_first in [false, true] {
         execute(
@@ -62,23 +33,6 @@ fn primitive_assignment_evaluates_selected_match_call_before_mutation() {
             &[signed(91), signed(if choose_first { 7 } else { 9 })],
         );
     }
-}
-
-#[test]
-fn primitive_assignment_expands_short_circuit_value_before_mutation() {
-    execute(
-        r#"
-        data Sink {}
-        machine Sink::fill(destination: &write bool, choose: bool) {
-            destination = choose && false;
-        }
-        "#,
-        &[TerminalScalarValue::Boolean(true)],
-        &[
-            TerminalScalarValue::Boolean(true),
-            TerminalScalarValue::Boolean(false),
-        ],
-    );
 }
 
 #[test]

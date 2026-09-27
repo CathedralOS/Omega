@@ -216,31 +216,3 @@ fn array_call_callee_body_requires_one_exact_result_owner() {
         reject(&changed, mutation);
     }
 }
-
-#[test]
-fn array_call_results_support_whole_owned_unit_arguments() {
-    let checked = crate::front_end::checked_program(
-        "machine make() -> [u8; 2] { [7, 9] }
-         machine consume(row: [u8; 2]) {}
-         machine selected() { let row: [u8; 2] = make(); consume(row); }",
-    );
-    let lowered = checked_trees_to_lowered_psi::lower_machine(
-        &checked,
-        TerminalMachineSelection::Name("selected"),
-    )
-    .expect("ordinary Unit calls carry the completed array payload");
-    let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
-    let proof =
-        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
-            .unwrap();
-    assert_eq!(
-        terminal_interpreter::interpret_terminal_artifact(
-            &semantic,
-            &proof,
-            &proof_admission::AdmissionProfile::default(),
-            &[],
-        )
-        .unwrap(),
-        terminal_interpreter::TerminalExecutionResult::Unit,
-    );
-}

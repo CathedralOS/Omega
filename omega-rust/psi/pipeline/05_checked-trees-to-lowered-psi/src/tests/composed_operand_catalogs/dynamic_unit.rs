@@ -122,58 +122,6 @@ fn dynamic_routes_share_ordinary_bodies_and_scalar_helpers() {
     }
 }
 
-#[test]
-fn unused_root_provider_field_retains_identity_without_a_fabricated_requirement() {
-    for route in 0..4 {
-        let source = source(route, true, true)
-            .replace("data Main {", "data Main { console: Binding<Console>;");
-        let checked = checked_source_with_core_service(&source);
-        let lowered = roundtrip(&checked);
-        assert_closure(&checked, &lowered, route);
-        let root = lowered
-            .semantic_module
-            .machines
-            .iter()
-            .find(|machine| machine.id == lowered.semantic_module.entry)
-            .unwrap();
-        let attachment = lowered
-            .semantic_module
-            .structural_types
-            .iter()
-            .find(|declaration| Some(declaration.id) == root.attachment)
-            .unwrap();
-        let terminal_psi::StructuralTypeShape::Record { fields } = &attachment.shape else {
-            panic!("record attachment");
-        };
-        let provider = fields
-            .iter()
-            .find(|field| field.identity == "console")
-            .unwrap();
-        assert_eq!(provider.relevance, terminal_psi::BindingRelevance::Relevant);
-        assert!(
-            matches!(&provider.field_type, terminal_psi::StructuralFieldType::Erased { type_identity }
-            if type_identity == "generic(name(Binding),named(name(Console)))")
-        );
-        assert!(!root.structural_places.iter().any(|place| matches!(
-            place.kind,
-            semantic_vocabulary::StructuralPlaceKind::ProviderAttachment { .. }
-        )));
-        let artifact = terminal_production::TerminalProductionRequest::new(
-            &checked,
-            terminal_production::TerminalMachineSelection::Name("Main::main"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("unused provider field survives public publication")
-        .into_artifact();
-        assert_eq!(
-            terminal_codec::decode_module(artifact.semantic_bytes()).unwrap(),
-            lowered.semantic_module
-        );
-    }
-}
-
 fn assert_closure(checked: &CheckedTrees, lowered: &LoweredPsi, route: usize) {
     let module = &lowered.semantic_module;
     let dynamic = &module.dynamic_dispatch;

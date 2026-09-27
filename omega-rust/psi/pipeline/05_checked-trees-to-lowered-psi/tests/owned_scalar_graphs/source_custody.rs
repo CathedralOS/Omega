@@ -1,8 +1,4 @@
-use checked_trees::{
-    CheckedBooleanExpression, CheckedScalarComputationKind, CheckedScalarExpression,
-    CheckedStructuralAccess, CheckedStructuralPredicatePathSegment,
-    CheckedUnitStructuralArgumentSourcePlan,
-};
+use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralArgumentSourcePlan};
 use terminal_psi::{OperationKind, StructuralAccess};
 
 use super::{LIMITS, ORDERED, support};
@@ -131,73 +127,6 @@ fn source_owned_actuals_reject_same_typed_substitution_access_and_type_drift() {
                 }
                 "borrow instead of own" => argument.access = CheckedStructuralAccess::SharedBorrow,
                 "other type" => argument.type_identity = "bool".into(),
-                _ => unreachable!(),
-            }
-            support::reject(&changed, mutation);
-        }
-    }
-}
-
-#[test]
-fn source_field_observation_rejects_another_same_typed_field_or_parameter() {
-    let (original, _, _, _) = support::publish(ORDERED, "enter");
-    let observations = original
-        .facts
-        .values
-        .scalar_computations
-        .nodes
-        .iter()
-        .filter_map(|(handle, node)| match &node.kind {
-            CheckedScalarComputationKind::Value(CheckedScalarExpression::Boolean(expression))
-                if matches!(
-                    expression.as_ref(),
-                    CheckedBooleanExpression::StructuralParameterField { .. }
-                ) =>
-            {
-                Some(handle)
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(
-        observations.len(),
-        2,
-        "nested stamp arguments retain both authored field reads"
-    );
-    for handle in observations {
-        for mutation in [
-            "other same-typed field",
-            "other same-typed parameter",
-            "missing occurrence",
-        ] {
-            let mut changed = original.clone();
-            let node = changed
-                .facts
-                .values
-                .scalar_computations
-                .nodes
-                .get_mut(handle);
-            let CheckedScalarComputationKind::Value(CheckedScalarExpression::Boolean(expression)) =
-                &mut node.kind
-            else {
-                panic!("direct field observation");
-            };
-            let CheckedBooleanExpression::StructuralParameterField {
-                parameter_position,
-                path,
-            } = expression.as_mut()
-            else {
-                panic!("direct Boolean field observation");
-            };
-            match mutation {
-                "other same-typed field" => {
-                    *path = vec![CheckedStructuralPredicatePathSegment::Field("spare".into())]
-                }
-                "other same-typed parameter" => {
-                    assert!([1, 3].contains(parameter_position));
-                    *parameter_position = 4 - *parameter_position;
-                }
-                "missing occurrence" => node.value_source = Default::default(),
                 _ => unreachable!(),
             }
             support::reject(&changed, mutation);

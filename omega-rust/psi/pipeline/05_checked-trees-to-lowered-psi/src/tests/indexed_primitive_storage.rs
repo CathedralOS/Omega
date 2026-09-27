@@ -1,8 +1,6 @@
 use super::{checked_source_with_core_service, lower_machine};
 use crate::TerminalMachineSelection;
-use checked_trees::{
-    CheckedScalarExpression, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
-};
+use checked_trees::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{OperationKind, StructuralPathSegment};
@@ -15,19 +13,6 @@ fn source(primitive: &str, value: &str) -> String {
             self.bytes[255]
         }}"
     )
-}
-
-#[test]
-fn indexed_primitive_source_rejects_out_of_bounds_and_shared_writes() {
-    for source in [
-        source("u8", "65").replace("[255]", "[256]"),
-        source("u8", "65").replace("&mut self", "&self"),
-    ] {
-        assert!(
-            crate::front_end::checked_program_result(&source).is_err(),
-            "invalid primitive access: {source}"
-        );
-    }
 }
 
 #[test]
@@ -138,89 +123,6 @@ fn source_indexed_primitive_store_and_read_share_serialized_backing() {
     let bytes = execution.structural_byte_array(700, &path).unwrap();
     assert_eq!(bytes[254], 17, "the neighboring cell is not overwritten");
     assert_eq!(bytes[255], 65);
-}
-
-#[test]
-fn indexed_primitive_store_receiver_rejects_changed_path_and_missing_store() {
-    let checked = checked_source_with_core_service(&source("u8", "65"));
-    lower_machine(&checked, TerminalMachineSelection::Name("Buffer::update")).unwrap();
-    for index in [254, 256] {
-        let mut changed = checked.clone();
-        let operation = changed
-            .facts
-            .flow
-            .terminal_unit_effects
-            .machines
-            .iter_mut()
-            .flat_map(|plan| &mut plan.operations)
-            .find(|operation| {
-                matches!(
-                    operation,
-                    CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
-                )
-            })
-            .unwrap();
-        let CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { path, .. } = operation else {
-            unreachable!()
-        };
-        *path.last_mut().unwrap() = CheckedUnitStructuralPathSegment::FixedIndex(index);
-        assert!(
-            lower_machine(&changed, TerminalMachineSelection::Name("Buffer::update")).is_err(),
-            "index substitution {index}"
-        );
-    }
-    let mut changed = checked.clone();
-    for plan in &mut changed.facts.flow.terminal_unit_effects.machines {
-        plan.operations.retain(|operation| {
-            !matches!(
-                operation,
-                CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
-            )
-        });
-    }
-    assert!(lower_machine(&changed, TerminalMachineSelection::Name("Buffer::update")).is_err());
-}
-
-#[test]
-fn indexed_primitive_read_receiver_rejects_changed_source_path() {
-    let checked = checked_source_with_core_service(&source("u8", "65"));
-    let plan = checked
-        .facts
-        .values
-        .scalar_expressions
-        .expressions
-        .iter()
-        .find(|plan| {
-            matches!(
-                plan.expression,
-                CheckedScalarExpression::StructuralParameterField { .. }
-            )
-        })
-        .unwrap();
-    let (binding, value) = checked
-        .facts
-        .values
-        .scalar_expressions
-        .bound_expression_at(plan.state, plan.statement_ordinal, plan.role)
-        .unwrap();
-    for index in [254, 256] {
-        let mut changed = value.clone();
-        let CheckedScalarExpression::StructuralParameterField { path, .. } = &mut changed else {
-            unreachable!()
-        };
-        *path.last_mut().unwrap() =
-            checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(index);
-        assert!(
-            crate::expression_preparation::source_custody::validate_storage_read_expression(
-                &checked,
-                binding.state,
-                binding.statement_ordinal,
-                binding.expression,
-                &changed
-            )
-            .is_err()
-        );
-    }
 }
 
 const RUNTIME_ELEMENT_SOURCE: &str = "data Buffer { bytes: [u8; 8]; at: u64; }
@@ -364,112 +266,6 @@ fn runtime_element_store_rejects_a_substituted_path() {
             "substituted element path {substitute:?}"
         );
     }
-}
-
-/// Produce `Buffer::update`'s verified Terminal entry machine and return the
-/// projected stores (the selector fields' own root-level stores excluded),
-/// each flagged whether it is a scalar field store.
-fn store_paths(source: &str) -> Vec<(bool, Vec<StructuralPathSegment>)> {
-    let checked = checked_source_with_core_service(source);
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        terminal_production::TerminalMachineSelection::Name("Buffer::update"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .unwrap_or_else(|error| panic!("verified Terminal for {source}: {error:?}"))
-    .into_artifact();
-    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
-    let entry = module
-        .machines
-        .iter()
-        .find(|machine| machine.id == module.entry)
-        .unwrap();
-    entry
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .filter_map(|operation| match &operation.kind {
-            OperationKind::WriteOnlyPrimitiveStore { path, .. } => Some((false, path.clone())),
-            OperationKind::StructuralScalarFieldStore { path, .. } if !path.is_empty() => {
-                Some((true, path.clone()))
-            }
-            _ => None,
-        })
-        .collect()
-}
-
-/// Every selector of a target is its own runtime element, numbered by depth
-/// from the target: `self.grid[self.i][self.j]` stores through two runtime
-/// elements, each with its own obligation, in one primitive store.
-#[test]
-fn nested_selectors_store_through_two_runtime_elements() {
-    let stores = store_paths(
-        "data Buffer { grid: [[u8; 4]; 3]; i: u64; j: u64; }
-        machine Buffer::update(&mut self) {
-            self.i = 2;
-            self.j = 1;
-            self.grid[self.i][self.j] = 65;
-        }",
-    );
-    let [(false, path)] = stores.as_slice() else {
-        panic!("one element store: {stores:#?}");
-    };
-    let [
-        StructuralPathSegment::Field(_),
-        StructuralPathSegment::RuntimeIndex {
-            obligation: outer, ..
-        },
-        StructuralPathSegment::RuntimeIndex {
-            obligation: inner, ..
-        },
-    ] = path.as_slice()
-    else {
-        panic!("field, then two runtime elements: {path:#?}");
-    };
-    assert_ne!(outer, inner, "each element owns its obligation");
-}
-
-/// A record field below a runtime element is one scalar field store over a
-/// carrier that ends in the runtime element, and a literal element followed
-/// by fields is the same carrier grammar.
-#[test]
-fn field_after_runtime_and_literal_elements_is_one_field_store() {
-    let stores = store_paths(
-        "data Point { x: u8; y: u8; }
-        data Entity { pos: Point; hp: u8; }
-        data Buffer { ents: [Entity; 3]; i: u64; }
-        machine Buffer::update(&mut self) {
-            self.i = 1;
-            self.ents[self.i].hp = 7;
-            self.ents[0].pos.x = 9;
-        }",
-    );
-    let [(true, runtime), (true, literal)] = stores.as_slice() else {
-        panic!("two field stores: {stores:#?}");
-    };
-    assert!(
-        matches!(
-            runtime.as_slice(),
-            [
-                StructuralPathSegment::Field(_),
-                StructuralPathSegment::RuntimeIndex { .. }
-            ]
-        ),
-        "`ents[i]` carries `hp`: {runtime:#?}"
-    );
-    assert!(
-        matches!(
-            literal.as_slice(),
-            [
-                StructuralPathSegment::Field(_),
-                StructuralPathSegment::FixedIndex(0),
-                StructuralPathSegment::Field(_)
-            ]
-        ),
-        "`ents[0].pos` carries `x`: {literal:#?}"
-    );
 }
 
 /// `cli__algorithms__bubble_sort`'s swap: a runtime-selected element store

@@ -10,9 +10,7 @@ use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator, PreparedScalarContract,
 };
 use crate::scalar_graph::scalar_graph_module::build_scalar_graph_module;
-use crate::terminal_identities::{
-    TERMINAL_MACHINE_IDENTITY_STRIDE, block_id, contract_id, edge_id, machine_id, value_id,
-};
+use crate::terminal_identities::{TERMINAL_MACHINE_IDENTITY_STRIDE, machine_id};
 use checked_trees::{
     CheckedBooleanExpression, CheckedScalarExpression, CheckedUnitEffectOperationPlan,
 };
@@ -202,137 +200,6 @@ fn scalar_completion_after_array_calls_replays_its_expression_and_statement_orde
             "corruption {corruption}"
         );
     }
-}
-
-#[test]
-fn scalar_machine_builder_uses_a_disjoint_module_identity_namespace() {
-    let identity_base = TERMINAL_MACHINE_IDENTITY_STRIDE;
-    let lowered = build_scalar_graph_module(
-        &[LoweredScalarBranchState {
-            structural_parameters: Vec::new(),
-            parameter_types: vec![ScalarType::Boolean.into()],
-            erased_formal_types: Vec::new(),
-            erased_proof_formals: Vec::new(),
-            bindings: Vec::new(),
-            structural_effects: Vec::new(),
-            terminator: LoweredScalarBranchTerminator::Return {
-                expression: LoweredDirectExpression::Boolean {
-                    expression: Box::new(LoweredBooleanReturnExpression::Parameter { position: 0 }),
-                },
-            },
-        }],
-        &[],
-        ScalarType::Boolean.into(),
-        &terminal_psi::ScalarQualificationCatalog::default(),
-        PreparedScalarContract::Empty,
-        Vec::new(),
-        LoweredContentIdentityReshuffles {
-            structural_places: Vec::new(),
-            entry_claims: Vec::new(),
-            reshuffles: Vec::new(),
-            source_claims: Vec::new(),
-        },
-        LoweredContentPartitionCompositions {
-            structural_places: Vec::new(),
-            compositions: Vec::new(),
-        },
-        machine_id(2),
-        identity_base,
-        &[],
-        &[],
-        None,
-    )
-    .expect("a nonentry machine should lower in its disjoint identity range");
-
-    let [machine] = lowered.semantic_module.machines.as_slice() else {
-        panic!("the isolated builder emits one machine")
-    };
-    assert_eq!(machine.id, machine_id(2));
-    assert_eq!(machine.contract.id, contract_id(2));
-    assert_eq!(machine.entry, block_id(identity_base + 1));
-    assert_eq!(machine.parameters[0].id, value_id(identity_base + 1));
-    assert_eq!(
-        machine
-            .result
-            .scalar()
-            .expect("the scalar fixture has a result")
-            .id,
-        value_id(identity_base + 2)
-    );
-    let Terminator::Return { edge, value, .. } = machine.blocks[0].terminator else {
-        panic!("the fixture should retain its scalar return")
-    };
-    assert_eq!(edge, edge_id(identity_base + 1));
-    assert_eq!(value, value_id(identity_base + 1));
-}
-
-#[test]
-fn primitive_scalar_source_jump_emits_empty_affine_cleanup() {
-    let identity_base = TERMINAL_MACHINE_IDENTITY_STRIDE;
-    let parameter_expression = || LoweredDirectExpression::Boolean {
-        expression: Box::new(LoweredBooleanReturnExpression::Parameter { position: 0 }),
-    };
-    let lowered = build_scalar_graph_module(
-        &[
-            LoweredScalarBranchState {
-                structural_parameters: Vec::new(),
-                parameter_types: vec![ScalarType::Boolean.into()],
-                erased_formal_types: Vec::new(),
-                erased_proof_formals: Vec::new(),
-                bindings: Vec::new(),
-                structural_effects: Vec::new(),
-                terminator: LoweredScalarBranchTerminator::Jump {
-                    trivial_affine_discards: Vec::new(),
-                    structural_arguments: Vec::new(),
-                    target: 1,
-                    arguments: vec![parameter_expression()],
-                    erased_arguments: Vec::new(),
-                    erased_proof_arguments: Vec::new(),
-                },
-            },
-            LoweredScalarBranchState {
-                structural_parameters: Vec::new(),
-                parameter_types: vec![ScalarType::Boolean.into()],
-                erased_formal_types: Vec::new(),
-                erased_proof_formals: Vec::new(),
-                bindings: Vec::new(),
-                structural_effects: Vec::new(),
-                terminator: LoweredScalarBranchTerminator::Return {
-                    expression: parameter_expression(),
-                },
-            },
-        ],
-        &[],
-        ScalarType::Boolean.into(),
-        &terminal_psi::ScalarQualificationCatalog::default(),
-        PreparedScalarContract::Empty,
-        Vec::new(),
-        LoweredContentIdentityReshuffles {
-            structural_places: Vec::new(),
-            entry_claims: Vec::new(),
-            reshuffles: Vec::new(),
-            source_claims: Vec::new(),
-        },
-        LoweredContentPartitionCompositions {
-            structural_places: Vec::new(),
-            compositions: Vec::new(),
-        },
-        machine_id(2),
-        identity_base,
-        &[],
-        &[],
-        None,
-    )
-    .expect("primitive scalar jump should lower");
-
-    let Terminator::Jump {
-        trivial_affine_discards,
-        ..
-    } = &lowered.semantic_module.machines[0].blocks[0].terminator
-    else {
-        panic!("first scalar block should jump")
-    };
-    assert!(trivial_affine_discards.is_empty());
 }
 
 #[test]

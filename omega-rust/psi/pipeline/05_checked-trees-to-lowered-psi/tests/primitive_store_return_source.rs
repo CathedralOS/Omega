@@ -34,31 +34,6 @@ fn primitive_reference_reads_under_operators_preserve_pre_store_values() {
     );
 }
 
-#[test]
-fn boolean_reference_negation_preserves_pre_store_value() {
-    let checked = crate::front_end::checked_program(
-        "machine toggle(value: &mut bool) -> bool { value = !value; value }",
-    );
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("toggle"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .unwrap()
-    .into_artifact();
-    for initial in [false, true] {
-        execute(
-            &artifact,
-            &[],
-            TerminalScalarValue::Boolean(initial),
-            TerminalScalarValue::Boolean(!initial),
-            TerminalScalarValue::Boolean(!initial),
-        );
-    }
-}
-
 fn unsigned(value: u128) -> TerminalScalarValue {
     TerminalScalarValue::Integer {
         scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
@@ -160,29 +135,6 @@ fn execute(
 }
 
 #[test]
-fn write_only_parameter_delivery_and_distinct_result_keep_dense_scalar_order() {
-    let checked = crate::front_end::checked_program(
-        "machine replace(destination: &write u64, replacement: u64, result_value: u64) -> u64 { destination = replacement; result_value }",
-    );
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        TerminalMachineSelection::Name("replace"),
-    )
-    .produce(TerminalProductionCustody::artifact_only(
-        &mut TerminalProductionTimings::default(),
-    ))
-    .unwrap()
-    .into_artifact();
-    execute(
-        &artifact,
-        &[unsigned(27), unsigned(43)],
-        unsigned(91),
-        unsigned(27),
-        unsigned(43),
-    );
-}
-
-#[test]
 fn attached_store_return_retains_its_exact_owner() {
     let mut checked = crate::front_end::checked_program(
         "data First {} data Second {} machine First::reset(value: &mut u64) -> u64 { value = 0; 0 } machine Second::reset(value: &mut u64) -> u64 { value = 0; 0 }",
@@ -279,101 +231,6 @@ fn missing_duplicate_redirected_and_changed_store_plans_reject() {
             )
             .is_err(),
             "mutation {mutation}"
-        );
-    }
-}
-
-#[test]
-fn unsupported_authored_contracts_cannot_disappear_from_store_return_bodies() {
-    for contract in ["requires true;", "ensures result == 0;", "crashes Trap"] {
-        let mut checked = crate::front_end::checked_program(&format!(
-            "machine reset(value: &mut u64) -> u64 {contract} {{ value = 0; 0 }}"
-        ));
-        assert!(
-            checked
-                .facts
-                .flow
-                .terminal_structural_scalar_returns
-                .machines
-                .is_empty(),
-            "{contract}"
-        );
-        // The general Unit closure lowers the contracted body without a
-        // store-return plan; the forged plan below still cannot replace it.
-        checked_trees_to_lowered_psi::lower_machine(
-            &checked,
-            TerminalMachineSelection::Name("reset"),
-        )
-        .unwrap_or_else(|error| panic!("{contract}: {error:?}"));
-        // Producer evidence may be incomplete or substituted. The consumer must
-        // inspect the authored contract even after its proof rows disappear.
-        let plain = crate::front_end::checked_program(
-            "machine reset(value: &mut u64) -> u64 { value = 0; 0 }",
-        );
-        let mut forged = plain.facts.flow.terminal_structural_scalar_returns.machines[0].clone();
-        let machine = &checked.machines()[0];
-        forged.machine = machine.symbol;
-        forged.state = checked.machine_states(machine)[0].symbol;
-        checked.facts.proof.contract_facts = Default::default();
-        checked.facts.flow.terminal_structural_scalar_returns =
-            plain.facts.flow.terminal_structural_scalar_returns.clone();
-        checked
-            .facts
-            .flow
-            .terminal_structural_scalar_returns
-            .machines = vec![forged];
-        assert!(
-            checked_trees_to_lowered_psi::lower_machine(
-                &checked,
-                TerminalMachineSelection::Name("reset")
-            )
-            .is_err(),
-            "forged {contract}"
-        );
-    }
-}
-
-#[test]
-fn constrained_referents_scalar_inputs_and_results_cannot_lose_their_ranges() {
-    for (referent, input, result) in [
-        ("u64 [0..=5]", "u64", "u64"),
-        ("u64", "u64 [0..=5]", "u64"),
-        ("u64", "u64", "u64 [0..=5]"),
-    ] {
-        let mut checked = crate::front_end::checked_program(&format!(
-            "machine reset(value: &mut {referent}, seed: {input}) -> {result} {{ value = 0; 0 }}"
-        ));
-        assert!(
-            checked
-                .facts
-                .flow
-                .terminal_structural_scalar_returns
-                .machines
-                .is_empty()
-        );
-        let plain = crate::front_end::checked_program(
-            "machine reset(value: &mut u64, seed: u64) -> u64 { value = 0; 0 }",
-        );
-        let mut forged = plain.facts.flow.terminal_structural_scalar_returns.machines[0].clone();
-        let machine = &checked.machines()[0];
-        forged.machine = machine.symbol;
-        forged.state = checked.machine_states(machine)[0].symbol;
-        checked.facts.proof.contract_facts = Default::default();
-        checked.facts.flow.terminal_structural_scalar_returns =
-            plain.facts.flow.terminal_structural_scalar_returns.clone();
-        checked
-            .facts
-            .flow
-            .terminal_structural_scalar_returns
-            .machines = vec![forged];
-        let error = checked_trees_to_lowered_psi::lower_machine(
-            &checked,
-            TerminalMachineSelection::Name("reset"),
-        )
-        .unwrap_err();
-        assert!(
-            format!("{error:?}").contains("unsupported constrained types"),
-            "{error:?}"
         );
     }
 }

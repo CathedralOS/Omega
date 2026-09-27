@@ -13,7 +13,6 @@ mod service_reach;
 #[path = "structural_return_source/unit_cleanup_custody.rs"]
 mod unit_cleanup_custody;
 
-use language_semantics::{Multiplicity, PermissionClaimIdentity};
 use proof_admission::AdmissionProfile;
 use terminal_codec::{decode_module, encode_module, encode_proof_section};
 use terminal_fuel::TerminalFuelMeter;

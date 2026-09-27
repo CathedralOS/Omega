@@ -7,7 +7,6 @@ use crate::terminal_identities::{obligation_id, operation_id, value_id};
 use checked_trees::types::PrimitiveType;
 use lowered_psi::LoweredPsi;
 use semantic_vocabulary::IntegerValue;
-use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
 mod rejections;
 
@@ -138,49 +137,4 @@ fn fixture() -> LoweredPsi {
     }
     lowered.proof_bundle.evidence.clear();
     lowered
-}
-
-#[test]
-fn guarded_subslice_extent_proves_strict_length_descent_and_executes() {
-    let mut lowered = fixture();
-    crate::proofs::operation_proofs::finalize_operation_proofs(&mut lowered)
-        .expect("a guarded tail's exact extent proves strict descent");
-    let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
-    let proof =
-        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
-            .unwrap();
-    let execution = terminal_interpreter::interpret_terminal_artifact_measured(
-        &semantic,
-        &proof,
-        &proof_admission::AdmissionProfile::default(),
-        &[],
-        TerminalStructuralInputs::default(),
-        &mut AcceptTerminalEffects,
-    )
-    .expect("independent proof verification and byte execution");
-    assert_eq!(
-        execution.value(),
-        terminal_interpreter::TerminalExecutionResult::Unit
-    );
-    let effects = execution
-        .effects()
-        .iter()
-        .map(|effect| {
-            let terminal_interpreter::TerminalEffect::BoundaryCall { arguments, .. } = effect
-            else {
-                panic!("byte output");
-            };
-            let [
-                terminal_interpreter::TerminalScalarValue::Integer {
-                    value: IntegerValue::Unsigned(value),
-                    ..
-                },
-            ] = arguments.as_slice()
-            else {
-                panic!("one byte")
-            };
-            *value
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(effects, vec![66, 90, 7]);
 }

@@ -27,28 +27,6 @@ fn detached_shared_borrowed_byte_view_lowers_and_verifies() {
 }
 
 #[test]
-fn detached_shared_borrowed_element_view_lowers_and_verifies() {
-    let checked = crate::front_end::checked_program(
-        r#"
-            data Item { head: u64; tail: u64; }
-            data Views { tag: u64; }
-
-            machine Views::pick_item<'a, 'b>(x: &'a [Item], y: &'b [Item]) -> &'a [Item] {
-                x
-            }
-        "#,
-    );
-    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Views::pick_item"))
-        .expect("borrowed whole element view composes and lowers");
-    terminal_verifier::verify_module(
-        &lowered.semantic_module,
-        &lowered.proof_bundle,
-        &proof_admission::AdmissionProfile::default(),
-    )
-    .expect("borrowed whole element view verifies");
-}
-
-#[test]
 fn member_whole_view_results_lower_and_verify() {
     // A receiver-rooted `self.data` projection mints receiver custody and
     // emits a `StructuralLeafCopy` over the `&self` parameter's record

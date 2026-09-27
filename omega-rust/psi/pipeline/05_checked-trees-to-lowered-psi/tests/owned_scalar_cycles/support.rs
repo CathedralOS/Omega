@@ -207,36 +207,6 @@ pub fn successor(
     panic!("missing actual successor {edge:?}");
 }
 
-pub fn has_cycle(machine: &TerminalMachine) -> bool {
-    machine.blocks.iter().any(|start| {
-        let mut pending = vec![start.id];
-        let mut visited = BTreeSet::new();
-        while let Some(current) = pending.pop() {
-            if !visited.insert(current) {
-                continue;
-            }
-            let block = machine
-                .blocks
-                .iter()
-                .find(|block| block.id == current)
-                .unwrap();
-            if matches!(
-                block.terminator,
-                Terminator::Jump { .. } | Terminator::Conditional { .. }
-            ) {
-                for edge in block.terminator.edges() {
-                    let target = successor(machine, edge).0;
-                    if target == start.id {
-                        return true;
-                    }
-                    pending.push(target);
-                }
-            }
-        }
-        false
-    })
-}
-
 // Follow only simultaneous SSA bindings, never arithmetic. Keep both entry and
 // backedge origins so a preheader value cannot impersonate the loop-carried rank.
 pub fn scalar_origins(machine: &TerminalMachine, value: ValueId) -> BTreeSet<ValueId> {

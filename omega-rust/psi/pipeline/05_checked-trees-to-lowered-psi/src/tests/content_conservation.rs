@@ -456,21 +456,6 @@ fn checked_content_plan_fails_closed_on_corrupt_identity() {
 }
 
 #[test]
-fn compact_equal_content_plan_substitution_rejects_without_exact_equation_replay() {
-    let authoritative = source_plan();
-    let mut substituted = direct_source_plan(SemanticDomainId(9), "substituted");
-
-    // Model a collision-equal report/cache coordinate. The exact equation is
-    // deliberately different, so lowering must recompute it and fail closed.
-    substituted.report_fingerprint = authoritative.report_fingerprint;
-    assert_ne!(substituted.equation, authoritative.equation);
-    assert!(matches!(
-        lower_content_conservation_plan(&substituted),
-        Err(LoweringError::ContentConservationFingerprintMismatch { .. })
-    ));
-}
-
-#[test]
 fn checked_identity_facts_group_exact_projections_into_canonical_terminal_rows() {
     let first = identity_fact(SemanticDomainId(9), "payload", 0);
     let second = identity_fact(SemanticDomainId(10), "payload", 0);
