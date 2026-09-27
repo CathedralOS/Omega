@@ -1,0 +1,44 @@
+// PENDING: a case dispatch whose subject is a RUNTIME-indexed element omits
+// the machine's unit plan. `transition self.items[0]` checks; changing the
+// one index to `self.items[self.w]` does not, and nothing else differs.
+//
+// READ THE PHASE LABEL WITH CARE HERE. The diagnostic says the plan was
+// "omitted at local construction at `statement sequence: local data:
+// structural call binding`" — and this program contains no `let` at all.
+// `trace.phase` records the last phase ENTERED, not the operation that
+// declined, so a phase can name a site the program never reaches.
+// `samples/cli/algorithms/dutch_flag` is refused with exactly this label
+// and also has no local: its statement is
+// `transition self.items[self.w] { Color::Red -> ... }`.
+//
+// This is the same family as
+// `tests/omega/pending/collections/runtime_indexed_record_field_store`: a
+// runtime index selecting a NON-SCALAR element. A runtime index into a
+// scalar array plans; a literal index into a case or record array plans;
+// the combination does not. Whoever takes one should look at the other.
+//
+// Promote to `pass/control_flow/` with an exit — 2 here, since `items[0]`
+// is `White` — when the dispatch lands.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Color { case Red; case White; case Blue; }
+
+data Main {
+    console: Binding<Console>;
+    items: [Color; 3];
+    w: u64 [0..=2];
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.items[0] = Color::White;
+    self.w = 0;
+    transition self.items[self.w] {
+        Color::Red -> red()
+        Color::White -> white()
+        _ -> other()
+    }
+    state red(&mut self) { self.console.exit_process(1); }
+    state white(&mut self) { self.console.exit_process(2); }
+    state other(&mut self) { self.console.exit_process(3); }
+}
