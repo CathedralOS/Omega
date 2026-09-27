@@ -50,6 +50,12 @@ enum Step {
         construction: Construction,
         prefix: Vec<QualifiedScalarType>,
     },
+    Zeroed {
+        place: PlaceId,
+        structural_type: StructuralTypeId,
+        multiplicity: StructuralMultiplicity,
+        prefix: Vec<QualifiedScalarType>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -233,6 +239,28 @@ impl Preparation<'_> {
                 }
             };
         }
+        if let CheckedStructuralValueKind::ZeroedStructural {} = &node.kind {
+            // A declared-only local establishes a zeroed whole shape: mint the
+            // fresh home with no field operands, mirroring the Unit path's
+            // EstablishZeroedStructural emission.
+            let multiplicity = match self.checked.type_multiplicity(reference) {
+                Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
+                Multiplicity::Affine => StructuralMultiplicity::Affine,
+                Multiplicity::Linear => {
+                    return unsupported(
+                        "scalar zeroed construction cannot establish linear authority",
+                    );
+                }
+            };
+            let place = place_id(allocate_dense(self.next_place)?);
+            self.steps.push(Step::Zeroed {
+                place,
+                structural_type: declaration.id,
+                multiplicity,
+                prefix: self.prefix.clone(),
+            });
+            return Ok(place);
+        }
         let CheckedStructuralValueKind::Record {
             data_symbol,
             fields,
@@ -406,6 +434,7 @@ impl Prepared {
             .map(|step| match step {
                 Step::Scalar { prefix, .. }
                 | Step::Record { prefix, .. }
+                | Step::Zeroed { prefix, .. }
                 | Step::Bind { prefix, .. } => prefix,
             })
             .ok_or(LoweringError::Unsupported(
@@ -500,6 +529,31 @@ impl Prepared {
                         trivial_affine_discards: Vec::new(),
                     },
                 }),
+                Step::Zeroed {
+                    place,
+                    structural_type,
+                    multiplicity,
+                    prefix,
+                } => computations.push(LoweredScalarBranchState {
+                    structural_parameters: Vec::new(),
+                    parameter_types: prefix.clone(),
+                    erased_formal_types: Vec::new(),
+                    erased_proof_formals: Vec::new(),
+                    bindings: Vec::new(),
+                    structural_effects: vec![LoweredScalarEffect::EstablishZeroedStructural {
+                        place,
+                        structural_type,
+                        multiplicity,
+                    }],
+                    terminator: LoweredScalarBranchTerminator::Jump {
+                        target,
+                        arguments: computations::parameters(&prefix),
+                        erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
+                        structural_arguments: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                }),
             };
         }
         Ok(target)
@@ -566,6 +620,7 @@ pub(crate) fn declarations(
         .filter_map(|operation| match (&operation.kind, &operation.result) {
             (
                 OperationKind::EstablishRecord { .. }
+                | OperationKind::EstablishZeroedStructural { .. }
                 | OperationKind::ByteSequenceSubslice { .. }
                 | OperationKind::ElementViewSubslice { .. },
                 OperationResult::Structural(result),

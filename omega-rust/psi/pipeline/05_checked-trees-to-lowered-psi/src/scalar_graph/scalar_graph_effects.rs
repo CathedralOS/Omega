@@ -53,6 +53,28 @@ pub(crate) fn emit(
                     record, values, operations, calls,
                 )?;
             }
+            LoweredScalarEffect::EstablishZeroedStructural {
+                place,
+                structural_type,
+                multiplicity,
+            } => {
+                let id = operations.allocate();
+                operations.push(Operation {
+                    static_reach_binding: None,
+                    suspension_crossing: None,
+                    id,
+                    result: OperationResult::Structural(super::StructuralOperationResult {
+                        qualification_establishments: Vec::new(),
+                        place: *place,
+                        structural_type: *structural_type,
+                        multiplicity: *multiplicity,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        claims: Vec::new(),
+                    }),
+                    kind: OperationKind::EstablishZeroedStructural {},
+                });
+            }
             LoweredScalarEffect::EstablishScalarCase(case) => {
                 crate::scalar_graph::scalar_computations::cases::emit(
                     case, values, next_value, operations, calls,

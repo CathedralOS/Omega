@@ -21,8 +21,8 @@ use semantic_vocabulary::{
     StructuralTypeId,
 };
 use terminal_psi::{
-    CrashCause as TerminalCrashCause, StructuralArgument, StructuralParameterDeclaration,
-    StructuralPathSegment,
+    CrashCause as TerminalCrashCause, StructuralArgument, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -149,6 +149,13 @@ pub(crate) enum LoweredScalarEffect {
         scalar_type: ScalarType,
     },
     EstablishRecord(scalar_graph_lowering::structural_values::Construction),
+    /// A declared-only local's zeroed whole-shape establishment: a fresh home
+    /// with no field operands, realized by the dedicated zeroed operation.
+    EstablishZeroedStructural {
+        place: PlaceId,
+        structural_type: StructuralTypeId,
+        multiplicity: StructuralMultiplicity,
+    },
     EstablishScalarArray(LoweredScalarArrayConstruction),
     EstablishScalarCase(scalar_computations::cases::Construction),
     /// Derive a borrowed byte window on the edge for the successor's

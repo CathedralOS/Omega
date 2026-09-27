@@ -1,0 +1,24 @@
+// A `let mut` record local with no initializer owns its zeroed shape: a
+// scalar member read projects the declared field out of the established
+// zeroed root, so `made.x` returns 0 and the exit code observes it. Exits 70.
+
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Point {
+    x: i32 in Trapping;
+    y: i32 in Trapping;
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine read_x() -> i32 in Trapping {
+    let mut made: Point;
+    made.x
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.console.exit_process(70 + read_x() as i32);
+}
