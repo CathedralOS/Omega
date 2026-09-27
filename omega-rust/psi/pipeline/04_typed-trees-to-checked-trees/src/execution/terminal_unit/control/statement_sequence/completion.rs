@@ -97,10 +97,19 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         }
     }
     let statements = program.statement_table.statements(state.statement_nodes);
-    let returned_value = statements.len().checked_sub(1)
-        .and_then(|ordinal| u32::try_from(ordinal).ok())
-        .and_then(|ordinal| facts.values.structural_values.root_at(state.symbol, ordinal))
-        .filter(|root| matches!(statements.last(), Some(StatementNode::Expression(expression)) if *expression == root.expression));
+    // A return and its nested call arguments may each establish a structural
+    // value at this statement. Rejoin the returned expression, not a presumed
+    // unique statement root.
+    let returned_value = statements.last().and_then(|statement| {
+        let StatementNode::Expression(expression) = statement else {
+            return None;
+        };
+        let ordinal = u32::try_from(statements.len().checked_sub(1)?).ok()?;
+        facts
+            .values
+            .structural_values
+            .root_for_expression(state.symbol, ordinal, *expression)
+    });
     let returned_local = statements.last().and_then(|statement| {
         let StatementNode::Expression(expression) = statement else {
             return None;

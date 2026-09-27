@@ -24,7 +24,7 @@ pub(super) fn validate(
     access_position: usize,
 ) -> Result<usize, LoweringError> {
     if let CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } = argument.source {
-        return validate_array_local(
+        return validate_copy_local(
             checked,
             state,
             target_type,
@@ -140,7 +140,10 @@ pub(super) fn validate(
     Ok(access_position)
 }
 
-fn validate_array_local(
+// Whole local copies rejoin their declaration and authored observation. Closed
+// plain-owned contents exclude loans and cleanup; affine moves require a
+// separate transfer proof and cannot enter through this copy route.
+fn validate_copy_local(
     checked: &CheckedTrees,
     state: &State,
     target_type: TypeReferenceHandle,
@@ -152,10 +155,10 @@ fn validate_array_local(
 ) -> Result<usize, LoweringError> {
     let table = &checked.expression_table;
     if !table.expression_is_valid(expression) {
-        return unsupported("computed owned array local has a stale authored expression");
+        return unsupported("computed owned copy local has a stale authored expression");
     }
     let ExpressionNode::Name(name) = table.expression(expression) else {
-        return unsupported("computed owned array local requires an authored whole name");
+        return unsupported("computed owned copy local requires an authored whole name");
     };
     if !symbol.is_valid()
         || name.symbol != symbol
@@ -169,7 +172,7 @@ fn validate_array_local(
             .iter()
             .any(|parameter| parameter.symbol == symbol)
     {
-        return unsupported("computed owned array local substituted its source or access");
+        return unsupported("computed owned copy local substituted its source or access");
     }
     let mut locals = checked
         .statement_table
@@ -181,7 +184,7 @@ fn validate_array_local(
             _ => None,
         });
     let (ordinal, local) = locals.next().ok_or(LoweringError::Unsupported(
-        "computed owned array argument has no authored local",
+        "computed owned copy argument has no authored local",
     ))?;
     if locals.next().is_some()
         || ordinal >= call.statement_index
@@ -191,14 +194,15 @@ fn validate_array_local(
             !checked
                 .type_reference_table
                 .contains_type_reference(*reference)
-                || !validation::is_closed_primitive_array_type(checked, *reference)
+                || checked.primitive_type_reference(*reference).is_some()
+                || !validation::has_plain_owned_contents(checked, *reference)
                 || checked.type_multiplicity(*reference) != Multiplicity::Unrestricted
         })
         || checked.normalized_type_identity(local.type_reference)
             != checked.normalized_type_identity(target_type)
         || checked.normalized_type_identity(target_type).into_string() != argument.type_identity
     {
-        return unsupported("computed owned array local changed its declaration, order, or type");
+        return unsupported("computed owned copy local changed its declaration, order, or type");
     }
     borrow_rows::validate_shared_argument_at(checked, call, access_position, symbol)?;
     Ok(access_position)

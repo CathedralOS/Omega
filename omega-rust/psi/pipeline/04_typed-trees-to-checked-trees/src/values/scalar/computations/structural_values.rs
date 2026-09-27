@@ -13,6 +13,30 @@ use checked_trees::{
 use typed_trees::expression::MatchPattern;
 use typed_trees::types::TypeReferenceHandle;
 
+/// Lifetime arguments erase without specializing the record's field types.
+/// Construction and whole-place moves must agree on that runtime carrier;
+/// type arguments still require substitution and remain outside this lookup.
+fn closed_data_symbol(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<SymbolHandle> {
+    match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
+        TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            ..
+        } if program
+            .type_reference_table
+            .type_reference_handles(*arguments)
+            .is_empty() =>
+        {
+            Some(*base_symbol)
+        }
+        _ => None,
+    }
+}
+
 // Classify the destination before inserting scalar operand roots. A scalar or
 // array Match must not leave partial structural plans when a later arm fails.
 // A match arm may also select an owned child projected by exact field or
@@ -69,27 +93,13 @@ pub(super) fn is_record_value(
         shared_referent.is_some() && program.primitive_type_reference(reference).is_some();
     let mut record_symbol = SymbolHandle::invalid();
     if !primitive_referent {
-        let symbol = match program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Named { symbol, .. } => symbol,
-            // A lifetime-parameterized record is a `Generic` node whose type
-            // arguments are empty — its fields bind lifetimes, not types.
-            TypeReferenceNode::Generic {
-                base_symbol,
-                arguments,
-                ..
-            } if program
-                .type_reference_table
-                .type_reference_handles(*arguments)
-                .is_empty() =>
-            {
-                base_symbol
-            }
-            _ => return false,
+        let Some(symbol) = closed_data_symbol(program, reference) else {
+            return false;
         };
         let Some(record) = program
             .data_definitions()
             .iter()
-            .find(|record| record.symbol == *symbol)
+            .find(|record| record.symbol == symbol)
         else {
             return false;
         };
@@ -100,7 +110,7 @@ pub(super) fn is_record_value(
         {
             return false;
         }
-        record_symbol = *symbol;
+        record_symbol = symbol;
     }
     let symbol = &record_symbol;
     let mut pending = vec![expression];
@@ -1485,16 +1495,12 @@ impl Builder<'_, '_> {
         {
             return None;
         }
-        let TypeReferenceNode::Named { symbol, .. } =
-            self.program.type_reference_table.type_reference(expected)
-        else {
-            return None;
-        };
+        let symbol = closed_data_symbol(self.program, expected)?;
         let data = self
             .program
             .data_definitions()
             .iter()
-            .find(|data| data.symbol == *symbol)?;
+            .find(|data| data.symbol == symbol)?;
         if self
             .program
             .data_members(data)
@@ -1555,10 +1561,7 @@ impl Builder<'_, '_> {
         if self.program.normalized_type_identity(reference)
             != self.program.normalized_type_identity(expected)
             || !validation::has_linear_owned_contents(self.program, reference)
-            || !matches!(
-                self.program.type_reference_table.type_reference(reference),
-                typed_trees::types::TypeReferenceNode::Named { .. }
-            )
+            || closed_data_symbol(self.program, reference) != Some(symbol)
         {
             return None;
         }
@@ -1622,30 +1625,15 @@ impl Builder<'_, '_> {
             return None;
         }
         let reference = validation::unwrapped_type_reference(self.program, expected)?;
-        let symbol = match self.program.type_reference_table.type_reference(reference) {
-            typed_trees::types::TypeReferenceNode::Named { symbol, .. } => symbol,
-            typed_trees::types::TypeReferenceNode::Generic {
-                base_symbol,
-                arguments,
-                ..
-            } if self
-                .program
-                .type_reference_table
-                .type_reference_handles(*arguments)
-                .is_empty() =>
-            {
-                base_symbol
-            }
-            _ => return None,
-        };
-        if literal.case_name.is_some() || literal.type_symbol != *symbol {
+        let symbol = closed_data_symbol(self.program, reference)?;
+        if literal.case_name.is_some() || literal.type_symbol != symbol {
             return None;
         }
         let data = self
             .program
             .data_definitions()
             .iter()
-            .find(|data| data.symbol == *symbol)?;
+            .find(|data| data.symbol == symbol)?;
         let declared = self.program.data_members(data);
         if declared
             .iter()

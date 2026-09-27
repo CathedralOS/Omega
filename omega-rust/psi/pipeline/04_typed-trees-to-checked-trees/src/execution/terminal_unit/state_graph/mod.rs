@@ -789,16 +789,6 @@ fn prefix_initializers(
     Some(initializers)
 }
 
-/// Whether an owned whole call argument moves its structural result's single
-/// custody into the call. A linear result has exactly one owner, so the call
-/// is it. A construction authored as the call's own argument —
-/// `f(Event::Trigger)`, recorded with a `CallArgument` source — has no owner
-/// but the call that reads it, so the call owns it whatever its multiplicity;
-/// the Psi lowering admits exactly that join and no wider one. Every other
-/// result keeps its statement owner: a local is disposed through the state's
-/// exit, and counting a call as well would owe it twice. The result custody
-/// accounting then requires exactly one consumer per result, so a temporary
-/// the sequence also discarded or returned still refuses.
 /// A call retained inside a value-returning terminator (`Guarded` arm
 /// payloads, `ConditionalReturn`'s value arm) consumes its producers through
 /// owned whole arguments the same way an in-sequence call does: the argument
@@ -841,6 +831,11 @@ fn terminator_call_consumes_result(
     })
 }
 
+/// Whole owned call arguments consume affine and linear results. Accounting
+/// requires one disposition, and lowering rejoins a moved local's exact
+/// establishment and call-transfer receipts instead of state-exit cleanup.
+/// An inline argument construction also belongs to its consuming call when
+/// copyable; other unrestricted locals retain their reusable statement owner.
 fn call_owns_result(producer: &CheckedUnitEffectOperationPlan) -> bool {
     match producer {
         CheckedUnitEffectOperationPlan::EstablishStructuralValue {
@@ -848,7 +843,7 @@ fn call_owns_result(producer: &CheckedUnitEffectOperationPlan) -> bool {
             operand_source,
             ..
         } => {
-            result.multiplicity == Multiplicity::Linear
+            result.multiplicity != Multiplicity::Unrestricted
                 || matches!(
                     operand_source,
                     Some(checked_trees::CheckedArrayConstructionSource::CallArgument { .. })
@@ -856,7 +851,7 @@ fn call_owns_result(producer: &CheckedUnitEffectOperationPlan) -> bool {
         }
         CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
         | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. } => {
-            result.multiplicity == Multiplicity::Linear
+            result.multiplicity != Multiplicity::Unrestricted
         }
         _ => false,
     }

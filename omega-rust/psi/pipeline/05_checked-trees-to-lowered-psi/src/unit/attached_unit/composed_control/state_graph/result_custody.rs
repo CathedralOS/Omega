@@ -90,9 +90,15 @@ pub(super) fn selection_role(
 /// exit: a discarded result pairs with its call's cleanup continuation, a call
 /// result stored whole into a borrowed field's opened window moves into that
 /// field, and a construction authored as a call argument moves whole into the
-/// call that reads it. None belongs to an authored local, and the rejoined
-/// body already proved the one disposal or transfer each receives.
-fn retired_in_body(state: &CheckedComposedUnitControlStatePlan) -> Vec<u32> {
+/// call that reads it. Named affine locals also retire at ordinary calls when
+/// their unique whole move rejoins exact establishment and transfer evidence.
+/// Shared call admission checks each authored operand before emission.
+fn retired_in_body(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    source: &checked_trees::state::State,
+    state: &CheckedComposedUnitControlStatePlan,
+) -> Result<Vec<u32>, LoweringError> {
     let moved_into_calls = state
         .operations
         .iter()
@@ -114,7 +120,7 @@ fn retired_in_body(state: &CheckedComposedUnitControlStatePlan) -> Vec<u32> {
                 })
             })
         });
-    state
+    let mut retired = state
         .operations
         .iter()
         .flat_map(|operation| match operation {
@@ -136,7 +142,136 @@ fn retired_in_body(state: &CheckedComposedUnitControlStatePlan) -> Vec<u32> {
             _ => Vec::new(),
         })
         .chain(moved_into_calls)
-        .collect()
+        .collect::<Vec<_>>();
+    // A named affine result can end at a later call, before any state edge.
+    // The graph's global discard flag is false for both live and moved locals;
+    // it cannot prove this retirement. Rejoin the one whole call use and the
+    // local's exact establishment/transfer receipts instead. Shared call
+    // admission also checks the authored operand and target before emission.
+    for (producer_index, operation) in state.operations.iter().enumerate() {
+        let Some(result) = result(operation) else {
+            continue;
+        };
+        if result.multiplicity != Multiplicity::Affine || retired.contains(&result.binding_ordinal)
+        {
+            continue;
+        }
+        let uses = state
+            .operations
+            .iter()
+            .enumerate()
+            .flat_map(|(index, operation)| {
+                call_arguments(operation)
+                    .iter()
+                    .filter(move |argument| {
+                        argument.source_structural_result_binding_ordinal()
+                            == Some(result.binding_ordinal)
+                    })
+                    .map(move |argument| (index, operation, argument))
+            })
+            .collect::<Vec<_>>();
+        let mut moves = uses.iter().filter(|(_, _, argument)| {
+            argument.access == checked_trees::CheckedStructuralAccess::Owned
+                && argument.path.is_empty()
+        });
+        let Some((consumer_index, consumer, argument)) = moves.next().copied() else {
+            continue;
+        };
+        if moves.next().is_some()
+            || consumer_index <= producer_index
+            || argument.type_identity != result.type_identity
+            || uses.iter().any(|(index, _, other)| {
+                *index <= producer_index
+                    || *index > consumer_index
+                    || (other.access == checked_trees::CheckedStructuralAccess::Owned
+                        && !other.path.is_empty())
+            })
+        {
+            return unsupported("Unit graph call retirement duplicates or precedes its owner");
+        }
+        let coordinate = match consumer {
+            CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. }
+            | CheckedUnitEffectOperationPlan::ScalarCall { coordinate, .. }
+            | CheckedUnitEffectOperationPlan::StructuralCall { coordinate, .. } => *coordinate,
+            // Boundary settlement retains its own completion receipts.
+            _ => continue,
+        };
+        let statements = checked.statement_table.statements(source.statement_nodes);
+        let Some(StatementNode::LocalData(local)) = statements.get(result.statement_index as usize)
+        else {
+            return unsupported("Unit graph call retirement has no authored local");
+        };
+        if result.statement_index >= coordinate.statement_index
+            || checked.type_multiplicity(local.type_reference) != Multiplicity::Affine
+            || checked
+                .normalized_type_identity(local.type_reference)
+                .as_str()
+                != result.type_identity
+            || !validation::has_plain_owned_contents_with_numeric_constraints(
+                &checked.typed,
+                local.type_reference,
+            )
+        {
+            return unsupported("Unit graph call retirement changed its local custody");
+        }
+        let authored = crate::emission::call_source_custody::authored::locate_source(
+            checked,
+            state.state,
+            coordinate,
+        )?;
+        let establishment = PermissionEventSource::Statement {
+            statement_index: result.statement_index as usize,
+        };
+        let transfer = PermissionEventSource::Call {
+            statement_index: coordinate.statement_index as usize,
+            call_ordinal: coordinate.call_ordinal as usize,
+            target_symbol: authored.source_target,
+        };
+        // A local move preserves its value's original provenance. Reuse the
+        // construction replay (including its borrowed-loan checks), then
+        // require this precise consuming call as the sole final disposition.
+        crate::expression_preparation::source_custody::structural::validate_local_ownership(
+            checked,
+            machine,
+            state.state,
+            result.statement_index,
+            local.symbol,
+            result.multiplicity,
+            false,
+        )?;
+        let mut establishes = 0;
+        let mut transfers = 0;
+        for (_, event) in checked
+            .facts
+            .flow
+            .ownership
+            .permissions
+            .iter()
+            .filter(|(_, event)| {
+                event.machine_symbol == machine
+                    && event.state_symbol == state.state
+                    && event.root == facts::PlaceRoot::Symbol(local.symbol)
+                    && event.access == PermissionAccess::Owned
+            })
+        {
+            if event.kind == PermissionEventKind::Establish && event.source == establishment {
+                establishes += 1;
+            } else if matches!(
+                event.kind,
+                PermissionEventKind::Transfer | PermissionEventKind::Consume
+            ) && event.source == transfer
+            {
+                transfers += 1;
+            } else {
+                return unsupported("Unit graph moved local retains another disposition");
+            }
+        }
+        if establishes != 1 || transfers != 1 {
+            return unsupported("Unit graph call retirement lost its exact ownership receipts");
+        }
+        retired.push(result.binding_ordinal);
+    }
+    Ok(retired)
 }
 
 /// The structural arguments an operation passes to the call it performs.
@@ -352,7 +487,7 @@ pub(super) fn validate_disposition_roster(
     state: &CheckedComposedUnitControlStatePlan,
 ) -> Result<(), LoweringError> {
     let statements = checked.statement_table.statements(source.statement_nodes);
-    let cleanup_discards = retired_in_body(state);
+    let cleanup_discards = retired_in_body(checked, machine, source, state)?;
     for (_, event) in checked
         .facts
         .flow
@@ -396,7 +531,7 @@ pub(super) fn local_discards(
     edge: Option<&CheckedStructuralControlSuccessorPlan>,
 ) -> Result<Vec<u32>, LoweringError> {
     let statements = checked.statement_table.statements(source.statement_nodes);
-    let cleanup_discards = retired_in_body(state);
+    let cleanup_discards = retired_in_body(checked, machine, source, state)?;
     let mut discards = Vec::new();
     for result in state.operations.iter().rev().filter_map(result) {
         if cleanup_discards.contains(&result.binding_ordinal) {
@@ -450,7 +585,7 @@ pub(super) fn selection_edge_discards(
     evaluation: &crate::unit::attached_unit::argument_evaluation::Evaluation,
 ) -> Result<Vec<PlaceId>, LoweringError> {
     let statements = checked.statement_table.statements(source.statement_nodes);
-    let cleanup_discards = retired_in_body(state);
+    let cleanup_discards = retired_in_body(checked, machine, source, state)?;
     let mut roots = Vec::new();
     for result in state.operations.iter().rev().filter_map(result) {
         if cleanup_discards.contains(&result.binding_ordinal) {

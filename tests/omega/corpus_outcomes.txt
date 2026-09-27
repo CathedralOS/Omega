@@ -194,6 +194,8 @@ fail/build/uefi_program_entry_missing_storage_roots rejected 3319ms expected
 	target schema `ProgramStorageApplication` exposes exactly image and initial-storage roots, but `launch` declares 0 visible parameters
 fail/build/uefi_program_entry_wrong_calling_policy rejected 4450ms unexpected
 	target root slot `uefi_x86_64::ProgramEntry` requires exactly one loaded `UefiApplication` boundary schema, but found 2
+fail/calls/affine_constructor_result_reuse rejected 127ms expected
+	affine value `item` was already transferred or consumed; it cannot be moved here
 fail/calls/discarded_call_result rejected 1129ms expected
 	call to `roll` discards its non-unit `bool` result; consume the value or discard it explicitly with `_ = roll(...);`
 fail/calls/duplicate_named_machine_overload_rejected rejected 855ms expected

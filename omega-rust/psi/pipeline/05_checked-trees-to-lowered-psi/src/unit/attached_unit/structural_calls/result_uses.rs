@@ -1700,17 +1700,15 @@ fn validate_operand_producers(
                 checked,
                 local.type_reference,
             );
+            // The producer roster includes every local, even while rejoining
+            // another operand. Copy cases carry the same plain-owned custody
+            // as arrays and records; their exact carrier is still checked below.
             if !local.symbol.is_valid()
                 || (result.multiplicity == Multiplicity::Unrestricted
-                    && !(validation::is_closed_primitive_array_type(
+                    && !(validation::has_plain_owned_contents_with_numeric_constraints(
                         &checked.typed,
                         local.type_reference,
-                    )
-                        || crate::expression_preparation::source_custody::structural::plain_record(
-                            checked,
-                            local.type_reference,
-                        )
-                        || view_carrier.is_some()))
+                    ) || view_carrier.is_some()))
                 || checked
                     .typed
                     .normalized_type_identity(view_carrier.unwrap_or(
@@ -1782,13 +1780,13 @@ fn validate_operand_producers(
                     source.source_target,
                 )?;
                 if result.multiplicity == Multiplicity::Unrestricted
-                    && !validation::is_closed_primitive_array_type(
+                    && !validation::has_plain_owned_contents_with_numeric_constraints(
                         &checked.typed,
                         signature.return_type,
                     )
                 {
                     return unsupported(
-                        "unrestricted structural operand has no primitive array producer",
+                        "unrestricted structural operand has no plain owned producer",
                     );
                 }
                 let (root, path, access) = super::super::parameters::source_place_path(

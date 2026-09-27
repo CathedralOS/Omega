@@ -204,11 +204,12 @@ pub(super) fn account(
             }
             _ => false,
         } || selection_residual_source;
-        // A result the call owns (`call_owns_result`) is no longer owed by
-        // the state's terminator. Count its exact whole owned uses in the
-        // completed sequence; returning it as well would duplicate custody.
-        // Affine and unrestricted locals keep their ordinary statement
-        // owner until graph admission can replay their cleanup partition.
+        // A whole owned argument ends an affine local's custody at the call,
+        // just as it ends a linear result or an inline operand's custody.
+        // Sequencing retires the producer's discard flag; count the exact
+        // later use here instead of still demanding state-exit disposal.
+        // The final sum rejects a second move, cleanup, or returned owner.
+        // Unrestricted locals remain copies, not one-use ownership debt.
         let call_transfers = operations[producer_index + 1..]
             .iter()
             .filter_map(|operation| match operation {
@@ -243,6 +244,7 @@ pub(super) fn account(
                 call_owns_result(operation)
                     && argument.source_structural_result_binding_ordinal()
                         == Some(result.binding_ordinal)
+                    && argument.type_identity == result.type_identity
                     && argument.access == CheckedStructuralAccess::Owned
                     && argument.path.is_empty()
             })

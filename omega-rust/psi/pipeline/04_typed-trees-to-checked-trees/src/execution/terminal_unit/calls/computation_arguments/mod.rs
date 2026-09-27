@@ -100,7 +100,7 @@ pub(crate) fn structural_computation_argument(
         // This retains authored actual identity. Graph publication rejoins
         // affine transfers after multiplicity checking produces permissions.
         return owned_parameter_argument(program, state, name.symbol, target).or_else(|| {
-            owned_array_local_argument(program, state, call.statement_index, name.symbol, target)
+            owned_copy_local_argument(program, state, call.statement_index, name.symbol, target)
         });
     }
     if target_access == CheckedStructuralAccess::SharedBorrow {
@@ -931,7 +931,7 @@ pub(crate) fn shared_byte_view_argument(
     })
 }
 
-fn owned_array_local_argument(
+fn owned_copy_local_argument(
     program: &TypedTrees,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -960,12 +960,17 @@ fn owned_array_local_argument(
         || !program
             .expression_table
             .expression_is_valid(local.initial_value)
-        || !validation::is_closed_primitive_array_type(program, local.type_reference)
-        || !validation::is_closed_primitive_array_type(program, target.type_reference)
-        || crate::checks::type_multiplicity(program, local.type_reference)
-            != Multiplicity::Unrestricted
-        || crate::checks::type_multiplicity(program, target.type_reference)
-            != Multiplicity::Unrestricted
+        // Copying a closed plain-owned local preserves its established storage
+        // regardless of whether its carrier is an array, record, or case.
+        // Affine moves need their own transfer receipts and remain excluded.
+        || [local.type_reference, target.type_reference]
+            .iter()
+            .any(|reference| {
+                program.primitive_type_reference(*reference).is_some()
+                    || !validation::has_plain_owned_contents(program, *reference)
+                    || crate::checks::type_multiplicity(program, *reference)
+                        != Multiplicity::Unrestricted
+            })
     {
         return None;
     }
