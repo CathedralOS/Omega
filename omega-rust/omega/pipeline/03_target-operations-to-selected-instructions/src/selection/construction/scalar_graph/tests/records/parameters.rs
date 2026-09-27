@@ -234,6 +234,34 @@ fn owned_parameter_child_rejoins_exact_captured_fragments() {
                     placement: source.call_plan.parameters[0].clone(),
                 },
             });
+        // An affine child cannot become duplicable merely by wrapping it in
+        // another record. Keep that malformed fixture as a rejection control.
+        let unrestricted_parent = source.clone();
+        source
+            .structural
+            .as_mut()
+            .unwrap()
+            .result
+            .as_mut()
+            .unwrap()
+            .multiplicity = StructuralMultiplicity::Affine;
+        let LegalizedScalarInstructionKind::EstablishRecord { result, .. } =
+            &mut source.blocks[0].instructions[2].kind
+        else {
+            panic!("parent record");
+        };
+        result.multiplicity = StructuralMultiplicity::Affine;
+        let LegalizedScalarTerminator::Return(returned) = &mut source.blocks[0].terminator else {
+            panic!("parent return");
+        };
+        let LegalizedScalarReturnValue::Structural {
+            source:
+                legalized_operations::LegalizedStructuralCaseSource::OperationResult { result, .. },
+        } = &mut returned.value
+        else {
+            panic!("parent result");
+        };
+        result.multiplicity = StructuralMultiplicity::Affine;
         let environment =
             register_environment::baseline_target_register_environment(target).unwrap();
         let constraints = SelectedSelectionConstraints {
@@ -261,6 +289,19 @@ fn owned_parameter_child_rejoins_exact_captured_fragments() {
             )
         };
         validate(&source, &selected).unwrap();
+        assert!(validate(&unrestricted_parent, &selected).is_err());
+        assert!(
+            build(
+                0,
+                &unrestricted_parent,
+                target,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+            .is_err(),
+            "an affine child cannot initialize an unrestricted parent"
+        );
         for mutation in 0..4 {
             let mut changed = source.clone();
             let parameter = &mut changed.structural.as_mut().unwrap().parameters[0];
@@ -286,7 +327,7 @@ fn owned_parameter_child_rejoins_exact_captured_fragments() {
             .unwrap();
         register.entry_fixed_view = None;
         assert!(validate(&source, &changed).is_err());
-        let mut copy_source = source.clone();
+        let mut copy_source = unrestricted_parent;
         let parameter = &mut copy_source.structural.as_mut().unwrap().parameters[0];
         parameter.semantic.multiplicity = StructuralMultiplicity::Unrestricted;
         parameter.target.multiplicity = StructuralMultiplicity::Unrestricted;
