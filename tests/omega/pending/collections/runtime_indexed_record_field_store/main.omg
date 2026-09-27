@@ -16,24 +16,36 @@
 // runtime index is already planned for a scalar element, and the field
 // projection is already planned under a literal index.
 //
-// The route is mapped, and the obvious order is backwards. The checked
-// vocabulary already spells the answer —
+// It was built, all four layers, and what remains is a TERMINAL VOCABULARY
+// choice rather than another gate. 04 produces the read already —
 // `CheckedScalarExpression::StructuralParameterIndexedRead` carries an
-// `element_path`, documented as "record fields for a record element of a
-// view (`entries[index].value`)". 04 produces it in
-// `values/scalar/scalar_lowering.rs`'s `view_element_field_read`, which
-// refuses a fixed array through one line, `if !selection.through_view`.
-// Relaxing that line makes THIS program check, and the native build then
-// fails one stage later with `Lowering(Unsupported("a projected element
-// read carries no element field path"))` from
-// `05_checked-trees-to-lowered-psi/src/expression_preparation/prepare_expression.rs`,
-// which for a `Parameter` root admits a non-empty `path` OR a non-empty
-// `element_path` and never both. A view read has an empty path, because the
-// view IS the parameter; `self.cells[self.i].hp` needs both, because
-// `cells` is reached through a field path.
+// `element_path` — behind one line in `values/scalar/scalar_lowering.rs`'s
+// `view_element_field_read`, `if !selection.through_view`. Lifting it, then
+// carrying the element path through 05's `prepare_expression`, walking it
+// to its scalar leaf in `primitive_store::lower_indexed_path`, and
+// appending it after the `RuntimeIndex` segment at emission, reaches
+// Terminal validation — which refuses with `InvalidPrimitiveScalarRead`.
 //
-// So 05 goes first and the `through_view` line goes second. It fails
-// closed either way, so nothing is at risk while it waits.
+// No current Terminal operation can spell this read, by exhaustion:
+//
+//   PrimitiveScalarRead { source, path }
+//       admits a RuntimeIndex segment, but the Field arm of
+//       `primitive_projection_type` steps only into a STRUCTURAL child, so
+//       the path cannot end at a scalar leaf field.
+//   IntegerStructuralField { source, path, field }
+//       names the scalar leaf separately — it is what `self.cells[2].hp`
+//       emits, and that program builds and exits 70 — but its path is
+//       canonical, and canonical spelling exists to exclude runtime
+//       selection.
+//   ElementViewRead { source, index, path }
+//       carries an index AND an element path, the right shape, but its
+//       source is a view, so the carrier path is empty.
+//
+// So the choice is between giving `IntegerStructuralField` a runtime index,
+// giving `ElementViewRead` a carrier path, and letting a
+// `PrimitiveScalarRead` path end at a scalar field. Terminal Psi is the
+// portable boundary, so that belongs with its product contract rather than
+// a lowering patch.
 //
 // Two samples wait on it, and both write the loop form rather than the
 // literal one: `samples/cli/collections/entity_list`

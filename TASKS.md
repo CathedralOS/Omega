@@ -5194,20 +5194,36 @@ _wrapping_computations` is repaired as the worked example: it asserts rejection
   and the fixed case is the easier addressing -- static stride plus the
   index's own declared range.
 
-  Relaxing that line was measured, not assumed. The reduction then CHECKS,
-  and a native build fails loudly one stage later:
-  `Lowering(Unsupported("a projected element read carries no element field
-  path"))`, from
-  `05_checked-trees-to-lowered-psi/src/expression_preparation/prepare_expression.rs`.
-  Reading the site explains the view-only shape: for a `Parameter` root, 05
-  admits a non-empty `path` OR a non-empty `element_path`, never both -- and
-  a view read has an EMPTY path, because the view is the parameter itself.
-  `self.cells[self.i].hp` needs both, since `cells` is reached through a
-  field path.
+  It was built, all four layers, and the last one is a TERMINAL VOCABULARY
+  gap rather than a gate. Working through it in order -- lift the 04 line,
+  let 05's `prepare_expression` carry an `element_path` beside a non-empty
+  carrier path, walk that path to its scalar leaf in
+  `primitive_store::lower_indexed_path`, and append it after the
+  `RuntimeIndex` segment at emission -- reaches Terminal validation, which
+  refuses with `InvalidPrimitiveScalarRead`. The reason is that NO current
+  Terminal operation can spell the read, proven by exhaustion rather than
+  guessed:
+  - `PrimitiveScalarRead { source, path }` admits a `RuntimeIndex` segment,
+    but `primitive_projection_type`'s `Field` arm steps only into
+    `StructuralFieldType::Structural`, so the path cannot END at a scalar
+    leaf field.
+  - `IntegerStructuralField { source, path, field }` DOES name the scalar
+    leaf separately -- it is what `self.cells[2].hp` emits, and that program
+    builds and exits 70 -- but its path is
+    `Vec<CanonicalStructuralPathSegment>`, and canonical spelling exists
+    precisely to exclude runtime selection.
+  - `ElementViewRead { source, index, path }` carries an index AND an
+    element path, which is the right shape, but its source is a view, so
+    the carrier path is empty.
 
-  So 05 goes first and 04's `through_view` line goes second; doing only the
-  second produces a program that checks and cannot be built. It fails
-  closed, so nothing is at risk in the meantime.
+  So the choice is an owner's: give `IntegerStructuralField` a runtime
+  index, give `ElementViewRead` a carrier path, or let a
+  `PrimitiveScalarRead` path end at a scalar field. Terminal Psi is the
+  portable boundary, so this belongs with its
+  [product contract](wiki/spec/terminal-psi/product.md) rather than in a
+  lowering patch. Everything below Terminal already works: `cells[2].hp`
+  runs, and the 04/05 route above was measured to reach validation with the
+  element path intact.
 
   **A mixed-carrier integer guard retains no Guard fact, and the spec says
   it must.** `construct_integer_comparison`
