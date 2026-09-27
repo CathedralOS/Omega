@@ -130,3 +130,47 @@ fn ordinary_state_invocation_does_not_inherit_transition_field_evidence() {
         false,
     );
 }
+
+#[test]
+fn nested_loops_preserve_bounded_ascii_fields_without_assuming_utf8_replacement() {
+    for (initial, replacement, accepted) in [
+        ("  ", "((self.row + 48) as u8 in Wrapping) as u8", true),
+        ("  ", "255", false),
+        ("é", "32", false),
+    ] {
+        check(
+            &format!(
+                r#"
+                domain [u8; 2]::Utf8 requires valid_utf8(self);
+                data Buffer {{ output: [u8; 2] in Utf8; row: i32 in Wrapping; column: i32 in Wrapping; }}
+                machine Buffer::fill(&mut self) {{
+                    self.output = "{initial}";
+                    self.row = 1;
+                    transition {{ _ -> rows() }}
+                    state rows(&mut self) {{
+                        transition self.row >= 1 && self.row <= 9 {{ true -> start_columns() _ -> done() }}
+                    }}
+                    state start_columns(&mut self) {{
+                        self.column = 0;
+                        transition {{ _ -> columns() }}
+                    }}
+                    state columns(&mut self) {{
+                        transition self.column >= 0 && self.column < 2 {{ true -> write() _ -> next_row() }}
+                    }}
+                    state write(&mut self) {{
+                        self.output[self.column] = {replacement};
+                        self.column = self.column + 1;
+                        transition {{ _ -> columns() }}
+                    }}
+                    state next_row(&mut self) {{
+                        self.row = self.row + 1;
+                        transition {{ _ -> rows() }}
+                    }}
+                    state done(&mut self) {{}}
+                }}
+                "#,
+            ),
+            accepted,
+        );
+    }
+}

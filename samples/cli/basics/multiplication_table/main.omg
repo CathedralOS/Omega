@@ -66,11 +66,11 @@ machine Main::main(&mut self) reaches Console {
         self.p = self.i * self.j;
         self.tens = self.p / 10;
         self.ones = self.p % 10;
-        self.oc = narrow_i32_to_u8_trapping(self.ones + 48);
+        self.oc = narrow_i32_to_u8_trapping((self.ones + 48) as i32);
         transition self.tens > 0 { true -> cell_tens() _ -> cell_space() }
     }
     state cell_tens(&mut self) {
-        self.tc = narrow_i32_to_u8_trapping(self.tens + 48);
+        self.tc = narrow_i32_to_u8_trapping((self.tens + 48) as i32);
         transition { _ -> cell_write() }
     }
     state cell_space(&mut self) {
