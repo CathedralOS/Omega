@@ -65,6 +65,15 @@ pub(crate) fn requested(requested: bool) -> Option<RequestedTimings> {
     })
 }
 
+/// Emit one `note=<line>` observation while timings are enabled — a count or
+/// identity that has no duration of its own, such as how many occurrences a
+/// pass compiled fresh versus carried or reused at the typed frontier.
+pub(crate) fn note(line: impl FnOnce() -> String) {
+    if enabled() {
+        eprintln!("omega_review_timings note={}", line());
+    }
+}
+
 /// A scope in which a caller asked for review timings.
 pub(crate) struct RequestedTimings {
     previous: bool,

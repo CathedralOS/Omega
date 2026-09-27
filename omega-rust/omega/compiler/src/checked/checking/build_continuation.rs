@@ -42,11 +42,138 @@ pub(crate) struct BuildSourceCustody {
         Option<package_compilation::PackageSourceConsumptionCommitment>,
 }
 
+/// One admitted child's route to its typed frontier.
+pub(crate) enum CheckedFrontierInput {
+    /// Source assembled fresh for this child; the typed frontend is lowered
+    /// from it and retained for a later child carrying the same frontier key.
+    Assembled {
+        source_file_count: usize,
+        syntax: build_evaluation::sources::AssembledSyntax,
+    },
+    /// A typed frontier retained from an earlier child of the same immutable
+    /// source checkpoint whose [`TypedFrontierKey`] was identical. Assembly
+    /// and the typed frontend are deterministic in those inputs; the child's
+    /// per-activation custody admission, declaration authority check, build
+    /// execution and provider settlement all still run against its live
+    /// request, and only work no later input could alter is skipped.
+    Retained(TypedFrontier),
+}
+
+/// The complete deterministic product of one child's source assembly and
+/// typed frontend: everything `evaluate_build_and_continue` consumes before
+/// the declaration-authority check, retained so a later child of the same
+/// checkpoint under identical frontier inputs reuses it exactly.
+#[derive(Clone)]
+pub(crate) struct TypedFrontier {
+    frontend: CheckedFrontend,
+    source_file_count: usize,
+    generated_source_custody: Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
+    base_sources: Arc<source::SourceMap>,
+    application: Option<build_declarations::ApplicationDeclaration>,
+}
+
+/// The exact inputs a child's assembled source and typed frontend are a
+/// function of.
+///
+/// The immutable parse checkpoint pins the parsed physical sources. On top of
+/// it a child contributes its selected product and build execution profiles
+/// and the package inputs assembly and the typed frontend read: the shared
+/// source graph, compilation purpose, dependency generated-source bundles,
+/// component descriptions, and the accepted program-entry bindings
+/// entry-contract seeding consults. Every other accepted semantic binding
+/// first reaches the program at provider settlement — after this frontier is
+/// sealed — so it is not part of this key: a bound pass reuses the frontier
+/// its discovery pass built whenever only those downstream bindings joined.
+#[derive(Clone, PartialEq)]
+pub(crate) struct TypedFrontierKey {
+    selected_target_profile: Option<target::TargetProfile>,
+    build_execution_profile: Option<target::TargetProfile>,
+    package_inputs: Option<PackageCompilationInputs>,
+}
+
+impl TypedFrontierKey {
+    /// Project `child` onto exactly what its assembled frontier reads. Package
+    /// inputs join reduced to their frontier-observable shape: accepted
+    /// semantic bindings outside the program-entry contract roles are
+    /// dropped, since nothing before provider settlement can observe them.
+    pub(crate) fn for_child(child: &CheckedChildExecution<'_>) -> Result<Self, Vec<Diagnostic>> {
+        let package_inputs = child
+            .package_inputs
+            .map(|inputs| {
+                let mut entry_roles = std::collections::BTreeSet::new();
+                for profile in target::TargetProfile::ALL {
+                    if let Some(contract_package) =
+                        profile.program_entry_slot().physical_contract_package
+                    {
+                        entry_roles.insert(build_evaluation::program_entry_semantic_binding_role(
+                            contract_package,
+                        ));
+                    }
+                }
+                let entry_bindings = entry_roles
+                    .into_iter()
+                    .filter_map(|role| inputs.accepted_semantic_binding(role))
+                    .cloned()
+                    .collect::<Vec<_>>();
+                inputs
+                    .clone()
+                    .with_accepted_semantic_bindings(entry_bindings)
+                    .map_err(|errors| {
+                        errors
+                            .into_iter()
+                            .map(|error| Diagnostic::error(error.to_string()))
+                            .collect::<Vec<_>>()
+                    })
+            })
+            .transpose()?;
+        Ok(Self {
+            selected_target_profile: child.selected_target_profile,
+            build_execution_profile: child.build_execution_profile,
+            package_inputs,
+        })
+    }
+}
+
+/// Typed frontiers one immutable source checkpoint produced for children
+/// already compiled, keyed by each child's exact [`TypedFrontierKey`].
+/// `PreparedCheckedSource` clones share the map, so a later pass over the
+/// same frontier reuses the typed program instead of re-assembling and
+/// re-lowering identical source.
+pub(crate) type TypedFrontierMemo = std::sync::Mutex<Vec<(TypedFrontierKey, TypedFrontier)>>;
+
+/// One checkpoint-shared memo and the key a fresh frontier is stored under.
+pub(crate) struct TypedFrontierMemoSlot {
+    pub(crate) memo: std::sync::Arc<TypedFrontierMemo>,
+    pub(crate) key: TypedFrontierKey,
+}
+
+/// Assembled-syntax entry for callers that never retain a typed frontier
+/// (the multi-target shared-build route, which keys its own reuse on the
+/// whole build input instead).
 pub(crate) fn evaluate_build_and_continue(
     root_path: &Path,
     child: CheckedChildExecution<'_>,
-    mut source_file_count: usize,
+    source_file_count: usize,
     syntax: build_evaluation::sources::AssembledSyntax,
+    timings: &mut CompileTimings,
+) -> Result<(BuiltCheckedProgram, BuildSourceCustody), Vec<Diagnostic>> {
+    evaluate_frontier_and_continue(
+        root_path,
+        child,
+        CheckedFrontierInput::Assembled {
+            source_file_count,
+            syntax,
+        },
+        None,
+        timings,
+    )
+}
+
+pub(crate) fn evaluate_frontier_and_continue(
+    root_path: &Path,
+    child: CheckedChildExecution<'_>,
+    frontier: CheckedFrontierInput,
+    memo_slot: Option<TypedFrontierMemoSlot>,
     timings: &mut CompileTimings,
 ) -> Result<(BuiltCheckedProgram, BuildSourceCustody), Vec<Diagnostic>> {
     let CheckedChildExecution {
@@ -70,16 +197,69 @@ pub(crate) fn evaluate_build_and_continue(
     // `None` admits an unprofiled compiler host; the build-scope filter then
     // selects against the host's `NativeTarget` triple.
     let execution_profile_name = build_execution_profile.map(target::TargetProfile::target_name);
-    let mut generated_source_custody = syntax.generated_source_custody.clone();
-    let base_sources = syntax.sources.clone();
-    let application = syntax.application.clone();
-    let mut frontend = lower_checked_frontend(
-        syntax,
-        target_name,
-        execution_profile_name,
-        package_inputs,
-        timings,
-    )?;
+    let (
+        mut source_file_count,
+        mut generated_source_custody,
+        base_sources,
+        application,
+        mut frontend,
+    ) = match frontier {
+        CheckedFrontierInput::Assembled {
+            source_file_count,
+            syntax,
+        } => {
+            let generated_source_custody = syntax.generated_source_custody.clone();
+            let base_sources = syntax.sources.clone();
+            let application = syntax.application.clone();
+            let frontend = lower_checked_frontend(
+                syntax,
+                target_name,
+                execution_profile_name,
+                package_inputs,
+                timings,
+            )?;
+            if let Some(slot) = memo_slot {
+                let mut entries = slot
+                    .memo
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                entries.retain(|(key, _)| *key != slot.key);
+                entries.push((
+                    slot.key,
+                    TypedFrontier {
+                        frontend: frontend.clone(),
+                        source_file_count,
+                        generated_source_custody: generated_source_custody.clone(),
+                        base_sources: base_sources.clone(),
+                        application: application.clone(),
+                    },
+                ));
+            }
+            (
+                source_file_count,
+                generated_source_custody,
+                base_sources,
+                application,
+                frontend,
+            )
+        }
+        CheckedFrontierInput::Retained(frontier) => {
+            let TypedFrontier {
+                frontend,
+                source_file_count,
+                generated_source_custody,
+                base_sources,
+                application,
+            } = frontier;
+            (
+                source_file_count,
+                generated_source_custody,
+                base_sources,
+                application,
+                frontend,
+            )
+        }
+    };
     let package_authority_verdict = if let Some(package_inputs) = package_inputs {
         Some(crate::checked::package::declaration_admission::validate_authored_declaration_selections_before_build(
             frontend.typed(),
@@ -228,6 +408,7 @@ pub(crate) fn evaluate_build_and_continue(
     ))
 }
 
+#[derive(Clone)]
 struct CheckedFrontend {
     typing: CheckedFrontendTyping,
     selected_target_machine_declarations:
@@ -236,6 +417,7 @@ struct CheckedFrontend {
     pending_pre_checks: Vec<build_time_evaluation::PreCheckEvaluation>,
 }
 
+#[derive(Clone)]
 enum CheckedFrontendTyping {
     Continuable(symbol_resolved_trees_to_typed_trees::SeededTypingBase),
     Complete(typed_trees::TypedTrees),

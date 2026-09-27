@@ -400,17 +400,19 @@ fn compile_candidate(
                     .as_str()
             )
         });
-        return compile_pass(
-            target_closure,
-            build_root,
-            inputs,
-            retained_root_entry,
-            root_build_snapshot,
-            restricted_build_checkpoint,
-            TargetEntryDiscovery::Disabled,
-            None,
-            preparation,
-        );
+        return note_pass_accounting("explicit", || {
+            compile_pass(
+                target_closure,
+                build_root,
+                inputs,
+                retained_root_entry,
+                root_build_snapshot,
+                restricted_build_checkpoint,
+                TargetEntryDiscovery::Disabled,
+                None,
+                preparation,
+            )
+        });
     }
     let preliminary = {
         let _pass = timings::subject_stage(|| {
@@ -424,17 +426,19 @@ fn compile_candidate(
                     .as_str()
             )
         });
-        compile_pass(
-            target_closure,
-            build_root,
-            &[],
-            retained_root_entry,
-            root_build_snapshot,
-            restricted_build_checkpoint,
-            TargetEntryDiscovery::Dependencies,
-            None,
-            preparation,
-        )?
+        note_pass_accounting("discovery", || {
+            compile_pass(
+                target_closure,
+                build_root,
+                &[],
+                retained_root_entry,
+                root_build_snapshot,
+                restricted_build_checkpoint,
+                TargetEntryDiscovery::Dependencies,
+                None,
+                preparation,
+            )
+        })?
     };
     let discovered = candidate_semantic_binding_inputs(
         &preliminary.reviews,
@@ -460,17 +464,41 @@ fn compile_candidate(
             discovered.len()
         )
     });
-    compile_pass(
-        target_closure,
-        build_root,
-        &discovered,
-        retained_root_entry,
-        root_build_snapshot,
-        restricted_build_checkpoint,
-        TargetEntryDiscovery::Disabled,
-        Some(&preliminary),
-        preparation,
-    )
+    note_pass_accounting("bound", || {
+        compile_pass(
+            target_closure,
+            build_root,
+            &discovered,
+            retained_root_entry,
+            root_build_snapshot,
+            restricted_build_checkpoint,
+            TargetEntryDiscovery::Disabled,
+            Some(&preliminary),
+            preparation,
+        )
+    })
+}
+
+/// Run one review pass, then attribute its checked work beside the pass's
+/// stage line when review timings are enabled: how many occurrences it
+/// holds, how many it actually compiled, and how many typed frontiers a
+/// later occurrence reused instead of re-assembling identical source.
+fn note_pass_accounting(
+    pass: &'static str,
+    run: impl FnOnce() -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError>,
+) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
+    let compilations_before = compiler::checked_compilation_call_count();
+    let frontiers_before = compiler::typed_frontier_reuse_count();
+    let result = run()?;
+    let occurrences = result.occurrences.len();
+    timings::note(|| {
+        format!(
+            "review_pass {pass} occurrences={occurrences} compiled={} frontier_reused={}",
+            compiler::checked_compilation_call_count() - compilations_before,
+            compiler::typed_frontier_reuse_count() - frontiers_before,
+        )
+    });
+    Ok(result)
 }
 
 fn compile_pass(
