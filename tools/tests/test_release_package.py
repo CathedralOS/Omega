@@ -3,6 +3,7 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 import zipfile
 import tarfile
 
@@ -30,6 +31,14 @@ class ReleasePackageTests(unittest.TestCase):
         bundle = self.root / "bundle"
         package.stage_bundle(bundle, self.binary, self.library, self.metadata)
         return bundle
+
+    def test_streamed_builds_still_check_exit_status(self):
+        result = package.subprocess.CompletedProcess(["compiler"], 1)
+        with patch.object(package.subprocess, "run", return_value=result) as execute:
+            with self.assertRaisesRegex(RuntimeError, "returned 1, expected 0"):
+                package.run(["compiler"], capture=False)
+            self.assertIsNone(execute.call_args.kwargs["stdout"])
+            self.assertEqual(execute.call_args.kwargs["stderr"], package.subprocess.STDOUT)
 
     def test_digest_is_location_independent_and_content_sensitive(self):
         bundle = self.stage()
