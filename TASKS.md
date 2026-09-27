@@ -635,17 +635,42 @@ the complete product bar; focused successes below do not establish that baseline
   SECOND cause over the whole tree, not a singleton, and the Clock provider
   is third.
 
-  - **unit-plan omission, 27** -- "rejoins 0 Terminal attachment
-    identities": `cli/{algorithms/dutch_flag, arithmetic/dual_float,
-    basics/{brightness_control,text_greeting,unit_converter},
-    collections/{entity_list,matrix_multiply}, probes/value_call_in_expr,
-    rendering/bouncing_particles, simulation/{grid_walk,particle_sim},
-    systems/{descriptor_walk,elapsed_timer,file_journal,file_permissions,
-    note_vault,status_report,vending_machine,wire_protocol},
-    text/{parse_int,roman_numeral,string_catalog,string_hash,text_padding}}`
-    and `gui/{image_viewer,window_app,window_demo}`. Route to
-    **STATE-LOCAL-VALUE-FRONTIER** by the operation each names, not by the
-    shared symptom.
+  - **unit-plan omission, 27 -- and TWELVE distinct phases.** The shared
+    "rejoins 0 Terminal attachment identities" line is the symptom; each
+    sample's own `omitted at local construction at ...` names the operation
+    that declined, and the gate now ranks them. Ordered:
+    - 6 `state graph: terminator: conditional successors: guard expression`
+      -- `cli/{arithmetic/dual_float, basics/unit_converter,
+      simulation/particle_sim, text/{parse_int,roman_numeral,string_hash}}`
+    - 5 `structural field store: pure source: scalar expression row` --
+      `cli/{collections/entity_list, rendering/bouncing_particles,
+      simulation/grid_walk, systems/file_permissions, text/text_padding}`
+    - 3 `statement sequence: local data: structural call binding` --
+      `cli/{algorithms/dutch_flag, systems/{descriptor_walk,wire_protocol}}`
+    - 3 `structural field store: byte sequence carrier` --
+      `cli/{basics/text_greeting, systems/status_report,
+      text/string_catalog}`
+    - 3 `call operation: boundary arguments` -- all three of
+      `gui/{image_viewer,window_app,window_demo}`
+    - one each: `state graph: terminator: unsupported tail: transition
+      chain` (`basics/brightness_control`), `structural field store: scalar
+      field type` (`collections/matrix_multiply`), `state graph: prefix
+      initializers: bound expression` (`probes/value_call_in_expr`),
+      `call operation: projected operand support`
+      (`systems/elapsed_timer`), `state graph: result custody accounting`
+      (`systems/file_journal`), `call operation: structural arguments:
+      source symbol` (`systems/note_vault`), and `state graph: terminator:
+      conditional successors: parameter transfer`
+      (`systems/vending_machine`, the case this row already maps in full).
+
+    Two of those singletons are already worth more than one customer.
+    `systems/elapsed_timer` omits at the SAME arm as both Omega-written
+    compiler roots -- the `[copy]` projection out of a borrowed receiver
+    pinned at
+    `tests/omega/pending/calls/copy_projection_from_borrowed_receiver` --
+    so that one arm has three customers. And the guard-expression phase at
+    the top of the list is six samples for one capability, which is the
+    largest single win in the tree.
   - **implicit store conversion, 17** -- **IMPLICIT-STORE-CONVERSION**'s
     acceptance says every sample storing across integer types or policies
     spells the cast, and these do not: `cli/{algorithms/{longest_run,
