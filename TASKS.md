@@ -704,9 +704,10 @@ the complete product bar; focused successes below do not establish that baseline
   not the downstream `rejoins 0 Terminal attachment identities` symptom.
 
   The fail tier is status-clean: all 435 fixtures reject and none records
-  `checked`. What the gate still reports on a clean checkout is 25 moves
-  against the golden, and they are not one problem. Twenty-two are diagnostic
-  text: `fail/arithmetic/narrowing_signedness_rejected`, for one, still
+  `checked`. What the gate reported on a clean checkout was 25 moves against
+  the golden, and they are not one problem. Three were `fail/arithmetic` rows,
+  now attributed and re-pinned (below), so re-measure before quoting the
+  count. Twenty-two were diagnostic text: `fail/arithmetic/narrowing_signedness_rejected`, for one, still
   rejects and still carries its fragment, but the message is now
   **IMPLICIT-STORE-CONVERSION**'s rather than the narrowing-proof rule's.
   Others gain a diagnostic from bundled library code rather than their own --
@@ -948,19 +949,39 @@ _roots` shows the current shape: `use omega_language_std::targets::uefi_x86_64`
   arithmetic fixtures were refused for something other than their subject and
   pinning them blind would have cemented it.
 
-  Two of those three are stale. `fail/arithmetic/exact_overflow_value_call_hint`
-  exists to lock a value-call-aware overflow hint naming the callee's return
-  annotation, and `fail/arithmetic/wrong_struct_type_argument_rejected` exists
-  to lock a struct-type mismatch; both now stop at "implicit domain weakening
-  in machine ... drops `Wrapping`" instead, because their callees return a
-  `Wrapping` value through a bare `i32` return type. Repair the sources so each
-  reaches its own refusal, then pin it.
+  All three are repaired. `exact_overflow_value_call_hint` and
+  `wrong_struct_type_argument_rejected` reach their own refusals, and
+  `unknown_field_write_rejected` now reports "assignment: data `Main` has no
+  field `cont`" rather than the read verb. Every one of the 33
+  `fail/arithmetic` fixtures rejects carrying its own expected fragment.
 
-  The third is a diagnostic defect, not a stale fixture:
-  `fail/arithmetic/unknown_field_write_rejected` writes `self.cont = 5` and is
-  told "machine `Main::main` state `main` reads `self.cont`, but data `Main`
-  has no field `cont`". The refusal is right and the verb is wrong; a write
-  target should not be reported as a read.
+  Re-pinning that group cost one subject, and the replacement is the finding.
+  `narrowing_signedness_rejected` was the corpus's ONLY customer of decision
+  17's narrowing-store obligation, and **IMPLICIT-STORE-CONVERSION** preempts
+  it: `i8 = <u8>` is a carrier difference before it is a range question. The
+  obligation is now reachable from ONE value form -- an anonymous value, which
+  has no carrier of its own -- because a carrier that differs answers earlier
+  and a carrier that agrees is intersected with its own type's range first, so
+  a same-type store can never escape. Among anonymous positions only the array
+  element survives: a scalar store answers at the landing site instead
+  (`self.r = 3000000000 / 2 * 2` reports "anonymous integer value
+  `3000000000` does not fit destination `i32`").
+  `fail/arithmetic/narrowing_anonymous_expression_unproven` pins what is left,
+  and `narrowing_signedness_rejected` keeps the 8-bit carrier face with a
+  header that no longer claims the range one. The Rust-side customer,
+  `04_`'s `anonymous_array_landing::array_elements_reject_final_i32_overflow`,
+  agrees: it too reaches the obligation only through an array element.
+
+  Two fixtures now carry the same authored mistake twice, which is
+  **IMPLICIT-STORE-CONVERSION** duplicating rules that already existed.
+  `suffix_type_disagrees_rejected` reports the suffix disagreement AND
+  "implicitly converts `i8` to `u32`"; `undeclared_bare_name_rejected`
+  reports "implicitly converts `i32 in Wrapping` to `i32`" beside the older
+  "implicit domain weakening ... drops `Wrapping`", which names the same
+  store and prescribes the same `as`. Both fixtures' own subjects still lead,
+  so this is message redundancy rather than lost attribution, but the
+  domain-weakening rule is now a strict subset of the conversion rule and one
+  of the two should own the policy-drop case.
 
   Do not try to reproduce one of these by writing a small program. Measured
   three times: `sensor_min_max`'s float field store, a byte-domain field store
