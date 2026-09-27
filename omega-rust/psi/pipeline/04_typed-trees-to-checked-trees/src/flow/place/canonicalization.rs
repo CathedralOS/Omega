@@ -122,6 +122,51 @@ pub(crate) fn canonical_place_from_expression_in_state(
         .or_else(|| canonical_place_from_expression(program, expression))
 }
 
+/// Narrow each runtime `Index` segment whose selector value is pinned in the
+/// live contexts to the `FixedIndex` it names at this program point.
+///
+/// A selector the scalar facts cannot pin stays an `Index` segment, so the
+/// overlap predicates keep their conservative may-alias treatment. This is
+/// the same narrowing `transfers::write_target` applies to a write target:
+/// sharing it keeps the invalidation view of a runtime index identical to the
+/// establishment view, instead of the write landing on a fixed element while
+/// retiring facts at every element.
+pub(crate) fn narrow_pinned_index_segments(
+    program: &typed_trees::TypedTrees,
+    semantic: &FactPlan,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    context_handles: &[facts::FactContextHandle],
+    segments: &mut [facts::PlaceSegment],
+) {
+    for segment in segments.iter_mut() {
+        let facts::PlaceSegment::Index { expression } = *segment else {
+            continue;
+        };
+        let Some(selector) = canonical_place_from_expression_in_state(
+            program,
+            state_symbol,
+            statement_index,
+            expression,
+        ) else {
+            continue;
+        };
+        let Some(facts::ScalarValue::Integer(index)) = crate::values::scalar_value_at_place(
+            program,
+            semantic,
+            context_handles
+                .iter()
+                .map(|handle| semantic.contexts.get(*handle)),
+            &selector,
+        ) else {
+            continue;
+        };
+        if let Some(index) = index.to_u64().and_then(|index| usize::try_from(index).ok()) {
+            *segment = facts::PlaceSegment::FixedIndex { index };
+        }
+    }
+}
+
 pub(crate) fn canonical_place_from_symbol(symbol: SymbolHandle) -> Option<CanonicalPlace> {
     symbol.is_valid().then_some(CanonicalPlace {
         root: facts::PlaceRoot::Symbol(symbol),

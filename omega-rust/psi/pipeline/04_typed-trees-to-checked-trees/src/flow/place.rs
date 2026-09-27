@@ -12,7 +12,7 @@ mod resolution;
 pub(crate) use canonicalization::{
     canonical_place_from_expression, canonical_place_from_expression_in_state,
     canonical_place_from_semantic_place, canonical_place_from_symbol, index_place_segment,
-    normalize_attached_place_root, push_field_place_segments,
+    narrow_pinned_index_segments, normalize_attached_place_root, push_field_place_segments,
 };
 pub(crate) use case_access::{place_case_has_value, place_cases_are_selected};
 pub(crate) use comparison::{
