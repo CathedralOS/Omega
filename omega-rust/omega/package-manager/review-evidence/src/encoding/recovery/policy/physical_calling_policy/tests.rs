@@ -48,14 +48,14 @@ fn recover(bytes: &[u8]) -> Result<PackagePolicyPhysicalCallingContract, Error> 
 }
 
 #[test]
-fn envelope_rejects_every_truncated_prefix_unknown_version_and_trailing_bytes() {
+fn envelope_roundtrips_and_rejects_short_unknown_or_trailing_input() {
     let component = fixture();
     let bytes = component.canonical_bytes().unwrap();
     assert_eq!(recover(&bytes).unwrap(), component);
     crate::encoding::encode::text_test_support::component(
         crate::encoding::encode::text_test_support::Component::Physical(&component),
     );
-    for end in 0..bytes.len() {
+    for end in [0, bytes.len() / 2, bytes.len() - 1] {
         assert!(recover(&bytes[..end]).is_err(), "truncated at {end}");
     }
     let mut changed = bytes.clone();

@@ -335,10 +335,12 @@ fn policy_rejects_detached_roles_owners_coordinates_and_noncanonical_sets() {
 }
 
 #[test]
-fn every_prefix_version_and_trailing_field_rejects() {
-    let bytes = fixture().canonical_bytes().unwrap();
-    for end in 0..bytes.len() {
-        assert!(recover(&bytes[..end]).is_err(), "prefix {end}");
+fn unknown_callable_roles_and_impossible_top_level_counts_reject() {
+    let policy = fixture();
+    let bytes = policy.canonical_bytes().unwrap();
+    // Reader bounds are tested once; retain envelope, body, and final-byte cuts here.
+    for end in [0, bytes.len() / 2, bytes.len() - 1] {
+        assert!(recover(&bytes[..end]).is_err(), "truncated prefix {end}");
     }
     let mut changed = bytes.clone();
     changed[CALLABLE_POLICY_MAGIC.len()] = 255;
@@ -349,15 +351,9 @@ fn every_prefix_version_and_trailing_field_rejects() {
             .copy_from_slice(&version.to_le_bytes());
         assert_eq!(recover(&previous), Err(Error::UnsupportedVersion));
     }
-    let mut changed = bytes;
+    let mut changed = bytes.clone();
     changed.push(0);
     assert_eq!(recover(&changed), Err(Error::TrailingBytes));
-}
-
-#[test]
-fn unknown_callable_roles_and_impossible_top_level_counts_reject() {
-    let policy = fixture();
-    let bytes = policy.canonical_bytes().unwrap();
     let count_position =
         CALLABLE_POLICY_MAGIC.len() + 2 + 32 + 8 + policy.target.identity().as_str().len();
     let mut changed = bytes.clone();

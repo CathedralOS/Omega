@@ -9,11 +9,12 @@ pub(super) fn recover(bytes: &[u8]) -> Result<PackagePolicyRepresentation, Error
 fn complete_representation_round_trips_all_families_without_nested_receipts() {
     for policy in [fixtures::empty(), fixtures::complete()] {
         let bytes = policy.canonical_bytes().unwrap();
-        assert_eq!(recover(&bytes).unwrap(), policy);
+        let recovered = recover(&bytes).unwrap();
+        assert_eq!(recovered, policy);
         crate::encoding::encode::text_test_support::component(
             crate::encoding::encode::text_test_support::Component::Representation(&policy),
         );
-        assert_eq!(recover(&bytes).unwrap().canonical_bytes().unwrap(), bytes);
+        assert_eq!(recovered.canonical_bytes().unwrap(), bytes);
         for magic in [
             crate::encoding::CALLING_POLICY_MAGIC,
             crate::encoding::CONFORMANCE_POLICY_MAGIC,
@@ -21,6 +22,19 @@ fn complete_representation_round_trips_all_families_without_nested_receipts() {
         ] {
             assert!(!bytes.windows(magic.len()).any(|window| window == magic));
         }
+        // Reader bounds are tested once; retain envelope, body, and final-byte cuts here.
+        for end in [0, bytes.len() / 2, bytes.len() - 1] {
+            assert!(recover(&bytes[..end]).is_err(), "truncated prefix {end}");
+        }
+        let mut changed = bytes.clone();
+        changed[0] ^= 1;
+        assert_eq!(recover(&changed), Err(Error::UnsupportedVersion));
+        let mut changed = bytes.clone();
+        changed[REPRESENTATION_POLICY_MAGIC.len()..][..2].copy_from_slice(&u16::MAX.to_le_bytes());
+        assert_eq!(recover(&changed), Err(Error::UnsupportedVersion));
+        let mut changed = bytes;
+        changed.push(0);
+        assert_eq!(recover(&changed), Err(Error::TrailingBytes));
     }
     let policy = fixtures::complete();
     assert_eq!(policy.declarations.len(), 2);
@@ -32,23 +46,6 @@ fn complete_representation_round_trips_all_families_without_nested_receipts() {
         policy.selected_availability[1].copy_disposition
     );
     assert_eq!(policy.demands[0].calling.callbacks.layouts.len(), 2);
-}
-
-#[test]
-fn every_truncation_unknown_envelope_and_trailing_bytes_reject() {
-    let bytes = fixtures::complete().canonical_bytes().unwrap();
-    for end in 0..bytes.len() {
-        assert!(recover(&bytes[..end]).is_err(), "truncated prefix {end}");
-    }
-    let mut changed = bytes.clone();
-    changed[0] ^= 1;
-    assert_eq!(recover(&changed), Err(Error::UnsupportedVersion));
-    let mut changed = bytes.clone();
-    changed[REPRESENTATION_POLICY_MAGIC.len()..][..2].copy_from_slice(&u16::MAX.to_le_bytes());
-    assert_eq!(recover(&changed), Err(Error::UnsupportedVersion));
-    let mut changed = bytes;
-    changed.push(0);
-    assert_eq!(recover(&changed), Err(Error::TrailingBytes));
 }
 
 #[test]

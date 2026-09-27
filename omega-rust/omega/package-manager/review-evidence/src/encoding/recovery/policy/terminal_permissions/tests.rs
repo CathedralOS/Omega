@@ -73,6 +73,16 @@ fn complete_schema_and_nested_calling_survive_without_nested_envelopes() {
         empty.target = target;
         assert_eq!(recover(&empty.canonical_bytes().unwrap()).unwrap(), empty);
     }
+    // Reader bounds are tested once; retain envelope, body, and final-byte cuts here.
+    for end in [0, bytes.len() / 2, bytes.len() - 1] {
+        assert!(recover(&bytes[..end]).is_err(), "truncated prefix {end}");
+    }
+    let mut changed = bytes.clone();
+    changed[TERMINAL_PERMISSION_POLICY_MAGIC.len()] = 255;
+    assert_eq!(recover(&changed), Err(Error::UnsupportedVersion));
+    let mut changed = bytes;
+    changed.push(0);
+    assert_eq!(recover(&changed), Err(Error::TrailingBytes));
 }
 
 #[test]
@@ -139,20 +149,6 @@ fn every_terminal_class_and_explicit_empty_differ_from_absence() {
         explicit.canonical_bytes().is_err(),
         "empty service rows are not absence"
     );
-}
-
-#[test]
-fn every_truncation_unknown_version_and_trailing_bytes_reject() {
-    let bytes = fixture().canonical_bytes().unwrap();
-    for end in 0..bytes.len() {
-        assert!(recover(&bytes[..end]).is_err(), "prefix {end}");
-    }
-    let mut changed = bytes.clone();
-    changed[TERMINAL_PERMISSION_POLICY_MAGIC.len()] = 255;
-    assert_eq!(recover(&changed), Err(Error::UnsupportedVersion));
-    let mut changed = bytes;
-    changed.push(0);
-    assert_eq!(recover(&changed), Err(Error::TrailingBytes));
 }
 
 #[test]

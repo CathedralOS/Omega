@@ -96,7 +96,7 @@ fn conformance_availability_inverse_retains_every_subject_and_parameter_family()
         let mut reader = Reader::new(&bytes, PackagePolicyRecoveryLimits::default()).unwrap();
         assert_eq!(conformance_shape(&mut reader).unwrap(), shape);
         reader.finish().unwrap();
-        for end in 0..bytes.len() {
+        for end in [0, bytes.len() / 2, bytes.len() - 1] {
             let mut reader =
                 Reader::new(&bytes[..end], PackagePolicyRecoveryLimits::default()).unwrap();
             assert!(

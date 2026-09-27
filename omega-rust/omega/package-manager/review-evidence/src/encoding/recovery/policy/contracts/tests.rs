@@ -242,7 +242,7 @@ fn structural_machine_contract_recovers_all_parameter_and_fact_kinds() {
         })
         .collect();
     let bytes = round_trip(&PackageReviewMachineParameterContract::Structural(outer));
-    for end in 0..bytes.len() {
+    for end in [0, bytes.len() / 2, bytes.len() - 1] {
         let mut reader =
             Reader::new(&bytes[..end], PackagePolicyRecoveryLimits::default()).unwrap();
         assert!(

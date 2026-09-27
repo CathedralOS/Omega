@@ -188,3 +188,57 @@ impl<'a> Reader<'a> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{Error, PackagePolicyRecoveryLimits, Reader};
+
+    #[test]
+    fn short_fixed_fields_and_length_framed_payloads_reject_without_overreading() {
+        let source = [0x37; 32];
+        let limits = PackagePolicyRecoveryLimits::default();
+        // All scalar and digest readers use this same fixed-width take.
+        for width in [1, 2, 4, 8, 32] {
+            for available in 0..width {
+                let mut reader = Reader::new(&source[..available], limits).unwrap();
+                assert_eq!(reader.take(width), Err(Error::UnexpectedEnd));
+                assert_eq!(reader.take(available).unwrap(), &source[..available]);
+                reader.finish().unwrap();
+            }
+            let mut reader = Reader::new(&source[..width], limits).unwrap();
+            assert_eq!(reader.take(width).unwrap(), &source[..width]);
+            reader.finish().unwrap();
+        }
+
+        let mut framed = 3_u64.to_le_bytes().to_vec();
+        framed.extend_from_slice(b"ab");
+        let mut reader = Reader::new(&framed, limits).unwrap();
+        assert_eq!(reader.bytes(), Err(Error::UnexpectedEnd));
+        let mut reader = Reader::new(&framed, limits).unwrap();
+        let mut decoded_elements = 0;
+        assert_eq!(
+            reader.sequence(1, |reader| {
+                decoded_elements += 1;
+                reader.byte()
+            }),
+            Err(Error::UnexpectedEnd),
+        );
+        assert_eq!(
+            decoded_elements, 0,
+            "short sequences reject before decoding"
+        );
+        framed.push(b'c');
+        assert_eq!(
+            Reader::new(&framed, limits).unwrap().bytes().unwrap(),
+            b"abc"
+        );
+
+        // The minimum byte floor is only an early check; each child still bounds its reads.
+        assert_eq!(
+            Reader::new(&framed, limits)
+                .unwrap()
+                .sequence(1, Reader::u16),
+            Err(Error::UnexpectedEnd),
+        );
+    }
+}

@@ -252,35 +252,32 @@ fn recover(bytes: &[u8]) -> Result<PackagePolicyCallingPlan, Error> {
 fn complete_callback_and_opaque_children_round_trip_without_nested_envelopes() {
     for policy in [fixture(), complete_fixture()] {
         let bytes = policy.canonical_bytes().unwrap();
-        assert_eq!(recover(&bytes).unwrap(), policy);
+        let recovered = recover(&bytes).unwrap();
+        assert_eq!(recovered, policy);
         crate::encoding::encode::text_test_support::component(
             crate::encoding::encode::text_test_support::Component::Calling(&policy),
         );
-        assert_eq!(recover(&bytes).unwrap().canonical_bytes().unwrap(), bytes);
+        assert_eq!(recovered.canonical_bytes().unwrap(), bytes);
         for magic in [
             crate::encoding::CONFORMANCE_POLICY_MAGIC,
             crate::encoding::PHYSICAL_CALLING_POLICY_MAGIC,
         ] {
             assert!(!bytes.windows(magic.len()).any(|window| window == magic));
         }
+        // Reader bounds are tested once; retain envelope, body, and final-byte cuts here.
+        for end in [0, bytes.len() / 2, bytes.len() - 1] {
+            assert!(recover(&bytes[..end]).is_err(), "truncated prefix {end}");
+        }
+        let mut changed = bytes.clone();
+        changed[0] ^= 1;
+        assert_eq!(recover(&changed), Err(Error::UnsupportedVersion));
+        let mut changed = bytes.clone();
+        changed[CALLING_POLICY_MAGIC.len()] = 255;
+        assert_eq!(recover(&changed), Err(Error::UnsupportedVersion));
+        let mut changed = bytes;
+        changed.push(0);
+        assert_eq!(recover(&changed), Err(Error::TrailingBytes));
     }
-}
-
-#[test]
-fn all_truncations_versions_and_trailing_bytes_reject() {
-    let bytes = complete_fixture().canonical_bytes().unwrap();
-    for end in 0..bytes.len() {
-        assert!(recover(&bytes[..end]).is_err(), "prefix {end}");
-    }
-    let mut changed = bytes.clone();
-    changed[0] ^= 1;
-    assert_eq!(recover(&changed), Err(Error::UnsupportedVersion));
-    let mut changed = bytes.clone();
-    changed[CALLING_POLICY_MAGIC.len()] = 255;
-    assert_eq!(recover(&changed), Err(Error::UnsupportedVersion));
-    let mut changed = bytes;
-    changed.push(0);
-    assert_eq!(recover(&changed), Err(Error::TrailingBytes));
 }
 
 #[test]
