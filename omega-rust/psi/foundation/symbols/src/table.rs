@@ -398,6 +398,7 @@ impl SymbolTable {
         Self::default()
     }
 
+    #[inline]
     pub fn get(&self, symbol: SymbolHandle) -> &Symbol {
         self.symbols.get(symbol)
     }
@@ -495,6 +496,7 @@ impl SymbolTable {
         )
     }
 
+    #[inline]
     pub fn name(&self, symbol: SymbolHandle) -> &str {
         let symbol = self.get(symbol);
 
@@ -783,6 +785,7 @@ impl SymbolTable {
         None
     }
 
+    #[inline]
     pub fn root(&self) -> SymbolHandle {
         self.root
     }
