@@ -4888,51 +4888,45 @@ syntax and other terminal services are not prerequisites.
   under [machine supply](wiki/spec/language/machines.md#supply),
   [provider selection](wiki/spec/build/provider_selection.md) and
   [requirement identity](wiki/spec/terminal-psi/boundary_calls.md#call-and-requirement-identity).
-  Existing checked/intrinsic adapter routes cover value/statement calls and
-  owned receivers; deeper projected receivers also have checked interpretation.
-  `b7ea53ff92` settles shared-borrow `&self` requirements through a
-  receiver-place forwarding row; `&mut`/write-only/qualified self, family
-  rows, and external satisfiers stay closed. Reuse them without treating that
-  result as native coverage of every shape.
 
-  Extend the selected-call mechanism to type/lifetime-parameterized
-  requirements and borrowed receivers. Lifetime-parameterized direct
-  requirements (erased-lifetime telescopes such as `Bytes::head<'a>`) now
-  settle through provider-plan requirement views and selected-dispatch
-  adaptation, witnessed by the
-  `providers/lifetime_boundary_requirement_dispatch_exit` canary;
-  `selected-dispatch/boundary_dispatch.rs` still restricts direct requirements
-  to nongeneric, receiver-free signatures otherwise.
-  Compose external satisfiers with structural arguments and interpreter
-  provider execution. Preserve the mixed borrowed-record external customer,
-  its initialized fields and reused returned value; the macOS ARM64 scalar
-  control `top_level_external_requirement_returns_and_reuses_its_result_natively`
-  does not establish that broader route or other-host execution.
+  First close executable customers using the existing dispatch machinery.
+  `selected-dispatch/src/boundary_dispatch/adapter_rows.rs` admits owned,
+  shared and mutable receivers, erased lifetime telescopes, and exact closed
+  generic specialization rows. Extend remaining generic/family and projected
+  receiver combinations through both engines; write-only and qualified
+  receivers still reject. Settlement tests alone do not establish execution.
+  Preserve `providers/checked_boundary_requirement_dispatch_exit` and
+  `providers/lifetime_boundary_requirement_dispatch_exit`: recorded exits are
+  70 (checked) and 41 (lifetime) on macOS ARM64 and Windows x86-64.
 
-  Post-check adapter rewrites are deleted; a call keeps its requirement and
-  Omega installs the selected adapter (PROVIDER-SELECTION-AFTER-TERMINAL
-  records which routes that reaches). Retain the requirement's
-  package-qualified operation, complete static telescope, signature, contract,
-  visibility, selected provider/adapter and era through ordinary lowering.
-  This is a canonical requirement kind distinct from trait-keyed conformance
-  rows. The current Terminal canary's helper observes an ordinary adapter call
-  and no requirement boundary declaration, despite its renamed
-  `...retains_requirement_occurrence` test; its name is not identity evidence.
+  Close external satisfiers with structural arguments and interpreter
+  provider execution. `providers/external_boundary_requirement_via_exit`
+  currently records native rejection at foreign-mechanism policy
+  classification; the checked interpreter rejects bodyless external calls
+  without a provider. Restore the mixed borrowed-record customer with its
+  initialized fields and reused returned value, then execute it on supported
+  hosts. The scalar fixture cannot establish that broader route; retain
+  missing-import rejection and distinguish ordinary foreign exit from
+  canonical ProcessExit.
 
-  Coordinate `Task::finish`/cancellation and interrupt completion with
-  BOUNDED-INSTALLATION-REACH-ROWS and COMPONENT-SUBSTRATE for selection and
-  lineage, not special compiler-owned lifecycle policy.
-  **OPERATOR-MACHINE-SUPPLY** owns source supply migration and retirement of
-  the undifferentiated `MachineSupplyMode::Boundary`; do not recreate the
-  already retired float-operator inventory here.
+  Complete serialized replay of the package-qualified operation, full static
+  telescope, signature, contract, visibility, selected provider/adapter and era,
+  with a canonical kind distinct from trait requirements. Reuse package
+  review's existing top-level requirement kind and telescope projection.
+  Lowering already retains the requirement and catalogs checked adapters;
+  the registered `boundary_internal_call_evidence` test checks the installed
+  provider's physical call custody. Preserve those joins while completing
+  the portable contract with **PROVIDER-SELECTION-AFTER-TERMINAL**.
 
   Acceptance: value, statement, receiver and external-provider customers
   execute in the interpreter and natively under one exact selected plan;
-  serialized source-free replay retains requirement/provider/adapter identity.
-  Reject unselected, private, ambiguous, foreign-package, substituted and
-  stale-era authority, including same-spelled declarations in another package.
-  Keep missing-import settlement rejection; an ordinary foreign exit is not
-  canonical ProcessExit evidence.
+  source-free replay rejects unselected, ambiguous, substituted and stale-era
+  authority, unauthorized private/foreign declarations, and cross-package
+  substitution of same-spelled declarations. Coordinate `Task::finish`/cancellation
+  and interrupt completion with **BOUNDED-INSTALLATION-REACH-ROWS** and
+  **COMPONENT-SUBSTRATE** for selection and lineage, without compiler-owned
+  lifecycle policy. **OPERATOR-MACHINE-SUPPLY** owns source supply migration
+  and retirement of `MachineSupplyMode::Boundary`.
 
 - **BUILD-ADMISSION-CHECKPOINT.** Finish command-level
   [restricted-build acceptance](wiki/spec/packages/acceptance.md#restricted-build-acceptance)
