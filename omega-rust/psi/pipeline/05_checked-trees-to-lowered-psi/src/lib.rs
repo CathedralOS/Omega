@@ -56,7 +56,8 @@ mod unit;
 mod proofs;
 mod retention;
 
-// Beside the route: the vocabulary every producer shares.
+// Beside the route: shared producer vocabulary and diagnostic source attribution.
+mod lowered_machine_provenance;
 mod lowering_error;
 mod producer_result;
 mod terminal_identities;
@@ -65,6 +66,9 @@ mod terminal_identities;
 pub use lowering_error::{LoweringError, ProofSearchCapacity};
 pub use machine_lowering::machine_dispatch::{TerminalMachineSelection, select_terminal_machine};
 pub use machine_lowering::{callback_lowering_receipt, lower_machine};
+
+// Diagnostic-only source attribution for the unoptimized lowering.
+pub use lowered_machine_provenance::LoweredMachineProvenance;
 
 // Proof artifacts this stage produces for owners outside it.
 pub use proofs::content_conservation::{

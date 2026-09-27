@@ -21,207 +21,20 @@
 
 use crate::checked::CheckedCompilation;
 use build_evaluation::{AuthoredBehaviorExclusion, authored_behavior_exclusion_set_in};
+use checked_trees_to_lowered_psi::LoweredMachineProvenance;
 use diagnostics::Diagnostic;
 use effects::{
     BehaviorExclusionReport, BehaviorExclusionVerdict, EvidenceGapKind, ProhibitedSite,
     establish_behavior_exclusions_with_owners,
 };
-use semantic_vocabulary::MachineId;
 use std::collections::BTreeMap;
-
-/// Checked provenance for the Terminal machines of one replayed closure: the
-/// authored machine name and declaration symbol, so a rejection can name
-/// the machine that retains the prohibited site instead of a Terminal
-/// coordinate alone. Names come from the entry symbol, the lowering's
-/// source-call joins, and the provider candidate catalog's checked
-/// identities; a machine none of those cover is attributed through the
-/// nearest named caller on the walk from the entry, and reported by its
-/// Terminal identity when no caller is named either.
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
-struct MachineProvenance {
-    machines: BTreeMap<MachineId, (String, symbols::SymbolHandle)>,
-    /// First caller reached from the entry on the static call graph.
-    callers: BTreeMap<MachineId, MachineId>,
-}
-
-impl MachineProvenance {
-    /// Join the replayed module's call operations to the checked machines
-    /// they target. Each ephemeral source-call occurrence names the Terminal
-    /// call operation and the checked callee symbol; the operation's callee
-    /// is the Terminal machine that symbol lowered to. The entry is named by
-    /// its selected symbol.
-    fn from_lowering(
-        checked: &CheckedCompilation,
-        lowered: &lowered_psi::LoweredPsi,
-        entry_machine_symbol: symbols::SymbolHandle,
-    ) -> Self {
-        let module = &lowered.semantic_module;
-        let mut callee_by_operation = BTreeMap::new();
-        for machine in &module.machines {
-            for block in &machine.blocks {
-                for operation in &block.operations {
-                    if let Some(callee) = call_callee(&operation.kind) {
-                        callee_by_operation.insert(operation.id, callee);
-                    }
-                }
-            }
-        }
-        let mut provenance = Self::default();
-        provenance.name(checked, module.entry, entry_machine_symbol);
-        for occurrence in &lowered.source_call_occurrences {
-            if let Some(callee) = callee_by_operation.get(&occurrence.terminal_operation) {
-                provenance.name(checked, *callee, occurrence.source_target);
-            }
-        }
-        // Provider candidate bodies are reached through boundary dispatch,
-        // not a source call; the catalog retains each candidate's canonical
-        // checked identity, which rejoins its declaration.
-        if !module.provider_candidates.is_empty() {
-            let identities: BTreeMap<String, symbols::SymbolHandle> = checked
-                .typed
-                .machines()
-                .iter()
-                .filter_map(|machine| {
-                    checked
-                        .typed
-                        .normalized_machine_overload_identity(machine)
-                        .map(|identity| (identity.identity(), machine.symbol))
-                })
-                .collect();
-            for candidate in &module.provider_candidates {
-                if let Some(symbol) = identities.get(&candidate.candidate_identity) {
-                    provenance.name(checked, candidate.candidate, *symbol);
-                }
-            }
-        }
-        // Static call parents from the entry, so an unnamed helper can be
-        // attributed through the named machine that reaches it.
-        let mut pending = std::collections::VecDeque::from([module.entry]);
-        let mut visited = std::collections::BTreeSet::from([module.entry]);
-        while let Some(current) = pending.pop_front() {
-            let Some(machine) = module.machines.iter().find(|machine| machine.id == current) else {
-                continue;
-            };
-            for block in &machine.blocks {
-                for operation in &block.operations {
-                    if let Some(callee) = call_callee(&operation.kind)
-                        && visited.insert(callee)
-                    {
-                        provenance.callers.insert(callee, current);
-                        pending.push_back(callee);
-                    }
-                    // A boundary call reaches its candidate bodies through
-                    // dispatch, the same edge the absence walk follows.
-                    if let terminal_psi::OperationKind::BoundaryCall { boundary, .. } =
-                        &operation.kind
-                    {
-                        for candidate in module
-                            .provider_candidates
-                            .iter()
-                            .filter(|candidate| candidate.boundary == *boundary)
-                        {
-                            if visited.insert(candidate.candidate) {
-                                provenance.callers.insert(candidate.candidate, current);
-                                pending.push_back(candidate.candidate);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        provenance
-    }
-
-    /// The nearest machine on the walk from the entry that has a checked
-    /// name: the machine itself when named, otherwise its first named caller.
-    fn named_ancestor(
-        &self,
-        machine: MachineId,
-    ) -> Option<(MachineId, &(String, symbols::SymbolHandle))> {
-        let mut current = machine;
-        let mut steps = 0_usize;
-        loop {
-            if let Some(named) = self.machines.get(&current) {
-                return Some((current, named));
-            }
-            current = *self.callers.get(&current)?;
-            steps += 1;
-            if steps > self.callers.len() {
-                return None;
-            }
-        }
-    }
-
-    fn name(
-        &mut self,
-        checked: &CheckedCompilation,
-        machine: MachineId,
-        symbol: symbols::SymbolHandle,
-    ) {
-        if self.machines.contains_key(&machine) {
-            return;
-        }
-        let Some(declaration) = checked
-            .typed
-            .machines()
-            .iter()
-            .find(|candidate| candidate.symbol == symbol)
-        else {
-            return;
-        };
-        // Checked machine names are already owner-qualified (`Type::name`).
-        let name = declaration.name.as_str().to_owned();
-        self.machines.insert(machine, (name, symbol));
-    }
-
-    /// `machine \`name\` (Terminal machine N)` when the machine is joined to
-    /// checked provenance; `Terminal machine N, reached through machine
-    /// \`caller\` (Terminal machine M)` when only a caller is; otherwise
-    /// `Terminal machine N`.
-    fn label(&self, machine: MachineId) -> String {
-        match self.named_ancestor(machine) {
-            Some((named, (name, _))) if named == machine => {
-                format!("machine `{name}` (Terminal machine {machine})")
-            }
-            Some((named, (name, _))) => format!(
-                "Terminal machine {machine}, reached through machine `{name}` (Terminal machine {named})"
-            ),
-            None => format!("Terminal machine {machine}"),
-        }
-    }
-
-    /// A diagnostic spanned at the checked declaration of `machine`, when
-    /// the machine is joined to one that retains authored source custody.
-    fn declared_here(
-        &self,
-        checked: &CheckedCompilation,
-        machine: MachineId,
-        message: String,
-    ) -> Option<Diagnostic> {
-        let (_, (_, symbol)) = self.named_ancestor(machine)?;
-        let span = checked.typed.symbols.symbol_source_span(*symbol)?;
-        Some(Diagnostic::error(message).with_source_span(span))
-    }
-}
-
-fn call_callee(kind: &terminal_psi::OperationKind) -> Option<MachineId> {
-    match kind {
-        terminal_psi::OperationKind::Call { callee, .. }
-        | terminal_psi::OperationKind::CallUnit { callee, .. }
-        | terminal_psi::OperationKind::CallStructuralScalar { callee, .. }
-        | terminal_psi::OperationKind::CallStructural { callee, .. }
-        | terminal_psi::OperationKind::CallStructuralWithScalarArguments { callee, .. } => {
-            Some(*callee)
-        }
-        _ => None,
-    }
-}
 
 /// Verify the authored exclusions against the selected program entry's
 /// unoptimized composition: the lowered module Terminal production retained
 /// before its selected optimization ran, the same lowering the artifact was
 /// published from. `unoptimized` is `None` only when production was not
-/// asked to retain it, which is a production-request fault, not an admission.
+/// asked to retain it. With authored exclusions that is a production-request
+/// fault, not an admission; without exclusions no retained copy is needed.
 pub(crate) fn verify_entry_behavior_exclusions(
     checked: &CheckedCompilation,
     unoptimized: Option<&lowered_psi::LoweredPsi>,
@@ -235,24 +48,8 @@ pub(crate) fn verify_entry_behavior_exclusions(
             "behavior-exclusion admission needs the unoptimized Terminal lowering retained by production",
         )]
     })?;
-    let provenance = MachineProvenance::from_lowering(checked, lowered, entry_machine_symbol);
-    verify_module_behavior_exclusions(checked, &lowered.semantic_module, &provenance)
-}
-
-/// Verify the authored exclusions against one already-unoptimized Terminal
-/// module (a selected entry composition or a callback thunk body). The
-/// module's own `entry` is the walk's root. `provenance` names the module's
-/// machines where the lowering joined them to checked declarations; a
-/// callback thunk body carries none.
-fn verify_module_behavior_exclusions(
-    checked: &CheckedCompilation,
-    module: &terminal_psi::TerminalModule,
-    provenance: &MachineProvenance,
-) -> Result<(), Vec<Diagnostic>> {
+    let module = &lowered.semantic_module;
     let authored = checked.behavior_exclusions();
-    if authored.is_empty() {
-        return Ok(());
-    }
     let trait_identity = boundary_trait_identity(checked);
     let exclusions = authored_behavior_exclusion_set_in(authored, module, &trait_identity);
     if exclusions.is_empty() {
@@ -269,14 +66,17 @@ fn verify_module_behavior_exclusions(
     );
     match report.verdict() {
         BehaviorExclusionVerdict::Satisfied => Ok(()),
-        _ => Err(behavior_exclusion_diagnostics(
-            checked,
-            authored,
-            module,
-            provenance,
-            &trait_identity,
-            &report,
-        )),
+        _ => {
+            let provenance =
+                LoweredMachineProvenance::from_lowering(checked, lowered, entry_machine_symbol);
+            Err(behavior_exclusion_diagnostics(
+                authored,
+                module,
+                &provenance,
+                &trait_identity,
+                &report,
+            ))
+        }
     }
 }
 
@@ -326,10 +126,9 @@ pub(crate) fn boundary_trait_identity(
 }
 
 fn behavior_exclusion_diagnostics(
-    checked: &CheckedCompilation,
     authored: &[AuthoredBehaviorExclusion],
     module: &terminal_psi::TerminalModule,
-    provenance: &MachineProvenance,
+    provenance: &LoweredMachineProvenance,
     trait_identity: &dyn Fn(symbols::SymbolHandle) -> Option<String>,
     report: &BehaviorExclusionReport,
 ) -> Vec<Diagnostic> {
@@ -357,16 +156,15 @@ fn behavior_exclusion_diagnostics(
         // A second row attributes the retained possible behavior to the
         // declaration that contributes it: a possible path, not a witnessed
         // runtime execution.
-        if let Some(declared) = provenance.declared_here(
-            checked,
-            prohibited.machine,
-            format!(
-                "the selected composition retains {} through {} declared here",
-                describe_exclusion(module, prohibited.exclusion),
-                provenance.label(prohibited.machine),
-            ),
-        ) {
-            diagnostics.push(declared);
+        if let Some(span) = provenance.source_span(prohibited.machine) {
+            diagnostics.push(
+                Diagnostic::error(format!(
+                    "the selected composition retains {} through {} declared here",
+                    describe_exclusion(module, prohibited.exclusion),
+                    provenance.label(prohibited.machine),
+                ))
+                .with_source_span(span),
+            );
         }
     }
     for gap in &report.gaps {
@@ -379,15 +177,14 @@ fn behavior_exclusion_diagnostics(
             diagnostic = diagnostic.with_source_span(first.source_span);
         }
         diagnostics.push(diagnostic);
-        if let Some(declared) = provenance.declared_here(
-            checked,
-            gap.machine,
-            format!(
-                "absence cannot be established for {} declared here",
-                provenance.label(gap.machine),
-            ),
-        ) {
-            diagnostics.push(declared);
+        if let Some(span) = provenance.source_span(gap.machine) {
+            diagnostics.push(
+                Diagnostic::error(format!(
+                    "absence cannot be established for {} declared here",
+                    provenance.label(gap.machine),
+                ))
+                .with_source_span(span),
+            );
         }
     }
     diagnostics
@@ -465,7 +262,7 @@ fn describe_gap(kind: &EvidenceGapKind) -> String {
 }
 
 fn describe_location(
-    provenance: &MachineProvenance,
+    provenance: &LoweredMachineProvenance,
     machine: semantic_vocabulary::MachineId,
     block: Option<semantic_vocabulary::BlockId>,
     operation: Option<semantic_vocabulary::OperationId>,

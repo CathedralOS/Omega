@@ -89,6 +89,13 @@ Package installation and update belong to the separate
 
 ## Product boundaries and observations
 
+Entry Terminal production retains the unoptimized lowering only for authored
+behavior exclusions. Callback production also needs it for the callback lowering
+receipt. Exclusion admission uses the backend effects checker; on rejection,
+[Psi lowering's source attribution](../../psi/pipeline/05_checked-trees-to-lowered-psi/src/lowered_machine_provenance.rs)
+supplies machine names and declaration spans. That diagnostic mapping is not
+admission evidence.
+
 [Request validation](src/compiler/request.rs) checks the requested product and
 rollback selection before acquiring source or opening output directories.
 Checking permits no rollback; Terminal publication permits only applicable
