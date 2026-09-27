@@ -285,100 +285,104 @@ backend-visible; full corpus runs only at the end of an item.
   product roots under **OMEGA-PRODUCT-COMPILER-SOURCE** separately; the fixture
   does not establish their later operations.
 
-- **FLOAT-RANGE-ATTACHED-FIELD.** (new-scope) A FLOAT field carrying a
-  bracketed RANGE in a machine's attached data makes the machine
-  unplannable, at `state graph: state signature: parameter signature:
-  attached data shape`. One token decides it and neither half is enough
-  alone: `i32`, `f32`, `i32 [0..=10]` and `f64 in Finite` all check, while
-  `f32 [0.0..=1.0]` and `f64 [0.0..=1.0]` omit -- an integer range is fine
-  and a float DOMAIN is fine. Pinned at
-  `tests/omega/pending/float/float_range_attached_field`.
-  The phase name misleads: a state PARAMETER is not required -- a
-  parameterless state omits identically.
-  EXIT CONFIRMED, by marking all four `?` exits in
-  `terminal_unit/calls/signatures.rs` distinctly and counting them on the
-  failing and working programs. Attached-name, data-definition and
-  `scalar_and_structural_parameters` decline identically in both (1654, 118,
-  68); `shapes.add_attached_application` declines 23 times against 19, and
-  that difference of four is the whole gap. From there the chain is
-  `add_attached_application` -> `add_attached_data` -> `add_data_shape` in
-  `terminal_unit/types/mod.rs`, which walks the data's fields -- that walk is
-  where a bracketed range on a float field, and the ranged const parameter
-  below, must become representable.
-  Both files are held: `types/mod.rs` by LOCAL-DATA-CLUSTER-REPAIR.
-  FOUR of the five corpus fixtures at this phase are this:
-  `pass/float/finite_core_domain_range_discharge`,
-  `pass/recast/{runtime_float_range_representation_recast_exit,
-  runtime_mutable_equivalent_record_recast_exit,
-  runtime_shared_record_float_range_weakening_exit}` -- the last two carry
-  the float range inside a RECORD, so the shell need not be the attached
-  type's own field list. The fifth,
-  `pass/generics/runtime_const_container_methods_exit`, has no float at all
-  and is now ATTRIBUTED: a const generic parameter carrying a bracketed
-  RANGE (`const N: u64[1..=..]`) makes the machine unplannable at the same
-  phase. Pinned at
-  `tests/omega/pending/generics/ranged_const_parameter_attached_shape`. Its
-  element policy is ruled out and that matters -- the fixture declares
-  `items: [i32 in Wrapping; N]` and reads exactly like the member-policy
-  family, but the policy element checks on its own and the PLAIN element
-  with a ranged const parameter omits.
-  PAIRED, not merged. Both triggers are a bracketed range the attached shape
-  must represent, the natural hypothesis for one limitation in
-  `shapes.add_attached_application`. But an INTEGER FIELD range
-  (`value: i32 [0..=10]`) CHECKS, so "ranges in the attached shape" is too
-  broad; settle what admits that one and refuses these two before repairing
-  either. Acceptance: both pending fixtures check and all five corpus rows
-  move, which empties this phase.
+- **FLOAT-RANGE-ATTACHED-FIELD.** (new-scope) Carry float invariants and
+  constrained const applications through attached/nested data execution.
+  First migrate the customers under **CANONICALIZE-SCALAR-RANGE-CONTRACTS**:
+  [domains](wiki/spec/language/domains.md) require ordinary field `where`
+  facts and contracts, not scalar range suffixes or replacement nominal domains.
+  `terminal_unit/types/scalar_fields.rs` retains bounded integers but refuses
+  float bounds; `data_where_field_intervals` in
+  `proof_contracts/default_domains/where_fact_intervals.rs` reads integer
+  literals only. Preserve IEEE storage and float facts without treating them
+  as integer bounds. Separately, `terminal_unit/types/mod.rs` requires an exact
+  attached generic application; the old shared phase label does not establish
+  that float predicates and const constraints need the same repair.
+  Migrate `tests/omega/pending/float/float_range_attached_field` and
+  `tests/omega/pending/generics/ranged_const_parameter_attached_shape`, then
+  exercise their currently unused fields. Keep bare integer/float, integer
+  `where`, `Finite`, unconstrained const, and plain/`Wrapping` element controls.
+  Required customers under `tests/omega/pass/`:
 
-- **VALUE-CALL-SUBEXPRESSION.** (new-scope) A value (machine) call omits
-  whenever it is not the ROOT of the expression its construction site lowers;
-  any parent node over it is enough. `self.twelve()` checks, `(self.twelve())`
-  checks, and `self.twelve() + 0`, `self.twelve() as i64`,
-  `self.twelve() == 12` and `0 - self.twelve()` all omit, while the same
-  arithmetic with no call checks. `samples/cli/probes/value_call_in_expr`,
-  pinned at `tests/omega/pending/calls/value_call_subexpression`. Ruled out
-  with checking controls: the arithmetic policy (a policy-free program omits
-  and `in Wrapping` omits identically -- this is NOT another member-policy row
-  removal, despite sitting beside two of those), the field receiver, the call's
-  argument, and the `let` binding itself, since a field store and a transition
-  guard omit too at their own phase labels. The sample's header attributes it
-  to one historical miscompile; ` + 0` alone reproduces it with nothing of that
-  statement left. Start the repair from the one asymmetry: in a transition
-  guard a call as the LEFT operand of `==` checks while the same call as the
-  RIGHT operand omits, and the same depth-one comparison in a `let` initializer
-  is not tolerated at all -- so a narrow special case already exists and
-  generalizing it is the likely shape. Acceptance: the pending fixture checks,
-  all the omitting forms above check, and the sample leaves the cluster.
+  - `float/finite_core_domain_range_discharge`: restore finite/range facts
+    before the transition, pass the value to a `Finite` parameter, exit **77**.
+    Its transient NaN and out-of-range assignments exercise the
+    [invariant window](wiki/spec/language/numeric_values.md), not permission
+    to expose invalid values at a boundary.
+  - `recast/{runtime_float_range_representation_recast_exit,
+    runtime_shared_record_float_range_weakening_exit,
+    runtime_mutable_equivalent_record_recast_exit}`: exit **70**, preserving
+    shared weakening and bit views, equivalent mutable representation sets,
+    and original-storage reads after the exclusive loan's last use. Follow
+    [recast compatibility](wiki/spec/layouts/recasts.md); equal sizes alone
+    cannot admit strengthening or mutable widening.
+  - `generics/runtime_const_container_methods_exit`: distinct capacities
+    **2/4**, generic method witnesses of those lengths, stored values **30/40**,
+    exit **70**. Retain exact specialization identity/layout and reject const
+    tuples violating their declared constraints.
 
-- **BYTE-CARRIER-STORE-LITERAL-ONLY.** (new-scope) An owned, domain-carrying
-  `[u8; N]` field store admits ONLY a bare string literal; anything else on the
-  right declines silently with no diagnostic. `"Hello, " + "Ada!"` omits --
-  two ADJACENT literals, no runtime operand, and `"a" + "b"` is not folded into
-  a String node -- and so does a plain carrier-to-carrier copy
-  `self.greeting = self.name` with no concatenation at all. So the store admits
-  the `String` node and nothing else; concatenation is not the subject. Three
-  samples, one cause: `cli/basics/text_greeting`, `cli/systems/status_report`,
-  `cli/text/string_catalog`, each confirmed by replacing only its concat with
-  the literal it computes and watching it check. Pinned at
-  `tests/omega/pending/text/byte_carrier_store_literal_only`.
-  The decline is the `let ... else { return None; }` requiring
-  `ExpressionNode::String` in
-  `04_typed-trees-to-checked-trees/src/execution/terminal_unit/structural_scalar_store/byte_stores.rs`;
-  `field_store` sets no `trace.phase`, so the label names the ROUTE entered
-  before the call, not the decliner. Ruled out with controls: the `Utf8` domain
-  shell (it is what puts the store on this route, not what declines it -- a
-  plain `[u8; N]` never reaches it and omits elsewhere even for a literal),
-  capacity and length (an overflowing literal gives a proper diagnostic),
-  operand count, a runtime operand, nested carrier paths, and where the store
-  sits. Acceptance: the pending fixture checks, a carrier-to-carrier copy
-  checks, and the three samples leave the omission cluster.
+  Acceptance: canonical source checks, published Terminal reloads/verifies,
+  and all five customers execute with those oracles. A migrated unused field
+  or disappearance of the old phase label alone does not close this task.
 
-  MEASUREMENT HAZARD found here and applying to every reduction in the tree: a
-  machine with NO TERMINAL EFFECT demands no unit plan, so checking it is
-  VACUOUSLY GREEN. The body above, stripped of its `Binding<Console>`,
-  `reaches Console` and console call, CHECKS while the same body with the
-  effect restored omits. Keep one effect in any program you shrink, or it
-  measures nothing.
+- **VALUE-CALL-SUBEXPRESSION.** (new-scope) Finish composing scalar machine
+  results under surrounding expressions at each execution site. The builder
+  in `values/scalar/computations.rs` and `computations/integers.rs` already
+  handles calls, arithmetic, casts and comparisons; stage 05's
+  `scalar_return_calls_source/integer_computations.rs` lowers a call under
+  addition, comparison and short-circuiting. Do not rebuild this as a new
+  left-operand special case. The recorded rejections for
+  `tests/omega/pass/calls/{value_call_embedded_in_binary_exit,
+  transition_arg_local_from_embedded_call_exit}` report a pure initializer;
+  `control/statement_sequence.rs::scalar_computation_local_at` takes that
+  fallback when the exact computation root is absent. Reproduce each remaining
+  site and retain its state, statement, binding and call occurrence through
+  construction/emission rather than substituting a pure expression.
+  `tests/omega/pending/calls/value_call_subexpression` currently discards
+  `twelve() + 0`; make its value observable. Exercise arithmetic on either
+  side, casts and both comparison operands in locals, field stores and guards,
+  with bare/parenthesized-call and call-free controls, ordinary/field receivers,
+  and Exact/`Wrapping` policies. Preserve result-owned carrier/policy and the
+  [evaluation schedule](wiki/spec/language/expressions.md): ordered, single
+  invocation, selective short-circuiting, no reevaluation at state arrival.
+  Acceptance: both corpus rows verify **46** and exit **70** after Terminal
+  reload and native execution; the second must carry the local across a state
+  edge. `samples/cli/probes/value_call_in_expr` must preserve **46, 40, 64, 70**
+  through its nested calls and transitions and exit **70**. Its historical
+  slot-collision comment is not a diagnosis of the current compiler.
+
+- **BYTE-CARRIER-STORE-LITERAL-ONLY.** (new-scope) Admit carrier copies and
+  concatenation into owned bounded byte fields, including nested fields and
+  borrowed output parameters. The producer in
+  `terminal_unit/structural_scalar_store/byte_stores.rs` requires
+  `ExpressionNode::String`, and `CheckedStructuralByteSequenceFieldStorePlan`
+  carries constant bytes. Widen that checked source and its stage 05 emission.
+  Terminal's `StructuralByteSequenceFieldStore` already carries a source
+  place, measured length and capacity obligation; Omega lowering/selection
+  already copies a runtime view's live bytes before publishing its length.
+  The pending fixture's claim that Terminal only carries `Vec<u8>` confuses
+  these two representations. Existing whole replacement supplies neither
+  carrier-field view production nor concatenation/append semantics by itself.
+  Retain source identity/backing, prove total length fits and establish `Utf8`
+  where required. Follow [bounded replacement](wiki/spec/terminal-psi/structural_access.md):
+  publish live bytes and length together, preserve siblings, allow empty and
+  shorter replacements, and distinguish raw fixed arrays' exact-length rule.
+  Literal-only interpretation already covers lengths **3, 1, 0** and sibling
+  preservation; extend coverage to runtime sources without mutating shared
+  immutable backing or treating capacity as readable content.
+  `tests/omega/pending/text/byte_carrier_store_literal_only` assigns two
+  literals' concatenation but prints unrelated `"done"`. Observe the assigned
+  bytes/length and keep a demanded executable entry and terminal effect.
+  Cover plain copies, literal/runtime multi-segment concatenation, nested
+  destinations and borrowed outputs; keep literal and capacity-overflow
+  controls. Acceptance after Terminal reload/verification and native execution:
+
+  - `samples/cli/{basics/text_greeting,systems/status_report,text/string_catalog}`
+    produce **Hello, Ada!**, **ALERT temp** (also retain the normal branch),
+    and **[Alpha+Beta]** with total **70**, respectively; each exits **70**.
+  - `tests/omega/pass/text/{runtime_bounded_carrier_concat_exit,
+    runtime_bounded_carrier_alias_concat_exit}` produce **Room A1** and
+    **== Gate ==**, exit **70**; the latter writes through a mutable output
+    parameter across a call. Check exact live bytes/length, not only admission.
 
 - **COMPOSITE-TRANSITION-ARGUMENT.** (new-scope) A transition argument of
   COMPOSITE type routes only when it is a LOCAL. A composite LITERAL, a
