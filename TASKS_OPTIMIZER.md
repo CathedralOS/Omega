@@ -15,53 +15,22 @@ another broad alias. Every rule must name the exact semantic, proof, ownership,
 effect, target, and provenance facts it consumes, and retain the identities
 needed for independent replay through publication.
 
-## Pipeline cleanup follow-ups
+## Execution priority
 
-These are separately schedulable follow-ups, not an ongoing cleanup run.
-The [ownership contract](omega-rust/pipeline.md)
-governs these tasks: replace obstructive implementations, preserve semantics and
-independent validation, and keep empty/nonempty optimization selections on one
-physical route. Unsupported cases reject rather than restoring a fallback.
+Keep the full scope below. Prioritize by the unchanged program or required
+publication that the work enables; a helper milestone does not close that
+customer. Source and call/storage lowering blockers stay with
+[TASKS.md's immediate product work](TASKS.md#immediate-product-closure).
 
-- **PIPELINE-OWNER-CONSOLIDATION.** Finish ownership and executable consumption
-  under the [connected pipeline contract](omega-rust/pipeline.md). Selected
-  rewrites need the stage catalog routes owned by EXACT-MACHINE-SIMPLIFICATIONS,
-  ALIAS-AWARE-MEMORY, and DECLARATIVE-PEEPHOLES, or deletion when superseded.
-  SPILL-REALIZATION owns joining retained logical spill/coloring evidence to
-  physical recovery and retiring unused spill boundaries with their consumers.
+| Order | Work to take first |
+| --- | --- |
+| 1. Correct native execution | GENERAL-CYCLIC-EXECUTION and SPILL-REALIZATION when a real program needs their call/storage route; TRANSLATION-VALIDATION where an admitted operation cannot publish required evidence. Carry the applicable PER-RULE-COVERAGE checks with each repair. |
+| 2. Better code for runnable programs | JOIN-INVARIANT-REWRITE-TRANSPORT, GENERAL-LICM, ALLOCATION-REFINEMENT, machine/memory rewrites, representation specialization and interprocedural summaries. FRAME-LAYOUT follows its upstream runtime-sized activation claim route; ordinary calls do not wait for it. |
+| 3. Consolidation and broader rollout | PIPELINE-OWNER-CONSOLIDATION and CUSTODY-MUTATION-COVERAGE where they remove duplicated work or protect the repaired route; BENCHMARKS and WORKSPACE-ROLLOUT retain their full host/evidence and promotion requirements. |
 
-  The semantic-wrapper object's records, composition, validation and codec
-  live in `native-artifact/src/semantic_wrapper_object`, and
-  the plan's x86-64 template selection and replay live beside its recipe in
-  `omega-rust/omega/backend/plans/program-entry-plan/src/optimized_semantic_wrapper/encoding.rs`;
-  native-realization keeps only the object stage's
-  settlement/source/encoding custody join and replay. UEFI/provider/ABI gaps
-  remain with their native owners, not another wrapper implementation.
-
-  Audit surviving public entrances using qualified identities and repository-wide
-  consumers; a common name such as `encode` does not identify a caller. Acceptance: the connected route has no
-  competing entrances or orphan outputs, coordinators sequence typed stages,
-  and retained plans constrain the physical operations they describe.
-  An isolated validator or retained-but-unused plan does not close the join.
-
-- **WORKSPACE-ROLLOUT.** Keep exact rules opt-in and Experimental in the
-  [rule inventory](omega-rust/omega/foundation/optimization-core/rules.md)
-  until the frozen-tree command
-  `CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 mbx test --workspace --no-fail-fast`
-  passes and promotion receives the separate owner decision required by the
-  [promotion contract](wiki/spec/build/optimizations.md#release-rollback-and-promotion).
-  Do not substitute `--all-targets`, which omits doctests.
-
-  The six [staged promotion records](omega-rust/omega/foundation/optimization-core/promotions)
-  contain rollback and Linux measurement evidence; Approved status and Owner
-  approval remain PENDING. Review evidence against the contract rather than
-  treating populated fields or a schema-gate pass as approval or broader host
-  coverage. Keep inventory and records consistent under
-  `exact_rule_rollout_is_complete_and_promotion_gated`.
-
-  Acceptance: the command passes from a clean checkout, and each promoted exact
-  rule has the required reviewed evidence and owner decision. No broad
-  optimization level or automatic default is introduced.
+A concrete correctness or validation regression takes precedence over this order.
+Mandatory pressure recovery is not optional optimization quality; advanced
+rewrites and promotion are not prerequisites for the first useful compiler.
 
 ## Validation, translation, and publication
 
@@ -110,92 +79,189 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   FRAME-LAYOUT. Do not restore retired scalar/Unit/structural whole-function
   planners to recover coverage; extend ordinary operations and receiving checks.
 
-- **CUSTODY-MUTATION-COVERAGE.** Finish migrating legacy custody mutation
-  matrices to `psi/foundation/mutation-matrix`'s inventory and substitution
-  driver, preserving each family's independent checker.
-  Hand-written `*_rejects_every_one_field_substitution` matrices remain in the
-  Terminal codec artifact tests (float meaning, proof section, proposition
-  vocabulary, recursive component, and both reborrow families), the
-  `compiler` crate's custody tests, `image`, `image-emission`, the
-  `native-artifact` semantic wrapper object, `component-description`,
-  `external-roots` root admission, `build-output`, `selected-dispatch` source
-  edits, package review evidence, and the component-era receipts in `effects`. Component-publication's
-  `installed_runnable_component_rejects_every_one_field_substitution` exercises
-  lifecycle joins, not one-field substitutions.
-  The topology owner-request `request_custody_fields.rs` is an existing
-  shared-driver example, including unrepresentable-field rejection. `optimization-core`
-  re-exports the foundation harness; Psi consumers use its foundation owner
-  directly.
+- **CUSTODY-MUTATION-COVERAGE.** Migrate the remaining hand-written custody
+  substitution matrices to `psi/foundation/mutation-matrix`, preserving each
+  family's independent checker and existing corruption cases. Use
+  `custody_field_inventory!` and `run_one_field_substitution_matrix`; the
+  `optimization-core` re-export is for Omega consumers, not a Psi dependency.
 
-  Reuse `custody_field_inventory!` and `run_one_field_substitution_matrix`. Nested installation,
-  optimization-execution custody, trust-graph custody, component-publication
-  external stack provision, the executable-installation container wire, and the
-  Terminal codec debug-map, artifact-envelope, PCC sidecar, obligation-ledger,
-  operation-crash-contract and placed-view-input matrices already use the
-  driver; do not repeat those migrations.
+  Start with the manual matrices in Terminal codec
+  `tests/artifact/{proposition_vocabulary_custody,reborrow_restored_call_use_custody,trace_profile_custody}.rs`,
+  native-artifact's semantic-wrapper container/receipt tests, image region and
+  footprint tests, image-emission's internal scalar-call/boundary-settlement
+  tests, and provider-evidence's `component_era_entry_ledger/custody.rs`.
+  Recheck surviving selected-dispatch source-edit matrices and any custody
+  families formerly owned by compiler tests before scheduling a migration:
+  deleted test targets do not establish equivalent coverage.
 
-  Acceptance: every representable field changes independently, the containing
-  identity recomputes honestly, and independent replay rejects the substitution.
-  Unrepresentable fields reject at canonical encoding and are named explicitly.
-  Audit record families for missing inventories separately: the gate rejects
-  declared inventories without matrix consumers and macro-derived inventories
-  without shared-driver consumers. New record families arrive with matrices under
-  [stage-extension validation](omega-rust/optimization.md#validation-when-extending-a-stage).
-  Shared fixtures must not replace the independent check with producer admission.
+  The codec's float-meaning, proof-section, recursive-component and root-handoff
+  matrices already use the shared driver, as do build-output, package review
+  evidence, component-description and external-root admission. Use their actual
+  checker closures as examples; a test name alone does not identify a manual
+  matrix. Component-publication's runnable-component test covers lifecycle joins
+  and must retain that behavior.
 
-## Psi optimization and loops
+  Acceptance: each representable field changes independently, containing
+  identities recompute honestly, and the family's independent replay rejects
+  substituted custody. Name unrepresentable fields and retain their canonical
+  encoding/decoding refusals. Audit missing inventories and inventory-to-driver
+  coverage explicitly, including inventories without matrix/driver consumers.
+  New families retain the [stage-extension validation](omega-rust/optimization.md#validation-when-extending-a-stage)
+  axes; shared fixtures must not replace independent replay with producer admission.
 
-- **JOIN-INVARIANT-REWRITE-TRANSPORT.** (new-scope) Decide whether a scalar
-  block invariant can be rewritten alongside the parameters it names, or
-  whether its presence must keep refusing the rewrite. `a0cc5b2830` began
-  proposing an interval from literal arrivals at a scalar join
-  (`05_checked-trees-to-lowered-psi/src/proofs/scalar_block_invariants/joins.rs`),
-  so a merge block joining two same-type integer literals now retains a
-  `ScalarBlockInvariant`. That makes the machine proof-bearing, and both
-  copy propagation and dead pure scalar elimination then propose their full
-  rewrite, fail validation with `ChangedProofQuestion`, and fall back to the
-  authored module. The refusal is the documented boundary working, not a
-  defect: the rewrite would move a question the invariant row still names.
-  The cost is that an ordinary two-arm `transition` returning constants now
-  disables both passes for its whole machine, silently and with no
-  diagnostic.
+## Register allocation and frames
+
+- **SPILL-REALIZATION.** Finish executable register-pressure recovery and
+  prove that its emitted frames participate in stack provisioning. Owners:
+  [register allocation](omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/README.md)'s
+  `assignment/runtime_spill/` and selected-instruction
+  `rewrites/runtime_spill/`; the latter independently replays stores, reloads,
+  physical geometry and value lineage.
 
   Remaining work:
 
-  - Establish which of the two routes the boundary takes: transport the proof
-    context with the rewrite so the invariant row follows its renamed values,
-    or state that an invariant-bearing header is deliberately frozen and give
-    the refusal an observable report so the loss is not silent.
-  - Either way, cover the shape at the corpus level. The only fixture that
-    exercised it is `dead_block_parameter_fixture` in
-    `05_checked-trees-to-lowered-psi/src/tests/preterminal_optimization.rs`,
-    which now spells its arm constants at the declared type's endpoints
-    precisely so no invariant is proposed and the non-proof-bearing lane stays
-    reachable.
+  - Admission: foreign-class values without a pure bit-transport pair (including
+    vector/non-IEEE values) and entry-bound victims with an edge back to the
+    entry block still reject in `runtime_spill/admission.rs`. Preserve that
+    refusal until storage geometry and entry redefinition replay are supported.
+    IEEE transport and early-clobber tied uses with shared co-readers already
+    work; `tests/read_modify_write.rs` pins a dedicated reload for the tied use.
+  - Composition: fixed-view probe declines, pressure after materialized copies,
+    and pressure after active-resident rematerialization already enter runtime
+    spill with their validated prefix (`assignment/recovery.rs`). Completed
+    literal-fold/pre-allocation runs still take `assignment::transformed` homes
+    directly in `stage_register_allocation`; connect residual pressure there
+    without losing rewrite custody. Close remaining multi-recovery selection
+    composition through the same route and independent replay.
+  - Slot reuse: emitted recovery uses eight-byte `LocalStorageSlotId::Spill`
+    homes. `rewrites/runtime_spill/slot.rs` reuses a slot only when last-writer
+    replay proves noninterleaving windows for its supported store/load forms.
+    Generalize interval-based reuse on this physical route. The separate
+    `assignment/stack_slot_coloring` and logical-spill boundaries have no
+    sequenced runtime caller; do not mistake their validated plans for physical
+    input or restore the removed logical-plan join. Retire superseded
+    `unsequenced_spill_stages/` owners with their consumers instead of extending
+    parallel slot-assignment implementations.
+  - Stack provisioning: carry a witnessed runtime-spilled function through
+    image-emission's final-frame production and `function_fragments/validation/stack.rs`,
+    `object_artifact/stack_demand.rs` and
+    `installation_record/record_construction.rs::derive_installation_stack_demand`,
+    then external-root admission or hosted-receiver partitioning. Reuse those
+    existing demand/supply joins under the
+    [compiler-owned stack contract](wiki/spec/resources/storage.md#compiler-owned-stack-accesses);
+    ABI entry-spill fixtures alone do not establish allocation-recovery coverage.
+    Target-required setup and probing belong to frame/provisioning owners.
 
-  Acceptance: a two-arm transition returning constants either keeps both
-  passes, or refuses them through a reported decision an owner can read, and a
-  fixture pins whichever holds.
+  Acceptance: a compiler-produced pressure customer executes through the common
+  native route with independently replayed spill operations and final-frame
+  demand. Slot reuse is counted once; changed allocation/frame realization
+  invalidates stale demand; insufficient supply rejects before execution.
+  A byte ceiling is not valid stack backing. Preserve the write-only hosted
+  control (`python3 tools/corpus_gate.py --native --filter borrow/write_only`)
+  and do not introduce source crash routes for private spill operations.
+
+- **ALLOCATION-REFINEMENT.** Add allocation-chosen live-range splits inside
+  pressure regions, beyond existing fixed-use and shared-source-exit copies.
+  Owners: `selected-instructions-to-register-homes`'s
+  `analyses/fixed_precolored_split_requirements/{compute,replay}/` and
+  `assignment/runtime_spill/recovery.rs`, plus selected-instruction
+  `rewrites/allocation_recovery/fixed_view_copy/`.
+
+  Choose split points, connect independently homed segments, and recompute
+  liveness, ranges and legality. Place splitting in recovery before private
+  storage when it can free a home. Extend tied-register, early-clobber,
+  multiple-incoming-connector and cyclic topology restrictions while preserving
+  exact register-unit aliases and target custody.
+
+  Acceptance: pressure-driven split points, copies and segment homes replay
+  independently through callable publication on each admitted target.
+  Moved/omitted splits, incompatible fixed-use crossings, live-unit aliasing and
+  stale analyses reject. SPILL-REALIZATION owns storage; this item adds no slot.
+
+- **FRAME-LAYOUT.** Realize bounded activation claims under
+  [activation storage](wiki/spec/resources/activation_storage.md).
+  The contract is ratified. TASKS.md's **RUNTIME-SIZED-ACTIVATION-CONTRACT**
+  owns the missing source/Terminal claim route; ordinary general-call frames
+  do not depend on runtime-sized claims. Existing red-zone, probing, unwind,
+  callee-save and call-alignment plans are not missing mechanisms.
+
+  No claim roster reaches native lowering: no `ActivationClaim`/
+  claim-site field exists on `PostAllocationMachineFunction`, which is
+  wire-versioned, so the durable roster shape is upstream's decision. The
+  realization model is also unpinned: co-live claims must pack disjointly
+  while exclusive claims share storage, a tree-packing the spec does not
+  define, and whether committed extent equals the composed charge or a
+  larger physical extent is unspecified. `extents::activation_claims::
+  compose_claim_bounds` already implements the aligned-sum/maximum
+  composition rule and is directly reusable once the contract pins the
+  roster transport, coordinate assignment and extent semantics.
+
+  Once exact claims reach native lowering, compose simultaneously live bounds
+  with alignment and mutually exclusive bounds by maximum. Retain committed
+  extent computation, activation provenance, release order and suspension
+  custody, joined to the final frame/probe/unwind plans. Reuse permitted eager
+  frame commitment or lazy claim-site commitment; neither grants unbounded
+  stack allocation.
+
+  Acceptance: per-site replay checks committed extent within its bound and
+  provisioned activation, site/plan bijection, release and suspension custody.
+  Missing/duplicate/invented claims, suppressed bounds and incorrect ordering
+  reject. Establishment failure remains checked, not a trap or clamp; run
+  native claim access/release on each admitted matching target.
+
+## Psi optimization and loops
 
 - **GENERAL-CYCLIC-EXECUTION.** Complete the receiving/native half of
   [ranked callees on projected receivers](wiki/spec/language/termination.md#ranked-callees-on-projected-receivers).
   The same-name TASKS.md item owns source production and verifier coverage.
-  Natural-ranked and unranked Terminal programs use the common graph, with
-  authenticated cyclic components frozen under optimization; retired
-  countdown-only custody is not a fallback.
+  Follow the ordinary [native admission route](omega-rust/omega/pipeline/00_terminal-psi-to-abstract-operations/README.md#ranked-native-admission):
+  natural-ranked and unranked graphs retain their custody, and authenticated
+  cyclic components remain frozen under optimization. No countdown-only fallback.
 
-  The corpus case `termination/ranked_callee_projected_receiver_compile`
-  composes a ranked callee entered through a projected receiver with a
-  caller-visible write;
-  `python3 tools/corpus_gate.py --native --filter termination/ranked_callee_projected_receiver`
-  records its host build outcome.
+  Make `termination/ranked_callee_projected_receiver_compile` an actual native
+  witness before treating its corpus outcome as execution evidence. Its source
+  calls a ranked callee through a projected receiver and observes the write,
+  but the fixture has no `build.omg` and is neither a run-tier nor an `_exit`
+  case. `corpus_runner` therefore only checks it even with `--native`; the
+  macOS native golden records `checked`. Supply the intended host ProgramEntry
+  bindings and an `expected_native_exit.txt` oracle, then use
+  `python3 tools/corpus_gate.py --native --filter termination/ranked_callee_projected_receiver`.
+  Ensure the receiver starts nonzero so the exit-70 observation proves the
+  callee's write, rather than merely observing its zero-initialized value.
 
-  Close the remaining acceptance coverage: conflicting parent access,
-  missing/invalid callee ranking, exact argument identity, return/cleanup replay,
-  and native execution on both Linux architectures. Establish each against the
-  current route before adding machinery. Fixed-referent loops do not establish
-  broader changing-reference transfers; those need represented loans/aliasing
-  and ranking substitution, not a parameter-count-only relaxation.
+  Acceptance: execute the composed call on both Linux architectures; verify
+  exact projection, referent and argument identity, callee ranking, return,
+  cleanup and composed resources. Conflicting parent access and missing/invalid
+  required ranking reject. Iterations add no frames; the outer call may have
+  one. Changing-reference transfers additionally need represented loans/aliasing
+  and ranking substitution; a fixed-referent witness or wider parameter count
+  does not close them. Keep earlier source/lowering refusals with their owning
+  task while carrying this customer through native replay.
+
+- **JOIN-INVARIANT-REWRITE-TRANSPORT.** (new-scope) Preserve useful scalar
+  rewrites when retained join invariants name the values being rewritten, or
+  expose a deliberate refusal through an observable optimization decision.
+  Owners: stage 05's `proofs/scalar_block_invariants/joins.rs`, stage 06's
+  `copy_propagation` and `dead_scalar_elimination`, and their independent
+  Terminal rewrite validators.
+
+  Literal joins no longer create invariants in machines with no reconstructed
+  obligation: `joins::candidates` gates the interval proposal on a machine-owned
+  question. The remaining case is a proof-bearing machine. In
+  `preterminal_optimization.rs`,
+  `consumed_literal_join_keeps_the_invariant_and_refuses_rewrites` combines a
+  runtime-index obligation with constant-return arms and asserts both passes
+  leave the complete module unchanged. The passes return the original module
+  on a proof-question-changing proposal; their execution records retain identity
+  output but do not explain that refusal. This preserves correctness and is
+  an optimization limitation, not a blocker to ordinary native execution.
+
+  Acceptance: a source/corpus customer with a consumed join invariant either
+  retains the selected rewrites through independently checked proof-context
+  transport, or reports the deliberate refusal. Cover the no-obligation control
+  and both passes. Preserve exact proof questions, value/ranking identities and
+  rejection of forged context changes; changing arm constants to avoid the
+  invariant does not test the missing behavior.
 
 - **GENERAL-LICM.** Extend invariant motion beyond the authenticated
   shared-source preheader in
@@ -248,142 +314,6 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   Rebuild ownership membership after transformation and preserve Terminal-derived
   region custody; do not add a private loop forest or restore countdown-specific
   authority.
-
-## Register allocation and frames
-
-- **SPILL-REALIZATION.** Finish executable pressure recovery and join its
-  frames to stack provisioning.
-  [Register allocation](omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/README.md)
-  chooses victims in `src/assignment/runtime_spill/`; the rewrite owner,
-  `04_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/`,
-  inserts and independently replays the private stores and reload pairs.
-
-  Remaining work:
-
-  - Logical-to-physical join. Resolved by removal: the retained logical
-    spill-operation plan never described an emitted operation. The logical
-    boundary models an evicted active resident with current/reclaimed views,
-    while executable recovery spills the failed register — frequently the
-    incoming value — directly; the planner rejected every observed runtime
-    choice as `UnsupportedVictimRole` and no recovery retained a plan. The
-    redundant plan, its coloring, and their replay comparisons were removed;
-    physical candidate, rewrite, and rebuilt-fact replay is unchanged.
-  - Victim and use admission (`rewrites/runtime_spill/admission.rs`). A
-    foreign-class IEEE scalar reaches its slot through the frame rows'
-    shared carrier class: stores prepend `Float*ToBits`, reloads append
-    `BitsToFloat*`, and a missing or impure conversion row keeps the victim
-    a candidate-local rejection. An early-clobber write tied to a victim use
-    is now admitted when its reload stays unshared (`0cef396980`), and a
-    stored snapshot whose chunk loads cannot name one register takes a
-    dedicated end-of-block `FrameAddress`/`Load64` reload (`37855d1ce2`).
-    Still rejected: a foreign-class victim without that transport pair
-    (vector-class values, non-IEEE scalars); an early-clobber tied write
-    whose reload is shared by an unpinned victim-reading co-operand; and an
-    entry-bound victim when an edge targets the entry block. Recovery then
-    tries the next roster candidate and fails when the roster is exhausted.
-  - Slot assignment. Every victim declares a private eight-byte
-    `LocalStorageSlotId::Spill` slot. `runtime_spill/slot.rs` shares an
-    existing slot only for the zero-offset `Store64` or
-    `FrameAddress`-plus-`Load64` idiom when a last-writer replay proves the
-    windows cannot interleave. Interval-based coloring is sequenced as
-    `assignment/stack_slot_coloring`: `stage_register_allocation`'s
-    runtime-spill recovery colors its retained logical-operation plan and
-    replays the coloring, but emission still consumes only the per-step
-    `LocalStorageSlotId` homes — the colored plan is validated evidence, not
-    yet a physical input.
-  - Composition (`src/register_allocation.rs`). A completed selected-lowering
-    run takes `assignment::transformed` homes and surfaces pressure as
-    `TransformedHomes`; it never enters `assignment::runtime_spill`. A
-    selected-lowering selection beside an allocation-recovery selection, and
-    two allocation-recovery selections, reject as `UnsupportedComposition`.
-  - Stack provisioning under the
-    [compiler-owned stack contract](wiki/spec/resources/storage.md#compiler-owned-stack-accesses).
-    Reuse the final-frame demand path, not a parallel spill-byte estimate.
-    `image-emission` derives each function's peak from its validated final
-    frame (`omega-rust/omega/backend/images/image-emission/src/function_fragments/production.rs`, replayed by
-    `validation/stack.rs`) and composes it in
-    `object_artifact/stack_demand.rs` and
-    `installation_record/record_construction.rs::derive_installation_stack_demand`.
-    External-root admission (`omega-rust/omega/backend/runtime/external-roots/src/root_entry/root_validation.rs`)
-    and hosted-receiver partitioning (`image-emission/src/hosted_receiver.rs`)
-    compare that demand with supply. No test carries a runtime-spilled
-    function through this path to an admission or a rejection. Target-required
-    probing and setup are frame/provisioning work, not an owner-blocked
-    language choice.
-
-  Parked macw4 WIP: branch `swarm/macw4-spill-realization` at `d0154b6e50`
-  holds an unvalidated drain checkpoint — in-flight edits in
-  `assignment/runtime_spill/{mod,recovery,replay}.rs`, `output/retained.rs`,
-  `register_allocation.rs`, `analyses/spill_choice/compute.rs`, plus two
-  fixture files in the removed Rust native test crate; aimed at the
-  composition-admission bullet above. Resume by reviewing or discarding the checkpoint.
-
-  Acceptance: slot reuse is not double-counted; changed allocation or frame
-  realization invalidates stale demand; insufficient supply rejects before
-  execution; and generated loads and stores independently replay their
-  physical geometry and value lineage without adding source crash routes. A
-  byte ceiling alone does not stand in for valid stack backing. Keep
-  `WRITE-ONLY-BORROW`'s write-only corpus cases in the native leg
-  (`python3 tools/corpus_gate.py --native --filter borrow/write_only`) as the
-  hosted build control.
-
-  Flag: the remaining `unsequenced_spill_stages/` families have test,
-  architecture and non-authoritative frame-planning consumers, not an
-  executable allocation route. Logical planning has moved out but still needs
-  the physical join above. Slot reuse still has two producers:
-  `assignment/stack_slot_coloring` (sequenced, retained evidence) and
-  `runtime_spill/slot.rs` (drives the emitted slot sharing). Follow consumers
-  when sequencing a needed family or deleting a superseded one with its
-  exports and tests; do not extend both implementations.
-
-- **ALLOCATION-REFINEMENT.** Add allocation-chosen live-range splits inside
-  pressure regions, beyond existing fixed-use and shared-source-exit copies.
-  Owners: `selected-instructions-to-register-homes`'s
-  `analyses/fixed_precolored_split_requirements/{compute,replay}/` and
-  `assignment/runtime_spill/recovery.rs`, plus selected-instruction
-  `rewrites/allocation_recovery/fixed_view_copy/`.
-
-  Choose split points, connect independently homed segments, and recompute
-  liveness, ranges and legality. Place splitting in recovery before private
-  storage when it can free a home. Extend tied-register, early-clobber,
-  multiple-incoming-connector and cyclic topology restrictions while preserving
-  exact register-unit aliases and target custody.
-
-  Acceptance: pressure-driven split points, copies and segment homes replay
-  independently through callable publication on each admitted target.
-  Moved/omitted splits, incompatible fixed-use crossings, live-unit aliasing and
-  stale analyses reject. SPILL-REALIZATION owns storage; this item adds no slot.
-
-- **FRAME-LAYOUT.** Realize bounded activation claims under
-  [activation storage](wiki/spec/resources/activation_storage.md).
-  The contract is ratified. TASKS.md's **RUNTIME-SIZED-ACTIVATION-CONTRACT**
-  owns the missing source/Terminal claim route; ordinary general-call frames
-  do not depend on runtime-sized claims. Existing red-zone, probing, unwind,
-  callee-save and call-alignment plans are not missing mechanisms.
-
-  No claim roster reaches native lowering: no `ActivationClaim`/
-  claim-site field exists on `PostAllocationMachineFunction`, which is
-  wire-versioned, so the durable roster shape is upstream's decision. The
-  realization model is also unpinned: co-live claims must pack disjointly
-  while exclusive claims share storage, a tree-packing the spec does not
-  define, and whether committed extent equals the composed charge or a
-  larger physical extent is unspecified. `extents::activation_claims::
-  compose_claim_bounds` already implements the aligned-sum/maximum
-  composition rule and is directly reusable once the contract pins the
-  roster transport, coordinate assignment and extent semantics.
-
-  Once exact claims reach native lowering, compose simultaneously live bounds
-  with alignment and mutually exclusive bounds by maximum. Retain committed
-  extent computation, activation provenance, release order and suspension
-  custody, joined to the final frame/probe/unwind plans. Reuse permitted eager
-  frame commitment or lazy claim-site commitment; neither grants unbounded
-  stack allocation.
-
-  Acceptance: per-site replay checks committed extent within its bound and
-  provisioned activation, site/plan bijection, release and suspension custody.
-  Missing/duplicate/invented claims, suppressed bounds and incorrect ordering
-  reject. Establishment failure remains checked, not a trap or clamp; run
-  native claim access/release on each admitted matching target.
 
 ## Machine optimization
 
@@ -589,6 +519,54 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   resource correspondence through publication. Stale summaries and incompatible
   aliases reject; disabled selection preserves ordinary execution. Keep
   elaboration/proposal separate from the independent validator.
+
+## Pipeline cleanup follow-ups
+
+These are separately schedulable follow-ups, not an ongoing cleanup run.
+The [ownership contract](omega-rust/pipeline.md)
+governs these tasks: replace obstructive implementations, preserve semantics and
+independent validation, and keep empty/nonempty optimization selections on one
+physical route. Unsupported cases reject rather than restoring a fallback.
+
+- **PIPELINE-OWNER-CONSOLIDATION.** Finish ownership and executable consumption
+  under the [connected pipeline contract](omega-rust/pipeline.md). Selected
+  rewrites need the stage catalog routes owned by EXACT-MACHINE-SIMPLIFICATIONS,
+  ALIAS-AWARE-MEMORY, and DECLARATIVE-PEEPHOLES, or deletion when superseded.
+  SPILL-REALIZATION owns executable recovery, final-frame provisioning and
+  retiring superseded unsequenced spill boundaries with their consumers.
+
+  The semantic-wrapper object's records, composition, validation and codec
+  live in `native-artifact/src/semantic_wrapper_object`, and
+  the plan's x86-64 template selection and replay live beside its recipe in
+  `omega-rust/omega/backend/plans/program-entry-plan/src/optimized_semantic_wrapper/encoding.rs`;
+  native-realization keeps only the object stage's
+  settlement/source/encoding custody join and replay. UEFI/provider/ABI gaps
+  remain with their native owners, not another wrapper implementation.
+
+  Audit surviving public entrances using qualified identities and repository-wide
+  consumers; a common name such as `encode` does not identify a caller. Acceptance: the connected route has no
+  competing entrances or orphan outputs, coordinators sequence typed stages,
+  and retained plans constrain the physical operations they describe.
+  An isolated validator or retained-but-unused plan does not close the join.
+
+- **WORKSPACE-ROLLOUT.** Keep exact rules opt-in and Experimental in the
+  [rule inventory](omega-rust/omega/foundation/optimization-core/rules.md)
+  until the frozen-tree command
+  `CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 mbx test --workspace --no-fail-fast`
+  passes and promotion receives the separate owner decision required by the
+  [promotion contract](wiki/spec/build/optimizations.md#release-rollback-and-promotion).
+  Do not substitute `--all-targets`, which omits doctests.
+
+  The six [staged promotion records](omega-rust/omega/foundation/optimization-core/promotions)
+  contain rollback and Linux measurement evidence; Approved status and Owner
+  approval remain PENDING. Review evidence against the contract rather than
+  treating populated fields or a schema-gate pass as approval or broader host
+  coverage. Keep inventory and records consistent under
+  `exact_rule_rollout_is_complete_and_promotion_gated`.
+
+  Acceptance: the command passes from a clean checkout, and each promoted exact
+  rule has the required reviewed evidence and owner decision. No broad
+  optimization level or automatic default is introduced.
 
 ## Verification and rollout
 
