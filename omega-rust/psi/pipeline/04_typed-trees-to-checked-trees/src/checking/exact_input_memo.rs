@@ -110,9 +110,9 @@ pub(super) fn checked(
         }
         // A package compile checks the same frozen program at the preliminary
         // checkpoint and again at settlement. The checkpoint only changes how
-        // the check treats state the program may carry — deferred range
-        // endpoints, pending opaque-copy admission — so a program carrying
-        // none of it checks identically under both modes, and a settled
+        // the check treats pending opaque-copy admission. Const completeness
+        // was already checked before memo lookup. With no pending opaque-copy
+        // claims the program checks identically under both modes, and a settled
         // request on such a program may serve the preliminary check's result.
         if request.mode == CheckingMode::Settled && preliminary_mode_is_vacuous(&program) {
             let preliminary_request = RequestKey {
@@ -181,19 +181,15 @@ pub(super) fn checked(
 }
 
 /// Whether the checking mode reads any program state a preliminary check
-/// tolerates differently than a settled one. The mode surfaces in only three
-/// places: pending const-range endpoints refuse only outside the preliminary
-/// window, opaque `[copy]` claims admit pending selection only there, and the
-/// toolchain-selection policy arm is identical for both — so with no pending
-/// endpoints and no boundary-opaque copy claims the modes are observationally
-/// equal for this program.
+/// tolerates differently than a settled one after input completeness has
+/// been checked by `lower_typed_trees`. Opaque `[copy]` claims admit pending
+/// selection only in the preliminary window; the toolchain-selection policy
+/// arm is identical for both modes.
 fn preliminary_mode_is_vacuous(program: &TypedTrees) -> bool {
-    program.pending_const_range_endpoints.is_empty()
-        && !program.data_definitions().iter().any(|definition| {
-            definition.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque
-                && definition.properties.multiplicity
-                    == language_semantics::Multiplicity::Unrestricted
-        })
+    !program.data_definitions().iter().any(|definition| {
+        definition.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque
+            && definition.properties.multiplicity == language_semantics::Multiplicity::Unrestricted
+    })
 }
 
 /// Equality over the state the check consumes. Settlement stamps derived

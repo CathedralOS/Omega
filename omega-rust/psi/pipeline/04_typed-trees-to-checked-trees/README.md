@@ -50,6 +50,12 @@ without re-inferring them on the unchanged typed tree. Only the preliminary chec
 evidence; both package checkpoints retain unresolved toolchain selections. Crash
 admission is enforced in all production modes.
 
+Settled input admission rejects unevaluated array lengths and marked deferred
+range endpoints before consulting the check memo. These obligations are allowed
+only during preliminary checking while the evaluator retains their continuation.
+The stage owns their source-spanned diagnostics; the compiler does not repeat
+this source validation before invoking it.
+
 Unit planning borrows an explicit `ScalarCalleePlans` roster: independent boundary
 and primitive-reference returns precede the Unit closure, and the complete
 structural-scalar return roster follows that closure. Preliminary call-free
