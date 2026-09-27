@@ -38,7 +38,9 @@ pub use proof_contracts::domains::{
     scalar_interval_domains, scalar_state_contracts_are_qualifications, scalar_type_tags,
 };
 pub use proof_contracts::parameter_expression_meaning::has_builtin_parameter_bound_expression_meaning;
-pub use value_custody::claim_frontier::{ClaimFrontierClaim, linear_claim_frontier};
+pub use value_custody::claim_frontier::{
+    ClaimFrontierClaim, linear_claim_frontier, owned_receiver_claims,
+};
 pub use value_custody::owned_value_source::{
     affine_owned_value_source, linear_owned_value_source, plain_owned_value_source,
 };

@@ -1,0 +1,26 @@
+// PASS canary: an owned `self` receiver on a linear type is ordinary
+// parameter syntax — it discharges only through an authorized disposition.
+// `Receipt` declares no `Receipt::drop` cleanup plan, so neither normal
+// completion nor `drop` may retire the claim; the declared consuming
+// contract is the receiver's terminal disposition, exactly as it is for an
+// ordinary `receipt: Receipt` parameter.
+
+data Receipt [linear] {
+    code: i32;
+}
+
+boundary requirement Receipt::ack(self);
+
+machine ack_ordinary(receipt: Receipt) {
+    Receipt::ack(receipt);
+}
+
+data Main {}
+
+machine Main::main() -> i32 {
+    let receipt: Receipt = Receipt { code: 7 };
+    Receipt::ack(receipt);
+    let spare: Receipt = Receipt { code: 9 };
+    ack_ordinary(spare);
+    0
+}

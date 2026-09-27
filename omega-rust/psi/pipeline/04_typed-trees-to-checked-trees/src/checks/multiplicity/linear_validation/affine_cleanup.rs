@@ -65,8 +65,19 @@ pub(crate) fn append_affine_cleanup_permission_events(
         }
     }
     for parameter in program.state_parameters(state).iter().rev() {
-        if !parameter.is_self {
-            append(parameter.symbol, parameter.type_reference);
-        }
+        // An owned `self` receiver's place roots at the machine symbol — the
+        // same durable root `normalized_event_place_root` publishes for its
+        // moves. Borrowed receivers keep their unrestricted reference type and
+        // produce no cleanup event either way.
+        let symbol = if parameter.is_self
+            && !crate::checks::multiplicity::linear_obligations::type_reference_is_reference(
+                program,
+                parameter.type_reference,
+            ) {
+            machine_symbol
+        } else {
+            parameter.symbol
+        };
+        append(symbol, parameter.type_reference);
     }
 }

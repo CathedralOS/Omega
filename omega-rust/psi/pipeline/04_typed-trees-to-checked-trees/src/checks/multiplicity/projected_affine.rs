@@ -46,10 +46,9 @@ pub(super) fn append_transfer(
         || permission_kind_for_move(program, facts, machine, state, event)
             != PermissionEventKind::Transfer
         || crate::semantic::calls::find_state(program, state).is_none_or(|state| {
-            program
-                .state_parameters(state)
-                .iter()
-                .any(|parameter| parameter.symbol == symbol && parameter.is_self)
+            program.state_parameters(state).iter().any(|parameter| {
+                parameter.is_self && (parameter.symbol == symbol || symbol == machine)
+            })
         })
     {
         return;

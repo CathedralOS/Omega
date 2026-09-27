@@ -1,7 +1,7 @@
 // FAIL canary (decision 21): one path transfers the receipt while the other
 // retains it at state exit. Resource joins reconcile exactly.
 data Receipt [linear] { code: i32; }
-machine Receipt::ack(self) {}
+boundary requirement Receipt::ack(self);
 
 data Main { choose_first: bool; }
 

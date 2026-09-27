@@ -243,3 +243,106 @@ fn top_level_requirement_external_leaf_satisfier_states_no_contract_of_its_own()
         "unexpected diagnostics: {text}"
     );
 }
+
+#[test]
+fn boundary_contract_discharges_linear_parameters() {
+    // A bodyless contract declares the boundary crossing as its parameter
+    // disposition: custody transfers to the provider at the call edge, so the
+    // contract's own synthetic state cannot leak-check them. Owned `self` and
+    // ordinary owned parameters share that outcome.
+    let sources = [
+        r#"
+        pub data Receipt [linear] { code: i32; }
+        pub boundary requirement Receipt::consume(value: Receipt);
+    "#,
+        r#"
+        pub data Receipt [linear] { code: i32; }
+        pub boundary requirement Receipt::consume(self);
+    "#,
+        r#"
+        pub data Receipt [linear] { code: i32; }
+        boundary machine Receipt::consume(value: Receipt);
+    "#,
+    ];
+    for source in sources {
+        checked_source(source)
+            .expect("a boundary contract discharges its linear parameters at the crossing");
+    }
+}
+
+#[test]
+fn requirement_call_edge_consumes_linear_value() {
+    // Calling the consuming contract transfers the linear claim at the call
+    // edge identically for receiver and ordinary-parameter forms.
+    let sources = [
+        r#"
+        data Receipt [linear] { code: i32; }
+        boundary requirement Receipt::consume(self);
+        machine consume_it(receipt: Receipt) { Receipt::consume(receipt); }
+    "#,
+        r#"
+        data Receipt [linear] { code: i32; }
+        boundary requirement Receipt::consume(self);
+        machine Receipt::ack(self) { Receipt::consume(self); }
+    "#,
+    ];
+    for source in sources {
+        checked_source(source).expect("the requirement call consumes the linear value at its edge");
+    }
+}
+
+#[test]
+fn generic_consume_binds_self_and_parameter_identically() {
+    // A `self` argument must bind the generic type parameter to the attached
+    // data — not to the machine alias its declared `Self` reference names —
+    // so receiver and ordinary-parameter forms take identical custody
+    // outcomes. Here both specialized `consume` bodies leak `value`.
+    let sources = [
+        r#"
+        data Receipt [linear] { code: i32; }
+        machine consume<T>(value: T) {}
+        machine Receipt::ack(self) { consume(self); }
+    "#,
+        r#"
+        data Receipt [linear] { code: i32; }
+        machine consume<T>(value: T) {}
+        machine ack(receipt: Receipt) { consume(receipt); }
+    "#,
+    ];
+    for source in sources {
+        let text = diagnostic_text(
+            &checked_source(source)
+                .expect_err("a hook-less linear parameter has no edge disposition"),
+        );
+        assert!(
+            text.contains("`value` reaches scope exit without being consumed"),
+            "unexpected diagnostics: {text}"
+        );
+    }
+}
+
+#[test]
+fn undischarged_linear_self_rejects_like_an_ordinary_parameter() {
+    // Normal completion consumes neither a linear receiver nor an affine one:
+    // an owned `self` that reaches a checked body's exit undischarged rejects
+    // with the same diagnostic as the equivalent ordinary parameter.
+    let sources = [
+        r#"
+        data Receipt [linear] { code: i32; }
+        machine Receipt::ack(self) {}
+    "#,
+        r#"
+        data Receipt [linear] { code: i32; }
+        machine ack(receipt: Receipt) {}
+    "#,
+    ];
+    for source in sources {
+        let text = diagnostic_text(
+            &checked_source(source).expect_err("undischarged linear custody rejects at scope exit"),
+        );
+        assert!(
+            text.contains("reaches scope exit without being consumed or transferred"),
+            "unexpected diagnostics: {text}"
+        );
+    }
+}

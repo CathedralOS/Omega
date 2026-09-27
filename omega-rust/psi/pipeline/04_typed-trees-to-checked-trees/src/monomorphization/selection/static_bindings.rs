@@ -415,11 +415,12 @@ pub(crate) fn same_type_identity(
     program.normalized_type_identity(left) == program.normalized_type_identity(right)
 }
 
-/// The `Self` alias of an attached machine resolves to the machine's retained
-/// owner application (`Box<T>` for `machine Box::settle<T>(self)`), whose
-/// arguments are the machine's own type parameters. A `self` formal is the
-/// only declaration that may carry the alias, so an occurrence anywhere else
-/// — or one whose machine predates retained applications — declines to expand.
+/// The `Self` alias of an attached machine resolves to the machine's owner
+/// type: the retained owner application (`Box<T>` for `machine
+/// Box::settle<T>(self)`) when the attachment is generic, and the bare
+/// attached-data reference otherwise. A `self` formal is the only declaration
+/// that may carry the alias, so an occurrence anywhere else — or one whose
+/// machine predates retained applications — declines to expand.
 fn self_alias_application(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
@@ -432,7 +433,17 @@ fn self_alias_application(
     if name.as_str() != "Self" || !symbol.is_valid() {
         return None;
     }
-    crate::lookup::machine_by_symbol(program, *symbol)
-        .map(|machine| machine.attached_data_application)
-        .filter(|application| application.is_valid() && *application != reference)
+    let machine = crate::lookup::machine_by_symbol(program, *symbol)?;
+    if machine.attached_data_application.is_valid()
+        && machine.attached_data_application != reference
+    {
+        return Some(machine.attached_data_application);
+    }
+    if !machine.attached_data_symbol.is_valid() {
+        return None;
+    }
+    program
+        .type_reference_table
+        .find_named_type_reference(machine.attached_data_symbol)
+        .filter(|owner| *owner != reference)
 }

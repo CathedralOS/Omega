@@ -90,6 +90,12 @@ pub(crate) fn validate_linear_permission_events_with_incoming_guards(
         else {
             continue;
         };
+        // A bodyless contract state declares the crossing as its parameter
+        // disposition: custody transfers to the provider at the call edge, so
+        // no in-body scope exit discharges its claims.
+        if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
+            continue;
+        }
         let statements = program.statement_table.statements(state.statement_nodes);
         let mut places =
             initial_linear_places(program, state, state_flow.machine_symbol, state.symbol);

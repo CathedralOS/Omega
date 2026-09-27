@@ -7,7 +7,7 @@ use super::{
     argument_for_parameter, bind_claim_outcome_source_at_arguments,
     bind_claim_outcome_source_at_call, claim_outcomes_for_expression,
     claim_paths_are_case_alternatives, derive_checked_claim_outcome_maps,
-    expression_statically_excludes_claim_path,
+    expression_statically_excludes_claim_path, parameter_for_symbol,
 };
 use crate::checks::multiplicity::linear_obligations::{
     CheckedClaimOutcomeEntry, CheckedClaimOutcomeMap, CheckedClaimOutcomeSource,
@@ -543,10 +543,7 @@ fn excluded_input_at_call(
         target,
         *parameter_symbol,
     )?;
-    let parameter = program
-        .state_parameters(target)
-        .iter()
-        .find(|parameter| parameter.symbol == *parameter_symbol)?;
+    let parameter = parameter_for_symbol(program, target, *parameter_symbol)?;
     let mut projections = crate::flow::literal_value_projections(
         program,
         argument,

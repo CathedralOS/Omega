@@ -8,7 +8,9 @@ data ReceiptState {
     case Live(receipt: Receipt);
 }
 
-machine ReceiptState::settle(self) {}
+// The sum's active arm can carry a linear obligation, so disposal is the
+// declared consuming contract — no edge cleanup may retire it implicitly.
+boundary requirement ReceiptState::settle(self);
 
 data Main {}
 

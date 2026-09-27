@@ -8,7 +8,10 @@ use super::CheckedUnitEffectOperationPlan;
 use crate::tests::flow::terminal_unit::machine_named;
 use crate::tests::front_end::checked_program_result;
 
-const RECEIPT: &str = "data Receipt [linear] { code: i32; }\nmachine Receipt::ack(self) {}\n";
+// `ack` stays a checked machine so its callers compose an ordinary CallUnit
+// edge; the linear receiver discharges into the `settle` contract, which owns
+// the boundary crossing.
+const RECEIPT: &str = "data Receipt [linear] { code: i32; }\nboundary requirement Receipt::settle(self);\nmachine Receipt::ack(self) { Receipt::settle(self); }\n";
 
 fn plan(source: &str, name: &str) -> Vec<CheckedUnitEffectOperationPlan> {
     let checked = checked_program_result(source).expect("the source checks");

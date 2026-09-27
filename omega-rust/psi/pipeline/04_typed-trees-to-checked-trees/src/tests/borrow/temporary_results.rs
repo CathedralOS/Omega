@@ -60,7 +60,7 @@ fn temporary_partial_moves_cannot_discard_linear_siblings() {
         };
         let source = format!(
             "data Receipt [linear] {{ code: i32; }}
-             machine Receipt::ack(self) {{}}
+             boundary requirement Receipt::ack(self);
              {declaration}
              machine forward(value: {container}) -> {container} {{ value }}
              machine exercise() {{
@@ -95,7 +95,7 @@ fn temporary_projection_can_transfer_the_complete_linear_frontier() {
     ] {
         check(&format!(
             "data Receipt [linear] {{ code: i32; }}
-             machine Receipt::ack(self) {{}}
+             boundary requirement Receipt::ack(self);
              {declaration}
              machine forward(value: {container}) -> {container} {{ value }}
              machine exercise() {{

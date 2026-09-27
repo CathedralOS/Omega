@@ -658,6 +658,11 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
         inventory_machinery: false,
     },
     ImplementationSite {
+        path: "omega-rust/psi/representations/terminal-psi/semantics/src/zeroed_structural.rs",
+        sha256: Some("e9c02c433adb98dee46e31be8333cc855fd2c3874f3f56f40f0e61afd09842d6"),
+        inventory_machinery: false,
+    },
+    ImplementationSite {
         path: "omega-rust/psi/representations/terminal-psi/verification/src/control_cycles.rs",
         sha256: Some("9cd7a695bef98ec4b33d5e70e01238ba6d02c928f0b13f0153f4a1027e2cbc56"),
         inventory_machinery: false,
@@ -1039,7 +1044,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/representations/terminal-psi/verification/src/validation/frontier/terminators.rs",
-        sha256: Some("1c188c7630c18208507bd2b9d6f07b215c7373c9fc20faf6cd1abeb0a3a7b24f"),
+        sha256: Some("d28c22673190afe6eb08e0c4fc1eba4084499800dcea46221369addf66219282"),
         inventory_machinery: false,
     },
     ImplementationSite {

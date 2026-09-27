@@ -26,6 +26,75 @@ pub struct ClaimFrontierClaim {
     pub conditional: bool,
 }
 
+/// An owned `self` receiver's custody obligation. The parameter's authored
+/// `Named` reference spells the machine itself rather than a data
+/// declaration, so `linear_claim_frontier` on it finds no definition and
+/// reports nothing; `self` is ordinary parameter syntax for the attached
+/// data type, so its claims enumerate against the attachment — the stored
+/// generic application when one exists, else the bare declaration.
+///
+/// The returned multiplicity is the receiver value's whole multiplicity,
+/// matching what `type_multiplicity` answers for an ordinary parameter's
+/// reference. Claims carry the field-level type references of the data
+/// declaration; a whole-value linear claim carries an invalid reference
+/// because no `Named` reference to the attached data exists in the table.
+pub fn owned_receiver_claims(
+    program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+) -> (Multiplicity, Vec<ClaimFrontierClaim>) {
+    let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)
+    else {
+        return (Multiplicity::Affine, Vec::new());
+    };
+    if machine.attached_data_application.is_valid() {
+        return (
+            program.type_multiplicity(machine.attached_data_application),
+            linear_claim_frontier(program, machine.attached_data_application),
+        );
+    }
+    let Some(definition) = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == machine.attached_data_symbol)
+    else {
+        return (Multiplicity::Affine, Vec::new());
+    };
+    let multiplicity = definition.properties.multiplicity;
+    if multiplicity == Multiplicity::Linear {
+        return (
+            multiplicity,
+            vec![ClaimFrontierClaim {
+                path: Vec::new(),
+                type_reference: TypeReferenceHandle::invalid(),
+                conditional: false,
+            }],
+        );
+    }
+    let data_definitions_by_symbol =
+        crate::program_scope::data_definitions::memoized_data_definition_positions(
+            program,
+        );
+    let parameters_by_symbol =
+        crate::program_scope::data_definitions::memoized_type_parameter_multiplicities(
+            program,
+        );
+    let mut claims = Vec::new();
+    append_data_linear_claim_frontier(
+        program,
+        definition,
+        &[],
+        &mut Vec::new(),
+        &mut Vec::new(),
+        &data_definitions_by_symbol,
+        &parameters_by_symbol,
+        &mut claims,
+    );
+    (multiplicity, claims)
+}
+
 pub fn linear_claim_frontier(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,

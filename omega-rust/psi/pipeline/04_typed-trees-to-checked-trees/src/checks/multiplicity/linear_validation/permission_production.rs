@@ -383,7 +383,12 @@ pub(crate) fn permission_kind_for_move(
             ) else {
                 continue;
             };
-            if place.root == event.root && place.segments.as_slice() == event_segments {
+            // The caller's own `self` argument roots at its receiver parameter
+            // symbol while its move events re-root at the machine; compare in
+            // the event's spelling.
+            if crate::flow::normalized_event_place_root(program, place.root) == event.root
+                && place.segments.as_slice() == event_segments
+            {
                 return if type_carries_linear_obligation(program, target_state.return_type) {
                     PermissionEventKind::Transfer
                 } else {
@@ -398,7 +403,7 @@ pub(crate) fn permission_kind_for_move(
         &call_site,
         parameters,
         SymbolHandle::invalid(),
-    ) && place.root == event.root
+    ) && crate::flow::normalized_event_place_root(program, place.root) == event.root
         && place.segments.as_slice() == event_segments
     {
         return if type_carries_linear_obligation(program, target_state.return_type) {
