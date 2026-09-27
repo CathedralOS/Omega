@@ -71,7 +71,7 @@ machine InventorySystem::add_item(
     let existing_index: u64 = self.find_item(inventory, kind);
 
     transition existing_index < 32 {
-        true -> increment_existing(inventory, kind, existing_index)
+        true -> increment_existing(inventory, kind, existing_index as u64 in Wrapping)
         false -> append_item(inventory, kind)
     }
 
