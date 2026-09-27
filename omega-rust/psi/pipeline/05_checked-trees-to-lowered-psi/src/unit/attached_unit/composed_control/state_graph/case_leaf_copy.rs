@@ -65,15 +65,25 @@ pub(super) fn emit(
         return unsupported("Unit graph case payload is not a structural leaf");
     };
     let leaf = walk_fields(types, &mut canonical, &mut visited, leaf, payload_path)?;
-    // The resolved leaf must be the exact `Unrestricted` type the target
-    // state declared — the op mints an unqualified owned copy of that type.
+    // The resolved leaf must be the exact type the target state declared —
+    // the op mints an unqualified owned copy of that type. The copy carries
+    // the target's own multiplicity: an owned (`Affine`) successor parameter
+    // takes custody of the fresh copy, an `Unrestricted` one takes a plain
+    // value.
     if unique_type(types, leaf)?.identity != target.type_identity
-        || target.multiplicity != Multiplicity::Unrestricted
+        || !matches!(
+            target.multiplicity,
+            Multiplicity::Unrestricted | Multiplicity::Affine
+        )
         || !target.qualifications.is_empty()
         || !target.projected_qualifications.is_empty()
     {
         return unsupported("Unit graph case-payload target drifted");
     }
+    let result_multiplicity = match target.multiplicity {
+        Multiplicity::Affine => StructuralMultiplicity::Affine,
+        _ => StructuralMultiplicity::Unrestricted,
+    };
     let producer = operations.allocate();
     operations.push(Operation {
         static_reach_binding: None,
@@ -83,7 +93,7 @@ pub(super) fn emit(
             qualification_establishments: Vec::new(),
             place: destination,
             structural_type: leaf,
-            multiplicity: StructuralMultiplicity::Unrestricted,
+            multiplicity: result_multiplicity,
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
             claims: Vec::new(),

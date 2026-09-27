@@ -442,6 +442,7 @@ pub(super) fn validate_machine(
             && !(matches!(
                 operation.kind,
                 OperationKind::StructuralLeafCopy { .. }
+                    | OperationKind::StructuralCaseLeafCopy { .. }
             ) && operation.result.structural().is_some_and(|result| {
                 shared_borrow_reference(module, result.structural_type)
             }))
@@ -1263,10 +1264,13 @@ pub(super) fn apply_operation(
                 check_root_access(machine, live, result.place)?;
             }
         }
-        OperationKind::StructuralLeafCopy { source, .. } => {
+        OperationKind::StructuralLeafCopy { source, .. }
+        | OperationKind::StructuralCaseLeafCopy { source, .. } => {
             // A `&`-leaf copy relocates the source parameter's existing loan
             // descriptor: the result is a fresh live carrier rooted at that
             // same primitive loan — no new edge, no consumption of `source`.
+            // The case-qualified variant relocates the same loan out of a
+            // proven-active case payload.
             if let Some(result) = operation.result.structural()
                 && shared_borrow_reference(module, result.structural_type)
             {

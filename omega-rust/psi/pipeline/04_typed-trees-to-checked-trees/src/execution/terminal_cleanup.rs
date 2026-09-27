@@ -486,7 +486,7 @@ fn build_state_plan(
     state: &typed_trees::state::State,
 ) -> Option<CheckedStructuralControlStateCleanupPlan> {
     let parameters = program.state_parameters(state);
-    let result_locals = state_exit_result_locals(program, facts, machine, state)?;
+    let result_locals = state_exit_result_locals(program, facts, machine, state, None)?;
     let discard_parameters = checked_whole_affine_discard_parameters_excluding_results(
         program,
         facts,
@@ -817,6 +817,7 @@ pub(super) fn state_exit_result_locals(
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
+    dispatch_subject_local: Option<symbols::SymbolHandle>,
 ) -> Option<Vec<symbols::SymbolHandle>> {
     let parameters = program.state_parameters(state);
     let statements = program.statement_table.statements(state.statement_nodes);
@@ -831,6 +832,12 @@ pub(super) fn state_exit_result_locals(
         let facts::PlaceRoot::Symbol(symbol) = drop.root else {
             return None;
         };
+        // A closed-sum case dispatch consumes its subject directly — the
+        // terminator build already proved the subject's exit drop, and a
+        // `(expression)` arm needs no named successor to account for it.
+        if dispatch_subject_local == Some(symbol) {
+            continue;
+        }
         if parameters
             .iter()
             .any(|parameter| parameter.symbol == symbol)

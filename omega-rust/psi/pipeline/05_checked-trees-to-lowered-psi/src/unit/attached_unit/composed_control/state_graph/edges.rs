@@ -476,7 +476,26 @@ pub(super) fn validate_bindings(
                 };
                 owner = next;
             }
-            if checked.normalized_type_identity(reference).into_string() != subject.type_identity
+            // The recorded identity uses the checked parameter's canonical
+            // spelling for a bare subject — attached `self` names the
+            // machine's nominal type in the typed table — and the peeled
+            // leaf's normalized identity under a member projection.
+            let replayed_identity = if subject.path.is_empty() {
+                source_parameter.type_identity.clone()
+            } else {
+                while let checked_trees::types::TypeReferenceNode::Constrained {
+                    base_type, ..
+                }
+                | checked_trees::types::TypeReferenceNode::Reference {
+                    referee: base_type,
+                    ..
+                } = checked.type_reference_table.type_reference(reference)
+                {
+                    reference = *base_type;
+                }
+                checked.normalized_type_identity(reference).into_string()
+            };
+            if replayed_identity != subject.type_identity
                 || !checked.data_members(owner).iter().any(|member| {
                     matches!(
                         member,
@@ -710,6 +729,32 @@ pub(super) fn validate_fallback(
         state,
         guard_ordinal,
     )? {
+        return Ok(());
+    }
+    // A retained guarded pair with no authored fallback is covering by the
+    // shared roster's own proof; the second guard is the vacuous else.
+    let covering_pair = checked
+        .facts
+        .flow
+        .terminal_scalar_graphs
+        .guarded_tails
+        .iter()
+        .filter(|tail| tail.state == state)
+        .any(|retained| {
+            retained.fallback.is_none()
+                && checked
+                    .facts
+                    .flow
+                    .terminal_scalar_graphs
+                    .guarded_exits
+                    .span(retained.arms)
+                    .is_some_and(|exits| {
+                        exits.len() == 2
+                            && exits[0].guard_statement_ordinal == guard_ordinal
+                            && exits[1].guard_statement_ordinal == guard_ordinal + 1
+                    })
+        });
+    if covering_pair {
         Ok(())
     } else {
         unsupported("Unit graph fallback is not the exact complement of its guard")

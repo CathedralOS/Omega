@@ -1,25 +1,31 @@
 //! Case terminators consume exact owned subjects after ordinary ordered effects.
 use super::super::{
-    CheckedClosedSumCaseSuccessorPlan, CheckedClosedSumPayloadTransferPlan, DataMember,
-    PermissionAccess, PermissionClaimIdentity,
+    CheckedClosedSumCaseOutcomePlan, CheckedClosedSumCasePlan, CheckedClosedSumPayloadTransferPlan,
+    DataMember, PermissionAccess, PermissionClaimIdentity,
 };
 use super::{
-    CheckFacts, CheckedComposedUnitControlTerminatorPlan, CheckedStructuralAccess,
-    CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentPlan,
+    CheckFacts, CheckedComposedUnitControlTerminatorPlan, CheckedScalarExpressionRole,
+    CheckedStructuralAccess, CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralArgumentSourcePlan, Multiplicity, PermissionEventKind,
-    PermissionEventSource, Signature, StatementNode, TransitionGuardNode, TransitionTargetNode,
-    TypeReferenceNode, TypedTrees,
+    PermissionEventSource, ScalarCalleePlans, ShapeCollector, Signature, StatementNode,
+    TransitionExit, TransitionGuardNode, TransitionTargetNode, TypeReferenceNode, TypedTrees,
+    returns,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::state_graph::{SuccessorEdge, successor_bindings};
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn build(
     program: &TypedTrees,
     facts: &CheckFacts,
+    scalar_callees: ScalarCalleePlans<'_>,
+    shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     state_index: usize,
     signatures: &[Signature],
-    operations: &[CheckedUnitEffectOperationPlan],
+    entry_claims: &[checked_trees::CheckedUnitEntryClaimPlan],
+    result: &checked_trees::CheckedControlResultPlan,
+    operations: &mut Vec<CheckedUnitEffectOperationPlan>,
     transition_start: usize,
     trace: &LocalConstructionTrace,
 ) -> Option<CheckedComposedUnitControlTerminatorPlan> {
@@ -202,6 +208,7 @@ pub(super) fn build(
         }
     }
     let mut cases = Vec::new();
+    let mut count = returns::next_result_ordinal(operations.as_slice())?;
     for (index, statement) in statements[transition_start..].iter().enumerate() {
         let StatementNode::Transition(transition) = statement else {
             return None;
@@ -237,9 +244,7 @@ pub(super) fn build(
                         let identity = variant.path_identity();
                         !cases
                             .iter()
-                            .any(|case: &CheckedClosedSumCaseSuccessorPlan| {
-                                case.case_identity == identity
-                            })
+                            .any(|case: &CheckedClosedSumCasePlan| case.case_identity == identity)
                     })
                     .collect()
             }
@@ -252,102 +257,178 @@ pub(super) fn build(
             let identity = variant.path_identity();
             if cases
                 .iter()
-                .any(|case: &CheckedClosedSumCaseSuccessorPlan| case.case_identity == identity)
+                .any(|case: &CheckedClosedSumCasePlan| case.case_identity == identity)
             {
                 return None;
             }
-            let TransitionTargetNode::Named {
-                path, arguments, ..
-            } = program.statement_table.transition_target(transition.target)
-            else {
-                return None;
-            };
-            let target_index = crate::checks::termination::named_transition_target_state_index(
-                program,
-                machine,
-                path.symbol,
-            )?;
-            let target = &states[target_index];
-            let arguments = program.statement_table.expression_handles(*arguments);
-            let target_parameters = program.state_parameters(target);
-            let mut payloads = Vec::new();
-            for (parameter_index, parameter) in signatures[target_index].1.iter().enumerate() {
-                let argument_index = target_parameters
-                    .iter()
-                    .take(parameter.source_position as usize)
-                    .filter(|parameter| !parameter.is_self)
-                    .count();
-                let argument = *arguments.get(argument_index)?;
-                let Some(place) = crate::flow::contextual_canonical_place_from_expression(
-                    program,
-                    state.symbol,
-                    ordinal as usize,
-                    argument,
-                ) else {
-                    continue;
-                };
-                if place.root != facts::PlaceRoot::Symbol(result_symbol) {
-                    continue;
-                }
-                let [
-                    facts::PlaceSegment::Case { variant: selected },
-                    facts::PlaceSegment::Field { symbol },
-                ] = place.segments.as_slice()
-                else {
-                    return None;
-                };
-                if *selected != variant.symbol {
-                    return None;
-                }
-                let field = program
-                    .data_payload_fields(variant)
-                    .iter()
-                    .find(|field| field.symbol == *symbol)?;
-                if program.primitive_type_reference(field.type_reference)?
-                    != parameter.primitive_type
-                    || !destructures.contains(&(variant.name.as_str(), field.name.as_str()))
+            let (outcome, payloads) = match program
+                .statement_table
+                .transition_target(transition.target)
+            {
+                // An authored `(expression)` arm closes this case's edge
+                // with the value it returns — the same producer plan a
+                // `ConditionalReturn` arm carries. Case payloads stay out
+                // of scope here: a return arm has no argument list the
+                // checker could attribute a payload read through.
+                TransitionTargetNode::Value(expression)
+                    if transition.exit == TransitionExit::Ordinary
+                        && !transition.continuation.is_valid() =>
                 {
-                    return None;
+                    trace.phase("state graph: terminator: case successors: return arm value");
+                    trace.statement(Some(ordinal));
+                    let arm =
+                        if let checked_trees::CheckedControlResultPlan::Scalar { primitive_type } =
+                            result
+                        {
+                            // The arm alone evaluates the scalar checking kept
+                            // under the `Return` role at its transition.
+                            let role = CheckedScalarExpressionRole::Return;
+                            let retained = facts
+                                .values
+                                .scalar_expressions
+                                .expression_at(state.symbol, ordinal, role)
+                                .is_some()
+                                || facts
+                                    .values
+                                    .scalar_computations
+                                    .root_at(state.symbol, ordinal, role)
+                                    .is_some_and(|root| root.machine == machine.symbol);
+                            if !retained {
+                                return None;
+                            }
+                            checked_trees::CheckedConditionalReturnArm::Scalar {
+                                statement_ordinal: ordinal,
+                                primitive_type: *primitive_type,
+                            }
+                        } else {
+                            let (operation, operand_calls) = returns::return_value_operation(
+                                program,
+                                facts,
+                                scalar_callees,
+                                shapes,
+                                machine,
+                                state,
+                                structural,
+                                entry_claims,
+                                &mut count,
+                                ordinal,
+                                *expression,
+                                trace,
+                            )?;
+                            operations.extend(operand_calls);
+                            checked_trees::CheckedConditionalReturnArm::Structural(operation)
+                        };
+                    (CheckedClosedSumCaseOutcomePlan::Return(arm), Vec::new())
                 }
-                payloads.push(CheckedClosedSumPayloadTransferPlan {
-                    field_identity: field.path_identity(),
-                    primitive_type: parameter.primitive_type,
-                    target_scalar_parameter_index: u32::try_from(parameter_index).ok()?,
-                });
-            }
-            let payload_parameters = payloads
-                .iter()
-                .map(|payload| payload.target_scalar_parameter_index)
-                .collect::<Vec<_>>();
-            let successor = successor_bindings(
-                program,
-                facts,
-                machine,
-                state_index,
-                signatures,
-                operations,
-                transition,
-                ordinal,
-                &payload_parameters,
-                SuccessorEdge::ClosedCase,
-                trace,
-            )?;
-            if successor.transfers.iter().any(|transfer| match (&subject.source, &transfer.source) {
-                (
-                    CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index },
-                    checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index },
-                ) => parameter_index == index,
-                (
-                    CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal: subject },
-                    checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal },
-                ) => subject == binding_ordinal,
-                _ => false,
-            }) {
-                return None;
-            }
-            cases.push(CheckedClosedSumCaseSuccessorPlan {
+                TransitionTargetNode::Named {
+                    path, arguments, ..
+                } => {
+                    let target_index =
+                        crate::checks::termination::named_transition_target_state_index(
+                            program,
+                            machine,
+                            path.symbol,
+                        )?;
+                    let target = &states[target_index];
+                    let arguments = program.statement_table.expression_handles(*arguments);
+                    let target_parameters = program.state_parameters(target);
+                    let mut payloads = Vec::new();
+                    for (parameter_index, parameter) in
+                        signatures[target_index].1.iter().enumerate()
+                    {
+                        let argument_index = target_parameters
+                            .iter()
+                            .take(parameter.source_position as usize)
+                            .filter(|parameter| !parameter.is_self)
+                            .count();
+                        let argument = *arguments.get(argument_index)?;
+                        let Some(place) = crate::flow::contextual_canonical_place_from_expression(
+                            program,
+                            state.symbol,
+                            ordinal as usize,
+                            argument,
+                        ) else {
+                            continue;
+                        };
+                        if place.root != facts::PlaceRoot::Symbol(result_symbol) {
+                            continue;
+                        }
+                        let [
+                            facts::PlaceSegment::Case { variant: selected },
+                            facts::PlaceSegment::Field { symbol },
+                        ] = place.segments.as_slice()
+                        else {
+                            return None;
+                        };
+                        if *selected != variant.symbol {
+                            return None;
+                        }
+                        let field = program
+                            .data_payload_fields(variant)
+                            .iter()
+                            .find(|field| field.symbol == *symbol)?;
+                        if program.primitive_type_reference(field.type_reference)?
+                            != parameter.primitive_type
+                            || !destructures.contains(&(variant.name.as_str(), field.name.as_str()))
+                        {
+                            return None;
+                        }
+                        payloads.push(CheckedClosedSumPayloadTransferPlan {
+                            field_identity: field.path_identity(),
+                            primitive_type: parameter.primitive_type,
+                            target_scalar_parameter_index: u32::try_from(parameter_index).ok()?,
+                        });
+                    }
+                    let payload_parameters = payloads
+                        .iter()
+                        .map(|payload| payload.target_scalar_parameter_index)
+                        .collect::<Vec<_>>();
+                    let successor = successor_bindings(
+                        program,
+                        facts,
+                        machine,
+                        state_index,
+                        signatures,
+                        operations.as_slice(),
+                        transition,
+                        ordinal,
+                        &payload_parameters,
+                        SuccessorEdge::ClosedCase,
+                        trace,
+                    )?;
+                    if successor.transfers.iter().any(|transfer| {
+                        match (&subject.source, &transfer.source) {
+                            (
+                                CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                                    parameter_index,
+                                },
+                                checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
+                                    index,
+                                },
+                            ) => parameter_index == index,
+                            (
+                                CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                                    binding_ordinal: subject,
+                                },
+                                checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult {
+                                    binding_ordinal,
+                                },
+                            ) => subject == binding_ordinal,
+                            _ => false,
+                        }
+                    }) {
+                        return None;
+                    }
+                    (
+                        CheckedClosedSumCaseOutcomePlan::Successor(successor),
+                        payloads,
+                    )
+                }
+                _ => return None,
+            };
+            cases.push(CheckedClosedSumCasePlan {
                 case_identity: identity,
-                successor,
+                outcome,
                 payloads,
             });
         }

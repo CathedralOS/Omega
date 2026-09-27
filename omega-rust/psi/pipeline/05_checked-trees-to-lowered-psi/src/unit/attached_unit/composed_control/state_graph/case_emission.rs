@@ -9,11 +9,11 @@ use super::super::super::{
     value_id,
 };
 use super::super::{CheckedTrees, LoweringError, catalogs};
-use super::{CheckedComposedUnitControlStatePlan, CheckedStructuralControlSuccessorPlan, scalars};
+use super::{CheckedComposedUnitControlStatePlan, scalars};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 
 pub(super) struct PreparedCase<'a> {
-    pub successor: &'a CheckedStructuralControlSuccessorPlan,
+    pub outcome: &'a checked_trees::CheckedClosedSumCaseOutcomePlan,
     pub identity: StructuralCaseId,
     pub fields: Vec<StructuralFieldId>,
     pub values: Vec<(u32, ValueDeclaration)>,
@@ -131,15 +131,27 @@ pub(super) fn prepare<'a>(
             // forward; a successor argument expression that reads this case's
             // payload (a `[Case, Field]` scalar leaf below the subject) binds
             // the field as an extra staged-block formal the expression reads
-            // back through the edge's namespace tail.
-            for transfer in &case.successor.scalar_arguments {
+            // back through the edge's namespace tail. A returning arm has no
+            // successor argument list to scan.
+            let successor = match &case.outcome {
+                checked_trees::CheckedClosedSumCaseOutcomePlan::Successor(successor) => successor,
+                checked_trees::CheckedClosedSumCaseOutcomePlan::Return(_) => {
+                    return Ok(PreparedCase {
+                        outcome: &case.outcome,
+                        identity: declared.id,
+                        fields,
+                        values,
+                    });
+                }
+            };
+            for transfer in &successor.scalar_arguments {
                 if !matches!(
                     transfer.source,
                     checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression
                 ) {
                     continue;
                 }
-                let argument = scalars::successor_value(checked, state, &case.successor, transfer)?;
+                let argument = scalars::successor_value(checked, state, successor, transfer)?;
                 let Some(expression) = argument.as_pure() else {
                     continue;
                 };
@@ -175,7 +187,7 @@ pub(super) fn prepare<'a>(
                 }
             }
             Ok(PreparedCase {
-                successor: &case.successor,
+                outcome: &case.outcome,
                 identity: declared.id,
                 fields,
                 values,

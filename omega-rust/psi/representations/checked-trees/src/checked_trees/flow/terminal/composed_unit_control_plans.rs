@@ -192,20 +192,24 @@ pub enum CheckedComposedUnitControlTerminatorPlan {
     },
     /// Ordered Boolean guards each select a named-state edge. Guards evaluate
     /// in authored order — the same sequencing the shared scalar tail roster
-    /// records — and the authored `_` arm is the fallback edge holding where
-    /// every guard fails. Each successor carries the same per-edge custody
-    /// plan as a conditional edge.
+    /// records — and the authored `_` arm is the fallback holding where
+    /// every guard fails: an ordinary successor edge, or an authored
+    /// `(expression)` target that returns like a conditional's return arm.
+    /// Each successor carries the same per-edge custody plan as a conditional
+    /// edge.
     GuardedJumps {
         arms: Vec<CheckedGuardedJumpPlan>,
-        fallback: CheckedStructuralControlSuccessorPlan,
+        fallback: CheckedGuardedJumpFallbackPlan,
     },
     /// Consume one whole owned parameter or exact result from this state's
     /// operation prefix and transfer control through the exact closed case
     /// roster. Payload scalars are introduced only on their selected edge;
-    /// they are not speculative reads from inactive storage.
+    /// they are not speculative reads from inactive storage. A case whose
+    /// arm is an authored `(expression)` closes its own edge with the
+    /// value's producer instead of a transfer.
     ClosedSum {
         subject: CheckedUnitStructuralArgumentPlan,
-        cases: Vec<CheckedClosedSumCaseSuccessorPlan>,
+        cases: Vec<CheckedClosedSumCasePlan>,
     },
     /// Leave checked execution without cleanup, a successor, or an
     /// established value — the standalone authored `crash` exit. The
@@ -235,15 +239,32 @@ pub enum CheckedScalarReturnPlan {
 impl CheckedComposedUnitControlStatePlan {
     /// Complete operation dependencies, not runtime evaluation order.
     pub fn operation_dependencies(&self) -> impl Iterator<Item = &CheckedUnitEffectOperationPlan> {
-        let selected = match &self.terminator {
+        let selected: Vec<&CheckedUnitEffectOperationPlan> = match &self.terminator {
             CheckedComposedUnitControlTerminatorPlan::Guarded { return_values, .. } => {
-                return_values.as_slice()
+                return_values.iter().collect()
             }
             CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
                 return_arm: CheckedConditionalReturnArm::Structural(operation),
                 ..
-            } => std::slice::from_ref(operation),
-            _ => &[],
+            } => vec![operation],
+            CheckedComposedUnitControlTerminatorPlan::GuardedJumps { fallback, .. } => {
+                match fallback {
+                    CheckedGuardedJumpFallbackPlan::Return(
+                        CheckedConditionalReturnArm::Structural(operation),
+                    ) => vec![operation],
+                    _ => Vec::new(),
+                }
+            }
+            CheckedComposedUnitControlTerminatorPlan::ClosedSum { cases, .. } => cases
+                .iter()
+                .filter_map(|case| match &case.outcome {
+                    CheckedClosedSumCaseOutcomePlan::Return(
+                        CheckedConditionalReturnArm::Structural(operation),
+                    ) => Some(operation),
+                    _ => None,
+                })
+                .collect(),
+            _ => Vec::new(),
         };
         self.operations.iter().chain(selected)
     }
@@ -268,11 +289,18 @@ impl CheckedComposedUnitControlStatePlan {
             CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, fallback } => arms
                 .iter()
                 .map(|arm| &arm.successor)
-                .chain(std::iter::once(fallback))
+                .chain(match fallback {
+                    CheckedGuardedJumpFallbackPlan::Successor(successor) => Some(successor),
+                    CheckedGuardedJumpFallbackPlan::Return(_) => None,
+                })
                 .collect(),
-            CheckedComposedUnitControlTerminatorPlan::ClosedSum { cases, .. } => {
-                cases.iter().map(|case| &case.successor).collect()
-            }
+            CheckedComposedUnitControlTerminatorPlan::ClosedSum { cases, .. } => cases
+                .iter()
+                .filter_map(|case| match &case.outcome {
+                    CheckedClosedSumCaseOutcomePlan::Successor(successor) => Some(successor),
+                    CheckedClosedSumCaseOutcomePlan::Return(_) => None,
+                })
+                .collect(),
         }
     }
 
@@ -330,11 +358,80 @@ pub struct CheckedGuardedJumpPlan {
     pub successor: CheckedStructuralControlSuccessorPlan,
 }
 
+/// The closing arm of a `GuardedJumps` tail — the edge every prior guard
+/// falling through reaches: an ordinary named-state successor, or an authored
+/// `(expression)` arm that returns its value exactly like a
+/// `ConditionalReturn` arm. The shared scalar tail roster already proved the
+/// arm's coverage, so a value fallback needs no guard of its own.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedClosedSumCaseSuccessorPlan {
+pub enum CheckedGuardedJumpFallbackPlan {
+    Successor(CheckedStructuralControlSuccessorPlan),
+    Return(CheckedConditionalReturnArm),
+}
+
+impl CheckedGuardedJumpFallbackPlan {
+    /// The authored transition ordinal this closing arm answers.
+    pub fn statement_ordinal(&self) -> u32 {
+        match self {
+            CheckedGuardedJumpFallbackPlan::Successor(successor) => successor.statement_ordinal,
+            CheckedGuardedJumpFallbackPlan::Return(CheckedConditionalReturnArm::Scalar {
+                statement_ordinal,
+                ..
+            }) => *statement_ordinal,
+            CheckedGuardedJumpFallbackPlan::Return(CheckedConditionalReturnArm::Structural(
+                operation,
+            )) => match operation {
+                CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
+                | CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
+                | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => {
+                    result.statement_index
+                }
+                _ => 0,
+            },
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedClosedSumCasePlan {
     pub case_identity: String,
-    pub successor: CheckedStructuralControlSuccessorPlan,
+    /// One case edge's checked outcome: an ordinary transfer to the case's
+    /// named successor state, or the authored `(expression)` arm's returned
+    /// value, produced on this case's edge block only.
+    pub outcome: CheckedClosedSumCaseOutcomePlan,
     pub payloads: Vec<CheckedClosedSumPayloadTransferPlan>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedClosedSumCaseOutcomePlan {
+    Successor(CheckedStructuralControlSuccessorPlan),
+    /// The arm's `(expression)` value — the same plan a `ConditionalReturn`
+    /// arm carries. Payload fields are never in scope for it: a return arm
+    /// has no argument list the checker could attribute the read through.
+    Return(CheckedConditionalReturnArm),
+}
+
+impl CheckedClosedSumCasePlan {
+    /// The authored transition ordinal this case edge answers.
+    pub fn statement_ordinal(&self) -> u32 {
+        match &self.outcome {
+            CheckedClosedSumCaseOutcomePlan::Successor(successor) => successor.statement_ordinal,
+            CheckedClosedSumCaseOutcomePlan::Return(CheckedConditionalReturnArm::Scalar {
+                statement_ordinal,
+                ..
+            }) => *statement_ordinal,
+            CheckedClosedSumCaseOutcomePlan::Return(CheckedConditionalReturnArm::Structural(
+                operation,
+            )) => match operation {
+                CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
+                | CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
+                | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => {
+                    result.statement_index
+                }
+                _ => 0,
+            },
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

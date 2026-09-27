@@ -387,8 +387,52 @@ pub(super) fn build_traced(
                 | CheckedComposedUnitControlTerminatorPlan::ReturnUnit
                 | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. }
         ) {
+            // A ClosedSum subject's state-exit disposal is the case
+            // dispatch's own consumption, already proved inside the
+            // terminator build; exclude it from the result-local roster.
+            let case_subject_local = match &terminator {
+                CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, .. } => {
+                    match &subject.source {
+                        CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                            binding_ordinal,
+                        } => operations
+                            .iter()
+                            .find_map(|operation| {
+                                let result = match operation {
+                                    CheckedUnitEffectOperationPlan::StructuralCall {
+                                        result,
+                                        ..
+                                    }
+                                    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                                        result,
+                                        ..
+                                    }
+                                    | CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                                        result,
+                                        ..
+                                    } => result,
+                                    _ => return None,
+                                };
+                                (result.binding_ordinal == *binding_ordinal)
+                                    .then_some(result.statement_index)
+                            })
+                            .and_then(|statement_index| {
+                                match statements.get(statement_index as usize) {
+                                    Some(StatementNode::LocalData(local)) => Some(local.symbol),
+                                    _ => None,
+                                }
+                            }),
+                        _ => None,
+                    }
+                }
+                _ => None,
+            };
             crate::execution::terminal_cleanup::state_exit_result_locals(
-                program, facts, machine, state,
+                program,
+                facts,
+                machine,
+                state,
+                case_subject_local,
             )?
         } else {
             Vec::new()
@@ -1050,7 +1094,8 @@ fn successor(
         machine.symbol,
         source.symbol,
         ordinal,
-    )?;
+    );
+    let cleanup = cleanup?;
     if cleanup.target_state != successor.target_state {
         return None;
     }
@@ -1553,7 +1598,7 @@ fn case_payload_transfer(
         .state_parameters(source)
         .iter()
         .position(|parameter| parameter.symbol == root)?;
-    let (parameter_index, _) = source_structural
+    let (parameter_index, subject_parameter) = source_structural
         .iter()
         .enumerate()
         .find(|(_, parameter)| parameter.position as usize == position)?;
@@ -1591,6 +1636,26 @@ fn case_payload_transfer(
             (variant.symbol == selected_case).then_some(variant)
         })
     })?;
+    // The recorded subject identity must spell the resolved structural
+    // type the emitted declaration catalog uses. A bare subject's checked
+    // parameter already carries that identity — attached `self` names the
+    // machine's nominal type in the typed table, so normalizing its
+    // declared reference would spell the wrong owner. A projected subject
+    // ends on a field's declared type, whose canonical identity peels any
+    // borrow/constrained wrapper the same way the field declaration does.
+    let subject_identity = if path.is_empty() {
+        subject_parameter.type_identity.clone()
+    } else {
+        let mut leaf_type = subject_type;
+        while let TypeReferenceNode::Constrained { base_type, .. }
+        | TypeReferenceNode::Reference {
+            referee: base_type, ..
+        } = program.type_reference_table.type_reference(leaf_type)
+        {
+            leaf_type = *base_type;
+        }
+        normalized(leaf_type)
+    };
     Some(
         checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
             subject: CheckedUnitStructuralArgumentPlan {
@@ -1598,7 +1663,7 @@ fn case_payload_transfer(
                     parameter_index: u32::try_from(parameter_index).ok()?,
                 },
                 path,
-                type_identity: program.normalized_type_identity(subject_type).into_string(),
+                type_identity: subject_identity,
                 access: CheckedStructuralAccess::SharedBorrow,
             },
             case_identity: variant.path_identity(),

@@ -464,14 +464,30 @@ pub(super) fn validate_structural_case_membership(operation: &Operation) -> Resu
     Ok(())
 }
 
-pub(super) fn validate_structural_leaf_copy(operation: &Operation) -> Result<(), CodecError> {
+pub(super) fn validate_structural_leaf_copy(
+    module: &TerminalModule,
+    operation: &Operation,
+) -> Result<(), CodecError> {
+    let is_case_copy = matches!(
+        &operation.kind,
+        OperationKind::StructuralCaseLeafCopy { .. }
+    );
     let (OperationKind::StructuralLeafCopy { .. } | OperationKind::StructuralCaseLeafCopy { .. }) =
         &operation.kind
     else {
         unreachable!("dispatched validate_structural_leaf_copy")
     };
     if operation.result.structural().is_none_or(|result| {
-        result.multiplicity != StructuralMultiplicity::Unrestricted
+        (result.multiplicity != StructuralMultiplicity::Unrestricted
+            // A case-payload copy may instead mint the transfer's `Affine`
+            // result shape: a `SharedBorrow` reference descriptor relocating
+            // a proven payload's loan, or a plain leaf's owned copy the
+            // successor takes custody of.
+            && !(is_case_copy
+                && result.multiplicity == StructuralMultiplicity::Affine
+                && module.structural_types.iter().any(|declaration| {
+                    declaration.id == result.structural_type
+                })))
             || !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
             || !result.claims.is_empty()

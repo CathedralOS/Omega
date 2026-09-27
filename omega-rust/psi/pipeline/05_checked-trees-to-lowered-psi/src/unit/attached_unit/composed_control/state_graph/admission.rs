@@ -600,10 +600,18 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                         if matches!(transition.guard, TransitionGuardNode::When(_)))
                     })
                     && matches!(tail.last(), Some(StatementNode::Transition(transition))
-                    if transition.guard == TransitionGuardNode::Always) =>
+                    if matches!(
+                        transition.guard,
+                        TransitionGuardNode::Always | TransitionGuardNode::When(_)
+                    )) =>
             {
                 // The shared scalar tail roster owns this chain's guard order
                 // and selected destinations; every arm must rejoin it exactly.
+                let last_guarded = matches!(
+                    tail.last(),
+                    Some(StatementNode::Transition(transition))
+                        if matches!(transition.guard, TransitionGuardNode::When(_))
+                );
                 let retained = checked
                     .facts
                     .flow
@@ -624,7 +632,11 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                     .ok_or(LoweringError::Unsupported(
                         "guarded jump successors have a stale roster",
                     ))?;
-                if exits.len() != arms.len() {
+                // A guarded final arm is the roster's proven else: it is
+                // retained as an exit and no authored fallback is recorded.
+                if exits.len() != arms.len() + usize::from(last_guarded)
+                    || last_guarded != retained.fallback.is_none()
+                {
                     return unsupported("guarded jump successors drifted from their roster");
                 }
                 for (index, (arm, exit)) in arms.iter().zip(exits.iter()).enumerate() {
@@ -660,10 +672,10 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                         ordinal,
                     )?;
                 }
-                let Some(checked_trees::CheckedScalarBranchDestination::Jump(selected)) =
-                    &retained.fallback
-                else {
-                    return unsupported("guarded jump fallback is not a named-state edge");
+                let fallback_destination = if last_guarded {
+                    exits.last().map(|exit| &exit.destination)
+                } else {
+                    retained.fallback.as_ref()
                 };
                 let ordinal = terminator_ordinal + arms.len();
                 let statement_ordinal = u32::try_from(ordinal)
@@ -671,13 +683,75 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                 let Some(StatementNode::Transition(transition)) = tail.last() else {
                     return unsupported("guarded jump fallback lost its authored transition");
                 };
-                if selected.statement_ordinal != statement_ordinal
-                    || selected.is_continuation
-                    || selected.target != fallback.target_state
+                if last_guarded
+                    && exits
+                        .last()
+                        .is_none_or(|exit| exit.guard_statement_ordinal != statement_ordinal)
                 {
                     return unsupported("guarded jump fallback drifted from the shared roster");
                 }
-                edges::validate(checked, plan, source, state, transition, fallback, ordinal)?;
+                match (fallback, fallback_destination) {
+                    (
+                        checked_trees::CheckedGuardedJumpFallbackPlan::Successor(fallback),
+                        Some(checked_trees::CheckedScalarBranchDestination::Jump(selected)),
+                    ) => {
+                        if selected.statement_ordinal != statement_ordinal
+                            || selected.is_continuation
+                            || selected.target != fallback.target_state
+                        {
+                            return unsupported(
+                                "guarded jump fallback drifted from the shared roster",
+                            );
+                        }
+                        edges::validate(
+                            checked, plan, source, state, transition, fallback, ordinal,
+                        )?;
+                    }
+                    (
+                        checked_trees::CheckedGuardedJumpFallbackPlan::Return(return_arm),
+                        Some(checked_trees::CheckedScalarBranchDestination::Return {
+                            statement_ordinal: retained_ordinal,
+                            is_continuation,
+                        }),
+                    ) => {
+                        let arm_ordinal = match return_arm {
+                            checked_trees::CheckedConditionalReturnArm::Structural(
+                                checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                                    result, ..
+                                },
+                            ) => result.statement_index,
+                            checked_trees::CheckedConditionalReturnArm::Scalar {
+                                statement_ordinal: arm_ordinal,
+                                primitive_type,
+                            } if plan.result
+                                == checked_trees::CheckedControlResultPlan::Scalar {
+                                    primitive_type: *primitive_type,
+                                } => *arm_ordinal,
+                            _ => {
+                                return unsupported(
+                                    "guarded jump return arm is neither a structural value producer nor the scalar result",
+                                );
+                            }
+                        };
+                        if *retained_ordinal != statement_ordinal
+                            || *is_continuation
+                            || arm_ordinal != statement_ordinal
+                            || !matches!(
+                                checked.statement_table.transition_target(transition.target),
+                                checked_trees::statement::TransitionTargetNode::Value(_)
+                            )
+                        {
+                            return unsupported(
+                                "guarded jump return arm drifted from its authored ordinals",
+                            );
+                        }
+                    }
+                    _ => {
+                        return unsupported(
+                            "guarded jump fallback is not a named-state edge or scalar return",
+                        );
+                    }
+                }
             }
             _ => return unsupported("Unit graph terminator disagrees with authored state"),
         }

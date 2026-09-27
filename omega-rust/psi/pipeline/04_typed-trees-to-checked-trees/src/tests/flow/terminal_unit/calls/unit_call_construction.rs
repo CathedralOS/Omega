@@ -51,12 +51,16 @@ fn retains_boundary_case_payload_and_mutable_view_on_the_same_state_edge() {
         .iter()
         .find(|case| case.case_identity == "Byte")
         .unwrap();
-    assert_eq!(byte.successor.target_state, plan.states[2].state);
-    assert_eq!(byte.successor.transfers.len(), 1);
-    assert_eq!(byte.successor.transfers[0].target_parameter_index, 0);
-    assert_eq!(byte.successor.scalar_arguments.len(), 1);
+    let checked_trees::CheckedClosedSumCaseOutcomePlan::Successor(byte_successor) = &byte.outcome
+    else {
+        panic!("the byte arm keeps a named successor")
+    };
+    assert_eq!(byte_successor.target_state, plan.states[2].state);
+    assert_eq!(byte_successor.transfers.len(), 1);
+    assert_eq!(byte_successor.transfers[0].target_parameter_index, 0);
+    assert_eq!(byte_successor.scalar_arguments.len(), 1);
     assert_eq!(
-        byte.successor.scalar_arguments[0].target_scalar_parameter_index,
+        byte_successor.scalar_arguments[0].target_scalar_parameter_index,
         0
     );
     assert_eq!(byte.payloads.len(), 1);
@@ -66,8 +70,12 @@ fn retains_boundary_case_payload_and_mutable_view_on_the_same_state_edge() {
         .iter()
         .find(|case| case.case_identity == "Eof")
         .unwrap();
-    assert!(eof.successor.transfers.is_empty());
-    assert!(eof.successor.scalar_arguments.is_empty());
+    let checked_trees::CheckedClosedSumCaseOutcomePlan::Successor(eof_successor) = &eof.outcome
+    else {
+        panic!("the eof arm keeps a named successor")
+    };
+    assert!(eof_successor.transfers.is_empty());
+    assert!(eof_successor.scalar_arguments.is_empty());
     assert!(eof.payloads.is_empty());
     let mut missing_cleanup = checked.facts.clone();
     missing_cleanup.flow.terminal_structural_control_cleanups = Default::default();

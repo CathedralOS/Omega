@@ -7,6 +7,7 @@ use checked_trees::{CheckedScalarGuardedExit, CheckedScalarGuardedTail};
 pub(super) fn build(
     program: &TypedTrees,
     expressions: &checked_trees::CheckedScalarExpressionPlans,
+    computations: &checked_trees::CheckedScalarComputationPlans,
 ) -> (
     arena::Arena<CheckedScalarGuardedExit>,
     Vec<CheckedScalarGuardedTail>,
@@ -15,7 +16,8 @@ pub(super) fn build(
     let mut tails = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
-            if let Some((arms, fallback)) = tail(program, machine, state, expressions) {
+            if let Some((arms, fallback)) = tail(program, machine, state, expressions, computations)
+            {
                 let mut retained = arena::HandleSpan::empty();
                 for arm in arms {
                     exits.append_to_span(&mut retained, arm);
@@ -31,11 +33,22 @@ pub(super) fn build(
     (exits, tails)
 }
 
+/// The tested subject of a `StructuralCaseMembership`/`CaseMembership`
+/// guard, whichever coordinate retained it. A pure expression names its
+/// parameter-field path; a computation root names the structural argument
+/// it observes, which may be a non-parameter subject such as a local.
+#[derive(PartialEq)]
+enum CaseSubject {
+    Expression(checked_trees::CheckedStructuralParameterField),
+    Computation(checked_trees::CheckedScalarComputationStructuralArgument),
+}
+
 fn tail(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     expressions: &checked_trees::CheckedScalarExpressionPlans,
+    computations: &checked_trees::CheckedScalarComputationPlans,
 ) -> Option<(
     Vec<CheckedScalarGuardedExit>,
     Option<CheckedScalarBranchDestination>,
@@ -77,36 +90,60 @@ fn tail(
         match transition.guard {
             TransitionGuardNode::Always if !arms.is_empty() => fallback = Some(destination),
             TransitionGuardNode::When(guard) => {
+                let role = checked_trees::CheckedScalarExpressionRole::Guard;
                 let mut selected = expressions.expressions.iter().filter(|expression| {
                     expression.state == state.symbol
                         && expression.statement_ordinal == ordinal
-                        && expression.role == checked_trees::CheckedScalarExpressionRole::Guard
+                        && expression.role == role
                 });
-                let expression = selected.next()?;
-                if selected.next().is_some() {
-                    return None;
-                }
-                let checked_trees::CheckedScalarExpression::Boolean(boolean) =
-                    &expression.expression
-                else {
-                    return None;
-                };
-                if let checked_trees::CheckedBooleanExpression::StructuralCaseMembership {
-                    subject,
-                    ..
-                } = boolean.as_ref()
-                {
-                    let (_, case) = crate::proof::exact_outcome_case_test(program, guard)?;
-                    if case_subject.as_ref().is_some_and(|prior| prior != subject) {
-                        exact_cases = false;
+                let case_evidence = if let Some(expression) = selected.next() {
+                    if selected.next().is_some() {
+                        return None;
                     }
-                    case_subject = Some(subject.clone());
-                    if cases.contains(&case) {
-                        exact_cases = false;
+                    let checked_trees::CheckedScalarExpression::Boolean(boolean) =
+                        &expression.expression
+                    else {
+                        return None;
+                    };
+                    if let checked_trees::CheckedBooleanExpression::StructuralCaseMembership {
+                        subject,
+                        ..
+                    } = boolean.as_ref()
+                    {
+                        let (_, case) = crate::proof::exact_outcome_case_test(program, guard)?;
+                        Some((CaseSubject::Expression(subject.clone()), case))
+                    } else {
+                        None
                     }
-                    cases.push(case);
                 } else {
-                    exact_cases = false;
+                    let root = computations
+                        .root_at(state.symbol, ordinal, role)
+                        .filter(|root| root.machine == machine.symbol)?;
+                    let node = computations.nodes.get(root.root);
+                    if node.primitive_type != checked_trees::types::PrimitiveType::Bool {
+                        return None;
+                    }
+                    match &node.kind {
+                        checked_trees::CheckedScalarComputationKind::CaseMembership {
+                            subject,
+                            case,
+                            ..
+                        } => Some((CaseSubject::Computation(subject.clone()), *case)),
+                        _ => None,
+                    }
+                };
+                match case_evidence {
+                    Some((subject, case)) => {
+                        if case_subject.as_ref().is_some_and(|prior| *prior != subject) {
+                            exact_cases = false;
+                        }
+                        case_subject = Some(subject);
+                        if cases.contains(&case) {
+                            exact_cases = false;
+                        }
+                        cases.push(case);
+                    }
+                    None => exact_cases = false,
                 }
                 arms.push(CheckedScalarGuardedExit {
                     guard_statement_ordinal: ordinal,

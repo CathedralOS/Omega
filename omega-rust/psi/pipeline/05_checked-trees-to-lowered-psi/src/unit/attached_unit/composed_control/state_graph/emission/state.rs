@@ -437,6 +437,59 @@ impl StateGraphEmission<'_, '_> {
             } else {
                 None
             };
+        // A closed-sum case whose arm is an authored `(expression)` returns
+        // it: mint each one's private return block exactly like a conditional
+        // return arm's, before the successor-edge closure borrows this
+        // state's emission slots. The case edge carries the subject's
+        // consumption into the return block.
+        let closed_return_edges = if let Some(prepared) = &prepared_cases {
+            prepared
+                .cases
+                .iter()
+                .map(|case| match &case.outcome {
+                    checked_trees::CheckedClosedSumCaseOutcomePlan::Return(return_arm) => self
+                        .conditional_return_arm(
+                            position,
+                            &state_parameters,
+                            values.clone(),
+                            return_arm,
+                            &mut evaluation,
+                            &mut next_value,
+                            &mut next_block,
+                            &mut next_edge,
+                            &mut operations,
+                        )
+                        .map(Some),
+                    checked_trees::CheckedClosedSumCaseOutcomePlan::Successor(_) => Ok(None),
+                })
+                .collect::<Result<Vec<_>, LoweringError>>()?
+        } else {
+            Vec::new()
+        };
+        // A guarded-jump tail whose `_` arm is an authored `(expression)`
+        // returns it: mint its private return block exactly like a
+        // conditional return arm's, before the successor-edge closure
+        // borrows this state's emission slots.
+        let mut guarded_return_edge =
+            if let CheckedComposedUnitControlTerminatorPlan::GuardedJumps {
+                fallback: checked_trees::CheckedGuardedJumpFallbackPlan::Return(return_arm),
+                ..
+            } = &state.terminator
+            {
+                Some(self.conditional_return_arm(
+                    position,
+                    &state_parameters,
+                    values.clone(),
+                    return_arm,
+                    &mut evaluation,
+                    &mut next_value,
+                    &mut next_block,
+                    &mut next_edge,
+                    &mut operations,
+                )?)
+            } else {
+                None
+            };
         // A case test on a whole owned parameter consumes it, as the checked
         // cleanup records by leaving it out of the arm's discards: each tested
         // arm's edge and the dispatch's closing `_` edge dispose of it where
@@ -718,7 +771,16 @@ impl StateGraphEmission<'_, '_> {
                 let first = selected.next().ok_or(LoweringError::Unsupported(
                     "guarded jump chain lost its first successor",
                 ))?;
-                let mut fallback_edge = Some(successor(fallback, &[], false, &values, &[])?);
+                let mut fallback_edge = Some(match fallback {
+                    checked_trees::CheckedGuardedJumpFallbackPlan::Successor(fallback) => {
+                        successor(fallback, &[], false, &values, &[])?
+                    }
+                    checked_trees::CheckedGuardedJumpFallbackPlan::Return(_) => guarded_return_edge
+                        .take()
+                        .ok_or(LoweringError::Unsupported(
+                            "Unit graph guarded return lost its staged edge",
+                        ))?,
+                });
                 let draft_count = guarded_drafts.len();
                 for (index, (id, parameters, structural_parameters, operations_draft, guard, _)) in
                     guarded_drafts.into_iter().enumerate()
@@ -824,33 +886,46 @@ impl StateGraphEmission<'_, '_> {
                 let cases = prepared
                     .cases
                     .iter()
-                    .map(|case| {
-                        // The edge binds this case's payloads as its staged
-                        // block's formals; an argument expression reads one
-                        // back through its tail position in the edge's
-                        // namespace, which `successor_edge` appends in this
-                        // same payload order.
-                        let established = case
-                            .values
-                            .iter()
-                            .zip(&case.fields)
-                            .enumerate()
-                            .map(|(ordinal, ((_, _), field))| {
-                                crate::expression_preparation::bindings::structural_fields::EstablishedCasePayload {
-                                    source: prepared.source,
-                                    case: case.identity,
-                                    field: *field,
-                                    position: values.len() + ordinal,
-                                }
-                            })
-                            .collect::<Vec<_>>();
-                        let edge = successor(
-                            case.successor,
-                            &case.values,
-                            true,
-                            &values,
-                            &established,
-                        )?;
+                    .zip(closed_return_edges)
+                    .map(|(case, return_edge)| {
+                        let edge = match &case.outcome {
+                            checked_trees::CheckedClosedSumCaseOutcomePlan::Successor(
+                                successor_plan,
+                            ) => {
+                                // The edge binds this case's payloads as its
+                                // staged block's formals; an argument
+                                // expression reads one back through its tail
+                                // position in the edge's namespace, which
+                                // `successor_edge` appends in this same
+                                // payload order.
+                                let established = case
+                                    .values
+                                    .iter()
+                                    .zip(&case.fields)
+                                    .enumerate()
+                                    .map(|(ordinal, ((_, _), field))| {
+                                        crate::expression_preparation::bindings::structural_fields::EstablishedCasePayload {
+                                            source: prepared.source,
+                                            case: case.identity,
+                                            field: *field,
+                                            position: values.len() + ordinal,
+                                        }
+                                    })
+                                    .collect::<Vec<_>>();
+                                successor(
+                                    successor_plan,
+                                    &case.values,
+                                    true,
+                                    &values,
+                                    &established,
+                                )?
+                            }
+                            checked_trees::CheckedClosedSumCaseOutcomePlan::Return(_) => {
+                                return_edge.ok_or(LoweringError::Unsupported(
+                                    "Unit graph returning case lost its edge",
+                                ))?
+                            }
+                        };
                         Ok(StructuralCaseSuccessorEdge {
                             edge: edge.edge,
                             target: edge.target,
@@ -981,7 +1056,7 @@ fn case_subject_consumptions(
                 })
                 .collect::<Vec<_>>();
             if let Some(position) = arms.last().and_then(|arm| subject(&arm.guard)) {
-                consumed.push((fallback.statement_ordinal, position));
+                consumed.push((fallback.statement_ordinal(), position));
             }
             consumed
         }

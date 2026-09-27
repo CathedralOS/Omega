@@ -378,13 +378,22 @@ fn retained_subslice(
                 } => successors.extend([when_true, when_false]),
                 Terminator::GuardedJumps { arms, fallback } => {
                     successors.extend(arms.iter().map(|arm| &arm.successor));
-                    successors.push(fallback);
+                    if let checked_trees::CheckedGuardedJumpFallbackPlan::Successor(fallback) =
+                        fallback
+                    {
+                        successors.push(fallback);
+                    }
                 }
                 Terminator::ClosedSum { subject, cases } => {
                     if let Some(found) = subslice_source(&subject.source) {
                         return Some(found);
                     }
-                    successors.extend(cases.iter().map(|case| &case.successor));
+                    successors.extend(cases.iter().filter_map(|case| match &case.outcome {
+                        checked_trees::CheckedClosedSumCaseOutcomePlan::Successor(successor) => {
+                            Some(successor)
+                        }
+                        checked_trees::CheckedClosedSumCaseOutcomePlan::Return(_) => None,
+                    }));
                 }
                 _ => {}
             }
@@ -463,11 +472,19 @@ fn drop_subslice_sources(checked: &mut CheckedTrees) {
             } => successors.extend([when_true, when_false]),
             Terminator::GuardedJumps { arms, fallback } => {
                 successors.extend(arms.iter_mut().map(|arm| &mut arm.successor));
-                successors.push(fallback);
+                if let checked_trees::CheckedGuardedJumpFallbackPlan::Successor(fallback) = fallback
+                {
+                    successors.push(fallback);
+                }
             }
             Terminator::ClosedSum { subject, cases } => {
                 retire_argument(&mut subject.source);
-                successors.extend(cases.iter_mut().map(|case| &mut case.successor));
+                successors.extend(cases.iter_mut().filter_map(|case| match &mut case.outcome {
+                    checked_trees::CheckedClosedSumCaseOutcomePlan::Successor(successor) => {
+                        Some(successor)
+                    }
+                    checked_trees::CheckedClosedSumCaseOutcomePlan::Return(_) => None,
+                }));
             }
             _ => {}
         }

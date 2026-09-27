@@ -108,7 +108,33 @@ pub(in crate::validation) fn validate_case_leaf_copy(
     let Some(result) = operation.result.structural() else {
         return Err(invalid());
     };
-    if result.multiplicity != StructuralMultiplicity::Unrestricted
+    let result_declaration = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == result.structural_type);
+    // Beside the plain `Unrestricted` copy, two `Affine` result shapes keep
+    // the copied custody honest: a `SharedBorrow` reference result is a loan
+    // relocation registered as a live reference carrier, and a plain
+    // structural leaf with `Affine` multiplicity is an owned copy the
+    // successor takes custody of — copying out of a borrowed case payload
+    // never moves the stored value itself.
+    let shared_borrow_relocation = result.multiplicity == StructuralMultiplicity::Affine
+        && result_declaration.is_some_and(|declaration| {
+            matches!(
+                declaration.shape,
+                StructuralTypeShape::Reference {
+                    access: StructuralAccess::SharedBorrow,
+                    ..
+                }
+            )
+        });
+    let owned_copy = result.multiplicity == StructuralMultiplicity::Affine
+        && result_declaration.is_some_and(|declaration| {
+            !matches!(declaration.shape, StructuralTypeShape::Reference { .. })
+        });
+    if (result.multiplicity != StructuralMultiplicity::Unrestricted
+        && !shared_borrow_relocation
+        && !owned_copy)
         || !result.qualifications.is_empty()
         || !result.claims.is_empty()
     {
@@ -130,7 +156,16 @@ pub(in crate::validation) fn validate_case_leaf_copy(
             .ok_or_else(invalid)?;
     let selected_type =
         resolve_canonical_leaf_type(module, signature.structural_type, path).ok_or_else(invalid)?;
-    if selected_type != result.structural_type {
+    let expected_type = result_declaration
+        .and_then(|declaration| match declaration.shape {
+            StructuralTypeShape::Reference {
+                referent,
+                access: StructuralAccess::SharedBorrow,
+            } => Some(referent),
+            _ => None,
+        })
+        .unwrap_or(result.structural_type);
+    if selected_type != expected_type {
         return Err(invalid());
     }
     Ok(())
