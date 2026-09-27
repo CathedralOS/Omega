@@ -52,6 +52,32 @@ use target::Architecture;
 pub fn baseline_target_register_environment(
     target: NativeTarget,
 ) -> Result<ValidatedTargetRegisterEnvironment, TargetRegisterEnvironmentValidationError> {
+    // The baseline is built from the target's constant declarations alone, so
+    // one build and validation per target serves every later request in the
+    // process; each caller still receives its own copy.
+    static BUILT: std::sync::Mutex<
+        Vec<(
+            NativeTarget,
+            Result<ValidatedTargetRegisterEnvironment, TargetRegisterEnvironmentValidationError>,
+        )>,
+    > = std::sync::Mutex::new(Vec::new());
+    if let Ok(built) = BUILT.lock()
+        && let Some((_, environment)) = built.iter().find(|(candidate, _)| *candidate == target)
+    {
+        return environment.clone();
+    }
+    let environment = build_baseline_target_register_environment(target);
+    if let Ok(mut built) = BUILT.lock()
+        && !built.iter().any(|(candidate, _)| *candidate == target)
+    {
+        built.push((target, environment.clone()));
+    }
+    environment
+}
+
+fn build_baseline_target_register_environment(
+    target: NativeTarget,
+) -> Result<ValidatedTargetRegisterEnvironment, TargetRegisterEnvironmentValidationError> {
     let physical = target_physical_register_model(target);
     let validated = validate_physical_register_model(physical.clone())
         .map_err(TargetRegisterEnvironmentValidationError::Physical)?;
