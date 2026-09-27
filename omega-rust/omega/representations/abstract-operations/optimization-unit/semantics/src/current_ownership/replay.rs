@@ -69,18 +69,16 @@ pub(super) fn validate_current_ownership_cfg(
                     },
                 ..
             } = &node.operation
-            {
-                if (result.multiplicity != StructuralMultiplicity::Unrestricted
+                && ((result.multiplicity != StructuralMultiplicity::Unrestricted
                     && frontier.owned_places.get(&result.place) != Some(&result.multiplicity))
-                    || frontier.partial_custody_paths.contains_key(&result.place)
-                {
-                    return Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive {
-                        machine: function.machine,
-                        block: block_id,
-                        node: node_index,
-                        place: result.place,
-                    });
-                }
+                    || frontier.partial_custody_paths.contains_key(&result.place))
+            {
+                return Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive {
+                    machine: function.machine,
+                    block: block_id,
+                    node: node_index,
+                    place: result.place,
+                });
             }
 
             if let O::StructuralCase { source, .. }

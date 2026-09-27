@@ -395,8 +395,8 @@ impl AddressJoinPins {
                 );
             }
         }
-        if let Some(pinned) = self.exclusive.get(&block) {
-            if let Some(place) = edge
+        if let Some(pinned) = self.exclusive.get(&block)
+            && let Some(place) = edge
                 .structural_bindings
                 .iter()
                 .map(|binding| binding.argument.place)
@@ -407,16 +407,15 @@ impl AddressJoinPins {
                         .map(|discard| discard.place),
                 )
                 .find(|place| pinned.contains(place))
-            {
-                return Err(
-                    OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed {
-                        machine: function.machine,
-                        block,
-                        node,
-                        place,
-                    },
-                );
-            }
+        {
+            return Err(
+                OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed {
+                    machine: function.machine,
+                    block,
+                    node,
+                    place,
+                },
+            );
         }
         let Some(pinned) = self.shared.get(&block) else {
             return Ok(());
