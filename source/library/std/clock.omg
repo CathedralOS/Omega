@@ -1,0 +1,56 @@
+// std::clock — the portable `Clock` pacing boundary.
+//
+// The corpus's time-facing canaries and the `samples/cli` pacing samples each
+// declare a package-local `pub boundary trait Clock { machine
+// sleep(milliseconds: u32); }` — the Win32 `Sleep` / POSIX `nanosleep` seam —
+// and then require a selected provider for their own nominal trait. Provider
+// selection is nominal (owning package + trait name), so bundled library code
+// can never satisfy a consumer-declared trait. This module is the canonical
+// `omega_language_std` `Clock` those consumers can select instead; migrating
+// a local `Clock` is a one-line `use omega_language_std::clock;`.
+//
+// Surface: `sleep(milliseconds)` only — the sole operation every one of those
+// declarations shares. Monotonic and wall-clock reads stay on `Time`
+// (`time.omg` over the canonical toolchain-settled `TimeHost` seam), so this
+// boundary carries no clock-read constants it cannot honor.
+//
+// Each selected target contributes the irreducible native sleep leaf and its
+// provider default; target filtering keeps exactly one implementation
+// closure: `nanosleep` on both linux targets and kernel32 `Sleep` on windows.
+// On linux the leaf's `timespec*` argument marshalling is compiler-owned for
+// a `Clock`/`sleep` syscall binding (`uses_linux_timespec_argument`), so the
+// leaf carries only the reviewed syscall number.
+//
+// Coverage stops at `linux_x86_64`, `linux_arm64`, and `windows_x86_64`:
+//
+// * `macos_arm64` needs the `Clock`/`sleep_poll` lowering arm that marshals
+//   `poll(NULL, 0, ms)` (`host_operations.rs`' `SleepPoll` row) or a checked
+//   adapter over the `darwin_poll` leaf. The adapter route requires the
+//   requirement to declare `invokes DarwinClock`, and that ceiling propagates
+//   into every consumer's `reaches` — leaking a darwin detail into a portable
+//   contract — so it is deliberately not used here.
+// * `macos_x86_64` is bundled but unadmitted (console's family has no
+//   implementation for it either), and freestanding `uefi_x86_64` has no
+//   hosted clock at all.
+//
+// Because the provider family does not yet cover every hosted target, this
+// module is NOT listed in `main.omg`: a partial `ClockNativeProvider` family
+// there would reject every consumer on the uncovered targets, even ones that
+// never name `Clock`. Consumers select it with an explicit
+// `use omega_language_std::clock;` — on an uncovered target the checker
+// reports the family gap and names the implemented targets. Once a darwin
+// realization leg lands, adding `use clock;` to `main.omg` joins it to the
+// ordinary portable surface.
+use targets::linux_x86_64::clock_impl;
+use targets::linux_arm64::clock_impl;
+use targets::windows_x86_64::clock_impl;
+
+pub boundary trait Clock {
+    // Block the caller for `milliseconds`.
+    machine sleep(milliseconds: u32) reaches Clock;
+}
+
+// Nominal owner of the selected Clock provider closure. Realization leaves
+// attach to this type so provider selection never assembles the row from
+// unrelated implementations.
+pub data ClockNativeProvider { }
