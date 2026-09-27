@@ -677,178 +677,131 @@ evidence carriers without an exercising program. The
 [Rust compiler completion plan](wiki/drafts/reference/rust_compiler_completion.md) defines
 the complete product bar; focused successes below do not establish that baseline.
 
-- **CANONICALIZE-SCALAR-RANGE-CONTRACTS.** (new-scope) Complete the
-  owner-selected removal of bracketed scalar range annotations under one
-  canonical proposition surface (`scalar-range-contract-spelling`). The original
-  campaign was unauthorized when `669925b8b9` declared the decision by editing
-  the spec, but the owner has now selected the no-suffix design: data/common
-  field relationships use data `where`; case payload relationships use case
-  `where`; machine/state parameters use `requires`; results use `ensures`;
-  locals use established initializer/guard/call facts. `T in D` is reserved for
-  an intentionally named domain identity, not generated interval sugar.
+- **CANONICALIZE-SCALAR-RANGE-CONTRACTS.** Complete the settled
+  [proposition-based scalar range contract](wiki/spec/language/domains.md#declaration-and-membership)
+  and [generic inference rule](wiki/spec/language/generics.md).
+  Common fields use data `where`, payloads use case `where`, machine/state
+  parameters use `requires`, results use `ensures`, and locals use facts
+  established by initializers, guards and calls. Remove integer and float
+  `T [lo..hi]` / `T [lo..=hi]` suffixes after their customers migrate.
+  Ordinary ranges, slices, arrays and bracketed multiplicity remain distinct.
 
-  **The `range_*` library-test nondeterminism reported here is resolved.**
-  The flake was measured at 7650781232 (2026-09-25), before the
-  `ProgramIdentity` fix chain (`bc5fe0bed2` for `write_frames/isolation.rs`,
-  `7786d0b548` for six sibling caches, `020c9fdb78` for the domain index).
-  The real mechanism was an address-keyed cache plus an arena-base-pointer
-  fingerprint: allocator recycling let a replacement program inherit a
-  dropped program's verdicts, and ASLR decided whether reuse happened each
-  run — not pointer-key iteration order (the `HashMap<*const
-  DataDefinition, bool>` is only get/insert). Remaining pointer-keyed
-  caches in the range path (`flow/fact_rows.rs`, `reads.rs`'s root-currency
-  index, `program_scope.rs`) are scope-guarded against recycling. Measured on
-  main after the fix chain: 8x673 `--test-threads=1` range_ runs, 2x4887
-  single-threaded and 2x4887 multi-threaded full-suite runs, and a 234-test
-  nextest pass — zero failures. A latent non-flaky hole remains: a clone
-  shares its tag, so the sampled fingerprint can miss a same-length
-  in-place mutation; **TYPED-TREES-OWNED-INDEXES** owns deleting these
-  caches. A failure COUNT now attributes normally again.
+  Prioritize bundled-library, sample and Squalr customers that unblock complete
+  programs. Finish each customer's proposition transport and execution before
+  moving to the next group; parser deletion is the final migration step.
+  A domain retained by a migration must have an independently meaningful
+  nominal identity, semantic contribution or establishment route, explained in
+  the change. Endpoint-named or interval-only replacement domains are invalid
+  even when they compile and execute. Preserve independently used domain/proof
+  improvements; equal predicates do not merge domain identities.
 
-  **Owner directive (2026-09-24): do not replace a scalar range with a named
-  domain whose only meaning is that range.** This is a source-quality and
-  semantic-modeling requirement, not a suggestion or optimization preference.
-  Names encoding endpoints such as `I32Neg1To4`, `I320To3`, `I320To6`, and
-  `I320To2`, and declarations whose sole content restates those endpoints, are
-  rejected migrations even when they compile or restore native execution. A
-  retained domain must name an independently meaningful classification or
-  authority boundary that a human author would choose without this migration;
-  the implementer must state that meaning in the change. If no such meaning
-  exists, use the owning `where`, `requires`, or `ensures` clause. Do not work
-  around missing proposition transport by changing customer source into a
-  nominal domain.
+  Complete a history-derived declaration inventory using the
+  [migration recipe](wiki/drafts/designs/range_suffix_migration.md), including
+  follow-ups and unlisted edits made under the old blanket premise. Starting
+  revisions: `8f93c866a3`, `2c3c2aec00`, `b9b68383c9`, `cc36490282`,
+  `3531aaa098`, `e0a884138f`, `2ef59d385a`, `c4d2776b1f`, `c5621e66ac`,
+  `fc0fc2dcab`, `c5688363ec`, `f1d6e31013`, `9e3355b562`, `db4f9f9140`,
+  `2858366bdb`, plus sample migrations `24d91ed906` / `7917a536d4` and
+  library migration `c1303f89d4`. Record original/current spelling, owning
+  position (field, payload, parameter, result, local, generic shell or static
+  use), and restoration, contract correction or independent reason for
+  retention. Include bare fields whose bounds were removed because inferred
+  loop bounds happened to make native execution pass. A suffix grep or passing
+  replacement alone cannot establish preservation of the original contract.
 
-  Every source migration performed under the old blanket premise remains
-  unaudited and must be checked against this matrix. This includes migrations beginning with `8f93c866a3`,
-  `2c3c2aec00`, `b9b68383c9`, `cc36490282`, `3531aaa098`,
-  `e0a884138f`, `2ef59d385a`, `c4d2776b1f`, `c5621e66ac`,
-  `fc0fc2dcab`, `c5688363ec`, `f1d6e31013`, `9e3355b562`,
-  `db4f9f9140`, `2858366bdb`, their follow-ups, and any unlisted edits
-  justified by the same task. A replacement that compiles is not evidence that
-  it preserves the original source contract. Parameter-to-`requires` and
-  result-to-`ensures` rewrites may be canonical; field/payload rewrites to
-  generated domains are not. Keep a named domain only when its nominal identity
-  or establishment route has an independent semantic purpose.
+  Reuse current canonical controls: `collections/runtime_argmax_index_exit`,
+  `collections/runtime_nested_const_row_indexed_read_exit`,
+  `arithmetic/runtime_guard_narrowed_transition_arg_exit` and
+  `arithmetic/runtime_exact_guarded_shift_count_exit` use `where` /
+  `requires` and have recorded macOS native outcomes. Named-state
+  `rank_range_declared_step_copies` / `rank_range_call_declared_step_copy`
+  also use `requires`; their old missing-arrival diagnosis is not a current
+  assignment. `proven_predicates_grant_domain` in
+  `checks/contracts/calls.rs` already admits supported predicate-only
+  memberships from live statement-call/guard premises, with stale-write and
+  routed-domain controls. Do not rebuild that route or weaken its refusals.
 
-  Update the specification, guide, compiler documentation, bundled libraries,
-  samples, product/compiler source, bootstrap Omega parser, and corpus. Delete
-  the suffix parser and syntax/resolved/typed Range representation only after
-  all source positions use their canonical clauses.
-  Preserve interval proof transport, invalidation, and source-free replay as
-  proposition behavior rather than structural scalar-type identity.
+  Remaining migration and verification work, with capability repairs under
+  their existing owners:
 
-  A runtime-dependent endpoint remains runtime; a range proposition does not
-  turn it into a const argument, fixed-array extent,
-  specialization key, or implicit maximum-sized allocation. Static/layout uses
-  require their ordinary static evidence. Range bounds remain exact subject-bound
-  facts and do not survive invalidating writes. Explicit domains retain their own
-  nominal identity and establishment rules rather than collapsing into structural
-  range shells.
+  - Carry field/case propositions through construction, nonliteral and indexed
+    writes, reads/index proofs, calls, state joins, mutable recasts and returns.
+    Preserve exact subjects, invalidation and invariant-window closure.
+    **NOMINAL-FIELD-FLOW**, **RECAST-SOURCE-POSITIONS** and
+    **STATE-LOCAL-VALUE-FRONTIER** own the respective transport/execution.
+    Re-drive the canonical forms of `core/zii_default_composite_exit`,
+    `collections/runtime_dutch_flag_partition_exit`,
+    `calls/runtime_mutable_call_before_transition_args_exit` and the
+    `recast/runtime_*_mutable_write_exit` family, plus the historical sample
+    field migrations. Recorded failures now include later lowering stops;
+    reproduce before attributing them to proposition checking.
 
-  Start with a history-derived inventory, not another opportunistic grep batch:
-  classify every changed declaration as parameter, result, field, local, payload,
-  generic range shell, or genuinely static/layout use. Field/payload migrations
-  become owning `where` clauses; parameter/result migrations use contracts rather
-  than domain-qualified types merely to avoid brackets. Record the original
-  and current spelling and the independent reason, if any, to keep the rewrite.
-  Restore in coherent customer groups with the same positive, negative, checked,
-  Terminal, and native acceptance the declaration had before migration. Do not
-  delete domain/proof improvements that remain independently used.
+  - Carry guarded immutable-local, guarded-field, nested-call-result and
+    destructured-payload facts into ordinary `requires`; carry entry premises
+    into arithmetic formation of `ensures`, and state results into the
+    enclosing machine's postconditions. Customers include
+    `calls/runtime_dispatch_binary_call_argument_exit`,
+    `calls/nested_value_call_arg_compile`,
+    `arithmetic/anonymous_rational_arguments`,
+    `proofs/accumulator_guarantee_exit` and
+    `termination/ranked_callee_projected_receiver_compile`.
+    Some already use canonical clauses but still need end-to-end execution;
+    the projected-receiver fixture still has result/parameter suffixes.
+    **STATE-LOCAL-VALUE-FRONTIER** owns composed calls;
+    **TERMINATION-RANKING-CHECKS** owns ranked-cycle evidence.
+    A mutable parameter's `requires` constrains its arrival, whereas its old
+    suffix was store-enforced: re-prove every dependent read after a write,
+    using `termination/rank_range_mutable_bounded_endpoint` and negative
+    mutation controls. Update `include_str!` fixtures and string-rewrite
+    probes together in `tests/termination/rank_ranges/`; preserve their
+    intended proof obligation rather than leave a replacement silently inert.
 
-  The corpus gate stops at checking, so it misses a move in lowering or
-  native execution: run each migrated fixture's run canary before keeping it.
-  A runtime pass obtained by introducing an interval-only domain diagnoses
-  missing proposition transport; it does not justify that source model.
-  `calls/guarded_value_call_arm_exit`, `arithmetic/runtime_integer_casts_exit`
-  and `arithmetic/runtime_nested_unsigned_witness_exit` now state their
-  parameter bounds as `requires` and their locals by initializer, and all
-  three run canaries pass. The rest of `f1d6e31013`, `c5688363ec`,
-  `9e3355b562`, `db4f9f9140`, `2858366bdb`, `c4d2776b1f`, `c5621e66ac` and
-  `fc0fc2dcab` now use `requires`, data or case `where`, or initializers,
-  except where that form checks or runs worse than the domain did; those
-  have their pre-migration brackets back (8 of the 32 collection fixtures
-  and 14 of the 27 recast, layout, objc, text and struct fixtures). Data
-  `where` facts now bound field reads and constructions, and 20 more
-  fixtures state field ranges that way. They still do not reach index
-  proofs (`runtime_nested_const_row_indexed_read_exit`,
-  `zii_default_composite_exit`), a write whose value is not a known literal
-  (`runtime_argmax_index_exit`, `runtime_dutch_flag_partition_exit`), a
-  call's `requires` (`runtime_mutable_call_before_transition_args_exit`),
-  recast offsets and fact equivalence (`recast/runtime_*_mutable_write_exit`),
-  or the entry's unit plan (`runtime_exact_guarded_shift_count_exit` and ten
-  more canaries report "rejoins 0 Terminal attachment identities").
-  Parameter and result ranges in
-  53 further pass fixtures now use `requires`/`ensures`. The rest keep
-  brackets. A `mut` parameter's bracket is enforced on every store, while
-  `requires` binds only the arrival value; converting one must re-prove
-  each read after a write (`rank_range_mutable_bounded_endpoint`). The
-  eighteen termination fixtures that Rust tests `include_str!` and patch
-  (`rank_ranges/field_relations.rs` and siblings) need those patches
-  rewritten with them. The relational state-edge judgment does not read a
-  named state's arrival `requires` (`rank_range_declared_step_copies`,
-  `rank_range_call_declared_step_copy`), and a machine `ensures` cannot
-  read a state's result (`ranked_callee_projected_receiver_compile`).
-  Build-time evaluation admits a callee's or later state's `requires` once
-  the program's preliminary checked lowering is clean, so the wire and
-  plan-laid `evaluate` policies state `fuel` that way. A policy body with
-  another unproved obligation keeps the fence:
-  `runtime_plan_laid_erased_field_exit` indexes by `self.index` across
-  states, and `wire_policy_plan_disagrees` drops `Wrapping` implicitly.
-  `runtime_const_measured_recursion_exit`'s `acc <= 5050` is not
-  inductive (`acc + n` at its recursive call), so it needs a relational
-  bound, not a rewrite.
-  The call-requirement prover binds
-  parameters but not an immutable local bounded only by its guard
-  (`runtime_dispatch_binary_call_argument_exit`), a guarded field read
-  (`runtime_guard_narrowed_transition_arg_exit`), a nested value call's
-  result (`nested_value_call_arg_compile`), a library payload range
-  (`runtime_console_bounded_line_exit`), or an anonymous rational
-  transition actual (`anonymous_rational_arguments`). Ensures arithmetic
-  formation ignores `requires` (`accumulator_guarantee_exit`). The
-  sample domains of `24d91ed906` and `7917a536d4` are withdrawn: those nine
-  fields have their bracketed spelling back, and the four index fields run
-  unbounded because Terminal infers their loop-header bounds. Their
-  `data Main where i >= -1, i <= 4` form is still refused by the cross-state
-  invariant-window check in `validation/src/proof_contracts/default_domains/
-  assignment_windows.rs`.
+  - Finish the library leg: `source/library/core/numeric_conversion.omg`
+    still publishes suffixed widening results; `std/console.omg` retains
+    the `ByteRead::Byte` payload and state-parameter suffixes;
+    `std/time.omg` retains subsecond fields/locals and constant constructions.
+    Transport cast/postcondition, active-payload and constant-construction
+    facts through the canonical clauses. Preserve the
+    `host/runtime_console_bounded_line_exit` input/output/exit behavior.
+    Migrate `core/layout.omg` fuel/index contracts, `std/calling.omg`
+    indexed-field obligations and target-entry `field_range` parameters;
+    prove computed `fuel - 1` / `index + 1` arguments and numerically
+    equivalent guards such as `< 255` versus `<= 254`.
+    Re-probe these migrations against current checking, not old failure totals.
 
-  `c1303f89d4` (macw9) ran the `source/library` leg: 49 suffixes migrated
-  under canonical forms only — 35 redundant narrow-conversion parameters
-  whose `requires` already carried the bound, 9 `Vec` index parameters to
-  `requires`, and 5 entry locals whose interval facts already flow from
-  suffixed inputs. No generated domains. Suffixes stay where the checker
-  cannot yet carry the equivalent fact: `widen_*` `ensures` cannot read
-  interval facts through `as` casts, const declarations cannot run
-  domain-membership proofs (`time.omg`), destructured-payload membership
-  does not discharge a callee's numeric `requires` (`console.omg`), call
-  arguments such as `fuel - 1`/`index + 1` do not fold into a callee
-  `requires` (`layout.omg` state parameters), indexed-path field writes
-  do not establish membership (`calling.omg`), and requires-admission is
-  textual where a `< 255` guard numerically implies `<= 254` (the five
-  `field_range` entry parameters).
-  `18500aa356` (macw9) closed the widest of those gaps on the checker side:
-  predicate-only `in D` membership is now established at ordinary statement
-  calls and dominating incoming guards when every instantiated predicate
-  is supported — `proven_predicates_grant_domain` in
-  `checks/contracts/calls.rs`, six probes, 5430/5430 crate tests, and a
-  19-case e2e matrix (10 accepts, 9 rejects). Aliases, indexed arguments,
-  routed domains, unsupported expressions and empty fact sets still
-  decline. Its unblocked customers are a re-migration leg, not part of
-  this landing.
+  - Retain build-time admission and genuine negative behavior. The
+    `layouts/runtime_plan_laid_erased_field_exit` customer still needs its
+    cross-state index proof. Migrate `fail/wire/wire_policy_plan_disagrees`
+    while preserving its actual plan/schema disagreement rejection; its
+    recorded diagnostic already reaches that mismatch.
+    `comptime/runtime_const_measured_recursion_exit` needs an inductive
+    relational accumulator bound: `acc <= 5050` alone does not justify
+    `acc + n` at the recursive call. Moving that bound into `requires`
+    cannot repair the contract.
 
-  Acceptance: bracketed integer and float range annotations reject in every type
-  position after migration. Equivalent data/case `where`, parameter `requires`,
-  result `ensures`, and local flow facts preserve construction, call, write,
-  join, return, and invalidation behavior. Migrate representative Squalr, library, sample,
-  corpus, generic-inference, build-time-evaluation, and bootstrap parser customers.
-  Reject invalid ranges, unproved arguments, stale facts, incompatible carriers,
-  and runtime ranges used as static layout values. Complete the migration-history
-  inventory with every entry restored, contract-corrected, or retained for an explicit independent
-  reason stated in the change. Acceptance review rejects endpoint-named or
-  interval-only domains regardless of passing compiler or runtime results.
-  Remove generic range-shell inference and require explicit binders,
-  equations, or intentionally named domains; flow narrowing never chooses type
-  or layout identity. Then delete the migration recipe.
+  Owners: Rust `type_syntax/parse_type.rs`, syntax/resolved/typed constraint
+  representations, generic matching, checked contract/default-domain facts
+  and their Terminal consumers. The suffix parser and
+  `TypeConstraintNode::Range` remain implemented. Coordinate explicit
+  binders/equations with **STRUCTURAL-GENERIC-MATCHING** /
+  **RUNTIME-VALUE-GENERICS**; flow narrowing must never select specialization
+  or layout identity. Runtime endpoints stay runtime and grant no const value,
+  fixed extent or implicit maximum-sized allocation.
+
+  Acceptance: migrate spec/guide/compiler documentation, bundled libraries,
+  samples, product/compiler source (including `source/psi`), corpus and the
+  Epsilon-written Omega parser `bootstrap/5_omega/parser.epsilon` with its
+  `tests/bootstrap/omega-parser` fixtures. Preserve integer/float construction,
+  call, write, join, return and invalidation behavior through checked source,
+  retained Terminal and source-free replay, plus each customer's native oracle.
+  Use `tools/corpus_gate.py --filter` and its `--native` leg; the ordinary
+  gate may realize rooted fixtures but does not execute them. An explicit
+  matching-host run is required for a runtime claim. Reject invalid bounds,
+  unproved arguments, stale facts, incompatible carriers and runtime bounds
+  used as static layout values. After the inventory is accounted for, delete
+  suffix parsing, Range type representations, range-shell inference and
+  suffix-recommending diagnostics; require suffix rejection in every type
+  position, preserve the unrelated range constructs, and delete the recipe.
 
 - **SQUALR-HEADLESS.** Drive the independently versioned
   [Squalr application](samples/apps/README.md) through nested package builds and
