@@ -53,6 +53,33 @@ Exclusive cross-activation transfer requires ownership and carry/runtime
 compatibility. Shared references additionally require a sanctioned shared-access
 contract. Copyability only authorizes duplication; it is not shareability.
 
+## Borrows across suspension
+
+Ordinary shared, mutable and write-only loans may survive a suspending call when
+their existing lifetime, access and carry obligations are established. This
+includes service borrows and loans carried through fields, reborrows and nested
+calls. Neither a reference type nor a boundary-trait identity is by itself a
+reason to admit or reject the crossing; no new async-borrow carrier or mandatory
+`Binding<T>` wrapper is introduced.
+
+The crossing retains exact referent/provenance and parent-loan relationships,
+backing lifetime, outstanding access restrictions and live resource demands.
+Exclusive access remains exclusive while parked; suspension cannot restore the
+parent early, expire an owner or license incompatible reentry. The selected
+runtime must satisfy address, CPU and thread preservation where required.
+Cancellation and replacement cannot silently drop these obligations; their
+outcome paths must preserve or legally discharge them. Existing
+[invariant-window fences](../language/ownership.md#borrowed-storage-invariant-windows)
+also remain in force.
+
+Derive these obligations from canonical liveness and existing loan/claim evidence,
+not a separate service-name rule or an author-supplied assertion that all borrows
+are safe. Report the exact missing lifetime, access, carry or runtime-preservation
+obligation. A valid retained loan must not reject merely because it is borrowed;
+a suspension-forbidden live resource still rejects. Preservation establishes
+safety, not deadlock freedom or eventual resumption. Terminal arm calls use this
+same check rather than an empty frontier inferred from tail position.
+
 ## Runtime admission
 
 Each lowered activation has a fixed nonmoving stack provisioned from

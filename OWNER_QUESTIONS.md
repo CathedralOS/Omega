@@ -6,12 +6,11 @@ and deliberately deferred research live in `TASKS.md`. Questions are numbered
 consecutively; pruning or adding one requires updating every repository
 reference in the same change.
 
-Four owner-level decisions remain. Only the affected behavior below awaits a
+Three owner-level decisions remain. Only the affected behavior below awaits a
 ruling; other work on the same task may proceed under existing contracts.
 
 | Named decision | Affected work |
 | --- | --- |
-| `borrowed-service-suspension-carrier` | Suspension/transfer semantics in RC-BUILD-AND-PACKAGES; refresh the witness first |
 | `linear-carrier-vacuous-qualification` | Qualification/custody boundary for BUMP-ALLOCATOR-CANARY and placed access |
 | `mixed-integer-comparison` | Mixed typed-integer guards in the five text samples named below |
 | `assumed-binding-refutable-claim` | Whether ASSUMED-BINDING-CONTRACTS may override a checker-refutable semantic claim |
@@ -75,55 +74,7 @@ Proposed solutions below are recommendations, not owner rulings. Remove an
 entry when the contract answers it; retain any unfinished implementation on
 its owning task.
 
-### Q1 - How does a state machine holding service borrows perform a suspending operation?
-
-Named decision: `borrowed-service-suspension-carrier`.
-
-**Context:** [Effects](wiki/spec/language/effects.md#call-site-acknowledgements)
-permits a suspending call only as a complete statement, simple `let` right-hand
-side, transition subject, or terminal expression, and states that carry policy
-may reject a crossing with particular live values. The transition ARM TARGET is
-not among the permitted positions, and the transition grammar in
-`01_tokens-to-syntax-trees/src/bodies/transitions/` has no place to spell a
-`suspend`/`block` acknowledgement on a named transfer.
-
-**Problem:** A previously reported fixture had parameters `clock: &mut Clock`
-and `storage: &mut Storage` with a published `suspends; blocks;` contract and
-could not reach a suspending operation by either route. As a transition arm target
-the call is rejected with "acknowledges neither suspension nor blocking" and the
-grammar cannot express the marker. As a terminal expression it is rejected with
-"call to `entry` may suspend while `clock` remains live, but its effective policy
-is `carry(suspension: forbidden, ...)`; consume the value before the call or use
-a suspension-safe carrier". The cited `compiler::service_operational_contracts`
-module and shared CONTRACT_PROGRAM are absent from the current tracked tree.
-RC-BUILD-AND-PACKAGES must recover a source-level witness before relying on
-those diagnostics as a current blocker.
-
-[Carry](wiki/spec/resources/carry.md) already separates permission to suspend
-from preservation of a live value, including loan provenance and runtime
-preservation. A machine's suspension ceiling grants no suspension-safe loan.
-Audit the witness against that existing mechanism first; missing carry evidence
-is implementation or caller-contract work, not automatically a new carrier.
-
-**Proposed solution:** Use existing carry and loan evidence for borrowed service
-bindings; do not grant suspension safety merely from a boundary-trait type or
-callee envelope. Decide the acknowledgement rule for a named transition transfer
-if the recovered witness confirms the grammar/contract gap. Escalate a new carrier
-only if ordinary carry and preservation contracts cannot express the requirement.
-
-**Alternatives:**
-- Admit a named transition transfer as a fifth acknowledgement position and give
-  the grammar the marker. A tail transfer does not resume the transferring
-  activation, so there may be nothing for it to acknowledge; that reading would
-  instead exempt transfers from the check rather than extend the syntax.
-- Rule that services reach a suspending body only as `Binding<Service>` fields
-  rather than `&mut` parameters, and restate the synchronous-invocation
-  (`invokes`) axis for that shape.
-- Tempting but wrong: relax the carry policy for boundary-trait borrows without
-  saying what keeps a live borrow sound across a park. The rejection is the only
-  thing currently preventing a borrow from crossing a suspension.
-
-### Q2 - Does a vacuous qualification on a linear carrier need establishment?
+### Q1 - Does a vacuous qualification on a linear carrier need establishment?
 
 Named decision: `linear-carrier-vacuous-qualification`.
 
@@ -182,7 +133,7 @@ declare. `Extent` would be marked; `Region` would not.
   legality of one module's `as` depend on an unrelated declaration in another,
   which no other qualification rule does.
 
-### Q3 - How does a comparison order two integer operands of different types?
+### Q2 - How does a comparison order two integer operands of different types?
 
 Named decision: `mixed-integer-comparison`.
 
@@ -217,7 +168,7 @@ its unsigned promotion.
 - Adopt the interpreter's promotion to unsigned. This is C's rule and silently
   answers wrongly for negative operands.
 
-### Q4 - May an assumed runtime binding override a checker-refutable claim?
+### Q3 - May an assumed runtime binding override a checker-refutable claim?
 
 Named decision: `assumed-binding-refutable-claim`.
 

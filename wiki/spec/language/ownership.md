@@ -135,6 +135,14 @@ formation proofs, lifetimes, closure order, and restored-use evidence.
 [Source lifetimes](lifetimes.md) specify explicit binders, result elision, and
 structural carried-loan transport through values and state transitions.
 
+Suspension does not end a loan, restore its parent's access or transfer ownership
+of its referent. Borrowed arguments and other retained loans remain valid for the
+whole incomplete call, including parked intervals, under
+[carry and runtime preservation](../resources/carry.md#borrows-across-suspension).
+Return, cancellation and replacement may release them only through their ordinary
+checked closure/disposition paths. A final call in a transition arm supplies no
+exception and does not allow reclaiming backing still needed by its callee.
+
 ## Borrowed-storage invariant windows
 
 An owned move out of a place reached through `&mut` may temporarily leave that

@@ -244,6 +244,20 @@ normal completion then establishes the result and reaches its continuation.
 Budget suspension likewise preserves the completed prefix without repeating a
 paid invocation or transfer.
 
+A [terminal machine call selected by a source transition arm](../language/state_contracts.md#terminal-calls-in-transition-arms)
+has the same call lifecycle. Its normal completion forwards the result through
+the enclosing machine's ordinary completion obligations; Unit has no invented
+result. A parked final call cannot commit that completion early. Internal state
+jumps remain CFG transfers, not suspending call operations or implicit task starts.
+Tail-call realization cannot erase live loan backing or cleanup duties.
+
+Retained loans include caller-originating and aggregate-carried loans needed by
+the incomplete callee, even when there is no later source use in the caller.
+Preserve exact parent lineage, access restrictions and backing through the
+crossing under [borrow carry](../resources/carry.md#borrows-across-suspension).
+Verifier reconstruction must reject missing loan/claim preservation, not rely
+on terminal source position or a producer's generic safe-to-suspend flag.
+
 A suspension site binds the exact call, checked crossing, callee, and commitment
 to the complete ordered live frontier. Its plan retains each value/place,
 type, storage role, exact live claims, and carry requirements for suspension,

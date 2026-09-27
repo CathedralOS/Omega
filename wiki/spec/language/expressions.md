@@ -45,9 +45,10 @@ and cleanup under the permitted observation contract.
 
 ## Calls, places, and temporaries
 
-A call enters another machine; a transition transfers within the current
-machine. A path-qualified call uses a static namespace, not an implicit value
-receiver. Calls obey the exact [suspension/blocking acknowledgement and position
+A call invokes a machine; an internal state jump transfers within the current
+machine. Transition dispatch may also select a final call whose result completes
+the enclosing machine. A path-qualified call uses a static namespace, not an
+implicit value receiver. Calls obey the exact [suspension/blocking acknowledgement and position
 rules](effects.md#call-site-acknowledgements).
 
 Machine invocations require their full ordinary argument list. Application of
@@ -70,8 +71,10 @@ Assignment requires writable storage, compatible value type, and the applicable
 [invariant-window obligations](dependent_values.md#invariant-windows). It
 evaluates the right-hand side before invalidating and replacing destination
 facts. A block introduces local scope and cleanup edges, not a new machine or
-state. A terminal value completes the invocation; a call-shaped transition
-target is instead an internal transfer.
+state. A terminal value completes the invocation. A call-shaped arm resolving
+to a local state is an internal transfer; one resolving to a machine is a
+[terminal call](state_contracts.md#terminal-calls-in-transition-arms), with
+ordinary call, suspension and completion obligations.
 
 Temporary storage must outlive every derived borrow and receive cleanup on
 every cleanup-bearing exit. Shared lending may be implicit at a shared-reference

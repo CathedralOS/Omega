@@ -236,9 +236,18 @@ worker. Carry policy may reject a crossing with particular live values but
 cannot rewrite the callee's envelope.
 
 A suspending call may occur only as a complete statement, simple `let`
-right-hand side, transition subject, or terminal expression. It cannot nest
-inside an argument, operator, aggregate construction, or condition. A
-blocking-only call may nest because it creates no continuation boundary.
+right-hand side, transition subject, or terminal expression, including a
+[terminal machine call in a transition arm](state_contracts.md#terminal-calls-in-transition-arms).
+Such an arm uses the exact call markers; an internal state jump takes none.
+A suspending call cannot nest inside an argument, operator, aggregate
+construction, or condition. A blocking-only call may nest because it creates
+no continuation boundary.
+
+Borrowed arguments and other live loans may cross suspension under ordinary
+[loan and carry preservation](../resources/carry.md#borrows-across-suspension).
+Neither a `suspends` ceiling nor an acknowledgement supplies that evidence.
+Borrowed/service-related types are not categorically forbidden, and boundary
+identity does not exempt them from preservation checks.
 
 Authored generated code and adapters obey these rules. Compiler-synthesized
 adapters retain diagnostic/audit acknowledgement metadata without invented

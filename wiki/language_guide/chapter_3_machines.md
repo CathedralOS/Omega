@@ -280,8 +280,8 @@ closed alternatives.
 
 ## Calls
 
-Ordinary call syntax enters another machine contract. Its realization may need a
-call frame; a transition stays within the current activation.
+Ordinary call syntax invokes a machine contract in the current activation. Its
+realization may need a call frame; a jump to a local state adds none.
 
 ```omega
 let command: Command = self.parser.resolve(&self.line);
@@ -289,9 +289,9 @@ let guard: Guard = block mutex.lock();
 let event: Event = suspend inbox.take();
 ```
 
-Calls and transitions are different. A call enters another machine. A transition
-jumps to a state inside the current machine. Chapter 4 introduces states and
-transitions directly. `suspend` and `block` acknowledge possible waiting at a
+Calls and state jumps are different. A transition arm may jump to a local state,
+return a value, or invoke a machine and forward its eventual result. Chapter 4
+introduces these arm forms. `suspend` and `block` acknowledge possible waiting at a
 direct call; they do not create another machine species or change the result
 type. Chapter 5 defines their call-position rules, and chapter 18 explains the
 concurrency consequences.
