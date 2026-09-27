@@ -11,8 +11,8 @@
 //! and realizes its program-entry Terminal artifact, and
 //! `realize_retained_native_artifact` (`retained_native_product`) re-enters a
 //! retained Terminal product with source-evaluated imports. Both run the same
-//! staged route, `stage_optimized_verified_physical_pipeline_with_provider_executions`
-//! (`native_pipeline`).
+//! staged route, `stage_optimized_verified_physical_pipeline` (`native_pipeline`),
+//! after target lowering in `native_realization`.
 
 mod native_pipeline;
 mod native_product;
