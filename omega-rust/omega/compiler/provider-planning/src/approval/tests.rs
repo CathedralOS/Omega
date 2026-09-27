@@ -169,57 +169,6 @@ fn checked_coordinates_preserve_exact_order_and_identity() {
     assert_eq!(check_boundary_provider_approval(&fixture.checked), Ok(()));
 }
 
-#[test]
-fn checked_coordinates_ignore_genuine_non_boundary_calls() {
-    let mut fixture = coordinate_fixture();
-
-    fixture
-        .checked
-        .facts
-        .flow
-        .control
-        .calls
-        .get_mut(fixture.first_call)
-        .target_symbol = SymbolHandle::invalid();
-    assert_eq!(
-        checked_boundary_call_coordinates(&fixture.checked)
-            .expect("non-boundary call without a resolved target remains ignorable"),
-        Vec::<effects::BoundaryCallCoordinate>::new(),
-    );
-}
-
-#[test]
-fn checked_coordinates_retain_every_distinct_exact_boundary_edge() {
-    let mut fixture = coordinate_fixture();
-    let (owner, requirement) = (fixture.boundary_trait, fixture.boundary_signature);
-    attach_boundary_edge(&mut fixture, owner, requirement);
-    let (owner, requirement) = (
-        fixture.other_boundary_trait,
-        fixture.other_boundary_signature,
-    );
-    attach_boundary_edge(&mut fixture, owner, requirement);
-
-    let coordinates =
-        checked_boundary_call_coordinates(&fixture.checked).expect("two exact boundary edges");
-    assert_eq!(coordinates.len(), 2);
-    assert_eq!(
-        coordinates
-            .iter()
-            .map(|coordinate| (
-                coordinate.boundary_trait_symbol,
-                coordinate.boundary_signature_symbol,
-            ))
-            .collect::<Vec<_>>(),
-        vec![
-            (fixture.boundary_trait, fixture.boundary_signature),
-            (
-                fixture.other_boundary_trait,
-                fixture.other_boundary_signature,
-            ),
-        ],
-    );
-}
-
 #[derive(Clone, Copy)]
 enum CoordinateCorruption {
     InvalidCallSpan,

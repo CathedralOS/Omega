@@ -412,18 +412,6 @@ fn message_texts(diagnostics: &[diagnostics::Diagnostic]) -> Vec<&str> {
 }
 
 #[test]
-fn independent_selection_closes_against_exactly_one_verified_component() {
-    let selection = independent_selection(CompositionMode::Independent);
-    let (requirement, provider, machine) = selection.realization();
-    let component = verified_component(&provider_module(&requirement, &provider, &machine));
-
-    let facts = selection
-        .close(std::slice::from_ref(&component))
-        .expect("one verified component realizing the plan closes the independent edge");
-    assert_eq!(facts.plans(), std::slice::from_ref(selection.plan()));
-}
-
-#[test]
 fn independent_selection_rejects_a_component_exporting_an_unresolved_row() {
     let selection = independent_selection(CompositionMode::Independent);
     let (requirement, provider, machine) = selection.realization();

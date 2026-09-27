@@ -88,7 +88,6 @@ struct ActivationRequirementFixture {
     program: CheckedTrees,
     selection: TaskStartSelection,
     other_owner: symbols::SymbolHandle,
-    other_requirement: symbols::SymbolHandle,
     private_owner: symbols::SymbolHandle,
     private_requirement: symbols::SymbolHandle,
 }
@@ -171,7 +170,6 @@ fn activation_requirement_fixture(duplicate_requirement: bool) -> ActivationRequ
             operation: TaskStartOperation::Start,
         },
         other_owner,
-        other_requirement,
         private_owner,
         private_requirement,
     }

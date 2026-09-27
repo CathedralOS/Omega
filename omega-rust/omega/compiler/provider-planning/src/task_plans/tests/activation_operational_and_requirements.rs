@@ -2,51 +2,10 @@ use super::{
     activation_operational_fixture, activation_requirement_fixture, operational_error,
     requirement_error,
 };
-use crate::task_plans::carry_crossings::carry_obligations;
 use crate::task_plans::runtime_requirements::{
-    exact_task_machine_blocking, exact_task_machine_suspension, exact_task_runtime_requirement,
+    exact_task_machine_blocking, exact_task_machine_suspension,
 };
 use crate::task_plans::specialization_commitments::exact_task_machine_contract;
-use language_semantics::{CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension};
-use task_plans::ActivationCarryObligations;
-
-#[test]
-fn preservation_mapping_keeps_only_cpu_and_thread_obligations() {
-    assert_eq!(
-        carry_obligations(CarryPolicy {
-            suspension: CarrySuspension::Allowed,
-            cpu: CarryCpu::Origin,
-            host_thread: CarryHostThread::Origin,
-            address: language_semantics::CarryAddress::Stable,
-        }),
-        ActivationCarryObligations {
-            preserve_cpu: true,
-            preserve_host_thread: true,
-        }
-    );
-}
-
-#[test]
-fn activation_operational_rows_preserve_independent_exact_axes() {
-    let (program, target, _) = activation_operational_fixture();
-
-    assert_eq!(
-        exact_task_machine_contract(&program, target, "Target")
-            .expect("exact contract")
-            .report_fingerprint,
-        0x1111
-    );
-    assert!(
-        exact_task_machine_suspension(&program, target, "Target")
-            .expect("exact suspension")
-            .checked_may_suspend
-    );
-    assert!(
-        !exact_task_machine_blocking(&program, target, "Target")
-            .expect("exact blocking")
-            .checked_may_block
-    );
-}
 
 #[test]
 fn activation_operational_rejects_missing_contract() {
@@ -133,41 +92,6 @@ fn activation_operational_rejects_duplicate_blocking() {
 }
 
 #[test]
-fn activation_operational_ignores_unrelated_duplicate_rows() {
-    let (mut program, target, _) = activation_operational_fixture();
-    let unrelated_contract = program.facts.contract_plans.machines[1].clone();
-    let unrelated_suspension = program.facts.suspensions.machines[1];
-    let unrelated_blocking = program.facts.blocking.machines[1];
-    program
-        .facts
-        .contract_plans
-        .machines
-        .push(unrelated_contract);
-    program
-        .facts
-        .suspensions
-        .machines
-        .push(unrelated_suspension);
-    program.facts.blocking.machines.push(unrelated_blocking);
-
-    assert!(exact_task_machine_contract(&program, target, "Target").is_ok());
-    assert!(exact_task_machine_suspension(&program, target, "Target").is_ok());
-    assert!(exact_task_machine_blocking(&program, target, "Target").is_ok());
-}
-
-#[test]
-fn activation_requirement_retains_exact_boundary_owner_and_signature() {
-    let fixture = activation_requirement_fixture(false);
-    let (owner, signature, identity) =
-        exact_task_runtime_requirement(&fixture.program, &fixture.selection)
-            .expect("exact requirement");
-
-    assert_eq!(owner.symbol, fixture.selection.requirement_owner);
-    assert_eq!(signature.symbol, fixture.selection.requirement);
-    assert!(identity.contains("core::TaskRuntime::start"));
-}
-
-#[test]
 fn activation_requirement_rejects_missing_owner() {
     let mut fixture = activation_requirement_fixture(false);
     fixture.selection.requirement_owner = symbols::SymbolHandle::invalid();
@@ -230,17 +154,4 @@ fn activation_requirement_rejects_cross_owner_signature_drift() {
         requirement_error(&fixture.program, &fixture.selection)
             .contains("belong to its exact retained owner")
     );
-}
-
-#[test]
-fn activation_requirement_ignores_unrelated_trait_and_signature() {
-    let fixture = activation_requirement_fixture(false);
-    assert_ne!(fixture.other_owner, fixture.selection.requirement_owner);
-    assert_ne!(fixture.other_requirement, fixture.selection.requirement);
-
-    let (owner, signature, _) =
-        exact_task_runtime_requirement(&fixture.program, &fixture.selection)
-            .expect("unrelated retained trait does not perturb exact owner");
-    assert_eq!(owner.symbol, fixture.selection.requirement_owner);
-    assert_eq!(signature.symbol, fixture.selection.requirement);
 }

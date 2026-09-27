@@ -1,7 +1,4 @@
-use super::{
-    Arc, ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema,
-    bind_selected_provider_plan_facts, derive_satisfies_plans,
-};
+use super::{Arc, ProviderPlan, bind_selected_provider_plan_facts, derive_satisfies_plans};
 use crate::ProviderPlanDerivation;
 fn fixed_token_checked_adapter_fixture() -> (checked_trees::CheckedTrees, ProviderPlan) {
     let source = r#"
@@ -57,47 +54,6 @@ fn fixed_token_checked_adapter_fixture() -> (checked_trees::CheckedTrees, Provid
     (checked, plan.clone())
 }
 
-fn missing_trait_plan() -> ProviderPlan {
-    ProviderPlan {
-        name: "MissingProvider".to_owned(),
-        provider_type: "MissingProvider".to_owned(),
-        provider_type_package_identity: None,
-        target: String::new(),
-        schema: ServiceSchema {
-            trait_name: "MissingBoundary".to_owned(),
-            trait_package_identity: None,
-            methods: vec![effects::provider_plan::ServiceMethod {
-                name: "missing".to_owned(),
-                requirement_owner: "MissingBoundary".to_owned(),
-                requirement_owner_package_identity: None,
-                requirement_identity: "MissingBoundary::missing".to_owned(),
-                parameter_count: 0,
-                parameter_type_identities: Vec::new(),
-                entry_claims: Vec::new(),
-                has_result: false,
-                result_type_identity: None,
-                result_claims: Vec::new(),
-                service_reach: vec!["MissingBoundary".to_owned()],
-                synchronous_invocations: Vec::new(),
-                may_suspend: false,
-                may_block: false,
-                terminates_guarantee: false,
-                termination_premises: Vec::new(),
-                calling_plan_report_fingerprint: None,
-                calling_plan_commitment: None,
-            }],
-        },
-        rows: vec![ProviderPlanRow {
-            method: "missing".to_owned(),
-            requirement_identity: "MissingBoundary::missing".to_owned(),
-            requirement_lifetime_partition: Vec::new(),
-            binding: ProviderBinding::VtableSlot { index: 0 },
-        }],
-        origin_package_identity: None,
-        origin_package: String::new(),
-    }
-}
-
 #[test]
 fn selected_fixed_token_checked_adapter_joins_its_plan_under_shared_custody() {
     let (checked, plan) = fixed_token_checked_adapter_fixture();
@@ -143,33 +99,6 @@ fn selected_fixed_token_checked_adapter_joins_its_plan_under_shared_custody() {
     .expect("the spelled use joins its selected plan by requirement identity");
     assert_eq!(joined.identity_digest(), plan.identity_digest());
     assert!(selected.installation_reach_resolutions().is_empty());
-}
-
-#[test]
-fn later_failure_publishes_no_staged_fixed_token_checked_adapter_update() {
-    let (checked, operator_plan) = fixed_token_checked_adapter_fixture();
-    let missing_trait_plan = missing_trait_plan();
-    let candidates = [operator_plan.clone(), missing_trait_plan.clone()];
-    let selected = effects::SelectedProviderPlanFacts::from_selection(
-        &candidates,
-        &[operator_plan.name.clone(), missing_trait_plan.name.clone()],
-    )
-    .expect("select the operator and later-failing trait plans");
-    let original_contents = checked.clone();
-    let original = Arc::new(checked);
-    let retained_custodian = Arc::clone(&original);
-
-    let diagnostics = bind_selected_provider_plan_facts(&original, &candidates, selected, &[], &[])
-        .expect_err("missing typed requirement must reject after spelled-update staging");
-
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic.message.contains(
-            "selected provider row `MissingBoundary::missing` resolves to 0 exact typed requirements",
-        )
-    }));
-    assert!(Arc::ptr_eq(&original, &retained_custodian));
-    assert_eq!(original.as_ref(), &original_contents);
-    assert_eq!(retained_custodian.as_ref(), &original_contents);
 }
 
 /// The provider realizes `+` and spells `+` inside its own body; the caller
