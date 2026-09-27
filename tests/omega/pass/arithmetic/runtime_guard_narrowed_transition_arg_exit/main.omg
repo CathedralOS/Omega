@@ -6,13 +6,22 @@
 // count starts 0, bumps to 1 through the param. Exit 70. Differential.
 use omega_language_std::console;
 use omega::language::core::binding;
-data Main { console: Binding<Console>; count: i32 [0..=100]; }
+data Main
+where
+    0 <= count,
+    count <= 100,
+{
+    console: Binding<Console>;
+    count: i32;
+}
 machine Main::main(&mut self) reaches Console {
     transition self.count < 100 {
         true -> bump(self.count + 1)
         _ -> sat()
     }
-    state bump(&mut self, next: i32 [0..=100]) {
+    state bump(&mut self, next: i32)
+        requires 0 <= next && next <= 100
+    {
         self.count = next;
         transition { _ -> check() }
     }
