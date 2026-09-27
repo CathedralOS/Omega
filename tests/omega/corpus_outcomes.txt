@@ -216,6 +216,8 @@ fail/calls/plain_let_reassign_rejected rejected 1245ms expected
 	machine `Main::main` state `main` assignment cannot write `x` because it is not mutable in this state (if `x` is undeclared -- a typo -- no such field or local exists)
 fail/calls/qualified_nontail_self_call_rejected rejected 64ms expected
 	`self.walk(..)` here is NON-TAIL self-recursion: the result feeds the surrounding computation, so the frame must survive the call. Runtime recursion is TAIL-ONLY (measured recursion amendment) -- recursion depth lives in explicit storage you size. Restructure so the recursive step is the transition arm `-> self.walk(..)` on a measured machine, or iterate with an explicit stack.
+fail/calls/statement_call_undeclared_callee_rejected rejected 293ms expected
+	call `no_such_leg` selects no declaration: `no_such_leg` is not a declared machine, data, or proof definition
 fail/calls/terminal_return_type_mismatch_rejected rejected 1098ms expected
 	machine `Main::main` state `main` stores a boolean into a `i32` return value, which holds a numeric value
 	store in machine `Main::main` state `main` terminal expression implicitly converts `bool` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)

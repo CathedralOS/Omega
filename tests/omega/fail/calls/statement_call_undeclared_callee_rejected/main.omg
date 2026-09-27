@@ -1,0 +1,18 @@
+// FAIL canary (FILTERED-CALLEE-CALL-SITES): a statement call whose callee has
+// no declaration in the selected program -- here `no_such_leg` is simply a
+// typo-shaped name no machine or data declaration carries -- records no
+// checked call row, so the statement used to compile as if absent. The only
+// surviving evidence is the call row's authored selection; the diagnostic
+// must name the callee rather than the selection's occurrence ordinal. The
+// foreign-target-filtered twin (a callee that exists but only under a
+// non-selected target) is pinned by
+// fail/targets/single_target_internal_caller_rejected.
+data Helper { seed: i32; }
+
+data Main { helper: Helper; }
+
+machine Main::main(&mut self) {
+    self.helper.no_such_leg();
+    transition true { _ -> done() }
+    state done(&mut self) { }
+}

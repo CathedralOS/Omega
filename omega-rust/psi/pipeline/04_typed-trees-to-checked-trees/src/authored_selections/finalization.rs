@@ -585,14 +585,20 @@ pub(crate) fn finalization_diagnostic(
 
 /// Names the receiverless authored call target that stayed late-bound because
 /// no declaration carries the name — the `Bag(items)` proof-view shape, where
-/// every declared-target resolution correctly found no candidate. Receiver
-/// calls, qualified paths, and already-bound targets keep the generic
-/// unresolved-selection diagnostic so selection ambiguity retains its ledger
-/// identity.
+/// every declared-target resolution correctly found no candidate. Statement
+/// calls resolve through the same rule with their own selection row: a call
+/// whose callee was filtered out of the selected program (e.g. a
+/// foreign-target method) records no call fact, so only the call row's own
+/// selection occurrence still names it. Receiver calls, qualified paths, and
+/// already-bound targets keep the generic unresolved-selection diagnostic so
+/// selection ambiguity retains its ledger identity.
 fn undeclared_checked_call_callee(
     program: &TypedTrees,
     selection: AuthoredDeclarationSelection,
 ) -> Option<String> {
+    if let Some(name) = undeclared_statement_call_callee(program, selection) {
+        return Some(name);
+    }
     let expressions = &program.tables.expression_table;
     expressions
         .iter_expressions()
@@ -632,4 +638,67 @@ fn undeclared_checked_call_callee(
                 .is_none()
                 .then(|| name.to_string())
         })
+}
+
+/// The statement-call twin of `undeclared_checked_call_callee`. A statement
+/// call (`legs.acquire();`) carries its authored selection on the call row
+/// rather than the expression table, and when the callee's declaration was
+/// filtered out of the selected program the checked call facts record no row
+/// — the statement would otherwise compile as if absent. The callee name is
+/// `target`, so receiver calls are named here where the expression path
+/// skips them. The name counts as declared only when the selected program
+/// carries it somewhere — a top-level declaration, a machine, or any
+/// machine's state — so a surviving same-named method still suppresses the
+/// diagnostic and selection ambiguity keeps the generic ledger identity.
+fn undeclared_statement_call_callee(
+    program: &TypedTrees,
+    selection: AuthoredDeclarationSelection,
+) -> Option<String> {
+    let call = program.machines().iter().find_map(|machine| {
+        program.machine_states(machine).iter().find_map(|state| {
+            program
+                .statement_table
+                .iter_statements(state.statement_nodes)
+                .find_map(|(_, statement)| match statement {
+                    typed_trees::statement::StatementNode::Call(call)
+                        if call.authored_call_selection == Some(selection.occurrence_id()) =>
+                    {
+                        Some(call)
+                    }
+                    _ => None,
+                })
+        })
+    })?;
+    if call.target_symbol.is_valid() {
+        return None;
+    }
+    let name = call.target.as_str();
+    if name.contains("::") {
+        return None;
+    }
+    let declared = program
+        .symbols
+        .find_top_level_declaration_or_operator_family_from_source(
+            name,
+            &[
+                SymbolKind::Machine,
+                SymbolKind::Data,
+                SymbolKind::MathematicalDefinition,
+                SymbolKind::Proposition,
+                SymbolKind::BuiltinFunction,
+                SymbolKind::Operator,
+                SymbolKind::Measure,
+                SymbolKind::Domain,
+            ],
+            selection.source_span(),
+        )
+        .is_some()
+        || program.machines().iter().any(|machine| {
+            machine.name.as_str() == name
+                || program
+                    .machine_states(machine)
+                    .iter()
+                    .any(|state| state.name.as_str() == name)
+        });
+    (!declared).then(|| name.to_string())
 }
