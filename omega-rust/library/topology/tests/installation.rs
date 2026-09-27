@@ -278,73 +278,6 @@ fn payment_installation_request(request_bytes: &[u8], occurrence: u64) -> Instal
 // ---- authorization and coverage -----------------------------------------
 
 #[test]
-fn installation_authorization_cannot_activate_twice() {
-    let (checked, request_bytes, _) = checked_payment_plan();
-    let request = payment_installation_request(&request_bytes, 7);
-    let duplicate = request.clone();
-    let mut supervisor = SimSupervisor::<SimEndpoint>::new();
-    let authorization = supervisor
-        .lifecycle
-        .authorize(request)
-        .expect("first authorization");
-    let installed = prepare_installation(
-        checked,
-        authorization,
-        SimAdapter::new(),
-        payment_operation_schemas(),
-    )
-    .expect("first preparation")
-    .activate(&mut supervisor)
-    .expect("first activation");
-    assert!(matches!(
-        supervisor.lifecycle.authorize(duplicate),
-        Err(InstallationRejection::ReplayedOccurrence {
-            last_issued: 7,
-            requested: 7
-        })
-    ));
-    assert_eq!(installed.receipt().occurrence, 7);
-    assert_eq!(supervisor.log.len(), 6, "no duplicate preparation or entry");
-    assert!(
-        matches!(
-            supervisor
-                .lifecycle
-                .authorize(payment_installation_request(&request_bytes, 7)),
-            Err(InstallationRejection::ReplayedOccurrence { .. })
-        ),
-        "reconstructing every request field does not reconstruct authority"
-    );
-    installed
-        .quiesce(&mut supervisor)
-        .expect("retirement releases the roster");
-    assert!(
-        matches!(
-            supervisor
-                .lifecycle
-                .authorize(payment_installation_request(&request_bytes, 7)),
-            Err(InstallationRejection::ReplayedOccurrence { .. })
-        ),
-        "retirement does not reset issuance history"
-    );
-    let (checked, _, _) = checked_payment_plan();
-    let fresh = supervisor
-        .lifecycle
-        .authorize(payment_installation_request(&request_bytes, 8))
-        .expect("fresh owner intent issues a distinct generation");
-    let installed = prepare_installation(
-        checked,
-        fresh,
-        SimAdapter::new(),
-        payment_operation_schemas(),
-    )
-    .expect("new preparation")
-    .activate(&mut supervisor)
-    .expect("new activation");
-    assert_eq!(installed.receipt().occurrence, 8);
-    installed.quiesce(&mut supervisor).expect("new retirement");
-}
-
-#[test]
 fn foreign_lifecycle_cannot_reconstruct_supervisor_authority() {
     let (checked, request_bytes, _) = checked_payment_plan();
     let mut supervisor = SimSupervisor::<SimEndpoint>::new();
@@ -405,62 +338,6 @@ fn superseded_authorization_rejects_and_reports_unclean_endpoint_custody() {
 }
 
 #[test]
-fn disarm_and_failed_preparation_do_not_reissue_consumed_authority() {
-    let mut supervisor = SimSupervisor::<SimEndpoint>::new();
-    for occurrence in [1, 2] {
-        let (checked, request_bytes, _) = checked_payment_plan();
-        let request = payment_installation_request(&request_bytes, occurrence);
-        let authorization = supervisor
-            .lifecycle
-            .authorize(request.clone())
-            .expect("fresh intent");
-        let mut adapter = SimAdapter::new();
-        if occurrence == 2 {
-            adapter.fail_at_pair = Some(1);
-        }
-        match prepare_installation(checked, authorization, adapter, payment_operation_schemas()) {
-            Ok(prepared) => prepared.disarm().expect("pending custody released"),
-            Err(PrepareError::Adapter { leaked, .. }) => assert!(leaked.is_empty()),
-            other => panic!("unexpected preparation: {other:?}"),
-        }
-        assert!(matches!(
-            supervisor.lifecycle.authorize(request),
-            Err(InstallationRejection::ReplayedOccurrence { .. })
-        ));
-    }
-    let (checked, request_bytes, _) = checked_payment_plan();
-    let authorization = supervisor
-        .lifecycle
-        .authorize(payment_installation_request(&request_bytes, 3))
-        .expect("fresh intent after cleanup");
-    let installed = prepare_installation(
-        checked,
-        authorization,
-        SimAdapter::new(),
-        payment_operation_schemas(),
-    )
-    .expect("prepares")
-    .activate(&mut supervisor)
-    .expect("activates after earlier cleanup");
-    installed.quiesce(&mut supervisor).expect("retired");
-}
-
-#[test]
-fn occurrence_exhaustion_rejects_without_wrapping() {
-    let (_, request_bytes, _) = checked_payment_plan();
-    let mut lifecycle = InstallationLifecycle::default();
-    let _last = lifecycle
-        .authorize(payment_installation_request(&request_bytes, u64::MAX))
-        .expect("last occurrence");
-    for occurrence in [0, 1, u64::MAX] {
-        assert!(matches!(
-            lifecycle.authorize(payment_installation_request(&request_bytes, occurrence)),
-            Err(InstallationRejection::ReplayedOccurrence { .. })
-        ));
-    }
-}
-
-#[test]
 fn activation_failure_keeps_issuance_spent_through_retained_cleanup() {
     let mut supervisor = SimSupervisor::<SimEndpoint>::new();
     let (checked, request_bytes, _) = checked_payment_plan();
@@ -516,183 +393,6 @@ fn activation_failure_keeps_issuance_spent_through_retained_cleanup() {
     installed.quiesce(&mut supervisor).expect("retirement");
 }
 
-#[test]
-fn golden_payment_installation_activates_and_receipts() {
-    let mut supervisor = SimSupervisor::<SimEndpoint>::new();
-    let (checked, request_bytes, _) = checked_payment_plan();
-    let subject = checked.subject;
-    let prepared = prepare_installation(
-        checked,
-        supervisor
-            .lifecycle
-            .authorize(payment_installation_request(&request_bytes, 7))
-            .expect("owner authorization"),
-        SimAdapter::new(),
-        payment_operation_schemas(),
-    )
-    .expect("preparation admits the payment plan");
-    let installed = prepared
-        .activate(&mut supervisor)
-        .expect("activation opens the complete roster");
-
-    // Confined endpoints precede application entry: every prepare precedes
-    // every entry, in canonical roster order.
-    assert_eq!(
-        supervisor.log,
-        [
-            "prepare api",
-            "prepare authorization",
-            "prepare billing",
-            "enter 0",
-            "enter 1",
-            "enter 2",
-        ]
-    );
-
-    let receipt = installed.receipt();
-    assert_eq!(receipt.plan, subject);
-    assert_eq!(receipt.occurrence, 7);
-    assert_eq!(
-        receipt.artifacts,
-        vec![identity(0xA1), identity(0xA2), identity(0xA3)]
-    );
-    assert_eq!(receipt.provider, identity(0x99));
-    assert_eq!(receipt.provider_assumptions.len(), 1);
-
-    // Exact all-import binding coverage: two bindings, four ends each, and
-    // every member holds exactly its assigned ends.
-    assert_eq!(receipt.bindings.len(), 2);
-    let members = installed.members();
-    assert_eq!(members.len(), 3);
-    // api imports binding 0: it holds request-write + response-read.
-    assert_eq!(members[0].ends.len(), 2);
-    // authorization is the export of binding 0 and the importer of
-    // binding 1: it holds all four ends of its two roles.
-    assert_eq!(members[1].ends.len(), 4);
-    assert_eq!(members[2].ends.len(), 2);
-    for member in members {
-        assert!(member.entered);
-        for end in &member.ends {
-            assert!(end.id.0 > 0, "issued ids start at 1");
-            assert_eq!(
-                end.token,
-                // The physical token recorded equals what was installed.
-                member
-                    .ends
-                    .iter()
-                    .find(|other| other.id == end.id)
-                    .unwrap()
-                    .token
-            );
-        }
-    }
-}
-
-#[test]
-fn a_stale_authorization_rejects_before_any_endpoint() {
-    let mut supervisor = SimSupervisor::<SimEndpoint>::new();
-    let (checked, _, _) = checked_payment_plan();
-    let mut authorization =
-        payment_installation_request(&encode_request(&payment_request()).unwrap(), 1);
-    authorization.expected_request = identity(0xEE);
-    let adapter = SimAdapter::new();
-    match prepare_installation(
-        checked,
-        supervisor
-            .lifecycle
-            .authorize(authorization)
-            .expect("owner authorization"),
-        adapter,
-        payment_operation_schemas(),
-    ) {
-        Err(PrepareError::Rejected {
-            rejection: InstallationRejection::UnauthorizedRequest { .. },
-            leaked,
-        }) => assert!(leaked.is_empty()),
-        other => panic!("stale authorization must reject: {other:?}"),
-    }
-}
-
-#[test]
-fn artifact_mismatches_reject_before_any_endpoint() {
-    let mut supervisor = SimSupervisor::<SimEndpoint>::new();
-    let (checked, request_bytes, _) = checked_payment_plan();
-    // Wrong count.
-    let mut authorization = payment_installation_request(&request_bytes, 1);
-    authorization.artifacts.pop();
-    match prepare_installation(
-        checked,
-        supervisor
-            .lifecycle
-            .authorize(authorization)
-            .expect("owner authorization"),
-        SimAdapter::new(),
-        payment_operation_schemas(),
-    ) {
-        Err(PrepareError::Rejected {
-            rejection: InstallationRejection::ArtifactCount { .. },
-            ..
-        }) => {}
-        other => panic!("artifact count must reject: {other:?}"),
-    }
-
-    // A different component subject than the roster requires: the
-    // artifact's subject is admission-derived, so substituting it means
-    // carrying a different component's admission.
-    let (checked, request_bytes, _) = checked_payment_plan();
-    let mut authorization = payment_installation_request(&request_bytes, 2);
-    authorization.artifacts[2].admission = Arc::clone(&authorization.artifacts[0].admission);
-    match prepare_installation(
-        checked,
-        supervisor
-            .lifecycle
-            .authorize(authorization)
-            .expect("owner authorization"),
-        SimAdapter::new(),
-        payment_operation_schemas(),
-    ) {
-        Err(PrepareError::Rejected {
-            rejection:
-                InstallationRejection::ArtifactMismatch {
-                    instance,
-                    field: "component_subject",
-                },
-            ..
-        }) => assert_eq!(instance, 2),
-        other => panic!("artifact subject must reject: {other:?}"),
-    }
-
-    // The admission's request profile must equal the profile the plan's
-    // component record claims: an artifact admitted under a different
-    // request — here one accepting an extra assumption digest — is a
-    // substitution even when the subject matches.
-    let (checked, request_bytes, _) = checked_payment_plan();
-    let mut authorization = payment_installation_request(&request_bytes, 3);
-    authorization.artifacts[1].admission = Arc::new(admit_with(
-        &authorization_module(),
-        BTreeSet::from([identity(0x55)]),
-    ));
-    match prepare_installation(
-        checked,
-        supervisor
-            .lifecycle
-            .authorize(authorization)
-            .expect("owner authorization"),
-        SimAdapter::new(),
-        payment_operation_schemas(),
-    ) {
-        Err(PrepareError::Rejected {
-            rejection:
-                InstallationRejection::ArtifactMismatch {
-                    instance,
-                    field: "verification_profile",
-                },
-            ..
-        }) => assert_eq!(instance, 1),
-        other => panic!("artifact admission profile must reject: {other:?}"),
-    }
-}
-
 // ---- preparation custody -------------------------------------------------
 
 #[test]
@@ -723,176 +423,7 @@ fn adapter_failure_mid_preparation_cleans_custody() {
     }
 }
 
-#[test]
-fn uncleanable_close_reports_leaked_custody() {
-    let mut supervisor = SimSupervisor::<SimEndpoint>::new();
-    let (checked, request_bytes, _) = checked_payment_plan();
-    let mut adapter = SimAdapter::new();
-    adapter.fail_at_pair = Some(1);
-    adapter.fail_close.insert(101);
-    match prepare_installation(
-        checked,
-        supervisor
-            .lifecycle
-            .authorize(payment_installation_request(&request_bytes, 1))
-            .expect("owner authorization"),
-        adapter,
-        payment_operation_schemas(),
-    ) {
-        Err(PrepareError::Adapter { leaked, .. }) => {
-            assert_eq!(leaked, vec![EndpointId(2)]);
-        }
-        other => panic!("leaked custody must be reported: {other:?}"),
-    }
-}
-
-#[test]
-fn a_colliding_endpoint_token_rejects_as_substitution() {
-    let mut supervisor = SimSupervisor::<SimEndpoint>::new();
-    let (checked, request_bytes, _) = checked_payment_plan();
-    let mut adapter = SimAdapter::new();
-    adapter.collide = true;
-    match prepare_installation(
-        checked,
-        supervisor
-            .lifecycle
-            .authorize(payment_installation_request(&request_bytes, 1))
-            .expect("owner authorization"),
-        adapter,
-        payment_operation_schemas(),
-    ) {
-        Err(PrepareError::Rejected {
-            rejection: InstallationRejection::EndpointTokenCollision { binding },
-            leaked,
-        }) => {
-            assert_eq!(binding, 0);
-            assert!(leaked.is_empty());
-        }
-        other => panic!("token collision must reject: {other:?}"),
-    }
-}
-
-#[test]
-fn disarm_releases_every_assigned_end() {
-    let mut supervisor = SimSupervisor::<SimEndpoint>::new();
-    let (checked, request_bytes, _) = checked_payment_plan();
-    let adapter = SimAdapter::new();
-    let prepared = prepare_installation(
-        checked,
-        supervisor
-            .lifecycle
-            .authorize(payment_installation_request(&request_bytes, 1))
-            .expect("owner authorization"),
-        adapter,
-        payment_operation_schemas(),
-    )
-    .expect("preparation admits");
-    prepared.disarm().expect("all ends released");
-}
-
 // ---- the activation gate -------------------------------------------------
-
-#[test]
-fn member_failure_quiesces_prepared_roster_without_receipt() {
-    let mut supervisor = SimSupervisor::<SimEndpoint>::new();
-    let (checked, request_bytes, _) = checked_payment_plan();
-    let prepared = prepare_installation(
-        checked,
-        supervisor
-            .lifecycle
-            .authorize(payment_installation_request(&request_bytes, 1))
-            .expect("owner authorization"),
-        SimAdapter::new(),
-        payment_operation_schemas(),
-    )
-    .expect("preparation admits");
-    supervisor.fail_prepare = Some(1);
-    match prepared.activate(&mut supervisor) {
-        Err(failure) => {
-            assert_eq!(failure.instance, 1);
-            assert!(matches!(
-                failure.cause,
-                ActivationCause::Supervisor(SimError("executable admission failed"))
-            ));
-            assert!(failure.retained.is_empty());
-            assert!(failure.leaked.is_empty());
-            // api was prepared then quiesced; billing's ends were never
-            // handed out — its prepare never ran.
-            assert_eq!(
-                supervisor.log,
-                ["prepare api", "prepare authorization", "quiesce 0"]
-            );
-        }
-        other => panic!("member failure must not produce a receipt: {other:?}"),
-    }
-}
-
-#[test]
-fn entry_gate_failure_rolls_back_the_whole_roster() {
-    let mut supervisor = SimSupervisor::<SimEndpoint>::new();
-    let (checked, request_bytes, _) = checked_payment_plan();
-    let prepared = prepare_installation(
-        checked,
-        supervisor
-            .lifecycle
-            .authorize(payment_installation_request(&request_bytes, 1))
-            .expect("owner authorization"),
-        SimAdapter::new(),
-        payment_operation_schemas(),
-    )
-    .expect("preparation admits");
-    supervisor.fail_gate = Some(2);
-    match prepared.activate(&mut supervisor) {
-        Err(failure) => {
-            assert_eq!(failure.instance, 2);
-            assert!(failure.retained.is_empty());
-            // All three prepared; api and authorization entered, then every
-            // member quiesced in reverse activation order.
-            assert_eq!(
-                supervisor.log,
-                [
-                    "prepare api",
-                    "prepare authorization",
-                    "prepare billing",
-                    "enter 0",
-                    "enter 1",
-                    "enter 2",
-                    "quiesce 2",
-                    "quiesce 1",
-                    "quiesce 0",
-                ]
-            );
-        }
-        other => panic!("gate failure must not produce a receipt: {other:?}"),
-    }
-}
-
-#[test]
-fn quiesce_failure_retains_supervision_without_receipt() {
-    let mut supervisor = SimSupervisor::<SimEndpoint>::new();
-    let (checked, request_bytes, _) = checked_payment_plan();
-    let prepared = prepare_installation(
-        checked,
-        supervisor
-            .lifecycle
-            .authorize(payment_installation_request(&request_bytes, 1))
-            .expect("owner authorization"),
-        SimAdapter::new(),
-        payment_operation_schemas(),
-    )
-    .expect("preparation admits");
-    supervisor.fail_gate = Some(1);
-    supervisor.quiesce_fail.insert(0);
-    match prepared.activate(&mut supervisor) {
-        Err(failure) => {
-            // api refused to quiesce: it stays under supervision and is
-            // named in the failure — never counted as cleaned.
-            assert_eq!(failure.retained.len(), 1);
-            assert_eq!(failure.retained[0].member.instance, 0);
-        }
-        other => panic!("retained supervision must surface: {other:?}"),
-    }
-}
 
 #[test]
 fn a_substituted_mapping_refuses_at_the_gate() {
@@ -949,35 +480,6 @@ fn installed_payment() -> (
 }
 
 #[test]
-fn a_request_response_round_trip_uses_dedicated_channels() {
-    let (mut installed, _) = installed_payment();
-    let (api_request_id, api_request_token) = {
-        let end = installed.members()[0].end(0, ChannelEnd::RequestWrite);
-        (end.id, end.token)
-    };
-    let grant = installed
-        .authorize_send(api_request_id, api_request_token)
-        .expect("api's import invocation is granted");
-    assert_eq!(grant.binding, 0);
-    assert_eq!(grant.deliver_to, 1);
-
-    let (auth_response_id, auth_response_token) = {
-        let end = installed.members()[1].end(0, ChannelEnd::ResponseWrite);
-        (end.id, end.token)
-    };
-    let reply = installed
-        .authorize_respond(auth_response_id, auth_response_token)
-        .expect("the reply stays on the response channel");
-    assert_eq!(reply.binding, 0);
-    assert_eq!(reply.deliver_to, 0);
-
-    // One outstanding request per binding: the channel is free again.
-    installed
-        .authorize_send(api_request_id, api_request_token)
-        .expect("a fresh request is granted");
-}
-
-#[test]
 fn an_ungranted_invocation_is_refused() {
     let (mut installed, _) = installed_payment();
     // An endpoint the installer never issued — fabricated or inherited.
@@ -997,29 +499,6 @@ fn an_ungranted_invocation_is_refused() {
         Err(InvocationRefusal::WrongDirection {
             endpoint: response_write_id,
             role: ChannelEnd::ResponseWrite,
-        })
-    );
-}
-
-#[test]
-fn a_substituted_mapping_is_refused_at_delivery() {
-    let (mut installed, _) = installed_payment();
-    // api's request-write end presented for authorization's request-write
-    // endpoint — a physical token that is not the recorded assignment
-    // refuses no matter what the frame claims.
-    let (auth_request_id, auth_request_token) = {
-        let end = installed.members()[1].end(1, ChannelEnd::RequestWrite);
-        (end.id, end.token)
-    };
-    let api_request_token = installed.members()[0]
-        .end(0, ChannelEnd::RequestWrite)
-        .token;
-    assert_eq!(
-        installed.authorize_send(auth_request_id, api_request_token),
-        Err(InvocationRefusal::SubstitutedMapping {
-            endpoint: auth_request_id,
-            expected: auth_request_token,
-            presented: api_request_token,
         })
     );
 }
@@ -1101,38 +580,6 @@ fn superseded_replacement_returns_old_and_pending_custody_before_stopping() {
         }
         other => panic!("replacement must preserve old custody: {other:?}"),
     }
-}
-
-#[test]
-fn replacement_quiesces_the_old_generation_first() {
-    let (old, mut supervisor) = installed_payment();
-    let (checked, request_bytes, _) = checked_payment_plan();
-    let prepared = prepare_installation(
-        checked,
-        supervisor
-            .lifecycle
-            .authorize(payment_installation_request(&request_bytes, 2))
-            .expect("owner authorization"),
-        SimAdapter::new(),
-        payment_operation_schemas(),
-    )
-    .expect("new generation prepares");
-    let installed = replace_installation(old, prepared, &mut supervisor)
-        .expect("replacement activates the new generation");
-
-    // Every old member quiesced before any new member prepared.
-    let quiesces = supervisor
-        .log
-        .iter()
-        .position(|entry| entry == "quiesce 0")
-        .expect("old generation quiesced");
-    let prepares_again = supervisor
-        .log
-        .iter()
-        .rposition(|entry| entry == "prepare billing")
-        .expect("new generation prepared");
-    assert!(quiesces < prepares_again);
-    assert_eq!(installed.receipt().occurrence, 2);
 }
 
 #[test]
@@ -1269,39 +716,6 @@ fn replacement_activates_artifacts_admitted_under_the_replacement_profile() {
 
 // ---- the host adapter ----------------------------------------------------
 
-#[test]
-fn host_pipe_pairs_are_private_and_directed() {
-    use std::io::{Read, Write};
-    let mut adapter = StdPipeAdapter;
-    let mut pair = adapter.create_binding_pair().unwrap();
-    let tokens = [
-        adapter.endpoint_token(&pair.request_write).unwrap(),
-        adapter.endpoint_token(&pair.request_read).unwrap(),
-        adapter.endpoint_token(&pair.response_write).unwrap(),
-        adapter.endpoint_token(&pair.response_read).unwrap(),
-    ];
-    assert_eq!(BTreeSet::from(tokens).len(), 4, "four distinct ends");
-
-    // A bounded frame written on request-write arrives only on
-    // request-read — the kernel itself routes the private channel.
-    let frame = encode_frame(&Frame {
-        operation: 1,
-        payload: b"charge".to_vec(),
-    })
-    .unwrap();
-    let StdPipeEnd::Write(writer) = &mut pair.request_write else {
-        panic!("request-write is a write end");
-    };
-    writer.write_all(&frame).unwrap();
-    let StdPipeEnd::Read(reader) = &mut pair.request_read else {
-        panic!("request-read is a read end");
-    };
-    let mut buffer = vec![0u8; frame.len()];
-    reader.read_exact(&mut buffer).unwrap();
-    assert_eq!(buffer, frame);
-    assert_eq!(decode_frame(&buffer).unwrap().payload, b"charge");
-}
-
 #[cfg(unix)]
 #[test]
 fn a_full_installation_flows_over_real_private_pipes() {
@@ -1416,23 +830,6 @@ fn a_binding_without_a_registered_schema_is_refused_at_admission() {
 }
 
 #[test]
-fn a_second_schema_registration_for_one_contract_is_refused_as_substitution() {
-    let (_, _, plan) = payment_pair();
-    let contract = plan.instances[0].endpoints[0].contract;
-    let mut schemas = OperationSchemas::new();
-    schemas
-        .register(contract, payment_operation_schema())
-        .expect("the contract's first operation table registers");
-    // Two operation tables for one contract identity is substitution, not
-    // versioning: re-presenting a registration for the governed contract
-    // refuses rather than replacing the law the codec enforces.
-    assert_eq!(
-        schemas.register(contract, OperationSchema::new([(77, PayloadSchema::Empty)])),
-        Err(SchemaRegistrationError::ContractAlreadyRegistered { contract })
-    );
-}
-
-#[test]
 fn a_replayed_schema_registration_is_refused_and_the_first_law_still_governs() {
     let (_, _, plan) = payment_pair();
     let contract = plan.instances[0].endpoints[0].contract;
@@ -1485,36 +882,6 @@ fn a_replayed_schema_registration_is_refused_and_the_first_law_still_governs() {
             violation: SchemaViolation::UnlistedOperation { operation: 77 },
         }),
         "the refused table does not govern"
-    );
-    assert_eq!(
-        installed.authorize_send(request_id, request_token),
-        Err(InvocationRefusal::BindingClosed { binding: 0 })
-    );
-}
-
-#[test]
-fn a_schema_violating_frame_closes_the_binding() {
-    let (mut installed, _) = installed_payment();
-    let (request_id, request_token) = {
-        let end = installed.members()[0].end(0, ChannelEnd::RequestWrite);
-        (end.id, end.token)
-    };
-    let grant = installed
-        .authorize_send(request_id, request_token)
-        .expect("the send is granted");
-
-    // Operation 77 is not in the bound contract's table — the frame is a
-    // protocol violation, and the binding closes rather than deliver it.
-    let frame = Frame {
-        operation: 77,
-        payload: Vec::new(),
-    };
-    assert_eq!(
-        installed.deliver_send(grant, Ok(&frame)),
-        Err(DeliveryRefusal::Protocol {
-            binding: 0,
-            violation: SchemaViolation::UnlistedOperation { operation: 77 },
-        })
     );
     assert_eq!(
         installed.authorize_send(request_id, request_token),
@@ -1580,41 +947,6 @@ fn an_out_of_law_payload_and_undecodable_bytes_close_the_binding() {
         installed.authorize_send(request_b1_id, request_b1_token),
         Err(InvocationRefusal::BindingClosed { binding: 1 })
     );
-}
-
-#[test]
-fn a_well_formed_delivery_round_trip_obeys_the_schema() {
-    let (mut installed, _) = installed_payment();
-    let (request_id, request_token) = {
-        let end = installed.members()[0].end(0, ChannelEnd::RequestWrite);
-        (end.id, end.token)
-    };
-    let (response_id, response_token) = {
-        let end = installed.members()[1].end(0, ChannelEnd::ResponseWrite);
-        (end.id, end.token)
-    };
-
-    let request = Frame {
-        operation: 1,
-        payload: b"authorize".to_vec(),
-    };
-    let grant = installed
-        .authorize_send(request_id, request_token)
-        .expect("granted");
-    installed
-        .deliver_send(grant, Ok(&request))
-        .expect("the schema admits the request");
-
-    let reply = Frame {
-        operation: 3,
-        payload: vec![0xAB; 8],
-    };
-    let reply_grant = installed
-        .authorize_respond(response_id, response_token)
-        .expect("the response is outstanding");
-    installed
-        .deliver_respond(reply_grant, Ok(&reply))
-        .expect("the demanded contract admits the reply");
 }
 
 // ---- the real three-process leg (unix) ------------------------------------

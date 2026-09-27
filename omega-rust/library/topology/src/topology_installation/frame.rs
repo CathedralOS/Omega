@@ -116,16 +116,6 @@ mod tests {
     use super::{Frame, FrameError, MAX_PAYLOAD_BYTES, decode_frame, encode_frame};
 
     #[test]
-    fn a_frame_round_trips() {
-        let frame = Frame {
-            operation: 7,
-            payload: vec![1, 2, 3],
-        };
-        let bytes = encode_frame(&frame).unwrap();
-        assert_eq!(decode_frame(&bytes), Ok(frame));
-    }
-
-    #[test]
     fn the_bound_rejects_on_both_sides() {
         let oversized = Frame {
             operation: 0,

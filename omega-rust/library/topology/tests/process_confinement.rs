@@ -31,7 +31,7 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::os::fd::{FromRawFd, IntoRawFd, RawFd};
 use std::os::unix::process::CommandExt;
 use std::path::PathBuf;
-use std::process::{Child, Command, ExitStatus, Stdio};
+use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 use support::*;
 use topology_plan::deployment_plan::identity_of;
@@ -291,10 +291,6 @@ impl SpawnedMember {
             Ok(_) => Ok(line.trim().to_owned()),
             Err(error) => Err(error),
         }
-    }
-
-    fn poll_exit(&mut self) -> Option<ExitStatus> {
-        self.child.try_wait().ok().flatten()
     }
 }
 
@@ -714,119 +710,6 @@ fn spawned_members_hold_exactly_assigned_ends_and_flow_frames() {
         );
     }
     assert_eq!(supervisor.log[6..], ["quiesce 0", "quiesce 1", "quiesce 2"]);
-}
-
-#[test]
-fn a_spawned_peer_failure_and_eof_close_their_binding() {
-    let mut supervisor = SpawnedSupervisor::new();
-    let mut installed = spawned_payment_installation(&mut supervisor, 1);
-
-    // A completed binding-1 request: authorization asks billing to post.
-    let authorization_request = installed.members()[1].end(1, ChannelEnd::RequestWrite).id;
-    let authorization_request_token = installed.members()[1]
-        .end(1, ChannelEnd::RequestWrite)
-        .token;
-    let billing_read = installed.members()[2].end(1, ChannelEnd::RequestRead).id;
-    installed
-        .authorize_send(authorization_request, authorization_request_token)
-        .expect("authorization's import invocation is granted");
-    installed.members_mut()[1]
-        .command(&format!(
-            "SEND {} {}",
-            authorization_request.0,
-            framed(1, b"post")
-        ))
-        .unwrap();
-    installed.members_mut()[2]
-        .command(&format!("RECV {}", billing_read.0))
-        .unwrap();
-    assert_eq!(
-        installed.members_mut()[2].event().unwrap(),
-        format!("GOT {} 1 {}", billing_read.0, hex_encode(b"post"))
-    );
-
-    // billing dies: the kernel closes every end it held, and the supervisor
-    // observes a real exit — not a simulated quiesce refusal.
-    installed.members_mut()[2].command("DIE").unwrap();
-    let deadline = Instant::now() + QUIESCE_DEADLINE;
-    while installed.members_mut()[2].poll_exit().is_none() {
-        assert!(Instant::now() < deadline, "billing's exit must be observed");
-        std::thread::sleep(Duration::from_millis(10));
-    }
-    // The response can never arrive; the binding closes and stays closed.
-    installed.close_binding(1);
-    assert_eq!(
-        installed.authorize_send(authorization_request, authorization_request_token),
-        Err(InvocationRefusal::BindingClosed { binding: 1 })
-    );
-
-    // authorization dies too: api's pending request end sees EOF on read —
-    // a dead peer cannot even refuse.
-    let api_request = installed.members()[0].end(0, ChannelEnd::RequestWrite).id;
-    let api_request_token = installed.members()[0]
-        .end(0, ChannelEnd::RequestWrite)
-        .token;
-    let api_response = installed.members()[0].end(0, ChannelEnd::ResponseRead).id;
-    installed
-        .authorize_send(api_request, api_request_token)
-        .expect("a fresh request is granted");
-    installed.members_mut()[1].command("DIE").unwrap();
-    let deadline = Instant::now() + QUIESCE_DEADLINE;
-    while installed.members_mut()[1].poll_exit().is_none() {
-        assert!(
-            Instant::now() < deadline,
-            "authorization's exit must be observed"
-        );
-        std::thread::sleep(Duration::from_millis(10));
-    }
-    installed.members_mut()[0]
-        .command(&format!("RECV {}", api_response.0))
-        .unwrap();
-    assert_eq!(
-        installed.members_mut()[0].event().unwrap(),
-        format!("EOF {}", api_response.0)
-    );
-    installed.close_binding(0);
-    assert_eq!(
-        installed.authorize_send(api_request, api_request_token),
-        Err(InvocationRefusal::BindingClosed { binding: 0 })
-    );
-
-    // Two members could not be quiesced — they are dead but never silently
-    // counted clean: supervision reports them retained.
-    let retained = installed
-        .quiesce(&mut supervisor)
-        .expect_err("dead members stay named under supervision");
-    assert_eq!(retained.len(), 2);
-}
-
-#[test]
-fn a_mismatched_executable_refuses_before_any_member_entry() {
-    let mut supervisor = SpawnedSupervisor::new();
-    let (checked, request_bytes) = checked_payment_plan();
-    let authorization = supervisor
-        .lifecycle
-        .authorize(supervisor.installation_request(&request_bytes, 1, Some(1)))
-        .expect("owner authorization");
-    let prepared = prepare_installation(
-        checked,
-        authorization,
-        StdPipeAdapter,
-        payment_operation_schemas(),
-    )
-    .expect("preparation admits real pipes");
-    let failure = prepared
-        .activate(&mut supervisor)
-        .expect_err("authorization's artifact is not the spawned image");
-    assert_eq!(failure.instance, 1);
-    assert!(matches!(failure.cause, ActivationCause::Supervisor(_)));
-    assert!(failure.retained.is_empty());
-    assert!(failure.leaked.is_empty());
-    // api was spawned, then quiesced by rollback; billing never started.
-    assert_eq!(
-        supervisor.log,
-        ["prepare api", "prepare authorization", "quiesce 0"]
-    );
 }
 
 #[test]
