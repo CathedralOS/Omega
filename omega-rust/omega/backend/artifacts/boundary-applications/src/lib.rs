@@ -9,7 +9,10 @@
 //! spellings, selected plans, or realization authority.
 //!
 //! Start at [`boundary_applications`]: the retained coverage of one Terminal
-//! product, leading into the demand, realization, and coverage owners.
+//! product, leading into the demand, realization, coverage and comparison owners.
+//! Comparison records replay source-free operation and selected-plan custody;
+//! authored-use association and sealed checked-scope completeness remain with
+//! their producing and admitting consumers.
 
 pub mod boundary_applications;
 pub use boundary_applications::{
@@ -19,6 +22,7 @@ pub use boundary_applications::{
     BoundaryOpaqueRepresentationApplication, BoundaryOpaqueRepresentationApplications,
     BoundaryOperatorRequirement, BoundaryTypeIdentity, OperatorApplicationCoverageRef,
     TerminalBoundaryApplicationCoverage, TerminalBoundaryApplicationDemand,
-    TerminalBoundaryApplicationDemands, TerminalBoundaryApplicationRealizations, coverage, demands,
-    opaque_applications, realization,
+    TerminalBoundaryApplicationDemands, TerminalBoundaryApplicationRealizations,
+    TerminalIeeeFloatComparisonOccurrenceProposal, TerminalIntegerComparisonOccurrenceProposal,
+    coverage, demands, opaque_applications, realization,
 };
