@@ -426,41 +426,6 @@ fn require_same_type(left: &ScalarTerm, right: &ScalarTerm) -> Result<(), Propos
     Ok(())
 }
 
-pub(crate) fn validate_integer_operands(
-    integer_type: IntegerType,
-    left: &ScalarTerm,
-    right: &ScalarTerm,
-) -> Result<(), PropositionError> {
-    let expected = ScalarType::Integer(integer_type);
-    if left.scalar_type() != expected || right.scalar_type() != expected {
-        return Err(PropositionError::IntegerOperandTypeMismatch {
-            expected,
-            left: left.scalar_type(),
-            right: right.scalar_type(),
-        });
-    }
-    Ok(())
-}
-
-pub(crate) fn validate_integer_shift_operands(
-    value_type: IntegerType,
-    count_type: IntegerType,
-    value: &ScalarTerm,
-    count: &ScalarTerm,
-) -> Result<(), PropositionError> {
-    let expected_value = ScalarType::Integer(value_type);
-    let expected_count = ScalarType::Integer(count_type);
-    if value.scalar_type() != expected_value || count.scalar_type() != expected_count {
-        return Err(PropositionError::IntegerShiftOperandTypeMismatch {
-            expected_value,
-            actual_value: value.scalar_type(),
-            expected_count,
-            actual_count: count.scalar_type(),
-        });
-    }
-    Ok(())
-}
-
 fn require_ieee_float_operands(
     format: IeeeFloatFormat,
     left: &ScalarTerm,

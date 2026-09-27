@@ -441,7 +441,7 @@ rows! {
         "the module's content-identity claims, partitions, and reshuffles",
         "content conservation validates as an algebra over declared claims before reconstruction infers its propositions",
         &["formation:module-structure"],
-        &[tv!( "validation/content.rs"), sv!( "content.rs")]
+        &[tv!( "validation/content.rs"), sv!( "content.rs"), sv!( "structural_places.rs")]
     );
     FORM_AFFINE_CLEANUP => (
         "formation:affine-cleanup",
