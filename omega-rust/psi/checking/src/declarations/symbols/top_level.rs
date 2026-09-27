@@ -106,14 +106,14 @@ impl<'program> TopLevelSymbols<'program> {
 
         // Prior declarations bucketed by name: every conflict check below
         // used to scan the whole accumulated roster per new declaration.
-        let mut data_by_name: std::collections::HashMap<&str, Vec<SymbolHandle>> =
-            std::collections::HashMap::new();
-        let mut machines_by_name: std::collections::HashMap<
+        let mut data_by_name: symbols::SymbolKeyMap<&str, Vec<SymbolHandle>> =
+            symbols::SymbolKeyMap::default();
+        let mut machines_by_name: symbols::SymbolKeyMap<
             &str,
             Vec<&'program typed_trees::machine::Machine>,
-        > = std::collections::HashMap::new();
-        let mut traits_by_name: std::collections::HashMap<&str, Vec<SymbolHandle>> =
-            std::collections::HashMap::new();
+        > = symbols::SymbolKeyMap::default();
+        let mut traits_by_name: symbols::SymbolKeyMap<&str, Vec<SymbolHandle>> =
+            symbols::SymbolKeyMap::default();
 
         for data_definition in program.data_definitions() {
             let conflicts =

@@ -6,7 +6,8 @@ use typed_trees::TypedTrees;
 pub(crate) fn build_qualification_facts(program: &TypedTrees) -> checked_trees::QualificationFacts {
     use checked_trees::VacuousQualificationUse;
     use language_semantics::SemanticDomainTable;
-    use std::collections::HashSet;
+    /// Membership sets take the integer hasher; none is iterated for output order.
+    type HashSet<T> = std::collections::HashSet<T, symbols::BuildSymbolHasher>;
     use symbols::SymbolHandle;
     use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
@@ -281,7 +282,7 @@ pub(crate) fn build_qualification_facts(program: &TypedTrees) -> checked_trees::
                 use typed_trees::statement::StatementNode;
                 let statement_index =
                     u32::try_from(statement_index).expect("qualification statement index overflow");
-                let mut visited = HashSet::new();
+                let mut visited = HashSet::default();
                 match statement {
                     StatementNode::RootBinding(binding) => {
                         for expression in [binding.receiver, binding.implementation_operand] {

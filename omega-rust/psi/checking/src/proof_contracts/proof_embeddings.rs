@@ -4,7 +4,8 @@
 //! embedding neither executes that expression nor replaces it with mathematical
 //! arithmetic; proof normalization must preserve the source denotation.
 
-use std::collections::HashSet;
+/// Membership sets take the integer hasher; none is iterated for output order.
+type HashSet<T> = std::collections::HashSet<T, symbols::BuildSymbolHasher>;
 
 use diagnostics::Diagnostic;
 use numerics::bignum::BigInt;
@@ -50,8 +51,8 @@ pub(crate) fn validate_proof_embeddings(
     // membership checks off the quadratic path for program-scale forests.
     let mut proof_nodes = Vec::new();
     let mut runtime_nodes = Vec::new();
-    let mut proof_seen = HashSet::new();
-    let mut runtime_seen = HashSet::new();
+    let mut proof_seen = HashSet::default();
+    let mut runtime_seen = HashSet::default();
     for (_, fact) in program.proof_facts.iter() {
         match fact {
             ProofFact::Expression(expression) => {
@@ -248,7 +249,7 @@ pub(crate) fn machine_contains_integer_embedding(
     machine: &typed_trees::machine::Machine,
 ) -> bool {
     let mut nodes = Vec::new();
-    let mut seen = HashSet::new();
+    let mut seen = HashSet::default();
     for contract in program.machine_contracts(machine).iter().chain(
         program
             .machine_states(machine)

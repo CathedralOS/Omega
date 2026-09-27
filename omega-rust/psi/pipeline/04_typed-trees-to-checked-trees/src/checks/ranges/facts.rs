@@ -13,7 +13,8 @@
 //! `call_writes` provides `RangeCallContext`, the per-state view of checked
 //! call and borrow facts through which a call's writes are found.
 
-use std::collections::HashSet;
+/// Membership sets take the integer hasher; none is iterated for output order.
+type HashSet<T> = std::collections::HashSet<T, symbols::BuildSymbolHasher>;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 
@@ -93,7 +94,7 @@ impl<'field> RangeFacts<'field> {
             ),
             statement_index: 0,
             expression_dependencies: Vec::new(),
-            recorded_expressions: HashSet::new(),
+            recorded_expressions: HashSet::default(),
             fields,
             integer_fields: Vec::new(),
             locals: Vec::new(),

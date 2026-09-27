@@ -1,4 +1,5 @@
-use std::collections::HashMap;
+/// Handle-keyed maps take the integer hasher; none is iterated for output order.
+type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>;
 
 use diagnostics::Diagnostic;
 use source::SourceSpan;
@@ -28,8 +29,8 @@ struct MachineOverloadIndex {
 
 impl MachineOverloadIndex {
     fn new(program: &TypedTrees) -> Self {
-        let mut entry_to_group = HashMap::new();
-        let mut family_to_group: HashMap<(String, String), usize> = HashMap::new();
+        let mut entry_to_group = HashMap::default();
+        let mut family_to_group: HashMap<(String, String), usize> = HashMap::default();
         let mut groups: Vec<MachineOverloadGroup> = Vec::new();
 
         for machine in program.machines() {
@@ -75,7 +76,7 @@ impl MachineOverloadIndex {
 }
 
 fn expression_owner_source_spans(program: &TypedTrees) -> HashMap<u32, SourceSpan> {
-    let mut owners = HashMap::new();
+    let mut owners = HashMap::default();
     for machine in program.machines() {
         let Some(source_span) = program.symbols.symbol_source_span(machine.symbol) else {
             continue;
