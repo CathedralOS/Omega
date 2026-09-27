@@ -43,6 +43,8 @@ pub(crate) struct FrozenProgramMemos {
         std::collections::HashMap<(u32, u32, typed_trees::expression::ExpressionHandle), bool>,
     >,
     pub(crate) data_fields: OnceLock<Arc<DataFieldIndex>>,
+    pub(crate) contract_occurrences:
+        OnceLock<Arc<crate::proof_contracts::contract_results::ContractOccurrenceIndex>>,
 }
 
 /// Restores the enclosing scope, if any, when dropped.

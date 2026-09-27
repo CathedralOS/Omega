@@ -5,7 +5,7 @@
 use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::signature::SignatureContractKind;
+use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
 use typed_trees::types::TypeReferenceHandle;
 
 /// Temporary interpretation of an exact authored result occurrence and its
@@ -137,7 +137,48 @@ fn contract_occurrence_owner(
     root: ExpressionHandle,
     expression: ExpressionHandle,
 ) -> Option<(symbols::SymbolHandle, TypeReferenceHandle)> {
+    // A frozen program answers every occurrence from one pass over its
+    // contracts; any other program rescans them per query.
+    if let Some(memos) = crate::frozen_program::frozen_program_memos(program) {
+        return memos
+            .contract_occurrences
+            .get_or_init(|| std::sync::Arc::new(ContractOccurrenceIndex::of(program)))
+            .owner(root, expression);
+    }
     let mut owner = None;
+    for (callable, return_type, parameters, contract) in callable_contracts(program) {
+        let seen = contract_nodes(program, contract);
+        if !seen.contains(&expression) || !seen.contains(&root) {
+            continue;
+        }
+        // Spelling is only the reserved-form discriminator. The full
+        // expression handle must belong to this owning ensures clause;
+        // another callable with an equal result type is not an owner.
+        if !owns_result(program, callable, return_type, parameters, contract) {
+            return None;
+        }
+        if owner.is_some_and(|candidate| candidate != (callable, return_type)) {
+            return None;
+        }
+        owner = Some((callable, return_type));
+    }
+    owner
+}
+
+/// Every callable contract in the order owner resolution visits them:
+/// machines with an entry state, then trait requirement signatures. A trait
+/// symbol cannot distinguish sibling requirements, and manufacturing a machine
+/// for a bodyless signature would give it the wrong result owner.
+fn callable_contracts(
+    program: &TypedTrees,
+) -> impl Iterator<
+    Item = (
+        symbols::SymbolHandle,
+        TypeReferenceHandle,
+        &[StateParameter],
+        &SignatureContract,
+    ),
+> + '_ {
     let machines = program.machines().iter().filter_map(|machine| {
         let entry = program.machine_states(machine).first()?;
         Some((
@@ -160,55 +201,117 @@ fn contract_occurrence_owner(
                 )
             })
     });
-    // The same occurrence-membership check serves both declarations. A trait
-    // symbol cannot distinguish sibling requirements, and manufacturing a
-    // machine for a bodyless signature would give it the wrong result owner.
-    for (callable, return_type, parameters, contracts) in machines.chain(requirements) {
-        for contract in contracts {
-            let mut nodes = Vec::new();
-            let mut seen = std::collections::HashSet::new();
-            for fact in program.proof_facts.span_or_empty(contract.facts) {
-                match fact {
-                    ProofFact::Expression(root) => {
-                        crate::expression_traversal::collect_expression_nodes(
-                            program, *root, &mut nodes, &mut seen,
-                        );
-                    }
-                    ProofFact::Membership(membership) => {
-                        crate::expression_traversal::collect_expression_nodes(
-                            program,
-                            membership.value,
-                            &mut nodes,
-                            &mut seen,
-                        );
-                    }
-                    ProofFact::Proposition(application) => {
-                        for argument in program
-                            .expression_table
-                            .expression_handles(application.arguments)
-                        {
-                            crate::expression_traversal::collect_expression_nodes(
-                                program, *argument, &mut nodes, &mut seen,
-                            );
-                        }
-                    }
+    machines
+        .chain(requirements)
+        .flat_map(|(callable, return_type, parameters, contracts)| {
+            contracts
+                .iter()
+                .map(move |contract| (callable, return_type, parameters, contract))
+        })
+}
+
+/// Every expression node one contract's facts reach.
+fn contract_nodes(
+    program: &TypedTrees,
+    contract: &SignatureContract,
+) -> std::collections::HashSet<ExpressionHandle> {
+    let mut nodes = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for fact in program.proof_facts.span_or_empty(contract.facts) {
+        match fact {
+            ProofFact::Expression(root) => {
+                crate::expression_traversal::collect_expression_nodes(
+                    program, *root, &mut nodes, &mut seen,
+                );
+            }
+            ProofFact::Membership(membership) => {
+                crate::expression_traversal::collect_expression_nodes(
+                    program,
+                    membership.value,
+                    &mut nodes,
+                    &mut seen,
+                );
+            }
+            ProofFact::Proposition(application) => {
+                for argument in program
+                    .expression_table
+                    .expression_handles(application.arguments)
+                {
+                    crate::expression_traversal::collect_expression_nodes(
+                        program, *argument, &mut nodes, &mut seen,
+                    );
                 }
             }
-            if !seen.contains(&expression) || !seen.contains(&root) {
-                continue;
+        }
+    }
+    seen
+}
+
+/// Whether a contract reaching a reserved `result` occurrence can own it: an
+/// `ensures` of a valid callable with a result type and no parameter that
+/// shadows the reserved name.
+fn owns_result(
+    program: &TypedTrees,
+    callable: symbols::SymbolHandle,
+    return_type: TypeReferenceHandle,
+    parameters: &[StateParameter],
+    contract: &SignatureContract,
+) -> bool {
+    contract.kind == SignatureContractKind::Ensures
+        && callable.is_valid()
+        && program
+            .type_reference_table
+            .contains_type_reference(return_type)
+        && !parameters
+            .iter()
+            .any(|parameter| parameter.name.as_str() == "result")
+}
+
+/// The callable contracts of one program, in `callable_contracts` order, and
+/// for every expression node the ascending positions of the contracts that
+/// reach it.
+pub(crate) struct ContractOccurrenceIndex {
+    contracts: Vec<(symbols::SymbolHandle, TypeReferenceHandle, bool)>,
+    containing: std::collections::HashMap<ExpressionHandle, Vec<u32>>,
+}
+
+impl ContractOccurrenceIndex {
+    fn of(program: &TypedTrees) -> Self {
+        let mut contracts = Vec::new();
+        let mut containing = std::collections::HashMap::<ExpressionHandle, Vec<u32>>::new();
+        for (callable, return_type, parameters, contract) in callable_contracts(program) {
+            let position =
+                u32::try_from(contracts.len()).expect("callable contract position overflow");
+            for node in contract_nodes(program, contract) {
+                containing.entry(node).or_default().push(position);
             }
-            // Spelling is only the reserved-form discriminator. The full
-            // expression handle must belong to this owning ensures clause;
-            // another callable with an equal result type is not an owner.
-            if contract.kind != SignatureContractKind::Ensures
-                || !callable.is_valid()
-                || !program
-                    .type_reference_table
-                    .contains_type_reference(return_type)
-                || parameters
-                    .iter()
-                    .any(|parameter| parameter.name.as_str() == "result")
-            {
+            contracts.push((
+                callable,
+                return_type,
+                owns_result(program, callable, return_type, parameters, contract),
+            ));
+        }
+        Self {
+            contracts,
+            containing,
+        }
+    }
+
+    /// The scan's verdict: the contracts reaching both nodes, in order.
+    fn owner(
+        &self,
+        root: ExpressionHandle,
+        expression: ExpressionHandle,
+    ) -> Option<(symbols::SymbolHandle, TypeReferenceHandle)> {
+        let with_expression = self.containing.get(&expression)?;
+        let with_root = self.containing.get(&root)?;
+        let mut owner = None;
+        for position in with_expression
+            .iter()
+            .filter(|position| with_root.binary_search(position).is_ok())
+        {
+            let (callable, return_type, owns_result) = self.contracts[*position as usize];
+            if !owns_result {
                 return None;
             }
             if owner.is_some_and(|candidate| candidate != (callable, return_type)) {
@@ -216,8 +319,8 @@ fn contract_occurrence_owner(
             }
             owner = Some((callable, return_type));
         }
+        owner
     }
-    owner
 }
 
 #[cfg(test)]
