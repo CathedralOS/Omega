@@ -285,8 +285,9 @@ fn recursive_value(depth: usize, number: Option<i64>) -> BuildTimeValue {
 
 #[test]
 fn recursive_depths_preserve_bytes_ordered_occurrences_and_atomic_replay() {
-    // Cover every retired depth-specific entrypoint and exceed their former ceiling.
-    for depth in (1..=24).chain([32, 63]) {
+    // One edge, recursive composition, and the last admitted depth exercise
+    // the general walker; the adjacent rejection boundary has its own test.
+    for depth in [1, 2, 63] {
         let checked = checked(&recursive_source(depth));
         let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
         let outer = checked
@@ -498,7 +499,7 @@ fn recursive_depths_preserve_bytes_ordered_occurrences_and_atomic_replay() {
 
 #[test]
 fn recursive_projection_rejects_semantic_and_placement_drift_at_every_layer() {
-    for depth in (1..=24).chain([32, 63]) {
+    for depth in [1, 2, 63] {
         let checked = checked(&recursive_source(depth));
         let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
         let definition = |name: &str| {

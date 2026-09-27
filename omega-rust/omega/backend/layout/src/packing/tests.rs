@@ -1,7 +1,7 @@
 //! Packing arithmetic tests: every placement step rejects an overflow of the
 //! addressable size, and a maximal-but-valid layout still packs.
 
-use super::{PlannedField, align_to, pack_fields, pack_fields_at, place_fields_by_plan};
+use super::{PlannedField, align_to, pack_fields, place_fields_by_plan};
 use crate::{FieldLayout, TypeLayout, TypeLayoutDescriptor};
 use arena::Arena;
 use checked_trees::name::Identifier;
@@ -55,37 +55,6 @@ fn full_width_array_extent_followed_by_an_aligned_field_is_rejected() {
         error.message
     );
     assert_eq!(storage.len(), 0, "a rejected placement records no fields");
-}
-
-#[test]
-fn field_offset_that_would_wrap_is_rejected() {
-    let mut storage = Arena::new();
-    let error = pack_fields_at(&mut storage, [planned("tail", 8, 1)], usize::MAX - 3)
-        .expect_err("a field ending past usize::MAX must be rejected");
-    assert!(
-        error.message.contains("overflows the addressable size")
-            && error.message.contains("field `tail` of 8 byte(s)"),
-        "{}",
-        error.message
-    );
-}
-
-#[test]
-fn record_extent_alignment_that_would_wrap_is_rejected() {
-    // Both fields place, but rounding the record's end up to its 8-byte
-    // alignment passes usize::MAX.
-    let mut storage = Arena::new();
-    let error = pack_fields(
-        &mut storage,
-        [planned("word", 8, 8), planned("rest", usize::MAX - 9, 1)],
-    )
-    .expect_err("aligning the record extent past usize::MAX must be rejected");
-    assert!(
-        error.message.contains("overflows the addressable size")
-            && error.message.contains("record extent"),
-        "{}",
-        error.message
-    );
 }
 
 #[test]

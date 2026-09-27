@@ -235,39 +235,6 @@ fn target_closes_private_callback_geometry_and_rejects_exact_mutations() {
 }
 
 #[test]
-fn transparent_record_layout_excludes_erased_fields() {
-    let source = r#"
-        data Packed {
-            head: u8;
-            proof [erased]: u64;
-            tail: u8;
-        }
-    "#;
-    let checked = checked(source);
-
-    let plan = build_layout_plan(&checked, NativeTarget::host(), &[]).expect("layout");
-    let packed = plan
-        .data_layouts
-        .iter()
-        .map(|(_, layout)| layout)
-        .find(|layout| layout.name.as_str() == "Packed")
-        .expect("Packed layout");
-    assert_eq!(packed.layout.size, 2);
-    assert_eq!(packed.layout.alignment, 1);
-    let DataShape::Record { fields } = packed.shape else {
-        panic!("Packed should have record layout");
-    };
-    let fields = plan.fields.span_or_empty(fields);
-    assert_eq!(
-        fields
-            .iter()
-            .map(|field| (field.name.as_str(), field.offset))
-            .collect::<Vec<_>>(),
-        [("head", 0), ("tail", 1)]
-    );
-}
-
-#[test]
 fn attached_machine_layout_excludes_erased_record_fields() {
     let checked = checked(
         r#"
@@ -294,6 +261,8 @@ fn attached_machine_layout_excludes_erased_record_fields() {
         .find(|layout| layout.name.as_str() == "Packed::read")
         .expect("Packed::read machine layout");
 
+    assert_eq!(data.layout.size, 4);
+    assert_eq!(data.layout.alignment, 2);
     assert_eq!(machine.layout, data.layout);
     assert_eq!(
         plan.fields
@@ -493,36 +462,6 @@ fn literal_array_extent_that_wraps_the_record_end_is_rejected() {
 }
 
 #[test]
-fn quotient_over_runtime_carrier_lays_out_as_its_representative() {
-    let checked = checked(
-        r#"
-        data Carrier {
-            value: u64;
-            tag: u8;
-        }
-        proposition equivalent(left: Carrier, right: Carrier);
-        data Quotient = Carrier % equivalent;
-        "#,
-    );
-
-    let plan = build_layout_plan(&checked, NativeTarget::host(), &[]).expect("layout");
-    let carrier = plan
-        .data_layouts
-        .iter()
-        .map(|(_, layout)| layout)
-        .find(|layout| layout.name.as_str() == "Carrier")
-        .expect("Carrier layout");
-    let quotient = plan
-        .data_layouts
-        .iter()
-        .map(|(_, layout)| layout)
-        .find(|layout| layout.name.as_str() == "Quotient")
-        .expect("a quotient over runtime data is laid out as its representative");
-    assert_eq!(quotient.layout, carrier.layout);
-    assert_eq!(quotient.shape, carrier.shape);
-}
-
-#[test]
 fn record_holding_a_realized_quotient_stays_runtime_data() {
     let checked = checked(
         r#"
@@ -601,6 +540,7 @@ fn quotient_of_quotient_realizes_through_the_root_carrier() {
         r#"
         data Carrier {
             value: u64;
+            tag: u8;
         }
         proposition equivalent(left: Carrier, right: Carrier);
         proposition coarser(left: Quotient, right: Quotient);
@@ -624,5 +564,6 @@ fn quotient_of_quotient_realizes_through_the_root_carrier() {
             .find(|layout| layout.name.as_str() == name)
             .unwrap_or_else(|| panic!("{name} should be laid out"));
         assert_eq!(layout.layout, carrier.layout, "{name}");
+        assert_eq!(layout.shape, carrier.shape, "{name}");
     }
 }
