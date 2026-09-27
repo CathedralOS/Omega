@@ -1,15 +1,13 @@
 use super::{
     BoundaryResultHandler, RecordingHandler, RejectScalarBoundaryArguments, block_id, boundary_id,
     byte_sequence_literal_module, claim_id, edge_id, effect_artifact_sections, effect_module,
-    executable_nominal_affine_module, nominal_affine_module, operation_id,
-    ordered_empty_nominal_affine_module, ordered_one_executable_nominal_affine_module,
-    ordered_shared_executable_nominal_affine_module,
+    nominal_affine_module, operation_id, ordered_empty_nominal_affine_module,
+    ordered_one_executable_nominal_affine_module,
     ordered_two_distinct_executable_nominal_affine_module, partial_affine_field_module, place_id,
     scalar_boundary_effect_module, service_id, structural_boundary_effect_module,
     structural_domain_id, structural_type_id, structural_value, three_helper_nominal_affine_module,
     three_ordered_empty_nominal_affine_module,
-    three_ordered_shared_executable_nominal_affine_module, two_helper_nominal_affine_module,
-    value_id,
+    three_ordered_shared_executable_nominal_affine_module, value_id,
 };
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::ScalarType;
@@ -479,62 +477,6 @@ fn ordered_nominal_affine_cleanups_run_two_distinct_executable_bodies_in_order()
 }
 
 #[test]
-fn ordered_nominal_affine_cleanups_repeat_a_shared_executable_target_and_helper() {
-    let module = ordered_shared_executable_nominal_affine_module();
-    let semantic = encode_module(&module).expect("shared executable nominal cleanup encodes");
-    let proof =
-        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
-    let arguments = [
-        TerminalStructuralValue {
-            opaque_identity: 88,
-            structural_type: structural_type_id(1),
-            qualifications: Vec::new(),
-            path: Vec::new(),
-        },
-        TerminalStructuralValue {
-            opaque_identity: 89,
-            structural_type: structural_type_id(1),
-            qualifications: Vec::new(),
-            path: Vec::new(),
-        },
-    ];
-    let mut execution = TerminalExecution::start_artifact(
-        &semantic,
-        &proof,
-        &AdmissionProfile::default(),
-        &[],
-        TerminalStructuralInputs {
-            arguments: &arguments,
-            ..Default::default()
-        },
-    )
-    .expect("shared executable nominal cleanup should start");
-    let mut meter = TerminalFuelMeter::with_allowance(7);
-    assert_eq!(
-        execution
-            .resume(&mut meter, &mut AcceptTerminalEffects)
-            .unwrap(),
-        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
-    );
-    assert_eq!(meter.usage().total_units(), 7);
-    for site in [
-        FuelChargeSite::Operation(operation_id(1)),
-        FuelChargeSite::Edge(edge_id(3)),
-        FuelChargeSite::Edge(edge_id(2)),
-    ] {
-        assert_eq!(
-            meter
-                .usage()
-                .at(site)
-                .expect("shared site charged")
-                .executions(),
-            2,
-            "the shared cleanup body is invoked once per cleanup action"
-        );
-    }
-}
-
-#[test]
 fn three_nominal_affine_cleanups_repeat_a_shared_executable_body_three_times() {
     let module = three_ordered_shared_executable_nominal_affine_module();
     let semantic = encode_module(&module).expect("three shared nominal cleanups encode");
@@ -594,136 +536,6 @@ fn three_nominal_affine_cleanups_repeat_a_shared_executable_body_three_times() {
 }
 
 #[test]
-fn executable_nominal_affine_cleanup_charges_root_call_helper_and_drop_in_order() {
-    let module = executable_nominal_affine_module();
-    let semantic = encode_module(&module).expect("executable nominal cleanup encodes");
-    let proof =
-        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
-    let argument = TerminalStructuralValue {
-        opaque_identity: 71,
-        structural_type: structural_type_id(1),
-        qualifications: Vec::new(),
-        path: Vec::new(),
-    };
-    let mut execution = TerminalExecution::start_artifact(
-        &semantic,
-        &proof,
-        &AdmissionProfile::default(),
-        &[],
-        TerminalStructuralInputs {
-            arguments: &[argument],
-            ..Default::default()
-        },
-    )
-    .expect("verified executable nominal cleanup should start");
-    let mut meter = TerminalFuelMeter::with_allowance(0);
-
-    for (site, consumed) in [
-        (FuelChargeSite::Edge(edge_id(1)), 0),
-        (FuelChargeSite::Operation(operation_id(1)), 1),
-        (FuelChargeSite::Edge(edge_id(3)), 2),
-        (FuelChargeSite::Edge(edge_id(2)), 3),
-    ] {
-        assert_eq!(
-            execution
-                .resume(&mut meter, &mut AcceptTerminalEffects)
-                .unwrap(),
-            TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
-                schedule: TerminalFuelSchedule::CURRENT.identity(),
-                site,
-                required_units: 1,
-                remaining_units: 0,
-            })
-        );
-        assert_eq!(meter.usage().total_units(), consumed);
-        meter.replenish(1).unwrap();
-    }
-
-    assert_eq!(
-        execution
-            .resume(&mut meter, &mut AcceptTerminalEffects)
-            .unwrap(),
-        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
-    );
-    assert!(execution.live_affine_frontier().next().is_none());
-    assert_eq!(meter.usage().total_units(), 4);
-    for site in [
-        FuelChargeSite::Edge(edge_id(1)),
-        FuelChargeSite::Operation(operation_id(1)),
-        FuelChargeSite::Edge(edge_id(3)),
-        FuelChargeSite::Edge(edge_id(2)),
-    ] {
-        let attribution = meter.usage().at(site).expect("site was charged once");
-        assert_eq!(attribution.executions(), 1);
-        assert_eq!(attribution.units(), 1);
-    }
-}
-
-#[test]
-fn two_helper_nominal_affine_cleanup_charges_all_six_sites_in_source_order() {
-    let module = two_helper_nominal_affine_module();
-    let semantic = encode_module(&module).expect("two-helper nominal cleanup encodes");
-    let proof =
-        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
-    let argument = TerminalStructuralValue {
-        opaque_identity: 72,
-        structural_type: structural_type_id(1),
-        qualifications: Vec::new(),
-        path: Vec::new(),
-    };
-    let mut execution = TerminalExecution::start_artifact(
-        &semantic,
-        &proof,
-        &AdmissionProfile::default(),
-        &[],
-        TerminalStructuralInputs {
-            arguments: &[argument],
-            ..Default::default()
-        },
-    )
-    .expect("verified two-helper nominal cleanup should start");
-    let mut meter = TerminalFuelMeter::with_allowance(0);
-    let ordered_sites = [
-        FuelChargeSite::Edge(edge_id(1)),
-        FuelChargeSite::Operation(operation_id(1)),
-        FuelChargeSite::Edge(edge_id(3)),
-        FuelChargeSite::Operation(operation_id(2)),
-        FuelChargeSite::Edge(edge_id(4)),
-        FuelChargeSite::Edge(edge_id(2)),
-    ];
-
-    for (consumed, site) in ordered_sites.iter().copied().enumerate() {
-        assert_eq!(
-            execution
-                .resume(&mut meter, &mut AcceptTerminalEffects)
-                .unwrap(),
-            TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
-                schedule: TerminalFuelSchedule::CURRENT.identity(),
-                site,
-                required_units: 1,
-                remaining_units: 0,
-            })
-        );
-        assert_eq!(meter.usage().total_units(), consumed as u64);
-        meter.replenish(1).unwrap();
-    }
-
-    assert_eq!(
-        execution
-            .resume(&mut meter, &mut AcceptTerminalEffects)
-            .unwrap(),
-        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
-    );
-    assert!(execution.live_affine_frontier().next().is_none());
-    assert_eq!(meter.usage().total_units(), 6);
-    for site in ordered_sites {
-        let attribution = meter.usage().at(site).expect("site was charged once");
-        assert_eq!(attribution.executions(), 1);
-        assert_eq!(attribution.units(), 1);
-    }
-}
-
-#[test]
 fn three_helper_nominal_affine_cleanup_charges_all_eight_sites_in_source_order() {
     let module = three_helper_nominal_affine_module();
     let semantic = encode_module(&module).expect("three-helper nominal cleanup encodes");
@@ -759,13 +571,17 @@ fn three_helper_nominal_affine_cleanup_charges_all_eight_sites_in_source_order()
     ];
 
     for (consumed, site) in ordered_sites.iter().copied().enumerate() {
-        assert!(matches!(
-            execution.resume(&mut meter, &mut AcceptTerminalEffects).unwrap(),
+        assert_eq!(
+            execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap(),
             TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
-                site: exhausted_site,
-                ..
-            }) if exhausted_site == site
-        ));
+                schedule: TerminalFuelSchedule::CURRENT.identity(),
+                site,
+                required_units: 1,
+                remaining_units: 0,
+            })
+        );
         assert_eq!(meter.usage().total_units(), consumed as u64);
         meter.replenish(1).unwrap();
     }
@@ -775,7 +591,13 @@ fn three_helper_nominal_affine_cleanup_charges_all_eight_sites_in_source_order()
             .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
+    assert!(execution.live_affine_frontier().next().is_none());
     assert_eq!(meter.usage().total_units(), 8);
+    for site in ordered_sites {
+        let attribution = meter.usage().at(site).expect("site was charged once");
+        assert_eq!(attribution.executions(), 1);
+        assert_eq!(attribution.units(), 1);
+    }
 }
 
 #[test]

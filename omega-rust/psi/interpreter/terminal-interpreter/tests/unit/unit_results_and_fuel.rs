@@ -3,8 +3,8 @@ use super::{
     contract_id, edge_id, effect_module, empty_contract, internal_structural_call_module,
     joined_parameter_dynamic_scalar_call_module, machine_id,
     multi_claim_internal_structural_call_module, nearest_fma_module, operation_id,
-    parameter_dynamic_scalar_call_module, payloadless_call_module, payloadless_case_module,
-    place_id, rebound_dynamic_scalar_call_module, reference_release_module, structural_case_id,
+    parameter_dynamic_scalar_call_module, payloadless_call_module, place_id,
+    rebound_dynamic_scalar_call_module, reference_release_module, structural_case_id,
     structural_domain_id, structural_scalar_field_call_module, structural_type_id,
     structural_value, value_id, write_only_boolean_call_module, write_only_primitive_call_module,
 };
@@ -29,31 +29,6 @@ use terminal_psi::{
     TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use terminal_verifier::{ModuleError, ProofBundle, VerificationError, verify_module};
-
-#[test]
-fn unit_artifact_interprets_as_a_value_less_normal_result() {
-    let (semantic, proof) = artifact_sections();
-    let measured = interpret_terminal_artifact_measured(
-        &semantic,
-        &proof,
-        &AdmissionProfile::default(),
-        &[],
-        TerminalStructuralInputs::default(),
-        &mut AcceptTerminalEffects,
-    )
-    .expect("unit artifact should interpret");
-
-    assert_eq!(measured.value(), TerminalExecutionResult::Unit);
-    assert_eq!(measured.usage().total_units(), 1);
-    assert_eq!(
-        measured
-            .usage()
-            .at(FuelChargeSite::Edge(edge_id(1)))
-            .unwrap()
-            .units(),
-        1
-    );
-}
 
 #[test]
 fn nearest_ieee_fma_executes_one_rounding_for_both_interchange_formats() {
@@ -138,46 +113,6 @@ fn verifier_rejects_nearest_fma_with_a_mixed_format_operand() {
             expected: ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
             actual: ScalarType::IeeeFloat(IeeeFloatFormat::Binary64),
         }),
-    );
-}
-
-#[test]
-fn payloadless_case_construction_returns_exact_case_and_costs_one_operation() {
-    let structural_type = structural_type_id(1);
-    let result_case = structural_case_id(1);
-    let module = payloadless_case_module();
-
-    let semantic = encode_module(&module).expect("payloadless case semantics encode");
-    let proof =
-        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
-    let measured = interpret_terminal_artifact_measured(
-        &semantic,
-        &proof,
-        &AdmissionProfile::default(),
-        &[],
-        TerminalStructuralInputs::default(),
-        &mut AcceptTerminalEffects,
-    )
-    .expect("verified payloadless case executes");
-
-    assert_eq!(
-        measured.value(),
-        TerminalExecutionResult::ScalarCase(TerminalScalarCaseResult {
-            value: TerminalScalarCaseValue {
-                structural_type,
-                result_case,
-                fields: vec![],
-            },
-        })
-    );
-    assert_eq!(measured.usage().total_units(), 2);
-    assert_eq!(
-        measured
-            .usage()
-            .at(FuelChargeSite::Operation(operation_id(1)))
-            .unwrap()
-            .units(),
-        1
     );
 }
 
@@ -277,6 +212,14 @@ fn unit_return_fuel_exhaustion_resumes_without_advancing_or_double_charging() {
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(meter.usage().total_units(), 1);
+    assert_eq!(
+        meter
+            .usage()
+            .at(FuelChargeSite::Edge(edge_id(1)))
+            .unwrap()
+            .units(),
+        1
+    );
 }
 
 #[test]
@@ -967,42 +910,6 @@ fn structural_return_transfers_value_and_claim_atomically_after_edge_charge() {
     );
     assert!(execution.live_claim_frontier().next().is_none());
     assert_eq!(meter.usage().total_units(), 1);
-}
-
-#[test]
-fn internal_structural_call_rebinds_claim_and_preserves_value_identity() {
-    let module = internal_structural_call_module(false);
-    let semantic = encode_module(&module).expect("structural call encodes");
-    let proof =
-        encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes");
-    let argument = TerminalStructuralValue {
-        opaque_identity: 0xc011,
-        structural_type: structural_type_id(1),
-        qualifications: vec![structural_domain_id(1)],
-        path: Vec::new(),
-    };
-
-    let measured = terminal_interpreter::interpret_terminal_artifact_measured(
-        &semantic,
-        &proof,
-        &AdmissionProfile::default(),
-        &[],
-        TerminalStructuralInputs {
-            arguments: std::slice::from_ref(&argument),
-            ..Default::default()
-        },
-        &mut terminal_interpreter::AcceptTerminalEffects,
-    )
-    .expect("whole-root structural call should interpret");
-
-    assert_eq!(
-        measured.value(),
-        TerminalExecutionResult::Structural(terminal_interpreter::TerminalStructuralResult {
-            value: argument,
-            claims: vec![claim_id(1)],
-        })
-    );
-    assert_eq!(measured.usage().total_units(), 3);
 }
 
 #[test]

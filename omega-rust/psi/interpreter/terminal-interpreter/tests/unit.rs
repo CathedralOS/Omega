@@ -89,11 +89,11 @@ use effect_modules::{
     scalar_boundary_effect_module, structural_boundary_effect_module, unit_module,
 };
 use nominal_affine_modules::{
-    executable_nominal_affine_module, nominal_affine_module, ordered_empty_nominal_affine_module,
-    ordered_one_executable_nominal_affine_module, ordered_shared_executable_nominal_affine_module,
+    nominal_affine_module, ordered_empty_nominal_affine_module,
+    ordered_one_executable_nominal_affine_module,
     ordered_two_distinct_executable_nominal_affine_module, partial_affine_field_module,
     three_helper_nominal_affine_module, three_ordered_empty_nominal_affine_module,
-    three_ordered_shared_executable_nominal_affine_module, two_helper_nominal_affine_module,
+    three_ordered_shared_executable_nominal_affine_module,
 };
 
 use proof_admission::{
