@@ -33,6 +33,17 @@
 // `i32` and it omits anyway, because the array is being supplied through a
 // record literal. Three composite gaps now sit beside each other -- that one, 
 // this one, and `tests/omega/pending/structs/policy_field_record_local_read`.
+// A SECOND customer, found while verifying MATCH-SELECTIVE-LOWERING: that
+// item's folded-index bullet calls
+// `value_dispatch::owned_results::folded_index_projection::folded_index_faces_the_literal_lowering_boundary`
+// red. It is GREEN, and what it now asserts is that BOTH the literal
+// `items[1]` and the folded `items[0 + 1]` refuse identically at
+// `Unsupported("fixed array literal has no Terminal establishment")`. Both
+// its sources build `Pack { items: [Cell { tag: 41 }, Cell { tag: 42 }] }` --
+// a record literal supplying an ARRAY field, which is this gap. So that
+// bullet is not waiting on match lowering; it is waiting here, and clearing
+// this moves both. The array's element there is a RECORD rather than a
+// scalar, so a repair should cover that shape too.
 use omega_language_std::console;
 use omega::language::core::binding;
 
