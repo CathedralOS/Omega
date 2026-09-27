@@ -351,7 +351,6 @@ fn reconcile_operands(
                 };
                 let Some(argument) = receiver_argument(
                     program,
-                    facts,
                     machine,
                     state,
                     *coordinate,
@@ -590,7 +589,6 @@ fn is_self_root(
 
 fn receiver_argument(
     program: &TypedTrees,
-    facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
     coordinate: CheckedUnitCallCoordinate,
@@ -670,9 +668,8 @@ fn receiver_argument(
         {
             return None;
         }
-        let (projected, path) = calls::projected_borrowed_receiver_path(
+        let (projected, path) = calls::projected_borrowed_path(
             program,
-            facts,
             machine,
             state,
             usize::try_from(coordinate.statement_index).ok()?,

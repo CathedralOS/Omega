@@ -249,7 +249,19 @@ impl<'a> UnitBody<'a> {
         };
         ordinary
             .iter()
-            .chain(composed.iter().flat_map(|state| &state.operations))
+            .chain(composed.iter().flat_map(|state| {
+                // A guarded terminator's return values are real operations of
+                // the body — the calls inside them are the state's call edges
+                // just as the ordered prefix's are.
+                let returns = match &state.terminator {
+                    checked_trees::CheckedComposedUnitControlTerminatorPlan::Guarded {
+                        return_values,
+                        ..
+                    } => return_values.as_slice(),
+                    _ => &[][..],
+                };
+                state.operations.iter().chain(returns)
+            }))
             .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
     }
 

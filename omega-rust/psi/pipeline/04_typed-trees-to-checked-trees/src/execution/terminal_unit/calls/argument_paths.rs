@@ -219,16 +219,16 @@ pub(crate) fn projected_argument_path(
 }
 
 /// `projected_argument_path` with runtime-index admission for the borrowed
-/// receiver lane. A runtime `Index` segment retains `RuntimeIndex` naming the
-/// checked selector's dense scalar position only while
-/// `bounded_runtime_index` finds `0 <= index < extent` published against the
-/// enclosing fixed array's literal extent. Terminal re-proves that bound for
-/// the segment's obligation; the segment itself carries no interval. Every
-/// other caller keeps rejecting runtime indexes through
-/// `projected_argument_path`.
-pub(crate) fn projected_borrowed_receiver_path(
+/// lanes — a `&`-rooted call receiver or argument, or a `self.nodes[i]`-shape
+/// copied leaf. A runtime `Index` segment retains `RuntimeIndex` naming the
+/// checked selector only while the selector resolves to an immutable integer
+/// operand of the calling state: its dense scalar parameter position, or an
+/// integer field read below a structural parameter. Terminal re-proves
+/// `0 <= index < extent` for the segment's obligation; the segment itself
+/// carries no interval. Every other caller keeps rejecting runtime indexes
+/// through `projected_argument_path`.
+pub(crate) fn projected_borrowed_path(
     program: &TypedTrees,
-    facts: &CheckFacts,
     machine: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
@@ -237,13 +237,7 @@ pub(crate) fn projected_borrowed_receiver_path(
     typed_trees::types::TypeReferenceHandle,
     Vec<CheckedUnitStructuralPathSegment>,
 )> {
-    projected_argument_path_impl(
-        program,
-        state_symbol,
-        statement_index,
-        place,
-        Some((facts, machine)),
-    )
+    projected_argument_path_impl(program, state_symbol, statement_index, place, Some(machine))
 }
 
 fn projected_argument_path_impl(
@@ -251,7 +245,7 @@ fn projected_argument_path_impl(
     state_symbol: SymbolHandle,
     statement_index: usize,
     place: &crate::flow::CanonicalPlace,
-    runtime_index_bounds: Option<(&CheckFacts, SymbolHandle)>,
+    runtime_index_machine: Option<SymbolHandle>,
 ) -> Option<(
     typed_trees::types::TypeReferenceHandle,
     Vec<CheckedUnitStructuralPathSegment>,
@@ -283,24 +277,19 @@ fn projected_argument_path_impl(
                 ));
             }
             facts::PlaceSegment::Index { expression } => {
-                let (_, machine) = runtime_index_bounds?;
-                let runtime_index = runtime_index_parameter_position(
-                    program,
-                    state_symbol,
-                    *expression,
-                )
-                .map(|position| checked_trees::CheckedRuntimeIndex::Parameter {
-                    position,
-                })
-                .or_else(|| {
-                    runtime_index_field_selector(
-                        program,
-                        machine,
-                        state_symbol,
-                        statement_index,
-                        *expression,
-                    )
-                })?;
+                let machine = runtime_index_machine?;
+                let runtime_index =
+                    runtime_index_parameter_position(program, state_symbol, *expression)
+                        .map(|position| checked_trees::CheckedRuntimeIndex::Parameter { position })
+                        .or_else(|| {
+                            runtime_index_field_selector(
+                                program,
+                                machine,
+                                state_symbol,
+                                statement_index,
+                                *expression,
+                            )
+                        })?;
                 path.push(CheckedUnitStructuralPathSegment::RuntimeIndex(
                     runtime_index,
                 ));
@@ -385,8 +374,8 @@ fn runtime_index_field_selector(
     else {
         return None;
     };
-    let parameters = program
-        .state_parameters(crate::semantic::calls::find_state(program, state_symbol)?);
+    let parameters =
+        program.state_parameters(crate::semantic::calls::find_state(program, state_symbol)?);
     let parameter_position = parameters.iter().position(|parameter| {
         crate::flow::normalized_event_place_root(
             program,
@@ -404,11 +393,9 @@ fn runtime_index_field_selector(
         let facts::PlaceSegment::Field { symbol } = segment else {
             return None;
         };
-        path.push(
-            checked_trees::CheckedStructuralPredicatePathSegment::Field(
-                terminal_field_identity(program, *symbol)?,
-            ),
-        );
+        path.push(checked_trees::CheckedStructuralPredicatePathSegment::Field(
+            terminal_field_identity(program, *symbol)?,
+        ));
     }
     let leaf = crate::flow::canonical_place_type_reference(
         program,

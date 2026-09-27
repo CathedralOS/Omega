@@ -4,6 +4,7 @@ use super::{
     CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError, StatementNode, SymbolHandle,
     target_signature, unsupported,
 };
+use checked_trees::statement::{TransitionGuardNode, TransitionTargetNode};
 /// The scalar computation walker checks membership, not preorder identity.
 /// Structural calls may be argument roots or the roots of exact projections.
 /// Scalar computations retain
@@ -82,6 +83,40 @@ pub(crate) fn authored_postorder(
         {
             pending.push((*expression, true, None));
             (false, *expression)
+        }
+        StatementNode::Transition(transition) => {
+            // Authored call order inside a transition runs the guard, then
+            // the target, then the continuation — the order the borrow
+            // collection numbers the same statement's calls. `pending` pops
+            // from the end, so seeds push in reverse. A named target is a
+            // transfer destination, not an authored value expression; the
+            // guarded-return route declines those arms before emission, so a
+            // call coordinate landing here can only name a `Value` arm.
+            let mut seeds = Vec::new();
+            if let TransitionGuardNode::When(guard) = transition.guard {
+                seeds.push((guard, true, None));
+            }
+            for target in [transition.target, transition.continuation] {
+                if !checked.statement_table.transition_target_is_valid(target) {
+                    continue;
+                }
+                match checked.statement_table.transition_target(target) {
+                    TransitionTargetNode::Value(expression) => {
+                        seeds.push((*expression, true, None));
+                    }
+                    TransitionTargetNode::Named { .. } => {
+                        return unsupported(
+                            "nested calls in a named transition target have no authored root",
+                        );
+                    }
+                    TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+                }
+            }
+            let outer = seeds
+                .first()
+                .map_or_else(ExpressionHandle::invalid, |seed| seed.0);
+            pending.extend(seeds.into_iter().rev());
+            (false, outer)
         }
         _ => return unsupported("nested calls require a direct initializer or Unit call root"),
     };

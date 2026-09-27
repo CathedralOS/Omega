@@ -306,14 +306,21 @@ fn walk_exact_place(
             }
             // A literal fixed index is an exact place segment the same way a
             // record field is: the checked planner recorded its ordinal after
-            // the same literal-length bound check replayed here.
+            // the same literal-length bound check replayed here. A
+            // non-literal index replays the checker's `RuntimeIndex`
+            // coordinate instead — the selector's bound obligation is the
+            // terminal verifier's, not this walk's.
             ExpressionNode::Indexed(indexed) => {
                 let ExpressionNode::Integer(index) =
                     checked.expression_table.expression(indexed.index)
                 else {
-                    return unsupported(
-                        "borrowed selection target indexes through a non-literal ordinal",
+                    checked_path.push(
+                        checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
+                            runtime_index_selector(checked, machine, authored, indexed.index)?,
+                        ),
                     );
+                    cursor = indexed.collection;
+                    continue;
                 };
                 let index = index
                     .value_bignum()
@@ -357,6 +364,126 @@ fn walk_exact_place(
     };
     checked_path.reverse();
     Ok((checked_path, root))
+}
+
+/// The integer primitives a `RuntimeIndex` selector may carry: the same set
+/// the checker's mint admits — an operand the terminal bound obligation can
+/// replay.
+fn selector_is_integer(
+    checked: &CheckedTrees,
+    reference: checked_trees::types::TypeReferenceHandle,
+) -> bool {
+    matches!(
+        checked.primitive_type_reference(reference),
+        Some(
+            checked_trees::types::PrimitiveType::U8
+                | checked_trees::types::PrimitiveType::U16
+                | checked_trees::types::PrimitiveType::U32
+                | checked_trees::types::PrimitiveType::U64
+                | checked_trees::types::PrimitiveType::I8
+                | checked_trees::types::PrimitiveType::I16
+                | checked_trees::types::PrimitiveType::I32
+                | checked_trees::types::PrimitiveType::I64
+        )
+    )
+}
+
+/// Re-derive the `RuntimeIndex` coordinate the checker minted for a
+/// non-literal index segment. A bare immutable integer parameter names its
+/// dense scalar position — the coordinate `CheckedScalarExpression` indexes.
+/// Any other selector is a pure field chain below an entry parameter
+/// (`self.count`): the `StructuralField` coordinate names the parameter's
+/// authored position plus the field path and requires an integer leaf. A
+/// spelling that matches neither never reached the checked plan, so failing
+/// here keeps the replay honest rather than inventing a coordinate.
+fn runtime_index_selector(
+    checked: &CheckedTrees,
+    machine: &checked_trees::machine::Machine,
+    authored: &checked_trees::state::State,
+    expression: ExpressionHandle,
+) -> Result<checked_trees::CheckedRuntimeIndex, LoweringError> {
+    if let ExpressionNode::Name(name) = checked.expression_table.expression(expression) {
+        let parameters = checked.state_parameters(authored);
+        let members = checked.expression_table.name_path_members(name.members);
+        let authored_position = (members.len() == 1)
+            .then(|| {
+                parameters.iter().position(|parameter| {
+                    if name.symbol.is_valid() {
+                        parameter.symbol == name.symbol
+                    } else if name.head_symbol.is_valid() {
+                        parameter.symbol == name.head_symbol
+                    } else {
+                        parameter.name.as_str() == members[0].as_str()
+                    }
+                })
+            })
+            .flatten();
+        if let Some(authored_position) = authored_position {
+            let parameter = &parameters[authored_position];
+            if parameter.is_mutable || !selector_is_integer(checked, parameter.type_reference) {
+                return unsupported("runtime index selector is not an immutable integer parameter");
+            }
+            let position = parameters[..authored_position]
+                .iter()
+                .filter(|parameter| {
+                    !parameter.relevance.is_erased()
+                        && checked
+                            .primitive_type_reference(parameter.type_reference)
+                            .is_some()
+                })
+                .count();
+            return u32::try_from(position)
+                .map(|position| checked_trees::CheckedRuntimeIndex::Parameter { position })
+                .map_err(|_| {
+                    LoweringError::Unsupported("runtime index selector position exceeds u32")
+                });
+        }
+    }
+    // A field selector is itself an exact place walk: a pure member chain
+    // rooted at an entry parameter (a `self` root names the is_self slot by
+    // the machine's durable symbol). Indexed or case segments inside the
+    // selector never mint a `StructuralField` coordinate.
+    let (path, root) = walk_exact_place(checked, machine, authored, expression)?;
+    if path.is_empty() {
+        return unsupported("runtime index selector names no field below its parameter");
+    }
+    let mut predicate_path = Vec::with_capacity(path.len());
+    for segment in path {
+        let checked_trees::CheckedUnitStructuralPathSegment::Field(identity) = segment else {
+            return unsupported("runtime index field selector is not a pure member chain");
+        };
+        predicate_path.push(checked_trees::CheckedStructuralPredicatePathSegment::Field(
+            identity,
+        ));
+    }
+    let ExpressionNode::Name(name) = checked.expression_table.expression(root) else {
+        return unsupported("runtime index field selector has no named root");
+    };
+    let parameters = checked.state_parameters(authored);
+    let parameter_position = parameters
+        .iter()
+        .position(|parameter| {
+            parameter.symbol == name.symbol || (parameter.is_self && name.symbol == machine.symbol)
+        })
+        .ok_or(LoweringError::Unsupported(
+            "runtime index field selector has no parameter root",
+        ))?;
+    let leaf =
+        validation::expression_result_type_reference(&checked.typed, machine, authored, expression)
+            .ok_or(LoweringError::Unsupported(
+                "runtime index field selector lost its leaf type",
+            ))?;
+    if !selector_is_integer(checked, leaf) {
+        return unsupported("runtime index field selector leaf is not an integer");
+    }
+    Ok(checked_trees::CheckedRuntimeIndex::StructuralField(
+        checked_trees::CheckedStructuralParameterField {
+            parameter_position: u32::try_from(parameter_position).map_err(|_| {
+                LoweringError::Unsupported("runtime index parameter position exceeds u32")
+            })?,
+            path: predicate_path,
+        },
+    ))
 }
 
 /// The root of an exact observed place: a uniquely named parameter or an

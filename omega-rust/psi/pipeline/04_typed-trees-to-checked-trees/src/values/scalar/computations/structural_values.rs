@@ -397,6 +397,25 @@ fn canonical_place_is_borrowable(place: &crate::flow::CanonicalPlace) -> bool {
         })
 }
 
+/// `canonical_place_is_borrowable` widened with a runtime `Index` segment
+/// for the copied-leaf lane: `self.pointer_scan_nodes[position]` has no
+/// static ordinal, but the argument-path mint records the selector as a
+/// `RuntimeIndex` coordinate the terminal verifier re-proves against the
+/// enclosing array's extent. The `&place` borrow and scalar-case lanes keep
+/// the static shape — a loan or a case read replays the place, not a runtime
+/// element.
+fn canonical_place_is_copyable(place: &crate::flow::CanonicalPlace) -> bool {
+    matches!(place.root, facts::PlaceRoot::Symbol(_))
+        && place.segments.iter().all(|segment| {
+            matches!(
+                segment,
+                facts::PlaceSegment::Field { .. }
+                    | facts::PlaceSegment::FixedIndex { .. }
+                    | facts::PlaceSegment::Index { .. }
+            )
+        })
+}
+
 fn symbol_declared_type(program: &TypedTrees, symbol: SymbolHandle) -> Option<TypeReferenceHandle> {
     for machine in program.machines() {
         for state in program.machine_states(machine) {
@@ -559,7 +578,7 @@ pub(super) fn is_copied_place_value(
     ) else {
         return false;
     };
-    if !canonical_place_is_borrowable(&place) {
+    if !canonical_place_is_copyable(&place) {
         return false;
     }
     let facts::PlaceRoot::Symbol(symbol) = place.root else {
@@ -1117,8 +1136,13 @@ impl Builder<'_, '_> {
         } else {
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
         };
-        let (projected, path) = crate::execution::terminal_unit::calls::projected_argument_path(
+        // The borrowed lane admits a runtime `Index` segment: the selector
+        // resolves to a checked `RuntimeIndex` coordinate and terminal
+        // verification re-proves `0 <= index < extent` against the enclosing
+        // array's literal extent.
+        let (projected, path) = crate::execution::terminal_unit::calls::projected_borrowed_path(
             self.program,
+            self.machine,
             self.state,
             self.statement_index,
             &place,
