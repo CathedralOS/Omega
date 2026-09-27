@@ -22,3 +22,6 @@ sha2 = "0.10.9"
 
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.27", features = ["user"] }
+
+[target.'cfg(windows)'.dependencies]
+cap-primitives = "4.0.3"

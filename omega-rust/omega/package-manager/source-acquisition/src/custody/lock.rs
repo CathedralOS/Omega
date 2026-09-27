@@ -423,9 +423,27 @@ pub(crate) fn same_std_and_capability_file_identity(
     left: &std::fs::Metadata,
     right: &CapabilityMetadata,
 ) -> bool {
-    use cap_fs_ext::MetadataExt;
+    #[cfg(unix)]
+    {
+        use cap_fs_ext::MetadataExt;
 
-    left.dev() == right.dev() && left.ino() == right.ino()
+        left.dev() == right.dev() && left.ino() == right.ino()
+    }
+    #[cfg(windows)]
+    {
+        use cap_primitives::fs::_WindowsByHandle;
+        use std::os::windows::fs::MetadataExt;
+        matches!(
+            (left.volume_serial_number(), left.file_index(), right.volume_serial_number(), right.file_index()),
+            (Some(left_volume), Some(left_index), Some(right_volume), Some(right_index))
+                if left_volume == right_volume && left_index == right_index
+        )
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = (left, right);
+        false
+    }
 }
 
 #[cfg(test)]
@@ -450,5 +468,32 @@ impl Drop for CacheEntryLock {
         // Keep the inode in place: unlinking a lock file lets a waiter lock the old inode while a
         // newcomer locks a replacement. Closing this handle releases the advisory lock safely.
         let _ = self.file.unlock();
+    }
+}
+
+#[cfg(all(test, any(unix, windows)))]
+mod file_identity_tests {
+    use super::same_std_and_capability_file_identity;
+
+    #[test]
+    fn open_file_identity_matches_duplicates_and_rejects_other_files() {
+        let root = crate::test_support::temp_root("release-file-identity");
+        std::fs::create_dir_all(&root).expect("create fixture");
+        {
+            let first = std::fs::File::create(root.join("first")).expect("create first");
+            let second = std::fs::File::create(root.join("second")).expect("create second");
+            let duplicate =
+                cap_std::fs::File::from_std(first.try_clone().expect("duplicate first"));
+            let capability = duplicate.metadata().expect("capability metadata");
+            assert!(same_std_and_capability_file_identity(
+                &first.metadata().expect("first metadata"),
+                &capability,
+            ));
+            assert!(!same_std_and_capability_file_identity(
+                &second.metadata().expect("second metadata"),
+                &capability,
+            ));
+        }
+        std::fs::remove_dir_all(root).expect("remove fixture");
     }
 }

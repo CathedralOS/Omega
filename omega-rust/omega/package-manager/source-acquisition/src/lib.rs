@@ -1,4 +1,5 @@
 #![forbid(unsafe_code)]
+#![cfg_attr(windows, feature(windows_by_handle))]
 
 //! Package-source identity and hostile source acquisition.
 //!

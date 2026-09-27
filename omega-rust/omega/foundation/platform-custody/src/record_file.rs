@@ -409,7 +409,10 @@ fn same_capability_file_identity(
     left: &cap_std::fs::Metadata,
     right: &cap_std::fs::Metadata,
 ) -> bool {
-    use cap_std::fs::MetadataExt;
+    // cap-std exposes these methods only when its nightly feature probe passes.
+    // The compatibility extension preserves Option-valued identity; cap-fs-ext's
+    // dev/ino convenience methods instead panic when backing identity is absent.
+    use cap_primitives::fs::_WindowsByHandle;
 
     matches!(
         (
