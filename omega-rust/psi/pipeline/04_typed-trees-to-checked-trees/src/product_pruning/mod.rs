@@ -587,6 +587,55 @@ mod tests {
     }
 
     #[test]
+    fn typed_pruning_preserves_trait_calling_plans_and_removes_deleted_machine_rows() {
+        use typed_trees::typed_trees::{
+            BoundaryCallingPlanCommitment, BoundaryCallingPlanIdentity,
+        };
+
+        let mut program = checked(
+            r#"
+            boundary trait Console { machine exit_process(return_code: i32); }
+            machine retained() -> u64 { 1u64 }
+            machine removed() -> u64 { 2u64 }
+            "#,
+        );
+        let boundary = program
+            .typed
+            .traits()
+            .iter()
+            .find(|definition| definition.name.as_str() == "Console")
+            .expect("boundary declaration");
+        let requirement = program.typed.trait_machine_signatures(boundary)[0].symbol;
+        let retained = machine_named(&program.typed, "retained").symbol;
+        let removed = machine_named(&program.typed, "removed").symbol;
+        let identity = |requirement_machine| BoundaryCallingPlanIdentity {
+            boundary_trait: boundary.symbol,
+            boundary_arguments: Vec::new(),
+            requirement_machine,
+            report_fingerprint: 7,
+            commitment: BoundaryCallingPlanCommitment::from_digest([7; 32]),
+        };
+        let trait_plan = identity(requirement);
+        let retained_plan = identity(retained);
+        program.typed.boundary_calling_plans =
+            vec![trait_plan.clone(), retained_plan.clone(), identity(removed)];
+
+        super::rewrite::apply_typed_pruning(
+            &mut program.typed,
+            &HashSet::from([retained]),
+            &HashSet::from([removed]),
+        );
+
+        assert_eq!(
+            program.typed.boundary_calling_plans,
+            vec![trait_plan, retained_plan],
+            "machine pruning preserves exact trait-signature commitments",
+        );
+        assert_eq!(program.typed.machines().len(), 1);
+        assert_eq!(program.typed.machines()[0].symbol, retained);
+    }
+
+    #[test]
     fn empty_roots_retain_only_the_interface_surface() {
         let mut program = checked(
             r#"
