@@ -538,77 +538,71 @@ backend-visible; full corpus runs only at the end of an item.
   failures instead of repeating that repair.
 
 - **SOURCE-SET-UNION.** (split-of:PSI-TARGET-FAMILIES) The assembled source set
-  is target-neutral: one union of physical sources, every target's program-entry
-  contract source, package imports and dependency-generated sources. Assembly
-  takes no target (`ImmutableSourceParseCheckpoint::assemble`); a child's
-  generated bundles are validated against its target at admission, and within
-  one `CompileRequest` targets whose dependencies generated the same sources
-  share one assembly (`compiler.rs` `SharedAssemblies`). Remaining: the CLI and
-  package manager compile each `--target` as a separate project compile, so a
-  two-target `omega --check --timings` still assembles twice; one request with
-  a target set (ONE-DRIVER-PER-STAGE) removes that. Dependency builds still
-  run per target and generate per-target bundles; a dependency that generates
-  target-specific content must instead emit target-tagged declarations so the
-  union holds one copy (BUILD-EVALUATES-ONCE). Cost frontier: `omega --check
-  --timings samples/cli/basics/cli_mvp/main.omg` loads 22 sources and takes
-  102 s on the Windows host, of which the itemized Psi stages are 15 s; the
-  rest is the per-target dependency package compile. Acceptance: a two-target
-  compile prints one `Step: assemble` row.
+  must contain physical sources, every target's entry contracts, package
+  imports and dependency-generated sources once per checked context.
+  `ImmutableSourceParseCheckpoint::assemble` already takes no target and seeds
+  every entry contract; `compiler.rs` shares assembly through `SharedBuilds`
+  for equal package inputs. The CLI's `compile_project_for_targets` and package
+  operations still launch separate compilations with target-specific bundles.
+  Feed their union into one request with **BUILD-EVALUATES-ONCE**; generated
+  target variation belongs in tagged declarations.
+
+  Preserve [dependency handoff](wiki/spec/build/execution.md#dependency-handoff)
+  custody and separate Build/Product checked instances, even for identical
+  bytes. A consumer incorporates producer bundles without rerunning the
+  producer; its own generated-source extension cannot rebind earlier source.
+  Acceptance: a two-target CLI compile assembles the union once, including
+  nested and dual-purpose generated dependencies. Count actual invocations;
+  shared timing records can be copied into several target reports.
 
 - **PSI-TARGET-FAMILIES.** (new-scope) Target-scoped machine declarations
-  (`linux_x86_64 machine StatLayout::plan(...)`) survive as data through every
-  Psi stage. Landed so far: every body of a non-selected target lowers as a
-  sibling declaration (authored name, symbol `<path>::<target>`, `target`
-  on the record, its own supply mode and conformances), calls inside a sibling bind to the same
-  target's siblings (`symbols/target_siblings.rs`), and `prune_target_siblings`
-  drops them after plan-fact binding, so a compile on any host checks all six
-  `source/library/std/targets/*` trees (`omega --check` of `cli_mvp` runs Stage
-  05 over every tree; `tests/omega/fail/targets/sibling_body_type_error_rejected`
-  pins a `demo_target` type error on every host). The frontend no longer
-  observes the realized target: pre-resolution selection picks each product
-  family's canonical body (first target in name order), and
-  `SelectedTargetMachineDeclarations::select_product_target` swaps in the
-  realized target's body before checking (calls retargeted, symbols renamed,
-  sibling conformances hidden behind `TypedTrees::machine_trait_conformances`).
-  Remaining: that swap still runs per target before checking, and siblings
-  never reach Terminal Psi. Replace both with a family record (one path,
-  bodies keyed by target) that lowering and Terminal Psi retain, so
-  `omega inspect-terminal` shows each body under its family with
-  its target tag and Omega selects the body at realization
-  (PROVIDER-SELECTION-AFTER-TERMINAL owns the selection move). Lowering
-  coverage limits the family record: on `samples/cli/basics/cli_mvp` (Windows
-  host) 714 of the 732 std target-sibling bodies have no Unit plan (for
-  example `Filesystem::read_at::macos_arm64` stops at "state graph: result
-  custody accounting"), so Terminal Psi can carry only the family bodies an
-  artifact's entry closure reaches, and each of those must lower for every
-  target before its family can publish. The family record has no consumer
-  until Omega selects the body per target, so it lands with that selection
-  move rather than ahead of it. Known cost: each std check pass now checks
-  six target trees (`cli_mvp` check 36 s -> 81 s on the Windows host);
-  BUILD-EVALUATES-ONCE removes the duplicate passes.
+  survive every Psi stage as one family with bodies keyed by target, including
+  unrealized and unreachable bodies, per
+  [multi-target compilation](wiki/spec/build/configuration.md#multi-target-compilation).
+  `TypedTrees::target_machine_families` already records stable member handles;
+  `symbols/target_siblings.rs` binds same-target calls. The gap is
+  `select_product_target` swapping bodies before checking and
+  `prune_target_siblings` dropping siblings before Terminal. Carry every body's
+  checked semantics, supply mode and conformances through lowering, codec and
+  independent verification; `omega inspect-terminal` must expose each target
+  tag. Complete missing lowering under its existing owners; entry-reached
+  bodies alone do not satisfy retention. **PROVIDER-SELECTION-AFTER-TERMINAL**
+  owns Omega's selection from that same artifact; independent ownership moves
+  can land before the complete route.
+
+  Acceptance: retain `targets/sibling_body_type_error_rejected` and the native
+  exit-70 `targets/target_machine_gating_exit` control. Its target bodies return
+  equal values, so add distinct-result bodies realized from one Terminal,
+  including same-target sibling calls. Check invalid unrealized bodies and
+  duplicate family members; a missing called body fails only the affected
+  realization. The existing `family_roster_keys_every_body_and_the_swap_consumes_it`
+  unit test proves typed roster/swap behavior, not portable retention or execution.
 
 - **BUILD-EVALUATES-ONCE.** (new-scope) `build.omg` evaluates once per
-  compilation and its evaluated configuration carries rows keyed by target:
-  provider selections, program entry, subsystem, application intent, opaque
-  representation selections, x86 scalar FMA provider, grants, behavior
-  exclusions, wire demands. The Build observes no target (activation,
-  observation identity and restricted requests carry none; the x86 claim is
-  a Build value each profile admits), and within one `CompileRequest`
-  targets with equal package inputs share one assembled, built and typed
-  program (`compiler.rs` `SharedBuilds`; a two-target request reports one
-  shared `Step: build`). Remaining: the CLI and package manager issue one
-  request per target (`compile_project_for_targets`, package operations'
-  `for target in targets`), each target's package inputs differ so even one
-  request would not share, and per-target rows (subsystem, program entry,
-  provider selections beyond target-qualified root bindings) have no
-  authored spelling yet.
-  Delete the per-target execution, the preliminary checked pass
-  (`phase_transitions::typed_trees_to_preliminary_checked_trees`) and
-  `declaration_admission::validate_authored_declaration_selections_before_build`;
-  declaration admission runs once on the single checked program. Depends on
-  SOURCE-SET-UNION. Acceptance: one `Step: build` and one `Stage 05` timing
-  row per compilation for a two-target request, and std's `build.omg` rows for
-  six targets come from one evaluation.
+  compilation, observes no realized target, and produces checked rows for every
+  target: providers, entry, subsystem, application intent, opaque representation,
+  x86 scalar FMA provider, grants, behavior exclusions and wire demands.
+  `BuildConfig` remains largely global; target-qualified root bindings and
+  `SharedBuilds` reuse for equal package inputs do not complete this contract.
+  Finish authored rows, retain/check unrequested rows, and join CLI/package
+  execution through **SOURCE-SET-UNION**.
+
+  Eliminate the duplicate preliminary whole-program check by moving its
+  obligations into the owning stages. Preserve
+  [admission before execution](wiki/spec/build/execution.md#admission-before-execution):
+  freeze authored selections and admit the exact Build entry before effects;
+  then incorporate generated source and finish product checks. The current
+  gate is `declaration_admission::validate_authored_declaration_selections_before_build`.
+  Reconcile snapshot inputs, required outputs and authority before sharing;
+  `SharedBuilds` currently keys package/generated inputs without the per-target
+  `build_snapshot`. Preserve separate package-purpose execution contexts.
+
+  Acceptance: count one Build activation and one final product check for a
+  two-target request; std's six rows come from one evaluation. Reject malformed
+  unrequested rows and preserve per-target missing-row outcomes. Retain nested
+  generated-dependency and dual-purpose custody (`package_commands/build_purposes.rs`),
+  pre-effect rejection, and snapshot/required-output settlement
+  (`package_commands/snapshot_outputs.rs`). Timing rows alone are insufficient.
 
 - **PROVIDER-SELECTION-AFTER-TERMINAL.** (new-scope) Finish one target-neutral
   Psi product, with per-target provider installation consuming Terminal Psi
@@ -665,20 +659,21 @@ backend-visible; full corpus runs only at the end of an item.
   the other target's outcome. Independent moves need not wait for full closure.
 
 - **ONE-DRIVER-PER-STAGE.** (new-scope) Close the remainder after the items
-  above: `compiler.rs` calls Psi 00-07 once, then maps the realization set
-  over Omega 00-09 and image emission; every stage is one function taking the
-  prior stage's output. The compile route loses its mode parameters
-  (`TargetEntryDiscovery`, `permit_unsettled_fused_service_fields`,
-  `IndependentComponentDiscovery`, `restricted_build_grants`, the sponsors and
-  `build_snapshot`); package review drives stages 00-03 itself for binding
-  discovery. Source loading becomes stage 00 input preparation; pre-resolution
-  build-time evaluation, dynamic call target resolution, const evaluation and
-  product pruning move inside stages 02-04. One request record with a target
-  set replaces the `for configuration in &mut self.configurations` copy loops,
-  and the target profile resolves once at the CLI boundary instead of the
-  `TargetProfile::from_omega_target_name` call sites. Acceptance: the compiler
-  crate holds only orchestration, reports and publication, and
-  `omega-rust/pipeline.md`'s "current implementation" paragraph is deleted.
+  above: `compiler.rs` runs Psi 00–07 once, then Omega 00–09 and emission per
+  realization, following the [pipeline](omega-rust/pipeline.md). Keep each
+  stage's independent representation and transformation crate. Package review
+  calls the same 00–03 prefix directly; remove alternate compile modes.
+  Source preparation supplies stage 00; build-time evaluation, dynamic binding,
+  const evaluation and semantic pruning belong inside stages 02–04. Carry
+  discovery, grants, sponsors and snapshots in their owning stage inputs/outputs.
+
+  `CompileRequest` and `ExplicitTargetSet` already exist: connect CLI/package
+  callers to them and normalize CLI targets once. Acceptance: the compiler owns
+  only composition, reports and publication; a two-target native compile proves
+  one Psi stage chain and one Terminal identity, then one Omega chain per target,
+  preserving native results and isolated realization failures as specified in
+  **PROVIDER-SELECTION-AFTER-TERMINAL**. Prefix consumers stop at their actual
+  checkpoint; stage counters must distinguish execution from reused reports.
 
 ## Immediate product closure
 
