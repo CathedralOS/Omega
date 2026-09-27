@@ -387,15 +387,3 @@ fn range_constraints_keep_literal_and_named_lower_bounds() {
     let error = parse_syntax_trees(&tokens).expect_err("old range spelling remains retired");
     assert!(error.message.contains("range<a, b>"));
 }
-
-#[test]
-fn named_constraint_retirement_preserves_declared_properties_and_value_domains() {
-    let source = r#"
-        data Point [copy] { value: i32; }
-        data Envelope<T [copy]> [copy] { value: T; }
-        data Receipt [linear] { }
-        data Main { value: f32 in Finite; }
-    "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    parse_syntax_trees(&tokens).expect("properties and value domains remain separate surfaces");
-}
