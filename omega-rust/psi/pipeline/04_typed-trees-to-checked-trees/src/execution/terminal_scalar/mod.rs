@@ -637,10 +637,10 @@ fn checked_state_graph(
                     })
                 })
                 .collect::<Option<Vec<_>>>()?;
-            let Some(result_type) = program.primitive_type_reference(state.return_type) else {
-                *reason = "machine has no source-independent checked scalar control plan (non-primitive result type)";
-                return None;
-            };
+            // A structural result is not a graph refusal: the scalar plan
+            // still owns the state's guards, locals, and calls while the
+            // returned value belongs to the Unit/structural path.
+            let result_type = program.primitive_type_reference(state.return_type);
             let statements = program.statement_table.statements(state.statement_nodes);
             let Some(bindings) = checked_statement_bindings(program, state, computations, true)
             else {

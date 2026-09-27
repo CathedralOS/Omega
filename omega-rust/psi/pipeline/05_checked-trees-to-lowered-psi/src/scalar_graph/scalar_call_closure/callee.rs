@@ -270,7 +270,17 @@ impl<'checked> CheckedScalarCallee<'checked> {
                 .ok_or(LoweringError::Unsupported(
                     "scalar callee has no checked entry state",
                 ))
-                .and_then(|state| terminal_scalar_type(state.result_type)),
+                .and_then(|state| {
+                    // A callee with a structural result is not admissible in
+                    // a scalar call position: the value never reaches a
+                    // scalar slot.
+                    state
+                        .result_type
+                        .ok_or(LoweringError::Unsupported(
+                            "scalar callee's result is structural",
+                        ))
+                        .and_then(terminal_scalar_type)
+                }),
             Self::Boundary(boundary) => terminal_scalar_type(boundary.result_type),
             Self::Structural(plan) => terminal_scalar_type(plan.result_type),
             Self::Operations(body) => body

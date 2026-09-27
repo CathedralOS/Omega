@@ -104,11 +104,19 @@ pub(crate) fn lower_selected_machine(
     // graph also needs a Unit plan to take the closure. The graph path below
     // already shares the real structural/Unit callee catalog when it needs
     // that namespace, and a rejected graph must not fall back to the closure.
+    // A machine returning a structural value still mints a scalar control
+    // plan — for its guards, locals, and calls — but that plan is control
+    // data for the composed path, not a scalar emission: only a graph whose
+    // states all carry scalar results routes the machine through scalar
+    // lowering. Without the filter, structural machines would take the
+    // scalar route and decline on a missing result slot instead of keeping
+    // their authored Unit-path route and its real wall.
     let graph = checked
         .facts
         .flow
         .terminal_scalar_graphs
-        .for_machine(selection.machine);
+        .for_machine(selection.machine)
+        .filter(|graph| graph.states.iter().all(|state| state.result_type.is_some()));
     let unit_plan = checked
         .facts
         .flow
