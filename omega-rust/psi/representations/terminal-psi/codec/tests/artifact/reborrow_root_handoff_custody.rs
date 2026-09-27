@@ -28,6 +28,19 @@
 //! and two rows so the roster itself is reorderable. The second row's child
 //! weakening is a `Call` boundary so both boundary variants appear on the
 //! wire.
+//!
+//! The representable legs run through the shared
+//! `run_one_field_substitution_matrix` driver over the declared
+//! `ReborrowRootHandoffCustodyFieldForTest` inventory in
+//! `reborrow_root_handoff_custody_fields.rs`: each leg mutates one
+//! `TerminalModule` field, must still encode and round-trip canonically,
+//! keeps the module verifiable under the retained bundle (the roster carries
+//! no proof obligations), diverges the honestly recomputed semantic and
+//! artifact identities, and is rejected by the two custody replays — the
+//! retained-manifest join and the sealed proof subject join — asserted inside
+//! the matrix's checker. The raw wire axes (count lies, closed tags, zero and
+//! non-canonical identities, join-constrained strands, roster-order
+//! violations) and the producer-side encode rejections stay authored below.
 
 use std::ops::Range;
 
@@ -37,7 +50,7 @@ use super::{
 };
 use proof_admission::{AdmissionProfile, EvidenceRoute, PrimitiveJudgment};
 use terminal_codec::{
-    ArtifactManifestError, CodecError, ProofCodecError, build_artifact_manifest,
+    CodecError, ProofCodecError, build_artifact_manifest,
     build_identity_optimization_execution_record, decode_module, decode_proof_section_for,
     encode_module, terminal_psi_identity, validate_artifact_manifest,
 };
@@ -47,6 +60,15 @@ use terminal_psi::{
     TerminalReborrowRootHandoff, TerminalReborrowRootHandoffStep, Terminator,
 };
 use terminal_verifier::{ModuleError, ObligationEvidence, verify_module};
+
+use mutation_matrix::{OneFieldSubstitutionMatrix, run_one_field_substitution_matrix};
+
+#[path = "reborrow_root_handoff_custody_fields.rs"]
+mod reborrow_root_handoff_custody_fields;
+use reborrow_root_handoff_custody_fields::{
+    ReborrowRootHandoffCustodyFieldForTest, reborrow_root_handoff_custody_outcome,
+    substitute_reborrow_root_handoff_for_test,
+};
 
 /// Byte offsets of every wire field inside the reborrow root-handoff
 /// roster. Every `string` field records its u32 length prefix and its
@@ -63,17 +85,14 @@ struct ModuleSpans {
 struct BoundarySpan {
     tag: Range<usize>,
     statement_index: Range<usize>,
-    call_ordinal: Option<Range<usize>>,
     target_len: Option<Range<usize>>,
     target: Option<Range<usize>>,
 }
 
 struct OwnerSegmentSpan {
-    row: Range<usize>,
     tag: Range<usize>,
     text_len: Option<Range<usize>>,
     text: Option<Range<usize>>,
-    index: Option<Range<usize>>,
 }
 
 struct PlaceSegmentSpan {
@@ -97,7 +116,6 @@ struct StepSpan {
     row: Range<usize>,
     child_owner_len: Range<usize>,
     child_owner: Range<usize>,
-    child_owner_path_count: Range<usize>,
     child_owner_path: Vec<OwnerSegmentSpan>,
     child_place: PlaceSpan,
     remainder_count: Range<usize>,
@@ -179,42 +197,41 @@ impl<'bytes> SpanWalker<'bytes> {
     fn walk_boundary(&mut self) -> BoundarySpan {
         let (tag, value) = self.tag();
         let statement_index = self.take(8);
-        let (call_ordinal, target_len, target) = match value {
-            1 => (None, None, None),
+        let (target_len, target) = match value {
+            1 => (None, None),
             2 => {
-                let ordinal = self.take(8);
+                self.take(8); // call ordinal
                 let (target_len, target) = self.take_string();
-                (Some(ordinal), Some(target_len), Some(target))
+                (Some(target_len), Some(target))
             }
             other => panic!("fixture boundaries are Statement or Call, not tag {other}"),
         };
         BoundarySpan {
             tag,
             statement_index,
-            call_ordinal,
             target_len,
             target,
         }
     }
 
     fn walk_owner_segment(&mut self) -> OwnerSegmentSpan {
-        let row_start = self.offset;
         let (tag, value) = self.tag();
-        let (text_len, text, index) = match value {
+        let (text_len, text) = match value {
             1 | 2 => {
                 let (len, text) = self.take_string();
-                (Some(len), Some(text), None)
+                (Some(len), Some(text))
             }
-            3 => (None, None, Some(self.take(8))),
-            4 => (None, None, None),
+            3 => {
+                self.take(8); // fixed index
+                (None, None)
+            }
+            4 => (None, None),
             other => panic!("fixture owner segments are known tags, not {other}"),
         };
         OwnerSegmentSpan {
-            row: row_start..self.offset,
             tag,
             text_len,
             text,
-            index,
         }
     }
 
@@ -277,7 +294,7 @@ impl<'bytes> SpanWalker<'bytes> {
     fn walk_step(&mut self) -> StepSpan {
         let row_start = self.offset;
         let (child_owner_len, child_owner) = self.take_string();
-        let (child_owner_path_count, child_owner_path) = self.walk_owner_path();
+        let (_, child_owner_path) = self.walk_owner_path();
         let child_place = self.walk_place();
         let (remainder_count, remainder) = self.walk_place_segments();
         let child_access = self.take(1);
@@ -288,7 +305,6 @@ impl<'bytes> SpanWalker<'bytes> {
             row: row_start..self.offset,
             child_owner_len,
             child_owner,
-            child_owner_path_count,
             child_owner_path,
             child_place,
             remainder_count,
@@ -539,61 +555,64 @@ fn terminal_reborrow_root_handoffs_reject_every_one_field_substitution() {
     let semantic_identity = terminal_psi_identity(&module).expect("semantic identity");
     assert_eq!(retained.semantic(), semantic_identity);
 
-    // A substitution that still forms a canonical module honestly
-    // recomputes a divergent semantic and artifact identity: the
+    // Every representable substitution still forms a canonical module that
+    // honestly recomputes a divergent semantic and artifact identity: the
     // substituted module still verifies under the retained bundle (the
     // roster carries no proof obligations), while the retained custody
-    // replays — the manifest join and the sealed proof subject join —
-    // reject it.
-    let divergent = |name: &'static str, mutated: &[u8]| {
-        let substituted = decode_module(mutated)
-            .unwrap_or_else(|error| panic!("{name} must still decode: {error:?}"));
-        assert_ne!(substituted, module, "{name} must change the module");
-        assert_eq!(
-            encode_module(&substituted).expect("re-encode the substitution"),
-            mutated,
-            "{name} must re-encode canonically"
-        );
-        assert_ne!(
-            terminal_psi_identity(&substituted).expect("substituted semantic identity"),
-            semantic_identity,
-            "{name} must diverge the honestly recomputed semantic identity"
-        );
-        verify_module(&substituted, &bundle, &AdmissionProfile::default()).unwrap_or_else(
-            |error| panic!("{name} must keep the substituted module verifiable: {error:?}"),
-        );
-        let recomputed_optimization =
-            build_identity_optimization_execution_record(&substituted, &bundle)
-                .expect("identity optimization over the substituted module");
-        let recomputed =
-            build_artifact_manifest(&substituted, &bundle, &recomputed_optimization, None, None)
-                .expect("honest manifest over the substituted module");
-        assert_ne!(
-            recomputed.identity(),
-            retained.identity(),
-            "{name} must diverge the recomputed artifact identity"
-        );
-        assert_eq!(
+    // replays — the manifest join and the sealed proof subject join — reject
+    // it, all asserted inside the matrix's checker. The donor is an
+    // authentic semantic module with an empty reborrow roster.
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "reborrow root-handoff roster",
+        fields: ReborrowRootHandoffCustodyFieldForTest::INVENTORY,
+        honest: &|| module.clone(),
+        donor: semantic_module(),
+        custody: &|record: &terminal_psi::TerminalModule| {
+            terminal_psi_identity(record).expect("semantic identity")
+        },
+        substitute: &substitute_reborrow_root_handoff_for_test,
+        check: &|record: &terminal_psi::TerminalModule| {
+            let encoded = encode_module(record).expect("a declared leg must encode canonically");
+            assert_eq!(
+                decode_module(&encoded),
+                Ok(record.clone()),
+                "a declared leg must decode canonically under the same subject"
+            );
+            verify_module(record, &bundle, &AdmissionProfile::default()).unwrap_or_else(|error| {
+                panic!("a declared leg must keep the substituted module verifiable: {error:?}")
+            });
+            let recomputed_optimization =
+                build_identity_optimization_execution_record(record, &bundle)
+                    .expect("identity optimization over the substituted module");
+            let recomputed =
+                build_artifact_manifest(record, &bundle, &recomputed_optimization, None, None)
+                    .expect("honest manifest over the substituted module");
+            assert_ne!(
+                recomputed.identity(),
+                retained.identity(),
+                "a declared leg must diverge the recomputed artifact identity"
+            );
+            assert!(
+                matches!(
+                    decode_proof_section_for(record, artifact.proof_bytes()),
+                    Err(ProofCodecError::ProofSubjectMismatch { .. })
+                ),
+                "a declared leg must reject at the sealed proof subject join"
+            );
             validate_artifact_manifest(
-                &substituted,
+                record,
                 &bundle,
                 &recomputed_optimization,
                 None,
                 None,
                 retained,
-            ),
-            Err(ArtifactManifestError::ManifestMismatch),
-            "{name} must reject at the retained-manifest replay"
-        );
-        assert!(
-            matches!(
-                decode_proof_section_for(&substituted, artifact.proof_bytes()),
-                Err(ProofCodecError::ProofSubjectMismatch { .. })
-            ),
-            "{name} must reject at the sealed proof subject join"
-        );
-        substituted
-    };
+            )
+            .map(|()| terminal_psi_identity(record).expect("leg semantic identity"))
+        },
+        outcome: &reborrow_root_handoff_custody_outcome,
+        joined_replay: None,
+    });
+
     // A substitution that cannot form a canonical module rejects inside the
     // canonical decoder with an exact error.
     let rejected = |name: &'static str, mutated: &[u8], expected: CodecError| {
@@ -649,15 +668,6 @@ fn terminal_reborrow_root_handoffs_reject_every_one_field_substitution() {
         mutated.extend_from_slice(&encoded[rows.end..]);
         mutated
     };
-    // Remove one roster row and decrement its roster count honestly.
-    let drop_row = |count_span: Range<usize>, row: Range<usize>| -> Vec<u8> {
-        let remaining = u32::from_le_bytes(
-            encoded[count_span.clone()]
-                .try_into()
-                .expect("roster count"),
-        ) - 1;
-        excise(count_span, row, remaining)
-    };
     // Duplicate one roster row directly behind itself with an honest count.
     let duplicate_row = |count_span: Range<usize>, row: Range<usize>| -> Vec<u8> {
         let grown = u32::from_le_bytes(
@@ -704,22 +714,9 @@ fn terminal_reborrow_root_handoffs_reject_every_one_field_substitution() {
     );
     // Clearing the roster or dropping either row stays representable: the
     // recomputed identity diverges and the retained custody replays reject.
-    divergent(
-        "a cleared reborrow handoff roster",
-        &excise(
-            spans.handoff_count.clone(),
-            first.row.start..second.row.end,
-            0,
-        ),
-    );
-    divergent(
-        "a dropped first reborrow handoff row",
-        &drop_row(spans.handoff_count.clone(), first.row.clone()),
-    );
-    divergent(
-        "a dropped second reborrow handoff row",
-        &drop_row(spans.handoff_count.clone(), second.row.clone()),
-    );
+    // The `HandoffRosterCleared`, `FirstHandoffDropped`, and
+    // `SecondHandoffDropped` inventory legs exercise all three through the
+    // matrix.
     // A duplicated row collides on the (machine, source state, leaf child
     // owner, leaf activation) coordinate; a swapped roster violates the
     // strict row order.
@@ -754,27 +751,17 @@ fn terminal_reborrow_root_handoffs_reject_every_one_field_substitution() {
             machine: machine_id(9),
         }),
     );
-    divergent(
-        "a reborrow handoff row rebound to the second machine",
-        &put_u64(first.machine.clone(), 2),
-    );
-    divergent(
-        "a reborrow handoff row rebound to the first machine",
-        &put_u64(second.machine.clone(), 1),
-    );
+    // Either direction between the fixture's two machines stays ordered and
+    // diverges the identity: the `FirstHandoffReboundToSecondMachine` and
+    // `SecondHandoffReboundToFirstMachine` inventory legs exercise both
+    // through the matrix.
 
     // --- source identities -------------------------------------------------
 
     // Each source identity must stay a canonical borrow identity; any other
-    // canonical spelling reidentifies the source and diverges.
-    divergent(
-        "a renamed reborrow source machine identity",
-        &restring(
-            first.source_machine_len.clone(),
-            first.source_machine.clone(),
-            &borrow(0x91),
-        ),
-    );
+    // canonical spelling reidentifies the source and diverges: the
+    // `SourceMachineIdentityRenamed` inventory leg exercises it through the
+    // matrix.
     rejected(
         "an emptied reborrow source machine identity",
         &restring(
@@ -799,14 +786,9 @@ fn terminal_reborrow_root_handoffs_reject_every_one_field_substitution() {
         CodecError::InvalidUtf8("reborrow machine identity"),
     );
 
-    divergent(
-        "a renamed reborrow source state identity",
-        &restring(
-            first.source_state_len.clone(),
-            first.source_state.clone(),
-            &borrow(0x92),
-        ),
-    );
+    // A canonical rename reidentifies the state and diverges: the
+    // `SourceStateIdentityRenamed` inventory leg exercises it through the
+    // matrix.
     rejected(
         "an emptied reborrow source state identity",
         &restring(
@@ -822,10 +804,9 @@ fn terminal_reborrow_root_handoffs_reject_every_one_field_substitution() {
         CodecError::StringTooLong("reborrow state identity"),
     );
 
-    divergent(
-        "a renamed reborrow direct owner identity",
-        &restring(first.owner_len.clone(), first.owner.clone(), &borrow(0x93)),
-    );
+    // A canonical rename reidentifies the owner and diverges: the
+    // `DirectRootOwnerIdentityRenamed` inventory leg exercises it through the
+    // matrix.
     rejected(
         "a non-canonical reborrow direct owner identity",
         &restring(first.owner_len.clone(), first.owner.clone(), "owner"),
@@ -847,24 +828,13 @@ fn terminal_reborrow_root_handoffs_reject_every_one_field_substitution() {
         &put_u32(first.owner_path_count.clone(), u32::MAX),
         CodecError::UnexpectedEnd,
     );
-    divergent(
-        "an emptied reborrow direct owner path",
-        &excise(
-            first.owner_path_count.clone(),
-            first.owner_path[0].row.start..first.owner_path[3].row.end,
-            0,
-        ),
-    );
+    // An emptied owner path still validates while diverging the identity:
+    // the `DirectOwnerPathCleared` inventory leg exercises it through the
+    // matrix.
     // Field and Case carry the same string payload, so a tag swap still
-    // decodes and diverges; a non-canonical field identity rejects.
-    divergent(
-        "a reborrow owner field recast as a case",
-        &put_u8(first.owner_path[0].tag.clone(), 2),
-    );
-    divergent(
-        "a reborrow owner case recast as a field",
-        &put_u8(first.owner_path[1].tag.clone(), 1),
-    );
+    // decodes and diverges — the `OwnerFieldRecastAsCase` and
+    // `OwnerCaseRecastAsField` inventory legs — while a non-canonical field
+    // identity rejects.
     rejected(
         "a non-canonical reborrow owner field identity",
         &restring(
@@ -874,10 +844,8 @@ fn terminal_reborrow_root_handoffs_reject_every_one_field_substitution() {
         ),
         invalid_first(),
     );
-    divergent(
-        "a moved reborrow owner fixed index",
-        &put_u64(first.owner_path[2].index.clone().unwrap(), 0x55),
-    );
+    // A moved fixed index is a free coordinate: the `OwnerFixedIndexMoved`
+    // inventory leg exercises it through the matrix.
     rejected(
         "an unknown reborrow owner segment tag",
         &put_u8(first.owner_path[3].tag.clone(), 0),
@@ -972,11 +940,8 @@ fn terminal_reborrow_root_handoffs_reject_every_one_field_substitution() {
     // --- direct root access and boundaries -----------------------------------
 
     // The direct root must be an exclusive borrow: mutable to write-only
-    // stays permitted while a shared or owned access rejects.
-    divergent(
-        "a write-only reborrow direct root access",
-        &put_u8(first.access.clone(), 4),
-    );
+    // stays permitted — the `DirectRootAccessWriteOnly` inventory leg — while
+    // a shared or owned access rejects.
     rejected(
         "a shared-borrow reborrow direct root access",
         &put_u8(first.access.clone(), 2),
@@ -995,21 +960,16 @@ fn terminal_reborrow_root_handoffs_reject_every_one_field_substitution() {
         );
     }
 
-    // Statement boundaries are free coordinates: a moved index diverges,
-    // while an unknown tag rejects at the envelope.
-    divergent(
-        "a moved reborrow direct root activation",
-        &put_u64(first.activation.statement_index.clone(), 0x61),
-    );
+    // Statement boundaries are free coordinates: a moved activation index
+    // diverges — the `DirectRootActivationMoved` inventory leg — while an
+    // unknown tag rejects at the envelope.
     rejected(
         "an unknown reborrow activation boundary tag",
         &put_u8(first.activation.tag.clone(), 9),
         CodecError::InvalidTag("TerminalBorrowBoundarySource", 9),
     );
-    divergent(
-        "a moved reborrow direct root weakening",
-        &put_u64(first.weakening.statement_index.clone(), 0x62),
-    );
+    // A moved weakening index diverges: the `DirectRootWeakeningMoved`
+    // inventory leg exercises it through the matrix.
     rejected(
         "an unknown reborrow weakening boundary tag",
         &put_u8(first.weakening.tag.clone(), 0),
@@ -1041,14 +1001,9 @@ fn terminal_reborrow_root_handoffs_reject_every_one_field_substitution() {
 
     // --- step owner -----------------------------------------------------------
 
-    divergent(
-        "a renamed reborrow child owner identity",
-        &restring(
-            step.child_owner_len.clone(),
-            step.child_owner.clone(),
-            &borrow(0x96),
-        ),
-    );
+    // A canonical rename reidentifies the child owner and diverges: the
+    // `ChildOwnerIdentityRenamed` inventory leg exercises it through the
+    // matrix.
     rejected(
         "a non-canonical reborrow child owner identity",
         &restring(
@@ -1058,10 +1013,9 @@ fn terminal_reborrow_root_handoffs_reject_every_one_field_substitution() {
         ),
         invalid_first(),
     );
-    divergent(
-        "a reborrow child owner case recast as a field",
-        &put_u8(step.child_owner_path[0].tag.clone(), 1),
-    );
+    // A Case segment's string payload survives recast as a Field: the
+    // `ChildOwnerCaseRecastAsField` inventory leg exercises it through the
+    // matrix.
     rejected(
         "a non-canonical reborrow child owner case identity",
         &restring(
@@ -1071,18 +1025,9 @@ fn terminal_reborrow_root_handoffs_reject_every_one_field_substitution() {
         ),
         invalid_first(),
     );
-    divergent(
-        "a moved reborrow child owner fixed index",
-        &put_u64(step.child_owner_path[1].index.clone().unwrap(), 0x57),
-    );
-    divergent(
-        "an emptied reborrow child owner path",
-        &excise(
-            step.child_owner_path_count.clone(),
-            step.child_owner_path[0].row.start..step.child_owner_path[1].row.end,
-            0,
-        ),
-    );
+    // The child owner path is free like the root's: a moved fixed index and
+    // an emptied path both stay representable — the
+    // `ChildOwnerFixedIndexMoved` and `ChildOwnerPathCleared` inventory legs.
 
     // --- step place and projection remainder -----------------------------------
 
@@ -1138,11 +1083,8 @@ fn terminal_reborrow_root_handoffs_reject_every_one_field_substitution() {
     // --- step access and boundaries ----------------------------------------------
 
     // The child stays exclusive under the mutable root: write-only to
-    // mutable stays permitted while shared or owned rejects.
-    divergent(
-        "a mutable reborrow child access",
-        &put_u8(step.child_access.clone(), 3),
-    );
+    // mutable stays permitted — the `ChildAccessMutable` inventory leg —
+    // while shared or owned rejects.
     rejected(
         "a shared-borrow reborrow child access",
         &put_u8(step.child_access.clone(), 2),
@@ -1171,35 +1113,16 @@ fn terminal_reborrow_root_handoffs_reject_every_one_field_substitution() {
         &put_u64(step.formation.statement_index.clone(), 0x64),
         invalid_first(),
     );
-    divergent(
-        "a moved reborrow child weakening",
-        &put_u64(step.child_weakening.statement_index.clone(), 0x65),
-    );
+    // The weakening is a free coordinate: the `ChildWeakeningMoved`
+    // inventory leg exercises it through the matrix.
 
     // --- second-row call boundary -------------------------------------------------
 
     // The second row's child weakening is a `Call` boundary: its statement,
-    // ordinal, and canonical target identity are each free coordinates,
-    // while a non-canonical target rejects.
-    divergent(
-        "a moved reborrow call boundary statement",
-        &put_u64(second_step.child_weakening.statement_index.clone(), 0x66),
-    );
-    divergent(
-        "a moved reborrow call boundary ordinal",
-        &put_u64(
-            second_step.child_weakening.call_ordinal.clone().unwrap(),
-            0x67,
-        ),
-    );
-    divergent(
-        "a renamed reborrow call boundary target",
-        &restring(
-            second_step.child_weakening.target_len.clone().unwrap(),
-            second_step.child_weakening.target.clone().unwrap(),
-            &borrow(0x98),
-        ),
-    );
+    // ordinal, and canonical target identity are each free coordinates — the
+    // `CallBoundaryStatementMoved`, `CallBoundaryOrdinalMoved`, and
+    // `CallBoundaryTargetRenamed` inventory legs — while a non-canonical
+    // target rejects.
     rejected(
         "a non-canonical reborrow call boundary target",
         &restring(
