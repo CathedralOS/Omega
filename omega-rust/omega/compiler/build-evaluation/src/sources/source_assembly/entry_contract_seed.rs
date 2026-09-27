@@ -20,7 +20,8 @@ pub struct EntryContractSeed {
 pub(super) fn entry_contract_seeds(
     package_inputs: Option<&PackageCompilationInputs>,
     source_storage: &SourceStorage,
-) -> Vec<EntryContractSeed> {
+) -> Result<Vec<EntryContractSeed>, Vec<diagnostics::Diagnostic>> {
+    let bundled_root = crate::sources::frontend::bundled_omega_root()?.join("std");
     let mut seeds = Vec::new();
     for profile in target::TargetProfile::ALL {
         let slot = profile.program_entry_slot();
@@ -39,20 +40,26 @@ pub(super) fn entry_contract_seeds(
         {
             continue;
         }
-        if let Some(seed) = contract_seed(contract_package, relative_source, package_inputs) {
+        if let Some(seed) = contract_seed(
+            contract_package,
+            relative_source,
+            package_inputs,
+            &bundled_root,
+        ) {
             seeds.push(seed);
         }
     }
-    seeds
+    Ok(seeds)
 }
 
 fn contract_seed(
     contract_package: target::ProgramEntryPhysicalContractPackage,
     relative_source: &str,
     package_inputs: Option<&PackageCompilationInputs>,
+    bundled_root: &std::path::Path,
 ) -> Option<EntryContractSeed> {
     let bundled = || {
-        let contract_root = crate::sources::frontend::bundled_omega_root().join("std");
+        let contract_root = bundled_root.to_path_buf();
         EntryContractSeed {
             source: contract_root.join(relative_source),
             root: contract_root,

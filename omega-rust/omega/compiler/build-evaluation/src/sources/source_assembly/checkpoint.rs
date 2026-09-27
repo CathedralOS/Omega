@@ -141,7 +141,7 @@ impl ImmutableSourceParseCheckpoint {
         if let Some(package_inputs) = package_inputs {
             package_inputs.validate_for_compilation(
                 &self.root_path,
-                &crate::sources::frontend::bundled_core_root(),
+                &crate::sources::frontend::bundled_core_root()?,
             )?;
         }
         Ok(())
@@ -192,7 +192,7 @@ impl ImmutableSourceParseCheckpoint {
         // Every target's entry contract joins the set; the selected target
         // only decides which one realizes the program entry later.
         let seeds =
-            super::entry_contract_seed::entry_contract_seeds(package_inputs, &source_storage);
+            super::entry_contract_seed::entry_contract_seeds(package_inputs, &source_storage)?;
         if !seeds.is_empty() {
             for seed in seeds {
                 if seed.closed_subtree {
@@ -242,7 +242,7 @@ fn initialize_source_storage(
         Some(package_inputs) => {
             package_inputs.validate_for_compilation(
                 root_path,
-                &crate::sources::frontend::bundled_core_root(),
+                &crate::sources::frontend::bundled_core_root()?,
             )?;
             let root_package = package_inputs
                 .package_root(package_inputs.root())
@@ -251,7 +251,7 @@ fn initialize_source_storage(
             let mut storage = SourceStorage::for_package_compilation(
                 root_package,
                 package_inputs.root(),
-                crate::sources::frontend::bundled_core_root(),
+                crate::sources::frontend::bundled_core_root()?,
             );
             for (identity, source_root) in package_inputs.packages() {
                 storage.register_reconciled_package_root(source_root.to_path_buf(), identity);
@@ -273,7 +273,7 @@ fn initialize_source_storage(
                 .unwrap_or_else(|| PathBuf::from("."));
             Ok(SourceStorage::for_compilation(
                 root_package,
-                crate::sources::frontend::bundled_omega_root(),
+                crate::sources::frontend::bundled_omega_root()?,
             ))
         }
     }

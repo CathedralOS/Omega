@@ -415,7 +415,7 @@ fn validate_package_source_frontier(
     package_inputs: &PackageCompilationInputs,
     source_storage: &SourceStorage,
 ) -> Result<Vec<(PathBuf, source::DependencyScope)>, Vec<Diagnostic>> {
-    let toolchain_root = crate::sources::frontend::bundled_core_root();
+    let toolchain_root = crate::sources::frontend::bundled_core_root()?;
     let mut validated = Vec::with_capacity(frontier.len());
     let mut diagnostics = Vec::new();
 

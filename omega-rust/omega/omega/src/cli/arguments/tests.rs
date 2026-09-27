@@ -1,4 +1,11 @@
 use super::{Invocation, OsString, parse};
+
+#[test]
+fn version_is_a_non_compiling_invocation() {
+    assert!(matches!(invocation(&["--version"]), Invocation::Version));
+    assert!(matches!(invocation(&["-V"]), Invocation::Version));
+    assert!(parse(["--version", "unexpected"].into_iter().map(OsString::from)).is_err());
+}
 fn invocation(arguments: &[&str]) -> Invocation {
     parse(arguments.iter().map(OsString::from))
         .unwrap_or_else(|error| panic!("{arguments:?}: {error}"))

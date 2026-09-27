@@ -263,7 +263,7 @@ pub fn discover_imports(
     let mut imports = Vec::with_capacity(parsed_sources.len());
 
     for parsed_source in parsed_sources {
-        let source_root = standalone_source_root(&root_dir, &parsed_source.path);
+        let source_root = standalone_source_root(&root_dir, &parsed_source.path)?;
         for (ordinal, root_item) in parsed_source.root_items.iter().enumerate() {
             if let Item::Use(use_item) = syntax_trees.root_item(*root_item) {
                 let members = syntax_trees.items.identifier_path_members(use_item.path);
@@ -274,10 +274,10 @@ pub fn discover_imports(
                         parsed_source.path.display(),
                     ))]);
                 }
-                let resolved = normalize_path(&resolve_source_path(&source_root, members))?;
+                let resolved = normalize_path(&resolve_source_path(&source_root, members)?)?;
                 let prefix = if is_bundled_omega_path(members) { 2 } else { 0 };
                 let owner = if prefix == 2 {
-                    bundled_omega_root()
+                    bundled_omega_root()?
                 } else {
                     source_root.clone()
                 };
@@ -307,14 +307,14 @@ pub fn discover_imports(
 /// authored self-imports use ordinary package-local paths. This is standalone
 /// toolchain routing only; package-aware compilation resolves the same paths
 /// through exact package custody.
-fn standalone_source_root(default_root: &Path, source: &Path) -> PathBuf {
-    let standard_library_root = bundled_omega_root().join("std");
-    source
+fn standalone_source_root(default_root: &Path, source: &Path) -> Result<PathBuf, Vec<Diagnostic>> {
+    let standard_library_root = bundled_omega_root()?.join("std");
+    Ok(source
         .canonicalize()
         .ok()
         .filter(|source| source.starts_with(&standard_library_root))
         .map(|_| standard_library_root)
-        .unwrap_or_else(|| default_root.to_path_buf())
+        .unwrap_or_else(|| default_root.to_path_buf()))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -531,7 +531,7 @@ pub fn reconciled_package_import(
                 root.display(),
             ))]);
         }
-        return resolve_reconciled_import(bundled_omega_root(), &members[2..], "toolchain")
+        return resolve_reconciled_import(bundled_omega_root()?, &members[2..], "toolchain")
             .map(ReconciledPackageImport::Toolchain);
     }
     if is_bundled_omega_path(members) {
@@ -696,7 +696,10 @@ fn default_alias_spelling(package_name: &str) -> &str {
 /// diagnostics only; an undeclared import that spells one of these names is
 /// reported as a missing dependency edge, never resolved through it.
 fn bundled_package_roster() -> Vec<(String, PathBuf)> {
-    let Ok(entries) = std::fs::read_dir(bundled_omega_root()) else {
+    let Some(entries) = bundled_omega_root()
+        .ok()
+        .and_then(|root| std::fs::read_dir(root).ok())
+    else {
         return Vec::new();
     };
     let mut roster = entries
@@ -810,7 +813,7 @@ pub fn discover_package_imports(
                             2,
                         ),
                         requires_module: !direct_source_import(
-                            &bundled_omega_root(),
+                            &bundled_omega_root()?,
                             &members[2..],
                             &path,
                         ),
@@ -895,12 +898,15 @@ fn own_token_stream(tokens: TokenStream<'_>, source: &Arc<str>) -> TokenStream<'
     )
 }
 
-fn resolve_source_path(root_dir: &Path, source_path: &[Identifier]) -> PathBuf {
+fn resolve_source_path(
+    root_dir: &Path,
+    source_path: &[Identifier],
+) -> Result<PathBuf, Vec<Diagnostic>> {
     let mut segments = source_path.iter();
     let mut path = if is_bundled_omega_path(source_path) {
         segments.next();
         segments.next();
-        bundled_omega_root()
+        bundled_omega_root()?
     } else {
         root_dir.to_path_buf()
     };
@@ -912,14 +918,14 @@ fn resolve_source_path(root_dir: &Path, source_path: &[Identifier]) -> PathBuf {
     for relative_candidate in source_import_candidates(&relative_path) {
         let candidate = path.join(relative_candidate);
         if candidate.exists() {
-            return candidate;
+            return Ok(candidate);
         }
     }
     path.push(relative_path);
-    source_path_candidates(&path)
+    Ok(source_path_candidates(&path)
         .into_iter()
         .next()
-        .unwrap_or(path)
+        .unwrap_or(path))
 }
 
 fn resolve_reconciled_import(
@@ -985,23 +991,12 @@ fn identifier_path_text(path: &[Identifier]) -> String {
         .join("::")
 }
 
-pub fn bundled_omega_root() -> PathBuf {
-    // Import discovery asks for the root once per import; resolve the
-    // canonical path once per process. A failed resolution is not kept, so a
-    // later call retries it exactly as before.
-    static CANONICAL: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
-    if let Some(root) = CANONICAL.get() {
-        return root.clone();
-    }
-    let relative = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../../source/library");
-    match relative.canonicalize() {
-        Ok(root) => CANONICAL.get_or_init(|| root).clone(),
-        Err(_) => relative,
-    }
+pub fn bundled_omega_root() -> Result<PathBuf, Vec<Diagnostic>> {
+    crate::sources::toolchain_library::root().map_err(|error| vec![Diagnostic::error(error)])
 }
 
-pub fn bundled_core_root() -> PathBuf {
-    bundled_omega_root().join("core")
+pub fn bundled_core_root() -> Result<PathBuf, Vec<Diagnostic>> {
+    Ok(bundled_omega_root()?.join("core"))
 }
 
 fn normalize_path(path: &Path) -> Result<PathBuf, Vec<Diagnostic>> {

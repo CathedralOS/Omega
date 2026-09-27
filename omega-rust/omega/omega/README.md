@@ -79,6 +79,8 @@ summary, and publication lines) as a plain-text observation file; there is no
 records remain governed by the requested product. See the
 [compiler product contract](../compiler/README.md#product-boundaries-and-observations).
 
-The bundled `source/library/` location is derived from the compiler checkout
-captured at build time. Rebuild the binary from the retained checkout before
-removing the checkout used to build it.
+`omega --version` reports the compiler version, source commit (when supplied by
+the packager), and Rust host target. Release bundles carry their matching library
+beside the executable; ordinary Cargo development builds retain a checkout
+fallback. See [release packaging](../../../tools/release/README.md#build-a-relocatable-bundle)
+for installation layout, explicit library selection, and relocation tests.

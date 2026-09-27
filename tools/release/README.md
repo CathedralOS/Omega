@@ -1,4 +1,70 @@
-# Release-record substrate
+# Release tooling
+
+## Build a relocatable bundle
+
+From a clean checkout, on the host you are distributing:
+
+```sh
+python3 tools/release/package.py --version 0.1.0-alpha.1 --output build/releases
+```
+
+On Windows use `python` with the same arguments. Requirements are the pinned
+Rust toolchain, its native linker, Python 3.9+, and Git. No new release tag or
+GitHub publication is performed. The script uses `mbx` when available, Cargo
+otherwise, and builds the host executable with `--locked --release`.
+Windows MSVC bundles statically link the C runtime. Other hosts retain their
+ordinary OS library dependencies; host/minimum-OS release support still requires
+testing on those systems.
+
+The archive contains `bin/omega` (`omega.exe` on Windows), the matching `.omg`
+sources under `lib/omega/library/`, licenses, and `manifest.json`. Compiler
+sources, package caches, tests, and the Rust toolchain are not shipped. The
+manifest identifies version, source commit, Rust host/compiler, library digest,
+and each bundled file's SHA-256. The archive has a sibling `.sha256` file.
+Hashes identify content; neither they nor this packaging smoke test certify
+compiler completeness or authenticate a publisher.
+
+Before publishing its local output, the command unpacks the archive into a new
+directory containing spaces, checks the manifest and `--version`, checks source
+using the bundled library, and compiles/runs a native program that exits 42.
+The smoke process has an empty `PATH` and fresh temporary user/cache directories,
+so local compilation cannot rely on the producer's Rust toolchain, linker, or
+existing package snapshots. The fixed native fixture exercises `omega update`
+and accepts its generated local-library review decisions before compilation;
+this is not a dependency audit or automatic acceptance policy for user projects.
+Negative controls remove the installed library and corrupt one source: both must
+reject rather than use the build checkout. POSIX runs also exercise an executable
+symlink. The output is a ZIP on Windows and a tar.gz elsewhere. Existing archive
+names are not overwritten. A failed smoke test produces no final archive.
+
+`--allow-dirty` is for developing the packager, not publishing a release: it
+marks both the version and manifest dirty. Normal packaging requires a clean
+checkout. The smoke suite is installed-product coverage, not the eight-gate
+compiler-completion matrix below. Run the same command on each supported host;
+a Windows result does not establish a macOS/Linux pass.
+
+### Runtime library discovery
+
+An installed compiler resolves its real executable location, including symlinks,
+then reads `../lib/omega/library` relative to `bin`. Release builds contain no
+checkout fallback and compare that library's exact `.omg` tree against an embedded
+digest. Keep compiler and library together when moving or upgrading them.
+
+For explicit deployment/embedding, set `OMEGA_LIBRARY_ROOT` to an absolute
+library directory before starting Omega, or call
+`build_evaluation::sources::toolchain_library::configure` before the first
+compiler lookup. This selects one immutable process-level root, not an import
+search path; release digest checks still apply. Invalid explicit roots reject
+without fallback. Ordinary Cargo development builds retain their checkout's
+library when no installed bundle or explicit root is present.
+
+These checks catch broken or mixed installations, not malicious mutation by the
+host while a process is running. Installing release assets and authenticating
+their publisher remain the installer/receiver's responsibility. Git-based package
+acquisition still requires host Git; compiling with bundled/local sources does
+not require the producer's Rust checkout.
+
+## Release-record substrate
 
 `release_record.py` is the substrate for the release record required by
 [the completion contract](../../wiki/drafts/reference/rust_compiler_completion.md#closure-rule):
