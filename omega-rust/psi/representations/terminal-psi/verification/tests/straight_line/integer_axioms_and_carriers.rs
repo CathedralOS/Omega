@@ -192,20 +192,37 @@ fn integer_equality_axiom_proves_the_return_contract() {
         )
     );
 
-    let signed_integer =
-        IntegerType::new(IntegerSign::Signed, 8).expect("i8 mismatched operand type");
-    let mut wrong_operand = module.clone();
-    wrong_operand.machines[0].contract.ensures.clear();
-    wrong_operand.machines[0].parameters[1].scalar_type = ScalarType::Integer(signed_integer);
-    assert_eq!(
-        validate_module(&wrong_operand)
-            .expect_err("integer equality requires two operands of one exact integer type"),
-        ModuleError::IntegerEqualOperandTypeMismatch {
-            operation: OperationId::new(40).expect("operation"),
-            left: integer_scalar,
-            right: ScalarType::Integer(signed_integer),
-        }
-    );
+    // Fixed integer comparisons retain each operand's carrier; differing sign
+    // or width is valid. Mixing fixed integers with addresses or non-integers
+    // remains invalid.
+    for (sign, bits) in [
+        (IntegerSign::Signed, 8),
+        (IntegerSign::Unsigned, 16),
+        (IntegerSign::Signed, 16),
+    ] {
+        let mut mixed_operands = module.clone();
+        mixed_operands.machines[0].contract.ensures.clear();
+        mixed_operands.machines[0].parameters[1].scalar_type =
+            ScalarType::Integer(IntegerType::new(sign, bits).expect("fixed comparison type"));
+        validate_module(&mixed_operands).expect("equality admits independently typed integers");
+    }
+    for invalid_type in [
+        ScalarType::Boolean,
+        ScalarType::Integer(IntegerType::address(8).expect("address carrier")),
+    ] {
+        let mut wrong_operand = module.clone();
+        wrong_operand.machines[0].contract.ensures.clear();
+        wrong_operand.machines[0].parameters[1].scalar_type = invalid_type;
+        assert_eq!(
+            validate_module(&wrong_operand)
+                .expect_err("integer equality rejects incompatible operand carriers"),
+            ModuleError::IntegerEqualOperandTypeMismatch {
+                operation: OperationId::new(40).expect("operation"),
+                left: integer_scalar,
+                right: invalid_type,
+            }
+        );
+    }
 
     let mut wrong_result = module;
     wrong_result.machines[0].contract.ensures.clear();
@@ -414,14 +431,34 @@ fn integer_ordering_axioms_prove_return_contracts() {
             )
         );
 
-        let mut wrong_operand = module.clone();
-        wrong_operand.machines[0].contract.ensures.clear();
-        wrong_operand.machines[0].parameters[1].scalar_type =
-            ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 mismatch"));
-        assert!(matches!(
-            validate_module(&wrong_operand),
-            Err(ModuleError::IntegerOrderingOperandTypeMismatch { .. })
-        ));
+        for (sign, bits) in [
+            (IntegerSign::Unsigned, 8),
+            (IntegerSign::Signed, 16),
+            (IntegerSign::Unsigned, 16),
+        ] {
+            let mut mixed_operands = module.clone();
+            mixed_operands.machines[0].contract.ensures.clear();
+            mixed_operands.machines[0].parameters[1].scalar_type =
+                ScalarType::Integer(IntegerType::new(sign, bits).expect("fixed comparison type"));
+            validate_module(&mixed_operands).expect("ordering admits independently typed integers");
+        }
+        for invalid_type in [
+            ScalarType::Boolean,
+            ScalarType::Integer(IntegerType::address(8).expect("address carrier")),
+        ] {
+            let mut wrong_operand = module.clone();
+            wrong_operand.machines[0].contract.ensures.clear();
+            wrong_operand.machines[0].parameters[1].scalar_type = invalid_type;
+            assert_eq!(
+                validate_module(&wrong_operand)
+                    .expect_err("integer ordering rejects incompatible operand carriers"),
+                ModuleError::IntegerOrderingOperandTypeMismatch {
+                    operation: OperationId::new(50).expect("operation"),
+                    left: integer_scalar,
+                    right: invalid_type,
+                }
+            );
+        }
 
         let mut wrong_result = module.clone();
         wrong_result.machines[0].contract.ensures.clear();
