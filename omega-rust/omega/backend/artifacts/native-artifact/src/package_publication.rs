@@ -34,12 +34,11 @@
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 
-use super::ExecutableContainerDigest;
-use native_artifact::{NativePackageEvidenceDigest, PackageComponentDigest};
+use crate::ExecutableContainerDigest;
+use crate::{NativePackageEvidenceDigest, PackageComponentDigest};
 
 /// Digest one installed package member's exact bytes under its own domain.
-/// Crate-visible for report-custody tests minting honest member digests.
-pub(crate) fn package_component_digest(bytes: &[u8]) -> PackageComponentDigest {
+fn package_component_digest(bytes: &[u8]) -> PackageComponentDigest {
     let mut digest = Sha256::new();
     digest.update(b"omega.published-package-component.sha256.v1\0");
     digest.update((bytes.len() as u64).to_le_bytes());
@@ -55,7 +54,7 @@ pub(crate) fn package_component_digest(bytes: &[u8]) -> PackageComponentDigest {
 fn native_package_evidence_digest(
     package_root: &Path,
     application_name: &str,
-    application_identifier: &build_evaluation::ApplicationIdentifier,
+    application_identifier: &target::ApplicationIdentifier,
     executable_container_digest: ExecutableContainerDigest,
     components: &[PackagePublicationComponent],
 ) -> NativePackageEvidenceDigest {
@@ -82,14 +81,13 @@ fn native_package_evidence_digest(
 }
 
 /// One installed package member, recorded package-relative so the receipt is
-/// portable across destinations and invocation working directories. Fields
-/// are crate-visible for report-custody tests; the receipt's replayed
-/// evidence digest is what makes a forged component detectable.
+/// interpreted relative to the recorded root. The receipt's replayed evidence
+/// digest detects a changed component.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePublicationComponent {
-    pub(crate) relative_path: PathBuf,
-    pub(crate) byte_count: usize,
-    pub(crate) digest: PackageComponentDigest,
+    relative_path: PathBuf,
+    byte_count: usize,
+    digest: PackageComponentDigest,
 }
 
 impl PackagePublicationComponent {
@@ -107,34 +105,33 @@ impl PackagePublicationComponent {
 /// The receipt covers the exact executable/plist/companion bytes and the
 /// directory shape they were installed under. It is compiler artifact
 /// evidence only — package consistency is not a distribution signature,
-/// notarization, or authenticity claim. Fields are crate-visible for
-/// report-custody tests; the replayed evidence digest and the executable
-/// member joins are what make a forged field detectable.
+/// notarization, or authenticity claim. The replayed evidence digest and
+/// executable member joins detect changed fields.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativePackagePublicationReceipt {
-    pub(crate) package_root: PathBuf,
-    pub(crate) application_name: String,
-    pub(crate) application_identifier: build_evaluation::ApplicationIdentifier,
+    package_root: PathBuf,
+    application_name: String,
+    application_identifier: target::ApplicationIdentifier,
     /// The inner executable's ordinary v1 container commitment — the same
     /// digest the flat publication receipt carries — so package and
     /// executable custody are cross-bound rather than parallel claims.
-    pub(crate) executable_container_digest: ExecutableContainerDigest,
+    executable_container_digest: ExecutableContainerDigest,
     /// Retained inner-executable byte count. It never enters the evidence
     /// digest: its replay binding is the `Contents/MacOS/<name>` member's own
     /// byte count plus the flat receipt's container byte count at the
     /// report-level join.
-    pub(crate) executable_byte_count: usize,
+    executable_byte_count: usize,
     /// Ordered installed members: `Contents/Info.plist` first, then
     /// `Contents/MacOS/<name>`, then each requested proof companion.
-    pub(crate) components: Vec<PackagePublicationComponent>,
-    pub(crate) package_evidence_digest: NativePackageEvidenceDigest,
+    components: Vec<PackagePublicationComponent>,
+    package_evidence_digest: NativePackageEvidenceDigest,
 }
 
 impl NativePackagePublicationReceipt {
     pub fn new(
         package_root: PathBuf,
         application_name: String,
-        application_identifier: build_evaluation::ApplicationIdentifier,
+        application_identifier: target::ApplicationIdentifier,
         executable_container_digest: ExecutableContainerDigest,
         executable_byte_count: usize,
         components: Vec<PackagePublicationComponent>,
@@ -165,7 +162,7 @@ impl NativePackagePublicationReceipt {
         &self.application_name
     }
 
-    pub const fn application_identifier(&self) -> &build_evaluation::ApplicationIdentifier {
+    pub const fn application_identifier(&self) -> &target::ApplicationIdentifier {
         &self.application_identifier
     }
 
@@ -303,14 +300,40 @@ fn installed_package_files(root: &Path) -> Result<Vec<PathBuf>, String> {
 /// leading dot. Every member is staged and replayed before the destination
 /// is touched; a post-install replay failure removes the just-installed
 /// package so nothing certified-looking survives.
-pub(crate) fn publish_macos_application_package(
+pub fn publish_macos_application_package(
     build_dir: &Path,
     application_name: &str,
-    application_identifier: &build_evaluation::ApplicationIdentifier,
+    application_identifier: &target::ApplicationIdentifier,
     executable_bytes: &[u8],
     executable_container_digest: ExecutableContainerDigest,
     companions: &[(String, Vec<u8>)],
 ) -> Result<NativePackagePublicationReceipt, String> {
+    if crate::publication::executable_container_digest(executable_bytes)
+        != executable_container_digest
+    {
+        return Err(
+            "macOS package executable bytes do not match the container commitment".to_owned(),
+        );
+    }
+    // This public byte-oriented boundary cannot rely on a frontend having
+    // admitted a local filename. These checks reject path/XML syntax; they do
+    // not sanitize or infer an application name.
+    if application_name.is_empty()
+        || !application_name
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
+    {
+        return Err("macOS package publication requires a local ASCII application name".to_owned());
+    }
+    if companions.iter().any(|(suffix, _)| {
+        !suffix.starts_with('.')
+            || suffix.len() == 1
+            || !suffix
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+    }) {
+        return Err("macOS package companion suffix must be a local dotted suffix".to_owned());
+    }
     // The signed executable must already carry the authored identity before
     // any package byte becomes visible; publication cannot re-sign it.
     let encoded_identifier =
@@ -447,3 +470,6 @@ pub(crate) fn publish_macos_application_package(
         components,
     ))
 }
+
+#[cfg(test)]
+mod tests;

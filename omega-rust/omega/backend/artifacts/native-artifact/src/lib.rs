@@ -14,6 +14,7 @@
 //! and its `emission.rs` for requested-image dispatch and complete native custody,
 //! `proof.rs` for standalone native proof construction and verification,
 //! `publication.rs` for executable publication evidence and receipt replay,
+//! `package_publication.rs` for macOS bundle assembly and package receipts,
 //! `callable_entry.rs` for validated callable-entry staging, or
 //! `semantic_wrapper_object.rs` for the optimized ProgramStorage
 //! semantic-wrapper object records and codec that native realization stages.
@@ -23,6 +24,7 @@ mod entry_receiver;
 mod fragment_object_publication;
 mod native_artifact;
 pub mod optimized_semantic_wrapper_object;
+mod package_publication;
 mod physical;
 mod proof;
 mod publication;
@@ -49,6 +51,9 @@ pub use native_artifact::{
     NativeArtifactEmissionParts, NativeArtifactIdentity, NativeArtifactParts,
     NativePhysicalEvidenceScope, NativeProviderExecution, NativeSelectedProviderClosureDigest,
     NativeSelectedProviderPlan, NativeSelectedProviderPlanDigest, RequestedNativeArtifact,
+};
+pub use package_publication::{
+    NativePackagePublicationReceipt, PackagePublicationComponent, publish_macos_application_package,
 };
 pub use physical::{
     BoundaryTraitSettlement, BoundaryTraitSettlementParts, BoundaryTraitSettlementRole,

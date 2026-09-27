@@ -9,6 +9,7 @@ name = "native_artifact"
 path = "src/lib.rs"
 
 [dependencies]
+platform-custody = { path = "../../../foundation/platform-custody" }
 register-model = { path = "../../register-model" }
 selected-instructions = { path = "../../../representations/selected-instructions" }
 selected-instructions-to-register-homes = { path = "../../../pipeline/05_selected-instructions-to-register-homes" }
