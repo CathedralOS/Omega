@@ -1,86 +1,65 @@
 use super::{Fixture, callable, package_identity, project, project_checked_callable_policy};
-const SOURCE: &str = include_str!(
-    "../../../../../../tests/omega/pass/effects/nominal_callback_dependency/main.omg"
-);
+const SOURCE: &str =
+    include_str!("../../../../../../tests/omega/pass/effects/nominal_callback_dependency/main.omg");
 
-fn assert_private_closed_uses_preserve_public_policy(case: &str, users: &str) {
+#[test]
+fn private_closed_uses_preserve_public_generic_policy() {
     let original = project(&Fixture::local(SOURCE));
     let original_bytes = original.canonical_bytes().unwrap();
     let callbacks = r#"
 machine quiet(value: u64) -> u64 satisfies StepContract::step { value }
 machine loud(value: u64) -> u64 satisfies StepContract::step reaches Console { value }
 "#;
-    let fixture = Fixture::local(&format!("{SOURCE}\n{callbacks}\n{users}"));
-    let policy = project(&fixture);
-    assert_eq!(
-        callable(&original, "traverse"),
-        callable(&policy, "traverse"),
-        "{case}: private closed selections cannot consume the public template contract"
-    );
-    assert_eq!(
-        original, policy,
-        "{case}: only the original public surface is published"
-    );
-    assert_eq!(
-        original_bytes,
-        policy.canonical_bytes().unwrap(),
-        "{case}: recovered canonical policy cannot depend on private selection order"
-    );
-}
-
-#[test]
-fn private_closed_quiet_use_preserves_public_generic_policy() {
-    assert_private_closed_uses_preserve_public_policy(
-        "quiet",
-        "machine use_quiet(value: u64) -> u64 { traverse<quiet>(value) }",
-    );
-}
-
-#[test]
-fn private_closed_console_use_preserves_public_generic_policy() {
-    assert_private_closed_uses_preserve_public_policy(
-        "Console",
-        "machine use_loud(value: u64) -> u64 { traverse<loud>(value) }",
-    );
-}
-
-#[test]
-fn private_closed_both_uses_preserve_public_generic_policy() {
-    assert_private_closed_uses_preserve_public_policy(
-        "both",
-        "machine use_both(value: u64) -> u64 { let next: u64 = traverse<quiet>(value); traverse<loud>(next) }",
-    );
-}
-
-#[test]
-fn private_closed_reversed_uses_preserve_public_generic_policy() {
-    assert_private_closed_uses_preserve_public_policy(
-        "reversed",
-        "machine use_both(value: u64) -> u64 { let next: u64 = traverse<loud>(value); traverse<quiet>(next) }",
-    );
-}
-
-#[test]
-fn private_closed_relay_uses_preserve_public_generic_policy() {
-    assert_private_closed_uses_preserve_public_policy(
-        "private relay",
-        "machine relay<machine Forward>(value: u64) -> u64\n\
+    for (case, users) in [
+        (
+            "quiet",
+            "machine use_quiet(value: u64) -> u64 { traverse<quiet>(value) }",
+        ),
+        (
+            "Console",
+            "machine use_loud(value: u64) -> u64 { traverse<loud>(value) }",
+        ),
+        (
+            "both",
+            "machine use_both(value: u64) -> u64 { let next: u64 = traverse<quiet>(value); traverse<loud>(next) }",
+        ),
+        (
+            "reversed",
+            "machine use_both(value: u64) -> u64 { let next: u64 = traverse<loud>(value); traverse<quiet>(next) }",
+        ),
+        (
+            "private relay",
+            "machine relay<machine Forward>(value: u64) -> u64\n\
          where machine Forward satisfies StepContract::step;\n\
          { traverse<Forward>(value) }\n\
          machine use_both(value: u64) -> u64 { let next: u64 = relay<quiet>(value); relay<loud>(next) }",
-    );
+        ),
+        (
+            "unused generic caller",
+            "machine unused<Element>(witness: &Element, value: u64) -> u64 { traverse<quiet>(value) }",
+        ),
+    ] {
+        let fixture = Fixture::local(&format!("{SOURCE}\n{callbacks}\n{users}"));
+        let policy = project(&fixture);
+        assert_eq!(
+            callable(&original, "traverse"),
+            callable(&policy, "traverse"),
+            "{case}: private closed selections cannot consume the public template contract"
+        );
+        assert_eq!(
+            original, policy,
+            "{case}: only the original public surface is published"
+        );
+        assert_eq!(
+            original_bytes,
+            policy.canonical_bytes().unwrap(),
+            "{case}: recovered canonical policy cannot depend on private selection order"
+        );
+    }
 }
 
 #[test]
-fn unused_private_generic_closed_use_preserves_public_generic_policy() {
-    assert_private_closed_uses_preserve_public_policy(
-        "unused generic caller",
-        "machine unused<Element>(witness: &Element, value: u64) -> u64 { traverse<quiet>(value) }",
-    );
-}
-
-#[test]
-fn exported_nominal_reach_dependency_distinguishes_an_additive_private_service() {
+fn exported_nominal_reach_dependency_distinguishes_and_deduplicates_concrete_services() {
     let dependent = project(&Fixture::local(SOURCE));
     let additive = project(&Fixture::local(
         &SOURCE.replace("{ Step(value) }", "{ note(); Step(value) }"),
@@ -124,6 +103,17 @@ fn exported_nominal_reach_dependency_distinguishes_an_additive_private_service()
         additive.canonical_bytes().unwrap(),
         "the distinction must survive canonical policy recovery"
     );
+    let repeated = project(&Fixture::local(
+        &SOURCE.replace("{ Step(value) }", "{ note(); note(); Step(value) }"),
+    ));
+    assert_eq!(
+        additive, repeated,
+        "concrete service union remains idempotent"
+    );
+    assert_eq!(
+        additive.canonical_bytes().unwrap(),
+        repeated.canonical_bytes().unwrap()
+    );
 }
 
 #[test]
@@ -159,21 +149,6 @@ fn exported_nominal_reach_dependency_ignores_binder_names_and_private_extraction
     assert_eq!(
         direct.canonical_bytes().unwrap(),
         extracted.canonical_bytes().unwrap()
-    );
-}
-
-#[test]
-fn exported_nominal_reach_dependency_normalizes_repeated_concrete_contributions() {
-    let once = project(&Fixture::local(
-        &SOURCE.replace("{ Step(value) }", "{ note(); Step(value) }"),
-    ));
-    let repeated = project(&Fixture::local(
-        &SOURCE.replace("{ Step(value) }", "{ note(); note(); Step(value) }"),
-    ));
-    assert_eq!(once, repeated, "concrete service union remains idempotent");
-    assert_eq!(
-        once.canonical_bytes().unwrap(),
-        repeated.canonical_bytes().unwrap()
     );
 }
 
