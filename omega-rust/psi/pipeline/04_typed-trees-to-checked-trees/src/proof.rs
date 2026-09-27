@@ -12,6 +12,7 @@
 mod contract_entailment;
 mod contracts;
 mod evidence_forwarding;
+mod fixed_core_vocabulary;
 mod float_meaning;
 mod mathematical_declarations;
 mod mathematical_signature;
@@ -30,6 +31,7 @@ pub(crate) use contracts::machine_parameter_evidence_signatures;
 pub(crate) use evidence_forwarding::{
     bind_evidence_forwarding_facts, bind_evidence_projection_facts,
 };
+pub(crate) use fixed_core_vocabulary::{FixedCore, FixedCoreVocabulary};
 pub(crate) use float_meaning::bind_float_meaning_projection_facts;
 pub(crate) use mathematical_declarations::build_checked_mathematical_declarations;
 pub(crate) use mathematical_signature::check_mathematical_signature;
