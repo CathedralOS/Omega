@@ -153,6 +153,8 @@ name = "boundary-applications"
 version = "0.1.0"
 dependencies = [
  "effects",
+ "lowered-psi",
+ "numerics",
  "semantic-vocabulary",
  "sha2",
  "terminal-psi",

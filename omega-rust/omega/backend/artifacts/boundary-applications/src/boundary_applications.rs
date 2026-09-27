@@ -5,14 +5,21 @@
 //! requirement, the closed tagged application, and the ordered demand rows.
 //! `realization` owns the role-specific companion selected for each demand.
 //! `coverage` joins them into reconstructible identity references.
+//! `ieee_float_comparisons` and `integer_comparisons` retain selected comparison
+//! meanings and independently replay their exact Terminal operations and plans.
 //! [`TerminalBoundaryApplicationCoverage`] is the current retained coverage of
 //! one Terminal product; it carries no source paths, arena handles, selected
 //! plans, or realization authority.
 
 pub mod coverage;
 pub mod demands;
+pub mod ieee_float_comparisons;
+pub mod integer_comparisons;
 pub mod opaque_applications;
 pub mod realization;
+
+#[cfg(test)]
+mod comparison_tests;
 
 pub use coverage::{BoundaryApplicationCoverageIdentity, OperatorApplicationCoverageRef};
 pub use demands::{
@@ -20,6 +27,8 @@ pub use demands::{
     BoundaryOperatorRequirement, BoundaryTypeIdentity, TerminalBoundaryApplicationDemand,
     TerminalBoundaryApplicationDemands,
 };
+pub use ieee_float_comparisons::TerminalIeeeFloatComparisonOccurrenceProposal;
+pub use integer_comparisons::TerminalIntegerComparisonOccurrenceProposal;
 pub use opaque_applications::{
     BoundaryOpaqueRepresentationApplication, BoundaryOpaqueRepresentationApplications,
 };
