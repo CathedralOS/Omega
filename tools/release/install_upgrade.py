@@ -62,14 +62,10 @@ def homebrew_upgrade(previous, current, base_url, workspace):
     # Only the download transport changes; the archive bytes and hashes do not.
     tap = "omega-install-test/releases"
     formula_name = f"{tap}/omega"
-    # tap-new creates a local commit; do not depend on a runner's global Git
-    # identity or mutate it. This identity is confined to the disposable tap.
-    environment = dict(os.environ, HOMEBREW_NO_AUTO_UPDATE="1", HOMEBREW_NO_INSTALL_CLEANUP="1",
-                       GIT_AUTHOR_NAME="Omega installation test",
-                       GIT_AUTHOR_EMAIL="installation-test@example.invalid",
-                       GIT_COMMITTER_NAME="Omega installation test",
-                       GIT_COMMITTER_EMAIL="installation-test@example.invalid")
-    package.run(["brew", "tap-new", tap], environment=environment)
+    environment = dict(os.environ, HOMEBREW_NO_AUTO_UPDATE="1", HOMEBREW_NO_INSTALL_CLEANUP="1")
+    # This fixture edits the formula directly, without tap commits or fetches.
+    # Homebrew strips Git identity environment overrides; no Git repo is needed.
+    package.run(["brew", "tap-new", "--no-git", tap], environment=environment)
     tap_root = Path(package.run(["brew", "--repository", tap], environment=environment).strip())
     executable = Path(package.run(["brew", "--prefix"], environment=environment).strip()) / "bin/omega"
     try:
