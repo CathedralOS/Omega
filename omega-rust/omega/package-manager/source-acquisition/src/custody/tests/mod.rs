@@ -2,7 +2,7 @@
 
 #[cfg(unix)]
 use crate::SourceResolver;
-#[cfg(unix)]
+#[cfg(target_os = "macos")]
 use crate::custody::platform::*;
 use crate::custody::{lock::*, publication::*, tree::*};
 use crate::error::SourceResolveError;
@@ -20,6 +20,7 @@ use crate::local::operations::*;
 use crate::snapshot::{construction::*, permissions::*, publication::*};
 use crate::test_support::*;
 use crate::tree::filesystem::*;
+#[cfg(target_os = "macos")]
 use std::fs::OpenOptions;
 
 mod limits;
