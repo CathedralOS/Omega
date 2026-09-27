@@ -22,6 +22,19 @@
 //! and the first component carries an unused `package::Leaf` proof type plus
 //! all three call-site variants so every representable field has both a
 //! joined-rejection leg and a divergent-replay leg where one exists.
+//!
+//! The representable legs run through the shared
+//! `run_one_field_substitution_matrix` driver over the declared
+//! `RecursiveComponentCustodyFieldForTest` inventory in
+//! `recursive_component_custody_fields.rs`: each leg mutates one
+//! `TerminalModule` field, must still encode and round-trip canonically,
+//! diverges the honestly recomputed semantic and artifact identities, and is
+//! rejected by all three custody replays — the retained-manifest join, the
+//! verifier's reconstructed recursive-component evidence join, and the
+//! sealed proof subject join — asserted inside the matrix's checker. The raw
+//! wire axes (count lies, closed tags, zero and emptied identities,
+//! roster-order violations) and the producer-side encode rejections stay
+//! authored below.
 
 use std::ops::Range;
 
@@ -29,7 +42,7 @@ use super::{canonical_artifact, kernel_bundle, proof_recursive_evidence, semanti
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::ContractId;
 use terminal_codec::{
-    ArtifactManifestError, CodecError, ProofCodecError, build_artifact_manifest,
+    CodecError, ProofCodecError, build_artifact_manifest,
     build_identity_optimization_execution_record, decode_module, decode_proof_section_for,
     encode_module, terminal_psi_identity, validate_artifact_manifest,
 };
@@ -39,6 +52,15 @@ use terminal_psi::{
     TerminalProofRecursiveMember, TerminalProofRecursiveTransitionLane, TerminalProofRecursiveType,
 };
 use terminal_verifier::{ModuleError, VerificationError, verify_module};
+
+use mutation_matrix::{OneFieldSubstitutionMatrix, run_one_field_substitution_matrix};
+
+#[path = "recursive_component_custody_fields.rs"]
+mod recursive_component_custody_fields;
+use recursive_component_custody_fields::{
+    RecursiveComponentCustodyFieldForTest, recursive_component_custody_outcome,
+    substitute_recursive_component_for_test,
+};
 
 /// Byte offsets of every wire field inside the recursive-component roster.
 /// Every `string` field records its u32 length prefix and its content bytes
@@ -94,8 +116,6 @@ struct EdgeSpan {
     state_len: Range<usize>,
     state: Range<usize>,
     statement_index: Range<usize>,
-    /// `Expression` sites only.
-    expression_ordinal: Option<Range<usize>>,
     /// `Transition` sites only.
     lane: Option<Range<usize>>,
     path_count: Range<usize>,
@@ -204,10 +224,13 @@ impl<'bytes> SpanWalker<'bytes> {
             let site_tag = self.take(1);
             let (state_len, state) = self.take_string();
             let statement_index = self.take(8);
-            let (expression_ordinal, lane) = match self.bytes[site_tag.start] {
-                1 => (None, None),
-                2 => (Some(self.take(8)), None),
-                3 => (None, Some(self.take(1))),
+            let lane = match self.bytes[site_tag.start] {
+                1 => None,
+                2 => {
+                    self.take(8); // expression ordinal
+                    None
+                }
+                3 => Some(self.take(1)),
                 tag => panic!("unexpected recursive call-site tag {tag}"),
             };
             let (path_count, path_rows) = self.take_count();
@@ -223,7 +246,6 @@ impl<'bytes> SpanWalker<'bytes> {
                 state_len,
                 state,
                 statement_index,
-                expression_ordinal,
                 lane,
                 path_count,
                 path,
@@ -501,63 +523,69 @@ fn terminal_proof_recursive_components_reject_every_one_field_substitution() {
     let semantic_identity = terminal_psi_identity(&module).expect("semantic identity");
     assert_eq!(retained.semantic(), semantic_identity);
 
-    // A substitution that still forms a canonical module honestly recomputes
-    // a divergent semantic and artifact identity, and the retained custody
-    // replays reject it: the manifest join, the verifier's reconstructed
-    // recursive-component evidence join, and the sealed proof subject join.
-    let divergent = |name: &'static str, mutated: &[u8]| {
-        let substituted = decode_module(mutated)
-            .unwrap_or_else(|error| panic!("{name} must still decode: {error:?}"));
-        assert_ne!(substituted, module, "{name} must change the module");
-        assert_eq!(
-            encode_module(&substituted).expect("re-encode the substitution"),
-            mutated,
-            "{name} must re-encode canonically"
-        );
-        assert_ne!(
-            terminal_psi_identity(&substituted).expect("substituted semantic identity"),
-            semantic_identity,
-            "{name} must diverge the honestly recomputed semantic identity"
-        );
-        let recomputed_optimization =
-            build_identity_optimization_execution_record(&substituted, &bundle)
-                .expect("identity optimization over the substituted module");
-        let recomputed =
-            build_artifact_manifest(&substituted, &bundle, &recomputed_optimization, None, None)
-                .expect("honest manifest over the substituted module");
-        assert_ne!(
-            recomputed.identity(),
-            retained.identity(),
-            "{name} must diverge the recomputed artifact identity"
-        );
-        assert_eq!(
+    // Every representable substitution still forms a canonical module that
+    // honestly recomputes a divergent semantic and artifact identity, and the
+    // retained custody replays reject it: the manifest join, the verifier's
+    // reconstructed recursive-component evidence join, and the sealed proof
+    // subject join — all asserted inside the matrix's checker. The donor is
+    // an authentic semantic module that declares no recursive components.
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "proof recursive component roster",
+        fields: RecursiveComponentCustodyFieldForTest::INVENTORY,
+        honest: &|| module.clone(),
+        donor: semantic_module(),
+        custody: &|record: &TerminalModule| {
+            terminal_psi_identity(record).expect("semantic identity")
+        },
+        substitute: &substitute_recursive_component_for_test,
+        check: &|record: &TerminalModule| {
+            let encoded = encode_module(record).expect("a declared leg must encode canonically");
+            assert_eq!(
+                decode_module(&encoded),
+                Ok(record.clone()),
+                "a declared leg must decode canonically under the same subject"
+            );
+            let recomputed_optimization =
+                build_identity_optimization_execution_record(record, &bundle)
+                    .expect("identity optimization over the substituted module");
+            let recomputed =
+                build_artifact_manifest(record, &bundle, &recomputed_optimization, None, None)
+                    .expect("honest manifest over the substituted module");
+            assert_ne!(
+                recomputed.identity(),
+                retained.identity(),
+                "a declared leg must diverge the recomputed artifact identity"
+            );
+            match verify_module(record, &bundle, &AdmissionProfile::default()) {
+                Err(
+                    VerificationError::MissingRecursiveComponentEvidence(_)
+                    | VerificationError::UnknownRecursiveComponentEvidence(_),
+                ) => {}
+                other => {
+                    panic!("a declared leg must reject at the recursive-evidence replay: {other:?}")
+                }
+            }
+            assert!(
+                matches!(
+                    decode_proof_section_for(record, artifact.proof_bytes()),
+                    Err(ProofCodecError::ProofSubjectMismatch { .. })
+                ),
+                "a declared leg must reject at the sealed proof subject join"
+            );
             validate_artifact_manifest(
-                &substituted,
+                record,
                 &bundle,
                 &recomputed_optimization,
                 None,
                 None,
                 retained,
-            ),
-            Err(ArtifactManifestError::ManifestMismatch),
-            "{name} must reject at the retained-manifest replay"
-        );
-        match verify_module(&substituted, &bundle, &AdmissionProfile::default()) {
-            Err(
-                VerificationError::MissingRecursiveComponentEvidence(_)
-                | VerificationError::UnknownRecursiveComponentEvidence(_),
-            ) => {}
-            other => panic!("{name} must reject at the recursive-evidence replay: {other:?}"),
-        }
-        assert!(
-            matches!(
-                decode_proof_section_for(&substituted, artifact.proof_bytes()),
-                Err(ProofCodecError::ProofSubjectMismatch { .. })
-            ),
-            "{name} must reject at the sealed proof subject join"
-        );
-        substituted
-    };
+            )
+            .map(|()| terminal_psi_identity(record).expect("leg semantic identity"))
+        },
+        outcome: &recursive_component_custody_outcome,
+        joined_replay: None,
+    });
+
     // A substitution that cannot form a canonical module rejects inside the
     // canonical decoder with an exact error.
     let rejected = |name: &'static str, mutated: &[u8], expected: CodecError| {
@@ -653,19 +681,10 @@ fn terminal_proof_recursive_components_reject_every_one_field_substitution() {
     );
     // Clearing the roster or dropping either component is representable: the
     // module stays canonical, the recomputed identity diverges, and the
-    // retained bundle's surplus component evidence rejects on replay.
-    let mut cleared = encoded[..spans.component_count.start].to_vec();
-    cleared.extend_from_slice(&0_u32.to_le_bytes());
-    cleared.extend_from_slice(&encoded[tree.row.end..]);
-    divergent("a cleared component roster", &cleared);
-    divergent(
-        "a dropped node component",
-        &drop_row(spans.component_count.clone(), node.row.clone()),
-    );
-    divergent(
-        "a dropped tree component",
-        &drop_row(spans.component_count.clone(), tree.row.clone()),
-    );
+    // retained bundle's surplus component evidence rejects on replay. The
+    // `ComponentRosterCleared`, `NodeComponentDropped`, and
+    // `TreeComponentDropped` inventory legs exercise all three through the
+    // matrix.
     // Duplicated and reordered components stay well-formed rows but violate
     // the strict canonical ordering.
     rejected(
@@ -733,19 +752,9 @@ fn terminal_proof_recursive_components_reject_every_one_field_substitution() {
     // --- proof-type roster -----------------------------------------------
 
     // The unused leaf type can be dropped or renamed without disturbing the
-    // rank join; the recomputed identity still diverges.
-    divergent(
-        "a dropped unused proof type",
-        &drop_row(node.type_count.clone(), node.types[0].row.clone()),
-    );
-    divergent(
-        "a renamed unused proof type",
-        &restring(
-            node.types[0].identity_len.clone(),
-            node.types[0].identity.clone(),
-            "package::Leaa",
-        ),
-    );
+    // rank join; the recomputed identity still diverges. The
+    // `UnusedProofTypeDropped` and `UnusedProofTypeRenamed` inventory legs
+    // exercise both through the matrix.
     // Dropping the rank type, clearing the roster, duplicating a type, or
     // reordering the roster each break the type join.
     rejected(
@@ -940,30 +949,9 @@ fn terminal_proof_recursive_components_reject_every_one_field_substitution() {
 
     // Machine and rank-parameter identities are source-free custody strings:
     // nonempty substitutions stay representable but reidentify the member.
-    divergent(
-        "a renamed member machine identity",
-        &restring(
-            node.members[0].machine_len.clone(),
-            node.members[0].machine.clone(),
-            "package::meft",
-        ),
-    );
-    divergent(
-        "a renamed member rank parameter",
-        &restring(
-            node.members[0].parameter_len.clone(),
-            node.members[0].parameter.clone(),
-            "package::left::done",
-        ),
-    );
-    divergent(
-        "a renamed tree member machine identity",
-        &restring(
-            tree.members[0].machine_len.clone(),
-            tree.members[0].machine.clone(),
-            "package::tree_laft",
-        ),
-    );
+    // The `MemberMachineIdentityRenamed`, `MemberRankParameterRenamed`, and
+    // `TreeMemberMachineIdentityRenamed` inventory legs exercise all three
+    // through the matrix.
     rejected(
         "an emptied member machine identity",
         &restring(
@@ -990,15 +978,9 @@ fn terminal_proof_recursive_components_reject_every_one_field_substitution() {
     // --- edge roster ------------------------------------------------------
 
     // The component stays strongly connected while one edge leaves: the
-    // remaining statement and transition routes still join every member.
-    divergent(
-        "a dropped transition edge",
-        &drop_row(node.edge_count.clone(), node.edges[5].row.clone()),
-    );
-    divergent(
-        "a dropped expression edge",
-        &drop_row(node.edge_count.clone(), node.edges[2].row.clone()),
-    );
+    // remaining statement and transition routes still join every member. The
+    // `TransitionEdgeDropped` and `ExpressionEdgeDropped` inventory legs
+    // exercise both through the matrix.
     // Dropping one direction's whole edge family breaks reachability.
     let mut disconnected = encoded[..node.edge_count.start].to_vec();
     disconnected.extend_from_slice(&3_u32.to_le_bytes());
@@ -1057,10 +1039,9 @@ fn terminal_proof_recursive_components_reject_every_one_field_substitution() {
             callee: ContractId::new(5).expect("callee"),
         }),
     );
-    divergent(
-        "a self-looping edge callee",
-        &put_u64(node.edges[0].callee.clone(), 1001),
-    );
+    // A self-loop keeps the caller/callee join representable while diverging
+    // the committed obligation: the `EdgeCalleeSelfLoop` inventory leg
+    // exercises it through the matrix.
 
     // --- call-site variants ----------------------------------------------
 
@@ -1081,24 +1062,11 @@ fn terminal_proof_recursive_components_reject_every_one_field_substitution() {
         CodecError::StringTooLong("proof recursive strict member path"),
     );
     // A Statement site extended into an Expression site stays ordered before
-    // the existing expression edge and remains a unique (caller, site) pair.
-    let mut expression_site = encoded[node.edges[1].site_tag.start..node.edges[1].row.end].to_vec();
-    expression_site[0] = 2;
-    expression_site.splice(
-        node.edges[1].statement_index.end - node.edges[1].site_tag.start
-            ..node.edges[1].statement_index.end - node.edges[1].site_tag.start,
-        9_u64.to_le_bytes(),
-    );
-    let mut mutated = encoded[..node.edges[1].site_tag.start].to_vec();
-    mutated.extend_from_slice(&expression_site);
-    mutated.extend_from_slice(&encoded[node.edges[1].row.end..]);
-    divergent("a statement site promoted to an expression", &mutated);
-    // The transition lane's second representable value still orders after the
-    // statement sites.
-    divergent(
-        "a transition lane flipped to the target",
-        &put_u8(node.edges[5].lane.clone().expect("transition lane"), 1),
-    );
+    // the existing expression edge and remains a unique (caller, site) pair,
+    // and the transition lane's second representable value still orders after
+    // the statement sites: the `StatementSitePromotedToExpression` and
+    // `TransitionLaneFlipped` inventory legs exercise both through the
+    // matrix.
     rejected(
         "an unknown transition lane",
         &put_u8(node.edges[5].lane.clone().expect("transition lane"), 3),
@@ -1108,14 +1076,9 @@ fn terminal_proof_recursive_components_reject_every_one_field_substitution() {
     // Site payloads: the state identity only needs to stay nonempty and keep
     // the edge's canonical position; the statement index and expression
     // ordinal are free while the ordering holds.
-    divergent(
-        "a renamed statement state identity",
-        &restring(
-            node.edges[0].state_len.clone(),
-            node.edges[0].state.clone(),
-            "package::left::stel",
-        ),
-    );
+    // A nonempty rename keeps the site representable: the
+    // `StatementStateIdentityRenamed` inventory leg exercises it through the
+    // matrix.
     rejected(
         "an emptied statement state identity",
         &restring(
@@ -1128,57 +1091,24 @@ fn terminal_proof_recursive_components_reject_every_one_field_substitution() {
             callee: ContractId::new(1002).expect("callee"),
         }),
     );
-    divergent(
-        "a moved statement index",
-        &put_u64(node.edges[1].statement_index.clone(), 7),
-    );
+    // A moved statement index keeps the site's canonical position: the
+    // `StatementIndexMoved` inventory leg exercises it through the matrix.
     rejected(
         "a statement index that overtakes the next site",
         &put_u64(node.edges[0].statement_index.clone(), 5),
         CodecError::InvalidModule(ModuleError::InvalidProofRecursiveComponent),
     );
-    divergent(
-        "a moved expression ordinal",
-        &put_u64(
-            node.edges[2]
-                .expression_ordinal
-                .clone()
-                .expect("expression ordinal"),
-            9,
-        ),
-    );
+    // The expression ordinal is free while ordering holds: the
+    // `ExpressionOrdinalMoved` inventory leg exercises it through the matrix.
 
     // --- strict member paths ----------------------------------------------
 
     // The strict member path must resolve field-by-field back to the rank
-    // type. Substituting another declared field keeps the path valid; a
-    // missing or emptied element strands it, and a lengthened path that
-    // still resolves stays representable.
-    divergent(
-        "a strict path through the sibling field",
-        &restring(
-            node.edges[0].path[0].0.clone(),
-            node.edges[0].path[0].1.clone(),
-            "package::Node::right",
-        ),
-    );
-    divergent(
-        "a strict path through the tree sibling field",
-        &restring(
-            tree.edges[0].path[0].0.clone(),
-            tree.edges[0].path[0].1.clone(),
-            "package::Tree::right",
-        ),
-    );
-    // A lengthened path: prepend a `package::Node::left` element so the path
-    // traverses left twice and still ends at the rank type.
-    let element_len = 19_u32.to_le_bytes();
-    let mut lengthened = encoded[..node.edges[0].path_count.start].to_vec();
-    lengthened.extend_from_slice(&2_u32.to_le_bytes());
-    lengthened.extend_from_slice(&element_len);
-    lengthened.extend_from_slice(b"package::Node::left");
-    lengthened.extend_from_slice(&encoded[node.edges[0].path_count.end..]);
-    divergent("a lengthened strict member path", &lengthened);
+    // type. Substituting another declared field keeps the path valid — the
+    // `StrictPathSiblingField` and `TreeStrictPathSiblingField` legs — and a
+    // lengthened path that traverses `package::Node::left` twice still ends
+    // at the rank type — the `StrictPathLengthened` leg — all representable
+    // through the matrix. A missing or emptied element strands the path.
     rejected(
         "a cleared strict member path",
         &drop_row(
