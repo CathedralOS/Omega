@@ -2,27 +2,28 @@
 //!
 //! This entrance consumes validated target operations, reads the exact selected
 //! phase set, and runs selection, analysis, allocation, and machine construction
-//! once before realization. [`model`] defines the returned carrier, [`error`]
-//! defines the closed failure surface. Every admitted selection uses the same
-//! canonical frame realization.
+//! once before realization. The backend owns the returned fragment-emission
+//! input; [`error`] defines the coordinator's failure surface. Every admitted
+//! selection uses the same canonical frame realization.
 
 mod error;
-mod model;
 mod phase_selections;
 
 use abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations;
 pub use error::OptimizedVerifiedPhysicalPipelineError;
-pub use model::StagedOptimizedVerifiedPhysicalPipeline;
+use machine_emission::StagedOptimizedFunctionFragmentEmissionSource;
 use optimization_core::PostTerminalOptimizationSelections;
 use phase_selections::validate_physical_selections;
 use register_environment::baseline_target_register_environment;
 use selected_instructions_to_register_homes::stage_register_allocation;
 use selected_instructions_to_selected_instructions::optimize_selected_instructions;
 
+/// Feed the physical stages into the backend's fragment-emission input,
+/// retaining their checked program and replay evidence without a compiler wrapper.
 pub fn stage_optimized_verified_physical_pipeline(
     optimized_target: ValidatedOptimizedTargetOperations,
     post_terminal: &PostTerminalOptimizationSelections,
-) -> Result<StagedOptimizedVerifiedPhysicalPipeline, OptimizedVerifiedPhysicalPipelineError> {
+) -> Result<StagedOptimizedFunctionFragmentEmissionSource, OptimizedVerifiedPhysicalPipelineError> {
     let retained_projection = optimized_target
         .optimized()
         .selections()
@@ -50,6 +51,6 @@ pub fn stage_optimized_verified_physical_pipeline(
         .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine)?;
     let budget = allocation.current().budget_per_pass();
     machine_emission::stage_fixed_frame_function_relative_realization(allocation, machine, budget)
-        .map(StagedOptimizedVerifiedPhysicalPipeline::from)
+        .map(StagedOptimizedFunctionFragmentEmissionSource::from)
         .map_err(OptimizedVerifiedPhysicalPipelineError::FunctionRelativeRealization)
 }

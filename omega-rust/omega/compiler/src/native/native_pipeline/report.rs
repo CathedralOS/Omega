@@ -1,9 +1,10 @@
 use optimization_unit::PrePhysicalOptimizationManifest;
 use selected_instructions_to_register_homes::PostAllocationOptimizationManifest;
 
-use crate::native::StagedOptimizedVerifiedPhysicalPipeline;
 use machine_code::{FunctionFragmentEmissionManifest, FunctionFragmentTextSectionManifest};
-use machine_emission::FunctionRelativeOptimizationRealizationManifest;
+use machine_emission::{
+    FunctionRelativeOptimizationRealizationManifest, StagedOptimizedFunctionFragmentEmissionSource,
+};
 use native_artifact::{
     OptimizedOrdinaryCallableEntryManifest, StagedValidatedOptimizedOrdinaryCallableEntry,
 };
@@ -110,7 +111,7 @@ impl OptimizationPipelineReport {
 }
 
 pub fn optimization_pipeline_report(
-    staged: &StagedOptimizedVerifiedPhysicalPipeline,
+    staged: &StagedOptimizedFunctionFragmentEmissionSource,
 ) -> OptimizationPipelineReport {
     let pre_physical = staged.pre_physical_manifest().record().clone();
     let post_allocation = staged.post_allocation_manifest().record().clone();

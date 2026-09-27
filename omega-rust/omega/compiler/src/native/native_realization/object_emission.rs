@@ -2,12 +2,17 @@
 
 use crate::native::native_realization::callback_thunks::lower_callback_thunks;
 use crate::native::native_realization::optimization_stage::lower_realization_optimization_stage;
-use crate::native::native_realization::physical_stage::lower_realization_physical_stage;
+use crate::native::native_realization::realization_diagnostics::{
+    realization_error, selected_physical_pipeline_failed,
+};
 use crate::native::native_realization::realization_request::{
     NativeRealizationInput, NativeRealizationRequest,
 };
-use crate::native::native_realization::target_stage::lower_realization_target_stage;
-use abstract_operations_to_target_operations::AdmittedBoundarySettlement;
+use crate::native::stage_optimized_verified_physical_pipeline;
+use abstract_operations_to_target_operations::{
+    AdmittedBoundarySettlement, OptimizedTargetLoweringRequest,
+    lower_optimized_to_target_operations,
+};
 use boundary_applications::TerminalBoundaryApplicationCoverage;
 use diagnostics::Diagnostic;
 use native_artifact::{
@@ -29,15 +34,26 @@ pub(crate) fn emit_realization_object(
     // request-level callback/selection custody check has passed, before the
     // shared instruction pipeline runs the program plan.
     let private_functions = lower_callback_thunks(request)?;
-    let target_stage = lower_realization_target_stage(
+    let target = lower_optimized_to_target_operations(
         abstract_stage,
-        provider_installation,
-        settlements,
-        request,
-    )?;
-    let physical = lower_realization_physical_stage(target_stage, request)?;
+        OptimizedTargetLoweringRequest {
+            target: request.target,
+            settlements,
+            installation: provider_installation,
+            native_callbacks: request.native_callbacks,
+        },
+    )
+    .map_err(|error| realization_error("target lowering", error))?;
+    let physical =
+        stage_optimized_verified_physical_pipeline(target, request.optimization_selections)
+            .map_err(|error| {
+                selected_physical_pipeline_failed(
+                    request.optimization_selections.selections(),
+                    error,
+                )
+            })?;
     publish_fragment_object(
-        physical.into_function_fragment_emission_source(),
+        physical,
         FragmentObjectPublicationRequest {
             terminal,
             boundary_application_coverage,

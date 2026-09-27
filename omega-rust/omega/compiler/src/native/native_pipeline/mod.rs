@@ -4,8 +4,7 @@ pub(crate) mod physical_pipeline;
 mod report;
 
 pub use physical_pipeline::{
-    OptimizedVerifiedPhysicalPipelineError, StagedOptimizedVerifiedPhysicalPipeline,
-    stage_optimized_verified_physical_pipeline,
+    OptimizedVerifiedPhysicalPipelineError, stage_optimized_verified_physical_pipeline,
 };
 pub use report::{
     OptimizationPipelineReport, optimization_pipeline_report,

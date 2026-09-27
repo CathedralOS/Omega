@@ -159,10 +159,8 @@ fn fragment_container(
         post_terminal.selections(),
     )
     .expect("entry machine reaches physical realization");
-    let fragments = machine_emission::stage_optimized_function_fragment_emission(
-        physical.into_function_fragment_emission_source(),
-    )
-    .expect("function fragments");
+    let fragments = machine_emission::stage_optimized_function_fragment_emission(physical)
+        .expect("function fragments");
     let framed = machine_emission::stage_function_fragment_frame_application(fragments)
         .expect("frame application");
     let placed = machine_emission::stage_optimized_fixed_frame_text_section(framed)
