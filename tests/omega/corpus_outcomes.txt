@@ -1113,6 +1113,7 @@ pass/control_flow/guarded_leaf_branch_expansion rejected 57ms
 	cannot make a boundary or service call at statement 7 while `self.second` is absent: restore the value moved out of borrowed storage at statement 5 first
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `Main::main`, state `main` (statement 4): `self.first` must hold a value again before this state's exits consume the borrow
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `Main::main`, state `main` (statement 5): `self.second` must hold a value again before this state's exits consume the borrow
+pass/control_flow/guarded_value_transition_roster checked 790ms
 pass/control_flow/nested_parameter_receiver_call checked 1ms
 pass/control_flow/no_payload_case_variant_after_payload_dispatch_exit checked 189ms
 pass/control_flow/record_pattern_arm_rename_guard_exit checked 174ms
