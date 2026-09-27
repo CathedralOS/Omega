@@ -9,6 +9,7 @@ use tokens_to_syntax_trees::{parse_syntax_trees, parse_syntax_trees_with_id};
 fn retains_public_data_trait_and_wire_visibility() {
     let source = r#"
         pub data PublicRecord { value: u32; }
+        data PrivateRecord {}
         pub data Packet { #1 value: u32; }
         pub trait PublicTrait {}
     "#;
@@ -37,6 +38,12 @@ fn retains_public_data_trait_and_wire_visibility() {
         .expect("public trait");
 
     assert!(public.is_public);
+    let private = program
+        .data_definitions
+        .iter()
+        .find(|data| data.name.as_str() == "PrivateRecord")
+        .expect("private data");
+    assert!(!private.is_public);
     assert!(wire_derived.is_public);
     assert!(wire_schema.is_public);
     assert!(trait_definition.is_public);
@@ -78,6 +85,11 @@ fn resolves_machine_and_trait_const_parameter_carrier_types() {
         .iter()
         .find(|definition| definition.name.as_str() == "Sized")
         .expect("Sized trait");
+    assert!(machine.is_public);
+    assert_eq!(
+        machine.supply_mode,
+        language_semantics::MachineSupplyMode::CheckedBody
+    );
     for parameter in [
         &program.machine_type_parameters(machine)[0],
         &program.trait_type_parameters(trait_definition)[0],

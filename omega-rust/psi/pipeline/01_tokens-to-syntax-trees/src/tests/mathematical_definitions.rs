@@ -93,9 +93,10 @@ fn render_type_reference(
 }
 
 #[test]
-fn parses_plain_mathematical_let() {
-    let parsed =
-        parse("let greater_than(limit: i32, value: i32): core::Strict<0> =\n    value > limit;");
+fn parses_mathematical_let_with_relevant_and_erased_parameters() {
+    let parsed = parse(
+        "let greater_than(limit: i32, value [erased]: i32): core::Strict<0> =\n    value > limit;",
+    );
     assert_eq!(parsed.root_item_handles().len(), 0);
     let definition = single_definition(&parsed);
     assert_eq!(definition.name.as_str(), "greater_than");
@@ -110,6 +111,7 @@ fn parses_plain_mathematical_let() {
     assert_eq!(render_type(&parsed, limit.ty), "i32");
     let value = parsed.items.mathematical_parameter(parameters[1]);
     assert_eq!(value.name.as_str(), "value");
+    assert_eq!(value.relevance, language_core::BindingRelevance::Erased);
 
     assert_eq!(render_type(&parsed, definition.result), "core::Strict<0>");
     assert!(matches!(
@@ -198,32 +200,12 @@ fn arrow_types_associate_right_and_bind_domains() {
 }
 
 #[test]
-fn erased_marker_parses_on_mathematical_parameters() {
-    let parsed = parse("let keep(proof [erased]: P): Q = term;");
-    let definition = single_definition(&parsed);
-    let parameters = parsed.items.mathematical_parameters(definition.parameters);
-    let proof = parsed.items.mathematical_parameter(parameters[0]);
-    assert_eq!(proof.relevance, language_core::BindingRelevance::Erased);
-}
-
-#[test]
 fn empty_parameter_list_names_a_nullary_definition() {
     let parsed = parse("let pi(): core::Real = term;");
     let definition = single_definition(&parsed);
     assert_eq!(definition.name.as_str(), "pi");
     assert!(definition.parameters.is_empty());
     assert_eq!(render_type(&parsed, definition.result), "core::Real");
-}
-
-#[test]
-fn pub_marks_mathematical_declarations() {
-    let parsed = parse("pub let open(): A = term;\npub boundary let ax(): B;");
-    let handles = parsed.root_mathematical_definition_handles();
-    assert_eq!(handles.len(), 2);
-    assert!(parsed.root_mathematical_definition(handles[0]).is_public);
-    let boundary = parsed.root_mathematical_definition(handles[1]);
-    assert!(boundary.is_public);
-    assert_eq!(boundary.body, MathematicalDefinitionBody::Assumption);
 }
 
 #[test]

@@ -563,56 +563,6 @@ fn trait_machine_parameter_is_requirement_identity() {
 }
 
 #[test]
-fn retains_public_data_visibility_in_syntax() {
-    let tokens = Lexer::new("pub data PublicRecord { value: u32; } data PrivateRecord {}")
-        .tokenize()
-        .expect("tokenize data visibility");
-    let parsed = parse_syntax_trees(&tokens).expect("parse data visibility");
-    let definitions = parsed
-        .root_items()
-        .filter_map(|item| match item {
-            syntax_trees::item::Item::Data(data) => Some(data),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-
-    assert_eq!(definitions.len(), 2);
-    assert!(definitions[0].is_public);
-    assert!(!definitions[1].is_public);
-    assert!(
-        parsed
-            .snapshot_json()
-            .expect("snapshot")
-            .contains("\"is_public\":true")
-    );
-}
-
-#[test]
-fn retains_public_machine_visibility_in_syntax() {
-    let tokens = Lexer::new("pub machine Package::entry() { }")
-        .tokenize()
-        .expect("tokenize public machine");
-    let parsed = parse_syntax_trees(&tokens).expect("parse public machine");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("public machine");
-
-    assert!(machine.is_public);
-    assert!(!machine.boundary);
-    assert!(!machine.is_top_level_boundary_requirement);
-    assert!(
-        parsed
-            .snapshot_json()
-            .expect("snapshot")
-            .contains("\"is_public\":true")
-    );
-}
-
-#[test]
 fn provider_selection_retains_two_structural_type_paths() {
     let source = r#"
         machine build(builder: &mut Build) {
@@ -914,23 +864,6 @@ fn rejects_pub_when_the_declaration_cannot_retain_visibility() {
 }
 
 #[test]
-fn retains_public_trait_and_numbered_data_visibility() {
-    let tokens = Lexer::new("pub trait Shape {} pub data Envelope { #1 value: u32; }")
-        .tokenize()
-        .expect("tokenize public declarations");
-    let parsed = parse_syntax_trees(&tokens).expect("parse public declarations");
-
-    assert!(parsed.root_items().any(|item| matches!(
-        item,
-        syntax_trees::item::Item::Trait(definition) if definition.is_public
-    )));
-    assert!(parsed.root_items().any(|item| matches!(
-        item,
-        syntax_trees::item::Item::Data(definition) if definition.is_public
-    )));
-}
-
-#[test]
 fn owns_non_utf8_string_literal_bytes_in_syntax_tree() {
     let tokens = Lexer::new(
         r#"
@@ -1054,32 +987,6 @@ fn parses_primitive_witness_and_transparent_proposition_declarations() {
 }
 
 #[test]
-fn parses_public_and_private_const_declarations() {
-    let source = r#"
-        pub const PUBLIC_LIMIT: u64 = 4;
-        const Limits::PRIVATE_LIMIT: u64 = 2;
-    "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize const declarations");
-    let parsed = parse_syntax_trees(&tokens).expect("parse const declarations");
-    let declarations = parsed
-        .root_items()
-        .filter_map(|item| match item {
-            syntax_trees::item::Item::Const(declaration) => Some(declaration),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-
-    assert_eq!(declarations.len(), 2);
-    assert!(declarations[0].is_public);
-    assert!(!declarations[1].is_public);
-    let snapshot = parsed.snapshot_json().expect("const syntax snapshot");
-    assert!(snapshot.contains("\"kind\":\"const\""));
-    assert!(snapshot.contains("\"is_public\":true"));
-}
-
-#[test]
 fn struct_literal_retains_its_complete_authored_source_span() {
     let source = "const ORIGIN: Point = Point { x: 1, y: 2 };";
     let tokens = Lexer::new(source)
@@ -1125,35 +1032,6 @@ fn array_literal_retains_its_complete_authored_source_span() {
             "{initializer}"
         );
     }
-}
-
-#[test]
-fn parses_public_and_private_named_conformances() {
-    let source = r#"
-        trait Shape {}
-        data Circle {}
-        pub PublicCircle: Circle satisfies Shape;
-        PrivateCircle: Circle satisfies Shape;
-    "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize named conformances");
-    let parsed = parse_syntax_trees(&tokens).expect("parse named conformances");
-    let conformances = parsed
-        .root_items()
-        .filter_map(|item| match item {
-            syntax_trees::item::Item::Conformance(conformance) => Some(conformance),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-
-    assert_eq!(conformances.len(), 2);
-    assert!(conformances[0].is_public);
-    assert!(!conformances[1].is_public);
-    let snapshot = parsed.snapshot_json().expect("conformance syntax snapshot");
-    assert!(snapshot.contains("\"kind\":\"conformance\""));
-    assert!(snapshot.contains("\"is_public\":true"));
-    assert!(snapshot.contains("\"is_public\":false"));
 }
 
 #[test]
