@@ -43,7 +43,11 @@ pub(super) fn validate(
     let mut operands = Vec::new();
     for (argument_index, argument) in call.arguments.iter().enumerate() {
         match argument {
-            LegalizedScalarArgument::Structural { semantic, target } => {
+            LegalizedScalarArgument::Structural {
+                semantic,
+                target,
+                indices,
+            } => {
                 if semantic.access == StructuralAccess::Owned {
                     for register in super::aggregate_argument::argument(
                         source,
@@ -64,6 +68,7 @@ pub(super) fn validate(
                     argument_index,
                     semantic,
                     target,
+                    indices,
                 )? {
                     operands.push((argument_index, pointer));
                 }

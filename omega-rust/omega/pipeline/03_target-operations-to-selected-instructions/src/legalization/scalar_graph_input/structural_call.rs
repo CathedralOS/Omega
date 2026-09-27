@@ -198,6 +198,29 @@ pub(in crate::legalization) fn argument_at(
             plan,
         );
     }
+    // A runtime-indexed shared borrow loans one array element: the aggregate
+    // route resolves each selector's dominating operand source and the
+    // element stride onto the reconstructed argument.
+    if semantic.access == StructuralAccess::SharedBorrow
+        && semantic.path.iter().any(|segment| {
+            matches!(
+                segment,
+                terminal_psi::StructuralPathSegment::RuntimeIndex { .. }
+            )
+        })
+    {
+        return super::aggregate_results::call_argument(
+            semantic,
+            position,
+            call_operation,
+            caller,
+            called,
+            call,
+            native,
+            plan,
+            custody,
+        );
+    }
     if semantic.access != StructuralAccess::SharedBorrow || !semantic.path.is_empty() {
         return Err(LegalizationError::custody());
     }
@@ -285,6 +308,7 @@ pub(in crate::legalization) fn argument_at(
         source_byte_offset: 0,
         fixed_array_length: None,
         element_stride: None,
+        indices: Vec::new(),
         source,
         destination: call
             .parameters
@@ -342,6 +366,7 @@ pub(super) fn primitive_argument(
             source_byte_offset: 0,
             fixed_array_length: None,
             element_stride: None,
+            indices: Vec::new(),
             source: TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
                 psi_operation: producer,
             },

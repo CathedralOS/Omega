@@ -12,7 +12,7 @@ use crate::selection::validation::scalar_graph::Replay;
 use legalized_operations::LegalizedRuntimeIndexOperand;
 use semantic_vocabulary::{IntegerValue, PlaceId, ValueId};
 
-pub(super) fn scale(
+pub(in crate::selection) fn scale(
     replay: &mut Replay<'_>,
     row: &LegalizedScalarInstruction,
     place: PlaceId,

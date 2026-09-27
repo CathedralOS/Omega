@@ -166,6 +166,7 @@ pub(super) fn argument(
         element_stride: byte_view
             .map(|_| 1)
             .or_else(|| element_view.map(|(_, _, stride)| stride)),
+        indices: Vec::new(),
         source: parameter.placement.clone().into(),
         destination: call.parameters[scalar_count].clone(),
     })
@@ -253,6 +254,7 @@ fn block_parameter_argument(
         source_byte_offset: 0,
         fixed_array_length: None,
         element_stride: None,
+        indices: Vec::new(),
         source: TargetStructuralArgumentSource::BlockParameter {
             block: block.id,
             place: declaration.place,

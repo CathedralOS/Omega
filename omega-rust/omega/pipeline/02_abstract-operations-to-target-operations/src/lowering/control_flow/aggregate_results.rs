@@ -172,7 +172,6 @@ pub(super) fn call(
         || !callee_function.entry_claims.is_empty()
         || !claim_transfers.is_empty()
         || !returned_claim_transfers.is_empty()
-        || !requirement_obligations.is_empty()
         || !selected_evidence.is_empty()
         || arguments.len() != callee_function.parameters.len()
         || structural_arguments.len() != callee_function.structural_parameters.len()
@@ -310,6 +309,7 @@ pub(super) fn call(
                 source_byte_offset: 0,
                 fixed_array_length: None,
                 element_stride: None,
+                indices: Vec::new(),
                 source,
                 destination: destination.placement.clone(),
             })

@@ -64,7 +64,12 @@ pub(super) fn validate_call(
         .zip(call.arguments.iter().skip(scalar_arguments.len()))
         .enumerate()
     {
-        let LegalizedScalarArgument::Structural { semantic, target } = actual else {
+        let LegalizedScalarArgument::Structural {
+            semantic,
+            target,
+            indices,
+        } = actual
+        else {
             return Err(invalid);
         };
         if semantic != argument {
@@ -73,6 +78,18 @@ pub(super) fn validate_call(
         if scalar_graph_input::structural_call::argument_at(
             argument, position, operation, optimized, called, &expected, native, plan, custody,
         )? != *target
+        {
+            return Err(invalid);
+        }
+        if *indices
+            != crate::legalization::runtime_indices::structural_argument(
+                optimized,
+                unit,
+                operation,
+                target.root_structural_type,
+                &argument.path,
+                &plan.structural_types,
+            )?
         {
             return Err(invalid);
         }

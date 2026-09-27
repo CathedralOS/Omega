@@ -67,7 +67,10 @@ pub(super) fn projected_call(target: target::NativeTarget) -> LegalizedScalarFun
     )
     .unwrap();
     call.result_placement = None;
-    let LegalizedScalarArgument::Structural { semantic, target } = &mut call.arguments[0] else {
+    let LegalizedScalarArgument::Structural {
+        semantic, target, ..
+    } = &mut call.arguments[0]
+    else {
         panic!("structural argument")
     };
     semantic.access = StructuralAccess::WriteOnlyBorrow;
@@ -164,8 +167,9 @@ fn projected_write_only_call_replays_original_pointer_offset_and_contract() {
                 }
                 4 => candidate.calls[0].effect.output += 1,
                 mutation => {
-                    let LegalizedScalarArgument::Structural { semantic, target } =
-                        &mut candidate.calls[0].call.arguments[0]
+                    let LegalizedScalarArgument::Structural {
+                        semantic, target, ..
+                    } = &mut candidate.calls[0].call.arguments[0]
                     else {
                         panic!("structural call")
                     };
@@ -194,7 +198,9 @@ fn projected_write_only_call_replays_original_pointer_offset_and_contract() {
             else {
                 panic!("call fixture")
             };
-            let LegalizedScalarArgument::Structural { semantic, target } = &mut call.arguments[0]
+            let LegalizedScalarArgument::Structural {
+                semantic, target, ..
+            } = &mut call.arguments[0]
             else {
                 panic!("structural call")
             };

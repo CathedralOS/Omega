@@ -646,6 +646,7 @@ pub(in crate::tests) fn sum_reference_fixture(
                                 source_byte_offset: 0,
                                 fixed_array_length: None,
                                 element_stride: None,
+                                indices: Vec::new(),
                                 source:
                                     target_operations::TargetStructuralArgumentSource::Placement(
                                         parameter_placement.clone(),

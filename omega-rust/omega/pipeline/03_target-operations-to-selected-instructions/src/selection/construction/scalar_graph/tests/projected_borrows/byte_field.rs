@@ -82,7 +82,10 @@ fn byte_field_call(native: target::NativeTarget) -> LegalizedScalarFunction {
     )
     .unwrap();
     call.result_placement = call.call_plan.result.clone();
-    let LegalizedScalarArgument::Structural { semantic, target } = &mut call.arguments[0] else {
+    let LegalizedScalarArgument::Structural {
+        semantic, target, ..
+    } = &mut call.arguments[0]
+    else {
         panic!("receiver");
     };
     semantic.access = StructuralAccess::SharedBorrow;
@@ -288,7 +291,9 @@ fn bounded_byte_field_call_stages_live_length_descriptor() {
             else {
                 panic!("call fixture")
             };
-            let LegalizedScalarArgument::Structural { semantic, target } = &mut call.arguments[0]
+            let LegalizedScalarArgument::Structural {
+                semantic, target, ..
+            } = &mut call.arguments[0]
             else {
                 panic!("structural call")
             };

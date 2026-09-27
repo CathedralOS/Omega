@@ -75,10 +75,12 @@ fn local_fixture(target: target::NativeTarget, unit_call: bool) -> LegalizedScal
         structural_result: None,
         source: NativeCallOrigin::Authored, callee: MachineId::new(10).unwrap(),
         arguments: vec![LegalizedScalarArgument::Structural {
+            indices: Vec::new(),
             semantic: terminal_psi::StructuralArgument { place, access: StructuralAccess::MutableBorrow, path: Vec::new() },
             target: target_operations::TargetStructuralArgument {
                 place, access: StructuralAccess::MutableBorrow, path: Vec::new(), root_structural_type: identity, structural_type: identity,
                 shape: ValueShape::borrowed_reference(8, 8), source_byte_offset: 0, fixed_array_length: None, element_stride: None,
+                indices: Vec::new(),
                 source: target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal { psi_operation: producer },
                 destination: call_plan.parameters[0].clone(),
             },

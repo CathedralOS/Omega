@@ -50,12 +50,20 @@ pub(super) fn project_call_structural(
             })
             .collect::<Vec<_>>();
         for (position, semantic) in structural_arguments.iter().enumerate() {
+            let target = scalar_graph_input::aggregate_results::call_argument(
+                semantic, position, operation, optimized, called, &call_plan, native, plan, custody,
+            )?;
             lowered.push(LegalizedScalarArgument::Structural {
-                semantic: semantic.clone(),
-                target: scalar_graph_input::aggregate_results::call_argument(
-                    semantic, position, operation, optimized, called, &call_plan, native, plan,
-                    custody,
+                indices: crate::legalization::runtime_indices::structural_argument(
+                    optimized,
+                    unit,
+                    operation,
+                    target.root_structural_type,
+                    &semantic.path,
+                    &plan.structural_types,
                 )?,
+                semantic: semantic.clone(),
+                target,
             });
         }
         LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
@@ -218,6 +226,14 @@ pub(super) fn project_call_unit(
                 semantic, position, operation, optimized, called, &call_plan, native, plan, custody,
             )?;
             arguments.push(LegalizedScalarArgument::Structural {
+                indices: crate::legalization::runtime_indices::structural_argument(
+                    optimized,
+                    unit,
+                    operation,
+                    target.root_structural_type,
+                    &semantic.path,
+                    &plan.structural_types,
+                )?,
                 semantic: semantic.clone(),
                 target,
             });

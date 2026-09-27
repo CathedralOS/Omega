@@ -132,6 +132,67 @@ pub(super) fn project_static_path(
     Ok((structural_type, byte_offset))
 }
 
+/// The runtime-aware projection: `Field` and `FixedIndex` segments accumulate
+/// the static byte offset exactly as `project_static_path`; each
+/// `RuntimeIndex` segment instead contributes one `(selector, array extent,
+/// element stride)` element and continues inside the array's element. The
+/// selector's bound is its own verified obligation, never restated here.
+pub(super) fn project_runtime_path(
+    mut structural_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &[StructuralTypeDeclaration],
+) -> Result<
+    (
+        StructuralTypeId,
+        u32,
+        Vec<(semantic_vocabulary::ValueId, u64, u32)>,
+    ),
+    InvalidStructuralShape,
+> {
+    let indexed = declarations
+        .iter()
+        .map(|declaration| (declaration.id, declaration))
+        .collect::<BTreeMap<_, _>>();
+    if indexed.len() != declarations.len() {
+        return Err(InvalidStructuralShape);
+    }
+    let mut cache = BTreeMap::new();
+    let mut active = BTreeSet::new();
+    let mut byte_offset = 0_u32;
+    let mut elements = Vec::new();
+    for segment in path {
+        let declaration = indexed
+            .get(&structural_type)
+            .ok_or(InvalidStructuralShape)?;
+        match segment {
+            StructuralPathSegment::RuntimeIndex { index, .. } => {
+                let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
+                    return Err(InvalidStructuralShape);
+                };
+                let element_shape = shape(element, &indexed, &mut cache, &mut active)?;
+                let stride = align(
+                    u32::from(element_shape.byte_size),
+                    u32::from(element_shape.alignment),
+                )?;
+                elements.push((*index, length, stride));
+                structural_type = element;
+            }
+            _ => {
+                let (selected, run_offset) = project_static_path(
+                    structural_type,
+                    std::slice::from_ref(segment),
+                    declarations,
+                )?;
+                byte_offset = byte_offset
+                    .checked_add(run_offset)
+                    .ok_or(InvalidStructuralShape)?;
+                structural_type = selected;
+            }
+        }
+    }
+    Ok((structural_type, byte_offset, elements))
+}
+
 /// The call-argument projection: every segment names a record field and the
 /// projected shape is the selected field's own storage shape. Leaf fields keep
 /// their natural declaration shape resolved through the canonical leaf

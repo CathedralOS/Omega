@@ -34,7 +34,9 @@ fn derived_call(target: target::NativeTarget, empty: bool) -> LegalizedScalarFun
     let LegalizedScalarInstructionKind::Call(arguments) = &mut call.kind else {
         panic!("borrowed call")
     };
-    let LegalizedScalarArgument::Structural { semantic, target } = &mut arguments.arguments[0]
+    let LegalizedScalarArgument::Structural {
+        semantic, target, ..
+    } = &mut arguments.arguments[0]
     else {
         panic!("view")
     };

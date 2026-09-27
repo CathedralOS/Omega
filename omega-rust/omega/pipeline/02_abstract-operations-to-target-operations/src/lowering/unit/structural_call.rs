@@ -356,6 +356,7 @@ pub(in crate::lowering) fn lower_structural_argument(
             source_byte_offset: 0,
             fixed_array_length: None,
             element_stride: None,
+            indices: Vec::new(),
             source,
             destination: destination.clone(),
         });
@@ -422,6 +423,7 @@ pub(in crate::lowering) fn lower_structural_argument(
             source_byte_offset,
             fixed_array_length: Some(window.length),
             element_stride: Some(1),
+            indices: Vec::new(),
             source: source_placement.clone().into(),
             destination: destination.clone(),
         });
@@ -481,6 +483,7 @@ pub(in crate::lowering) fn lower_structural_argument(
             source_byte_offset: backing_offset,
             fixed_array_length: Some(length),
             element_stride: Some(stride),
+            indices: Vec::new(),
             source: source_placement.clone().into(),
             destination: destination.clone(),
         });
@@ -722,6 +725,7 @@ pub(in crate::lowering) fn lower_structural_argument(
             source_byte_offset,
             fixed_array_length: None,
             element_stride: None,
+            indices: Vec::new(),
             source: source_placement.clone().into(),
             destination: destination.clone(),
         });
@@ -750,6 +754,7 @@ pub(in crate::lowering) fn lower_structural_argument(
         source_byte_offset,
         fixed_array_length,
         element_stride,
+        indices: Vec::new(),
         source: source_placement.clone().into(),
         destination: destination.clone(),
     })

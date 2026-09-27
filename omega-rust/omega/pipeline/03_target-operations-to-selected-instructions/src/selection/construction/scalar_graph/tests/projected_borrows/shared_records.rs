@@ -83,7 +83,10 @@ fn shared_record_call(native: target::NativeTarget, projected: bool) -> Legalize
     )
     .unwrap();
     call.result_placement = call.call_plan.result.clone();
-    let LegalizedScalarArgument::Structural { semantic, target } = &mut call.arguments[0] else {
+    let LegalizedScalarArgument::Structural {
+        semantic, target, ..
+    } = &mut call.arguments[0]
+    else {
         panic!("receiver");
     };
     semantic.path = if projected {
@@ -153,8 +156,9 @@ fn shared_nested_record_call_replays_original_root_and_same_typed_sibling() {
                 else {
                     panic!("call");
                 };
-                let LegalizedScalarArgument::Structural { semantic, target } =
-                    &mut call.arguments[0]
+                let LegalizedScalarArgument::Structural {
+                    semantic, target, ..
+                } = &mut call.arguments[0]
                 else {
                     panic!("receiver");
                 };
@@ -183,7 +187,9 @@ fn shared_nested_record_call_replays_original_root_and_same_typed_sibling() {
             else {
                 panic!("call");
             };
-            let LegalizedScalarArgument::Structural { semantic, target } = &mut call.arguments[0]
+            let LegalizedScalarArgument::Structural {
+                semantic, target, ..
+            } = &mut call.arguments[0]
             else {
                 panic!("receiver");
             };

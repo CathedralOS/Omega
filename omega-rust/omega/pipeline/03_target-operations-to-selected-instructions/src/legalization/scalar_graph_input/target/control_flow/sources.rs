@@ -3,7 +3,7 @@ use super::super::{BlockId, ValueId};
 use super::{PsiOptimizationFunction, TargetControlGraph, TargetUnitOperation};
 use target_operations::TargetUnitScalarArgumentSource as Source;
 
-pub(super) fn available(
+pub(in crate::legalization::scalar_graph_input) fn available(
     graph: &TargetControlGraph,
     optimized: &PsiOptimizationFunction,
     block: BlockId,
@@ -45,7 +45,9 @@ pub(super) fn available(
 
 // Candidate rows are independently replayed against their exact source nodes by
 // the caller; collecting their descriptions does not authorize a producer or use.
-fn definition(operation: &TargetUnitOperation) -> Option<(ValueId, Source)> {
+pub(in crate::legalization::scalar_graph_input) fn definition(
+    operation: &TargetUnitOperation,
+) -> Option<(ValueId, Source)> {
     match operation {
         TargetUnitOperation::IeeeFloatConstant {
             psi_operation,

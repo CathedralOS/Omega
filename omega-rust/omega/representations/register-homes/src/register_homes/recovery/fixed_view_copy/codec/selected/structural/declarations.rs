@@ -3,7 +3,9 @@ use semantic_vocabulary::{
     AffineConstructionElement, BlockId, IeeeFloatFormat, OperationId, PlaceId, StructuralCaseId,
     StructuralFieldId, StructuralPlaceKind, StructuralTypeId,
 };
-use target_operations::{TargetStructuralArgument, TargetStructuralParameter};
+use target_operations::{
+    TargetStructuralArgument, TargetStructuralParameter, TargetStructuralRuntimeIndex,
+};
 use terminal_psi::{
     BindingRelevance, ByteSequenceCarrier, EntryClaim, StructuralAccess, StructuralArgument,
     StructuralCaseDeclaration, StructuralFieldDeclaration, StructuralFieldType,
@@ -362,6 +364,15 @@ pub(super) fn encode_target_argument(bytes: &mut Vec<u8>, argument: &TargetStruc
     bytes.extend_from_slice(&argument.source_byte_offset.to_le_bytes());
     encode_option_u64(bytes, argument.fixed_array_length);
     encode_option_u32(bytes, argument.element_stride);
+    bytes.extend_from_slice(
+        &u32::try_from(argument.indices.len())
+            .unwrap_or(u32::MAX)
+            .to_le_bytes(),
+    );
+    for index in &argument.indices {
+        super::normalized_foreign::encode_scalar_source(bytes, index.operand);
+        bytes.extend_from_slice(&index.stride.to_le_bytes());
+    }
     encode_argument_source(bytes, &argument.source);
     encode_placement(bytes, &argument.destination);
 }
@@ -369,16 +380,34 @@ pub(super) fn encode_target_argument(bytes: &mut Vec<u8>, argument: &TargetStruc
 pub(super) fn decode_target_argument(
     cursor: &mut Cursor<'_>,
 ) -> Result<TargetStructuralArgument, FixedViewCopyDecodeError> {
+    let place = decode_id(cursor, PlaceId::new)?;
+    let access = decode_access(cursor)?;
+    let path = decode_path(cursor)?;
+    let root_structural_type = decode_id(cursor, StructuralTypeId::new)?;
+    let structural_type = decode_id(cursor, StructuralTypeId::new)?;
+    let shape = decode_shape(cursor)?;
+    let source_byte_offset = cursor.u32()?;
+    let fixed_array_length = decode_option_u64(cursor)?;
+    let element_stride = decode_option_u32(cursor)?;
+    let indices = (0..cursor.u32()?)
+        .map(|_| {
+            Ok(TargetStructuralRuntimeIndex {
+                operand: super::normalized_foreign::decode_scalar_source(cursor)?,
+                stride: cursor.u32()?,
+            })
+        })
+        .collect::<Result<Vec<_>, FixedViewCopyDecodeError>>()?;
     Ok(TargetStructuralArgument {
-        place: decode_id(cursor, PlaceId::new)?,
-        access: decode_access(cursor)?,
-        path: decode_path(cursor)?,
-        root_structural_type: decode_id(cursor, StructuralTypeId::new)?,
-        structural_type: decode_id(cursor, StructuralTypeId::new)?,
-        shape: decode_shape(cursor)?,
-        source_byte_offset: cursor.u32()?,
-        fixed_array_length: decode_option_u64(cursor)?,
-        element_stride: decode_option_u32(cursor)?,
+        place,
+        access,
+        path,
+        root_structural_type,
+        structural_type,
+        shape,
+        source_byte_offset,
+        fixed_array_length,
+        element_stride,
+        indices,
         source: decode_argument_source(cursor)?,
         destination: decode_placement(cursor)?,
     })

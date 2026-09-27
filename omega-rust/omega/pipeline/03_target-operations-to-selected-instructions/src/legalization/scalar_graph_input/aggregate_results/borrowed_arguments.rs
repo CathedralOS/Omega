@@ -155,12 +155,76 @@ pub(super) fn reconstruct(
             }
         }
     };
-    let (selected, offset) = crate::structural_inputs::structural_reference_input::project(
-        root,
-        &argument.path,
-        &plan.structural_types,
-    )
-    .ok_or(LegalizationError::custody())?;
+    let (selected, offset, indices) = if argument.path.iter().all(|segment| {
+        !matches!(
+            segment,
+            terminal_psi::StructuralPathSegment::RuntimeIndex { .. }
+        )
+    }) {
+        let (selected, offset) = crate::structural_inputs::structural_reference_input::project(
+            root,
+            &argument.path,
+            &plan.structural_types,
+        )
+        .ok_or(LegalizationError::custody())?;
+        (selected, offset, Vec::new())
+    } else {
+        // A runtime selector loans one element: the byte offset retains the
+        // static prefix and each RuntimeIndex segment's selector resolves to
+        // its dominating scalar source — the same transport the leaf-copy
+        // sibling already carries.
+        let (selected, offset, elements) =
+            crate::structural_inputs::structural_reference_input::runtime_projection(
+                root,
+                &argument.path,
+                &plan.structural_types,
+            )
+            .ok_or(LegalizationError::custody())?;
+        if elements.is_empty() {
+            return Err(LegalizationError::custody());
+        }
+        let function = native
+            .functions
+            .iter()
+            .find(|function| function.machine == caller.machine)
+            .ok_or(LegalizationError::custody())?;
+        let (call_block, call_position) = function
+            .graph
+            .blocks
+            .iter()
+            .find_map(|block| {
+                block
+                    .operations
+                    .iter()
+                    .position(|operation| {
+                        matches!(operation,
+                            target_operations::TargetUnitOperation::Call {
+                                psi_operation, ..
+                            } if *psi_operation == call_operation)
+                    })
+                    .map(|position| (block, position))
+            })
+            .ok_or(LegalizationError::custody())?;
+        let mut sources =
+            target::control_flow::sources::available(&function.graph, caller, call_block.block);
+        sources.extend(
+            call_block.operations[..call_position]
+                .iter()
+                .filter_map(target::control_flow::sources::definition),
+        );
+        let mut indices = Vec::new();
+        for element in &elements {
+            let (_, operand) = sources
+                .iter()
+                .find(|(value, _)| *value == element.index)
+                .ok_or(LegalizationError::custody())?;
+            indices.push(target_operations::TargetStructuralRuntimeIndex {
+                operand: operand.clone(),
+                stride: element.stride,
+            });
+        }
+        (selected, offset, indices)
+    };
     let referent = crate::structural_inputs::structural_reference_input::shape(
         selected,
         &plan.structural_types,
@@ -184,6 +248,7 @@ pub(super) fn reconstruct(
         source_byte_offset: offset,
         fixed_array_length: None,
         element_stride: None,
+        indices,
         source,
         destination: placement.clone(),
     })

@@ -289,6 +289,7 @@ fn record_type(
         }
         // A record may embed a completed sum or mixed member as a whole
         // field — the walk descends through every member-bearing shape.
+        // Fixed arrays carry every element as a member slot.
         let fields: Vec<&terminal_psi::StructuralFieldDeclaration> = match types
             .get(&current)
             .copied()
@@ -302,6 +303,11 @@ fn record_type(
                 .iter()
                 .chain(cases.iter().flat_map(|case| case.fields.iter()))
                 .collect(),
+            Some(StructuralTypeShape::FixedArray { element, .. }) => {
+                pending.push((current, true));
+                pending.push((*element, false));
+                continue;
+            }
             _ => return false,
         };
         pending.push((current, true));
@@ -353,6 +359,7 @@ pub(crate) fn constructible(
         let Some(declaration) = types.get(&current).copied() else {
             return false;
         };
+        // Fixed arrays carry every element as a member slot.
         let matching: Vec<&terminal_psi::StructuralFieldDeclaration> = match &declaration.shape {
             StructuralTypeShape::Record { fields } => fields.iter().collect(),
             StructuralTypeShape::Sum { cases } => {
@@ -362,6 +369,10 @@ pub(crate) fn constructible(
                 .iter()
                 .chain(cases.iter().flat_map(|case| case.fields.iter()))
                 .collect(),
+            StructuralTypeShape::FixedArray { element, .. } => {
+                pending.push(*element);
+                Vec::new()
+            }
             _ => return false,
         };
         for field in matching {

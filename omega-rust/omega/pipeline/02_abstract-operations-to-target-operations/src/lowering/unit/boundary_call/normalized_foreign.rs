@@ -335,6 +335,7 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                 source_byte_offset,
                 fixed_array_length: None,
                 element_stride: None,
+                indices: Vec::new(),
                 source: argument_source,
                 destination: destination.clone(),
             })

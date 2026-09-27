@@ -41,7 +41,10 @@ fn installed_call_origin_retains_projected_operands_and_structural_receipt_ordin
     let mut installed = installed_provider_plan();
     let call = structural_call_mut(&mut installed);
     let path = vec![terminal_psi::StructuralPathSegment::Field("payload".into())];
-    let LegalizedScalarArgument::Structural { semantic, target } = &mut call.arguments[0] else {
+    let LegalizedScalarArgument::Structural {
+        semantic, target, ..
+    } = &mut call.arguments[0]
+    else {
         panic!("structural fixture argument");
     };
     semantic.path = path.clone();

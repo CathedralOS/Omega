@@ -285,7 +285,8 @@ pub(crate) fn operation_structural_call_contract_matches(
                 claim_transfers,
                 returned_claim_transfers,
                 types,
-            ) && payloadless_selected_evidence_surface_matches(operation, callee, types)
+            ) && structural_call_contract_surface_matches(operation, callee)
+                && payloadless_selected_evidence_surface_matches(operation, callee, types)
         }),
         O::BoundaryCall {
             boundary,
@@ -310,6 +311,30 @@ pub(crate) fn operation_structural_call_contract_matches(
                 )
         }),
         _ => true,
+    }
+}
+
+/// The call's requirement-obligation and crash-route rows replay the callee's
+/// verified contract: one obligation per authored `requires`, exact crash
+/// routing. A callee without a verified contract admits only an empty surface.
+fn structural_call_contract_surface_matches(
+    operation: &O,
+    callee: &PsiOptimizationFunction,
+) -> bool {
+    let O::CallStructural {
+        requirement_obligations,
+        crash_continuations,
+        ..
+    } = operation
+    else {
+        return false;
+    };
+    match &callee.verified_contract {
+        Some(contract) => {
+            requirement_obligations.len() == contract.requires.len()
+                && *crash_continuations == contract.crash_routes
+        }
+        None => requirement_obligations.is_empty(),
     }
 }
 

@@ -306,8 +306,14 @@ pub(crate) fn validate_structural_call_result(
     if exact_claim_free {
         return true;
     }
-    if callee.entry_claim_declarations.is_empty()
-        || result.claims.is_empty()
+    // A callee with no claim declarations carries no claim traffic: the
+    // result is claim-exact exactly when the call's claim surfaces are
+    // empty. Requirement obligations and crash routes are their own
+    // contract rows, checked by the call's contract owner.
+    if callee.entry_claim_declarations.is_empty() && callee.content_entry_claims.is_empty() {
+        return result.claims.is_empty() && returned.is_empty() && claim_transfers.is_empty();
+    }
+    if result.claims.is_empty()
         || returned.is_empty()
         || returned.windows(2).any(|pair| pair[0] >= pair[1])
     {

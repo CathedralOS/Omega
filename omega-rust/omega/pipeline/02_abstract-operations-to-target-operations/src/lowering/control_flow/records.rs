@@ -83,14 +83,15 @@ pub(super) fn establish(
                 if result_case.is_some() && reference_bearing {
                     return Err(invalid());
                 }
-                // A sum or mixed member rides as one completed value the way
-                // a record member does.
+                // A sum, mixed, or fixed-array member rides as one completed
+                // value the way a record member does.
                 if !matches!(
                     types.get(&nested).map(|declaration| &declaration.shape),
                     Some(
                         StructuralTypeShape::Record { .. }
                             | StructuralTypeShape::Sum { .. }
                             | StructuralTypeShape::Mixed { .. }
+                            | StructuralTypeShape::FixedArray { .. }
                     )
                 ) && !reference_bearing
                     && terminal_semantics::scalar_array_leaf_shape(types.values().copied(), nested)

@@ -37,6 +37,11 @@ pub struct TargetStructuralArgument {
     /// Array element byte stride, paired with `fixed_array_length` (one for
     /// fixed-u8-array presentation). Metadata alone grants no indexing authority.
     pub element_stride: Option<u32>,
+    /// One resolved `RuntimeIndex` traversal of `path` per row, in path order
+    /// — resolved like `StructuralLeafCopy::indices`: the operand scales by
+    /// `stride` before joining `source_byte_offset`. Empty unless `path`
+    /// carries runtime segments.
+    pub indices: Vec<crate::TargetStructuralRuntimeIndex>,
     pub source: TargetStructuralArgumentSource,
     pub destination: ValuePlacement,
 }

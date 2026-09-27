@@ -23,10 +23,26 @@ pub(super) fn encode_call(bytes: &mut Vec<u8>, row: &SelectedCallContract) {
                 bytes.extend_from_slice(&source.get().to_le_bytes());
                 encode_placement(bytes, placement);
             }
-            LegalizedScalarArgument::Structural { semantic, target } => {
+            LegalizedScalarArgument::Structural {
+                semantic,
+                target,
+                indices,
+            } => {
                 bytes.push(1);
                 encode_semantic_argument(bytes, semantic);
                 encode_target_argument(bytes, target);
+                length(bytes, indices.len());
+                for index in indices {
+                    bytes.extend_from_slice(&index.operand.value.get().to_le_bytes());
+                    crate::register_homes::recovery::fixed_view_copy::codec::values::encode_scalar(
+                        bytes,
+                        index.operand.scalar_type,
+                    );
+                    bytes.extend_from_slice(&index.stride.to_le_bytes());
+                    bytes.extend_from_slice(&index.extent.to_le_bytes());
+                    bytes.extend_from_slice(&index.obligation.get().to_le_bytes());
+                    bytes.extend_from_slice(&index.accepted_fact.bytes());
+                }
             }
         }
     }
@@ -76,10 +92,34 @@ pub(super) fn decode_call(
                 source: decode_id(cursor, ValueId::new)?,
                 placement: decode_placement(cursor)?,
             },
-            1 => LegalizedScalarArgument::Structural {
-                semantic: decode_semantic_argument(cursor)?,
-                target: decode_target_argument(cursor)?,
-            },
+            1 => {
+                let semantic = decode_semantic_argument(cursor)?;
+                let target = decode_target_argument(cursor)?;
+                let count = cursor.length()?;
+                let mut indices = Vec::new();
+                for _ in 0..count {
+                    indices.push(
+                        legalized_operations::LegalizedRuntimeIndexOperand {
+                            operand: abstract_operations::AbstractResult {
+                                value: decode_id(cursor, ValueId::new)?,
+                                scalar_type: crate::register_homes::recovery::fixed_view_copy::codec::values::decode_scalar(cursor)?,
+                            },
+                            stride: cursor.u32()?,
+                            extent: cursor.u64()?,
+                            obligation: decode_id(cursor, ObligationId::new)?,
+                            accepted_fact:
+                                optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                                    cursor.array()?,
+                                ),
+                        },
+                    );
+                }
+                LegalizedScalarArgument::Structural {
+                    semantic,
+                    target,
+                    indices,
+                }
+            }
             tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
         });
     }
