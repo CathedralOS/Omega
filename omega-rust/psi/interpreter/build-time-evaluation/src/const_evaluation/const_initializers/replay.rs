@@ -218,8 +218,9 @@ pub(crate) fn validate(
         validate_authored_custody(&probe, owners[ordinal].0, declaration)
             .map_err(|reason| super::failure(declaration.initializer_source_span, reason))?;
     }
+    let prepared = crate::PreparedBuildMachineProgram::prepare(&probe)?;
     let checked =
-        super::invocations::CheckedInitializers::prepare(&probe, authority, &probe_symbols)?;
+        super::invocations::CheckedInitializers::prepare(&prepared, authority, &probe_symbols)?;
     let program = checked.typed();
     for declaration in replay_declarations {
         let index = leaves
@@ -448,7 +449,8 @@ fn validate_anonymous_float(
     }
     let checked = has_calls
         .then(|| {
-            super::invocations::CheckedInitializers::prepare(&probe, authority.clone(), &[owner])
+            let prepared = crate::PreparedBuildMachineProgram::prepare(&probe)?;
+            super::invocations::CheckedInitializers::prepare(&prepared, authority.clone(), &[owner])
         })
         .transpose()
         .map_err(|diagnostics| {

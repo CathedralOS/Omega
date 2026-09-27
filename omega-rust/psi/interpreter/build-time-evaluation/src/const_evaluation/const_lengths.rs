@@ -32,6 +32,7 @@ use typed_trees::machine::Machine;
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle};
 
 use crate::BuildTimeAdmissionPlan;
+mod checked_occurrences;
 mod receivers;
 
 pub fn evaluate_const_array_lengths(
@@ -231,13 +232,18 @@ pub(crate) fn evaluate_selected_array_lengths(
 /// Selected provider bodies replay through the same private rebinding the
 /// original fold used, so the checked value is never trusted: it is recomputed
 /// under the currently selected plans before comparison.
+/// Final checked occurrences must retain the exact requirement and arithmetic
+/// policy; source reexecution cannot reconstruct missing checking evidence.
+/// Omega remains responsible for validating the selected provider plans.
 pub fn validate_folded_array_lengths(
-    typed: &TypedTrees,
+    checked: &checked_trees::CheckedTrees,
     folds: &[FoldedArrayLength],
     operators: &[crate::SelectedBuildTimeBinaryOperator],
     provider_bodies: &[crate::SelectedBuildTimeProviderBody],
     authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
 ) -> Result<(), Vec<Diagnostic>> {
+    checked_occurrences::validate(checked, operators, provider_bodies)?;
+    let typed = &checked.typed;
     let selected_program = if provider_bodies.is_empty() {
         None
     } else {

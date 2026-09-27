@@ -9,6 +9,153 @@ use checked_interpreter::{
     BuildMachineEvaluationRequest, BuildTimeOperationEvaluation, InterpretOptions,
 };
 
+// Fold replay consumes the operator-occurrence portion of the checked result.
+// These evaluator fixtures supply that source-derived portion only; complete
+// source checking and provider settlement are exercised by the corpus callers.
+fn checked_occurrences(typed: &TypedTrees) -> checked_trees::CheckedTrees {
+    checked_trees::CheckedTrees::with_roots(
+        typed.clone(),
+        checked_trees::CheckFacts {
+            operators: typed_trees_to_checked_trees::derive_pre_flow_operator_selections(typed),
+            ..Default::default()
+        },
+    )
+}
+
+#[test]
+fn final_fold_replay_requires_retained_checked_occurrences() {
+    let (float, operators) = fixture("Float");
+    let (spelled, spelled_bodies) = provider_fixture();
+    let (named, named_bodies) = named_provider_fixture();
+    let (token, token_bodies) = provider_fixture_with_introducer("machine");
+    for (name, mut typed, operators, bodies) in [
+        ("float", float, operators, Vec::new()),
+        ("spelled body", spelled, Vec::new(), spelled_bodies),
+        ("named body", named, Vec::new(), named_bodies),
+        ("normalized token body", token, Vec::new(), token_bodies),
+    ] {
+        let folds = evaluate_selected_array_lengths(
+            &mut typed,
+            None,
+            SelectedBuildTimeOperators {
+                operators: &operators,
+                provider_bodies: &bodies,
+            },
+        )
+        .expect(name);
+        assert_eq!(folds.len(), 1);
+        let checked = if typed.machine_token_bindings().is_empty() {
+            checked_occurrences(&typed)
+        } else {
+            typed_trees_to_checked_trees::lower_typed_trees(
+                typed,
+                &typed_trees_to_checked_trees::CheckingRequest::settled(),
+            )
+            .expect(name)
+        };
+        validate_folded_array_lengths(&checked, &folds, &operators, &bodies, None).expect(name);
+        let reject = |changed: &checked_trees::CheckedTrees, reason: &str| {
+            let diagnostics =
+                validate_folded_array_lengths(changed, &folds, &operators, &bodies, None)
+                    .expect_err(name);
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.to_string().contains(reason)),
+                "{name}: {diagnostics:?}",
+            );
+        };
+        let mut missing = checked.clone();
+        missing.facts.operators.uses.clear();
+        missing.facts.operators.named_uses.clear();
+        missing.facts.operators.named_requirement_uses.clear();
+        reject(&missing, "no unique final checked occurrence");
+
+        let expression = operators
+            .first()
+            .map_or_else(|| bodies[0].expression, |row| row.expression);
+        let mut duplicate = checked.clone();
+        let mut wrong_requirement = checked.clone();
+        if let Some((handle, fact)) = checked
+            .facts
+            .operators
+            .uses
+            .iter()
+            .find(|(_, fact)| fact.expression == expression)
+        {
+            duplicate.facts.operators.uses.append(*fact);
+            wrong_requirement
+                .facts
+                .operators
+                .uses
+                .get_mut(handle)
+                .selected_operator_symbol = symbols::SymbolHandle::invalid();
+            if !operators.is_empty() {
+                let mut wrong_policy = checked.clone();
+                wrong_policy
+                    .facts
+                    .operators
+                    .uses
+                    .get_mut(handle)
+                    .policy_adapter =
+                    checked_trees::CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite {
+                        format: numerics::float_semantics::FloatFormat::BINARY64,
+                    };
+                reject(
+                    &wrong_policy,
+                    "differs from final checked requirement or arithmetic policy",
+                );
+            } else {
+                let mut both_arenas = checked.clone();
+                both_arenas.facts.operators.named_uses.append(
+                    checked_trees::CheckedNamedOperatorUseFact {
+                        expression: fact.expression,
+                        origin: fact.origin,
+                        selected_operator_symbol: fact.selected_operator_symbol,
+                        policy_adapter: fact.policy_adapter,
+                    },
+                );
+                reject(&both_arenas, "no unique final checked occurrence");
+            }
+        } else if let Some((handle, fact)) = checked
+            .facts
+            .operators
+            .named_uses
+            .iter()
+            .find(|(_, fact)| fact.expression == expression)
+        {
+            duplicate.facts.operators.named_uses.append(*fact);
+            wrong_requirement
+                .facts
+                .operators
+                .named_uses
+                .get_mut(handle)
+                .selected_operator_symbol = symbols::SymbolHandle::invalid();
+        } else {
+            let (handle, fact) = checked
+                .facts
+                .operators
+                .named_requirement_uses
+                .iter()
+                .find(|(_, fact)| fact.expression == expression)
+                .expect(name);
+            duplicate
+                .facts
+                .operators
+                .named_requirement_uses
+                .append(*fact);
+            wrong_requirement
+                .facts
+                .operators
+                .named_requirement_uses
+                .get_mut(handle)
+                .requirement_symbol = symbols::SymbolHandle::invalid();
+        }
+        reject(&duplicate, "no unique final checked occurrence");
+        reject(&wrong_requirement, "differs from final checked requirement");
+    }
+}
+
 #[test]
 fn settled_checking_requires_array_length_evaluation_even_after_retained_preliminary_check() {
     let mut typed = crate::front_end::typed_program(
@@ -172,13 +319,16 @@ fn folded_result_replay_rejects_paired_literal_forgery_and_lost_owner() {
     )
     .unwrap();
     assert_eq!(folds.len(), 1);
-    validate_folded_array_lengths(&typed, &folds, &rows, &[], None).unwrap();
+    validate_folded_array_lengths(&checked_occurrences(&typed), &folds, &rows, &[], None).unwrap();
     let mut forged = folds.clone();
     forged[0].value = 5;
     typed
         .type_reference_table
         .set_fixed_array_length(forged[0].type_reference, 5);
-    assert!(validate_folded_array_lengths(&typed, &forged, &rows, &[], None).is_err());
+    assert!(
+        validate_folded_array_lengths(&checked_occurrences(&typed), &forged, &rows, &[], None)
+            .is_err()
+    );
     typed
         .type_reference_table
         .set_fixed_array_length(forged[0].type_reference, 4);
@@ -194,7 +344,10 @@ fn folded_result_replay_rejects_paired_literal_forgery_and_lost_owner() {
         panic!("bytes");
     };
     field.type_reference = TypeReferenceHandle::invalid();
-    assert!(validate_folded_array_lengths(&typed, &folds, &rows, &[], None).is_err());
+    assert!(
+        validate_folded_array_lengths(&checked_occurrences(&typed), &folds, &rows, &[], None)
+            .is_err()
+    );
 }
 
 #[test]
@@ -235,7 +388,7 @@ fn independent_and_selected_lengths_share_full_width_integer_decoding() {
                 .fixed_array_lengths()
                 .collect::<Vec<_>>()
         );
-        validate_folded_array_lengths(&selected, &folds, &[], &[], None)
+        validate_folded_array_lengths(&checked_occurrences(&selected), &folds, &[], &[], None)
             .expect("independent replay retains the unsigned result");
     }
 }
@@ -276,8 +429,8 @@ fn single_supplied_row_cannot_authorize_another_live_expression_origin() {
 }
 
 /// A selected boundary-operator use whose settled plan binds an ordinary
-/// checked adapter. The provider's body computes `left + right`, which differs
-/// from the builtin `%` result, so a fold of 9 instead of 1 is the positive
+/// checked adapter. The provider's body computes `left | right`, which differs
+/// from the builtin `%` result, so a fold of 7 instead of 1 is the positive
 /// witness that the provider's machine -- not host arithmetic -- ran.
 fn provider_fixture() -> (TypedTrees, Vec<SelectedBuildTimeProviderBody>) {
     provider_fixture_with_introducer("operator")
@@ -290,7 +443,7 @@ fn provider_fixture_with_introducer(
 data Math {}
 boundary operator % Math::remainder(left: u64, right: u64) -> u64;
 data Provider {}
-machine Provider::remainder(left: u64, right: u64) -> u64 satisfies Math::remainder { left + right }
+machine Provider::remainder(left: u64, right: u64) -> u64 satisfies Math::remainder { left | right }
 machine length() -> u64 { let left:u64 = 7; let right:u64 = 2; transition { _ -> (left % right) } }
 data Main { bytes:[u8;length()]; }
 "#;
@@ -332,13 +485,13 @@ data Main { bytes:[u8;length()]; }
 
 /// The same selected provider-body execution, invoked through a uniquely
 /// resolved named call rather than the spelled token. The provider's body
-/// still computes `left + right` = 9 where builtin `%` would fold 1.
+/// still computes `left | right` = 7 where builtin `%` would fold 1.
 fn named_provider_fixture() -> (TypedTrees, Vec<SelectedBuildTimeProviderBody>) {
     let source = r#"
 data Math {}
 boundary operator % Math::remainder(left: u64, right: u64) -> u64;
 data Provider {}
-machine Provider::remainder(left: u64, right: u64) -> u64 satisfies Math::remainder { left + right }
+machine Provider::remainder(left: u64, right: u64) -> u64 satisfies Math::remainder { left | right }
 machine length() -> u64 { let left:u64 = 7; let right:u64 = 2; transition { _ -> (Math::remainder(left, right)) } }
 data Main { bytes:[u8;length()]; }
 "#;
@@ -397,10 +550,18 @@ fn token_machine_provider_body_executes_and_replays() {
     .unwrap();
     assert_eq!(folds.len(), 1);
     assert_eq!(
-        folds[0].value, 9,
+        folds[0].value, 7,
         "execute the selected body, not builtin modulo"
     );
-    validate_folded_array_lengths(&typed, &folds, &[], &rows, None).unwrap();
+    validate_folded_array_lengths(&checked_occurrences(&typed), &folds, &[], &rows, None).unwrap();
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("check the complete folded source before replay");
+    assert_eq!(checked.facts.operators.named_requirement_uses().count(), 1);
+    validate_folded_array_lengths(&checked, &folds, &[], &rows, None)
+        .expect("normalizing a token machine to a requirement call preserves the original fold");
 }
 
 #[test]
@@ -466,10 +627,10 @@ fn named_provider_body_executes_its_ordinary_machine_and_replays() {
     .unwrap();
     assert_eq!(folds.len(), 1);
     assert_eq!(
-        folds[0].value, 9,
-        "the provider's `left + right` body must run; builtin `%` would fold 1"
+        folds[0].value, 7,
+        "the provider's `left | right` body must run; builtin `%` would fold 1"
     );
-    validate_folded_array_lengths(&typed, &folds, &[], &rows, None).unwrap();
+    validate_folded_array_lengths(&checked_occurrences(&typed), &folds, &[], &rows, None).unwrap();
 }
 
 #[test]
@@ -561,7 +722,7 @@ fn folded_payload_retains_its_exact_variant_parent() {
         },
     )
     .unwrap();
-    validate_folded_array_lengths(&typed, &folds, &rows, &[], None).unwrap();
+    validate_folded_array_lengths(&checked_occurrences(&typed), &folds, &rows, &[], None).unwrap();
     let owner = typed
         .data_definitions()
         .iter()
@@ -577,5 +738,8 @@ fn folded_payload_retains_its_exact_variant_parent() {
         panic!("two cases");
     };
     std::mem::swap(&mut first.payload, &mut second.payload);
-    assert!(validate_folded_array_lengths(&typed, &folds, &rows, &[], None).is_err());
+    assert!(
+        validate_folded_array_lengths(&checked_occurrences(&typed), &folds, &rows, &[], None)
+            .is_err()
+    );
 }

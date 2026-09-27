@@ -244,11 +244,17 @@ fn evaluate_application_group(
             })
             .map(|machine| machine.symbol)
             .collect::<Vec<_>>();
-        let checked = crate::const_evaluation::const_initializers::CheckedInitializers::prepare(
-            &typed,
-            selection_authority.clone(),
-            &probe_symbols,
-        )?;
+        // Decide deferral before settled checking: a sibling fixed-array
+        // length may need the same pending provider selection. No execution
+        // is admitted here; independent calls still require checked bodies,
+        // and deferred calls retain their ordinary typed continuation.
+        let prepared = crate::PreparedBuildMachineProgram::prepare(&typed)?;
+        let execution = prepared.typed();
+        let admission =
+            crate::BuildTimeAdmissionPlan::infer(execution, selection_authority.clone());
+        let operators =
+            typed_trees_to_checked_trees::derive_pre_flow_operator_selections(execution);
+        let mut checked_program = None;
         for (argument, expression, _, public) in &application_destinations {
             let reference = syntax.expressions.source_span(*expression);
             let failure = |reason: String| {
@@ -259,7 +265,14 @@ fn evaluate_application_group(
                     .with_source_span(reference),
                 ]
             };
-            let invocation = checked.calls_for_source(reference).map_err(&failure)?;
+            let mut matching = execution.machines().iter().filter(|machine| {
+                execution.symbols.symbol_source_span(machine.symbol) == Some(reference)
+            });
+            let (Some(machine), None) = (matching.next(), matching.next()) else {
+                return Err(failure(
+                    "application probe lost its unique source owner".into(),
+                ));
+            };
             // This pre-resolution probe has no Omega provider plan. Keep
             // authored applications whose reachable closure needs selected
             // execution intact: the typed continuation folds them under the
@@ -267,7 +280,7 @@ fn evaluate_application_group(
             // lengths do. The per-argument retry mode must report no
             // progress for such an application or the driver loop never
             // terminates.
-            if invocation.needs_operator_selection() {
+            if admission.closure_needs_operator_selection(execution, machine.symbol, &operators) {
                 if selected_argument.is_valid() {
                     return Err(failure(
                         "const-generic application awaits provider selection".to_owned(),
@@ -275,6 +288,17 @@ fn evaluate_application_group(
                 }
                 continue;
             }
+            let checked = match checked_program {
+                Some(ref checked) => checked,
+                None => checked_program.insert(
+                    crate::const_evaluation::const_initializers::CheckedInitializers::prepare(
+                        &prepared,
+                        selection_authority.clone(),
+                        &probe_symbols,
+                    )?,
+                ),
+            };
+            let invocation = checked.calls_for_source(reference).map_err(&failure)?;
             let evaluated = invocation
                 .evaluate_application_probe(reference, *public, &syntax)
                 .map_err(&failure)?;
