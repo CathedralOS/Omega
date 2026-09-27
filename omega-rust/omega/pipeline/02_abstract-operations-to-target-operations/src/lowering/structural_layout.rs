@@ -513,6 +513,112 @@ pub(super) fn borrowed_view_field_offset(
     )
 }
 
+/// Case payloads overlay storage, but their case and field identities remain
+/// part of the copy contract. Resolve those identities before using layout.
+pub(super) fn case_projection(
+    root: StructuralTypeId,
+    path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
+) -> Result<(StructuralTypeId, ValueShape, u32), LoweringError> {
+    use semantic_vocabulary::CanonicalStructuralPathSegment as Segment;
+    let invalid = || LoweringError::UnsupportedStructuralSum(root);
+    let endpoint =
+        terminal_semantics::canonical_case_leaf_type(declarations.values().copied(), root, path)
+            .ok_or_else(invalid)?;
+    let mut current = root;
+    let mut offset = 0u32;
+    let mut segments = path.iter();
+    while let Some(segment) = segments.next() {
+        let shape = &declarations.get(&current).ok_or_else(invalid)?.shape;
+        let (next, displacement) = match segment {
+            Segment::Case(identity) => {
+                let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
+                    shape
+                else {
+                    return Err(invalid());
+                };
+                let case_position = cases
+                    .iter()
+                    .position(|case| case.id == *identity)
+                    .ok_or_else(invalid)?;
+                let Some(Segment::Field(field)) = segments.next() else {
+                    return Err(invalid());
+                };
+                let (field_position, declaration) = cases[case_position]
+                    .fields
+                    .iter()
+                    .filter(|field| !field.relevance.is_erased())
+                    .enumerate()
+                    .find(|(_, declaration)| declaration.id == *field)
+                    .ok_or_else(invalid)?;
+                let StructuralFieldType::Structural(next) = declaration.field_type else {
+                    return Err(invalid());
+                };
+                let layout = structural_sum_layout(current, declarations, cache, active)?;
+                (
+                    next,
+                    u32::from(layout.cases[case_position].fields[field_position].byte_offset),
+                )
+            }
+            Segment::Field(identity) => {
+                let (StructuralTypeShape::Record { fields }
+                | StructuralTypeShape::Mixed { fields, .. }) = shape
+                else {
+                    return Err(invalid());
+                };
+                let (field_position, field) = fields
+                    .iter()
+                    .filter(|field| !field.relevance.is_erased())
+                    .enumerate()
+                    .find(|(_, field)| field.id == *identity)
+                    .ok_or_else(invalid)?;
+                let StructuralFieldType::Structural(next) = field.field_type else {
+                    return Err(invalid());
+                };
+                let displacement = if matches!(shape, StructuralTypeShape::Mixed { .. }) {
+                    u32::from(
+                        structural_sum_layout(current, declarations, cache, active)?.common_fields
+                            [field_position]
+                            .byte_offset,
+                    )
+                } else {
+                    resolve_structural_field_path(
+                        current,
+                        &[StructuralPathSegment::Field(field.identity.clone())],
+                        declarations,
+                        cache,
+                        active,
+                    )?
+                    .2
+                };
+                (next, displacement)
+            }
+            Segment::FixedIndex(index) => {
+                let (next, _, displacement) = resolve_structural_projection_path(
+                    current,
+                    &[StructuralPathSegment::FixedIndex(*index)],
+                    declarations,
+                    cache,
+                    active,
+                )?;
+                (next, displacement)
+            }
+        };
+        current = next;
+        offset = offset.checked_add(displacement).ok_or_else(invalid)?;
+    }
+    if current != endpoint {
+        return Err(invalid());
+    }
+    Ok((
+        endpoint,
+        structural_shape(endpoint, declarations, cache, active)?,
+        offset,
+    ))
+}
+
 pub(super) fn resolve_structural_projection_path(
     mut structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],

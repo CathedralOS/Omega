@@ -729,6 +729,130 @@ pub(crate) fn field_shape(
     }
 }
 
+/// Independently reconstruct case-qualified copy geometry from declarations;
+/// neither a producer's offset nor its selected-case assertion is layout evidence.
+pub(crate) fn case_projection(
+    root: StructuralTypeId,
+    path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<(StructuralTypeId, u32)> {
+    use semantic_vocabulary::CanonicalStructuralPathSegment as Segment;
+    let endpoint = terminal_semantics::canonical_case_leaf_type(declarations.iter(), root, path)?;
+    let mut current = root;
+    let mut offset = 0u32;
+    let mut segments = path.iter();
+    while let Some(segment) = segments.next() {
+        let declaration = declarations
+            .iter()
+            .find(|declaration| declaration.id == current)?;
+        let (next, displacement) = match segment {
+            Segment::Case(identity) => {
+                let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
+                    &declaration.shape
+                else {
+                    return None;
+                };
+                let case_position = cases.iter().position(|case| case.id == *identity)?;
+                let Segment::Field(field) = segments.next()? else {
+                    return None;
+                };
+                let (field_position, field) = cases[case_position]
+                    .fields
+                    .iter()
+                    .filter(|field| !field.relevance.is_erased())
+                    .enumerate()
+                    .find(|(_, candidate)| candidate.id == *field)?;
+                let StructuralFieldType::Structural(next) = field.field_type else {
+                    return None;
+                };
+                let layout = case_layout(current, declarations)?;
+                (
+                    next,
+                    u32::from(
+                        layout
+                            .cases
+                            .get(case_position)?
+                            .fields
+                            .get(field_position)?
+                            .byte_offset,
+                    ),
+                )
+            }
+            Segment::Field(identity) => {
+                let (StructuralTypeShape::Record { fields }
+                | StructuralTypeShape::Mixed { fields, .. }) = &declaration.shape
+                else {
+                    return None;
+                };
+                let (field_position, field) = fields
+                    .iter()
+                    .filter(|field| !field.relevance.is_erased())
+                    .enumerate()
+                    .find(|(_, field)| field.id == *identity)?;
+                let StructuralFieldType::Structural(next) = field.field_type else {
+                    return None;
+                };
+                let displacement = if matches!(declaration.shape, StructuralTypeShape::Mixed { .. })
+                {
+                    u32::from(
+                        case_layout(current, declarations)?
+                            .common_fields
+                            .get(field_position)?
+                            .byte_offset,
+                    )
+                } else {
+                    project(
+                        current,
+                        &[StructuralPathSegment::Field(field.identity.clone())],
+                        declarations,
+                    )?
+                    .1
+                };
+                (next, displacement)
+            }
+            Segment::FixedIndex(index) => project(
+                current,
+                &[StructuralPathSegment::FixedIndex(*index)],
+                declarations,
+            )?,
+        };
+        current = next;
+        offset = offset.checked_add(displacement)?;
+    }
+    (current == endpoint).then_some((endpoint, offset))
+}
+
+fn case_layout(
+    root: StructuralTypeId,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<calling_conventions::ConventionalSumLayout> {
+    let declaration = declarations
+        .iter()
+        .find(|declaration| declaration.id == root)?;
+    let (common, cases) = match &declaration.shape {
+        StructuralTypeShape::Sum { cases } => (&[][..], cases),
+        StructuralTypeShape::Mixed { fields, cases } => (fields.as_slice(), cases),
+        _ => return None,
+    };
+    let mut active = vec![root];
+    let common = common
+        .iter()
+        .filter(|field| !field.relevance.is_erased())
+        .map(|field| field_shape(&field.field_type, declarations, &mut active))
+        .collect::<Option<Vec<_>>>()?;
+    let payloads = cases
+        .iter()
+        .map(|case| {
+            case.fields
+                .iter()
+                .filter(|field| !field.relevance.is_erased())
+                .map(|field| field_shape(&field.field_type, declarations, &mut active))
+                .collect::<Option<Vec<_>>>()
+        })
+        .collect::<Option<Vec<_>>>()?;
+    calling_conventions::evaluate_conventional_sum_layout(&common, &payloads).ok()
+}
+
 pub(crate) fn project(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],

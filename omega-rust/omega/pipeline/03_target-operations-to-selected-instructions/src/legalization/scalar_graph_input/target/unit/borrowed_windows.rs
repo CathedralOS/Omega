@@ -45,7 +45,7 @@ pub(super) fn validate(
             )?;
             if psi_operation != expected_operation
                 || *source != root.place()
-                || *path != extent.path
+                || *path != abstract_operations::StructuralCopyPath::Ordinary(extent.path)
                 || *byte_offset != extent.byte_offset
                 || !super::runtime_indices_rejoin(indices, &extent.elements, sources)
                 || *result_home

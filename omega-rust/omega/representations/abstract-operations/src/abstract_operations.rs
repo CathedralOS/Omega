@@ -50,3 +50,5 @@ pub mod operations;
 pub use operations::AbstractOperation;
 mod structural_stores;
 pub use structural_stores::{StructuralScalarStoreDestination, StructuralWindowRoot};
+mod structural_copy;
+pub use structural_copy::StructuralCopyPath;

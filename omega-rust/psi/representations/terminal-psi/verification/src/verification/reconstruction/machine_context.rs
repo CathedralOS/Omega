@@ -29,6 +29,7 @@ impl<'a> MachineReconstructionContext<'a> {
                 matches!(
                     &operation.kind,
                     OperationKind::Call { .. }
+                        | OperationKind::StructuralCaseLeafCopy { .. }
                         | OperationKind::ByteSequenceRead { .. }
         | OperationKind::ByteSequenceWrite { .. }
                         | OperationKind::ByteSequenceSubslice { .. }

@@ -228,7 +228,7 @@ static OP_PRIMITIVE_SCALAR_READ: TrustedSurfaceEntry = entry(
 static OP_STRUCTURAL_CASE_MEMBERSHIP: TrustedSurfaceEntry = entry(
     "operation:structural-case-membership",
     "a readable live whole root and validated field/index path to the exact nominal sum case",
-    "the exact root/path/case Boolean observation; no reusable current-storage equation or payload refinement",
+    "the exact root/path/case Boolean observation and its conditional membership fact; writes invalidate that place-bearing fact, and observing the discriminator alone grants no payload access",
     EFFECT_DEPS,
     &[
         VOCAB,
@@ -248,9 +248,17 @@ static OP_STRUCTURAL_LEAF_COPY: TrustedSurfaceEntry = entry(
 );
 static OP_STRUCTURAL_CASE_LEAF_COPY: TrustedSurfaceEntry = entry(
     "operation:structural-case-leaf-copy",
-    "a readable live whole root and a canonical path entering at least one proved case to an Unrestricted leaf",
+    "a readable live whole root and a canonical path entering at least one case; every case hop has exact root/prefix membership in the reconstructed incoming facts before copying an Unrestricted leaf",
     "no proposition facts: a fresh owned place holding an exact copy of the projected case-leaf; the source stays fully intact",
-    NO_FACT_DEPS,
+    &[
+        "formation:operation-validation",
+        "fact:semantic-axiom-roster",
+        "operation:structural-case-membership",
+        "fact:structural-case-arm",
+        "conversion:value-equality-denotation",
+        "rule:semantic-axiom",
+        "rule:implication-elimination",
+    ],
     &[VOCAB, TS_ROWS, OP_FACTS, VAL_OPS, VAL_LEAF_COPY],
 );
 static OP_WRITE_ONLY_PRIMITIVE_STORE: TrustedSurfaceEntry = entry(

@@ -19,4 +19,6 @@ pub use abstract_operations::{
     ValueBinding, atomic, calls, control_flow, happens_before_atomic_coherence_violation,
     operations, ownership, values,
 };
-pub use abstract_operations::{StructuralScalarStoreDestination, StructuralWindowRoot};
+pub use abstract_operations::{
+    StructuralCopyPath, StructuralScalarStoreDestination, StructuralWindowRoot,
+};

@@ -3,12 +3,14 @@
 //! the read-only observation contract — copying never opens a restoration
 //! window, so this leg re-checks only the static shape the verifier's
 //! admission committed to: the fresh `Unrestricted` result row, a readable
-//! source signature, and the spelled path landing on the exact leaf type.
+//! source signature, and the ordinary or case-qualified path landing on the
+//! exact leaf type. Case membership is proved before this lowering runs;
+//! selecting a payload's declared type cannot establish its active case.
 //! The retained operation carries source place and path unchanged so
 //! consumers replay the verifier's own resolution rather than a
 //! lowering-side reconstruction.
 
-use abstract_operations::AbstractOperation;
+use abstract_operations::{AbstractOperation, StructuralCopyPath};
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind, StructuralTypeId};
 use terminal_psi::{
     Operation, StructuralAccess, StructuralFieldType, StructuralMultiplicity,
@@ -24,7 +26,7 @@ pub(super) fn lower(
     machine: &TerminalMachine,
     structural_types: &[StructuralTypeDeclaration],
     source: PlaceId,
-    path: &[StructuralPathSegment],
+    path: StructuralCopyPath,
 ) -> Result<AbstractOperation, LoweringError> {
     let invalid = || LoweringError::InvalidStructuralLeafCopy(operation.id);
     let result = operation.result.structural().ok_or_else(invalid)?;
@@ -59,8 +61,17 @@ pub(super) fn lower(
         return Err(invalid());
     }
     let signature = source_signature(machine, source).ok_or_else(invalid)?;
-    let selected_type = resolve_copyable_path(structural_types, signature.structural_type, path)
-        .ok_or_else(invalid)?;
+    let selected_type = match &path {
+        StructuralCopyPath::Ordinary(path) => {
+            resolve_copyable_path(structural_types, signature.structural_type, path)
+        }
+        StructuralCopyPath::Case(path) => terminal_semantics::canonical_case_leaf_type(
+            structural_types.iter(),
+            signature.structural_type,
+            path,
+        ),
+    }
+    .ok_or_else(invalid)?;
     if selected_type != result.structural_type {
         return Err(invalid());
     }
@@ -68,7 +79,7 @@ pub(super) fn lower(
         psi_operation: operation.id,
         result: result.clone(),
         source,
-        path: path.to_vec(),
+        path,
     })
 }
 

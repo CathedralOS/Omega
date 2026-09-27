@@ -97,7 +97,7 @@ pub(super) fn operation(
                     | terminal_psi::StructuralPathSegment::RuntimeIndex { .. })
             );
             graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| match row {
-                TargetUnitOperation::StructuralLeafCopy { psi_operation: retained, result_home, source: retained_source, path: retained_path, indices, .. }
+                TargetUnitOperation::StructuralLeafCopy { psi_operation: retained, result_home, source: retained_source, path: abstract_operations::StructuralCopyPath::Ordinary(retained_path), indices, .. }
                     if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result))
                         && *retained_source == source.place() => {
                     let runtime_segments = retained_path.iter().filter(|segment|

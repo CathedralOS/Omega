@@ -248,7 +248,7 @@ pub enum AbstractOperation {
         psi_operation: OperationId,
         result: StructuralOperationResult,
         source: PlaceId,
-        path: Vec<StructuralPathSegment>,
+        path: super::StructuralCopyPath,
     },
     /// Reseat one whole owned structural subtree into the exact field
     /// `path` + `field` beneath `destination`, closing the restoration window
@@ -866,8 +866,11 @@ impl AbstractOperation {
             | Self::StructuralByteSequenceFieldStore { path, .. }
             | Self::StructuralByteSequenceFieldLength { path, .. }
             | Self::StructuralByteSequenceFieldRead { path, .. }
-            | Self::MoveStructuralField { path, .. }
-            | Self::StructuralLeafCopy { path, .. } => vec![path.as_slice()],
+            | Self::MoveStructuralField { path, .. } => vec![path.as_slice()],
+            Self::StructuralLeafCopy { path, .. } => match path {
+                super::StructuralCopyPath::Ordinary(path) => vec![path.as_slice()],
+                super::StructuralCopyPath::Case(_) => Vec::new(),
+            },
             Self::StoreStructuralField { path, value, .. } => {
                 vec![path.as_slice(), value.path.as_slice()]
             }

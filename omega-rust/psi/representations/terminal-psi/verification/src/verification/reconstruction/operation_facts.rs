@@ -138,6 +138,80 @@ pub(super) fn append_operation(
         // the fresh result place has no prior observations to invalidate.
         return Ok(());
     }
+    if let OperationKind::StructuralCaseLeafCopy { source, path } = &operation.kind
+        && matches!(purpose, OperationFactPurpose::ProofObligations)
+    {
+        // A type-correct payload path is not evidence that its overlaid storage
+        // is active. Each case hop must already hold for this exact root and
+        // prefix in the incoming facts, after all-predecessor intersection and
+        // write invalidation. The copy itself introduces no membership fact.
+        for (position, segment) in path.iter().enumerate() {
+            if let semantic_vocabulary::CanonicalStructuralPathSegment::Case(case) = segment {
+                let membership = Proposition::StructuralCaseMembership {
+                    subject: semantic_vocabulary::StructuralCaseSubject::new(
+                        *source,
+                        path[..position].to_vec(),
+                    ),
+                    case: *case,
+                };
+                let converted = proof_admission::check_predicate_denotations_with_value_equalities(
+                    context.proposition_context(),
+                    &membership,
+                    &[],
+                    axioms,
+                )
+                .map_err(|_| ModuleError::InvalidStructuralLeafCopy {
+                    operation: operation.id,
+                    source: *source,
+                })?;
+                let certificate =
+                    converted
+                        .semantic_axioms()
+                        .iter()
+                        .enumerate()
+                        .find_map(|(index, fact)| {
+                            let cited = ProofNode {
+                                conclusion: fact.clone(),
+                                rule: ProofRule::SemanticAxiom { index },
+                            };
+                            if fact == converted.goal() {
+                                return Some(cited);
+                            }
+                            if let Proposition::Implication {
+                                premise,
+                                conclusion,
+                            } = fact
+                                && **premise == Proposition::Truth
+                                && **conclusion == *converted.goal()
+                            {
+                                return Some(ProofNode {
+                                    conclusion: converted.goal().clone(),
+                                    rule: ProofRule::ImplicationElimination {
+                                        implication: Box::new(cited),
+                                        premise: Box::new(ProofNode {
+                                            conclusion: Proposition::Truth,
+                                            rule: ProofRule::Primitive(
+                                                proof_admission::PrimitiveJudgment::Truth,
+                                            ),
+                                        }),
+                                    },
+                                });
+                            }
+                            None
+                        });
+                if certificate.as_ref().is_none_or(|certificate| {
+                    converted
+                        .check_certificate(context.proposition_context(), certificate)
+                        .is_err()
+                }) {
+                    return Err(ModuleError::InvalidStructuralLeafCopy {
+                        operation: operation.id,
+                        source: *source,
+                    });
+                }
+            }
+        }
+    }
     if matches!(
         operation.kind,
         OperationKind::StructuralLeafCopy { .. } | OperationKind::StructuralCaseLeafCopy { .. }
@@ -337,6 +411,30 @@ pub(super) fn append_operation(
     if let Some(observation) = structural_effect_leaf_observation(operation)
         .map_err(ModuleError::OperationSemanticSchema)?
     {
+        if let terminal_semantics::StructuralEffectObservation::CaseMembershipObserved {
+            source,
+            path,
+            case,
+            result,
+        } = &observation
+            && capture_snapshots
+            && let Some(prefix) =
+                crate::validation::canonical_field_path(module, machine, *source, path)
+        {
+            // This is a conditional observation, not unconditional case authority.
+            // Its place-bearing conclusion makes existing write invalidation
+            // retire it if the discriminator can change before the copy.
+            axioms.push(Proposition::Implication {
+                premise: Box::new(Proposition::Equal(
+                    ScalarTerm::value(*result, ScalarType::Boolean),
+                    ScalarTerm::Boolean(true),
+                )),
+                conclusion: Box::new(Proposition::StructuralCaseMembership {
+                    subject: semantic_vocabulary::StructuralCaseSubject::new(*source, prefix),
+                    case: *case,
+                }),
+            });
+        }
         if let Some((id, proposition)) = observation.canonical_obligation() {
             operation_obligations.push(ReconstructedOperationObligation {
                 owner: ReconstructedTerminalObligationOwner::Operation {

@@ -569,11 +569,10 @@ pub(crate) fn validate_structural_root_operations(
                         )
                         .is_some_and(|signature| {
                             signature.access != terminal_psi::StructuralAccess::WriteOnlyBorrow
-                            && crate::unit_validation::structural_catalog::resolve_structural_path(
-                                structural_types,
-                                signature.structural_type,
-                                path,
-                            ) == Some(result.structural_type)
+                            && match path {
+                                abstract_operations::StructuralCopyPath::Ordinary(path) => crate::unit_validation::structural_catalog::resolve_structural_path(structural_types, signature.structural_type, path),
+                                abstract_operations::StructuralCopyPath::Case(path) => terminal_semantics::canonical_case_leaf_type(structural_types.values().copied(), signature.structural_type, path),
+                            } == Some(result.structural_type)
                         }) && result.multiplicity
                             == terminal_psi::StructuralMultiplicity::Unrestricted
                             && result.qualifications.is_empty()
