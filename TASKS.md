@@ -891,17 +891,29 @@ _rejected` and `expressions/bool_numeric_operand_mixing_rejected` each gained
     "const-generic application evaluation failed: constant call lost its
     exact authored target selection".
 
-  All thirteen belong with **OPERATOR-BOUNDARY-CALLS**. The other four are
-  separate and unrelated to each other:
+  All thirteen belong with **OPERATOR-BOUNDARY-CALLS**. Of the other four,
+  `generics/runtime_const_data_where_fact_exit` is fixed and three remain:
   `float/float_to_int_exact_proofs_exit` ("cannot prove Exact float-to-`i32`
-  cast operand `self.unbounded` is finite and in range"),
-  `capabilities/windows_provides_import_exit` (host-gated: "foreign locator
-  PeByName is not applicable to selected target `macos_arm64`"),
-  `generics/runtime_const_data_where_fact_exit` ("write to
-  `self.buffer.used` cannot PROVE data `FixedBuffer<4>`'s default domain"),
-  and `generics/declared_range_endpoint_inference` ("quoted byte literal
-  cannot initialize owned fixed byte array `[u8; ObjectLength]`: its width
-  must be a compile-known resolved integer literal").
+  cast operand `self.unbounded` is finite and in range" -- its guard proves
+  non-NaN and both bounds, so read it beside the float comparisons' own
+  migration), `capabilities/windows_provides_import_exit` (host-gated:
+  "foreign locator PeByName is not applicable to selected target
+  `macos_arm64`"), and `generics/declared_range_endpoint_inference` ("quoted
+  byte literal cannot initialize owned fixed byte array `[u8; ObjectLength]`:
+  its width must be a compile-known resolved integer literal").
+
+  The const-data one was the assignment window re-proving a fact that has
+  nothing to do with the write. `FixedBuffer<const N: u64> where N > 0 &&
+  N <= 8, N in BufferSize, used <= N` names three facts; only the third
+  mentions a field. Writing `self.buffer.used = 4` folded all three against
+  a FIELD valuation, and the two const-only ones answered "unknown", opening
+  an invariant window no store could ever close. They were decided once,
+  when the specialization substituted 4. A type-wide fact naming no field of
+  the data is now skipped at a field write. CASE facts are deliberately not
+  filtered that way -- their names are the variant's payload bindings, which
+  are not members of the data, and filtering them broke
+  `fail/dependent/case_where_payload_write_exit_open` before that exemption
+  went in.
 
   Attribution recipe, so nobody repeats the full pass: run the unfiltered
   gate once, then rerun ONLY the moved names with
