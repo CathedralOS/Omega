@@ -1346,6 +1346,8 @@ fn successor_bindings(
                     *selected_case,
                     source,
                     source_structural,
+                    operations,
+                    ordinal,
                     target,
                 ) {
                     return Some(CheckedStructuralControlTransferPlan {
@@ -1535,6 +1537,8 @@ fn case_payload_transfer(
     selected_case: symbols::SymbolHandle,
     source: &typed_trees::state::State,
     source_structural: &[CheckedUnitStructuralParameterPlan],
+    operations: &[CheckedUnitEffectOperationPlan],
+    ordinal: u32,
     target: &CheckedUnitStructuralParameterPlan,
 ) -> Option<checked_trees::CheckedStructuralControlTransferSourcePlan> {
     // The argument must name exactly one payload field beneath the edge's
@@ -1612,25 +1616,71 @@ fn case_payload_transfer(
     if !admitted_shape || program.type_multiplicity(field.type_reference) != target.multiplicity {
         return None;
     }
-    // The tested subject resolves to a retained structural parameter.
+    // A case test can observe either an arrival or an earlier local result.
+    // Both use the same payload projection; a local must rejoin its unique
+    // retained producer, not just a same-typed value in this state.
     let facts::PlaceRoot::Symbol(root) = subject_place.root else {
         return None;
     };
-    let position = program
+    let (subject_source, mut subject_type, root_identity) = if let Some(position) = program
         .state_parameters(source)
         .iter()
-        .position(|parameter| parameter.symbol == root)?;
-    let (parameter_index, subject_parameter) = source_structural
-        .iter()
-        .enumerate()
-        .find(|(_, parameter)| parameter.position as usize == position)?;
+        .position(|parameter| parameter.symbol == root)
+    {
+        let (parameter_index, parameter) = source_structural
+            .iter()
+            .enumerate()
+            .find(|(_, parameter)| parameter.position as usize == position)?;
+        (
+            CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index: u32::try_from(parameter_index).ok()?,
+            },
+            program.state_parameters(source)[position].type_reference,
+            parameter.type_identity.clone(),
+        )
+    } else {
+        let mut results = operations.iter().filter_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::StructuralCall {
+                result,
+                discard_result_on_return: false,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                result,
+                discard_result_on_return: false,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                result,
+                discard_result_on_return: false,
+                ..
+            } if result.statement_index < ordinal => {
+                let StatementNode::LocalData(local) = program
+                    .statement_table
+                    .statements(source.statement_nodes)
+                    .get(result.statement_index as usize)?
+                else {
+                    return None;
+                };
+                (local.symbol == root && !local.is_mutable).then_some((result, local))
+            }
+            _ => None,
+        });
+        let (result, local) = results.next()?;
+        if results.next().is_some() {
+            return None;
+        }
+        (
+            CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal: result.binding_ordinal,
+            },
+            local.type_reference,
+            result.type_identity.clone(),
+        )
+    };
     // The projection reaching the tested sum keeps the shared
     // structural-path vocabulary; the subject's own type is the field
     // type at the end of that projection.
-    let mut subject_type = program
-        .state_parameters(source)
-        .get(position)?
-        .type_reference;
     let path = subject_place
         .segments
         .iter()
@@ -1666,7 +1716,7 @@ fn case_payload_transfer(
     // ends on a field's declared type, whose canonical identity peels any
     // borrow/constrained wrapper the same way the field declaration does.
     let subject_identity = if path.is_empty() {
-        subject_parameter.type_identity.clone()
+        root_identity
     } else {
         let mut leaf_type = subject_type;
         while let TypeReferenceNode::Constrained { base_type, .. }
@@ -1681,9 +1731,7 @@ fn case_payload_transfer(
     Some(
         checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
             subject: CheckedUnitStructuralArgumentPlan {
-                source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                    parameter_index: u32::try_from(parameter_index).ok()?,
-                },
+                source: subject_source,
                 path,
                 type_identity: subject_identity,
                 access: CheckedStructuralAccess::SharedBorrow,

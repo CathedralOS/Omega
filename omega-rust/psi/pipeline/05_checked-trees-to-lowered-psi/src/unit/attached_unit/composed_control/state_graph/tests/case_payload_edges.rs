@@ -7,6 +7,7 @@ use super::super::edges;
 use super::{
     CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlTerminatorPlan, CheckedTrees,
 };
+use checked_trees::statement::StatementNode;
 
 fn fixture() -> (CheckedTrees, CheckedComposedUnitControlMachinePlan) {
     let source = r#"
@@ -99,6 +100,149 @@ fn payload_edge<'a>(
         panic!("the successor ordinal names a transition")
     };
     (source, state, transition, successor)
+}
+
+#[test]
+fn case_payload_edge_rejoins_the_tested_local_result() {
+    let checked = crate::front_end::checked_program(
+        r#"
+        data Info [copy] { pid: u32; }
+        data OpenResult [copy] { case Opened(info: Info); case Failed(error: Info); }
+        machine open(pid: u32) -> OpenResult {
+            OpenResult::Opened { info: Info { pid: pid } }
+        }
+        data Root {}
+        machine Root::enter() -> u32 {
+            let decoy: OpenResult = open(9);
+            let actual: OpenResult = open(70);
+            transition actual {
+                OpenResult::Opened { info } -> have(info)
+                OpenResult::Failed { error } -> failed()
+            }
+            state have(info: Info) -> u32 { info.pid }
+            state failed() -> u32 { 0 }
+        }
+    "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_machines
+        .iter()
+        .find(|plan| checked.symbols.display_path(plan.machine, "::") == "Root::enter")
+        .expect("a local result supports the same payload transfer as a parameter")
+        .clone();
+    super::super::admission::admit(&checked, &plan).expect("source-exact local payload edge");
+    let lowered = crate::lower_machine(
+        &checked,
+        crate::TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("the local case result lowers through verified Terminal Psi");
+    let semantic_bytes = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
+    let proof_bytes =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .unwrap();
+    terminal_verifier::verify_module(
+        &terminal_codec::decode_module(&semantic_bytes).unwrap(),
+        &terminal_codec::decode_proof_bundle(&proof_bytes).unwrap(),
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("the source-free artifact retains independently checked case membership");
+    let (source, _, first, successor) = payload_edge(&checked, &plan);
+    let StatementNode::LocalData(decoy) =
+        &checked.statement_table.statements(source.statement_nodes)[0]
+    else {
+        panic!("decoy call initializer");
+    };
+    assert!(
+        !edges::case_subject_is_place(&checked, decoy.initial_value),
+        "repeated call syntax cannot establish stable case observations"
+    );
+    let StatementNode::Transition(second) = &checked
+        .statement_table
+        .statements(source.statement_nodes)[successor.statement_ordinal as usize + 1]
+    else {
+        panic!("second case");
+    };
+    let mut duplicate = *second;
+    duplicate.guard = first.guard;
+    assert!(
+        edges::validate_fallback(
+            &checked,
+            source.symbol,
+            successor.statement_ordinal as usize,
+            &duplicate
+        )
+        .is_err(),
+        "repeating one case cannot close the sum even when coverage facts still exist"
+    );
+    for mutation in ["other local", "missing local", "early use"] {
+        let mut changed = plan.clone();
+        let state = &mut changed.states[0];
+        let CheckedComposedUnitControlTerminatorPlan::Conditional { when_true, .. } =
+            &mut state.terminator
+        else {
+            panic!("local case pair");
+        };
+        let checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
+            subject, ..
+        } = &mut when_true.transfers[0].source
+        else {
+            panic!("local payload transfer");
+        };
+        if mutation == "early use" {
+            let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal,
+            } = subject.source
+            else {
+                panic!("result source");
+            };
+            for operation in &mut state.operations {
+                if let checked_trees::CheckedUnitEffectOperationPlan::StructuralCall {
+                    result, ..
+                } = operation
+                    && result.binding_ordinal == binding_ordinal
+                {
+                    result.statement_index = when_true.statement_ordinal;
+                }
+            }
+        } else {
+            let decoy = state
+                .operations
+                .iter()
+                .find_map(|operation| match operation {
+                    checked_trees::CheckedUnitEffectOperationPlan::StructuralCall {
+                        result,
+                        ..
+                    } if result.statement_index == 0 => Some(result.binding_ordinal),
+                    _ => None,
+                })
+                .expect("retained same-typed decoy call");
+            subject.source =
+                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    binding_ordinal: if mutation == "other local" {
+                        decoy
+                    } else {
+                        u32::MAX
+                    },
+                };
+        }
+        let (source, state, transition, successor) = payload_edge(&checked, &changed);
+        assert!(
+            edges::validate(
+                &checked,
+                &changed,
+                source,
+                state,
+                transition,
+                successor,
+                successor.statement_ordinal as usize
+            )
+            .is_err(),
+            "{mutation}"
+        );
+    }
 }
 
 #[test]
