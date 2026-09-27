@@ -4,7 +4,7 @@ requires
 use omega_language_std::console;
 use omega::language::core::binding;
 
-data Room {
+data Room [copy] {
     label: &[u8] in Utf8;
 }
 

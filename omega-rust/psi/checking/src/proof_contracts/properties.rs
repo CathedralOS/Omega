@@ -5,7 +5,7 @@
 //! time; this pass verifies the declared facts hold:
 //!
 //! - `copy`: structural — every field (and case payload field) must be a
-//!   primitive or a data type that itself declares the property.
+//!   primitive, a shared reference, or a data type that declares the property.
 //! - `carry(...)`: the authored four-axis floor may not be more permissive
 //!   than the policy derived from every stored field.
 //!
@@ -104,9 +104,9 @@ pub(crate) fn validate_data_properties(
 /// `copy` is compositional: the property holds when every stored
 /// field holds it. Primitives qualify; named data must declare the property
 /// itself; a type parameter qualifies when it declares the matching bound
-/// (`data Box<T [copy]> [copy]`, frozen decision 13); everything else
-/// (references, slices, owned text, dyn traits) is rejected until a ruling
-/// extends the set.
+/// (`data Box<T [copy]> [copy]`). Shared references copy the loan carrier,
+/// not the referent; qualification, provenance and lifetime checking still
+/// apply to every copy. Exclusive references and bare slices do not qualify.
 fn validate_structural_property(
     program: &TypedTrees,
     symbols: &TopLevelSymbols<'_>,
@@ -143,7 +143,7 @@ fn validate_structural_property(
                 return;
             }
             diagnostics.push(Diagnostic::error(format!(
-            "data `{}` declares `[{property}]` but {place} is not `{property}`: only primitives and data types declaring `[{property}]` qualify",
+            "data `{}` declares `[{property}]` but {place} is not `{property}`: only primitives, shared references and data types declaring `[{property}]` qualify",
             data_definition.name
         )));
         },
@@ -353,6 +353,9 @@ fn type_satisfies_structural_property(
             }
             named_type_declares_property(program, symbols, *symbol, name.as_str(), property)
         }
+        TypeReferenceNode::Reference { access, .. } => {
+            property == "copy" && *access == language_core::ReferenceAccess::Shared
+        }
         TypeReferenceNode::Constrained { base_type, .. } => type_satisfies_structural_property(
             program,
             symbols,
@@ -381,8 +384,7 @@ fn type_satisfies_structural_property(
             base_name.as_str(),
             property,
         ),
-        // References, slices, dyn traits, unit: not part of the verified set
-        // yet.
+        // Bare slices, dyn traits and unit do not declare these properties.
         _ => false,
     }
 }
@@ -487,3 +489,6 @@ fn named_type_declares_property(
             _ => false,
         })
 }
+
+#[cfg(test)]
+mod tests;

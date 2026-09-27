@@ -1064,15 +1064,18 @@ _rejected` and `expressions/bool_numeric_operand_mixing_rejected` each gained
   promise is native execution is not closed by checking here):
   `control_flow/guarded_leaf_branch_expansion` and
   `capabilities/uses_caller_folder` reject on borrowed storage absent at a
-  boundary call. For the shared-view-field shape, this row owns implementing
-  [shared-reference copy composition](wiki/spec/language/ownership.md), not a
-  new owner ruling: `omega-rust/psi/checking/src/proof_contracts/properties.rs` still excludes
-  references from `[copy]` fields even though stored shared views already copy.
-  Admit shared carriers while preserving exact loans and qualification facts;
-  require the record's explicit `[copy]` declaration. Pin `&mut`/`&write`
-  exclusion and use-after-loan-end rejection, and carry the fix through checked
-  and native execution of the affected fixtures. Deliberate move-and-restore
-  remains **BORROWED-STORAGE-RESTORATION**'s separate work.
+  boundary call. These are owned-array and owned-capability cases, respectively,
+  not shared-reference copy declarations. Deliberate move-and-restore remains
+  **BORROWED-STORAGE-RESTORATION**'s separate work.
+  `text/runtime_local_struct_string_field_concat_exit` and
+  `text/runtime_string_stored_suffix_exit` explicitly copy their shared-view
+  `Room` records, but `checks/contracts/nominal_inputs.rs` cannot establish
+  `self.source.label`'s UTF-8 field requirement at the `render` state's calls
+  to `good` and `bad`. Preserve the actual state-entry/domain provenance;
+  [copy permission](wiki/spec/language/ownership.md) cannot manufacture
+  qualification or extend a loan. Carry these unchanged text operations through
+  checked and native execution (exits 188 and 193); borrowed-view field-store
+  lowering must also support the resulting program, not only property admission.
   `proofs/cauchy_predicates_compile` rejects on the two checker
   capabilities `source/library/core/cauchy.omg` names above
   `doubled_nat_max_modulus`, both reported at once and both inside
