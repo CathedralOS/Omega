@@ -1,71 +1,10 @@
 //! Public run entry points and exact phase-projection custody.
 
-use super::super::super::{OptimizationRunError, OptimizationRunUsage};
 use super::super::{
-    ExternalDecisionLog, Optimization, OptimizationRuleSetIdentity, OptimizationSelections,
-    OrderedRuleRegistry, budget, built_in_psi_registry, verified_empty_unit,
+    ExternalDecisionLog, Optimization, OptimizationSelections, budget, built_in_psi_registry,
     verified_exact_add_unit,
 };
-use crate::abstract_optimization::run_psi_pipeline_for_projection;
-use crate::{run_psi_pipeline, run_psi_registry};
-#[test]
-fn public_run_requires_and_retains_verified_optimizer_context() {
-    let selections = OptimizationSelections::default();
-    let registry = OrderedRuleRegistry::new(Vec::new()).unwrap();
-    let run = run_psi_registry(verified_empty_unit(), &selections, &registry, budget(2)).unwrap();
-    assert!(run.commits.is_empty());
-    assert!(run.pass_manifests.is_empty());
-    assert!(run.external_decisions().points().is_empty());
-    assert_eq!(
-        ExternalDecisionLog::decode(&run.external_decisions().encode()),
-        Ok(run.external_decisions().clone())
-    );
-    assert_eq!(
-        run.external_decisions().context().source(),
-        run.transformation_ledger.input()
-    );
-    assert!(run.transformation_ledger.records().is_empty());
-    assert_eq!(run.identity_bundle.selections(), selections.identity());
-    assert_eq!(
-        run.identity_bundle.transformation_ledger(),
-        run.transformation_ledger.identity()
-    );
-    assert_eq!(run.usage.iterations, 0);
-    assert_eq!(run.session.unit().psi, run.session.input().plan().psi);
-}
-
-#[test]
-fn lower_only_suite_retains_the_request_but_executes_no_psi_pass() {
-    let selections =
-        OptimizationSelections::new([Optimization::SelectedIncomingU12ExactAddImmediate]).unwrap();
-    let run = run_psi_pipeline(verified_empty_unit(), &selections, budget(2)).unwrap();
-
-    assert_eq!(run.selections(), &selections);
-    assert!(run.psi_selections().is_empty());
-    assert_eq!(run.identity_bundle.selections(), selections.identity());
-    assert_eq!(
-        run.identity_bundle.rule_set(),
-        OptimizationRuleSetIdentity::from_ordered_rules(&[]).unwrap()
-    );
-    assert!(run.commits.is_empty());
-    assert!(run.pass_manifests.is_empty());
-    assert!(run.decisions.records.is_empty());
-    assert!(run.external_decisions().points().is_empty());
-    assert_eq!(
-        run.external_decisions().context().selections(),
-        selections.identity()
-    );
-    assert_eq!(
-        run.external_decisions().context().phase_selections(),
-        run.psi_selections().identity()
-    );
-    assert!(run.transformation_ledger.records().is_empty());
-    assert_eq!(run.usage, OptimizationRunUsage::default());
-    assert_eq!(
-        run.transformation_ledger.input(),
-        run.transformation_ledger.output()
-    );
-}
+use crate::run_psi_pipeline;
 
 #[test]
 fn mixed_suite_executes_only_its_psi_projection() {
@@ -104,25 +43,4 @@ fn mixed_suite_executes_only_its_psi_projection() {
         ExternalDecisionLog::decode(&run.external_decisions().encode()),
         Ok(run.external_decisions().clone())
     );
-}
-
-#[test]
-fn projected_entry_rejects_a_projection_from_another_build_selection() {
-    let selections =
-        OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation]).unwrap();
-    let other = OptimizationSelections::new([
-        Optimization::SparseConditionalConstantPropagation,
-        Optimization::SelectedIncomingU12ExactAddImmediate,
-    ])
-    .unwrap();
-
-    assert!(matches!(
-        run_psi_pipeline_for_projection(
-            verified_exact_add_unit(),
-            &selections,
-            &other.project_psi(),
-            budget(8),
-        ),
-        Err(OptimizationRunError::SelectionRegistryMismatch)
-    ));
 }

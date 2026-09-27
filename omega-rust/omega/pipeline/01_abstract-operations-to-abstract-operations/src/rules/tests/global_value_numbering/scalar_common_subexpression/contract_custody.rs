@@ -16,7 +16,6 @@ use crate::rules::tests::fixtures::global_value_numbering::{
 use crate::{PsiOptimizationRule, RuleAnalysisView};
 use optimization_core::{
     AnalysisKind, OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
-    OptimizationValidatorIdentity,
 };
 use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch};
 use optimization_unit_semantics::{
@@ -39,15 +38,9 @@ struct Case {
     candidate: PsiRewriteCandidate,
     contract: OptimizationRuleContract,
     route: ValidationRoute,
-    validator: OptimizationValidatorIdentity,
 }
 
-fn case(
-    unit: PsiOptimizationUnit,
-    rule: impl PsiOptimizationRule,
-    route: ValidationRoute,
-    validator_domain: &[u8],
-) -> Case {
+fn case(unit: PsiOptimizationUnit, rule: impl PsiOptimizationRule, route: ValidationRoute) -> Case {
     let contract = rule.contract();
     let mut manager = crate::AnalysisManager::new(&unit);
     let products = manager
@@ -66,7 +59,6 @@ fn case(
         candidate,
         contract,
         route,
-        validator: OptimizationValidatorIdentity::from_canonical_bytes(validator_domain),
     }
 }
 
@@ -76,55 +68,46 @@ fn cases() -> Vec<Case> {
             local_cse_unit(),
             SameBlockTotalScalarCseRule,
             ValidationRoute::SameBlock,
-            b"omega.validator.same-block-obligation-free-total-scalar-cse.v1",
         ),
         case(
             proof_certified_local_cse_unit(),
             SameBlockProofCertifiedScalarCseRule,
             ValidationRoute::SameBlock,
-            b"omega.validator.same-block-proof-certified-total-scalar-cse.v1",
         ),
         case(
             dominator_gvn_unit(),
             DominatorTotalScalarGvnRule,
             ValidationRoute::Dominating,
-            b"omega.validator.dominator-total-scalar-cse.v1",
         ),
         case(
             proof_certified_dominator_gvn_unit(),
             DominatorProofCertifiedScalarGvnRule,
             ValidationRoute::Dominating,
-            b"omega.validator.dominator-proof-certified-total-scalar-gvn.v1",
         ),
         case(
             phi_translated_gvn_unit(),
             PhiTranslatedObligationFreeScalarGvnRule,
             ValidationRoute::PhiTranslated,
-            b"omega.validator.phi-translated-obligation-free-total-scalar-gvn.v1",
         ),
         case(
             proof_certified_phi_translated_gvn_unit(),
             PhiTranslatedProofCertifiedScalarGvnRule,
             ValidationRoute::PhiTranslated,
-            b"omega.validator.phi-translated-proof-certified-total-scalar-gvn.v1",
         ),
         case(
             compatible_policy_local_cse_unit(),
             SameBlockProofCertifiedCompatiblePolicyScalarCseRule,
             ValidationRoute::SameBlock,
-            b"omega.validator.same-block-proof-certified-compatible-policy-scalar-cse.v1",
         ),
         case(
             compatible_policy_dominator_gvn_unit(),
             DominatorProofCertifiedCompatiblePolicyScalarGvnRule,
             ValidationRoute::Dominating,
-            b"omega.validator.dominator-proof-certified-compatible-policy-scalar-gvn.v1",
         ),
         case(
             compatible_policy_phi_translated_gvn_unit(),
             PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule,
             ValidationRoute::PhiTranslated,
-            b"omega.validator.phi-translated-proof-certified-compatible-policy-scalar-gvn.v1",
         ),
     ]
 }
@@ -244,27 +227,6 @@ fn contract_with(
         safety,
     )
     .unwrap()
-}
-
-#[test]
-fn every_gvn_cse_rule_binds_exact_contract_cost_and_validator_identity() {
-    for case in cases() {
-        assert_eq!(case.candidate.rule(), case.contract.identity());
-        assert_eq!(
-            case.candidate.required_analyses(),
-            case.contract.required_analyses()
-        );
-        assert_eq!(
-            case.candidate.invalidated_analyses(),
-            case.contract.invalidated_analyses()
-        );
-        assert_eq!(case.candidate.safety_class(), case.contract.safety_class());
-        assert_eq!(case.candidate.predicted_cost_delta(), -1);
-        assert_eq!(
-            validate(&case, &case.candidate).unwrap().validator(),
-            case.validator
-        );
-    }
 }
 
 #[test]

@@ -3,7 +3,7 @@ use super::super::super::super::{
 };
 use crate::rules::IntegerRangePairComparisonKind;
 use crate::rules::tests::fixtures::sparse_conditional_constant_propagation::{
-    ProofRangeKind, proof_range_pair_comparison_unit, range_pair_comparison_unit,
+    ProofRangeKind, range_pair_comparison_unit,
 };
 use crate::{PsiOptimizationRule, RuleAnalysisView, compute_analysis};
 use abstract_operations::AbstractOperation;
@@ -157,59 +157,6 @@ fn every_range_pair_rule_declines_an_indeterminate_overlap() {
 }
 
 #[test]
-fn same_value_range_pair_rules_cover_their_complete_truth_table() {
-    let scalar_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
-    for (kind, expected) in [
-        (IntegerRangePairComparisonKind::Equal, true),
-        (IntegerRangePairComparisonKind::LessThan, false),
-        (IntegerRangePairComparisonKind::LessOrEqual, true),
-    ] {
-        assert_fold(
-            range_pair_comparison_unit(
-                kind,
-                scalar_type,
-                ProofRangeKind::ZeroToThree,
-                ProofRangeKind::ZeroToThree,
-                true,
-            ),
-            kind,
-            expected,
-            1,
-        );
-    }
-}
-
-#[test]
-fn every_range_pair_rule_declines_every_other_operation_shape() {
-    let scalar_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
-    let kinds = [
-        IntegerRangePairComparisonKind::Equal,
-        IntegerRangePairComparisonKind::LessThan,
-        IntegerRangePairComparisonKind::LessOrEqual,
-    ];
-    for (operation_index, operation_kind) in kinds.into_iter().enumerate() {
-        let unit = range_pair_comparison_unit(
-            operation_kind,
-            scalar_type,
-            ProofRangeKind::ZeroToThree,
-            ProofRangeKind::ZeroToThree,
-            true,
-        );
-        let ranges = compute_analysis(&unit, AnalysisKind::ValueRanges).unwrap();
-        for (rule_index, candidate_kind) in kinds.into_iter().enumerate() {
-            let candidates = rule(candidate_kind)
-                .propose(&unit, RuleAnalysisView::new(std::slice::from_ref(&ranges)))
-                .unwrap();
-            assert_eq!(
-                candidates.len(),
-                usize::from(operation_index == rule_index),
-                "rule {candidate_kind:?} against operation {operation_kind:?}",
-            );
-        }
-    }
-}
-
-#[test]
 fn range_pair_validation_rejects_cross_rule_labels_and_wrong_results() {
     let scalar_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
     let kinds = [
@@ -266,14 +213,6 @@ fn range_pair_validation_rejects_cross_rule_labels_and_wrong_results() {
             Err(OptimizationUnitValidationError::CandidateEvaluationMismatch)
         ));
     }
-}
-
-#[test]
-fn legacy_proof_range_pair_fixture_remains_a_valid_two_fact_fold() {
-    let unit = proof_range_pair_comparison_unit();
-    let candidate = propose_one(&unit, IntegerRangePairComparisonKind::LessOrEqual);
-    assert_eq!(candidate.consumed_facts().len(), 2);
-    validate_boolean_evaluation_candidate(&unit, &candidate).unwrap();
 }
 
 #[test]

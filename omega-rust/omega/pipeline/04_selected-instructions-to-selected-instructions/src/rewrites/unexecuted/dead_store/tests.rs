@@ -385,13 +385,6 @@ fn make_packed_dead(
     function.memory_accesses[0].byte_count = 5;
 }
 
-/// The single-block fixture with the packed dead store.
-fn packed_dead(target: NativeTarget) -> ValidatedDeadStoreElimination {
-    mutated(target, |function, environment| {
-        make_packed_dead(function, environment)
-    })
-}
-
 /// Rewrite instruction `id` into a byte-sequence `Store { 0, 1 }` through a
 /// fully computed view address, and its roster row at `row` into the
 /// `WriteByteSequence` carrying the payload base `offset`: the written byte

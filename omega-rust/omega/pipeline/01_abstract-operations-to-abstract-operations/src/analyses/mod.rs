@@ -7,8 +7,6 @@ mod semantic;
 
 pub(crate) use catalog::analysis_dependencies;
 pub use catalog::{AnalysisProduct, compute_analysis};
-#[cfg(test)]
-pub(crate) use control_flow::ExitKind;
 pub use control_flow::{CallGraphAnalysis, StronglyConnectedComponentAnalysis};
 pub use control_flow::{
     CountdownInvariantConstantAnalysisError, CountdownInvariantConstantPlacementAnalysisError,

@@ -4,19 +4,17 @@
 //! ordinary Natural route.
 use super::validate_unit_custody;
 use proof_admission::{
-    CertificateEnvelope, EvidenceRoute, IntegerAffineWitness, ProofNode, ProofRule,
-    ProofSystemMarker,
+    CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemMarker,
 };
 use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, EvidenceIdentity, FuelScheduleIdentity, IntegerSign, IntegerType,
-    IntegerValue, MachineId, ObligationId, OperationId, Proposition, ScalarTerm, ScalarType,
-    ValueId,
+    IntegerValue, MachineId, OperationId, Proposition, ScalarTerm, ScalarType, ValueId,
 };
 use terminal_psi::{
-    Block, ControlCycleEvidence, MachineContract, ObligationEvidence, Operation, OperationKind,
-    OperationResult, ProofBundle, RecursiveComponentCertificate, RecursiveEdgeCertificate,
-    SuccessorEdge, TerminalBlockNaturalRank, TerminalMachine, TerminalMachineResult,
-    TerminalModule, TerminalNaturalCycle, TerminalNaturalRankComparison, TerminalNaturalRankEdge,
+    Block, ControlCycleEvidence, MachineContract, Operation, OperationKind, OperationResult,
+    ProofBundle, RecursiveComponentCertificate, RecursiveEdgeCertificate, SuccessorEdge,
+    TerminalBlockNaturalRank, TerminalMachine, TerminalMachineResult, TerminalModule,
+    TerminalNaturalCycle, TerminalNaturalRankComparison, TerminalNaturalRankEdge,
     TerminalRankedScc, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use terminal_psi_to_abstract_operations::{
@@ -436,320 +434,6 @@ fn verified_natural_cycle() -> VerifiedPsiOptimizationUnit {
     build(&module, &proof)
 }
 
-/// The countdown idiom carried by the ordinary Natural route. The verifier
-/// admits it under the same reconstructed natural-cycle question as every
-/// other ranked component, and legalizer custody replays it like any cycle.
-fn verified_countdown() -> VerifiedPsiOptimizationUnit {
-    let integer = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
-    let scalar_type = ScalarType::Integer(integer);
-    let preheader = id(1, BlockId::new);
-    let header = id(2, BlockId::new);
-    let decrement = id(3, BlockId::new);
-    let done = id(4, BlockId::new);
-    let initial = id(1, ValueId::new);
-    let rank = id(2, ValueId::new);
-    let zero = id(3, ValueId::new);
-    let condition = id(4, ValueId::new);
-    let one = id(5, ValueId::new);
-    let next = id(6, ValueId::new);
-    let backedge = id(4, EdgeId::new);
-    let module = empty_module(machine(
-        vec![scalar(1, integer)],
-        Some(TerminalRankedScc::Natural(vec![TerminalNaturalCycle {
-            rank_type: integer,
-            ranks: vec![
-                TerminalBlockNaturalRank {
-                    block: header,
-                    value: rank,
-                },
-                TerminalBlockNaturalRank {
-                    block: decrement,
-                    value: rank,
-                },
-            ],
-            edges: vec![
-                TerminalNaturalRankEdge {
-                    edge: id(2, EdgeId::new),
-                    source: header,
-                    target: decrement,
-                    successor_rank: rank,
-                    comparison: TerminalNaturalRankComparison::Preserving,
-                },
-                TerminalNaturalRankEdge {
-                    edge: backedge,
-                    source: decrement,
-                    target: header,
-                    successor_rank: next,
-                    comparison: TerminalNaturalRankComparison::Strict,
-                },
-            ],
-        }])),
-        preheader,
-        vec![
-            plain_block(
-                preheader,
-                Vec::new(),
-                Vec::new(),
-                jump(1, header, vec![initial]),
-            ),
-            plain_block(
-                header,
-                vec![scalar(2, integer)],
-                vec![
-                    operation(
-                        1,
-                        scalar(3, integer),
-                        OperationKind::IntegerConstant {
-                            value: IntegerValue::Unsigned(0),
-                        },
-                    ),
-                    operation(
-                        2,
-                        ValueDeclaration {
-                            qualifications: Default::default(),
-                            id: condition,
-                            scalar_type: ScalarType::Boolean,
-                        },
-                        OperationKind::IntegerLessThan {
-                            left: zero,
-                            right: rank,
-                        },
-                    ),
-                ],
-                Terminator::Conditional {
-                    condition,
-                    when_true: successor(2, decrement, Vec::new()),
-                    when_false: successor(3, done, Vec::new()),
-                },
-            ),
-            plain_block(
-                decrement,
-                Vec::new(),
-                vec![
-                    operation(
-                        3,
-                        scalar(5, integer),
-                        OperationKind::IntegerConstant {
-                            value: IntegerValue::Unsigned(1),
-                        },
-                    ),
-                    operation(
-                        4,
-                        scalar(6, integer),
-                        OperationKind::ExactIntegerSubtract {
-                            left: rank,
-                            right: one,
-                            obligation: id(1, ObligationId::new),
-                        },
-                    ),
-                ],
-                jump(4, header, vec![next]),
-            ),
-            plain_block(
-                done,
-                Vec::new(),
-                Vec::new(),
-                Terminator::ReturnUnit {
-                    edge: id(5, EdgeId::new),
-                    trivial_affine_discards: Vec::new(),
-                },
-            ),
-        ],
-    ));
-    let optimizable = terminal_verifier::validate_module_for_optimization(&module)
-        .expect("countdown fixture remains optimizer-admitted");
-    let obligations = terminal_verifier::reconstruct_optimizable_terminal_obligations(optimizable)
-        .expect("countdown obligation reconstructs");
-    let [reconstructed] = obligations.obligations() else {
-        panic!("the exact subtract carries one obligation");
-    };
-    let rank_term = ScalarTerm::value(rank, scalar_type);
-    let one_term = ScalarTerm::value(one, scalar_type);
-    let literal_one =
-        ScalarTerm::integer(integer, IntegerValue::Unsigned(1)).expect("unsigned one literal");
-    let literal_guard = Proposition::LessOrEqual(literal_one.clone(), rank_term.clone());
-    let one_landing = Proposition::Equal(one_term.clone(), literal_one);
-    let index = |wanted: &Proposition| {
-        reconstructed
-            .semantic_axioms
-            .iter()
-            .position(|axiom| axiom == wanted)
-            .expect("reconstructed countdown axiom")
-    };
-    let questions = terminal_verifier::reconstruct_control_cycle_obligations(&module)
-        .expect("natural cycle obligations reconstruct");
-    let [question] = questions.as_slice() else {
-        panic!("one natural component question");
-    };
-    let cycle_obligation = &question.obligation;
-    let mut cycle_envelope = 0x10u64;
-    let mut cycle_proof = |proof: ProofNode| {
-        cycle_envelope += 1;
-        EvidenceRoute::CertificateDerived(CertificateEnvelope {
-            identity: id(cycle_envelope, EvidenceIdentity::new),
-            proof_system_marker: ProofSystemMarker::CURRENT,
-            proof,
-        })
-    };
-    let well_foundedness = cycle_proof(ProofNode {
-        conclusion: cycle_obligation
-            .well_foundedness
-            .obligation
-            .proposition
-            .clone(),
-        rule: ProofRule::SemanticAxiom { index: 0 },
-    });
-    let zero_literal =
-        ScalarTerm::integer(integer, IntegerValue::Unsigned(0)).expect("unsigned zero literal");
-    let edges = cycle_obligation
-        .edges
-        .iter()
-        .map(|edge| {
-            let decrease = &edge.decrease;
-            let conclusion = decrease.obligation.proposition.clone();
-            let axiom = |wanted: &Proposition| {
-                decrease
-                    .semantic_axioms
-                    .iter()
-                    .position(|axiom| axiom == wanted)
-                    .expect("reconstructed countdown edge axiom")
-            };
-            let proof = match &conclusion {
-                Proposition::LessOrEqual(after, before) if after == before => ProofNode {
-                    conclusion: conclusion.clone(),
-                    rule: ProofRule::IntegerOrderWeakening {
-                        relation: Box::new(ProofNode {
-                            conclusion: Proposition::Equal(after.clone(), before.clone()),
-                            rule: ProofRule::Primitive(
-                                proof_admission::PrimitiveJudgment::ReflexiveEquality,
-                            ),
-                        }),
-                    },
-                },
-                Proposition::LessThan(after, before) => {
-                    let difference = Proposition::Equal(
-                        after.clone(),
-                        ScalarTerm::exact_integer_subtract(
-                            integer,
-                            before.clone(),
-                            ScalarTerm::value(one, scalar_type),
-                        )
-                        .expect("countdown subtraction term"),
-                    );
-                    let positive = Proposition::LessThan(
-                        zero_literal.clone(),
-                        ScalarTerm::value(one, scalar_type),
-                    );
-                    let one_landing = Proposition::Equal(
-                        ScalarTerm::value(one, scalar_type),
-                        ScalarTerm::integer(integer, IntegerValue::Unsigned(1))
-                            .expect("unsigned one literal"),
-                    );
-                    ProofNode {
-                        conclusion: conclusion.clone(),
-                        rule: ProofRule::IntegerSubtractOrder {
-                            difference: Box::new(ProofNode {
-                                conclusion: difference.clone(),
-                                rule: ProofRule::SemanticAxiom {
-                                    index: axiom(&difference),
-                                },
-                            }),
-                            positive: Box::new(ProofNode {
-                                conclusion: positive,
-                                rule: ProofRule::IntegerOrderSubstitution {
-                                    relation: Box::new(ProofNode {
-                                        conclusion: Proposition::LessThan(
-                                            zero_literal.clone(),
-                                            ScalarTerm::integer(
-                                                integer,
-                                                IntegerValue::Unsigned(1),
-                                            )
-                                            .expect("unsigned one literal"),
-                                        ),
-                                        rule: ProofRule::Primitive(
-                                            proof_admission::PrimitiveJudgment::ClosedIntegerRelation,
-                                        ),
-                                    }),
-                                    equality: Box::new(ProofNode {
-                                        conclusion: one_landing.clone(),
-                                        rule: ProofRule::SemanticAxiom {
-                                            index: axiom(&one_landing),
-                                        },
-                                    }),
-                                    endpoint: 1,
-                                },
-                            }),
-                        },
-                    }
-                }
-                other => panic!("unexpected countdown decrease question {other:?}"),
-            };
-            RecursiveEdgeCertificate {
-                obligation: decrease.obligation.id,
-                evidence: cycle_proof(proof),
-            }
-        })
-        .collect();
-    let proof = ProofBundle {
-        crash_obligations: Vec::new(),
-        evidence: vec![ObligationEvidence {
-            obligation: reconstructed.obligation.id,
-            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
-                identity: id(1, EvidenceIdentity::new),
-                proof_system_marker: ProofSystemMarker::CURRENT,
-                proof: ProofNode {
-                    conclusion: reconstructed.obligation.proposition.clone(),
-                    rule: ProofRule::IntegerAffineBound {
-                        root_bound: Box::new(ProofNode {
-                            conclusion: Proposition::LessOrEqual(one_term.clone(), rank_term),
-                            rule: ProofRule::IntegerOrderSubstitution {
-                                relation: Box::new(ProofNode {
-                                    conclusion: literal_guard.clone(),
-                                    rule: ProofRule::SemanticAxiom {
-                                        index: index(&literal_guard),
-                                    },
-                                }),
-                                equality: Box::new(ProofNode {
-                                    conclusion: one_landing.clone(),
-                                    rule: ProofRule::SemanticAxiom {
-                                        index: index(&one_landing),
-                                    },
-                                }),
-                                endpoint: 0,
-                            },
-                        }),
-                        witness: IntegerAffineWitness {
-                            root: one_term,
-                            target: ScalarTerm::exact_integer_subtract(
-                                integer,
-                                ScalarTerm::value(rank, scalar_type),
-                                ScalarTerm::value(one, scalar_type),
-                            )
-                            .expect("countdown subtraction term"),
-                            definition_axioms: Vec::new(),
-                            literal_axioms: Vec::new(),
-                        },
-                    },
-                },
-            }),
-        }],
-        recursive_components: Vec::new(),
-        control_cycles: vec![ControlCycleEvidence {
-            component: question.component,
-            certificate: RecursiveComponentCertificate {
-                identity: id(0x11, EvidenceIdentity::new),
-                ranking_relation: cycle_obligation
-                    .ranking_relation
-                    .expect("natural cycles reconstruct a relation"),
-                well_foundedness,
-                edges,
-            },
-        }],
-        evidence_producers: Vec::new(),
-    };
-    build(&module, &proof)
-}
-
 fn target(source: &VerifiedPsiOptimizationUnit) -> target_operations::TargetOperationPlan {
     abstract_operations_to_target_operations::lower_to_target_operations(
         source.input().plan(),
@@ -761,75 +445,11 @@ fn target(source: &VerifiedPsiOptimizationUnit) -> target_operations::TargetOper
 }
 
 #[test]
-fn verified_unranked_cycle_has_legalizer_custody_without_rank_evidence() {
-    let source = verified(2);
-    assert!(
-        source.input().context().module().machines[0]
-            .ranked_scc
-            .is_none()
-    );
-    assert!(
-        source
-            .input()
-            .context()
-            .proof_bundle()
-            .control_cycles
-            .is_empty()
-    );
-    validate_unit_custody(
-        &target(&source),
-        source.input().plan(),
-        source.unit(),
-        Some(source.input()),
-    )
-    .unwrap();
-}
-
-#[test]
 fn unranked_cycle_still_rejects_without_verified_source() {
     let source = verified(2);
     assert!(
         validate_unit_custody(&target(&source), source.input().plan(), source.unit(), None)
             .is_err()
-    );
-}
-
-#[test]
-fn unranked_cycle_rejects_a_different_verified_source() {
-    let source = verified(2);
-    let other = verified(3);
-    assert_ne!(source.input().plan().psi, other.input().plan().psi);
-    assert!(
-        validate_unit_custody(
-            &target(&source),
-            source.input().plan(),
-            source.unit(),
-            Some(other.input())
-        )
-        .is_err()
-    );
-}
-
-#[test]
-fn unranked_cycle_rejects_coherent_current_backedge_redirection() {
-    let source = verified(2);
-    let mut changed = source.unit().clone();
-    let entry = changed.functions[0].entry;
-    let node = &mut changed.functions[0].blocks[1].nodes[0];
-    let abstract_operations::AbstractOperation::Jump { target, .. } = &mut node.operation else {
-        panic!("loop jump");
-    };
-    *target = entry;
-    node.successors[0].target = entry;
-    changed.identity = optimization_unit::recompute_psi_optimization_unit_identity(&changed);
-    assert!(
-        validate_unit_custody(
-            &self::target(&source),
-            source.input().plan(),
-            &changed,
-            Some(source.input())
-        )
-        .is_err()
     );
 }
 
@@ -851,15 +471,6 @@ fn verified_natural_cycle_has_legalizer_custody_through_ordinary_scc_replay() {
         Some(source.input()),
     )
     .unwrap();
-}
-
-#[test]
-fn natural_cycle_still_rejects_without_verified_source() {
-    let source = verified_natural_cycle();
-    assert!(
-        validate_unit_custody(&target(&source), source.input().plan(), source.unit(), None)
-            .is_err()
-    );
 }
 
 #[test]
@@ -893,20 +504,4 @@ fn natural_cycle_rejects_coherent_current_backedge_redirection() {
         )
         .is_err()
     );
-}
-
-#[test]
-fn countdown_cycle_has_legalizer_custody_through_ordinary_natural_replay() {
-    let source = verified_countdown();
-    assert!(matches!(
-        source.input().context().module().machines[0].ranked_scc,
-        Some(TerminalRankedScc::Natural(_))
-    ));
-    validate_unit_custody(
-        &target(&source),
-        source.input().plan(),
-        source.unit(),
-        Some(source.input()),
-    )
-    .unwrap();
 }

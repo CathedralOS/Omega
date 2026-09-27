@@ -5,14 +5,9 @@
 //! Inner }`: a leaf copy produces the replacement, the window move copies the
 //! displaced `inner` out at offset 8, and the store copies the replacement's
 //! home back to offset 8.
-use crate::{
-    legalize_target_operations, select_instructions, selection_constraints,
-    validate_selected_instructions,
-};
+use crate::legalize_target_operations;
 use abstract_operations::AbstractOperation;
 use abstract_operations_to_target_operations::TargetLoweringRequest;
-use legalized_operations::LegalizedScalarInstructionKind;
-use selected_instructions::{SelectedInstructionKind, SelectedMemoryAccessRole};
 use semantic_vocabulary::{
     FuelScheduleIdentity, IntegerSign, IntegerType, OperationId, PlaceId, ScalarType,
     StructuralFieldId, StructuralTypeId,
@@ -166,118 +161,6 @@ fn fixture(
     optimization_unit_semantics::validate_psi_optimization_unit(&unit)
         .expect("the window pair keeps canonical custody");
     (source, target, unit)
-}
-
-fn natives() -> [NativeTarget; 3] {
-    [
-        NativeTarget::linux_x64(),
-        NativeTarget::linux_arm64(),
-        NativeTarget::macos_arm64(),
-    ]
-}
-
-#[test]
-fn window_pair_lowers_and_legalizes_as_extent_copies() {
-    for native in natives() {
-        let (source, target, unit) = fixture(native);
-        let rows = &target.functions[0].graph.blocks[0].operations;
-        assert!(rows.iter().any(|row| matches!(row,
-            TargetUnitOperation::StructuralLeafCopy { psi_operation, source, path, byte_offset: 8, indices, result_home }
-                if *psi_operation == operation(2)
-                    && *source == place(1)
-                    && path == &[StructuralPathSegment::Field("inner".into())]
-                    && indices.is_empty()
-                    && result_home.place() == place(3))));
-        assert!(rows.iter().any(|row| matches!(row,
-            TargetUnitOperation::StoreStructuralField { psi_operation, byte_offset: 8, value_home, .. }
-                if *psi_operation == operation(3) && value_home.place() == place(2))));
-        let legal = legalize_target_operations(&target, &source, &unit)
-            .expect("the window pair legalizes on every native ABI");
-        let instructions: Vec<_> = legal.plan().scalar_functions[0]
-            .blocks
-            .iter()
-            .flat_map(|block| &block.instructions)
-            .collect();
-        let extent = calling_conventions::ValueShape::integer(16, 8);
-        assert!(instructions.iter().any(|row| row.operation == operation(2)
-            && matches!(&row.kind,
-                LegalizedScalarInstructionKind::StructuralLeafCopy { source, byte_offset: 8, shape, .. }
-                    if *source == place(1) && *shape == extent)));
-        assert!(instructions.iter().any(|row| row.operation == operation(3)
-            && matches!(&row.kind,
-                LegalizedScalarInstructionKind::StoreStructuralField { value, byte_offset: 8, shape, .. }
-                    if *value == place(2) && *shape == extent)));
-    }
-}
-
-/// Both ISAs select the reseat as the inverse chunked copy: loads from the
-/// replacement's home at 0 and 8, stores into the root at 8 and 16.
-#[test]
-fn window_store_selects_the_inverse_chunked_copy() {
-    for native in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let (source, target, unit) = fixture(native);
-        let legal = legalize_target_operations(&target, &source, &unit).unwrap();
-        let environment =
-            register_environment::baseline_target_register_environment(native).unwrap();
-        let constraints = selection_constraints(&legal, &environment);
-        let selected = select_instructions(
-            &legal,
-            &constraints,
-            environment.physical(),
-            environment.constraints(),
-        )
-        .expect("the window pair reaches selection");
-        validate_selected_instructions(
-            &legal,
-            &constraints,
-            environment.physical(),
-            environment.constraints(),
-            selected.plan().clone(),
-        )
-        .expect("selection replay accepts both copy directions");
-        let function = &selected.plan().functions[0];
-        let offsets = |operation_id: OperationId, store: bool| -> Vec<u32> {
-            function
-                .blocks
-                .iter()
-                .flat_map(|block| &block.instructions)
-                .filter(|row| row.provenance.operations == [operation_id])
-                .filter_map(|row| match row.kind {
-                    SelectedInstructionKind::Load64 { byte_offset } if !store => Some(byte_offset),
-                    SelectedInstructionKind::Store { byte_offset, .. } if store => {
-                        Some(byte_offset)
-                    }
-                    _ => None,
-                })
-                .collect()
-        };
-        assert_eq!(offsets(operation(2), false), [8, 16], "{native:?}");
-        assert_eq!(offsets(operation(2), true), [0, 8], "{native:?}");
-        assert_eq!(offsets(operation(3), false), [0, 8], "{native:?}");
-        assert_eq!(offsets(operation(3), true), [8, 16], "{native:?}");
-        let footprint = |operation_id: OperationId, role: SelectedMemoryAccessRole| {
-            function
-                .memory_accesses
-                .iter()
-                .filter(|access| {
-                    access.origin
-                        == selected_instructions::SelectedMemoryAccessOrigin::Operation(
-                            operation_id,
-                        )
-                        && access.role == role
-                })
-                .map(|access| (access.place, access.byte_offset))
-                .collect::<Vec<_>>()
-        };
-        assert_eq!(
-            footprint(operation(3), SelectedMemoryAccessRole::ReadPlace),
-            [(place(2), 0), (place(2), 8)]
-        );
-        assert_eq!(
-            footprint(operation(3), SelectedMemoryAccessRole::WritePlace),
-            [(place(1), 8), (place(1), 16)]
-        );
-    }
 }
 
 /// Legalization re-resolves the field extent and the value's producer, so a

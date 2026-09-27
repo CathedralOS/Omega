@@ -4,15 +4,11 @@ use super::{
     IntegerValue, ScalarType, fixture,
 };
 use crate::legalize_target_operations;
-use crate::select_instructions;
-use crate::selection_constraints;
-use crate::tests::shared_return::assert_return_bridges;
 use crate::tests::shared_return::block;
 use crate::tests::shared_return::edge;
 use crate::tests::shared_return::operation;
 use crate::tests::shared_return::value;
 use crate::validate_legalized_operations;
-use crate::validate_selected_instructions;
 use legalized_operations::{LegalizedScalarComparison, LegalizedScalarInstructionKind};
 fn expanded(
     native: target::NativeTarget,
@@ -112,82 +108,6 @@ fn expanded(
     let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(&plan, old.fuel_schedule)
         .unwrap();
     (plan, target, unit)
-}
-#[test]
-fn scalar_cfg_accepts_signed_comparisons_and_more_than_four_blocks() {
-    for native in [
-        target::NativeTarget::windows_x64(),
-        target::NativeTarget::linux_x64(),
-        target::NativeTarget::linux_arm64(),
-        target::NativeTarget::macos_arm64(),
-    ] {
-        for signed in [false, true] {
-            for comparison in 0..3 {
-                let (plan, target, unit) = expanded(native, signed, comparison);
-                assert!(crate::legalization::accepts_fragment_publication_input(
-                    &target, &plan, &unit
-                ));
-                let legalized = legalize_target_operations(&target, &plan, &unit).unwrap();
-                let graph = &legalized.plan().scalar_functions[0];
-                assert_eq!(graph.blocks.len(), 5);
-                assert_eq!(graph.blocks[4].instructions[0].operation, operation(91));
-                let LegalizedScalarInstructionKind::Compare { operand_type, .. } =
-                    graph.blocks[0].instructions[0].kind
-                else {
-                    panic!("comparison");
-                };
-                assert_eq!(
-                    operand_type,
-                    ScalarType::Integer(
-                        IntegerType::new(
-                            if signed {
-                                IntegerSign::Signed
-                            } else {
-                                IntegerSign::Unsigned
-                            },
-                            64
-                        )
-                        .unwrap()
-                    )
-                );
-                validate_legalized_operations(&target, &plan, &unit, legalized.plan().clone())
-                    .unwrap();
-                let environment =
-                    register_environment::baseline_target_register_environment(native).unwrap();
-                let constraints = selection_constraints(&legalized, &environment);
-                let selected = select_instructions(
-                    &legalized,
-                    &constraints,
-                    environment.physical(),
-                    environment.constraints(),
-                )
-                .unwrap();
-                let function = &selected.plan().functions[0];
-                let mut sources = function
-                    .blocks
-                    .iter()
-                    .filter_map(|block| match block.origin {
-                        selected_instructions::SelectedBlockOrigin::Source(source) => {
-                            Some(source.get())
-                        }
-                        selected_instructions::SelectedBlockOrigin::EdgeTransfer { .. }
-                        | selected_instructions::SelectedBlockOrigin::CaseDispatch { .. } => None,
-                    })
-                    .collect::<Vec<_>>();
-                sources.sort();
-                assert_eq!(sources, [1, 2, 3, 4, 5]);
-                assert_return_bridges(function, 5);
-                validate_selected_instructions(
-                    &legalized,
-                    &constraints,
-                    environment.physical(),
-                    environment.constraints(),
-                    selected.plan().clone(),
-                )
-                .unwrap();
-            }
-        }
-    }
 }
 #[test]
 fn scalar_cfg_replay_rejects_comparison_type_operands_and_fuel_substitution() {

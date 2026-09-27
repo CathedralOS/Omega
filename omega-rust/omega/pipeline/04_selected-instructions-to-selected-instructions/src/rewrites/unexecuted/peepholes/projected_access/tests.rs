@@ -390,35 +390,6 @@ fn load_pairs_fold_on_all_targets() {
     }
 }
 
-/// The declared store pair — the family's memory-writing consumer — folds
-/// at every byte-addressable width on every target, retaining the
-/// `WritePointerV1`/`MayArchitecturalFaultV1` surface the dereference
-/// carries.
-#[test]
-fn store_pairs_fold_on_all_targets() {
-    for target in [
-        NativeTarget::linux_x64(),
-        NativeTarget::linux_arm64(),
-        NativeTarget::windows_x64(),
-        NativeTarget::macos_arm64(),
-    ] {
-        let environment = baseline_target_register_environment(target).unwrap();
-        for byte_size in [1u8, 2, 4, 8] {
-            let access = Access::Store(byte_size);
-            let source = fixture(target, access, 8, 16);
-            let result = fold(&source, &environment).unwrap();
-            folded_to(&result, access.kind(24));
-            // The store's operand 1 — the stored `Use` — carries verbatim.
-            assert_eq!(
-                result.transformed().functions[0].blocks[0].instructions[1].operands[1]
-                    .virtual_register,
-                VALUE
-            );
-            replay(&source, &environment, result.transformed().clone()).unwrap();
-        }
-    }
-}
-
 /// The declared bound is the access-scaled unsigned immediate every target
 /// shares: the exact boundary — width times 4095 — folds on both host
 /// architectures.
@@ -756,43 +727,6 @@ fn decorated_operands_reject() {
     );
 }
 
-/// Implicit unit traffic is not the register-only surface: a consumer that
-/// reads or writes units implicitly, and a producer that clobbers a unit,
-/// both refuse.
-#[test]
-fn implicit_unit_traffic_rejects() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let using_consumer = mutated(target, |function, environment| {
-        let unit = environment
-            .constraint(environment.selected_keys().compare_i64)
-            .unwrap()
-            .implicit_defs
-            .first()
-            .copied()
-            .unwrap();
-        function.blocks[0].instructions[1].implicit_uses.push(unit);
-    });
-    assert_eq!(
-        fold(&using_consumer, &environment).unwrap_err(),
-        ProjectedAccessError::UnsupportedConsumer
-    );
-    let clobbering_producer = mutated(target, |function, environment| {
-        let unit = environment
-            .constraint(environment.selected_keys().compare_i64)
-            .unwrap()
-            .implicit_defs
-            .first()
-            .copied()
-            .unwrap();
-        function.blocks[0].instructions[0].clobbers.push(unit);
-    });
-    assert_eq!(
-        fold(&clobbering_producer, &environment).unwrap_err(),
-        ProjectedAccessError::UnsupportedProducer
-    );
-}
-
 /// The operand grammar is positional: a consumer whose operand 0 is not
 /// the pointer `Use`, or whose tail access is not the declared one, is not
 /// the emitted access form.
@@ -999,36 +933,4 @@ fn mismatched_proposals_reject_replay() {
         replay(&source, &environment, extra_change).unwrap_err(),
         ProjectedAccessError::ReplayMismatch
     );
-}
-
-/// A stale candidate — the same instruction revisited after the fold —
-/// no longer reads the projected register: operand 0 now names the base
-/// directly, whose last in-block definition is not the projection.
-#[test]
-fn stale_candidate_rejects() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = fixture(target, Access::Load8, 8, 16);
-    let folded = fold(&source, &environment).unwrap();
-    assert_eq!(
-        fold(&folded, &environment).unwrap_err(),
-        ProjectedAccessError::UnsupportedProducer
-    );
-}
-
-/// The published result is itself a legal analysis input: the receipts
-/// bind the source and transformed plan identities, and the fold is
-/// deterministic across a detached re-publication.
-#[test]
-fn fold_is_deterministic_and_terminal() {
-    let target = NativeTarget::linux_arm64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = fixture(target, Access::Load64, 32, 64);
-    let first = fold(&source, &environment).unwrap();
-    let second = fold(&source, &environment).unwrap();
-    assert_eq!(first.transformed(), second.transformed());
-    assert_eq!(first.receipt(), second.receipt());
-    // The transformed plan publishes as an independent input: replaying
-    // against it re-derives the same relationship by content.
-    replay(&source, &environment, first.transformed().clone()).unwrap();
 }

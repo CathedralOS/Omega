@@ -10,11 +10,9 @@ pub use countdown_invariant_constant_relocation::{
     propose_countdown_invariant_constant_relocations,
     validate_countdown_invariant_constant_relocation,
 };
-pub use loop_invariant_scalar_motion::LoopInvariantScalarMotionError;
 #[cfg(test)]
-pub(crate) use loop_invariant_scalar_motion::{
-    LoopInvariantNodeResult, LoopInvariantScalarNode, LoopInvariantScalarRelocation,
-};
+pub(crate) use loop_invariant_scalar_motion::LoopInvariantNodeResult;
+pub use loop_invariant_scalar_motion::LoopInvariantScalarMotionError;
 #[cfg(any(test, feature = "test-support"))]
 pub use loop_invariant_scalar_motion::{
     apply_loop_invariant_scalar_motion, propose_loop_invariant_scalar_motion,

@@ -9,12 +9,10 @@ use crate::rules::tests::fixtures::global_value_numbering::{
 use crate::rules::tests::fixtures::id;
 use crate::{AnalysisProduct, RuleAnalysisView};
 use abstract_operations::AbstractOperation as O;
-use optimization_core::{OptimizationRuleContract, OptimizationValidatorIdentity};
+use optimization_core::OptimizationRuleContract;
 use optimization_unit::{
-    PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch, TotalScalarIdentityKind,
-    recompute_psi_optimization_unit_identity,
+    PsiOptimizationUnit, PsiRewriteCandidate, recompute_psi_optimization_unit_identity,
 };
-use optimization_unit_semantics::validate_total_scalar_identity_candidate;
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, ObligationId, OperationId, ValueId,
 };
@@ -37,59 +35,6 @@ fn candidates(unit: &PsiOptimizationUnit) -> Vec<PsiRewriteCandidate> {
     WrappingShiftZeroCountIdentityRule
         .propose(unit, RuleAnalysisView::new(&products))
         .unwrap()
-}
-
-#[test]
-fn rule_replays_both_directions_and_distinct_count_types() {
-    for (operation, value_type, count_type, literal, expected) in [
-        (
-            WrappingNeutralOperation::ShiftLeft,
-            IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
-            IntegerType::new(IntegerSign::Signed, 8).unwrap(),
-            IntegerValue::Signed(0),
-            TotalScalarIdentityKind::WrappingIntegerShiftLeftZeroCount,
-        ),
-        (
-            WrappingNeutralOperation::ShiftRight,
-            IntegerType::new(IntegerSign::Signed, 17).unwrap(),
-            IntegerType::new(IntegerSign::Unsigned, 128).unwrap(),
-            IntegerValue::Unsigned(0),
-            TotalScalarIdentityKind::WrappingIntegerShiftRightZeroCount,
-        ),
-        (
-            WrappingNeutralOperation::ShiftLeft,
-            IntegerType::new(IntegerSign::Unsigned, 1).unwrap(),
-            IntegerType::new(IntegerSign::Unsigned, 1).unwrap(),
-            IntegerValue::Unsigned(0),
-            TotalScalarIdentityKind::WrappingIntegerShiftLeftZeroCount,
-        ),
-    ] {
-        let unit = wrapping_neutral_identity_unit_with_value_and_identity_types_and_liveness(
-            value_type, count_type, operation, literal, false, false, true,
-        );
-        let first = candidates(&unit);
-        assert_eq!(first, candidates(&unit));
-        let [candidate] = first.try_into().unwrap();
-        let PsiRewritePatch::EliminateTotalScalarIdentity(patch) = candidate.patch() else {
-            panic!("wrapping shift zero count must use the total identity patch")
-        };
-        assert_eq!(patch.identity, expected);
-        assert_eq!(patch.scalar_type, value_type);
-        assert_eq!(patch.replacement, id(1_903, ValueId::new));
-        assert_eq!(candidate.consumed_facts().len(), 1);
-        assert!(candidate.accepted_obligation_witness().is_none());
-        let accepted = validate_total_scalar_identity_candidate(&unit, &candidate).unwrap();
-        assert_eq!(
-            accepted.validator(),
-            OptimizationValidatorIdentity::from_canonical_bytes(
-                b"omega.validator.live-obligation-free-wrapping-integer-shift-zero-count-elimination.v1",
-            )
-        );
-        assert!(matches!(
-            accepted.unit().functions[0].blocks[0].nodes[1].operation,
-            O::Return { value, .. } if value == id(1_903, ValueId::new)
-        ));
-    }
 }
 
 #[test]

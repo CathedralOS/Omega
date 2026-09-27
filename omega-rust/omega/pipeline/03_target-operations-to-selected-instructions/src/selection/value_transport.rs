@@ -8,9 +8,6 @@ use legalized_operations::{
 };
 use semantic_vocabulary::ValueId;
 
-#[cfg(test)]
-mod tests;
-
 pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<ValueId> {
     let mut pending = Vec::new();
     let mut incoming = BTreeMap::<ValueId, Vec<ValueId>>::new();

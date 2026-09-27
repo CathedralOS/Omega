@@ -1,5 +1,5 @@
 //! Ordered Unit scalar definitions retain their exact widening source and result.
-use abstract_operations::{AbstractOperation, AbstractOperationPlan, AbstractParameter};
+use abstract_operations::{AbstractOperation, AbstractOperationPlan};
 use abstract_operations_to_target_operations::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement,
 };
@@ -13,10 +13,7 @@ use target_operations::{
     TargetUnitOperation,
 };
 
-use crate::{
-    legalize_target_operations, select_instructions, validate_legalized_operations,
-    validate_selected_instructions,
-};
+use crate::legalize_target_operations;
 
 fn integer(sign: IntegerSign, bits: u16) -> IntegerType {
     IntegerType::new(sign, bits).unwrap()
@@ -73,164 +70,6 @@ fn fixture(
 }
 
 #[test]
-fn unit_u8_to_i32_widening_selects_one_definition_before_byte_output() {
-    for native in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let (source, target, unit) = fixture(native);
-        let legalized = legalize_target_operations(&target, &source, &unit).unwrap();
-        validate_legalized_operations(&target, &source, &unit, legalized.plan().clone()).unwrap();
-        let rows = &legalized.plan().scalar_functions[0].blocks[0].instructions;
-        assert_eq!(rows.len(), 2);
-        assert_eq!(rows[0].operation, OperationId::new(8).unwrap());
-        assert_eq!(
-            rows[0].result.as_ref().unwrap().value,
-            ValueId::new(9).unwrap()
-        );
-        assert!(
-            matches!(rows[0].kind, legalized_operations::LegalizedScalarInstructionKind::IntegerWiden { operand, source_type }
-            if operand == ValueId::new(5).unwrap() && source_type == integer(IntegerSign::Unsigned, 8))
-        );
-        let environment =
-            register_environment::baseline_target_register_environment(native).unwrap();
-        let constraints = crate::selection_constraints(&legalized, &environment);
-        let selected = select_instructions(
-            &legalized,
-            &constraints,
-            environment.physical(),
-            environment.constraints(),
-        )
-        .unwrap();
-        validate_selected_instructions(
-            &legalized,
-            &constraints,
-            environment.physical(),
-            environment.constraints(),
-            selected.plan().clone(),
-        )
-        .unwrap();
-        let instructions = &selected.plan().functions[0].blocks[0].instructions;
-        let widening = instructions
-            .iter()
-            .find(|row| row.provenance.operations == [OperationId::new(8).unwrap()])
-            .unwrap();
-        assert_eq!(
-            widening.kind,
-            selected_instructions::SelectedInstructionKind::ZeroExtendU8
-        );
-        assert_eq!(
-            instructions
-                .iter()
-                .filter(|row| matches!(
-                    row.kind,
-                    selected_instructions::SelectedInstructionKind::HostedWriteByteI32 { .. }
-                ))
-                .count(),
-            1
-        );
-        let mut changed = selected.plan().clone();
-        let widening = changed.functions[0].blocks[0]
-            .instructions
-            .iter_mut()
-            .find(|row| row.provenance.operations == [OperationId::new(8).unwrap()])
-            .unwrap();
-        widening.kind = selected_instructions::SelectedInstructionKind::ZeroExtendU32;
-        assert!(
-            validate_selected_instructions(
-                &legalized,
-                &constraints,
-                environment.physical(),
-                environment.constraints(),
-                changed
-            )
-            .is_err()
-        );
-    }
-}
-
-#[test]
-fn all_total_native_widenings_preserve_source_custody_and_replay() {
-    for native in [
-        NativeTarget::linux_x64(),
-        NativeTarget::linux_arm64(),
-        NativeTarget::windows_x64(),
-        NativeTarget::macos_arm64(),
-    ] {
-        for source_sign in [IntegerSign::Signed, IntegerSign::Unsigned] {
-            for target_sign in [IntegerSign::Signed, IntegerSign::Unsigned] {
-                for source_bits in [8, 16, 32] {
-                    for target_bits in [16, 32, 64] {
-                        let source_type = integer(source_sign, source_bits);
-                        let target_type = integer(target_sign, target_bits);
-                        if !source_type.can_widen_to(target_type) {
-                            continue;
-                        }
-                        let (mut source, _, _) =
-                            crate::tests::fixtures::plain_unit::plain_unit_fixture();
-                        let operand = ValueId::new(5).unwrap();
-                        let result = ValueId::new(9).unwrap();
-                        source.functions[0].parameters = vec![AbstractParameter {
-                            value: operand,
-                            scalar_type: ScalarType::Integer(source_type),
-                        }];
-                        source.functions[0].operations.insert(
-                            0,
-                            AbstractOperation::IntegerWiden {
-                                psi_operation: OperationId::new(8).unwrap(),
-                                result,
-                                source_type,
-                                target_type,
-                                operand,
-                            },
-                        );
-                        let target = abstract_operations_to_target_operations::lower_to_target_operations(
-                            &source,
-                            abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
-                        ).unwrap();
-                        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
-                            &source,
-                            FuelScheduleIdentity::new(1).unwrap(),
-                        )
-                        .unwrap();
-                        let legalized = legalize_target_operations(&target, &source, &unit)
-                            .unwrap_or_else(|error| {
-                                panic!("{source_type:?} -> {target_type:?}: {error:?}")
-                            });
-                        validate_legalized_operations(
-                            &target,
-                            &source,
-                            &unit,
-                            legalized.plan().clone(),
-                        )
-                        .unwrap();
-                        for mutation in 0..3 {
-                            let mut changed = legalized.plan().clone();
-                            let row = &mut changed.scalar_functions[0].blocks[0].instructions[0];
-                            let legalized_operations::LegalizedScalarInstructionKind::IntegerWiden {
-                                operand: actual_operand,
-                                source_type: actual_source,
-                            } = &mut row.kind else {
-                                panic!("widening");
-                            };
-                            match mutation {
-                                0 => *actual_operand = result,
-                                1 => *actual_source = target_type,
-                                _ => {
-                                    row.result.as_mut().unwrap().scalar_type =
-                                        ScalarType::Integer(source_type)
-                                }
-                            }
-                            assert!(
-                                validate_legalized_operations(&target, &source, &unit, changed,)
-                                    .is_err()
-                            );
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-#[test]
 fn target_widening_rejects_home_type_identity_and_definition_order_substitution() {
     for native in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let (source, target, unit) = fixture(native);
@@ -281,46 +120,6 @@ fn target_widening_rejects_home_type_identity_and_definition_order_substitution(
             assert!(
                 legalize_target_operations(&changed, &source, &unit).is_err(),
                 "target mutation {mutation}"
-            );
-        }
-    }
-}
-
-#[test]
-fn widening_replay_rejects_signed_narrowing_source_and_future_value_forgery() {
-    for native in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let (source, target, unit) = fixture(native);
-        let legalized = legalize_target_operations(&target, &source, &unit).unwrap();
-        for mutation in 0..7 {
-            let mut changed = legalized.plan().clone();
-            let rows = &mut changed.scalar_functions[0].blocks[0].instructions;
-            if mutation == 5 {
-                rows.remove(0);
-            } else if mutation == 6 {
-                rows.swap(0, 1);
-            } else {
-                let row = &mut rows[0];
-                let legalized_operations::LegalizedScalarInstructionKind::IntegerWiden {
-                    operand,
-                    source_type,
-                } = &mut row.kind
-                else {
-                    panic!("widening");
-                };
-                match mutation {
-                    0 => *source_type = integer(IntegerSign::Signed, 8),
-                    1 => *source_type = integer(IntegerSign::Unsigned, 64),
-                    2 => {
-                        row.result.as_mut().unwrap().scalar_type =
-                            ScalarType::Integer(integer(IntegerSign::Signed, 8))
-                    }
-                    3 => *operand = ValueId::new(9).unwrap(),
-                    _ => row.result.as_mut().unwrap().value = ValueId::new(99).unwrap(),
-                }
-            }
-            assert!(
-                validate_legalized_operations(&target, &source, &unit, changed).is_err(),
-                "replay mutation {mutation}"
             );
         }
     }

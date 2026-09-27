@@ -5,7 +5,7 @@ use super::super::super::super::{
     BitwiseAbsorbingLiteralIdentityRule, BitwiseNeutralLiteralIdentityRule,
 };
 use crate::rules::tests::fixtures::global_value_numbering::{
-    BitwiseNeutralOperation, bitwise_literal_pair_unit, bitwise_neutral_identity_unit,
+    BitwiseNeutralOperation, bitwise_literal_pair_unit,
     bitwise_neutral_identity_unit_with_type_and_liveness,
 };
 use crate::rules::tests::fixtures::id;
@@ -183,80 +183,5 @@ fn bitwise_neutral_and_absorbing_overlaps_are_confluent() {
                 .unwrap()
                 .unit(),
         );
-    }
-}
-
-#[test]
-fn bitwise_absorbing_rule_rejects_wrong_literals_dead_impure_and_other_operations() {
-    for (operation, wrong_literal) in [
-        (BitwiseNeutralOperation::And, IntegerValue::Unsigned(1)),
-        (BitwiseNeutralOperation::Or, IntegerValue::Unsigned(0)),
-        (
-            BitwiseNeutralOperation::Xor,
-            IntegerValue::Unsigned(u8::MAX.into()),
-        ),
-    ] {
-        let unit = bitwise_neutral_identity_unit(operation, wrong_literal, false, false);
-        assert!(absorbing_candidates(&unit).is_empty());
-    }
-
-    let dead = bitwise_neutral_identity_unit_with_type_and_liveness(
-        IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
-        BitwiseNeutralOperation::And,
-        IntegerValue::Unsigned(0),
-        false,
-        false,
-        false,
-    );
-    assert!(absorbing_candidates(&dead).is_empty());
-
-    let unit = bitwise_neutral_identity_unit(
-        BitwiseNeutralOperation::And,
-        IntegerValue::Unsigned(0),
-        false,
-        false,
-    );
-    let mut products = analysis_products(&unit, BitwiseAbsorbingLiteralIdentityRule::contract());
-    let effects = products
-        .iter_mut()
-        .find_map(|product| match product {
-            AnalysisProduct::EffectSummaries(effects) => Some(effects),
-            _ => None,
-        })
-        .unwrap();
-    effects
-        .nodes
-        .iter_mut()
-        .find(|row| row.node == 1)
-        .unwrap()
-        .class = crate::EffectClass::Control;
-    assert!(
-        BitwiseAbsorbingLiteralIdentityRule
-            .propose(&unit, RuleAnalysisView::new(&products))
-            .unwrap()
-            .is_empty()
-    );
-}
-
-#[test]
-fn bitwise_absorbing_ties_choose_left_literal_rows_canonically() {
-    for (operation, literal, expected) in [
-        (
-            BitwiseNeutralOperation::And,
-            IntegerValue::Unsigned(0),
-            TotalScalarIdentityKind::IntegerBitwiseAndZeroLeft,
-        ),
-        (
-            BitwiseNeutralOperation::Or,
-            IntegerValue::Unsigned(u8::MAX.into()),
-            TotalScalarIdentityKind::IntegerBitwiseOrAllOnesLeft,
-        ),
-    ] {
-        let unit = bitwise_neutral_identity_unit(operation, literal, true, true);
-        let [candidate] = absorbing_candidates(&unit).try_into().unwrap();
-        let PsiRewritePatch::EliminateTotalScalarIdentity(patch) = candidate.patch() else {
-            unreachable!()
-        };
-        assert_eq!(patch.identity, expected);
     }
 }

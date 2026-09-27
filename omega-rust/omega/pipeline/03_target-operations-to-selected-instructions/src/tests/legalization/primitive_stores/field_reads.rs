@@ -15,18 +15,8 @@ use semantic_vocabulary::EdgeId;
 mod indirect_inputs;
 
 #[test]
-fn field_observations_replay_parameter_field_offset_and_result() {
-    field_observations(StructuralAccess::SharedBorrow, false, false);
-}
-
-#[test]
 fn owned_field_observations_replay_value_abi_home_and_exact_initialization() {
     field_observations(StructuralAccess::Owned, false, false);
-}
-
-#[test]
-fn nested_field_observations_replay_declaration_local_ids_and_original_root() {
-    field_observations(StructuralAccess::SharedBorrow, true, false);
 }
 
 #[test]

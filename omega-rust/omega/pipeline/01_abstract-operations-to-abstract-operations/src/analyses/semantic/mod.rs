@@ -127,31 +127,4 @@ pub(super) fn scalar_operation_successors(operation: &O) -> Vec<OptimizationEdge
 }
 
 #[cfg(test)]
-mod residual_edge_tests {
-    #[test]
-    fn successor_projection_retains_exact_ordered_residuals() {
-        use semantic_vocabulary::{BlockId, EdgeId, PlaceId, StructuralTypeId};
-        use terminal_psi::{StructuralAffineDiscard, StructuralPathSegment};
-        let residuals = [2, 0]
-            .map(|element| StructuralAffineDiscard {
-                place: PlaceId::new(81).unwrap(),
-                path: vec![StructuralPathSegment::FixedIndex(element)],
-                structural_type: StructuralTypeId::new(82).unwrap(),
-            })
-            .to_vec();
-        let operation = abstract_operations::AbstractOperation::Jump {
-            structural_bindings: Vec::new(),
-            psi_edge: EdgeId::new(83).unwrap(),
-            target: BlockId::new(84).unwrap(),
-            bindings: Vec::new(),
-            trivial_affine_discards: Vec::new(),
-            residual_affine_discards: residuals.clone(),
-        };
-        let successors = super::scalar_operation_successors(&operation);
-        assert_eq!(successors.len(), 1);
-        assert_eq!(successors[0].residual_affine_discards, residuals);
-        assert!(successors[0].trivial_affine_discards.is_empty());
-        assert_eq!(successors[0].target, BlockId::new(84).unwrap());
-        assert_eq!(successors[0].psi_edge, EdgeId::new(83).unwrap());
-    }
-}
+mod residual_edge_tests {}

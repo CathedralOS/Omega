@@ -111,53 +111,6 @@ pub fn run_psi_registry(
     }
 }
 
-/// Replay a canonical external decision log through one exact selected Psi
-/// registry. The byte boundary is intentional: strict schema decoding is part
-/// of accepting external policy input.
-#[cfg(test)]
-pub(crate) fn replay_psi_registry(
-    verified: VerifiedPsiOptimizationUnit,
-    selections: &OptimizationSelections,
-    registry: &OrderedRuleRegistry,
-    budget: OptimizationWorkBudget,
-    encoded_external_decisions: &[u8],
-) -> Result<OptimizationRun, OptimizationRunError> {
-    let projection = selections.project_psi();
-    let external_decisions =
-        ExternalDecisionLog::decode(encoded_external_decisions).map_err(|error| {
-            OptimizationRunError::ExternalDecisionReplay(ExternalDecisionReplayError::Schema(error))
-        })?;
-    let expected =
-        built_in_psi_registry(selections).map_err(OptimizationRunError::RegistryConstruction)?;
-    if expected.identity() != registry.identity()
-        || expected.contracts().collect::<Vec<_>>() != registry.contracts().collect::<Vec<_>>()
-    {
-        return Err(OptimizationRunError::SelectionRegistryMismatch);
-    }
-    let session = VerifiedPsiOptimizationSession::new(verified)
-        .map_err(OptimizationRunError::InitialValidation)?;
-    if registry.is_empty() {
-        run_registries_with_external_decisions(
-            session,
-            selections,
-            projection.selections(),
-            &[],
-            budget,
-            external_decisions,
-        )
-    } else {
-        let step = crate::rules::PsiPassStep::RewriteRegistry(registry.clone());
-        run_registries_with_external_decisions(
-            session,
-            selections,
-            projection.selections(),
-            std::slice::from_ref(&step),
-            budget,
-            external_decisions,
-        )
-    }
-}
-
 /// Execute every implemented named optimization as its own canonical pass
 /// group and publish one chained run over the exact selected suite.
 #[cfg(any(test, feature = "test-support"))]

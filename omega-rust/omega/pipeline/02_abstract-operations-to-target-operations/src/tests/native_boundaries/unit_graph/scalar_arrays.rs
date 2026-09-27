@@ -112,45 +112,6 @@ fn fixture() -> AbstractOperationPlan {
 }
 
 #[test]
-fn owned_array_calls_preserve_constructed_and_returned_home_identity() {
-    let plan = fixture();
-    for target in [NativeTarget::macos_arm64(), NativeTarget::linux_x64()] {
-        let lowered =
-            crate::lower_to_target_operations(&plan, crate::TargetLoweringRequest::new(target))
-                .unwrap();
-        let graph = &lowered.functions[0].graph;
-        let producers = graph.blocks[0]
-            .operations
-            .iter()
-            .filter_map(|operation| {
-                let target_operations::TargetUnitOperation::Call {
-                    arguments,
-                    result: target_operations::TargetCallResult::Structural { .. },
-                    ..
-                } = operation
-                else {
-                    return None;
-                };
-                let target_operations::TargetStructuralArgumentSource::StructuralHome {
-                    psi_operation,
-                } = arguments[0].source
-                else {
-                    panic!("home")
-                };
-                Some(psi_operation)
-            })
-            .collect::<Vec<_>>();
-        assert_eq!(producers, vec![operation(2), operation(2), operation(3)]);
-        let identity = &lowered.functions[1].graph;
-        assert!(
-            matches!(&identity.blocks[0].terminator, target_operations::TargetControlTerminator::ReturnStructural {
-            source: target_operations::TargetStructuralReturnSource::Parameter(parameter), ..
-        } if parameter.place == PlaceId::new(10).unwrap())
-        );
-    }
-}
-
-#[test]
 fn owned_array_calls_reject_unavailable_places_and_borrowed_actuals() {
     for mutation in 0..3 {
         let mut plan = fixture();

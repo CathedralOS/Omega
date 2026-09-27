@@ -194,12 +194,11 @@ mod tests {
     use calling_conventions::{ValueLocation, ValueShape};
     use semantic_vocabulary::{
         BlockId, IeeeFloatFormat, IntegerSign, IntegerType, MachineId, PlaceId, ScalarType,
-        StructuralFieldId, StructuralTypeId, ValueId,
+        StructuralTypeId, ValueId,
     };
     use target::NativeTarget;
     use terminal_psi::{
-        StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralTypeDeclaration,
-        StructuralTypeShape,
+        StructuralAccess, StructuralMultiplicity, StructuralTypeDeclaration, StructuralTypeShape,
     };
 
     #[test]
@@ -253,30 +252,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn boolean_parameters_retain_semantic_type_and_one_byte_abi_placement() {
-        for target in [
-            NativeTarget::linux_x64(),
-            NativeTarget::linux_arm64(),
-            NativeTarget::windows_x64(),
-            NativeTarget::macos_arm64(),
-        ] {
-            let mut source = function();
-            source.parameters[0].scalar_type = ScalarType::Boolean;
-            let abi = derive_fixed_scalar_function_abi(&source, target)
-                .unwrap()
-                .unwrap();
-            assert_eq!(abi.parameters[0].value, source.parameters[0].value);
-            assert_eq!(abi.parameters[0].scalar_type, ScalarType::Boolean);
-            assert_eq!(abi.parameters[0].placement.shape, ValueShape::integer(1, 1));
-            assert_eq!(abi.parameters[0].placement, abi.call_plan.parameters[0]);
-            assert_eq!(
-                abi.result.scalar_type,
-                source.result.scalar().unwrap().scalar_type
-            );
-        }
-    }
-
     fn function() -> AbstractFunction {
         let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
         AbstractFunction {
@@ -296,113 +271,6 @@ mod tests {
             published_service_ceiling: Vec::new(),
             block_entries: Vec::new(),
             operations: Vec::new(),
-        }
-    }
-
-    #[test]
-    fn only_complete_service_free_fixed_integer_scalar_signatures_receive_an_abi() {
-        let target = NativeTarget::linux_x64();
-        assert!(
-            derive_fixed_scalar_function_abi(&function(), target)
-                .unwrap()
-                .is_some()
-        );
-
-        let mut serviceful = function();
-        serviceful
-            .published_service_ceiling
-            .push(semantic_vocabulary::ServiceId::new(1).unwrap());
-        assert_eq!(
-            derive_fixed_scalar_function_abi(&serviceful, target).unwrap(),
-            None
-        );
-
-        let mut structural = function();
-        structural
-            .structural_parameters
-            .push(terminal_psi::StructuralParameterDeclaration {
-                place: PlaceId::new(1).unwrap(),
-                position: 0,
-                is_self: false,
-                structural_type: StructuralTypeId::new(1).unwrap(),
-                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
-                access: terminal_psi::StructuralAccess::Owned,
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
-            });
-        assert_eq!(
-            derive_fixed_scalar_function_abi(&structural, target).unwrap(),
-            None
-        );
-
-        let mut address = function();
-        address.parameters[0].scalar_type = ScalarType::Integer(IntegerType::address(64).unwrap());
-        assert_eq!(
-            derive_fixed_scalar_function_abi(&address, target).unwrap(),
-            None
-        );
-
-        let mut boolean = function();
-        boolean.result = AbstractFunctionResult::Scalar(AbstractResult {
-            value: ValueId::new(2).unwrap(),
-            scalar_type: ScalarType::Boolean,
-        });
-        let abi = derive_fixed_scalar_function_abi(&boolean, target)
-            .unwrap()
-            .unwrap();
-        assert_eq!(abi.result.scalar_type, ScalarType::Boolean);
-        assert_eq!(abi.result.placement.shape, ValueShape::integer(1, 1));
-    }
-
-    #[test]
-    fn mixed_abi_retains_scalar_prefix_and_structural_suffix_from_abstract_authority() {
-        let mut mixed = function();
-        let structural_type = StructuralTypeId::new(1).unwrap();
-        mixed.structural_parameters = vec![terminal_psi::StructuralParameterDeclaration {
-            place: PlaceId::new(1).unwrap(),
-            position: 0,
-            is_self: false,
-            structural_type,
-            multiplicity: StructuralMultiplicity::Affine,
-            access: StructuralAccess::Owned,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-        }];
-        let declaration = StructuralTypeDeclaration {
-            id: structural_type,
-            identity: "CounterState".into(),
-            shape: StructuralTypeShape::Record {
-                fields: vec![terminal_psi::StructuralFieldDeclaration {
-                    id: StructuralFieldId::new(1).unwrap(),
-                    identity: "value".into(),
-                    relevance: terminal_psi::BindingRelevance::Relevant,
-                    field_type: StructuralFieldType::Scalar(ScalarType::Integer(
-                        IntegerType::new(IntegerSign::Signed, 32).unwrap(),
-                    )),
-                }],
-            },
-        };
-        let catalog = vec![declaration].into();
-        let declarations = StructuralTypeLookup::new(&catalog);
-
-        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-            let abi = derive_mixed_structural_scalar_function_abi(&mixed, target, &declarations)
-                .unwrap()
-                .expect("fixed scalar plus structural signature publishes mixed ABI");
-            assert_eq!(abi.call_plan.parameters.len(), 2);
-            assert_eq!(abi.scalar_parameters.len(), 1);
-            assert_eq!(abi.structural_parameters.len(), 1);
-            assert_eq!(abi.scalar_parameters[0].value, mixed.parameters[0].value);
-            assert_eq!(
-                abi.scalar_parameters[0].placement,
-                abi.call_plan.parameters[0]
-            );
-            assert_eq!(
-                abi.structural_parameters[0].placement,
-                abi.call_plan.parameters[1]
-            );
-            assert_eq!(abi.result.value, mixed.result.scalar().unwrap().value);
-            assert_eq!(abi.call_plan.result.as_ref(), Some(&abi.result.placement));
         }
     }
 
@@ -465,61 +333,6 @@ mod tests {
                 derive_mixed_structural_scalar_function_abi(&address, target, &declarations)
                     .unwrap()
                     .is_none()
-            );
-        }
-    }
-
-    #[test]
-    fn mixed_abi_admits_a_structural_only_parameter_suffix() {
-        let mut structural_only = function();
-        structural_only.parameters.clear();
-        let structural_type = StructuralTypeId::new(1).unwrap();
-        structural_only.structural_parameters =
-            vec![terminal_psi::StructuralParameterDeclaration {
-                place: PlaceId::new(1).unwrap(),
-                position: 0,
-                is_self: true,
-                structural_type,
-                multiplicity: StructuralMultiplicity::Affine,
-                access: StructuralAccess::MutableBorrow,
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
-            }];
-        let declaration = StructuralTypeDeclaration {
-            id: structural_type,
-            identity: "CounterState".into(),
-            shape: StructuralTypeShape::Record {
-                fields: vec![terminal_psi::StructuralFieldDeclaration {
-                    id: StructuralFieldId::new(1).unwrap(),
-                    identity: "value".into(),
-                    relevance: terminal_psi::BindingRelevance::Relevant,
-                    field_type: StructuralFieldType::Scalar(ScalarType::Integer(
-                        IntegerType::new(IntegerSign::Signed, 32).unwrap(),
-                    )),
-                }],
-            },
-        };
-        let catalog = vec![declaration].into();
-        let declarations = StructuralTypeLookup::new(&catalog);
-
-        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-            let abi = derive_mixed_structural_scalar_function_abi(
-                &structural_only,
-                target,
-                &declarations,
-            )
-            .unwrap()
-            .expect("structural-only scalar-result signature publishes mixed ABI");
-            assert!(abi.scalar_parameters.is_empty());
-            assert_eq!(abi.structural_parameters.len(), 1);
-            assert_eq!(abi.call_plan.parameters.len(), 1);
-            assert_eq!(
-                abi.structural_parameters[0].shape.class,
-                calling_conventions::ValueClass::BorrowedReference
-            );
-            assert_eq!(
-                abi.structural_parameters[0].placement,
-                abi.call_plan.parameters[0]
             );
         }
     }

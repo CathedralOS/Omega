@@ -9,7 +9,6 @@ use super::{
     evaluate_call_plan, fixture, returned,
 };
 use calling_conventions::IndirectPointerLocation;
-mod fixed_windows;
 mod literal_storage;
 mod mixed;
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind};

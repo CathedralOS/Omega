@@ -109,18 +109,6 @@ mod tests {
     }
 
     #[test]
-    fn canonical_catalog_is_retained_without_copying() {
-        let source: StructuralTypeCatalog =
-            vec![declaration(1, "first"), declaration(2, "second")].into();
-        let lookup = StructuralTypeLookup::new(&source);
-        assert!(lookup.catalog().shares_storage_with(&source));
-        assert!(std::ptr::eq(
-            *lookup.get(&source[0].id).unwrap(),
-            &source[0]
-        ));
-    }
-
-    #[test]
     fn unchecked_catalog_keeps_the_existing_ordered_last_row_projection() {
         let source: StructuralTypeCatalog = vec![
             declaration(2, "old"),

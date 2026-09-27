@@ -46,33 +46,6 @@ pub(super) const TRANSITIVE_MEMBER_SOURCE: &str = r#"
     }
 "#;
 
-/// Same two-state cycle as `TRANSITIVE_MEMBER_SOURCE`, but the entry state can
-/// leave the component through its own `done` arm before `step` ever runs.
-/// `s` still resolves to the preheader anchor — invariance is intact — yet
-/// `s + s` stays inside because relocating a node out of a member block that
-/// does not dominate every exit would speculate executions the traversal may
-/// never perform. The header's own invariant leaves still relocate.
-pub(super) const BYPASSED_MEMBER_SOURCE: &str = r#"
-    data Root {}
-
-    machine Root::scan(scale: u32 in Wrapping, remaining: u32 [0..=5])
-    {
-        transition remaining > 0 {
-            true -> step(scale, remaining - 1)
-            _ -> done()
-        }
-        state step(s: u32 in Wrapping, pending: u32 [0..=5]) {
-            let doubled: u32 in Wrapping = s + s;
-            transition pending > 0 {
-                true -> scan(s, pending - 1)
-                _ -> finish(doubled)
-            }
-        }
-        state done() {}
-        state finish(r: u32 in Wrapping) {}
-    }
-"#;
-
 /// The `s + s` computation inside a member block, its block, and the member
 /// parameter it reads twice.
 pub(super) fn member_addition<'function>(
@@ -178,40 +151,6 @@ pub(super) fn refresh_coordinates_and_effects(unit: &mut PsiOptimizationUnit) {
         });
     }
     unit.identity = recompute_psi_optimization_unit_identity(unit);
-}
-
-/// The `IntegerStructuralField` observations inside a component's member
-/// blocks, as `(member block, node)` pairs in member order.
-pub(super) fn member_field_reads<'function>(
-    function: &'function optimization_unit::PsiOptimizationFunction,
-    component: &optimization_unit::OptimizerCycleComponent,
-) -> Vec<(
-    &'function optimization_unit::OptimizationBlock,
-    &'function optimization_unit::OptimizationNode,
-)> {
-    component
-        .members
-        .iter()
-        .map(|member| {
-            function
-                .blocks
-                .iter()
-                .find(|block| block.id == *member)
-                .expect("member block exists")
-        })
-        .flat_map(|block| {
-            block
-                .nodes
-                .iter()
-                .filter(|node| {
-                    matches!(
-                        node.operation,
-                        AbstractOperation::IntegerStructuralField { .. }
-                    )
-                })
-                .map(move |node| (block, node))
-        })
-        .collect()
 }
 
 /// The `ByteSequenceLength` observations inside a component's member blocks,

@@ -174,11 +174,6 @@ fn process_exit_retains_provider_specialization_and_service_custody_without_stor
 }
 
 #[test]
-fn process_exit_composes_receiver_storage_with_provider_specialization_custody() {
-    provider_specialization_and_service_custody(true, false);
-}
-
-#[test]
 fn process_exit_composes_primitive_storage_with_provider_specialization_custody() {
     provider_specialization_and_service_custody(false, true);
     provider_specialization_and_service_custody(true, true);

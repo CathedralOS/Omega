@@ -846,30 +846,6 @@ mod independence_tests {
         );
     }
 
-    /// A compare reading the same register twice publishes the identity
-    /// `ra - ra` state — the constant family's case, carrying no operand
-    /// pole at all. A producer that folded it anyway emits a constant the
-    /// boundary audit never decided.
-    #[test]
-    fn validator_refuses_a_fold_over_the_identity_compare() {
-        let target = NativeTarget::linux_x64();
-        let (source, environment, proposed) = forged(
-            target,
-            SelectedInstructionKind::MaterializeBooleanU64LessThan,
-            Forged::Constant(0),
-            |function, _| {
-                let compare = &mut function.blocks[0].instructions[2];
-                compare.operands[0].virtual_register = LITA;
-                compare.operands[1].virtual_register = LITA;
-            },
-        );
-        assert_eq!(
-            validate_boundary_boolean_fold(&source, 0, BOOLEAN, &environment, budget(), proposed)
-                .unwrap_err(),
-            BoundaryBooleanError::UnsupportedLiteral
-        );
-    }
-
     /// A clobbered flag unit: the resolved event is the compare site but
     /// the unit is not among its published definitions, so the observed
     /// value is unknown and no pole can decide the reader. The

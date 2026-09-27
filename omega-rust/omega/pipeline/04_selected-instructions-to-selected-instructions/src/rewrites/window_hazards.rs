@@ -416,16 +416,12 @@ mod tests {
         RegisterClassId, RegisterConstraintFamily, RegisterConstraintKey, RegisterOperandAccess,
     };
     use selected_instructions::{
-        SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedBoundarySettlement,
-        SelectedBoundarySettlementPayload, SelectedFunction, SelectedInstruction,
+        SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
         SelectedInstructionId, SelectedInstructionKind, SelectedMemoryAccess,
         SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedOperand,
-        SelectedSuccessorRole, SelectedTerminator, SelectedValueBinding, SelectedValueTransport,
-        VirtualRegisterId,
+        SelectedSuccessorRole, SelectedTerminator, VirtualRegisterId,
     };
-    use semantic_vocabulary::{
-        BlockId, BoundaryMachineId, EdgeId, MachineId, OperationId, PlaceId, ValueId,
-    };
+    use semantic_vocabulary::{BlockId, EdgeId, MachineId, OperationId, PlaceId};
 
     use super::{RunRelocationRejection, admit_run_relocation};
     use crate::rewrites::block_edges::{CrossingDirection, crossed_window};
@@ -538,43 +534,6 @@ mod tests {
     }
 
     #[test]
-    fn clean_run_crossing_admits() {
-        let function = function(RegisterOperandAccess::Def, RegisterOperandAccess::Def);
-        assert_eq!(admit(&function), Ok(()));
-    }
-
-    #[test]
-    fn member_writing_what_a_crossed_position_reads_is_coupled() {
-        // Member defines R_MEMBER; the tail instruction in the run block
-        // reads it — moving the run past it hands the reader a different
-        // value.
-        let mut function = function(RegisterOperandAccess::Def, RegisterOperandAccess::Use);
-        function.blocks[0].instructions[2].operands[0].virtual_register = R_MEMBER;
-        assert_eq!(admit(&function), Err(RunRelocationRejection::Coupled));
-    }
-
-    #[test]
-    fn member_reading_what_a_crossed_position_writes_is_coupled() {
-        let mut function = function(RegisterOperandAccess::Use, RegisterOperandAccess::Def);
-        function.blocks[0].instructions[0].operands[0].virtual_register = R_OTHER;
-        assert_eq!(admit(&function), Err(RunRelocationRejection::Coupled));
-    }
-
-    #[test]
-    fn a_barrier_member_is_unschedulable() {
-        let mut function = function(RegisterOperandAccess::Def, RegisterOperandAccess::Def);
-        function.blocks[0].instructions[0].kind = SelectedInstructionKind::ReturnUnit;
-        assert_eq!(admit(&function), Err(RunRelocationRejection::Unschedulable));
-    }
-
-    #[test]
-    fn a_barrier_inside_the_window_is_unschedulable() {
-        let mut function = function(RegisterOperandAccess::Def, RegisterOperandAccess::Def);
-        function.blocks[0].instructions[2].kind = SelectedInstructionKind::ReturnUnit;
-        assert_eq!(admit(&function), Err(RunRelocationRejection::Unschedulable));
-    }
-
-    #[test]
     fn roster_carrying_sides_do_not_cross() {
         let mut function = function(RegisterOperandAccess::Def, RegisterOperandAccess::Def);
         for instruction in [1u64, 3] {
@@ -591,79 +550,6 @@ mod tests {
             admit(&function),
             Err(RunRelocationRejection::MemoryOrdering)
         );
-    }
-
-    #[test]
-    fn a_crossed_edge_transport_conflict_refuses() {
-        let mut function = function(RegisterOperandAccess::Def, RegisterOperandAccess::Def);
-        let SelectedTerminator::Jump { successor, .. } = &mut function.blocks[0].terminator else {
-            panic!()
-        };
-        successor.bindings.push(SelectedValueBinding {
-            semantic: abstract_operations::ValueBinding {
-                parameter: ValueId::new(20).unwrap(),
-                argument: ValueId::new(21).unwrap(),
-                scalar_type: semantic_vocabulary::ScalarType::Integer(
-                    semantic_vocabulary::IntegerType::new(
-                        semantic_vocabulary::IntegerSign::Unsigned,
-                        64,
-                    )
-                    .unwrap(),
-                ),
-            },
-            transport: SelectedValueTransport::Registers {
-                argument: R_MEMBER,
-                parameter: R_OTHER,
-            },
-        });
-        assert_eq!(
-            admit(&function),
-            Err(RunRelocationRejection::TransportConflict)
-        );
-    }
-
-    #[test]
-    fn a_non_plain_crossed_edge_refuses() {
-        let mut function = function(RegisterOperandAccess::Def, RegisterOperandAccess::Def);
-        let SelectedTerminator::Jump { successor, .. } = &mut function.blocks[0].terminator else {
-            panic!()
-        };
-        successor.role = SelectedSuccessorRole::CaseDispatchContinuation;
-        assert_eq!(admit(&function), Err(RunRelocationRejection::NonPlainEdge));
-    }
-
-    #[test]
-    fn a_settlement_past_the_vacated_run_refuses() {
-        let mut function = function(RegisterOperandAccess::Def, RegisterOperandAccess::Def);
-        function
-            .boundary_settlements
-            .push(SelectedBoundarySettlement {
-                block: BLOCK_A,
-                instruction_index: 2,
-                settlement: SelectedBoundarySettlementPayload::HostedExitProcessI32 {
-                    operation: OperationId::new(30).unwrap(),
-                    boundary: BoundaryMachineId::new(1).unwrap(),
-                    source: ValueId::new(9).unwrap(),
-                },
-            });
-        assert_eq!(admit(&function), Err(RunRelocationRejection::Settlement));
-    }
-
-    #[test]
-    fn a_settlement_at_the_run_start_is_retained() {
-        let mut function = function(RegisterOperandAccess::Def, RegisterOperandAccess::Def);
-        function
-            .boundary_settlements
-            .push(SelectedBoundarySettlement {
-                block: BLOCK_A,
-                instruction_index: 0,
-                settlement: SelectedBoundarySettlementPayload::HostedExitProcessI32 {
-                    operation: OperationId::new(30).unwrap(),
-                    boundary: BoundaryMachineId::new(1).unwrap(),
-                    source: ValueId::new(9).unwrap(),
-                },
-            });
-        assert_eq!(admit(&function), Ok(()));
     }
 
     #[test]

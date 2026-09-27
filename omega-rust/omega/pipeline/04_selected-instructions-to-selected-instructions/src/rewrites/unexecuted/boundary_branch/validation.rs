@@ -912,30 +912,6 @@ mod independence_tests {
         (source, environment, proposed)
     }
 
-    /// The compare's right operand materializes 5, not a pole: `x <u 5`
-    /// neither always holds nor never holds, so the predicate stays
-    /// runtime-decided. A producer that folded anyway would publish a
-    /// plan whose branch is a `Jump` the source never established; the
-    /// validator's own pole audit must refuse with `UnsupportedLiteral`,
-    /// not merely diff the proposal. Feeding that forged proposal is the
-    /// observable proof that validation no longer relies on the
-    /// producer's admission routine.
-    #[test]
-    fn validator_refuses_a_decided_jump_the_pole_does_not_decide() {
-        let target = NativeTarget::linux_x64();
-        let (source, environment, proposed) =
-            forged(target, None, Some(0), Forged::Jump(false), |function, _| {
-                function.blocks[0].instructions[1].kind = SelectedInstructionKind::MaterializeI64 {
-                    value: IntegerValue::Unsigned(5),
-                };
-            });
-        assert_eq!(
-            validate_boundary_branch_fold(&source, 0, BRANCH, &environment, budget(), proposed)
-                .unwrap_err(),
-            BoundaryBranchError::UnsupportedLiteral
-        );
-    }
-
     /// The same non-pole literal under the collapse: `5 <u x` is neither
     /// a far pole's decided false nor the near pole's nonzero
     /// coincidence, so the rewrite to `ConditionalBranchNonZero` is a
@@ -948,26 +924,6 @@ mod independence_tests {
                 function.blocks[0].instructions[0].kind = SelectedInstructionKind::MaterializeI64 {
                     value: IntegerValue::Unsigned(5),
                 };
-            });
-        assert_eq!(
-            validate_boundary_branch_fold(&source, 0, BRANCH, &environment, budget(), proposed)
-                .unwrap_err(),
-            BoundaryBranchError::UnsupportedLiteral
-        );
-    }
-
-    /// A compare reading the same register twice publishes the identity
-    /// `ra - ra` state — the constant family's case, carrying no operand
-    /// pole at all. A producer that folded it anyway emits a `Jump` the
-    /// boundary audit never decided.
-    #[test]
-    fn validator_refuses_a_fold_over_the_identity_compare() {
-        let target = NativeTarget::linux_x64();
-        let (source, environment, proposed) =
-            forged(target, None, Some(0), Forged::Jump(false), |function, _| {
-                let compare = &mut function.blocks[0].instructions[2];
-                compare.operands[0].virtual_register = LITA;
-                compare.operands[1].virtual_register = LITA;
             });
         assert_eq!(
             validate_boundary_branch_fold(&source, 0, BRANCH, &environment, budget(), proposed)

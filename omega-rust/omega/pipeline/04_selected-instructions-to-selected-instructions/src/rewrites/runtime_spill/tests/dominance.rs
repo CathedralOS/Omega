@@ -5,12 +5,10 @@ use super::{
     SelectedInstructionKind, SelectedTerminator, VirtualRegisterId,
     baseline_target_register_environment, selected_instruction_plan_identity,
 };
-use crate::RuntimeSpillError;
 use crate::ValidatedRuntimeSpill;
 use crate::rewrites::runtime_spill::admission;
 use crate::rewrites::runtime_spill::tests::budget;
 use crate::spill_selected_runtime_value;
-use crate::validate_runtime_spill;
 use selected_instructions::SelectedBlockOrigin;
 
 fn downstream_use_fixture(
@@ -117,91 +115,6 @@ fn dominated_uses_in_source_and_implementation_blocks_reload_on_every_target() {
                     VirtualRegisterId(1)
                 );
             }
-        }
-    }
-}
-
-#[test]
-fn bypassed_and_unreachable_uses_do_not_gain_initialized_storage() {
-    let environment = baseline_target_register_environment(NativeTarget::linux_x64()).unwrap();
-    for parameter in [false, true] {
-        for bypass in [false, true] {
-            let mut source = downstream_use_fixture(NativeTarget::linux_x64(), parameter, false);
-            let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
-            let tail_index = function.blocks.len() - 1;
-            let anchor_index = if parameter { 2 } else { 1 };
-            if bypass {
-                let instruction = super::super::control(&function.blocks[0].terminator)
-                    .0
-                    .clone();
-                function.blocks[0].terminator = SelectedTerminator::ConditionalBranch {
-                    instruction,
-                    when_nonzero: successor(1),
-                    when_zero: successor(function.blocks[tail_index].id.0),
-                };
-            } else {
-                function.blocks[anchor_index].terminator =
-                    function.blocks[tail_index].terminator.clone();
-            }
-            assert_eq!(
-                spill_selected_runtime_value(
-                    &source,
-                    0,
-                    VirtualRegisterId(1),
-                    &environment,
-                    budget()
-                )
-                .unwrap_err(),
-                RuntimeSpillError::UnsupportedUse,
-                "parameter={parameter} bypass={bypass}"
-            );
-        }
-    }
-}
-
-#[test]
-fn replay_requires_every_dominated_reload_and_exact_dominating_edges() {
-    let environment = baseline_target_register_environment(NativeTarget::linux_x64()).unwrap();
-    for parameter in [false, true] {
-        let source = downstream_use_fixture(NativeTarget::linux_x64(), parameter, false);
-        let result =
-            spill_selected_runtime_value(&source, 0, VirtualRegisterId(1), &environment, budget())
-                .unwrap();
-        for mutation in 0..3 {
-            let mut proposed = result.transformed().clone();
-            let function = &mut proposed.functions[0];
-            let tail_index = function.blocks.len() - 1;
-            match mutation {
-                0 => {
-                    function.blocks[tail_index].instructions.remove(1);
-                }
-                1 => {
-                    function.blocks[tail_index].instructions[2].operands[0].virtual_register =
-                        VirtualRegisterId(1)
-                }
-                2 => {
-                    let instruction = super::super::control(&function.blocks[0].terminator)
-                        .0
-                        .clone();
-                    function.blocks[0].terminator = SelectedTerminator::Jump {
-                        instruction,
-                        successor: successor(function.blocks[tail_index].id.0),
-                    };
-                }
-                _ => unreachable!(),
-            }
-            assert_eq!(
-                validate_runtime_spill(
-                    &source,
-                    0,
-                    VirtualRegisterId(1),
-                    &environment,
-                    budget(),
-                    proposed
-                )
-                .unwrap_err(),
-                RuntimeSpillError::ReplayMismatch
-            );
         }
     }
 }

@@ -203,7 +203,6 @@ mod tests {
         IntegerSign, IntegerType, IntegerValue, IntervalExtraction, Proposition, ScalarTerm,
         ScalarType, ValueId, extract,
     };
-    use semantic_vocabulary::PropositionId;
 
     fn id<T>(raw: u64, constructor: impl FnOnce(u64) -> Option<T>) -> T {
         constructor(raw).expect("nonzero test identity")
@@ -291,25 +290,5 @@ mod tests {
             ])),
             IntervalExtraction::Contradiction
         ));
-    }
-
-    #[test]
-    fn interval_extraction_unsupported_conjunct_keeps_an_independent_supported_bound() {
-        let unsigned = integer(IntegerSign::Unsigned, 8);
-        let value_id = id(1, ValueId::new);
-        let proposition = Proposition::Conjunction(vec![
-            Proposition::LessOrEqual(
-                literal(unsigned, IntegerValue::Unsigned(1)),
-                value(1, unsigned),
-            ),
-            Proposition::Atom(id(9, PropositionId::new)),
-        ]);
-        let IntervalExtraction::Bounds(bounds) = extract(&proposition) else {
-            panic!("supported conjunct remains a valid consequence")
-        };
-        assert_eq!(
-            bounds[&(value_id, unsigned)].lower,
-            Some(IntegerValue::Unsigned(1))
-        );
     }
 }

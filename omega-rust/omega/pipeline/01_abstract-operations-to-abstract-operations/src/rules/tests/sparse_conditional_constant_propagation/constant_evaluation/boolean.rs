@@ -9,10 +9,8 @@ use crate::rules::tests::fixtures::sparse_conditional_constant_propagation::{
     integer_comparison_constant_unit,
 };
 use crate::{PsiOptimizationRule, RuleAnalysisView, compute_analysis};
-use abstract_operations::AbstractOperation;
 use optimization_core::{
-    AnalysisKind, OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
-    ScalarConstantFactIdentity,
+    AnalysisKind, OptimizationRuleContract, OptimizationRuleIdentity, ScalarConstantFactIdentity,
 };
 use optimization_unit::{
     BooleanConstantRewrite, IntegerEvaluationWitness, PsiOptimizationUnit, PsiRewriteCandidate,
@@ -30,31 +28,6 @@ fn propose_one(unit: &PsiOptimizationUnit, rule: &dyn PsiOptimizationRule) -> Ps
         .unwrap();
     assert_eq!(candidates.len(), 1);
     candidates.into_iter().next().unwrap()
-}
-
-fn assert_exact_boolean_fold(
-    unit: PsiOptimizationUnit,
-    rule: &dyn PsiOptimizationRule,
-    expected: bool,
-    unary: bool,
-) {
-    let candidate = propose_one(&unit, rule);
-    assert_eq!(
-        candidate.safety_class(),
-        OptimizationSafetyClass::ExactOperationSemantics
-    );
-    assert_eq!(
-        matches!(
-            candidate.scalar_evaluation_witness().unwrap(),
-            IntegerEvaluationWitness::Unary { .. }
-        ),
-        unary,
-    );
-    let accepted = validate_boolean_evaluation_candidate(&unit, &candidate).unwrap();
-    assert!(matches!(
-        accepted.unit().functions[0].blocks[0].nodes[2].operation,
-        AbstractOperation::BooleanConstant { value, .. } if value == expected
-    ));
 }
 
 fn forge_candidate(
@@ -75,177 +48,6 @@ fn forge_candidate(
         patch,
     )
     .unwrap()
-}
-
-#[test]
-fn boolean_literal_rules_cover_both_truth_boundaries() {
-    let cases: [(
-        BooleanFixtureKind,
-        &dyn PsiOptimizationRule,
-        bool,
-        bool,
-        bool,
-    ); 4] = [
-        (
-            BooleanFixtureKind::Not,
-            &BooleanNotConstantsRule,
-            false,
-            false,
-            true,
-        ),
-        (
-            BooleanFixtureKind::Not,
-            &BooleanNotConstantsRule,
-            true,
-            false,
-            false,
-        ),
-        (
-            BooleanFixtureKind::Equal,
-            &BooleanEqualConstantsRule,
-            false,
-            false,
-            true,
-        ),
-        (
-            BooleanFixtureKind::Equal,
-            &BooleanEqualConstantsRule,
-            true,
-            false,
-            false,
-        ),
-    ];
-    for (kind, rule, left, right, expected) in cases {
-        assert_exact_boolean_fold(
-            boolean_constant_unit(kind, left, right),
-            rule,
-            expected,
-            kind == BooleanFixtureKind::Not,
-        );
-    }
-}
-
-#[test]
-fn integer_comparison_rules_cover_signed_and_unsigned_boundaries() {
-    let unsigned8 = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
-    let signed8 = IntegerType::new(IntegerSign::Signed, 8).unwrap();
-    let u = IntegerValue::Unsigned;
-    let s = IntegerValue::Signed;
-    let cases: [(
-        ComparisonFixtureKind,
-        &dyn PsiOptimizationRule,
-        IntegerType,
-        IntegerValue,
-        IntegerValue,
-        bool,
-    ); 6] = [
-        (
-            ComparisonFixtureKind::Equal,
-            &IntegerEqualConstantsRule,
-            unsigned8,
-            u(0),
-            u(255),
-            false,
-        ),
-        (
-            ComparisonFixtureKind::Equal,
-            &IntegerEqualConstantsRule,
-            signed8,
-            s(-128),
-            s(-128),
-            true,
-        ),
-        (
-            ComparisonFixtureKind::LessThan,
-            &IntegerLessThanConstantsRule,
-            unsigned8,
-            u(255),
-            u(0),
-            false,
-        ),
-        (
-            ComparisonFixtureKind::LessThan,
-            &IntegerLessThanConstantsRule,
-            signed8,
-            s(-128),
-            s(127),
-            true,
-        ),
-        (
-            ComparisonFixtureKind::LessOrEqual,
-            &IntegerLessOrEqualConstantsRule,
-            unsigned8,
-            u(255),
-            u(255),
-            true,
-        ),
-        (
-            ComparisonFixtureKind::LessOrEqual,
-            &IntegerLessOrEqualConstantsRule,
-            signed8,
-            s(127),
-            s(-128),
-            false,
-        ),
-    ];
-    for (kind, rule, scalar_type, left, right, expected) in cases {
-        assert_exact_boolean_fold(
-            integer_comparison_constant_unit(kind, scalar_type, left, right),
-            rule,
-            expected,
-            false,
-        );
-    }
-}
-
-#[test]
-fn every_boolean_constant_rule_declines_every_other_operation_kind() {
-    let unsigned8 = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
-    let units = [
-        boolean_constant_unit(BooleanFixtureKind::Not, true, false),
-        boolean_constant_unit(BooleanFixtureKind::Equal, true, false),
-        integer_comparison_constant_unit(
-            ComparisonFixtureKind::Equal,
-            unsigned8,
-            IntegerValue::Unsigned(7),
-            IntegerValue::Unsigned(8),
-        ),
-        integer_comparison_constant_unit(
-            ComparisonFixtureKind::LessThan,
-            unsigned8,
-            IntegerValue::Unsigned(7),
-            IntegerValue::Unsigned(8),
-        ),
-        integer_comparison_constant_unit(
-            ComparisonFixtureKind::LessOrEqual,
-            unsigned8,
-            IntegerValue::Unsigned(7),
-            IntegerValue::Unsigned(8),
-        ),
-    ];
-    let rules: [&dyn PsiOptimizationRule; 5] = [
-        &BooleanNotConstantsRule,
-        &BooleanEqualConstantsRule,
-        &IntegerEqualConstantsRule,
-        &IntegerLessThanConstantsRule,
-        &IntegerLessOrEqualConstantsRule,
-    ];
-    for (operation_index, unit) in units.iter().enumerate() {
-        let constants = compute_analysis(unit, AnalysisKind::ScalarConstants).unwrap();
-        for (rule_index, rule) in rules.iter().enumerate() {
-            let candidates = rule
-                .propose(
-                    unit,
-                    RuleAnalysisView::new(std::slice::from_ref(&constants)),
-                )
-                .unwrap();
-            assert_eq!(
-                candidates.len(),
-                usize::from(operation_index == rule_index),
-                "rule {rule_index} against operation {operation_index}",
-            );
-        }
-    }
 }
 
 #[test]

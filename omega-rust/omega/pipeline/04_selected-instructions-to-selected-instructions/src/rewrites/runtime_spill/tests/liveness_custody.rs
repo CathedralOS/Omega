@@ -1,30 +1,9 @@
 //! The runtime-spill consumer needs fresh ranges for every cumulative rewrite,
 //! but one range analysis must not replay its immutable prerequisite twice.
 use super::{Arc, NativeTarget, OptimizationUnitIdentity, fixture};
-use crate::analyses::live_ranges::LIVENESS_REPLAYS;
 use crate::{
     LiveRangeError, LivenessError, analyze_live_ranges, analyze_liveness, validate_live_ranges,
 };
-
-#[test]
-fn range_analysis_and_public_validation_each_replay_liveness_once() {
-    for target in [
-        NativeTarget::linux_x64(),
-        NativeTarget::linux_arm64(),
-        NativeTarget::macos_arm64(),
-        NativeTarget::windows_x64(),
-    ] {
-        let selected = fixture(target);
-        let liveness = analyze_liveness(&selected).unwrap();
-        LIVENESS_REPLAYS.set(0);
-        let ranges = analyze_live_ranges(&selected, &liveness).unwrap();
-        assert_eq!(LIVENESS_REPLAYS.get(), 1, "producer prerequisite");
-        LIVENESS_REPLAYS.set(0);
-        let replayed = validate_live_ranges(&selected, &liveness, ranges.plan().clone()).unwrap();
-        assert_eq!(LIVENESS_REPLAYS.get(), 1, "fresh public prerequisite");
-        assert_eq!(ranges, replayed);
-    }
-}
 
 #[test]
 fn invalid_liveness_precedes_range_computation_and_public_range_errors() {

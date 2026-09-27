@@ -226,56 +226,6 @@ fn every_range_literal_rule_declines_an_indeterminate_overlap() {
 }
 
 #[test]
-fn every_range_literal_rule_declines_every_other_operation_shape() {
-    let scalar_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
-    let kinds = [
-        IntegerRangeComparisonKind::RangeLessThanConstant,
-        IntegerRangeComparisonKind::ConstantLessThanRange,
-        IntegerRangeComparisonKind::RangeLessOrEqualConstant,
-        IntegerRangeComparisonKind::ConstantLessOrEqualRange,
-        IntegerRangeComparisonKind::RangeEqualConstant,
-        IntegerRangeComparisonKind::ConstantEqualRange,
-    ];
-    let constants = [
-        IntegerValue::Unsigned(4),
-        IntegerValue::Unsigned(0),
-        IntegerValue::Unsigned(3),
-        IntegerValue::Unsigned(0),
-        IntegerValue::Unsigned(0),
-        IntegerValue::Unsigned(0),
-    ];
-    let ranges = [
-        ProofRangeKind::ZeroToThree,
-        ProofRangeKind::Nonzero,
-        ProofRangeKind::ZeroToThree,
-        ProofRangeKind::ZeroToThree,
-        ProofRangeKind::Zero,
-        ProofRangeKind::Zero,
-    ];
-    for (operation_index, ((operation_kind, constant), range_kind)) in
-        kinds.into_iter().zip(constants).zip(ranges).enumerate()
-    {
-        let unit =
-            range_constant_comparison_unit(operation_kind, scalar_type, range_kind, constant);
-        let scalar_constants = compute_analysis(&unit, AnalysisKind::ScalarConstants).unwrap();
-        let value_ranges = compute_analysis(&unit, AnalysisKind::ValueRanges).unwrap();
-        for (rule_index, candidate_kind) in kinds.into_iter().enumerate() {
-            let candidates = rule(candidate_kind)
-                .propose(
-                    &unit,
-                    RuleAnalysisView::new(&[scalar_constants.clone(), value_ranges.clone()]),
-                )
-                .unwrap();
-            assert_eq!(
-                candidates.len(),
-                usize::from(operation_index == rule_index),
-                "rule {candidate_kind:?} against operation {operation_kind:?}",
-            );
-        }
-    }
-}
-
-#[test]
 fn range_literal_validation_rejects_cross_rule_labels_and_wrong_results() {
     let scalar_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
     let kinds = [

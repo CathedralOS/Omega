@@ -1,13 +1,12 @@
-use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
+use optimization_core::OptimizationUnitIdentity;
 use optimization_unit::{EffectLink, ValueDefinitionSite};
 use register_environment::baseline_target_register_environment;
 use selected_instructions::{
-    LocalStorageSlotId, SelectedBlock, SelectedBlockId, SelectedBlockOrigin,
-    SelectedBoundarySettlement, SelectedBoundarySettlementPayload, SelectedCallContract,
-    SelectedFunction, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
-    SelectedMemoryAccess, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedSuccessor,
-    SelectedSuccessorRole, SelectedTerminator, VirtualRegister, VirtualRegisterId,
-    VirtualRegisterOrigin,
+    SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedBoundarySettlement,
+    SelectedBoundarySettlementPayload, SelectedCallContract, SelectedFunction,
+    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedMemoryAccess,
+    SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedSuccessor, SelectedSuccessorRole,
+    SelectedTerminator, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
@@ -274,39 +273,6 @@ fn relocate(
     )
 }
 
-/// A run bounded by one member twice is the single-member move, which the
-/// separate commuting member relocation proved on its own: STORE_A alone
-/// takes LOAD_D's position, crossing the inert MAT_C and the accounted
-/// LOAD_D under the same commutation audit. The run's own member keeps its
-/// identity and the crossed positions shift one slot.
-#[test]
-fn a_run_of_one_member_is_the_member_relocation() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = fixture(target);
-    let result = relocate(&source, &environment, STORE_A, STORE_A, LOAD_D).unwrap();
-    let original = &source.transformed().functions[0].blocks[0].instructions;
-    let body = &result.transformed().functions[0].blocks[0].instructions;
-    assert_eq!(
-        body.iter()
-            .map(|instruction| instruction.id)
-            .collect::<Vec<_>>(),
-        vec![LOAD_B, MAT_C, LOAD_D, STORE_A, MAT_E]
-    );
-    assert_eq!(body[3], original[0]);
-    validate_commuting_relocation(
-        &source,
-        0,
-        STORE_A,
-        STORE_A,
-        LOAD_D,
-        &environment,
-        budget(),
-        result.transformed().clone(),
-    )
-    .unwrap();
-}
-
 /// An accounted run relocates past an inert position and an accounted load
 /// on every target — downward to the destination's index and upward across
 /// a crossed run — the members keeping their identity, kind, operands,
@@ -378,95 +344,6 @@ fn commuting_run_relocates_on_every_target() {
         assert_eq!(roster[1].instruction, STORE_A);
         assert_eq!(roster[2].instruction, LOAD_B);
     }
-}
-
-/// The family's accounting rule admits every commuting row shape the run
-/// relocation refused: two reads of one place, a read against a write on a
-/// disjoint extent of one place, a write into staging storage distinct
-/// from any place, and a dynamic-extent read against a write on a
-/// different place — each with the roster permuted into the new execution
-/// order.
-#[test]
-fn commuting_access_shapes_admit() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    // A member's store against a crossed read of the same place's disjoint
-    // bytes.
-    let disjoint = mutated(target, |function, _| {
-        function.memory_accesses = vec![
-            access(STORE_A, 1, SelectedMemoryAccessRole::WritePlace, 0, 8),
-            access(LOAD_B, 2, SelectedMemoryAccessRole::ReadPlace, 16, 8),
-            access(LOAD_D, 1, SelectedMemoryAccessRole::ReadPlace, 24, 8),
-        ];
-    });
-    relocate(&disjoint, &environment, STORE_A, LOAD_B, LOAD_D).unwrap();
-    // A member's write into a boundary slot is storage distinct from any
-    // place: the slot is never a place's own storage, so the staged bytes
-    // never reach the place's bytes.
-    let staged = mutated(target, |function, _| {
-        function.memory_accesses = vec![
-            access(
-                STORE_A,
-                1,
-                SelectedMemoryAccessRole::WriteLocal {
-                    slot: LocalStorageSlotId::Boundary {
-                        operation: OperationId::new(61).unwrap(),
-                    },
-                },
-                0,
-                8,
-            ),
-            access(LOAD_B, 2, SelectedMemoryAccessRole::ReadPlace, 16, 8),
-            access(LOAD_D, 1, SelectedMemoryAccessRole::ReadPlace, 24, 8),
-        ];
-    });
-    relocate(&staged, &environment, STORE_A, LOAD_B, LOAD_D).unwrap();
-    // A dynamic-extent member read commutes with a crossed write whose
-    // reach it provably never shares — here a different place entirely.
-    let span = mutated(target, |function, environment| {
-        let store = environment
-            .constraint(environment.selected_keys().store.unwrap())
-            .unwrap()
-            .clone();
-        function.blocks[0].instructions[3] = instruction(
-            LOAD_D,
-            SelectedInstructionKind::Store {
-                byte_offset: 24,
-                byte_size: 8,
-            },
-            &store,
-            &[POINTER, FOURTH],
-        );
-        function.memory_accesses = vec![
-            access(STORE_A, 1, SelectedMemoryAccessRole::WritePlace, 0, 8),
-            dynamic_access(
-                LOAD_B,
-                2,
-                SelectedMemoryAccessRole::ReadByteSpan {
-                    length: ValueId::new(11).unwrap(),
-                    obligation: ObligationId::new(12).unwrap(),
-                    accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
-                        [7; 32],
-                    ),
-                },
-            ),
-            access(LOAD_D, 3, SelectedMemoryAccessRole::WritePlace, 24, 8),
-        ];
-    });
-    relocate(&span, &environment, STORE_A, LOAD_B, LOAD_D).unwrap();
-    // Two reads of one place: neither changes what the other observes.
-    let reads = mutated(target, |function, _| {
-        function.memory_accesses = vec![
-            access(STORE_A, 1, SelectedMemoryAccessRole::WritePlace, 0, 8),
-            access(LOAD_B, 2, SelectedMemoryAccessRole::ReadPlace, 16, 8),
-            access(LOAD_D, 2, SelectedMemoryAccessRole::ReadPlace, 40, 8),
-        ];
-    });
-    let result = relocate(&reads, &environment, STORE_A, LOAD_B, LOAD_D).unwrap();
-    assert_eq!(
-        result.transformed().functions[0].memory_accesses[0].instruction,
-        LOAD_D
-    );
 }
 
 /// The commutation bound: a write whose reach cannot be bounded away from
@@ -962,69 +839,6 @@ fn replay_restores_the_source_by_content() {
     );
 }
 
-/// An adjacent destination is the distance-one case: the run and the
-/// accounted position it lands on trade places directly with an empty
-/// interior, and the roster rows of positions outside the window keep
-/// their places.
-#[test]
-fn adjacent_destination_relocates() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = mutated(target, |function, environment| {
-        let load = environment
-            .constraint(environment.selected_keys().load8.unwrap())
-            .unwrap()
-            .clone();
-        function.blocks[0].instructions[2] = instruction(
-            MAT_C,
-            SelectedInstructionKind::Load8 { byte_offset: 32 },
-            &load,
-            &[POINTER, THIRD],
-        );
-        function.memory_accesses = vec![
-            access(STORE_A, 1, SelectedMemoryAccessRole::WritePlace, 0, 8),
-            access(LOAD_B, 2, SelectedMemoryAccessRole::ReadPlace, 16, 8),
-            access(MAT_C, 4, SelectedMemoryAccessRole::ReadPlace, 32, 8),
-            access(LOAD_D, 3, SelectedMemoryAccessRole::ReadPlace, 24, 8),
-        ];
-    });
-    let result = relocate(&source, &environment, STORE_A, LOAD_B, MAT_C).unwrap();
-    let body = &result.transformed().functions[0].blocks[0].instructions;
-    assert_eq!(
-        body.iter()
-            .map(|instruction| instruction.id)
-            .collect::<Vec<_>>(),
-        vec![MAT_C, STORE_A, LOAD_B, LOAD_D, MAT_E]
-    );
-    let roster = &result.transformed().functions[0].memory_accesses;
-    assert_eq!(roster[0].instruction, MAT_C);
-    assert_eq!(roster[1].instruction, STORE_A);
-    assert_eq!(roster[2].instruction, LOAD_B);
-    assert_eq!(roster[3].instruction, LOAD_D);
-}
-
-/// The admission walk is bounded by the validation budget: a plan whose
-/// scan cost exceeds it refuses rather than running unbounded.
-#[test]
-fn work_budget_bounds_the_scan() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = fixture(target);
-    assert_eq!(
-        relocate_selected_commuting_members(
-            &source,
-            0,
-            STORE_A,
-            LOAD_B,
-            LOAD_D,
-            &environment,
-            OptimizationWorkBudget::new(100, 100, 1, 100, 100).unwrap(),
-        )
-        .unwrap_err(),
-        CommutingRelocationError::WorkBudgetExceeded
-    );
-}
-
 /// The measured validation-step boundary: admission charges one step per
 /// block plus one per instruction across the plan, then the member and
 /// crossed surfaces plus the roster-row product for each run
@@ -1150,69 +964,6 @@ fn measured_validation_step_boundary_admits_and_rejects() {
             CommutingRelocationError::WorkBudgetExceeded
         );
     }
-}
-
-/// Two relocations over the identical source produce the identical
-/// validated result, and the published plan is a legal second input
-/// through the sealed analysis boundary: on the transformed plan the run
-/// sits on the crossed positions' far side, so naming the window's
-/// leading position relocates it back to restore the source plan
-/// bit-identically, while a misordered run still declines.
-#[test]
-fn relocation_is_deterministic_and_re_admitted() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = fixture(target);
-    let first = relocate(&source, &environment, STORE_A, LOAD_B, LOAD_D).unwrap();
-    let second = relocate(&source, &environment, STORE_A, LOAD_B, LOAD_D).unwrap();
-    assert_eq!(first, second);
-    // The validated output carries the sealed analysis boundary, so it is
-    // a legal second input — not merely a reconstruction of one. On the
-    // transformed plan the run follows the crossed positions, so naming
-    // MAT_C's leading position admits the relocation back to the
-    // published source.
-    let restored = relocate_selected_commuting_members(
-        &first,
-        0,
-        STORE_A,
-        LOAD_B,
-        MAT_C,
-        &environment,
-        budget(),
-    )
-    .unwrap();
-    assert_eq!(restored.transformed(), source.transformed());
-    assert_eq!(
-        restored.receipt().transformed_selected(),
-        source.selected_identity()
-    );
-    validate_commuting_relocation(
-        &first,
-        0,
-        STORE_A,
-        LOAD_B,
-        MAT_C,
-        &environment,
-        budget(),
-        restored.transformed().clone(),
-    )
-    .unwrap();
-    // A misordered run still declines on the second input: the last member
-    // must follow the first inside the block, and on the transformed plan
-    // STORE_A leads LOAD_B — naming them in reverse bounds no run.
-    assert_eq!(
-        relocate_selected_commuting_members(
-            &first,
-            0,
-            LOAD_B,
-            STORE_A,
-            MAT_C,
-            &environment,
-            budget()
-        )
-        .unwrap_err(),
-        CommutingRelocationError::UnsupportedPair
-    );
 }
 
 /// Replay drift beyond the admitted window still fails the

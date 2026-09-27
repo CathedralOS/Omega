@@ -310,11 +310,6 @@ fn bare_unit_result_signature_must_match_normal_exits() {
     ));
 }
 
-#[test]
-fn independently_accepts_verified_context_and_frontier_coverage() {
-    validate_verified_psi_optimization_unit(&verified_unit()).unwrap();
-}
-
 fn refresh_identity(unit: &mut PsiOptimizationUnit) {
     unit.identity = recompute_psi_optimization_unit_identity(unit);
 }

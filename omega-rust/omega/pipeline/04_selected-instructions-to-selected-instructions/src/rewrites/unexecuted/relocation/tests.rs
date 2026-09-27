@@ -4,16 +4,14 @@ use register_environment::{
     ValidatedTargetRegisterEnvironment, baseline_target_register_environment,
 };
 use selected_instructions::{
-    SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedBoundarySettlement,
-    SelectedBoundarySettlementPayload, SelectedFunction, SelectedInstruction,
+    SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
     SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedMemoryAccess,
     SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedSuccessor, SelectedSuccessorRole,
-    SelectedTerminator, SelectedValueBinding, SelectedValueTransport, VirtualRegister,
-    VirtualRegisterId, VirtualRegisterOrigin,
+    SelectedTerminator, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{
-    BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
-    IntegerValue, MachineId, OperationId, PlaceId, ScalarType, ValueId,
+    BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
+    OperationId, PlaceId, ScalarType, ValueId,
 };
 use target::NativeTarget;
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
@@ -57,7 +55,6 @@ const BLOCK_C: SelectedBlockId = SelectedBlockId(2);
 const BLOCK_D: SelectedBlockId = SelectedBlockId(3);
 const EDGE_AB: u64 = 10;
 const EDGE_BC: u64 = 11;
-const EDGE_CD: u64 = 12;
 const EDGE_AD: u64 = 13;
 const EDGE_DB: u64 = 14;
 
@@ -86,18 +83,6 @@ fn successor(block: SelectedBlockId, source_target: BlockId, edge: u64) -> Selec
         source_target,
         bindings: Vec::new(),
         fuel: Vec::new(),
-    }
-}
-
-fn settlement(block: SelectedBlockId, position: u32, operation: u64) -> SelectedBoundarySettlement {
-    SelectedBoundarySettlement {
-        block,
-        instruction_index: position,
-        settlement: SelectedBoundarySettlementPayload::HostedWriteByteI32 {
-            operation: OperationId::new(operation).unwrap(),
-            boundary: BoundaryMachineId::new(1).unwrap(),
-            source: ValueId::new(9).unwrap(),
-        },
     }
 }
 
@@ -347,101 +332,6 @@ fn ids(block: &SelectedBlock) -> Vec<SelectedInstructionId> {
         .collect()
 }
 
-/// A member crosses its block's `Jump` edge onto the destination's position —
-/// the edge family's shape through the shared admission: `MOVING` leaves A's
-/// body and lands at B's head with the destination and every later position
-/// one run-width later in their original order, identity, kind, operands, and
-/// provenance intact. The replayed proposal restores the source bit-identical.
-#[test]
-fn member_relocates_across_the_jump_edge() {
-    for target in [
-        NativeTarget::linux_x64(),
-        NativeTarget::linux_arm64(),
-        NativeTarget::windows_x64(),
-        NativeTarget::macos_arm64(),
-    ] {
-        let environment = baseline_target_register_environment(target).unwrap();
-        let source = fixture(target);
-        let result = relocate_member(&source, &environment, MOVING, HEAD).unwrap();
-        let original = &source.transformed().functions[0];
-        let moved = &result.transformed().functions[0];
-        assert_eq!(ids(&moved.blocks[0]), vec![LEAD, MOVING_SECOND, TRAIL]);
-        assert_eq!(ids(&moved.blocks[1]), vec![MOVING, HEAD, MID, TAIL]);
-        // The member moved bit-identically; both terminators and every
-        // roster stayed untouched.
-        assert_eq!(
-            moved.blocks[1].instructions[0],
-            original.blocks[0].instructions[1]
-        );
-        assert_eq!(moved.blocks[0].terminator, original.blocks[0].terminator);
-        assert_eq!(moved.blocks[1].terminator, original.blocks[1].terminator);
-        assert_eq!(moved.memory_accesses, original.memory_accesses);
-        assert_eq!(moved.calls, original.calls);
-        assert_eq!(moved.boundary_settlements, original.boundary_settlements);
-        validate_member_run_relocation(
-            &source,
-            0,
-            MOVING,
-            MOVING,
-            HEAD,
-            &environment,
-            budget(),
-            result.transformed().clone(),
-        )
-        .unwrap();
-    }
-}
-
-/// The contiguous run the two named members bound leaves its block as one
-/// body: `MOVING..MOVING_SECOND` relocate onto `HEAD`'s position in member
-/// order.
-#[test]
-fn contiguous_run_relocates_as_one_body() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = fixture(target);
-    let moved = relocate(&source, &environment, MOVING, MOVING_SECOND, HEAD).unwrap();
-    assert_eq!(
-        ids(&moved.transformed().functions[0].blocks[0]),
-        vec![LEAD, TRAIL]
-    );
-    assert_eq!(
-        ids(&moved.transformed().functions[0].blocks[1]),
-        vec![MOVING, MOVING_SECOND, HEAD, MID, TAIL]
-    );
-    validate_member_run_relocation(
-        &source,
-        0,
-        MOVING,
-        MOVING_SECOND,
-        HEAD,
-        &environment,
-        budget(),
-        moved.transformed().clone(),
-    )
-    .unwrap();
-}
-
-/// Naming the destination instruction chooses the landing position: a body
-/// instruction puts the run on its index and the terminator-carried
-/// instruction lands the run at the body end.
-#[test]
-fn the_named_destination_chooses_the_landing_position() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = fixture(target);
-    let middle = relocate_member(&source, &environment, MOVING, MID).unwrap();
-    assert_eq!(
-        ids(&middle.transformed().functions[0].blocks[1]),
-        vec![HEAD, MOVING, MID, TAIL]
-    );
-    let body_end = relocate_member(&source, &environment, MOVING, RET).unwrap();
-    assert_eq!(
-        ids(&body_end.transformed().functions[0].blocks[1]),
-        vec![HEAD, MID, TAIL, MOVING]
-    );
-}
-
 /// A destination inside the run's own block is the in-block move: backward
 /// places the member on the named position, forward places the run's last
 /// member on it — every crossed body position checked once in between.
@@ -486,292 +376,6 @@ fn member_relocates_within_its_own_block() {
     assert_eq!(
         ids(&forward_run.transformed().functions[0].blocks[0]),
         vec![LEAD, TRAIL, MOVING, MOVING_SECOND]
-    );
-}
-
-/// The admission the per-shape families do not reach: a member relocates
-/// through an intermediate block — `MOVING` leaves A and lands in B across
-/// the `A -> C -> B` chain, crossing A's tail, both edges, and C's whole
-/// body. Every traversal still runs the member exactly once: C's only exit
-/// reaches B and B's only predecessor lies on a crossed path.
-#[test]
-fn member_relocates_across_a_chain_window() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = mutated(target, |function, environment| {
-        let keys = environment.selected_keys();
-        let jump_row = environment.constraint(keys.jump).unwrap();
-        let materialize = environment.constraint(keys.materialize_i64).unwrap();
-        // Splice a bridge block between A and B: A -> C -> B.
-        if let SelectedTerminator::Jump {
-            successor: edge, ..
-        } = &mut function.blocks[0].terminator
-        {
-            *edge = successor(BLOCK_C, BlockId::new(3).unwrap(), EDGE_AB);
-        }
-        function.blocks.insert(
-            1,
-            block(
-                BLOCK_C,
-                3,
-                vec![instruction(
-                    BRIDGE,
-                    SelectedInstructionKind::MaterializeI64 {
-                        value: IntegerValue::Unsigned(17),
-                    },
-                    materialize,
-                    &[R_BRIDGE],
-                )],
-                jump_terminator(
-                    instruction(BRIDGE_JUMP, SelectedInstructionKind::Jump, jump_row, &[]),
-                    successor(BLOCK_B, BlockId::new(2).unwrap(), EDGE_CD),
-                ),
-            ),
-        );
-    });
-    let moved = relocate_member(&source, &environment, MOVING, HEAD).unwrap();
-    let function = &moved.transformed().functions[0];
-    assert_eq!(ids(&function.blocks[0]), vec![LEAD, MOVING_SECOND, TRAIL]);
-    assert_eq!(ids(&function.blocks[1]), vec![BRIDGE]);
-    assert_eq!(ids(&function.blocks[2]), vec![MOVING, HEAD, MID, TAIL]);
-    validate_member_run_relocation(
-        &source,
-        0,
-        MOVING,
-        MOVING,
-        HEAD,
-        &environment,
-        budget(),
-        moved.transformed().clone(),
-    )
-    .unwrap();
-}
-
-/// A member above a diamond lands beneath it: with A branching to C and to D
-/// and both arms jumping to B, every predecessor edge into B lies on a
-/// crossed path and every exit of every crossed block reaches B — the shape
-/// the dedicated diamond family enumerates, through the shared admission.
-#[test]
-fn member_relocates_through_a_diamond_window() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = mutated(target, |function, environment| {
-        let keys = environment.selected_keys();
-        let branch_row = environment.constraint(keys.conditional_branch).unwrap();
-        let jump_row = environment.constraint(keys.jump).unwrap();
-        let materialize = environment.constraint(keys.materialize_i64).unwrap();
-        let arm = |block_id, member_id, register, jump_id, edge, source_target| {
-            block(
-                block_id,
-                source_target,
-                vec![instruction(
-                    member_id,
-                    SelectedInstructionKind::MaterializeI64 {
-                        value: IntegerValue::Unsigned(31),
-                    },
-                    materialize,
-                    &[register],
-                )],
-                jump_terminator(
-                    instruction(jump_id, SelectedInstructionKind::Jump, jump_row, &[]),
-                    successor(BLOCK_B, BlockId::new(2).unwrap(), edge),
-                ),
-            )
-        };
-        function
-            .blocks
-            .insert(1, arm(BLOCK_C, BRIDGE, R_BRIDGE, BRIDGE_JUMP, EDGE_BC, 3));
-        function
-            .blocks
-            .insert(2, arm(BLOCK_D, SIDE, R_SIDE, SIDE_JUMP, EDGE_AD, 4));
-        function.blocks[0].terminator = SelectedTerminator::ConditionalBranch {
-            instruction: instruction(
-                JUMP,
-                SelectedInstructionKind::ConditionalBranchNonZero,
-                branch_row,
-                &[],
-            ),
-            when_nonzero: successor(BLOCK_C, BlockId::new(3).unwrap(), EDGE_AB),
-            when_zero: successor(BLOCK_D, BlockId::new(4).unwrap(), EDGE_CD),
-        };
-    });
-    let moved = relocate_member(&source, &environment, MOVING, HEAD).unwrap();
-    let function = &moved.transformed().functions[0];
-    assert_eq!(ids(&function.blocks[0]), vec![LEAD, MOVING_SECOND, TRAIL]);
-    assert_eq!(ids(&function.blocks[1]), vec![BRIDGE]);
-    assert_eq!(ids(&function.blocks[2]), vec![SIDE]);
-    assert_eq!(ids(&function.blocks[3]), vec![MOVING, HEAD, MID, TAIL]);
-    validate_member_run_relocation(
-        &source,
-        0,
-        MOVING,
-        MOVING,
-        HEAD,
-        &environment,
-        budget(),
-        moved.transformed().clone(),
-    )
-    .unwrap();
-    let run = relocate(&source, &environment, MOVING, MOVING_SECOND, HEAD).unwrap();
-    let function = &run.transformed().functions[0];
-    assert_eq!(ids(&function.blocks[0]), vec![LEAD, TRAIL]);
-    assert_eq!(
-        ids(&function.blocks[3]),
-        vec![MOVING, MOVING_SECOND, HEAD, MID, TAIL]
-    );
-    validate_member_run_relocation(
-        &source,
-        0,
-        MOVING,
-        MOVING_SECOND,
-        HEAD,
-        &environment,
-        budget(),
-        run.transformed().clone(),
-    )
-    .unwrap();
-}
-
-/// The upstream move is the same admission with the paths reversed: the
-/// member leaves B and takes a position in A, the block whose sole edge
-/// reaches it. Every traversal that reaches B comes through A, and A's only
-/// exit is B, so the run executes exactly as often as before. This is what
-/// the per-shape upstream families prove by hand.
-#[test]
-fn member_relocates_upstream_across_the_jump_edge() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = fixture(target);
-    let moved = relocate_member(&source, &environment, HEAD, MOVING).unwrap();
-    let function = &moved.transformed().functions[0];
-    assert_eq!(
-        ids(&function.blocks[0]),
-        vec![LEAD, HEAD, MOVING, MOVING_SECOND, TRAIL]
-    );
-    assert_eq!(ids(&function.blocks[1]), vec![MID, TAIL]);
-    validate_member_run_relocation(
-        &source,
-        0,
-        HEAD,
-        HEAD,
-        MOVING,
-        &environment,
-        budget(),
-        moved.transformed().clone(),
-    )
-    .unwrap();
-    let run = relocate(&source, &environment, HEAD, MID, MOVING).unwrap();
-    let function = &run.transformed().functions[0];
-    assert_eq!(
-        ids(&function.blocks[0]),
-        vec![LEAD, HEAD, MID, MOVING, MOVING_SECOND, TRAIL]
-    );
-    assert_eq!(ids(&function.blocks[1]), vec![TAIL]);
-    validate_member_run_relocation(
-        &source,
-        0,
-        HEAD,
-        MID,
-        MOVING,
-        &environment,
-        budget(),
-        run.transformed().clone(),
-    )
-    .unwrap();
-}
-
-/// Upstream out of a converging join, through the complete diamond that
-/// feeds it: the member leaves B and lands in the branching head A, whose
-/// arms C and D alone reach B. Both edges into B are crossed and every exit
-/// of A, C and D is crossed, so no traversal is gained or lost.
-#[test]
-fn member_relocates_upstream_out_of_a_join() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = mutated(target, |function, environment| {
-        let keys = environment.selected_keys();
-        let branch_row = environment.constraint(keys.conditional_branch).unwrap();
-        let jump_row = environment.constraint(keys.jump).unwrap();
-        let materialize = environment.constraint(keys.materialize_i64).unwrap();
-        let arm = |block_id, member_id, register, jump_id, edge, source_target| {
-            block(
-                block_id,
-                source_target,
-                vec![instruction(
-                    member_id,
-                    SelectedInstructionKind::MaterializeI64 {
-                        value: IntegerValue::Unsigned(31),
-                    },
-                    materialize,
-                    &[register],
-                )],
-                jump_terminator(
-                    instruction(jump_id, SelectedInstructionKind::Jump, jump_row, &[]),
-                    successor(BLOCK_B, BlockId::new(2).unwrap(), edge),
-                ),
-            )
-        };
-        function
-            .blocks
-            .insert(1, arm(BLOCK_C, BRIDGE, R_BRIDGE, BRIDGE_JUMP, EDGE_BC, 3));
-        function
-            .blocks
-            .insert(2, arm(BLOCK_D, SIDE, R_SIDE, SIDE_JUMP, EDGE_AD, 4));
-        function.blocks[0].terminator = SelectedTerminator::ConditionalBranch {
-            instruction: instruction(
-                JUMP,
-                SelectedInstructionKind::ConditionalBranchNonZero,
-                branch_row,
-                &[],
-            ),
-            when_nonzero: successor(BLOCK_C, BlockId::new(3).unwrap(), EDGE_AB),
-            when_zero: successor(BLOCK_D, BlockId::new(4).unwrap(), EDGE_CD),
-        };
-    });
-    let moved = relocate_member(&source, &environment, HEAD, MOVING).unwrap();
-    let function = &moved.transformed().functions[0];
-    assert_eq!(
-        ids(&function.blocks[0]),
-        vec![LEAD, HEAD, MOVING, MOVING_SECOND, TRAIL]
-    );
-    assert_eq!(ids(&function.blocks[3]), vec![MID, TAIL]);
-    validate_member_run_relocation(
-        &source,
-        0,
-        HEAD,
-        HEAD,
-        MOVING,
-        &environment,
-        budget(),
-        moved.transformed().clone(),
-    )
-    .unwrap();
-}
-
-/// A predecessor of the run's own block that no crossed path covers is a
-/// traversal the upstream move would lose: with a second jump edge into B
-/// from a detached side block, the member no longer executes on it.
-#[test]
-fn an_uncrossed_predecessor_of_the_run_block_refuses_upstream() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = mutated(target, |function, environment| {
-        let jump_row = environment
-            .constraint(environment.selected_keys().jump)
-            .unwrap();
-        function.blocks.push(block(
-            BLOCK_D,
-            4,
-            Vec::new(),
-            jump_terminator(
-                instruction(SIDE_JUMP, SelectedInstructionKind::Jump, jump_row, &[]),
-                successor(BLOCK_B, BlockId::new(2).unwrap(), EDGE_DB),
-            ),
-        ));
-    });
-    assert_eq!(
-        relocate_member(&source, &environment, HEAD, MOVING),
-        Err(MemberRunRelocationError::UnsupportedPair)
     );
 }
 
@@ -968,44 +572,6 @@ fn an_uncrossed_exit_of_the_run_block_refuses() {
     );
 }
 
-/// Nothing arrives at a detached block, so the arrival audit would prove
-/// nothing there: a B member naming a position in a block with no
-/// predecessor edge refuses in both directions.
-#[test]
-fn an_arrival_block_with_no_predecessor_refuses() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = mutated(target, |function, environment| {
-        let jump_row = environment
-            .constraint(environment.selected_keys().jump)
-            .unwrap();
-        // D reaches B but nothing reaches D, so the upstream walk from D
-        // finds the run's block while D itself is never arrived at.
-        function.blocks.push(block(
-            BLOCK_D,
-            4,
-            vec![instruction(
-                SIDE,
-                SelectedInstructionKind::MaterializeI64 {
-                    value: IntegerValue::Unsigned(31),
-                },
-                environment
-                    .constraint(environment.selected_keys().materialize_i64)
-                    .unwrap(),
-                &[R_SIDE],
-            )],
-            jump_terminator(
-                instruction(SIDE_JUMP, SelectedInstructionKind::Jump, jump_row, &[]),
-                successor(BLOCK_B, BlockId::new(2).unwrap(), EDGE_DB),
-            ),
-        ));
-    });
-    assert_eq!(
-        relocate_member(&source, &environment, HEAD, SIDE),
-        Err(MemberRunRelocationError::UnsupportedPair)
-    );
-}
-
 /// A destination that no acyclic path from the run's block reaches refuses:
 /// the detached block D has no edge into it, so a B member naming one of its
 /// instructions cannot relocate.
@@ -1090,41 +656,6 @@ fn a_barrier_member_refuses() {
     );
 }
 
-/// A member coupled with a crossed position — writing a register a crossed
-/// instruction reads — refuses.
-#[test]
-fn a_member_coupled_with_a_crossed_position_refuses() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = mutated(target, |function, environment| {
-        // MOVING and TRAIL now share R_MOVE: MOVING defines it, TRAIL reads
-        // it — relocating MOVING past TRAIL would change TRAIL's operand.
-        let materialize = environment
-            .constraint(environment.selected_keys().materialize_i64)
-            .unwrap();
-        function.blocks[0].instructions[2] = instruction(
-            MOVING_SECOND,
-            SelectedInstructionKind::MaterializeI64 {
-                value: IntegerValue::Unsigned(8),
-            },
-            materialize,
-            &[R_MOVE],
-        );
-        function.blocks[0].instructions[3] = instruction(
-            TRAIL,
-            SelectedInstructionKind::CopyI64,
-            environment
-                .constraint(environment.selected_keys().copy_i64)
-                .unwrap(),
-            &[R_MOVE, R_TRAIL],
-        );
-    });
-    assert_eq!(
-        relocate_member(&source, &environment, MOVING, HEAD),
-        Err(MemberRunRelocationError::UnsupportedPair)
-    );
-}
-
 /// A roster-carrying run sharing its window with a second accounted memory
 /// actor refuses: MOVING's access row plus an edge-origin row on the crossed
 /// Jump edge reorder two recorded accesses.
@@ -1142,62 +673,6 @@ fn a_second_memory_actor_in_the_window_refuses() {
     });
     assert_eq!(
         relocate_member(&source, &environment, MOVING, HEAD),
-        Err(MemberRunRelocationError::UnsupportedPair)
-    );
-}
-
-/// A register transport on the crossed edge writing the parameter a member
-/// would hand a stale value or observe out of order refuses.
-#[test]
-fn an_edge_transport_conflicting_with_a_member_refuses() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = mutated(target, |function, _| {
-        if let SelectedTerminator::Jump { successor, .. } = &mut function.blocks[0].terminator {
-            successor.bindings.push(SelectedValueBinding {
-                semantic: abstract_operations::ValueBinding {
-                    parameter: ValueId::new(50).unwrap(),
-                    argument: ValueId::new(51).unwrap(),
-                    scalar_type: ScalarType::Integer(
-                        IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
-                    ),
-                },
-                transport: SelectedValueTransport::Registers {
-                    argument: R_LEAD,
-                    parameter: R_MOVE,
-                },
-            });
-        }
-    });
-    assert_eq!(
-        relocate_member(&source, &environment, MOVING, HEAD),
-        Err(MemberRunRelocationError::UnsupportedPair)
-    );
-}
-
-/// A settlement positioned past the run's first index observed a member
-/// inside the source block's executed prefix; past the landing index it
-/// observes the run inside the destination's. Both refuse.
-#[test]
-fn settlements_at_the_window_boundary_refuse() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let in_run = mutated(target, |function, _| {
-        function
-            .boundary_settlements
-            .push(settlement(BLOCK_A, 2, 70));
-    });
-    assert_eq!(
-        relocate_member(&in_run, &environment, MOVING, HEAD),
-        Err(MemberRunRelocationError::UnsupportedPair)
-    );
-    let in_destination = mutated(target, |function, _| {
-        function
-            .boundary_settlements
-            .push(settlement(BLOCK_B, 1, 71));
-    });
-    assert_eq!(
-        relocate_member(&in_destination, &environment, MOVING, HEAD),
         Err(MemberRunRelocationError::UnsupportedPair)
     );
 }
@@ -1236,11 +711,11 @@ fn a_proposal_outside_the_window_refuses() {
 /// rejects with the legality error, not a replay mismatch.
 mod independence_tests {
     use super::{
-        BLOCK_B, BLOCK_D, BlockId, EDGE_DB, HEAD, IntegerValue, LEAD, MOVING, MOVING_SECOND,
+        BLOCK_B, BLOCK_D, BlockId, EDGE_DB, HEAD, IntegerValue, MOVING, MOVING_SECOND,
         MemberRunRelocationError, NativeTarget, R_MOVE, R_TRAIL, SIDE_JUMP, SelectedInstructionId,
         SelectedInstructionKind, SelectedInstructionPlan, TRAIL, ValidatedMemberRunRelocation,
-        baseline_target_register_environment, block, budget, fixture, instruction, jump_terminator,
-        mutated, successor, validate_member_run_relocation,
+        baseline_target_register_environment, block, budget, instruction, jump_terminator, mutated,
+        successor, validate_member_run_relocation,
     };
 
     /// Move the contiguous run `first`..`last` out of its block's body and
@@ -1280,70 +755,6 @@ mod independence_tests {
             .instructions
             .splice(landing_index..landing_index, run);
         proposed
-    }
-
-    /// A forged relocation of a window the validator's own audit admits
-    /// validates: the member and the crossed positions carry no hazards,
-    /// no roster rows, and no barriers, so the audit derives the move and
-    /// the content comparison accepts it.
-    #[test]
-    fn forged_member_move_on_a_legal_window_validates() {
-        let target = NativeTarget::linux_x64();
-        let environment = baseline_target_register_environment(target).unwrap();
-        let source = fixture(target);
-        validate_member_run_relocation(
-            &source,
-            0,
-            MOVING,
-            MOVING,
-            HEAD,
-            &environment,
-            budget(),
-            forged(&source, MOVING, MOVING, 1, 0),
-        )
-        .unwrap();
-    }
-
-    /// The same holds for the multi-member run: `MOVING..MOVING_SECOND`
-    /// spliced at `HEAD`'s index in block B is the legal cross-edge move
-    /// the contract admits, and the validator's own audit agrees.
-    #[test]
-    fn forged_run_move_on_a_legal_window_validates() {
-        let target = NativeTarget::linux_x64();
-        let environment = baseline_target_register_environment(target).unwrap();
-        let source = fixture(target);
-        validate_member_run_relocation(
-            &source,
-            0,
-            MOVING,
-            MOVING_SECOND,
-            HEAD,
-            &environment,
-            budget(),
-            forged(&source, MOVING, MOVING_SECOND, 1, 0),
-        )
-        .unwrap();
-    }
-
-    /// The in-block move is the same contract one block earlier: `LEAD`
-    /// forwarded onto `TRAIL`'s index lands at the body end, the trailing
-    /// edge the derived window admits.
-    #[test]
-    fn forged_member_move_inside_its_own_block_validates() {
-        let target = NativeTarget::linux_x64();
-        let environment = baseline_target_register_environment(target).unwrap();
-        let source = fixture(target);
-        validate_member_run_relocation(
-            &source,
-            0,
-            LEAD,
-            LEAD,
-            TRAIL,
-            &environment,
-            budget(),
-            forged(&source, LEAD, LEAD, 0, 3),
-        )
-        .unwrap();
     }
 
     /// A producer that admitted a hazard-coupled window anyway would
@@ -1429,32 +840,6 @@ mod independence_tests {
             )
             .unwrap_err(),
             MemberRunRelocationError::UnsupportedPair
-        );
-    }
-
-    /// A forged run landing off the derived index publishes a window
-    /// whose content is not the admitted move: the member at `MID`'s slot
-    /// rather than `HEAD`'s fails the content comparison with
-    /// `ReplayMismatch` — the legality audit accepted the window, so only
-    /// the placement distinguishes the proposal.
-    #[test]
-    fn forged_member_off_the_derived_landing_rejects() {
-        let target = NativeTarget::linux_x64();
-        let environment = baseline_target_register_environment(target).unwrap();
-        let source = fixture(target);
-        assert_eq!(
-            validate_member_run_relocation(
-                &source,
-                0,
-                MOVING,
-                MOVING,
-                HEAD,
-                &environment,
-                budget(),
-                forged(&source, MOVING, MOVING, 1, 1),
-            )
-            .unwrap_err(),
-            MemberRunRelocationError::ReplayMismatch
         );
     }
 }

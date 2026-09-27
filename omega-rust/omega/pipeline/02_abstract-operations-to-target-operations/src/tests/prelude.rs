@@ -7,10 +7,10 @@ pub(super) use crate::lowering::{
 };
 pub(super) use abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
-    AbstractOperationPlan, AbstractParameter, AbstractResult, AbstractSuccessor, ValueBinding,
+    AbstractOperationPlan, AbstractParameter, AbstractResult,
 };
 pub(super) use calling_conventions::{
-    CallSignature, CallingPolicy, ValueLocation, ValueShape, evaluate_call_plan,
+    CallSignature, CallingPolicy, ValueShape, evaluate_call_plan,
 };
 pub(super) use installation_evidence::{
     InstalledProviderCallEvidence, InstalledProviderCompletionClaimSource,
@@ -22,8 +22,7 @@ pub(super) use semantic_vocabulary::{
 };
 pub(super) use target::NativeTarget;
 pub(super) use target_operations::{
-    ScalarParameterLocation, TargetIntegerExpression, TargetUnitOperation,
-    TargetUnitScalarArgumentSource,
+    TargetIntegerExpression, TargetUnitOperation, TargetUnitScalarArgumentSource,
 };
 pub(super) use terminal_psi::{
     BoundaryMachineDeclaration, CrashCause, CrashRouteBucket, CrashRouteGuard, SemanticFingerprint,

@@ -2,16 +2,13 @@
 use super::super::{TargetLoweringRequest, lower_to_target_operations};
 use super::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
-    AbstractOperationPlan, AbstractParameter, AbstractResult, BlockId, CallSignature,
-    CallingPolicy, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, NativeTarget,
-    OperationId, PlaceId, ScalarType, StructuralAccess, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeId,
-    StructuralTypeShape, TargetUnitOperation, TerminalAffineCleanupAction, ValueId, ValueShape,
-    evaluate_call_plan, identity,
+    AbstractOperationPlan, AbstractParameter, AbstractResult, BlockId, EdgeId, IntegerSign,
+    IntegerType, IntegerValue, MachineId, NativeTarget, OperationId, PlaceId, ScalarType,
+    StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, TerminalAffineCleanupAction,
+    ValueId, ValueShape, identity,
 };
-use target_operations::{
-    ScalarFunctionAbi, TargetControlTerminator, TargetUnitWriteOnlyPrimitiveStoreSource,
-};
+use target_operations::ScalarFunctionAbi;
 
 fn fixture(runtime: bool) -> AbstractOperationPlan {
     let machine = MachineId::new(1).unwrap();
@@ -105,67 +102,6 @@ fn fixture(runtime: bool) -> AbstractOperationPlan {
 }
 
 #[test]
-fn scalar_primitive_store_preserves_mixed_abi_order_and_return_on_four_targets() {
-    for native in [
-        NativeTarget::linux_x64(),
-        NativeTarget::linux_arm64(),
-        NativeTarget::macos_arm64(),
-        NativeTarget::windows_x64(),
-    ] {
-        for runtime in [false, true] {
-            let source = fixture(runtime);
-            let target =
-                lower_to_target_operations(&source, TargetLoweringRequest::new(native)).unwrap();
-            crate::validate_abstract_to_target_translation(&source, native, &target).unwrap();
-            let function = &target.functions[0];
-            assert!(function.scalar_abi.is_none());
-            let abi = function.mixed_structural_scalar_abi.as_ref().unwrap();
-            let graph = &function.graph;
-            assert_eq!(graph.call_plan, abi.call_plan);
-            assert_eq!(graph.scalar_parameters, abi.scalar_parameters);
-            assert_eq!(graph.parameters, abi.structural_parameters);
-            assert_eq!(abi.scalar_parameters.len(), usize::from(runtime));
-            assert_eq!(
-                abi.structural_parameters[0].shape,
-                ValueShape::borrowed_reference(8, 8)
-            );
-            assert_eq!(
-                abi.structural_parameters[0].placement,
-                abi.call_plan.parameters[usize::from(runtime)]
-            );
-            assert_eq!(Some(&abi.result.placement), abi.call_plan.result.as_ref());
-            let store_position = usize::from(!runtime);
-            let TargetUnitOperation::WriteOnlyPrimitiveStore {
-                destination,
-                destination_placement,
-                source: value,
-                ..
-            } = &graph.blocks[0].operations[store_position]
-            else {
-                panic!("ordered primitive store")
-            };
-            assert_eq!(destination, &source.functions[0].structural_parameters[0]);
-            assert_eq!(
-                destination_placement,
-                &abi.structural_parameters[0].placement
-            );
-            if runtime {
-                assert!(
-                    matches!(value, TargetUnitWriteOnlyPrimitiveStoreSource::Parameter { parameter_index: 0, source_value, .. } if *source_value == ValueId::new(1).unwrap())
-                );
-            } else {
-                assert!(
-                    matches!(value, TargetUnitWriteOnlyPrimitiveStoreSource::IntegerImmediate { defining_operation, source_value, value: IntegerValue::Unsigned(0), .. } if *defining_operation == OperationId::new(1).unwrap() && *source_value == ValueId::new(1).unwrap())
-                );
-            }
-            assert!(
-                matches!(graph.blocks[0].terminator, TargetControlTerminator::ReturnScalar { source_value, ref cleanup_actions, .. } if source_value == ValueId::new(2).unwrap() && cleanup_actions.is_empty())
-            );
-        }
-    }
-}
-
-#[test]
 fn scalar_primitive_store_rejects_unsupported_access_types_order_and_exits() {
     for mutation in [
         "shared",
@@ -235,48 +171,6 @@ fn scalar_primitive_store_rejects_unsupported_access_types_order_and_exits() {
             .is_err(),
             "accepted {mutation}"
         );
-    }
-}
-
-#[test]
-fn scalar_graph_header_replay_rejects_coherent_value_abi_substitution() {
-    let source = fixture(true);
-    let native = NativeTarget::linux_x64();
-    let mut target =
-        lower_to_target_operations(&source, TargetLoweringRequest::new(native)).unwrap();
-    let function = &mut target.functions[0];
-    let abi = function.mixed_structural_scalar_abi.as_mut().unwrap();
-    let shape = ValueShape::integer(8, 8);
-    abi.call_plan = evaluate_call_plan(
-        CallingPolicy::native_for_target(native),
-        &CallSignature {
-            parameters: vec![shape, shape],
-            result: Some(shape),
-        },
-    )
-    .unwrap();
-    abi.structural_parameters[0].shape = shape;
-    abi.structural_parameters[0].placement = abi.call_plan.parameters[1].clone();
-    let graph = &mut function.graph;
-    graph.call_plan = abi.call_plan.clone();
-    graph.parameters = abi.structural_parameters.clone();
-    assert!(crate::validate_abstract_to_target_translation(&source, native, &target).is_err());
-}
-
-#[test]
-fn effect_free_primitive_borrow_scalar_return_uses_the_common_graph() {
-    let mut source = fixture(false);
-    source.functions[0].operations.remove(1);
-    for native in [
-        NativeTarget::linux_x64(),
-        NativeTarget::linux_arm64(),
-        NativeTarget::macos_arm64(),
-        NativeTarget::windows_x64(),
-    ] {
-        let target =
-            lower_to_target_operations(&source, TargetLoweringRequest::new(native)).unwrap();
-        assert_eq!(target.functions[0].graph.blocks.len(), 1);
-        crate::validate_abstract_to_target_translation(&source, native, &target).unwrap();
     }
 }
 

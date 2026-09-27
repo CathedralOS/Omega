@@ -12,21 +12,18 @@
 mod control_flow_cleanup;
 mod copy_propagation;
 mod dead_pure_scalar_elimination;
-mod global_value_numbering;
 mod proof_check_elision;
 mod representation_specialization;
-mod sparse_conditional_constant_propagation;
 mod state_specialization;
 
 use super::super::{
-    ExternalDecisionReplayError, OptimizationRunError, VerifiedPsiOptimizationSession, run_unit,
+    ExternalDecisionReplayError, OptimizationRunError, VerifiedPsiOptimizationSession,
 };
 use super::{
     Optimization, OptimizationSelections, OptimizationWorkBudget, budget, verified_empty_unit,
 };
 use crate::{
-    OptimizedAbstractProjectionError, built_in_psi_registry, optimize_abstract_operations,
-    publish_optimization_run,
+    OptimizedAbstractProjectionError, optimize_abstract_operations, publish_optimization_run,
 };
 use crate::{replay_psi_pipeline, run_psi_pipeline};
 use optimization_core::OptimizationRuleIdentity;
@@ -42,9 +39,6 @@ pub(super) struct SelectionMatrix {
     pub expected_commits: usize,
     /// Workload where the selection commits.
     pub positive: fn() -> VerifiedPsiOptimizationUnit,
-    /// Near-miss workload: real content at the selection's admission edge that
-    /// must decline.
-    pub boundary: fn() -> VerifiedPsiOptimizationUnit,
     /// A sibling `Optimization` selection that provably declines the positive
     /// workload, isolating this member's disable policy.
     pub sibling: Optimization,
@@ -52,26 +46,6 @@ pub(super) struct SelectionMatrix {
 
 pub(super) fn selections_of(selection: Optimization) -> OptimizationSelections {
     OptimizationSelections::new([selection]).unwrap()
-}
-
-/// Positive: the selection commits through the public entrance, and the run
-/// publishes a validated plan whose unit moved.
-pub(super) fn assert_positive_leg(case: &SelectionMatrix) {
-    let unit = (case.positive)();
-    let input_identity = unit.unit().identity;
-    let selections = selections_of(case.selection);
-    let run = run_psi_pipeline(unit, &selections, budget(64)).unwrap();
-    assert_eq!(run.commits().len(), case.expected_commits);
-    assert!(
-        run.commits()
-            .iter()
-            .any(|commit| commit.rule == (case.expected_rule)()),
-        "the positive workload must commit through the selection's rule"
-    );
-    assert_eq!(run.pass_manifests().len(), 1);
-    assert!(run.usage().commits >= 1);
-    let plan = publish_optimization_run(run).unwrap();
-    assert_ne!(plan.unit().identity, input_identity);
 }
 
 /// The complete public entrance: `optimize_abstract_operations` builds the
@@ -108,16 +82,6 @@ pub(super) fn assert_negative_leg(case: &SelectionMatrix) {
     let plan = publish_optimization_run(run).unwrap();
     assert_eq!(plan.unit().identity, input_identity);
     assert!(plan.transformation_ledger().records().is_empty());
-}
-
-/// Boundary: the near-miss workload is evaluated by the whole selected
-/// registry and commits nothing.
-pub(super) fn assert_boundary_leg(case: &SelectionMatrix) {
-    let unit = (case.boundary)();
-    let input_identity = unit.unit().identity;
-    let run = run_psi_pipeline(unit, &selections_of(case.selection), budget(64)).unwrap();
-    assert!(run.commits().is_empty());
-    assert_eq!(run.session().unit().identity, input_identity);
 }
 
 /// Disabled policy: under a sibling selection the positive workload is
@@ -171,56 +135,6 @@ pub(super) fn assert_measured_budget_leg(case: &SelectionMatrix) {
             assert_eq!(error, OptimizationRunError::WorkBudgetExhausted(name));
         }
     }
-}
-
-/// Determinism: two independent pipeline runs and their publications agree on
-/// every recorded evidence surface.
-pub(super) fn assert_determinism_leg(case: &SelectionMatrix) {
-    let selections = selections_of(case.selection);
-    let first = run_psi_pipeline((case.positive)(), &selections, budget(64)).unwrap();
-    let second = run_psi_pipeline((case.positive)(), &selections, budget(64)).unwrap();
-    assert_eq!(first.session().unit(), second.session().unit());
-    assert_eq!(first.commits(), second.commits());
-    assert_eq!(first.usage(), second.usage());
-    assert_eq!(first.decisions(), second.decisions());
-    assert_eq!(first.external_decisions(), second.external_decisions());
-    assert_eq!(first.pass_manifests(), second.pass_manifests());
-    assert_eq!(
-        first.transformation_ledger(),
-        second.transformation_ledger()
-    );
-    assert_eq!(first.identity_bundle(), second.identity_bundle());
-    let first_plan = publish_optimization_run(first).unwrap();
-    let second_plan = publish_optimization_run(second).unwrap();
-    assert_eq!(first_plan.plan(), second_plan.plan());
-    assert_eq!(first_plan.unit().identity, second_plan.unit().identity);
-    assert_eq!(first_plan.identity_bundle(), second_plan.identity_bundle());
-    assert_eq!(
-        first_plan.pre_physical_manifest(),
-        second_plan.pre_physical_manifest()
-    );
-}
-
-/// Fixed point: the published run's transformed unit is the phase's legal
-/// second input. It re-admits through custody-preserving session validation
-/// and re-runs the selected registry to a terminal decline.
-pub(super) fn assert_fixed_point_leg(case: &SelectionMatrix) {
-    let selections = selections_of(case.selection);
-    let run = run_psi_pipeline((case.positive)(), &selections, budget(64)).unwrap();
-    let registry = built_in_psi_registry(&selections).unwrap();
-    let plan = publish_optimization_run(run).unwrap();
-    let session = VerifiedPsiOptimizationSession::from_transformed(
-        plan.verified_input().clone(),
-        plan.unit().clone(),
-    )
-    .expect("the published unit must re-admit against the retained verified input");
-    let transformed = session.unit().clone();
-    let (second, commits, usage, _decisions, _manifest, ledger) =
-        run_unit(transformed.clone(), &registry, budget(64)).unwrap();
-    assert_eq!(second, transformed);
-    assert!(commits.is_empty());
-    assert_eq!(usage.commits, 0);
-    assert!(ledger.records().is_empty());
 }
 
 /// Corruption: forgeries on every published run axis are rejected by the

@@ -670,51 +670,6 @@ fn fold_with_budget(
     )
 }
 
-/// Every SelectedLowering literal-fold family enabled except `disabled`: the
-/// strongest disabled-policy posture, where the rule's own bit is the only
-/// admission gate left closed.
-fn policy_without(disabled: LiteralFoldPolicy) -> LiteralFoldPolicy {
-    policy_without_all(&[disabled])
-}
-
-/// Every SelectedLowering literal-fold family enabled except each policy in
-/// `disabled`: the strongest posture for a consumer kind disjoint families
-/// share — closing only one `WrappingRemainderI64` or `BitwiseAndI64` bit
-/// still admits the kind through its sibling, so a test of the unadmitted
-/// kind closes every bit that kind answers to.
-fn policy_without_all(disabled: &[LiteralFoldPolicy]) -> LiteralFoldPolicy {
-    [
-        LiteralFoldPolicy::EXACT_ADD_V1,
-        LiteralFoldPolicy::EXACT_SUBTRACT_V1,
-        LiteralFoldPolicy::COMPARE_V1,
-        LiteralFoldPolicy::EXTENSION_V1,
-        LiteralFoldPolicy::LOAD8_INDEXED_V1,
-        LiteralFoldPolicy::COPY_V1,
-        LiteralFoldPolicy::BYTE_VIEW_ADDRESS_V1,
-        LiteralFoldPolicy::EXACT_DIVIDE_V1,
-        LiteralFoldPolicy::WRAPPING_REMAINDER_V1,
-        LiteralFoldPolicy::BITWISE_AND_ONES_V1,
-        LiteralFoldPolicy::BITWISE_AND_ZERO_V1,
-        LiteralFoldPolicy::BITWISE_XOR_ZERO_V1,
-        LiteralFoldPolicy::WRAPPING_ADD_ZERO_V1,
-        LiteralFoldPolicy::WRAPPING_REMAINDER_ZERO_V1,
-        LiteralFoldPolicy::EXACT_DIVIDE_ZERO_V1,
-        LiteralFoldPolicy::SATURATING_ADD_ZERO_V1,
-        LiteralFoldPolicy::SATURATING_SUBTRACT_ZERO_V1,
-        LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1,
-        LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1,
-        LiteralFoldPolicy::SATURATING_SUBTRACT_ZERO_MINUEND_V1,
-        LiteralFoldPolicy::SATURATING_ADD_UPPER_BOUND_V1,
-        LiteralFoldPolicy::WRAPPING_REMAINDER_MINUS_ONE_V1,
-        LiteralFoldPolicy::SATURATING_SUBTRACT_UPPER_BOUND_V1,
-    ]
-    .into_iter()
-    .filter(|policy| !disabled.contains(policy))
-    .fold(LiteralFoldPolicy::empty(), |enabled, policy| {
-        enabled.union(policy)
-    })
-}
-
 /// Restage the fixture's materialized literal at `value`: the producer record
 /// and the classification's carried immediate move together, matching the
 /// fixture the recovery analysis would have produced for that literal.

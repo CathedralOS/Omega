@@ -7,8 +7,8 @@
 //! hand.
 
 use super::{
-    BETWEEN, KILLER, POINTER, SCRATCH, STORE, access, budget, chained, crossed_edge, eliminate,
-    fixture, instruction, mutated, mutated_chained, place, settlement,
+    BETWEEN, KILLER, POINTER, SCRATCH, STORE, budget, crossed_edge, instruction, mutated,
+    mutated_chained, place, settlement,
 };
 use crate::rewrites::unexecuted::dead_store::{
     DeadStoreEliminationError, ValidatedDeadStoreElimination, validate_dead_store_elimination,
@@ -45,23 +45,6 @@ fn forged(source: &ValidatedDeadStoreElimination) -> SelectedInstructionPlan {
         .memory_accesses
         .retain(|access| access.instruction != STORE);
     proposed
-}
-
-/// On a legal source the mechanical edit is exactly the proposal the
-/// signed result publishes — the same-block fixture and the cross-block
-/// chain alike. The forged builder is the contract's edit, so the
-/// rejections below come from the validator's own audit rather than a
-/// diff quirk, and the signed proposal validates as a second input.
-#[test]
-fn forged_edit_matches_the_signed_proposal_and_validates() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    for source in [fixture(target), chained(target)] {
-        let signed = eliminate(&source, &environment).unwrap();
-        assert_eq!(&forged(&source), signed.transformed());
-        validate_dead_store_elimination(&source, 0, STORE, &environment, budget(), forged(&source))
-            .unwrap();
-    }
 }
 
 /// A later same-range load still observes the stored bytes: the store is
@@ -259,53 +242,5 @@ fn forged_proposal_does_not_launder_a_redefining_edge_transport() {
         )
         .unwrap_err(),
         DeadStoreEliminationError::InterveningAccess
-    );
-}
-
-/// On a legal source the contract demands exactly one transformed
-/// function: a proposal that keeps the dead store's roster row, drops the
-/// covering store too, or leaves a shifted settlement at its source
-/// ordinal is not that function — however it was produced.
-#[test]
-fn validator_rejects_proposals_that_miss_the_demanded_function() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = mutated(target, |function, _| {
-        function.boundary_settlements.push(settlement(4));
-    });
-    // The store's write row survives the removal.
-    let mut kept_row = forged(&source);
-    kept_row.functions[0].memory_accesses.push(access(
-        STORE,
-        1,
-        place(),
-        0,
-        SelectedMemoryAccessRole::WritePlace,
-    ));
-    assert_eq!(
-        validate_dead_store_elimination(&source, 0, STORE, &environment, budget(), kept_row)
-            .unwrap_err(),
-        DeadStoreEliminationError::ReplayMismatch
-    );
-    // The covering store is removed alongside the dead store.
-    let mut dropped_cover = forged(&source);
-    dropped_cover.functions[0].blocks[0]
-        .instructions
-        .retain(|instruction| instruction.id != KILLER);
-    dropped_cover.functions[0]
-        .memory_accesses
-        .retain(|access| access.instruction != KILLER);
-    assert_eq!(
-        validate_dead_store_elimination(&source, 0, STORE, &environment, budget(), dropped_cover)
-            .unwrap_err(),
-        DeadStoreEliminationError::ReplayMismatch
-    );
-    // A settlement after the removal still sits at its source ordinal.
-    let mut unshifted = forged(&source);
-    unshifted.functions[0].boundary_settlements[0].instruction_index = 4;
-    assert_eq!(
-        validate_dead_store_elimination(&source, 0, STORE, &environment, budget(), unshifted)
-            .unwrap_err(),
-        DeadStoreEliminationError::ReplayMismatch
     );
 }

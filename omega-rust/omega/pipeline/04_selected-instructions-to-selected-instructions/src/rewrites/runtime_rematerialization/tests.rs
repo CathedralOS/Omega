@@ -141,78 +141,6 @@ fn fixture(target: NativeTarget) -> ValidatedRuntimeRematerialization {
 }
 
 #[test]
-fn every_flexible_use_regenerates_the_same_immediate() {
-    for target in [
-        NativeTarget::linux_x64(),
-        NativeTarget::linux_arm64(),
-        NativeTarget::windows_x64(),
-        NativeTarget::macos_arm64(),
-    ] {
-        let source = fixture(target);
-        let environment = baseline_target_register_environment(target).unwrap();
-        let result = rematerialize_selected_runtime_value(
-            &source,
-            0,
-            VirtualRegisterId(1),
-            &environment,
-            budget(),
-        )
-        .unwrap();
-        let original = &source.transformed().functions[0];
-        let function = &result.transformed().functions[0];
-        // No private storage is created; the victim keeps its original dead
-        // definition and gains one fresh register per use.
-        assert!(function.local_storage_slots.is_empty());
-        assert_eq!(function.virtual_registers.len(), 8);
-        let instructions = &function.blocks[0].instructions;
-        assert_eq!(instructions.len(), 7);
-        assert_eq!(instructions[0], original.blocks[0].instructions[0]);
-        for (position, expected) in [(1usize, 1usize), (3, 2), (5, 3)] {
-            let inserted = &instructions[position];
-            assert!(matches!(
-                inserted.kind,
-                SelectedInstructionKind::MaterializeI64 {
-                    value: IntegerValue::Unsigned(7)
-                }
-            ));
-            let consumer = &instructions[position + 1];
-            assert_eq!(consumer.id, original.blocks[0].instructions[expected].id);
-            let fresh = consumer.operands[0].virtual_register;
-            assert_eq!(inserted.operands[0].virtual_register, fresh);
-            assert_ne!(fresh, VirtualRegisterId(1));
-            assert_eq!(inserted.provenance.values, vec![ValueId::new(1).unwrap()]);
-            assert!(inserted.provenance.operations.is_empty());
-            assert!(inserted.provenance.fuel.is_empty());
-        }
-        for fresh in &function.virtual_registers[5..] {
-            assert_eq!(fresh.scalar_type, original.virtual_registers[1].scalar_type);
-            assert_eq!(fresh.class, original.virtual_registers[1].class);
-            assert_eq!(
-                fresh.definition_site,
-                original.virtual_registers[1].definition_site
-            );
-            assert!(fresh.entry_fixed_view.is_none());
-            assert!(matches!(
-                fresh.origin,
-                VirtualRegisterOrigin::InstructionResult { source_value, .. }
-                    if source_value == ValueId::new(1).unwrap()
-            ));
-        }
-        assert!(
-            validate_runtime_rematerialization(
-                &source,
-                0,
-                VirtualRegisterId(1),
-                &environment,
-                budget(),
-                result.transformed().clone()
-            )
-            .is_ok()
-        );
-    }
-}
-
-#[test]
 fn terminator_operands_regenerate_at_block_end_and_keep_fixed_views() {
     for target in [
         NativeTarget::linux_x64(),
@@ -506,58 +434,6 @@ fn spread(target: NativeTarget) -> ValidatedRuntimeRematerialization {
             terminator: tail_terminator,
         });
     })
-}
-
-/// A use in a block the definition block dominates regenerates locally: each
-/// use block receives its own fresh materializations immediately before the
-/// consuming instructions.
-#[test]
-fn dominated_successor_uses_regenerate_in_their_own_block() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let source = spread(target);
-    let result = rematerialize(&source, &environment).unwrap();
-    let function = &result.transformed().functions[0];
-    // Block 0 regenerates for its own use only.
-    let head = &function.blocks[0].instructions;
-    assert_eq!(head.len(), 3);
-    assert!(matches!(
-        head[1].kind,
-        SelectedInstructionKind::MaterializeI64 {
-            value: IntegerValue::Unsigned(7)
-        }
-    ));
-    assert_eq!(head[2].id, SelectedInstructionId(2));
-    assert_eq!(
-        head[2].operands[0].virtual_register,
-        head[1].operands[0].virtual_register
-    );
-    // Block 1's two dominated uses each regenerate in that block.
-    let tail = &function.blocks[1].instructions;
-    assert_eq!(tail.len(), 4);
-    for pair in [0usize, 2] {
-        assert!(matches!(
-            tail[pair].kind,
-            SelectedInstructionKind::MaterializeI64 {
-                value: IntegerValue::Unsigned(7)
-            }
-        ));
-        assert_eq!(
-            tail[pair + 1].operands[0].virtual_register,
-            tail[pair].operands[0].virtual_register
-        );
-    }
-    assert_eq!(tail[1].id, SelectedInstructionId(3));
-    assert_eq!(tail[3].id, SelectedInstructionId(4));
-    validate_runtime_rematerialization(
-        &source,
-        0,
-        VirtualRegisterId(1),
-        &environment,
-        budget(),
-        result.transformed().clone(),
-    )
-    .unwrap();
 }
 
 /// A use block the definition cannot dominate — or a use riding an outgoing

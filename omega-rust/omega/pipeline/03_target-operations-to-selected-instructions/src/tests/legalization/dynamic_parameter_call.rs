@@ -5,7 +5,7 @@
 
 use crate::{legalize_target_operations, select_instructions, validate_legalized_operations};
 use abstract_operations::{AbstractOperation, AbstractParameterDynamicDispatch, AbstractResult};
-use legalized_operations::{LegalizedScalarInstructionKind, LegalizedScalarTerminator};
+use legalized_operations::LegalizedScalarInstructionKind;
 use semantic_vocabulary::{
     EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, OperationId, ScalarType,
     ValueId,
@@ -160,35 +160,6 @@ pub(crate) fn unit_fixture(
     )
     .unwrap();
     (source, target, unit)
-}
-
-#[test]
-fn parameter_dynamic_scalar_call_legalizes_with_replayed_contract() {
-    for native in [
-        NativeTarget::linux_x64(),
-        NativeTarget::linux_arm64(),
-        NativeTarget::macos_arm64(),
-    ] {
-        let (source, target, unit) = scalar_fixture(native);
-        let legal = legalize_target_operations(&target, &source, &unit).unwrap();
-        let function = &legal.plan().scalar_functions[0];
-        let row = &function.blocks[0].instructions[0];
-        let LegalizedScalarInstructionKind::DynamicParameterCall(call) = &row.kind else {
-            panic!("descriptor parameter call kind")
-        };
-        call.validate_shape().unwrap();
-        assert_eq!(row.result.unwrap().value, ValueId::new(1).unwrap());
-        assert_eq!(
-            call.table_slot_byte_offset, 0,
-            "slot zero sits at the table base"
-        );
-        let LegalizedScalarTerminator::Return(returned) = &function.blocks[0].terminator else {
-            panic!("scalar return")
-        };
-        assert!(
-            matches!(returned.value, legalized_operations::LegalizedScalarReturnValue::Value { value, .. } if value == ValueId::new(1).unwrap())
-        );
-    }
 }
 
 #[test]

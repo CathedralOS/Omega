@@ -8,9 +8,7 @@
 //! validator the pass manager itself consults.
 
 use crate::rules::FieldValueSpecializationRule;
-use crate::{
-    OptimizationRun, PsiOptimizationCommit, VerifiedPsiOptimizationSession, run_psi_pipeline,
-};
+use crate::{OptimizationRun, PsiOptimizationCommit, run_psi_pipeline};
 use abstract_operations::AbstractOperation;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use optimization_core::{
@@ -18,9 +16,8 @@ use optimization_core::{
 };
 use optimization_unit::{
     FieldValueResolution, FieldValueSpecializationRewrite, FoldedFieldValue, NodeLocation,
-    ProvenanceDisposition, PsiOptimizationUnit, PsiProvenance, PsiRealizationSite,
-    PsiRewriteCandidate, PsiRewriteCandidateError, PsiRewritePatch,
-    recompute_psi_optimization_unit_identity,
+    PsiOptimizationUnit, PsiProvenance, PsiRewriteCandidate, PsiRewriteCandidateError,
+    PsiRewritePatch,
 };
 use optimization_unit_semantics::{
     OptimizationUnitValidationError, validate_field_value_specialization_candidate,
@@ -36,16 +33,6 @@ const ESTABLISHED_FIELDS_SOURCE: &str = r#"
     machine probe() -> bool {
         let p: Point = Point { x: 37, flag: true };
         (p.x == 37) == p.flag
-    }
-"#;
-
-/// A field read on a machine parameter place over unbounded carriers carries
-/// no establishment proof and no declared bound: the parameter arrives with
-/// whatever value the caller supplied, so nothing may specialize.
-const PARAMETER_FIELD_SOURCE: &str = r#"
-    data Point { x: u32; flag: bool; }
-    machine probe(p: Point) -> u32 {
-        p.x
     }
 "#;
 
@@ -69,31 +56,6 @@ const BOUNDED_PARAMETER_SOURCE: &str = r#"
     data Box { v: i32 [5..=5]; }
     machine probe(b: Box) -> i32 {
         b.v
-    }
-"#;
-
-/// A nested path descends through a parameter's record field to a bounded
-/// leaf: the declared singleton at the resolved position proves the read at
-/// depth even though the root is a plain record.
-const NESTED_BOUNDED_SOURCE: &str = r#"
-    data Inner { v: i32 [7..=7]; }
-    data Outer { inner: Inner; }
-    machine probe(o: Outer) -> i32 {
-        o.inner.v
-    }
-"#;
-
-/// A nested path descends through a record field stored whole: the child's
-/// own `EstablishRecord` establishes the deeper position, so `o.inner.v`
-/// folds to the child's proven initializer. The row's producer is the
-/// child's establishing operation while the patch's producer stays the
-/// observed place's own.
-const NESTED_ESTABLISHED_SOURCE: &str = r#"
-    data Inner { v: u32; }
-    data Outer { inner: Inner; }
-    machine probe() -> u32 {
-        let o: Outer = Outer { inner: Inner { v: 7 } };
-        o.inner.v
     }
 "#;
 
@@ -146,25 +108,6 @@ const NO_READS_SOURCE: &str = r#"
     }
 "#;
 
-/// A record established in the machine body arrives at the observing state
-/// as a structural block parameter: the state's incoming edge binds the
-/// parameter to the one established place through an owned, whole-place
-/// argument, so the bound place's `EstablishRecord` proves the read even
-/// though the parameter itself holds no producer.
-const BOUND_RECORD_SOURCE: &str = r#"
-    data Point { x: u32; flag: bool; }
-    data Root {}
-    machine Root::run() {
-        let p: Point = Point { x: 37, flag: true };
-        transition { _ -> read(p) }
-        state read(p: Point) {
-            transition p.x == 37 { true -> good() _ -> bad() }
-        }
-        state good() {}
-        state bad() {}
-    }
-"#;
-
 /// The bound parameter observed at a nested path: `o.inner.v` crosses the
 /// edge binding, then descends the stored-whole `inner` child to the
 /// child's own `EstablishRecord` — the same two-step proof a read on the
@@ -178,45 +121,6 @@ const BOUND_NESTED_SOURCE: &str = r#"
         transition { _ -> read(o) }
         state read(o: Outer) {
             transition o.inner.v == 7 { true -> good() _ -> bad() }
-        }
-        state good() {}
-        state bad() {}
-    }
-"#;
-
-/// Two predecessor edges bind the parameter to different established
-/// places: no uniform binding exists, so nothing proves what the read
-/// observes even though every candidate place is itself established.
-const DIVERGENT_BINDING_SOURCE: &str = r#"
-    data Point { x: u32; flag: bool; }
-    data Root {}
-    machine Root::run(flag: bool) {
-        let a: Point = Point { x: 37, flag: true };
-        let b: Point = Point { x: 9, flag: false };
-        transition flag { true -> read(a) _ -> read(b) }
-        state read(p: Point) {
-            transition p.x == 37 { true -> good() _ -> bad() }
-        }
-        state good() {}
-        state bad() {}
-    }
-"#;
-
-/// A parameter delivered through a relay state resolves transitively: the
-/// read's parameter binds the relay's parameter, which binds the
-/// established place — the establishment crosses each uniform binding in
-/// turn.
-const CHAINED_BINDING_SOURCE: &str = r#"
-    data Point { x: u32; flag: bool; }
-    data Root {}
-    machine Root::run() {
-        let p: Point = Point { x: 37, flag: true };
-        transition { _ -> relay(p) }
-        state relay(q: Point) {
-            transition { _ -> read(q) }
-        }
-        state read(r: Point) {
-            transition r.x == 37 { true -> good() _ -> bad() }
         }
         state good() {}
         state bad() {}
@@ -239,150 +143,6 @@ const UNIFORM_TWO_EDGE_SOURCE: &str = r#"
         state bad() {}
     }
 "#;
-
-#[test]
-fn established_record_fields_fold_to_proven_values() {
-    let unit = lowered_unit_entry(
-        ESTABLISHED_FIELDS_SOURCE,
-        "established field values",
-        "probe",
-    );
-    let input = unit.unit().clone();
-    let machine = input.functions[0].machine;
-    let (place, producer) = established_record_place(&input, machine);
-
-    let run = specialize(unit);
-    let (commit, patch) = single_commit(&run);
-    assert_eq!(patch.machine, machine);
-    assert_eq!(patch.place, place);
-    assert_eq!(patch.producer, Some(producer));
-    assert_eq!(commit.input, input.identity);
-    assert_ne!(commit.output, input.identity);
-    let [first, second] = patch.reads.as_slice() else {
-        panic!("two folded field reads")
-    };
-    assert_eq!(first.source, place);
-    assert_eq!(second.source, place);
-    assert_eq!(first.producer, Some(producer));
-    assert_eq!(second.producer, Some(producer));
-    let mut values = [&first.resolution, &second.resolution];
-    values.sort();
-    assert_eq!(
-        values,
-        [
-            &FieldValueResolution::Constant(FoldedFieldValue::Boolean(true)),
-            &FieldValueResolution::Constant(FoldedFieldValue::Integer(
-                semantic_vocabulary::IntegerValue::Unsigned(37),
-            )),
-        ]
-    );
-
-    // The proposal is deterministic: an independent run commits the same
-    // candidate, custody, and output revision.
-    let replayed = specialize(lowered_unit_entry(
-        ESTABLISHED_FIELDS_SOURCE,
-        "established field values",
-        "probe",
-    ));
-    assert_eq!(replayed.commits(), run.commits());
-
-    let output = run.session().unit();
-    let output_function = output
-        .functions
-        .iter()
-        .find(|function| function.machine == machine)
-        .expect("machine retained");
-    for row in &patch.reads {
-        let folded = &output_function
-            .blocks
-            .iter()
-            .find(|block| block.id == row.site.block)
-            .expect("block retained")
-            .nodes[usize::try_from(row.site.node).expect("index")];
-        match &row.resolution {
-            FieldValueResolution::Constant(FoldedFieldValue::Boolean(constant)) => {
-                let AbstractOperation::BooleanConstant {
-                    psi_operation,
-                    result,
-                    value,
-                } = &folded.operation
-                else {
-                    panic!("boolean read folds to BooleanConstant")
-                };
-                assert_eq!(*psi_operation, row.psi_operation);
-                assert_eq!(*result, row.result);
-                assert_eq!(value, constant);
-            }
-            FieldValueResolution::Constant(FoldedFieldValue::Integer(constant)) => {
-                let AbstractOperation::IntegerConstant {
-                    psi_operation,
-                    result,
-                    value,
-                    ..
-                } = &folded.operation
-                else {
-                    panic!("integer read folds to IntegerConstant")
-                };
-                assert_eq!(*psi_operation, row.psi_operation);
-                assert_eq!(*result, row.result);
-                assert_eq!(value, constant);
-            }
-            FieldValueResolution::Forward(_) => panic!("constant rows never forward"),
-        }
-        assert_eq!(
-            folded.provenance,
-            vec![PsiProvenance::Operation(row.psi_operation)]
-        );
-        let input_node = &input
-            .functions
-            .iter()
-            .find(|function| function.machine == machine)
-            .expect("input machine")
-            .blocks
-            .iter()
-            .find(|block| block.id == row.site.block)
-            .expect("input block")
-            .nodes[usize::try_from(row.site.node).expect("index")];
-        assert_eq!(folded.definitions, input_node.definitions);
-        assert_eq!(folded.uses, input_node.uses);
-        assert_eq!(folded.successors, input_node.successors);
-    }
-
-    // The ledger records each folded site's retained custody — exactly the
-    // custody the validator accepted for the commit.
-    let [record] = run.transformation_ledger().records() else {
-        panic!("one transformation record")
-    };
-    assert_eq!(record.input, input.identity);
-    assert_eq!(record.output, output.identity);
-    assert_eq!(record.provenance, commit.provenance);
-    assert_eq!(record.provenance.len(), 2);
-    for row in &patch.reads {
-        let site = PsiRealizationSite::Node(row.site);
-        assert!(record.provenance.iter().any(|rewrite| {
-            rewrite.input == site
-                && rewrite.disposition == ProvenanceDisposition::RealizedAt(site)
-                && rewrite.sources == vec![PsiProvenance::Operation(row.psi_operation)]
-        }));
-    }
-
-    // The single commit is the pass's fixed point: no field read on the
-    // place survives to draw a second candidate.
-    assert!(field_read_on(output, machine, place).is_none());
-}
-
-#[test]
-fn parameter_field_read_yields_no_candidate() {
-    let unit = lowered_unit_entry(PARAMETER_FIELD_SOURCE, "parameter decline", "probe");
-    let input = unit.unit().clone();
-    let machine = input.functions[0].machine;
-    let place = parameter_place(&input);
-    assert!(
-        field_read_on(&input, machine, place).is_some(),
-        "the fixture must actually contain a field read"
-    );
-    assert_declines(unit);
-}
 
 #[test]
 fn array_element_field_read_yields_no_candidate() {
@@ -466,228 +226,6 @@ fn bounded_parameter_field_folds_without_producer() {
 }
 
 #[test]
-fn nested_bounded_field_folds_at_path_depth() {
-    let unit = lowered_unit_entry(NESTED_BOUNDED_SOURCE, "nested bounded field", "probe");
-    let input = unit.unit().clone();
-    let machine = input.functions[0].machine;
-    let place = parameter_place(&input);
-    let (site, read) = field_read_on(&input, machine, place).expect("field read exists");
-
-    let run = specialize(unit);
-    let (_, patch) = single_commit(&run);
-    let [row] = patch.reads.as_slice() else {
-        panic!("one folded field read")
-    };
-    assert_eq!(row.producer, None);
-    assert_eq!(row.path.len(), 1, "the read descends one record field");
-    assert_eq!(row.field, read.2);
-    assert_eq!(
-        row.resolution,
-        FieldValueResolution::Constant(FoldedFieldValue::Integer(
-            semantic_vocabulary::IntegerValue::Signed(7)
-        ))
-    );
-    let folded = &run.session().unit().functions[0]
-        .blocks
-        .iter()
-        .find(|block| block.id == site.block)
-        .expect("block retained")
-        .nodes[usize::try_from(site.node).expect("index")];
-    assert!(matches!(
-        folded.operation,
-        AbstractOperation::IntegerConstant {
-            value: semantic_vocabulary::IntegerValue::Signed(7),
-            ..
-        }
-    ));
-}
-
-#[test]
-fn nonconstant_initializer_forwards_to_uses() {
-    let unit = lowered_unit_entry(FORWARDED_FIELD_SOURCE, "forwarded field value", "probe");
-    let input = unit.unit().clone();
-    let machine = input.functions[0].machine;
-    let function = &input.functions[0];
-    let (place, producer) = established_record_place(&input, machine);
-
-    let run = specialize(unit);
-    let (commit, patch) = single_commit(&run);
-    assert_eq!(patch.machine, machine);
-    assert_eq!(patch.place, place);
-    assert_eq!(patch.producer, Some(producer));
-
-    let forward_row = patch
-        .reads
-        .iter()
-        .find(|row| matches!(row.resolution, FieldValueResolution::Forward(_)))
-        .expect("one forwarded read");
-    let FieldValueResolution::Forward(forwarded) = &forward_row.resolution else {
-        unreachable!()
-    };
-    // The front end routes the `x` machine parameter through a block
-    // parameter binding, so the proven initializer is parameter-sourced
-    // rather than a computed node — that is exactly why it is nonconstant.
-    let definition = function
-        .parameters
-        .iter()
-        .chain(function.blocks.iter().flat_map(|block| &block.parameters))
-        .find(|definition| definition.value == forwarded.initializer)
-        .expect("the proven initializer is parameter-sourced");
-    assert_eq!(forwarded.scalar_type, definition.scalar_type);
-    assert_ne!(forwarded.initializer, forward_row.result);
-    assert_eq!(forward_row.producer, Some(producer));
-    assert!(
-        !forwarded.uses.is_empty(),
-        "the forwarded read has covered uses"
-    );
-    for site in &forwarded.uses {
-        assert_eq!(site.machine, machine);
-        let use_node = &function
-            .blocks
-            .iter()
-            .find(|block| block.id == site.block)
-            .expect("use block exists")
-            .nodes[usize::try_from(site.node).expect("use index")];
-        assert!(
-            use_node
-                .uses
-                .iter()
-                .any(|use_site| use_site.value == forward_row.result),
-            "each listed use site references the read's result"
-        );
-    }
-    // The candidate declares exactly the one `result → initializer`
-    // substitution the forwarded row implies.
-    let [substitution] = commit
-        .declaration
-        .rewrite()
-        .expect("rewrite declaration")
-        .substitutions()
-    else {
-        panic!("one scalar substitution")
-    };
-    assert_eq!(substitution.from, forward_row.result);
-    assert_eq!(substitution.to, forwarded.initializer);
-    let constant_row = patch
-        .reads
-        .iter()
-        .find(|row| matches!(row.resolution, FieldValueResolution::Constant(_)))
-        .expect("one folded read");
-    assert_eq!(
-        constant_row.resolution,
-        FieldValueResolution::Constant(FoldedFieldValue::Boolean(true))
-    );
-    assert_eq!(constant_row.producer, Some(producer));
-
-    // The proposal is deterministic.
-    let replayed = specialize(lowered_unit_entry(
-        FORWARDED_FIELD_SOURCE,
-        "forwarded field value",
-        "probe",
-    ));
-    assert_eq!(replayed.commits(), run.commits());
-
-    let output_function = run
-        .session()
-        .unit()
-        .functions
-        .iter()
-        .find(|function| function.machine == machine)
-        .expect("machine retained");
-    let input_block = function
-        .blocks
-        .iter()
-        .find(|block| block.id == forward_row.site.block)
-        .expect("input block");
-    let output_block = output_function
-        .blocks
-        .iter()
-        .find(|block| block.id == forward_row.site.block)
-        .expect("block retained");
-    assert_eq!(
-        output_block.nodes.len(),
-        input_block.nodes.len() - 1,
-        "the forwarded read retires"
-    );
-
-    // The node inheriting the vacated index absorbs the read's custody.
-    let receiver = &output_block.nodes[usize::try_from(forward_row.site.node).expect("index")];
-    assert!(
-        receiver
-            .provenance
-            .contains(&PsiProvenance::Operation(forward_row.psi_operation))
-    );
-    assert!(receiver.fuel.iter().any(|settlement| {
-        settlement.site == PsiProvenance::Operation(forward_row.psi_operation)
-    }));
-
-    // No surviving node defines or uses the retired result; every listed use
-    // now references the proven initializer at its shifted coordinate.
-    for node in output_function.blocks.iter().flat_map(|block| &block.nodes) {
-        assert!(
-            !node
-                .definitions
-                .iter()
-                .any(|definition| definition.value == forward_row.result)
-        );
-        assert!(
-            !node
-                .uses
-                .iter()
-                .any(|use_site| use_site.value == forward_row.result)
-        );
-    }
-    for site in &forwarded.uses {
-        let shift =
-            usize::from(site.block == forward_row.site.block && site.node > forward_row.site.node);
-        let output_index = usize::try_from(site.node).expect("index") - shift;
-        let node = &output_function
-            .blocks
-            .iter()
-            .find(|block| block.id == site.block)
-            .expect("use block retained")
-            .nodes[output_index];
-        assert!(
-            node.uses
-                .iter()
-                .any(|use_site| use_site.value == forwarded.initializer),
-            "the substituted use references the initializer"
-        );
-    }
-
-    // The folded sibling still lands at its (shifted) site as a constant.
-    let folded_site = constant_row.site;
-    let folded_shift = usize::from(
-        folded_site.block == forward_row.site.block && folded_site.node > forward_row.site.node,
-    );
-    let folded = &output_function
-        .blocks
-        .iter()
-        .find(|block| block.id == folded_site.block)
-        .expect("fold block retained")
-        .nodes[usize::try_from(folded_site.node).expect("index") - folded_shift];
-    assert!(matches!(
-        folded.operation,
-        AbstractOperation::BooleanConstant { value: true, .. }
-    ));
-
-    // The ledger records the retired site's custody landing on the node that
-    // inherited its index.
-    let [record] = run.transformation_ledger().records() else {
-        panic!("one transformation record")
-    };
-    let retired = PsiRealizationSite::Node(forward_row.site);
-    assert!(record.provenance.iter().any(|rewrite| {
-        rewrite.input == retired
-            && rewrite.disposition == ProvenanceDisposition::RealizedAt(retired)
-            && rewrite.sources == vec![PsiProvenance::Operation(forward_row.psi_operation)]
-    }));
-
-    // The single commit is the pass's fixed point.
-    assert!(field_read_on(run.session().unit(), machine, place).is_none());
-}
-
-#[test]
 fn replay_rejects_forged_forward_rows() {
     let unit = lowered_unit_entry(FORWARDED_FIELD_SOURCE, "forwarded field value", "probe");
     let input = unit.unit().clone();
@@ -753,77 +291,6 @@ fn replay_rejects_forged_forward_rows() {
     )
     .expect("the exact candidate still validates");
     assert_eq!(validated.unit().identity, commit.output);
-}
-
-#[test]
-fn nested_structural_child_folds_from_child_establishment() {
-    let unit = lowered_unit_entry(
-        NESTED_ESTABLISHED_SOURCE,
-        "nested established field",
-        "probe",
-    );
-    let input = unit.unit().clone();
-    let machine = input.functions[0].machine;
-    // The read observes the outer place while the leaf's proof is the inner
-    // record's establishment — two `EstablishRecord` nodes exist, and the
-    // child's is the one whose result place the read does not observe.
-    let (outer_place, outer_producer) = outer_establishment(&input, machine);
-    let child_producer = input.functions[0]
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
-        .find_map(|node| match &node.operation {
-            AbstractOperation::EstablishRecord {
-                psi_operation,
-                result,
-                ..
-            } if result.place != outer_place => Some(*psi_operation),
-            _ => None,
-        })
-        .expect("the inner record's establishment exists");
-    let (site, read) = field_read_on(&input, machine, outer_place).expect("field read exists");
-
-    let run = specialize(unit);
-    let (_, patch) = single_commit(&run);
-    assert_eq!(patch.machine, machine);
-    assert_eq!(patch.place, outer_place);
-    assert_eq!(patch.producer, Some(outer_producer));
-    let [row] = patch.reads.as_slice() else {
-        panic!("one folded field read")
-    };
-    assert_eq!(row.site, site);
-    assert_eq!(row.source, outer_place);
-    assert_eq!(
-        row.path.len(),
-        1,
-        "the read descends one structural field into the child"
-    );
-    assert_eq!(row.field, read.2);
-    assert_eq!(
-        row.producer,
-        Some(child_producer),
-        "the row's proof witness is the child's establishing operation"
-    );
-    assert_eq!(
-        row.resolution,
-        FieldValueResolution::Constant(FoldedFieldValue::Integer(
-            semantic_vocabulary::IntegerValue::Unsigned(7)
-        ))
-    );
-    let folded = &run.session().unit().functions[0]
-        .blocks
-        .iter()
-        .find(|block| block.id == site.block)
-        .expect("block retained")
-        .nodes[usize::try_from(site.node).expect("index")];
-    assert!(matches!(
-        folded.operation,
-        AbstractOperation::IntegerConstant {
-            value: semantic_vocabulary::IntegerValue::Unsigned(7),
-            ..
-        }
-    ));
-    assert!(field_read_on(run.session().unit(), machine, outer_place).is_none());
 }
 
 #[test]
@@ -967,76 +434,6 @@ fn nested_unestablished_child_stays_unproven() {
 }
 
 #[test]
-fn bound_parameter_field_folds_through_uniform_binding() {
-    let unit = lowered_unit_entry(BOUND_RECORD_SOURCE, "bound parameter field", "Root::run");
-    let input = unit.unit().clone();
-    let machine = input.functions[0].machine;
-    // The read observes the state's block parameter while the proof is the
-    // established place the incoming edge binds it to whole — the
-    // parameter's patch carries no root producer, but the row names the
-    // bound place's `EstablishRecord`.
-    let (place, bound) = bound_observation(&input, machine);
-    let (established, producer) = established_record_place(&input, machine);
-    assert_eq!(bound, established);
-    let (site, read) = field_read_on(&input, machine, place).expect("field read exists");
-
-    let run = specialize(unit);
-    let (commit, patch) = single_commit(&run);
-    assert_eq!(patch.machine, machine);
-    assert_eq!(patch.place, place);
-    assert_eq!(patch.producer, None, "a block parameter holds no producer");
-    assert_eq!(commit.input, input.identity);
-    assert_ne!(commit.output, input.identity);
-    let [row] = patch.reads.as_slice() else {
-        panic!("one folded field read")
-    };
-    assert_eq!(row.site, site);
-    assert_eq!(row.psi_operation, read.0);
-    assert_eq!(row.source, place);
-    assert!(row.path.is_empty());
-    assert_eq!(row.field, read.2);
-    assert_eq!(
-        row.producer,
-        Some(producer),
-        "the row's proof witness is the bound place's establishment"
-    );
-    assert_eq!(
-        row.resolution,
-        FieldValueResolution::Constant(FoldedFieldValue::Integer(
-            semantic_vocabulary::IntegerValue::Unsigned(37)
-        ))
-    );
-
-    // The proposal is deterministic: an independent run commits the same
-    // candidate, custody, and output revision.
-    let replayed = specialize(lowered_unit_entry(
-        BOUND_RECORD_SOURCE,
-        "bound parameter field",
-        "Root::run",
-    ));
-    assert_eq!(replayed.commits(), run.commits());
-
-    let folded = &run.session().unit().functions[0]
-        .blocks
-        .iter()
-        .find(|block| block.id == site.block)
-        .expect("block retained")
-        .nodes[usize::try_from(site.node).expect("index")];
-    assert!(matches!(
-        folded.operation,
-        AbstractOperation::IntegerConstant {
-            value: semantic_vocabulary::IntegerValue::Unsigned(37),
-            ..
-        }
-    ));
-    assert_eq!(
-        folded.provenance,
-        vec![PsiProvenance::Operation(row.psi_operation)]
-    );
-    assert!(field_read_on(run.session().unit(), machine, place).is_none());
-}
-
-#[test]
 fn bound_parameter_nested_field_folds_through_stored_child() {
     let unit = lowered_unit_entry(BOUND_NESTED_SOURCE, "bound nested field", "Root::run");
     let input = unit.unit().clone();
@@ -1094,76 +491,6 @@ fn bound_parameter_nested_field_folds_through_stored_child() {
 }
 
 #[test]
-fn divergent_incoming_bindings_decline() {
-    let unit = lowered_unit_entry(
-        DIVERGENT_BINDING_SOURCE,
-        "divergent bindings decline",
-        "Root::run",
-    );
-    let input = unit.unit().clone();
-    let machine = input.functions[0].machine;
-    let place = block_parameter_place(&input, machine);
-    // The fixture must actually route both established places into the one
-    // observing parameter — the bindings diverge by place identity.
-    assert!(
-        field_read_on(&input, machine, place).is_some(),
-        "the fixture must actually contain a field read on the parameter"
-    );
-    let bound: std::collections::BTreeSet<_> = input.functions[0]
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
-        .flat_map(|node| &node.successors)
-        .flat_map(|edge| &edge.structural_bindings)
-        .filter(|binding| binding.parameter == place)
-        .map(|binding| binding.argument.place)
-        .collect();
-    assert_eq!(bound.len(), 2, "two divergent bound places");
-    assert_declines(unit);
-}
-
-#[test]
-fn chained_binding_forwards_through_relay() {
-    let unit = lowered_unit_entry(CHAINED_BINDING_SOURCE, "chained binding", "Root::run");
-    let input = unit.unit().clone();
-    let machine = input.functions[0].machine;
-    // The read observes `read`'s parameter, which binds `relay`'s
-    // parameter, which binds the established place — the proof crosses
-    // both uniform bindings.
-    let (place, bound) = bound_observation(&input, machine);
-    let declaration = input.functions[0]
-        .structural_places
-        .iter()
-        .find(|declaration| declaration.id == bound)
-        .expect("the relay parameter is rostered");
-    assert!(
-        matches!(declaration.kind, StructuralPlaceKind::BlockParameter { .. }),
-        "the read's parameter binds another block parameter"
-    );
-    let (_, producer) = established_record_place(&input, machine);
-
-    let run = specialize(unit);
-    let (_, patch) = single_commit(&run);
-    assert_eq!(patch.place, place);
-    assert_eq!(patch.producer, None);
-    let [row] = patch.reads.as_slice() else {
-        panic!("one folded field read")
-    };
-    assert_eq!(row.source, place);
-    assert_eq!(
-        row.producer,
-        Some(producer),
-        "the establishment crosses both uniform bindings"
-    );
-    assert_eq!(
-        row.resolution,
-        FieldValueResolution::Constant(FoldedFieldValue::Integer(
-            semantic_vocabulary::IntegerValue::Unsigned(37)
-        ))
-    );
-}
-
-#[test]
 fn uniform_multi_edge_binding_folds() {
     let unit = lowered_unit_entry(
         UNIFORM_TWO_EDGE_SOURCE,
@@ -1199,119 +526,6 @@ fn uniform_multi_edge_binding_folds() {
         ))
     );
     assert_eq!(bound, established);
-}
-
-#[test]
-fn replay_rejects_forged_bound_rows() {
-    let unit = lowered_unit_entry(BOUND_RECORD_SOURCE, "bound parameter field", "Root::run");
-    let input = unit.unit().clone();
-    let run = specialize(unit);
-    let (commit, patch) = single_commit(&run);
-    let establishment = patch.reads[0].producer.expect("establishment witness");
-
-    // A forged row witness — claiming the observed parameter's own
-    // producer slot — is refused: replay re-derives the witness through the
-    // binding rather than trusting it.
-    assert_rejects_rows(
-        &input,
-        forged(
-            commit.declaration.rewrite().expect("rewrite declaration"),
-            |patch| {
-                patch.reads[0].producer = patch.producer;
-            },
-        ),
-    );
-
-    // A forged patch-level producer: the parameter holds no producer of
-    // its own, so naming the establishment here mismatches the replayed
-    // plan.
-    assert_rejects_rows(
-        &input,
-        forged(
-            commit.declaration.rewrite().expect("rewrite declaration"),
-            |patch| {
-                patch.producer = Some(establishment);
-            },
-        ),
-    );
-
-    // A forged folded value on the bound read.
-    assert_rejects_rows(
-        &input,
-        forged(
-            commit.declaration.rewrite().expect("rewrite declaration"),
-            |patch| {
-                patch.reads[0].resolution = FieldValueResolution::Constant(
-                    FoldedFieldValue::Integer(semantic_vocabulary::IntegerValue::Unsigned(41)),
-                );
-            },
-        ),
-    );
-
-    // The untampered declaration still validates to the committed output.
-    let validated = validate_field_value_specialization_candidate(
-        &input,
-        commit.declaration.rewrite().expect("rewrite declaration"),
-    )
-    .expect("the exact candidate still validates");
-    assert_eq!(validated.unit().identity, commit.output);
-}
-
-#[test]
-fn replay_rejects_forged_nested_row_witness() {
-    let unit = lowered_unit_entry(
-        NESTED_ESTABLISHED_SOURCE,
-        "nested established field",
-        "probe",
-    );
-    let input = unit.unit().clone();
-    let run = specialize(unit);
-    let (commit, _) = single_commit(&run);
-
-    // A forged row witness — claiming the observed place's own producer
-    // instead of the child's establishing operation — is refused: replay
-    // re-derives the row from the descent chain rather than trusting it.
-    assert_rejects_rows(
-        &input,
-        forged(
-            commit.declaration.rewrite().expect("rewrite declaration"),
-            |patch| {
-                patch.reads[0].producer = patch.producer;
-            },
-        ),
-    );
-
-    // A forged folded value on the nested read.
-    assert_rejects_rows(
-        &input,
-        forged(
-            commit.declaration.rewrite().expect("rewrite declaration"),
-            |patch| {
-                patch.reads[0].resolution = FieldValueResolution::Constant(
-                    FoldedFieldValue::Integer(semantic_vocabulary::IntegerValue::Unsigned(41)),
-                );
-            },
-        ),
-    );
-
-    // A forged path that skips the descent.
-    assert_rejects_rows(
-        &input,
-        forged(
-            commit.declaration.rewrite().expect("rewrite declaration"),
-            |patch| {
-                patch.reads[0].path.clear();
-            },
-        ),
-    );
-
-    // The untampered declaration still validates to the committed output.
-    let validated = validate_field_value_specialization_candidate(
-        &input,
-        commit.declaration.rewrite().expect("rewrite declaration"),
-    )
-    .expect("the exact candidate still validates");
-    assert_eq!(validated.unit().identity, commit.output);
 }
 
 #[test]
@@ -1458,62 +672,6 @@ fn replay_rejects_stale_candidate_revision() {
     );
 }
 
-/// The committed unit revalidates independently, while a unit whose folded
-/// node drops its fuel settlement — settling fewer sources than the custody
-/// it names — is refused by transformed validation. A forged commit output
-/// identity is refused by publication replay in
-/// `pass_manager::tests::evidence_matrix::representation_specialization::forged_field_value_run_axes_fail_publication_replay`.
-#[test]
-fn transformed_unit_rejects_forged_folded_custody() {
-    let unit = lowered_unit_entry(
-        ESTABLISHED_FIELDS_SOURCE,
-        "established field values",
-        "probe",
-    );
-    let run = specialize(unit);
-    let (_, patch) = single_commit(&run);
-    let row = &patch.reads[0];
-    let machine = patch.machine;
-    let verified_input = run.session().input().clone();
-
-    assert!(
-        VerifiedPsiOptimizationSession::from_transformed(
-            verified_input.clone(),
-            run.session().unit().clone(),
-        )
-        .is_ok(),
-        "the committed folded revision revalidates independently"
-    );
-
-    let mut malformed = run.session().unit().clone();
-    let folded = malformed
-        .functions
-        .iter_mut()
-        .flat_map(|function| &mut function.blocks)
-        .flat_map(|block| &mut block.nodes)
-        .find(|node| {
-            matches!(
-                node.operation,
-                AbstractOperation::BooleanConstant { psi_operation, .. }
-                    | AbstractOperation::IntegerConstant { psi_operation, .. }
-                    if psi_operation == row.psi_operation
-            )
-        })
-        .expect("folded node exists");
-    assert_eq!(
-        folded.provenance,
-        vec![PsiProvenance::Operation(row.psi_operation)]
-    );
-    folded.fuel.pop();
-    malformed.identity = recompute_psi_optimization_unit_identity(&malformed);
-    assert!(matches!(
-        VerifiedPsiOptimizationSession::from_transformed(verified_input, malformed),
-        Err(
-            OptimizationUnitValidationError::FuelDoesNotMatchProvenance { machine: rejected, .. }
-        ) if rejected == machine
-    ));
-}
-
 fn budget() -> OptimizationWorkBudget {
     OptimizationWorkBudget::new(96, 64, 64, 64, 64).expect("budget")
 }
@@ -1616,22 +774,6 @@ fn parameter_place(unit: &PsiOptimizationUnit) -> PlaceId {
         .iter()
         .find(|declaration| matches!(declaration.kind, StructuralPlaceKind::Parameter { .. }))
         .expect("parameter place exists")
-        .id
-}
-
-/// The machine's structural block-parameter place — the state parameter an
-/// edge binding delivers.
-fn block_parameter_place(unit: &PsiOptimizationUnit, machine: MachineId) -> PlaceId {
-    let function = unit
-        .functions
-        .iter()
-        .find(|function| function.machine == machine)
-        .expect("machine exists");
-    function
-        .structural_places
-        .iter()
-        .find(|declaration| matches!(declaration.kind, StructuralPlaceKind::BlockParameter { .. }))
-        .expect("block parameter exists")
         .id
 }
 

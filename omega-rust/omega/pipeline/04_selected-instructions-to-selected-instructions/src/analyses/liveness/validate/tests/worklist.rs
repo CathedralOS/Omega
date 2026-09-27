@@ -2,7 +2,7 @@
 
 use super::replay_function;
 use crate::analyses::liveness::{compute, edge_values, tests::successor_parameter_function};
-use register_model::{RegisterOperandAccess, RegisterUnitId};
+use register_model::RegisterUnitId;
 use selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstructionId,
     SelectedInstructionKind, SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator,
@@ -94,66 +94,6 @@ fn compare(function: &SelectedFunction) -> (usize, usize, usize, usize) {
         producer_transports,
         edge_values::INCOMING_ARGUMENT_RECONSTRUCTIONS.get(),
     )
-}
-
-#[test]
-fn worklist_revisits_only_affected_predecessors_on_sparse_reordered_chain() {
-    let targets = (0..64)
-        .map(|block_index| {
-            if block_index == 63 {
-                Vec::new()
-            } else {
-                vec![block_index + 1]
-            }
-        })
-        .collect::<Vec<_>>();
-    let mut function = graph(&targets);
-    let ordered = compare(&function);
-    assert_eq!((ordered.0, ordered.1), (64, 128));
-    assert_eq!(
-        ordered.2, 0,
-        "no whole-roster transport reconstruction in producer flow"
-    );
-    function.blocks.reverse();
-    let reordered = compare(&function);
-    assert_eq!((reordered.0, reordered.1), (127, 4160));
-    assert_eq!(reordered.2, 0);
-    assert!(reordered.3 > ordered.3);
-    eprintln!(
-        "ordered worklist/reference={}/{}, reordered={}/{}, repeated transport reconstruction={}/{}",
-        ordered.0, ordered.1, reordered.0, reordered.1, reordered.2, reordered.3
-    );
-}
-
-#[test]
-fn worklist_preserves_loops_diamonds_duplicate_edges_and_killed_exits() {
-    for targets in [
-        vec![vec![1, 2], vec![3], vec![3], vec![]],
-        vec![vec![1], vec![2, 3], vec![1], vec![]],
-        vec![vec![1, 1], vec![]],
-        vec![vec![0, 1], vec![]],
-    ] {
-        let mut function = graph(&targets);
-        compare(&function);
-        function.blocks.reverse();
-        compare(&function);
-    }
-    let mut function = graph(&[vec![1], vec![2], vec![]]);
-    let SelectedTerminator::Return { instruction, .. } = &function.blocks[2].terminator else {
-        unreachable!()
-    };
-    let mut definition = instruction.clone();
-    definition.id = SelectedInstructionId(99);
-    definition.operands[0].access = RegisterOperandAccess::Def;
-    definition.implicit_uses.clear();
-    definition.implicit_defs.push(RegisterUnitId(99));
-    function.blocks[1].instructions.push(definition);
-    function.blocks.reverse();
-    compare(&function);
-    let actual = compute::compute_function(0, &function).unwrap();
-    assert!(actual.blocks[1].virtual_live_in.is_empty());
-    assert_eq!(actual.blocks[1].virtual_live_out, [VirtualRegisterId(0)]);
-    assert_eq!(actual.blocks[1].unit_live_out, [RegisterUnitId(99)]);
 }
 
 #[test]

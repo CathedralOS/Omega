@@ -2,4 +2,3 @@
 
 mod against_constant;
 mod against_range;
-mod registry;

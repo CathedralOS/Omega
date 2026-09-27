@@ -18,17 +18,6 @@ const ESTABLISHED_MEMBERSHIPS_SOURCE: &str = r#"
     }
 "#;
 
-/// A membership on a machine parameter place over a multi-case roster carries
-/// no establishment proof and no sole-case roster: the parameter arrives with
-/// whatever case the caller supplied, so the whole selected registry must
-/// decline it.
-const PARAMETER_MEMBERSHIP_SOURCE: &str = r#"
-    data Choice { case Empty; case Some(value: u32); }
-    machine probe(c: Choice) -> bool {
-        c in Choice::Some
-    }
-"#;
-
 /// Two scalar field reads observe one established place: `p.x` folds to `37`
 /// and `p.flag` folds to `true` inside a single candidate covering the place
 /// under the `EstablishRecord` producer basis, so the field-value rule
@@ -38,17 +27,6 @@ const ESTABLISHED_FIELDS_SOURCE: &str = r#"
     machine probe() -> bool {
         let p: Point = Point { x: 37, flag: true };
         (p.x == 37) == p.flag
-    }
-"#;
-
-/// A field read on a machine parameter place over unbounded carriers carries
-/// no establishment proof and no declared bound: the parameter arrives with
-/// whatever value the caller supplied, so the whole selected registry must
-/// decline it.
-const PARAMETER_FIELD_SOURCE: &str = r#"
-    data Point { x: u32; flag: bool; }
-    machine probe(p: Point) -> u32 {
-        p.x
     }
 "#;
 
@@ -106,18 +84,6 @@ pub(in crate::pass_manager::tests) fn verified_representation_specialization_uni
     verified_unit(&module, &proof)
 }
 
-/// The boundary decline: a real membership the unit cannot prove, so the
-/// selection's admission edge commits nothing.
-pub(in crate::pass_manager::tests) fn verified_membership_decline_unit()
--> VerifiedPsiOptimizationUnit {
-    let (module, proof) = lowered_module(
-        PARAMETER_MEMBERSHIP_SOURCE,
-        "parameter membership decline",
-        "probe",
-    );
-    verified_unit(&module, &proof)
-}
-
 /// The established-place positive for field values: two scalar field reads on
 /// `p`'s place fold in one candidate whose producer is the `EstablishRecord`
 /// that fixed both initializers to constants.
@@ -127,15 +93,6 @@ pub(in crate::pass_manager::tests) fn verified_field_value_unit() -> VerifiedPsi
         "established field values",
         "probe",
     );
-    verified_unit(&module, &proof)
-}
-
-/// The field-value boundary decline: a real field read the unit cannot prove,
-/// so the selection's admission edge commits nothing.
-pub(in crate::pass_manager::tests) fn verified_field_value_decline_unit()
--> VerifiedPsiOptimizationUnit {
-    let (module, proof) =
-        lowered_module(PARAMETER_FIELD_SOURCE, "parameter field decline", "probe");
     verified_unit(&module, &proof)
 }
 

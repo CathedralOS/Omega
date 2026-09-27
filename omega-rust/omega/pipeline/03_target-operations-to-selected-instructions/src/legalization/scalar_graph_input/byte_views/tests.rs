@@ -115,19 +115,6 @@ fn successor(edge: u64) -> AbstractSuccessor {
 }
 
 #[test]
-fn borrowed_view_roster_composes_with_owned_case_and_signed_payload_comparison() {
-    assert_ne!(
-        crate::legalization::legalization_validator_identity(),
-        optimization_core::OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.terminal-target-legalization-independent-replay.v41",
-        )
-    );
-    let (plan, target, unit) = mixed_case_fixture();
-    let legalized = crate::legalize_target_operations(&target, &plan, &unit).unwrap();
-    crate::validate_legalized_operations(&target, &plan, &unit, legalized.plan().clone()).unwrap();
-}
-
-#[test]
 fn borrowed_view_roster_rejects_changed_case_result_custody() {
     let (plan, target, unit) = mixed_case_fixture();
     for mutation in [

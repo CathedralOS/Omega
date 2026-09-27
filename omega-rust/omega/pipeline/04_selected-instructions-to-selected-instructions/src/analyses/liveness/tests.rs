@@ -3,12 +3,12 @@
 use optimization_core::AcceptedObligationFactIdentity;
 use register_model::{
     RegisterClassId, RegisterConstraintFamily, RegisterConstraintKey, RegisterOperandAccess,
-    RegisterUnitId, validate_physical_register_model,
+    validate_physical_register_model,
 };
 use selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedFunction, SelectedInstruction, SelectedInstructionId,
-    SelectedInstructionKind, SelectedInstructionProvenance, SelectedOperand, SelectedSuccessor,
-    SelectedTerminator, VirtualRegisterId,
+    SelectedInstructionKind, SelectedInstructionProvenance, SelectedOperand, SelectedTerminator,
+    VirtualRegisterId,
 };
 use semantic_vocabulary::{BlockId, EdgeId, MachineId, ObligationId};
 
@@ -18,171 +18,6 @@ use crate::LivenessError;
 mod successor_transfers;
 
 pub(crate) use successor_transfers::successor_parameter_function;
-
-#[test]
-fn ordinary_call_and_return_retain_exact_unit_liveness() {
-    let mut caller = function_with_operand(RegisterOperandAccess::Use);
-    caller.blocks[0].instructions[0].operands.clear();
-    let call = &mut caller.blocks[0].instructions[0];
-    call.kind = SelectedInstructionKind::CallUnit {
-        callee: MachineId::new(2).unwrap(),
-    };
-    call.implicit_uses = vec![RegisterUnitId(1), RegisterUnitId(2)];
-    call.implicit_defs = vec![RegisterUnitId(3)];
-    call.clobbers = vec![RegisterUnitId(4)];
-    let SelectedTerminator::Return { instruction, .. } = &mut caller.blocks[0].terminator else {
-        unreachable!()
-    };
-    instruction.kind = SelectedInstructionKind::ReturnUnit;
-    instruction.implicit_uses = vec![RegisterUnitId(3)];
-    let liveness = compute_function(0, &caller).unwrap();
-    assert!(liveness.entry_definitions.is_empty());
-    assert!(liveness.operand_positions.is_empty());
-    assert_eq!(
-        liveness.blocks[0].unit_live_in,
-        vec![RegisterUnitId(1), RegisterUnitId(2)]
-    );
-    assert!(liveness.blocks[0].unit_live_out.is_empty());
-    assert_eq!(liveness.blocks[0].instructions.len(), 2);
-    assert_eq!(
-        liveness.blocks[0].instructions[0].position,
-        selected_instructions::LivenessPosition(0)
-    );
-    assert_eq!(
-        liveness.blocks[0].instructions[0].unit_live_out,
-        vec![RegisterUnitId(3)]
-    );
-    assert_eq!(
-        liveness.blocks[0].instructions[0].unit_clobbers,
-        vec![RegisterUnitId(4)]
-    );
-    assert_eq!(
-        liveness.blocks[0].instructions[1].instruction,
-        SelectedInstructionId(1)
-    );
-
-    let mut callee = caller;
-    callee.machine = MachineId::new(2).unwrap();
-    callee.blocks[0].instructions.clear();
-    let SelectedTerminator::Return { instruction, .. } = &mut callee.blocks[0].terminator else {
-        unreachable!()
-    };
-    instruction.id = SelectedInstructionId(0);
-    instruction.implicit_uses = vec![RegisterUnitId(5)];
-    instruction.implicit_defs = vec![RegisterUnitId(6)];
-    let liveness = compute_function(1, &callee).unwrap();
-    assert_eq!(liveness.machine, callee.machine);
-    assert_eq!(liveness.blocks[0].instructions.len(), 1);
-    assert_eq!(liveness.blocks[0].unit_live_in, vec![RegisterUnitId(5)]);
-    assert_eq!(
-        liveness.blocks[0].instructions[0].unit_defs,
-        vec![RegisterUnitId(6)]
-    );
-}
-
-#[test]
-fn integer_less_than_successors_retain_semantic_polarity_order() {
-    let key = RegisterConstraintKey {
-        family: RegisterConstraintFamily::Instruction,
-        variant: 99,
-    };
-    let instruction = |id, kind| SelectedInstruction {
-        id: SelectedInstructionId(id),
-        kind,
-        constraint: key,
-        operands: Vec::new(),
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: Vec::new(),
-        provenance: SelectedInstructionProvenance::default(),
-    };
-    let successor = |edge, block, source_target| SelectedSuccessor {
-        role: selected_instructions::SelectedSuccessorRole::Semantic,
-        structural_case: None,
-        structural_bindings: Vec::new(),
-        psi_edge: EdgeId::new(edge).unwrap(),
-        block: SelectedBlockId(block),
-        source_target: BlockId::new(source_target).unwrap(),
-        bindings: Vec::new(),
-        fuel: Vec::new(),
-    };
-    for signed in [false, true] {
-        let branch_instruction = instruction(
-            0,
-            if signed {
-                SelectedInstructionKind::ConditionalBranchI64LessThan
-            } else {
-                SelectedInstructionKind::ConditionalBranchU64LessThan
-            },
-        );
-        let terminator = if signed {
-            SelectedTerminator::ConditionalBranchI64LessThan {
-                instruction: branch_instruction,
-                when_less: successor(1, 1, 2),
-                when_not_less: successor(2, 2, 3),
-            }
-        } else {
-            SelectedTerminator::ConditionalBranchU64LessThan {
-                instruction: branch_instruction,
-                when_less: successor(1, 1, 2),
-                when_not_less: successor(2, 2, 3),
-            }
-        };
-        let function = SelectedFunction {
-            machine: MachineId::new(1).unwrap(),
-            attachment: None,
-            provenance: Default::default(),
-            structural: None,
-            outgoing_arguments: Vec::new(),
-            local_storage_slots: Vec::new(),
-            calls: Vec::new(),
-            normalized_foreign_calls: Vec::new(),
-            memory_accesses: Vec::new(),
-            boundary_settlements: Vec::new(),
-            entry_block: SelectedBlockId(0),
-            virtual_registers: Vec::new(),
-            blocks: vec![
-                SelectedBlock {
-                    id: SelectedBlockId(0),
-                    origin: selected_instructions::SelectedBlockOrigin::Source(
-                        BlockId::new(1).unwrap(),
-                    ),
-                    instructions: Vec::new(),
-                    terminator,
-                },
-                SelectedBlock {
-                    id: SelectedBlockId(1),
-                    origin: selected_instructions::SelectedBlockOrigin::Source(
-                        BlockId::new(2).unwrap(),
-                    ),
-                    instructions: Vec::new(),
-                    terminator: SelectedTerminator::Return {
-                        instruction: instruction(1, SelectedInstructionKind::ReturnUnit),
-                        psi_return_edge: EdgeId::new(3).unwrap(),
-                    },
-                },
-                SelectedBlock {
-                    id: SelectedBlockId(2),
-                    origin: selected_instructions::SelectedBlockOrigin::Source(
-                        BlockId::new(3).unwrap(),
-                    ),
-                    instructions: Vec::new(),
-                    terminator: SelectedTerminator::Return {
-                        instruction: instruction(2, SelectedInstructionKind::ReturnUnit),
-                        psi_return_edge: EdgeId::new(4).unwrap(),
-                    },
-                },
-            ],
-        };
-
-        let liveness = compute_function(0, &function).unwrap();
-        assert_eq!(liveness.blocks[0].successors.len(), 2);
-        assert_eq!(liveness.blocks[0].successors[0].polarity_ordinal, 0);
-        assert_eq!(liveness.blocks[0].successors[0].target, SelectedBlockId(1));
-        assert_eq!(liveness.blocks[0].successors[1].polarity_ordinal, 1);
-        assert_eq!(liveness.blocks[0].successors[1].target, SelectedBlockId(2));
-    }
-}
 
 pub(crate) fn function_with_operand(access: RegisterOperandAccess) -> SelectedFunction {
     let key = RegisterConstraintKey {

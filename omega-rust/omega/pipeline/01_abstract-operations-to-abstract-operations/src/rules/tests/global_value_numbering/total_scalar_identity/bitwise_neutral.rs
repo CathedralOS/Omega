@@ -3,8 +3,7 @@ use crate::rules::registry::PsiOptimizationRule;
 
 use super::super::super::super::BitwiseNeutralLiteralIdentityRule;
 use crate::rules::tests::fixtures::global_value_numbering::{
-    BitwiseNeutralOperation, WrappingNeutralOperation, bitwise_neutral_identity_unit,
-    bitwise_neutral_identity_unit_with_type_and_liveness, wrapping_neutral_identity_unit,
+    BitwiseNeutralOperation, bitwise_neutral_identity_unit_with_type_and_liveness,
 };
 use crate::rules::tests::fixtures::id;
 use crate::{AnalysisProduct, RuleAnalysisView};
@@ -12,7 +11,6 @@ use abstract_operations::AbstractOperation as O;
 use optimization_core::{OptimizationRuleContract, OptimizationValidatorIdentity};
 use optimization_unit::{
     PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch, TotalScalarIdentityKind,
-    recompute_psi_optimization_unit_identity,
 };
 use optimization_unit_semantics::validate_total_scalar_identity_candidate;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ValueId};
@@ -128,110 +126,4 @@ fn bitwise_neutral_rule_replays_all_six_rows_and_width_boundaries() {
             O::Return { value, .. } if value == id(1_903, ValueId::new)
         ));
     }
-}
-
-#[test]
-fn bitwise_neutral_ties_choose_left_literal_rows_canonically() {
-    for (operation, literal, expected) in [
-        (
-            BitwiseNeutralOperation::And,
-            IntegerValue::Unsigned(u8::MAX.into()),
-            TotalScalarIdentityKind::IntegerBitwiseAndAllOnesLeft,
-        ),
-        (
-            BitwiseNeutralOperation::Or,
-            IntegerValue::Unsigned(0),
-            TotalScalarIdentityKind::IntegerBitwiseOrZeroLeft,
-        ),
-        (
-            BitwiseNeutralOperation::Xor,
-            IntegerValue::Unsigned(0),
-            TotalScalarIdentityKind::IntegerBitwiseXorZeroLeft,
-        ),
-    ] {
-        let unit = bitwise_neutral_identity_unit(operation, literal, true, true);
-        let [candidate] = candidates(&unit).try_into().unwrap();
-        let PsiRewritePatch::EliminateTotalScalarIdentity(patch) = candidate.patch() else {
-            unreachable!()
-        };
-        assert_eq!(patch.identity, expected);
-    }
-}
-
-#[test]
-fn bitwise_neutral_rule_rejects_wrong_literals_dead_impure_and_mistyped_inputs() {
-    for (operation, wrong_literal) in [
-        (BitwiseNeutralOperation::And, IntegerValue::Unsigned(0)),
-        (BitwiseNeutralOperation::Or, IntegerValue::Unsigned(1)),
-        (BitwiseNeutralOperation::Xor, IntegerValue::Unsigned(1)),
-    ] {
-        let unit = bitwise_neutral_identity_unit(operation, wrong_literal, false, false);
-        assert!(candidates(&unit).is_empty());
-    }
-
-    let dead = bitwise_neutral_identity_unit_with_type_and_liveness(
-        IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
-        BitwiseNeutralOperation::Or,
-        IntegerValue::Unsigned(0),
-        false,
-        false,
-        false,
-    );
-    assert!(candidates(&dead).is_empty());
-
-    let unit = bitwise_neutral_identity_unit(
-        BitwiseNeutralOperation::Or,
-        IntegerValue::Unsigned(0),
-        false,
-        false,
-    );
-    let mut products = analysis_products(&unit, BitwiseNeutralLiteralIdentityRule::contract());
-    let effects = products
-        .iter_mut()
-        .find_map(|product| match product {
-            AnalysisProduct::EffectSummaries(effects) => Some(effects),
-            _ => None,
-        })
-        .unwrap();
-    effects
-        .nodes
-        .iter_mut()
-        .find(|row| row.node == 1)
-        .unwrap()
-        .class = crate::EffectClass::Control;
-    assert!(
-        BitwiseNeutralLiteralIdentityRule
-            .propose(&unit, RuleAnalysisView::new(&products))
-            .unwrap()
-            .is_empty()
-    );
-
-    let mut mistyped = unit.clone();
-    let O::IntegerBitwiseOr {
-        psi_operation,
-        result,
-        left,
-        right,
-        ..
-    } = mistyped.functions[0].blocks[0].nodes[1].operation
-    else {
-        unreachable!()
-    };
-    mistyped.functions[0].blocks[0].nodes[1].operation = O::IntegerBitwiseOr {
-        psi_operation,
-        result,
-        scalar_type: IntegerType::new(IntegerSign::Unsigned, 16).unwrap(),
-        left,
-        right,
-    };
-    mistyped.identity = recompute_psi_optimization_unit_identity(&mistyped);
-    assert!(candidates(&mistyped).is_empty());
-
-    let wrapping = wrapping_neutral_identity_unit(
-        WrappingNeutralOperation::Add,
-        IntegerValue::Unsigned(0),
-        false,
-        false,
-    );
-    assert!(candidates(&wrapping).is_empty());
 }

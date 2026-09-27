@@ -21,8 +21,6 @@ use selected_instructions::{
 use selected_instructions::{SelectedBlockId, VirtualRegisterId};
 
 use architectural_units::architectural_units;
-#[cfg(test)]
-use architectural_units::build_unit;
 pub(crate) use constraints::{derive_early_clobbers, derive_tied_pairs};
 use fragments::{
     after_point, before_point, block_domain, connector, fragments_from_points, fragments_overlap,
