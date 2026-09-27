@@ -145,7 +145,7 @@ fn carrier_match_moves_the_whole_claim_frontier_and_reconsumes_each_child() {
         );
         assert!(
             formatted.starts_with(
-                r#"Unsupported("machine has no source-independent checked scalar control plan"#
+                r#"InvalidUnitMachinePlan { machine: "choose", reason: "machine has no source-independent checked scalar control plan"#
             ),
             "{name}: a claim-bearing local has no scalar control plan yet ({formatted})"
         );
