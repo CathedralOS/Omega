@@ -537,6 +537,7 @@ version = "0.1.0"
 dependencies = [
  "effects",
  "language-semantics",
+ "optimization-core",
  "proof-admission",
  "semantic-vocabulary",
  "sha2",
