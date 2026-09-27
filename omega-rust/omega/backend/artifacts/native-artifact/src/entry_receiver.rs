@@ -1,0 +1,188 @@
+//! Executable entry receiver admission before physical construction.
+
+use diagnostics::Diagnostic;
+use terminal_psi_to_abstract_operations::{
+    NativeProgramEntrySettlement, TerminalPlacedViewEstablishment,
+    ValidatedNativeProgramEntrySettlement, VerifiedNativeArtifactInput,
+    validate_native_program_entry_settlement,
+};
+
+/// Admit the receiver boundary required by an executable image. The complete
+/// native input keeps the lowered entry, verified Terminal declaration, and
+/// placed-view loans together; none can be supplied as an unrelated sidecar.
+///
+/// A source receiver erased from the executable still needs initialization
+/// and cleanup custody. A retained receiver also needs a supported target
+/// bridge. Success permits construction, not publication: the emitted object
+/// and image must independently replay the returned settlement.
+pub fn admit_executable_entry_receiver(
+    input: &VerifiedNativeArtifactInput,
+    artifact: &terminal_codec::CanonicalTerminalArtifact,
+    program_entry: NativeProgramEntrySettlement<'_>,
+    native_target: target::NativeTarget,
+) -> Result<Option<ValidatedNativeProgramEntrySettlement>, Vec<Diagnostic>> {
+    let plan = input.plan();
+    let terminal = input.context().module();
+    let placed_view_establishments = input.placed_view_establishments();
+    // The provider establishments bound into the input are loans the emitted
+    // entry boundary must carry for the invocation's duration. Only the
+    // hosted receiver bridge is such a boundary: an admission that retains
+    // none cannot lend the referents and fails closed rather than publishing
+    // an entry that observes custody nobody supplied.
+    // Settlement retains the entry declaration, not an installed receiver.
+    // This admission serves executable images; callable lowering and
+    // explicit semantic wrappers retain their own boundaries.
+    let has_self_parameter = |parameters: &[terminal_psi::StructuralParameterDeclaration]| {
+        parameters.iter().any(|parameter| parameter.is_self)
+    };
+    let has_receiver = plan.functions.iter().any(|function| {
+        function.machine == plan.entry && has_self_parameter(&function.structural_parameters)
+    });
+    // The verified Terminal entry is the receiver-mode frontier the abstract
+    // lowering replays. An unused `&mut self` receiver erases entirely inside
+    // checked production, so a provisioned source entry legitimately reaches
+    // this stage without a self parameter; the plan cannot gain or lose the
+    // marker that verification retained.
+    let terminal_has_receiver = terminal.machines.iter().any(|machine| {
+        machine.id == terminal.entry && has_self_parameter(&machine.structural_parameters)
+    });
+    if has_receiver != terminal_has_receiver {
+        return Err(receiver_admission_error(
+            "ProgramEntry receiver provisioning",
+            "lowered entry does not preserve the source-selected receiver mode",
+        ));
+    }
+    let source_provisions_receiver = matches!(
+        program_entry.source().receiver(),
+        program_entry_plan::ProgramEntrySourceReceiverSignature::ProvisionedMutable { .. }
+    );
+    if !source_provisions_receiver {
+        if has_receiver {
+            // A free source entry cannot acquire a receiver through lowering.
+            return Err(receiver_admission_error(
+                "ProgramEntry receiver provisioning",
+                "lowered entry does not preserve the source-selected receiver mode",
+            ));
+        }
+        return entry_boundary_without_receiver(placed_view_establishments);
+    }
+    let lowered_entry = plan
+        .functions
+        .iter()
+        .find(|function| function.machine == plan.entry);
+    let terminal_entry = terminal
+        .machines
+        .iter()
+        .find(|machine| machine.id == terminal.entry);
+    let lowered_attachment = lowered_entry.and_then(|function| function.attachment);
+    let terminal_attachment = terminal_entry.and_then(|machine| machine.attachment);
+    if !has_receiver {
+        // Erasure removes the borrow parameter, not the source owner's
+        // initialization and cleanup obligations. The attachment still binds
+        // that owner, and checked eligibility below must justify eliding it.
+        if lowered_attachment.is_none() || lowered_attachment != terminal_attachment {
+            return Err(receiver_admission_error(
+                "ProgramEntry receiver provisioning",
+                "lowered entry does not preserve the source-selected receiver mode",
+            ));
+        }
+    } else {
+        // A retained borrow is the receiver this realization physically
+        // provisions: the bridge sizes and lends the storage the lowered
+        // declaration spells out, and no later stage rejoins a drifted
+        // receiver to the checked Terminal receiver. The owner attachment and
+        // the exact self declaration must survive lowering unchanged.
+        let receiver_preserved = match (lowered_entry, terminal_entry) {
+            (Some(function), Some(machine)) => function
+                .structural_parameters
+                .iter()
+                .filter(|parameter| parameter.is_self)
+                .eq(machine
+                    .structural_parameters
+                    .iter()
+                    .filter(|parameter| parameter.is_self)),
+            _ => false,
+        };
+        if lowered_attachment != terminal_attachment || !receiver_preserved {
+            return Err(receiver_admission_error(
+                "ProgramEntry receiver provisioning",
+                "lowered entry does not preserve the source-selected receiver identity",
+            ));
+        }
+    }
+    let supported_receiver_bridge = native_target == target::NativeTarget::macos_arm64()
+        || native_target == target::NativeTarget::linux_x64()
+        || native_target == target::NativeTarget::linux_arm64()
+        || native_target == target::NativeTarget::windows_x64()
+        // The UEFI entry is not a hosted shim: the authored semantic entry
+        // compiles a private wrapper that provisions `self` inside its own
+        // outgoing frame and calls the semantic child, so the root-backed
+        // bridge for it is the semantic wrapper object join.
+        || native_target == target::NativeTarget::uefi_x64();
+    if has_receiver && !supported_receiver_bridge {
+        return Err(receiver_admission_error(
+            "ProgramEntry receiver provisioning",
+            "the executable entry retains a self parameter, but no root-backed bridge constructs and lends its receiver; source-entry settlement alone does not provision receiver storage",
+        ));
+    }
+    let checked_entry = program_entry.checked_entry.ok_or_else(|| {
+        receiver_admission_error(
+            "ProgramEntry receiver provisioning",
+            "hosted receiver requires exact checked initialization and cleanup custody",
+        )
+    })?;
+    let settled = validate_native_program_entry_settlement(
+        artifact,
+        checked_entry,
+        program_entry,
+        native_target,
+    )
+    .map_err(|error| receiver_admission_error("ProgramEntry receiver custody", error))?;
+    if settled.checked_entry().receiver_eligibility().is_none() {
+        return Err(receiver_admission_error(
+            "ProgramEntry receiver provisioning",
+            "hosted receiver requires a checked ZII-valid value with no executable nominal cleanup",
+        ));
+    }
+    if !has_receiver {
+        // Source ZII/no-code disposal and the exact erased projection have
+        // been replayed. No physical receiver argument or storage is needed;
+        // Fused establishment is still checked independently before this call.
+        return entry_boundary_without_receiver(placed_view_establishments);
+    }
+    // Callback occupancy is orthogonal to receiver provisioning: each
+    // materialization binds at its own registrar call site inside function
+    // fragments, and the emitted object plus final image replay join them to
+    // their private functions regardless of which entry boundary the program
+    // selected.
+    // This only permits physical construction to begin. The validated
+    // settlement is the demand the object binder must satisfy exactly — the
+    // bound placed-view establishments ride on it so the emitted entry
+    // boundary is what must lend each referent — and the final image replay
+    // must still prove the disjoint backing, exact entry pointer, stack
+    // switch, and normal-return continuation before publication.
+    Ok(Some(settled.with_placed_view_establishments(
+        placed_view_establishments,
+    )))
+}
+
+/// An admission that retains no hosted receiver boundary emits no shim that
+/// can lend a placed-view referent; bound establishments reaching it reject
+/// rather than publishing an entry whose custody was never supplied.
+fn entry_boundary_without_receiver(
+    placed_view_establishments: &[TerminalPlacedViewEstablishment],
+) -> Result<Option<ValidatedNativeProgramEntrySettlement>, Vec<Diagnostic>> {
+    if placed_view_establishments.is_empty() {
+        return Ok(None);
+    }
+    Err(receiver_admission_error(
+        "ProgramEntry placed-view custody",
+        "bound placed-view establishments require the hosted entry boundary that lends each referent; this admission retains none",
+    ))
+}
+
+fn receiver_admission_error(context: &str, error: impl std::fmt::Display) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(format!(
+        "native artifact {context} failed: {error}"
+    ))]
+}
