@@ -30,6 +30,7 @@ pub(super) fn account(
         }
         _ => Vec::new(),
     };
+    let construction_uses = construction_local_uses(facts, state.symbol, operations)?;
     for (producer_index, operation) in operations.iter().enumerate() {
         let result = match operation {
             CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
@@ -250,9 +251,109 @@ pub(super) fn account(
                     && value.path.is_empty()
             )
         });
-        if usize::from(consumed || stored) + call_transfers + cleanup_discards != 1 {
+        // A constructor takes its whole owned local operands just as a call
+        // does. Statement sequencing already retires their disposal flags;
+        // rejoin the exact value children here instead of requiring that the
+        // operand itself also be the returned outer binding. Selected values
+        // retain their separate per-arm ownership receipts.
+        let construction_count = match statements.get(result.statement_index as usize) {
+            Some(StatementNode::LocalData(local)) => construction_uses
+                .iter()
+                .filter(|(consumer_index, argument)| {
+                    *consumer_index > producer_index
+                        && matches!(argument.source,
+                            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
+                                if symbol == local.symbol)
+                        && argument.type_identity == result.type_identity
+                        && (result.multiplicity == Multiplicity::Unrestricted
+                            || argument.access == CheckedStructuralAccess::Owned)
+                        && argument.path.is_empty()
+                })
+                .count(),
+            _ => 0,
+        };
+        // Copyable local leaves may be retained as shared case/record reads,
+        // or as owned operands. Neither form moves the original owner; repeated
+        // observations do not create or discharge an affine obligation.
+        let copied_into_construction =
+            result.multiplicity == Multiplicity::Unrestricted && construction_count != 0;
+        let construction_transfers = if result.multiplicity == Multiplicity::Unrestricted {
+            0
+        } else {
+            construction_count
+        };
+        if usize::from(consumed || stored || copied_into_construction)
+            + call_transfers
+            + cleanup_discards
+            + construction_transfers
+            != 1
+        {
             return None;
         }
     }
     Some(())
+}
+
+/// Borrow whole local operands once per unconditional construction tree. The
+/// sequence mutation walker also enters dispatch/projection nodes to update
+/// disposal flags; accounting cannot flatten those per-arm/residual receipts.
+/// Keep this inventory restricted to ordinary constructor composition.
+fn construction_local_uses<'a>(
+    facts: &'a CheckFacts,
+    state: symbols::SymbolHandle,
+    operations: &[CheckedUnitEffectOperationPlan],
+) -> Option<Vec<(usize, &'a checked_trees::CheckedUnitStructuralArgumentPlan)>> {
+    use checked_trees::{CheckedStructuralRecordFieldValue, CheckedStructuralValueKind};
+
+    let values = &facts.values.structural_values;
+    let mut uses = Vec::new();
+    let mut pending = Vec::new();
+    let mut visited = Vec::new();
+    for (index, operation) in operations.iter().enumerate() {
+        let CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, value, .. } =
+            operation
+        else {
+            continue;
+        };
+        if facts
+            .flow
+            .ownership
+            .owned_selection_at(state, result.statement_index)
+            .is_some()
+        {
+            continue;
+        }
+        pending.push(*value);
+        visited.clear();
+        while let Some(value) = pending.pop() {
+            if !values.nodes.is_valid(value) || visited.contains(&value) {
+                return None;
+            }
+            visited.push(value);
+            match &values.nodes.get(value).kind {
+                CheckedStructuralValueKind::Place(argument)
+                | CheckedStructuralValueKind::ScalarCasePlace {
+                    source: argument, ..
+                }
+                | CheckedStructuralValueKind::CopiedStructuralPlace {
+                    source: argument, ..
+                } => {
+                    uses.push((index, argument));
+                }
+                CheckedStructuralValueKind::Record { fields, .. }
+                | CheckedStructuralValueKind::StructuralCase { fields, .. } => {
+                    for field in values.record_fields.span(*fields)? {
+                        if let CheckedStructuralRecordFieldValue::Structural(value) = field.value {
+                            pending.push(value);
+                        }
+                    }
+                }
+                CheckedStructuralValueKind::FixedArray { elements } => {
+                    pending.extend(elements.iter().copied());
+                }
+                _ => {}
+            }
+        }
+    }
+    Some(uses)
 }

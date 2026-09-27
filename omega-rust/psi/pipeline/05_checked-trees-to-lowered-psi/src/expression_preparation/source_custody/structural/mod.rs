@@ -28,6 +28,8 @@ pub(crate) use borrowed_slice_view::authored_collection_path;
 mod owned_places;
 mod view_element_copy;
 pub(crate) use owned_places::validate as validate_owned_place;
+#[cfg(test)]
+mod owned_case_tests;
 mod owned_selection;
 mod shared_borrow;
 #[cfg(test)]
@@ -339,11 +341,10 @@ pub(crate) fn validate(
                     )?;
                     selected_leaves.push(expression);
                 } else {
-                    if !plain_record(checked, reference) {
-                        return unsupported(
-                            "existing structural value has no selected ownership receipt or plain record type",
-                        );
-                    }
+                    // Moving a whole owned value preserves its carrier, including
+                    // a sum's active case. Ordinary source/type and exact affine
+                    // transfer replay apply to constructor operands of any plain
+                    // owned carrier; no case selection or reconstruction occurs.
                     owned_places::validate(
                         checked,
                         machine,
