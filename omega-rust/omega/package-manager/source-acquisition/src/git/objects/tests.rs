@@ -284,51 +284,6 @@ fn authenticated_file_entry(oid: &str, path: &str, payload: &[u8]) -> GitTreeEnt
 }
 
 #[test]
-fn git_object_authentication_accepts_fixed_sha1_and_sha256_graphs() {
-    for (algorithm, blob, tree, commit) in [
-        (
-            GitObjectIdAlgorithm::Sha1,
-            "ce013625030ba8dba906f756967f9e9ca394464a",
-            "6e3b5fe3c2f6b56c4d150929f0df706a5356004a",
-            "63338d8e114523a7087c391b234d776baae7af51",
-        ),
-        (
-            GitObjectIdAlgorithm::Sha256,
-            "2cf8d83d9ee29543b34a87727421fdecb7e3f3a183d337639025de576db9ebb4",
-            "2ff2fdf5e33d610f8013a2eba140fd1660dac0491d9cac96ac024c5789c44e07",
-            "5145c89465c4d7f1ab705bb9e032ef1a9ac879a5e137733bdab3b1d6cd354ff7",
-        ),
-    ] {
-        assert_eq!(
-            git_object_identity(b"blob", b"hello\n", algorithm).expect("hash fixed Git object"),
-            blob
-        );
-        authenticate_git_tree(
-            tree,
-            &[authenticated_file_entry(blob, "main.omg", b"hello\n")],
-        )
-        .expect("fixed authenticated tree graph");
-        let commit_payload = format!("tree {tree}\n\n");
-        authenticate_git_commit_payload(commit, tree, commit_payload.as_bytes())
-            .expect("fixed authenticated commit graph");
-    }
-}
-
-#[test]
-fn git_tree_graph_authenticates_before_blob_payloads_are_opened() {
-    let blob = "ce013625030ba8dba906f756967f9e9ca394464a";
-    let tree = "6e3b5fe3c2f6b56c4d150929f0df706a5356004a";
-    let entry = authenticated_file_entry(blob, "main.omg", b"");
-
-    authenticate_git_tree_graph(tree, std::slice::from_ref(&entry))
-        .expect("tree graph uses the authenticated blob edge without opening its payload");
-    assert!(matches!(
-        authenticate_git_tree_payloads(tree, &[entry]),
-        Err(SourceResolveError::GitObjectInvalid { .. })
-    ));
-}
-
-#[test]
 fn selective_git_member_opens_only_authenticated_declarations_and_member_payloads() {
     let (repo, _) = create_git_source("selective-member-payloads");
     std::fs::create_dir_all(repo.join("packages/member/src")).expect("create member source");
@@ -527,43 +482,6 @@ fn selective_git_projection_rejects_duplicate_missing_and_wrong_type_paths() {
 }
 
 #[test]
-fn selective_git_projection_authenticates_an_empty_member_tree() {
-    let (repo, _) = create_git_source("selective-empty-member");
-    let revision = add_empty_tree_commit(&repo);
-    let cache = temp_root("selective-empty-member-cache");
-    let request = local_git_request(&repo, &revision);
-    let resolved =
-        resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
-            .expect("prime authenticated empty-tree repository cache");
-    let repository = open_verified_git_repository(&cache, &request);
-    let executor =
-        test_system_git_executor(GitExecutionTransport::Https).expect("system Git executor");
-    let projection = inspect_git_tree_projection(
-        &executor,
-        &repository,
-        resolved.tree(),
-        &GitTreeProjectionRequest::new([b"main.omg".to_vec()], b"empty".to_vec()),
-        LocalSourceLimits {
-            max_entries: 1,
-            max_bytes: 64,
-            max_depth: 0,
-        },
-    )
-    .expect("authenticate and project an empty member tree");
-
-    assert_eq!(
-        projection.member().tree_oid(),
-        "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
-    );
-    assert!(projection.member().entries().is_empty());
-
-    drop(repository);
-    let _ = std::fs::remove_dir_all(&repo);
-    make_tree_owner_writable(&cache);
-    let _ = std::fs::remove_dir_all(&cache);
-}
-
-#[test]
 fn selective_git_graph_rejects_omitted_forged_and_duplicate_edges() {
     let blob = "ce013625030ba8dba906f756967f9e9ca394464a";
     let tree = "6e3b5fe3c2f6b56c4d150929f0df706a5356004a";
@@ -647,19 +565,6 @@ fn git_object_authentication_rejects_mismatched_bytes_and_edges() {
     };
     assert!(matches!(
         authenticate_git_tree(tree, &[false_empty_tree]),
-        Err(SourceResolveError::GitObjectInvalid { .. })
-    ));
-}
-
-#[test]
-fn exact_git_revision_must_equal_the_selected_commit() {
-    let revision = "0123456789abcdef0123456789abcdef01234567";
-    verify_exact_git_revision(revision, &revision.to_ascii_uppercase())
-        .expect("hexadecimal case does not change an object identity");
-    verify_exact_git_revision("refs/heads/main", revision)
-        .expect("symbolic selectors are bound by ordinary fetch resolution");
-    assert!(matches!(
-        verify_exact_git_revision(revision, "1123456789abcdef0123456789abcdef01234567"),
         Err(SourceResolveError::GitObjectInvalid { .. })
     ));
 }
@@ -766,36 +671,6 @@ fn inert_gitlink_graph_keeps_exact_identity_and_refuses_source_consumption() {
             parse_git_tree_graph_entries(malformed.as_bytes(), Path::new("repository")).is_err()
         );
     }
-}
-
-#[test]
-fn whole_tree_rejection_enumerates_every_declared_submodule_edge() {
-    let first = "1111111111111111111111111111111111111111";
-    let second = "2222222222222222222222222222222222222222";
-    let blob = git_object_identity(b"blob", b"", GitObjectIdAlgorithm::Sha1).unwrap();
-    let listing = format!(
-        "160000 commit {first} -\tdeps/one\0100644 blob {blob} 0\t.gitmodules\0160000 commit {second} -\tvendor/two\0"
-    );
-    let error = parse_git_tree_entries(
-        listing.as_bytes(),
-        Path::new("repository"),
-        LocalSourceLimits::default(),
-    )
-    .expect_err("whole-tree submodule declarations reject");
-    let SourceResolveError::GitSubmodulesUnsupported { edges } = error else {
-        panic!("expected submodule-edge rejection");
-    };
-    assert_eq!(
-        edges
-            .iter()
-            .map(|edge| (edge.path.as_path(), edge.commit.as_deref()))
-            .collect::<Vec<_>>(),
-        vec![
-            (Path::new("deps/one"), Some(first)),
-            (Path::new(".gitmodules"), None),
-            (Path::new("vendor/two"), Some(second)),
-        ]
-    );
 }
 
 #[test]

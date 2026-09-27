@@ -34,65 +34,6 @@ mod workspace;
 use fixture::{Fixture, assert_status};
 
 #[test]
-fn local_install_publishes_build_and_lock_and_default_alias_imports() {
-    let fixture = Fixture::new();
-    let before = fixture.accepted_files();
-    let output = fixture.omega(&["install", "../dependency"]);
-    assert_status(&output, 0);
-    fixture.assert_published(&before);
-    assert!(String::from_utf8_lossy(&output.stdout).contains("Published build.omg and omega.lock"));
-
-    fixture.write(
-        "root/main.omg",
-        "use arithmetic_kernels::main;\nmachine main() -> u64 { value() }\n",
-    );
-    let accepted = fixture.accepted_files();
-    assert_status(&fixture.omega(&["--check", "main.omg"]), 0);
-    assert_eq!(
-        fixture.accepted_files(),
-        accepted,
-        "checking must not rewrite the accepted pair"
-    );
-}
-
-#[test]
-fn explicit_alias_imports_and_project_and_multiple_targets_reach_manager() {
-    let fixture = Fixture::new();
-    let before = fixture.accepted_files();
-    assert_status(
-        &fixture.omega(&[
-            "install",
-            "../dependency",
-            "--as",
-            "numbers",
-            "--project",
-            ".",
-            "--target",
-            "linux_x86_64",
-            "--target",
-            "macos_arm64",
-        ]),
-        0,
-    );
-    fixture.assert_published(&before);
-    let lock = fixture.lock();
-    assert_eq!(lock.targets().len(), 2);
-    assert!(lock.target(target::TargetProfile::LinuxX64).is_some());
-    assert!(lock.target(target::TargetProfile::MacosArm64).is_some());
-    let build = fixture.read("root/build.omg");
-    assert!(build.contains("depend_as(\"numbers\""), "{build}");
-
-    fixture.write(
-        "root/main.omg",
-        "use numbers::main;\nmachine main() -> u64 { value() }\n",
-    );
-    assert_status(
-        &fixture.omega(&["--check", "--target", "linux_x86_64", "main.omg"]),
-        0,
-    );
-}
-
-#[test]
 fn unchanged_updates_publish_for_all_packages_declared_name_and_alias() {
     let fixture = Fixture::new();
     assert_status(

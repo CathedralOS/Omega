@@ -17,8 +17,6 @@ use super::resolution_observations::{
     ResolvedLocalSnapshot, ResolvedLocalSource, VerifiedPackageSourceEntry,
     VerifiedPackageSourceEntryKind,
 };
-#[cfg(test)]
-use super::snapshot::publish_local_snapshot;
 use super::snapshot::publish_local_snapshot_in_lane;
 use crate::tree::capture::{
     CapturedLocalEntryKind, SourceTreePolicy, capture_local_source,
@@ -91,18 +89,6 @@ pub fn capture_verified_package_source_snapshot(
             },
         })
         .collect())
-}
-
-#[cfg(test)]
-pub(crate) fn resolve_local_source_snapshot_at_path(
-    root: impl AsRef<Path>,
-    cache_dir: impl AsRef<Path>,
-    limits: LocalSourceLimits,
-) -> Result<ResolvedLocalSnapshot, SourceResolveError> {
-    let limits = limits.compiler_bounded();
-    let requested_root = root.as_ref().to_path_buf();
-    let captured = capture_local_source(&requested_root, limits, SourceTreePolicy::LocalPackage)?;
-    publish_local_snapshot(requested_root, captured, cache_dir.as_ref(), limits)
 }
 
 pub fn resolve_local_source_snapshot_in_lane(

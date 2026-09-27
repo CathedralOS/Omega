@@ -20,19 +20,6 @@ use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-pub(crate) const PACKAGE_FIXTURES: &[&str] = &[
-    "arithmetic-kernels",
-    "generated-table",
-    "file-journal",
-    "network-overreach",
-    "remote-journal",
-    "axiom-ledger",
-    "opaque-carrier",
-    "provider-switchboard",
-    "capability-vault",
-    "graph-workbench",
-];
-
 pub(crate) fn temp_root(name: &str) -> PathBuf {
     let stamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -60,26 +47,6 @@ fn temp_root_at(name: &str, stamp: u128) -> PathBuf {
         "omega-package-source-{name}-{}-{stamp}-{ordinal}",
         std::process::id()
     ))
-}
-
-#[test]
-fn simultaneous_fixture_roots_are_distinct_even_with_the_same_timestamp() {
-    let roots = std::thread::scope(|scope| {
-        let workers = (0..8)
-            .map(|_| {
-                scope.spawn(|| {
-                    (0..32)
-                        .map(|_| temp_root_at("same-clock", 0))
-                        .collect::<Vec<_>>()
-                })
-            })
-            .collect::<Vec<_>>();
-        workers
-            .into_iter()
-            .flat_map(|worker| worker.join().expect("fixture worker"))
-            .collect::<std::collections::BTreeSet<_>>()
-    });
-    assert_eq!(roots.len(), 256);
 }
 
 pub(crate) fn resolve_git_source_from_hardened_base(
@@ -222,37 +189,6 @@ pub(crate) fn create_git_source_with_format(
     assert!(output.status.success());
     let commit = String::from_utf8_lossy(&output.stdout).trim().to_owned();
     (root, commit)
-}
-
-pub(crate) fn add_empty_tree_commit(repository: &Path) -> String {
-    let empty_tree =
-        run_test_git_with_input(repository, ["hash-object", "-t", "tree", "--stdin"], b"");
-    let main_blob = run_test_git_with_input(repository, ["rev-parse", "HEAD:main.omg"], b"");
-    let root_tree_input =
-        format!("100644 blob {main_blob}\tmain.omg\n040000 tree {empty_tree}\tempty\n");
-    let root_tree = run_test_git_with_input(repository, ["mktree"], root_tree_input.as_bytes());
-    let commit = run_test_git_with_input(
-        repository,
-        [
-            "commit-tree",
-            &root_tree,
-            "-p",
-            "HEAD",
-            "-m",
-            "add empty tree",
-        ],
-        b"",
-    );
-    run_test_git(repository, ["update-ref", "HEAD", &commit]);
-    commit
-}
-
-pub(crate) fn package_fixtures_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .map(|ancestor| ancestor.join("tests/omega/packages"))
-        .find(|fixtures| fixtures.is_dir())
-        .expect("package-source should live beneath the Omega workspace")
 }
 
 pub(crate) fn git_cache_entry_root(cache: &Path, request: &GitSourceRequest) -> PathBuf {

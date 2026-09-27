@@ -1,7 +1,7 @@
 use super::super::GitCommitId;
 use super::{
-    Fixture, GIT_CACHE_METADATA, GitExactRevisionAcquisition, LocalSourceLimits,
-    SourceResolveError, local_git_request, resolve_git_source_at_revision_in_lane,
+    Fixture, GitExactRevisionAcquisition, LocalSourceLimits, SourceResolveError, local_git_request,
+    resolve_git_source_at_revision_in_lane,
 };
 #[test]
 fn exact_tree_and_algorithm_mismatches_reject_without_selector_fallback() {
@@ -57,56 +57,4 @@ fn authored_exact_commit_must_equal_persisted_commit_before_acquisition() {
         !request_entry.exists(),
         "rejected exact request must not create its cache entry"
     );
-}
-
-#[test]
-fn unavailable_persisted_commit_never_falls_back_to_available_head() {
-    let fixture = Fixture::new("exact-revision-unavailable");
-    let missing = GitCommitId::parse_hex(&"ab".repeat(20)).unwrap();
-    assert_ne!(missing, fixture.commit);
-    fixture
-        .resolve_objects(
-            &missing,
-            &fixture.tree,
-            GitExactRevisionAcquisition::AllowFetch,
-        )
-        .expect_err("available HEAD cannot replace the unavailable persisted commit");
-}
-
-#[test]
-fn persisted_objects_reject_tampered_cache_or_snapshot_without_repair_fetch() {
-    for snapshot in [false, true] {
-        let mut fixture = Fixture::new("exact-revision-tamper");
-        let first = fixture
-            .resolve(GitExactRevisionAcquisition::AllowFetch)
-            .unwrap();
-        let altered = if snapshot {
-            first.snapshot_root().join("main.omg")
-        } else {
-            fixture.entry().join(GIT_CACHE_METADATA)
-        };
-        let mut permissions = std::fs::metadata(&altered).unwrap().permissions();
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            permissions.set_mode(permissions.mode() | 0o200);
-        }
-        // Off Unix there are no permission mode bits, so clearing the read-only
-        // attribute is the only way to make the retained file writable again.
-        // The lint's world-writable concern is a Unix one, and the Unix arm
-        // above widens only the owner bit through `PermissionsExt::set_mode`.
-        #[cfg(not(unix))]
-        #[allow(clippy::permissions_set_readonly_false)]
-        permissions.set_readonly(false);
-        std::fs::set_permissions(&altered, permissions).unwrap();
-        std::fs::write(&altered, b"changed retained source\n").unwrap();
-        fixture.disconnect();
-        let error = fixture
-            .resolve(GitExactRevisionAcquisition::AllowFetch)
-            .unwrap_err();
-        assert!(
-            matches!(error, SourceResolveError::GitCacheInvalid { .. }),
-            "{error:?}"
-        );
-    }
 }

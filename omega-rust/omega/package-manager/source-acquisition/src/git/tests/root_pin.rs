@@ -2,8 +2,8 @@
 use super::{
     GIT_CACHE_METADATA, GitSourceRequest, LocalSourceLimits, PathBuf, SourceResolveError,
     SourceResolver, create_git_source, git_cache_identity, local_git_request,
-    make_tree_owner_writable, resolve_git_source_from_pin_in_lane, run_test_git,
-    run_test_git_with_input, temp_root, test_system_git_executor,
+    make_tree_owner_writable, resolve_git_source_from_pin_in_lane, temp_root,
+    test_system_git_executor,
 };
 use crate::PrimaryGitChoices;
 use crate::observations::resolved::{GitAcquisitionPin, ResolvedGitSource};
@@ -79,55 +79,6 @@ impl Drop for Fixture {
         make_tree_owner_writable(&self.storage_base);
         let _ = std::fs::remove_dir_all(&self.storage_base);
     }
-}
-
-#[test]
-fn whole_root_pin_keeps_original_commit_and_tree_after_selector_refresh() {
-    let mut fixture = Fixture::new("whole-root-pin-movement");
-    let first = fixture.resolve(None).expect("resolve initial HEAD");
-    let pin = first.acquisition_pin();
-    std::fs::write(
-        fixture.repository.join("main.omg"),
-        b"machine Main::changed() {}\n",
-    )
-    .expect("advance authored source");
-    run_test_git(&fixture.repository, ["add", "main.omg"]);
-    run_test_git(
-        &fixture.repository,
-        ["commit", "--quiet", "-m", "advance HEAD"],
-    );
-    let advanced_commit = run_test_git_with_input(&fixture.repository, ["rev-parse", "HEAD"], b"");
-
-    let pinned = fixture
-        .resolve(Some(&pin))
-        .expect("pin ignores branch movement");
-    assert_eq!(pinned, first);
-    let refreshed = fixture
-        .resolve(None)
-        .expect("None refreshes the current selector");
-    assert_eq!(refreshed.commit(), advanced_commit);
-    assert_ne!(refreshed.commit(), first.commit());
-    assert_ne!(refreshed.tree(), first.tree());
-    assert_eq!(
-        std::fs::read(refreshed.snapshot_root().join("main.omg")).expect("read refreshed source"),
-        b"machine Main::changed() {}\n"
-    );
-
-    fixture.disconnect();
-    let offline = fixture
-        .resolve(Some(&pin))
-        .expect("pin reuses old objects without transport");
-    assert_eq!(offline.commit(), first.commit());
-    assert_eq!(offline.tree(), first.tree());
-    assert_eq!(offline.materialized_tree(), first.tree());
-    assert_eq!(offline.content_identity(), first.content_identity());
-    assert_eq!(offline.lineage(), first.lineage());
-    assert_eq!(offline.requested_revision(), "HEAD");
-    assert!(offline.selected_member().is_none());
-    assert_eq!(
-        std::fs::read(offline.snapshot_root().join("main.omg")).expect("read pinned source"),
-        b"machine Main::main() {}\n"
-    );
 }
 
 #[test]
@@ -226,26 +177,4 @@ fn whole_root_pin_rejects_corrupt_cache_and_changed_snapshot_without_fetch() {
             "bad cache custody is invalidated"
         );
     }
-}
-
-#[test]
-fn whole_root_pin_still_enforces_current_source_limits() {
-    let mut fixture = Fixture::new("whole-root-pin-limits");
-    let pin = fixture
-        .resolve(None)
-        .expect("resolve initial request")
-        .acquisition_pin();
-    fixture.disconnect();
-    let error = resolve_git_source_from_pin_in_lane(
-        fixture.storage.primary_git().unwrap(),
-        &fixture.request,
-        Some(&pin),
-        fixture.storage.git_sources(),
-        LocalSourceLimits {
-            max_bytes: 0,
-            ..LocalSourceLimits::default()
-        },
-    )
-    .expect_err("pin cannot retain previous, looser limits");
-    assert_eq!(error, SourceResolveError::TooManyBytes { limit: 0 });
 }

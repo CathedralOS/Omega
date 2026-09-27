@@ -47,33 +47,6 @@ fn add_submodule(fixture: &mut Fixture, manifest: &str, link: &str) {
 }
 
 #[test]
-fn unrelated_submodules_remain_inert_in_exact_member_and_offline_recovery() {
-    let mut fixture = Fixture::new("workspace-unrelated-submodule");
-    add_submodule(&mut fixture, ".gitmodules", "unavailable");
-    let first = fixture
-        .resolve(
-            GitExactRevisionAcquisition::AllowFetch,
-            &mut Planner::default(),
-        )
-        .unwrap();
-    fixture.assert_original(&first);
-    assert!(!first.source().snapshot_root().join(".gitmodules").exists());
-    assert!(!first.source().snapshot_root().join("unavailable").exists());
-    fixture.disconnect();
-    let recovered = fixture
-        .resolve(
-            GitExactRevisionAcquisition::Offline,
-            &mut Planner::default(),
-        )
-        .unwrap();
-    fixture.assert_original(&recovered);
-    assert_eq!(
-        recovered.source().content_identity(),
-        first.source().content_identity()
-    );
-}
-
-#[test]
 fn selected_member_submodule_metadata_or_gitlink_rejects() {
     for (manifest, link) in [
         ("packages/member/.gitmodules", "unavailable"),

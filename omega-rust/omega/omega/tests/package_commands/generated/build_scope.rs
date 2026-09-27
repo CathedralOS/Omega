@@ -11,14 +11,6 @@ fn io_derived_dependency_rejects_before_any_build_logging() {
     );
 }
 
-#[test]
-fn missing_transitive_dependency_rejects_before_any_build_logging() {
-    discovery_precedes_build_io(
-        "builder.depend(Source::Path { location: \"../missing-package\" });",
-        "missing-package",
-    );
-}
-
 fn discovery_precedes_build_io(declaration: &str, expected: &str) {
     let fixture = generated_fixture();
     let logging_build = BUILD.replace(

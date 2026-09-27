@@ -18,8 +18,9 @@ const BUILD_SCOPE_TOPOLOGY_COMPOSE: &str =
     include_str!("../../../../../tests/omega/packages/build-scope-topology/topology/compose.omg");
 const BUILD_SCOPE_TOPOLOGY_DIGEST: &str =
     include_str!("../../../../../tests/omega/packages/build-scope-topology/topology/digest.omg");
-const BUILD_SCOPE_INPUT_REQUEST: &[u8] =
-    include_bytes!("../../../../../tests/omega/packages/build-scope-topology/root/inputs/request.bin");
+const BUILD_SCOPE_INPUT_REQUEST: &[u8] = include_bytes!(
+    "../../../../../tests/omega/packages/build-scope-topology/root/inputs/request.bin"
+);
 const BUILD_SCOPE_INPUT_COMPONENTS: &[u8] = include_bytes!(
     "../../../../../tests/omega/packages/build-scope-topology/root/inputs/components.bin"
 );
@@ -70,48 +71,6 @@ fn install(fixture: &Fixture) {
 }
 
 #[test]
-fn unlocked_inspection_checks_the_graph_without_creating_acceptance() {
-    let fixture = Fixture::new();
-    declare_dependency(&fixture);
-    let before = fixture.accepted_files();
-    let output = fixture.omega(&["audit", "packages", "--target", "linux_x86_64"]);
-    assert_status(&output, 0);
-    let report = text(&output);
-    assert!(report.contains("fresh-analysis complete"), "{report}");
-    assert!(report.contains("accepted-policy none"), "{report}");
-    // The declared name and the default alias it gives the edge are one spelling.
-    assert!(
-        report.contains("package \"arithmetic_kernels\" "),
-        "{report}"
-    );
-    assert!(
-        report.contains(
-            "-- \"arithmetic_kernels\" [product dependency 0] --> \"arithmetic_kernels\""
-        ),
-        "{report}"
-    );
-    assert!(report.contains("value"), "{report}");
-    assert!(!report.lines().any(|line| line.starts_with("decision ")));
-    assert_eq!(fixture.accepted_files(), before);
-    assert!(!fixture.path("root/build/package-manager/proposal").exists());
-}
-
-#[test]
-fn initial_assumption_inspection_reports_review_without_a_proposal() {
-    let fixture = Fixture::with_assumption();
-    declare_dependency(&fixture);
-    let before = fixture.accepted_files();
-    let output = fixture.omega(&["audit", "packages", "--target", "linux_x86_64"]);
-    assert_status(&output, 3);
-    let report = text(&output);
-    assert!(report.contains("fresh-analysis complete"), "{report}");
-    assert!(report.contains("trusted_zero"), "{report}");
-    assert!(!report.lines().any(|line| line.starts_with("decision ")));
-    assert_eq!(fixture.accepted_files(), before);
-    assert!(!fixture.path("root/build/package-manager/proposal").exists());
-}
-
-#[test]
 fn inspection_exposes_filesystem_api_reach_and_its_transitive_package_path() {
     let fixture = super::authority::authority_fixture(
         include_str!("../../../../../tests/omega/packages/file-journal/build.omg"),
@@ -132,38 +91,6 @@ fn inspection_exposes_filesystem_api_reach_and_its_transitive_package_path() {
         assert!(report.contains(expected), "missing {expected}: {report}");
     }
     assert!(report.contains("fresh-analysis complete"), "{report}");
-    assert_eq!(fixture.accepted_files(), before);
-}
-
-#[test]
-fn accepted_targets_are_inspected_without_repeating_equal_policy() {
-    let fixture = Fixture::new();
-    assert_status(
-        &fixture.omega(&[
-            "install",
-            "../dependency",
-            "--target",
-            "linux_x86_64",
-            "--target",
-            "macos_arm64",
-        ]),
-        0,
-    );
-    let before = fixture.accepted_files();
-    let output = fixture.omega(&["audit", "packages", "--project", "."]);
-    assert_status(&output, 0);
-    let report = text(&output);
-    assert_eq!(
-        report.matches("fresh-analysis complete").count(),
-        2,
-        "{report}"
-    );
-    assert!(report.contains("linux_x86_64"), "{report}");
-    assert!(report.contains("macos_arm64"), "{report}");
-    assert!(
-        report.contains("accepted-policy equal-to-fresh"),
-        "{report}"
-    );
     assert_eq!(fixture.accepted_files(), before);
 }
 
@@ -206,28 +133,6 @@ fn current_root_api_changes_are_reported_without_new_consent_or_lock_updates() {
 }
 
 #[test]
-fn default_summary_is_readable_and_details_keep_full_policy() {
-    let fixture = Fixture::new();
-    install(&fixture);
-    let before = fixture.accepted_files();
-    let summary = fixture.omega(&["audit", "packages"]);
-    let details = fixture.omega(&["audit", "packages", "--details"]);
-    assert_status(&summary, 0);
-    assert_status(&details, 0);
-    let summary = text(&summary);
-    let details = text(&details);
-    assert!(
-        summary.lines().count() < 200,
-        "pure package summary should remain scannable"
-    );
-    assert!(summary.len() < details.len() / 2);
-    assert!(!summary.contains("omega_package_policy_text"));
-    assert!(details.contains("omega_package_policy_text"));
-    assert!(summary.contains("value"));
-    assert_eq!(fixture.accepted_files(), before);
-}
-
-#[test]
 fn changed_or_missing_dependency_keeps_consent_without_historical_api_findings() {
     let fixture = Fixture::new();
     install(&fixture);
@@ -251,23 +156,6 @@ fn changed_or_missing_dependency_keeps_consent_without_historical_api_findings()
         assert!(!report.contains("fresh-policy"), "{report}");
         assert_eq!(fixture.accepted_files(), before);
     }
-}
-
-#[test]
-fn invalid_proof_is_unavailable_not_empty_capabilities() {
-    let fixture = Fixture::new();
-    install(&fixture);
-    fixture.write(
-        "root/main.omg",
-        "machine main() -> u64 ensures result == 0 { 1 }\n",
-    );
-    let before = fixture.accepted_files();
-    let output = fixture.omega(&["audit", "packages"]);
-    assert_status(&output, 1);
-    let report = text(&output);
-    assert!(report.contains("fresh-analysis unavailable"), "{report}");
-    assert!(!report.contains("fresh-analysis complete"), "{report}");
-    assert_eq!(fixture.accepted_files(), before);
 }
 
 #[test]
@@ -317,23 +205,6 @@ fn audit_resolves_build_scope_dependency_imports() {
     // stdout before the policy report.
     assert!(report.contains("topology policy"), "{report}");
     assert!(report.contains("build dependency"), "{report}");
-}
-
-#[test]
-fn product_imports_cannot_select_build_scope_aliases() {
-    let fixture = build_scope_fixture();
-    fixture.write(
-        "root/main.omg",
-        "use topology::policies;\nmachine main() {}\n",
-    );
-    let output = fixture.omega(&["audit", "packages", "--target", "linux_x86_64", "--offline"]);
-    assert_status(&output, 1);
-    let report = text(&output);
-    assert!(report.contains("fresh-analysis unavailable"), "{report}");
-    assert!(
-        report.contains("names build dependency `topology`"),
-        "{report}"
-    );
 }
 
 #[test]

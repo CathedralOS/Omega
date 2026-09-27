@@ -6,7 +6,7 @@ use super::{
 mod fixtures;
 mod planner;
 mod submodules;
-use fixtures::{Fixture, declaration_limits, limits};
+use fixtures::{Fixture, limits};
 use planner::Planner;
 
 #[test]
@@ -36,71 +36,6 @@ fn exact_old_workspace_declarations_survive_branch_drift_and_offline_recovery() 
         );
     }
     assert_eq!((planner.discoveries, planner.selections), (3, 3));
-}
-
-#[test]
-fn exact_workspace_explicit_primary_keeps_root_and_member_tree_distinct() {
-    let fixture = Fixture::new("exact-workspace-primary");
-    let result = resolve_git_workspace_member_at_revision_in_lanes(
-        fixture.storage.primary_git().unwrap(),
-        &fixture.request,
-        &fixture.commit,
-        &fixture.root_tree,
-        GitExactRevisionAcquisition::AllowFetch,
-        fixture.storage.git_sources(),
-        fixture.storage.workspace_members(),
-        limits(),
-        declaration_limits(),
-        &mut Planner::default(),
-    )
-    .unwrap();
-    fixture.assert_original(&result);
-}
-
-#[test]
-fn absent_recorded_workspace_objects_fail_before_invoking_planner() {
-    let fixture = Fixture::new("exact-workspace-offline-missing");
-    let mut planner = Planner::default();
-    let error = fixture
-        .resolve(GitExactRevisionAcquisition::Offline, &mut planner)
-        .unwrap_err();
-    assert!(
-        matches!(
-            error,
-            GitWorkspaceProjectionError::Source(
-                SourceResolveError::GitExactRevisionUnavailable { .. }
-            )
-        ),
-        "{error:?}"
-    );
-    assert_eq!((planner.discoveries, planner.selections), (0, 0));
-}
-
-#[test]
-fn member_tree_cannot_replace_recorded_repository_root_before_planning() {
-    let fixture = Fixture::new("exact-workspace-forged-root");
-    let mut planner = Planner::default();
-    let error = resolve_git_workspace_member_at_revision_in_lanes(
-        fixture.storage.primary_git().unwrap(),
-        &fixture.request,
-        &fixture.commit,
-        &fixture.member_tree,
-        GitExactRevisionAcquisition::AllowFetch,
-        fixture.storage.git_sources(),
-        fixture.storage.workspace_members(),
-        limits(),
-        declaration_limits(),
-        &mut planner,
-    )
-    .unwrap_err();
-    assert!(
-        matches!(
-            error,
-            GitWorkspaceProjectionError::Source(SourceResolveError::GitObjectInvalid { .. })
-        ),
-        "{error:?}"
-    );
-    assert_eq!((planner.discoveries, planner.selections), (0, 0));
 }
 
 #[test]

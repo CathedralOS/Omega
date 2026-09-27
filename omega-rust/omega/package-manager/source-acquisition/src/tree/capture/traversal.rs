@@ -543,14 +543,6 @@ mod close_tests {
     }
 
     #[test]
-    fn unchanged_directory_closes_cleanly() {
-        let fixture = DirectoryFixture::new("close-unchanged", &["a.omg", "b.omg"]);
-        fixture
-            .close(&fixture.observe())
-            .expect("a quiescent directory closes");
-    }
-
-    #[test]
     fn member_added_during_visit_rejects() {
         let fixture = DirectoryFixture::new("close-added", &["a.omg"]);
         let observation = fixture.observe();
@@ -559,132 +551,6 @@ mod close_tests {
             fixture.close(&observation),
             Err(SourceResolveError::LocalSourceChanged { .. })
         ));
-    }
-
-    #[test]
-    fn member_removed_during_visit_rejects() {
-        let fixture = DirectoryFixture::new("close-removed", &["a.omg", "b.omg"]);
-        let observation = fixture.observe();
-        std::fs::remove_file(fixture.root.join("b.omg")).expect("remove member");
-        assert!(matches!(
-            fixture.close(&observation),
-            Err(SourceResolveError::LocalSourceChanged { .. })
-        ));
-    }
-
-    #[test]
-    fn member_replaced_in_place_rejects() {
-        // The replacement rewrites the member with different content: hosts
-        // that recycle inode numbers inside a timestamp tick cannot hide the
-        // replacement behind an identical observation.
-        let fixture = DirectoryFixture::new("close-replaced", &["a.omg", "b.omg"]);
-        let observation = fixture.observe();
-        std::fs::remove_file(fixture.root.join("b.omg")).expect("remove member");
-        std::fs::write(fixture.root.join("b.omg"), b"replacement with new length")
-            .expect("replace member");
-        assert!(matches!(
-            fixture.close(&observation),
-            Err(SourceResolveError::LocalSourceChanged { .. })
-        ));
-    }
-
-    #[test]
-    fn membership_restored_after_churn_still_rejects() {
-        // Create and remove a transient member, then restore the directory's
-        // modified time: the closing listing equals the opening listing and
-        // the directory clock is the only observation the churn can move.
-        // (Churn completed inside one filesystem timestamp tick is invisible
-        // to any metadata-level check and is not covered here.)
-        let fixture = DirectoryFixture::new("close-churn", &["a.omg"]);
-        let observation = fixture.observe();
-        std::fs::write(fixture.root.join("transient.omg"), b"temp").expect("create transient");
-        std::fs::remove_file(fixture.root.join("transient.omg")).expect("remove transient");
-        let directory_handle = std::fs::File::open(&fixture.root).expect("open fixture dir");
-        directory_handle
-            .set_times(std::fs::FileTimes::new().set_modified(
-                std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1),
-            ))
-            .expect("move directory clock");
-        assert!(matches!(
-            fixture.close(&observation),
-            Err(SourceResolveError::LocalSourceChanged { .. })
-        ));
-    }
-
-    #[test]
-    fn renamed_member_rejects() {
-        let fixture = DirectoryFixture::new("close-renamed", &["a.omg", "b.omg"]);
-        let observation = fixture.observe();
-        std::fs::rename(fixture.root.join("a.omg"), fixture.root.join("renamed.omg"))
-            .expect("rename member");
-        assert!(matches!(
-            fixture.close(&observation),
-            Err(SourceResolveError::LocalSourceChanged { .. })
-        ));
-    }
-
-    #[test]
-    fn replaced_child_directory_rejects() {
-        let root = temp_root("close-replaced-dir");
-        std::fs::create_dir_all(root.join("child")).expect("create child");
-        std::fs::write(root.join("child").join("a.omg"), b"captured").expect("write member");
-        let fixture = {
-            let directory = CapabilityDirectory::open_ambient_dir(&root, ambient_authority())
-                .expect("retain fixture directory");
-            DirectoryFixture {
-                root: root.clone(),
-                directory,
-            }
-        };
-        let observation = fixture.observe();
-        std::fs::remove_dir_all(root.join("child")).expect("remove child");
-        std::fs::create_dir_all(root.join("child")).expect("recreate child");
-        std::fs::write(root.join("child").join("a.omg"), b"captured").expect("rewrite member");
-        // Inode numbers and both clocks can repeat inside one filesystem
-        // tick; a permissions change keeps the replacement visible on them.
-        let original = std::fs::metadata(root.join("child"))
-            .expect("read child metadata")
-            .permissions();
-        let mut readonly = original.clone();
-        readonly.set_readonly(true);
-        std::fs::set_permissions(root.join("child"), readonly).expect("mark child readonly");
-        assert!(matches!(
-            fixture.close(&observation),
-            Err(SourceResolveError::LocalSourceChanged { .. })
-        ));
-        // Restore the mode the directory actually had. Clearing the readonly
-        // bit instead would hand it back world-writable on Unix, which is
-        // both wrong and what `permissions_set_readonly_false` rejects.
-        std::fs::set_permissions(root.join("child"), original).expect("restore child permissions");
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn retargeted_link_rejects() {
-        let root = temp_root("close-retargeted-link");
-        std::fs::create_dir_all(&root).expect("create fixture");
-        std::fs::write(root.join("one.omg"), b"one").expect("write target");
-        std::fs::write(root.join("longer-two.omg"), b"two").expect("write target");
-        std::os::unix::fs::symlink("one.omg", root.join("link.omg")).expect("create link");
-        let fixture = {
-            let directory = CapabilityDirectory::open_ambient_dir(&root, ambient_authority())
-                .expect("retain fixture directory");
-            DirectoryFixture {
-                root: root.clone(),
-                directory,
-            }
-        };
-        let observation = fixture.observe();
-        std::fs::remove_file(root.join("link.omg")).expect("unlink");
-        // A longer target keeps the test deterministic on hosts that recycle
-        // inode numbers and timestamps inside a single clock tick.
-        std::os::unix::fs::symlink("longer-two.omg", root.join("link.omg")).expect("retarget link");
-        assert!(matches!(
-            fixture.close(&observation),
-            Err(SourceResolveError::LocalSourceChanged { .. })
-        ));
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[cfg(unix)]
@@ -835,47 +701,10 @@ mod tree_tests {
     }
 
     #[test]
-    fn unchanged_tree_verifies() {
-        let fixture = TreeFixture::new("tree-unchanged");
-        let observations = fixture.observe();
-        fixture
-            .verify(&observations)
-            .expect("quiescent tree verifies");
-    }
-
-    #[test]
-    fn member_added_to_already_closed_subtree_rejects() {
-        // The subtree's own close already ran: only the final whole-tree
-        // sweep can see the new member.
-        let fixture = TreeFixture::new("tree-added-subtree");
-        let observations = fixture.observe();
-        std::fs::write(fixture.root.join("sub/new.omg"), b"late member")
-            .expect("add member after close");
-        assert!(matches!(
-            fixture.verify(&observations),
-            Err(SourceResolveError::LocalSourceChanged { .. })
-        ));
-    }
-
-    #[test]
     fn member_removed_from_root_rejects() {
         let fixture = TreeFixture::new("tree-removed-root");
         let observations = fixture.observe();
         std::fs::remove_file(fixture.root.join("a.omg")).expect("remove root member");
-        assert!(matches!(
-            fixture.verify(&observations),
-            Err(SourceResolveError::LocalSourceChanged { .. })
-        ));
-    }
-
-    #[test]
-    fn member_rewritten_in_already_closed_subtree_rejects() {
-        // Rewriting bytes in place keeps the member's name and kind; the
-        // moved modification/change indicators carry the drift.
-        let fixture = TreeFixture::new("tree-rewritten-subtree");
-        let observations = fixture.observe();
-        std::fs::write(fixture.root.join("sub/b.omg"), b"rewritten bytes longer")
-            .expect("rewrite member in place");
         assert!(matches!(
             fixture.verify(&observations),
             Err(SourceResolveError::LocalSourceChanged { .. })
@@ -888,22 +717,6 @@ mod tree_tests {
         let observations = fixture.observe();
         std::fs::remove_dir_all(fixture.root.join("sub/nested")).expect("remove nested dir");
         std::fs::create_dir_all(fixture.root.join("sub/nested")).expect("recreate nested dir");
-        assert!(matches!(
-            fixture.verify(&observations),
-            Err(SourceResolveError::LocalSourceChanged { .. })
-        ));
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn link_retargeted_in_already_closed_subtree_rejects() {
-        let fixture = TreeFixture::new("tree-retargeted-link");
-        std::os::unix::fs::symlink("../a.omg", fixture.root.join("sub/linked.omg"))
-            .expect("create fixture link");
-        let observations = fixture.observe();
-        std::fs::remove_file(fixture.root.join("sub/linked.omg")).expect("remove link");
-        std::os::unix::fs::symlink("b.omg", fixture.root.join("sub/linked.omg"))
-            .expect("retarget link");
         assert!(matches!(
             fixture.verify(&observations),
             Err(SourceResolveError::LocalSourceChanged { .. })

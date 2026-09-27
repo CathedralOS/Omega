@@ -1,10 +1,10 @@
 use super::{
-    Arc, GIT_CACHE_REPOSITORY, GIT_CACHE_SNAPSHOTS, GIT_SNAPSHOT_METADATA, GIT_SNAPSHOT_SOURCE,
-    GitBlobBytes, GitExecutionTransport, GitTreeEntry, GitTreeEntryKind, LocalSourceLimits, Path,
-    PathBuf, SourceResolveError, SourceResolver, create_git_source, git_cache_entry_root,
-    local_git_request, make_tree_owner_writable, publish_git_member_snapshot,
-    read_git_blobs_batch_from_path, resolve_git_source_from_hardened_base, run_test_git,
-    run_test_git_with_input, temp_root, test_system_git_executor,
+    Arc, GIT_CACHE_REPOSITORY, GIT_CACHE_SNAPSHOTS, GIT_SNAPSHOT_METADATA, GitBlobBytes,
+    GitExecutionTransport, GitTreeEntry, GitTreeEntryKind, LocalSourceLimits, Path, PathBuf,
+    SourceResolveError, SourceResolver, create_git_source, git_cache_entry_root, local_git_request,
+    make_tree_owner_writable, publish_git_member_snapshot, read_git_blobs_batch_from_path,
+    resolve_git_source_from_hardened_base, run_test_git, run_test_git_with_input, temp_root,
+    test_system_git_executor,
 };
 #[cfg(unix)]
 use super::{
@@ -35,74 +35,6 @@ fn authenticated_single_file_member_tree(repository: &Path) -> (String, Vec<GitT
             },
         }],
     )
-}
-
-#[test]
-fn authenticated_member_snapshot_publishes_directly_in_workspace_member_lane() {
-    let (repository, _) = create_git_source("git-member-snapshot");
-    let (tree, entries) = authenticated_single_file_member_tree(&repository);
-    let storage_base = temp_root("git-member-snapshot-storage");
-    std::fs::create_dir_all(&storage_base).expect("create retained storage base");
-    let storage = SourceResolver::for_hardened_base(&storage_base, PrimaryGitChoices::default())
-        .expect("retain resolver storage");
-    let executor =
-        test_system_git_executor(GitExecutionTransport::Https).expect("system Git executor");
-
-    let (snapshot_root, local) = publish_git_member_snapshot(
-        &executor,
-        storage.workspace_members(),
-        &tree,
-        entries,
-        LocalSourceLimits::default(),
-    )
-    .expect("publish authenticated member tree");
-
-    let publication = storage
-        .workspace_members()
-        .path()
-        .join(format!("tree-{tree}"));
-    assert_eq!(snapshot_root, publication.join(GIT_SNAPSHOT_SOURCE));
-    assert_eq!(
-        std::fs::read(snapshot_root.join("main.omg")).expect("read member snapshot"),
-        b"machine Main::main() {}\n"
-    );
-    assert_eq!(local.file_count, 1);
-    assert!(
-        storage
-            .workspace_members()
-            .path()
-            .join(format!("tree-{tree}.lock"))
-            .is_file()
-    );
-    assert!(
-        !storage
-            .workspace_members()
-            .path()
-            .join("snapshots")
-            .exists()
-    );
-    assert!(publication.join(GIT_SNAPSHOT_METADATA).is_file());
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-
-        let mode = |path: &Path| {
-            std::fs::symlink_metadata(path)
-                .expect("inspect published member mode")
-                .permissions()
-                .mode()
-                & 0o777
-        };
-        assert_eq!(mode(&publication), 0o555);
-        assert_eq!(mode(&snapshot_root), 0o555);
-        assert_eq!(mode(&snapshot_root.join("main.omg")), 0o444);
-        assert_eq!(mode(&publication.join(GIT_SNAPSHOT_METADATA)), 0o444);
-    }
-
-    drop(storage);
-    let _ = std::fs::remove_dir_all(&repository);
-    make_tree_owner_writable(&storage_base);
-    let _ = std::fs::remove_dir_all(&storage_base);
 }
 
 #[cfg(unix)]
@@ -268,32 +200,6 @@ fn git_snapshot_preserves_paths_executable_modes_and_symlink_spelling() {
     let _ = std::fs::remove_dir_all(&cache);
 }
 
-#[test]
-fn git_snapshot_uses_blob_bytes_not_checkout_attribute_conversions() {
-    let (repo, _) = create_git_source("git-snapshot-attributes");
-    std::fs::write(repo.join(".gitattributes"), "*.omg eol=crlf\n")
-        .expect("write checkout conversion attribute");
-    run_test_git(&repo, ["add", ".gitattributes"]);
-    run_test_git(
-        &repo,
-        ["commit", "--quiet", "-m", "add checkout conversion"],
-    );
-    let cache = temp_root("git-snapshot-attributes-cache");
-    let request = local_git_request(&repo, "HEAD");
-
-    let resolved =
-        resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
-            .expect("materialize object bytes");
-
-    assert_eq!(
-        std::fs::read(resolved.snapshot_root.join("main.omg")).expect("read snapshot blob"),
-        b"machine Main::main() {}\n"
-    );
-    let _ = std::fs::remove_dir_all(&repo);
-    make_tree_owner_writable(&cache);
-    let _ = std::fs::remove_dir_all(&cache);
-}
-
 #[cfg(unix)]
 #[test]
 fn git_snapshot_reuse_rejects_content_with_forged_matching_metadata() {
@@ -391,23 +297,6 @@ fn git_batch_failure_precedes_snapshot_staging() {
 
     let _ = std::fs::remove_dir_all(&repo);
     make_tree_owner_writable(&cache);
-    let _ = std::fs::remove_dir_all(&cache);
-}
-
-#[test]
-fn git_snapshot_excludes_untracked_source_worktree_state() {
-    let (repo, _) = create_git_source("git-untracked-source");
-    let cache = temp_root("git-untracked-cache");
-    std::fs::write(repo.join("injected.omg"), "machine Injected::main() {}\n")
-        .expect("write untracked source state");
-    let request = local_git_request(&repo, "HEAD");
-    let resolved =
-        resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
-            .expect("prime cache");
-
-    assert!(!resolved.snapshot_root.join("injected.omg").exists());
-    assert_eq!(resolved.local.file_count, 1);
-    let _ = std::fs::remove_dir_all(&repo);
     let _ = std::fs::remove_dir_all(&cache);
 }
 

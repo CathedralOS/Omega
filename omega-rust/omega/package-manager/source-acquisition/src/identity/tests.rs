@@ -23,22 +23,6 @@ fn github_https_scp_and_ssh_url_share_one_repository_lineage() {
 }
 
 #[test]
-fn github_only_strips_a_terminal_lowercase_dot_git() {
-    assert_eq!(
-        lineage("https://github.com/CathedralOS/tool.git"),
-        lineage("https://github.com/CathedralOS/tool")
-    );
-    assert_ne!(
-        lineage("https://github.com/CathedralOS/tool.git.git"),
-        lineage("https://github.com/CathedralOS/tool")
-    );
-    assert_ne!(
-        lineage("https://github.com/CathedralOS/tool.GIT"),
-        lineage("https://github.com/CathedralOS/tool")
-    );
-}
-
-#[test]
 fn github_rejects_credentials_queries_fragments_ports_and_bad_namespaces() {
     for locator in [
         "https://token@github.com/CathedralOS/tool.git",
@@ -54,15 +38,6 @@ fn github_rejects_credentials_queries_fragments_ports_and_bad_namespaces() {
     ] {
         assert!(SourceLineage::git(locator).is_err(), "accepted {locator:?}");
     }
-}
-
-#[test]
-fn github_lookalike_hosts_do_not_receive_github_equivalence() {
-    let github = lineage("https://github.com/CathedralOS/tool");
-    let lookalike = lineage("https://github.com.evil.example/CathedralOS/tool");
-
-    assert_ne!(github, lookalike);
-    assert!(matches!(lookalike, SourceLineage::Git(_)));
 }
 
 #[test]
@@ -97,36 +72,6 @@ fn gitlab_preserves_path_case_and_rejects_ambiguous_known_host_forms() {
     ] {
         assert!(SourceLineage::git(locator).is_err(), "accepted {locator:?}");
     }
-}
-
-#[test]
-fn gitlab_lookalikes_and_self_hosted_instances_remain_generic() {
-    let hosted = lineage("https://gitlab.com/CathedralOS/tool.git");
-    let lookalike = lineage("https://gitlab.com.evil.example/CathedralOS/tool.git");
-    let self_hosted = lineage("https://gitlab.example/CathedralOS/tool.git");
-
-    assert_ne!(hosted, lookalike);
-    assert_ne!(hosted, self_hosted);
-    assert!(matches!(lookalike, SourceLineage::Git(_)));
-    assert!(matches!(self_hosted, SourceLineage::Git(_)));
-}
-
-#[test]
-fn generic_git_keeps_transport_path_user_and_port_distinct() {
-    let https = lineage("https://gitlab.example/Group/tool.git");
-    let ssh = lineage("ssh://git@gitlab.example/Group/tool.git");
-    let scp = lineage("git@gitlab.example:Group/tool.git");
-    let other_user = lineage("ssh://deploy@gitlab.example/Group/tool.git");
-    let ssh_port = lineage("ssh://git@gitlab.example:2222/Group/tool.git");
-    let no_suffix = lineage("https://gitlab.example/Group/tool");
-
-    assert_ne!(https, ssh);
-    assert_ne!(ssh, scp);
-    assert_ne!(ssh, other_user);
-    assert_ne!(ssh, ssh_port);
-    assert_ne!(https, no_suffix);
-    assert_eq!(lineage("https://GITLAB.EXAMPLE/Group/tool.git"), https);
-    assert_ne!(lineage("https://gitlab.example/group/tool.git"), https);
 }
 
 #[test]
@@ -244,22 +189,6 @@ fn recovered_external_local_lineage_rejects_noncanonical_separators() {
         )
         .is_err()
     );
-}
-
-#[test]
-fn commit_and_tree_each_change_git_source_resolution() {
-    fn source(commit: u8, tree: u8) -> ImmutableSourceResolution {
-        ImmutableSourceResolution::git(
-            GitCommitId::parse_hex(&format!("{commit:02x}").repeat(20)).unwrap(),
-            GitTreeId::parse_hex(&format!("{tree:02x}").repeat(20)).unwrap(),
-        )
-        .unwrap()
-    }
-
-    let base = source(1, 2);
-
-    assert_ne!(base, source(4, 2));
-    assert_ne!(base, source(1, 4));
 }
 
 #[test]

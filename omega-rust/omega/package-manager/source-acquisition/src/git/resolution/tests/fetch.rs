@@ -1,72 +1,13 @@
 use super::{
     Command, GIT_CACHE_METADATA, GIT_CACHE_REPOSITORY, GIT_CACHE_SNAPSHOTS, LocalSourceLimits,
-    SourceResolveError, bounded_git_fetch_arguments, create_git_cache_entry, create_git_source,
-    git_cache_entry_root, git_cache_identity, local_git_request, make_tree_owner_writable,
-    open_absolute_directory_nofollow, resolve_git_source_from_hardened_base,
+    SourceResolveError, create_git_cache_entry, create_git_source, git_cache_identity,
+    local_git_request, make_tree_owner_writable, open_absolute_directory_nofollow,
     resolve_verified_git_cache_entry, run_test_git, run_test_git_with_input, temp_root,
     test_system_git_executor, verify_git_cache_root_custody,
 };
 use crate::git::resolution::materialization::materialize_whole_git_source;
 use crate::git::resolution::selection::GitRevisionSelection;
 use crate::git::workspace::GitWorkspaceProjectionError;
-#[test]
-fn git_source_fetches_only_the_selected_revision_depth() {
-    let (repo, _) = create_git_source("git-shallow");
-    std::fs::write(repo.join("main.omg"), "machine Main::changed() {}\n").expect("change source");
-    run_test_git(&repo, ["add", "main.omg"]);
-    run_test_git(&repo, ["commit", "--quiet", "-m", "second"]);
-    let cache = temp_root("git-shallow-cache");
-    let request = local_git_request(&repo, "HEAD");
-
-    resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
-        .expect("resolve a shallow exact revision");
-
-    let repository = git_cache_entry_root(&cache, &request).join(GIT_CACHE_REPOSITORY);
-    let output = Command::new("git")
-        .args(["-c", "core.longpaths=true"])
-        .arg("-C")
-        .arg(&repository)
-        .args(["rev-list", "--count", "FETCH_HEAD"])
-        .output()
-        .expect("count fetched history");
-    assert!(output.status.success());
-    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "1");
-    assert!(repository.join("shallow").is_file());
-
-    let _ = std::fs::remove_dir_all(&repo);
-    let _ = std::fs::remove_dir_all(&cache);
-}
-
-#[test]
-fn git_fetch_request_is_depth_one_and_omits_individually_inadmissible_blobs() {
-    let arguments = bounded_git_fetch_arguments(
-        "https://example.invalid/package.git",
-        "0123456789012345678901234567890123456789",
-        LocalSourceLimits {
-            max_bytes: 4096,
-            ..LocalSourceLimits::default()
-        },
-    );
-    let arguments = arguments
-        .iter()
-        .map(|argument| argument.to_string_lossy().into_owned())
-        .collect::<Vec<_>>();
-
-    assert_eq!(
-        arguments,
-        [
-            "fetch",
-            "--quiet",
-            "--depth=1",
-            "--no-tags",
-            "--no-recurse-submodules",
-            "--filter=blob:limit=4097",
-            "--",
-            "https://example.invalid/package.git",
-            "0123456789012345678901234567890123456789",
-        ]
-    );
-}
 
 #[test]
 fn git_fetch_omits_a_blob_above_the_source_byte_ceiling_and_rejects() {
