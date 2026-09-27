@@ -1,6 +1,6 @@
 //! Values an expression has independently of its operator structure.
 //!
-//! A closed record projection, a fixed array length, or a complete anonymous
+//! A closed record projection, a collection length, or a complete anonymous
 //! numeric subtree answers the walk before any operator obligation is
 //! considered. A member read that has lost its declared field binding answers
 //! nothing, so it cannot lend a bound to the arithmetic around it.
@@ -10,11 +10,10 @@ use crate::proof_contracts::arithmetic_domains::integer_ranges::{
     integer_bit_width, literal_interval,
 };
 use crate::proof_contracts::arithmetic_domains::{
-    ArithmeticDomain, Diagnostic, ExpressionHandle, ExpressionNode, Interval, Machine, State,
-    TypeReferenceNode, TypedTrees, declared_place_type_raw,
+    ArithmeticDomain, Diagnostic, ExpressionHandle, ExpressionNode, Interval, Machine,
+    PrimitiveType, State, TypeReferenceNode, TypedTrees, declared_place_type_raw,
 };
 use crate::value_custody::literals;
-use language_semantics::declaration_selection::CollectionMeasure;
 
 pub(super) fn analyze(
     walk: &ExpressionWalk,
@@ -35,12 +34,14 @@ pub(super) fn analyze(
             primitive: Some(primitive),
         });
     }
-    if let Some(length) = fixed_array_length(walk.program, walk.machine, walk.state, expression) {
+    if let Some(interval) =
+        collection_length_interval(walk.program, walk.machine, walk.state, expression)
+    {
         return Some(Analysis {
-            interval: Interval {
-                low: Some(length),
-                high: Some(length),
-            },
+            // Counts keep their declared carrier even when their value is known.
+            // They do not select an arithmetic policy for enclosing operations.
+            interval,
+            primitive: Some(PrimitiveType::U64),
             ..NEUTRAL
         });
     }
@@ -101,31 +102,36 @@ fn member_custody(
     custody
 }
 
-fn fixed_array_length(
+fn collection_length_interval(
     program: &TypedTrees,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
-) -> Option<i64> {
-    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
-        return None;
-    };
-    if CollectionMeasure::from_authored_spelling(member.member.as_str())
-        != Some(CollectionMeasure::Length)
-        || member.case_variant.is_some()
-    {
-        return None;
-    }
-    let mut receiver = declared_place_type_raw(program, machine, state, member.receiver)?;
+) -> Option<Interval> {
+    let receiver = crate::collection_length_receiver(program, machine, state, expression)?;
+    let mut receiver = declared_place_type_raw(program, machine, state, receiver)?;
     loop {
+        // A bounded byte buffer's capacity limits its live length; it is not
+        // the exact length of every value carried by the constrained type.
+        if let Some(capacity) = crate::bounded_byte_buffer_capacity(program, receiver) {
+            return Some(Interval {
+                low: Some(0),
+                high: i64::try_from(capacity).ok(),
+            });
+        }
         match program.type_reference_table.type_reference(receiver) {
             TypeReferenceNode::Reference { referee, .. } => receiver = *referee,
+            TypeReferenceNode::Constrained { base_type, .. } => receiver = *base_type,
             TypeReferenceNode::FixedArray {
                 length: typed_trees::types::FixedArrayLength::Literal(length),
                 ..
-            } => return i64::try_from(*length).ok(),
-            // A constrained byte carrier can have a live length distinct from
-            // its capacity. Do not strip that shell to invent an exact length.
+            } => {
+                let length = i64::try_from(*length).ok();
+                return Some(Interval {
+                    low: Some(length.unwrap_or(0)),
+                    high: length,
+                });
+            }
             _ => return None,
         }
     }
