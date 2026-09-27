@@ -1,0 +1,67 @@
+// PASS canary: a guarded transition roster of 3+ arms where every arm
+// produces a structural value — `transition pick { 0 -> (..), 1 -> (..),
+// _ -> (..) }`. The composed state-graph terminator routes guarded rosters
+// through `returns::guarded`, which already admits `Value` targets on
+// `When` and `Always` arms; this fixture exercises the whole chain so the
+// roster cannot silently fall back to the Jump-only guarded-roster arm.
+//
+// The arms spell guards as `subject == literal` patterns (the transition
+// subject `self.n` compared to each integer literal), matching the same
+// guarded-roster desugar the corpus' guarded_jump fixtures use. A
+// comparison written as a *pattern* (e.g. `self.n < 4 -> ..`) would bind
+// `subject == (self.n < 4)` — an ill-typed nested equality — which is a
+// pattern-grammar spelling distinction, not a state-graph admission wall.
+
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Msg {
+    case Small(v: i32);
+    case Mid(v: i32);
+    case Big(v: i32);
+}
+
+data Counter {
+    n: i32;
+}
+
+machine Counter::pick(&mut self) -> Msg {
+    transition self.n > 0 {
+        true -> choose()
+        _ -> choose()
+    }
+
+    state choose(&mut self) -> Msg {
+        transition self.n {
+            0 -> (Msg::Small { v: self.n })
+            1 -> (Msg::Mid { v: self.n + 10 })
+            _ -> (Msg::Big { v: self.n })
+        }
+    }
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let mut counter: Counter = Counter { n: 1 };
+
+    transition counter.pick() {
+        Msg::Small { v } -> small(v)
+        Msg::Mid { v } -> mid(v)
+        Msg::Big { v } -> big(v)
+    }
+
+    state small(&mut self, v: i32) {
+        self.console.exit_process(v);
+    }
+
+    state mid(&mut self, v: i32) {
+        self.console.exit_process(v);
+    }
+
+    state big(&mut self, v: i32) {
+        self.console.exit_process(v);
+    }
+}
