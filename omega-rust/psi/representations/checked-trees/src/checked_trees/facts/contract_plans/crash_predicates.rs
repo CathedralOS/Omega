@@ -2,6 +2,7 @@
 
 use std::cmp::Ordering;
 use std::hash::Hash;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CrashCause {
@@ -438,8 +439,14 @@ impl CrashPredicateExpression {
 /// canonical bytes remain the equality/hash material used by checked joins;
 /// syntax is retained solely so later semantic lowering need not interpret
 /// those identity bytes as executable meaning.
-#[derive(Debug, Clone)]
-pub struct CrashPredicateIdentity {
+///
+/// An identity is immutable once built, and checked joins copy it into every
+/// site, call, and envelope that holds the route, so copies share one
+/// allocation instead of repeating the bytes and both syntax trees.
+#[derive(Clone)]
+pub struct CrashPredicateIdentity(Arc<CrashPredicateIdentityParts>);
+
+struct CrashPredicateIdentityParts {
     canonical_bytes: Vec<u8>,
     expression: Option<CrashPredicateExpression>,
     scalar_expression: Option<crate::CheckedBooleanExpression>,
@@ -447,48 +454,64 @@ pub struct CrashPredicateIdentity {
 
 impl CrashPredicateIdentity {
     pub fn from_canonical_bytes(bytes: Vec<u8>) -> Self {
-        Self {
+        Self(Arc::new(CrashPredicateIdentityParts {
             canonical_bytes: bytes,
             expression: None,
             scalar_expression: None,
-        }
+        }))
     }
 
     pub fn from_expression(expression: CrashPredicateExpression) -> Self {
-        let mut canonical_bytes = vec![1]; // ProofFact::Expression
-        expression.write_canonical(&mut canonical_bytes);
-        Self {
-            canonical_bytes,
-            expression: Some(expression),
-            scalar_expression: None,
-        }
+        Self::from_parts(expression, None)
     }
 
     pub fn from_expression_and_scalar(
         expression: CrashPredicateExpression,
         scalar_expression: crate::CheckedBooleanExpression,
     ) -> Self {
-        let mut identity = Self::from_expression(expression);
-        identity.scalar_expression = Some(scalar_expression);
-        identity
+        Self::from_parts(expression, Some(scalar_expression))
+    }
+
+    fn from_parts(
+        expression: CrashPredicateExpression,
+        scalar_expression: Option<crate::CheckedBooleanExpression>,
+    ) -> Self {
+        let mut canonical_bytes = vec![1]; // ProofFact::Expression
+        expression.write_canonical(&mut canonical_bytes);
+        Self(Arc::new(CrashPredicateIdentityParts {
+            canonical_bytes,
+            expression: Some(expression),
+            scalar_expression,
+        }))
     }
 
     pub fn canonical_bytes(&self) -> &[u8] {
-        &self.canonical_bytes
+        &self.0.canonical_bytes
     }
 
-    pub const fn expression(&self) -> Option<&CrashPredicateExpression> {
-        self.expression.as_ref()
+    pub fn expression(&self) -> Option<&CrashPredicateExpression> {
+        self.0.expression.as_ref()
     }
 
-    pub const fn scalar_expression(&self) -> Option<&crate::CheckedBooleanExpression> {
-        self.scalar_expression.as_ref()
+    pub fn scalar_expression(&self) -> Option<&crate::CheckedBooleanExpression> {
+        self.0.scalar_expression.as_ref()
+    }
+}
+
+impl std::fmt::Debug for CrashPredicateIdentity {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("CrashPredicateIdentity")
+            .field("canonical_bytes", &self.0.canonical_bytes)
+            .field("expression", &self.0.expression)
+            .field("scalar_expression", &self.0.scalar_expression)
+            .finish()
     }
 }
 
 impl PartialEq for CrashPredicateIdentity {
     fn eq(&self, other: &Self) -> bool {
-        self.canonical_bytes == other.canonical_bytes
+        Arc::ptr_eq(&self.0, &other.0) || self.0.canonical_bytes == other.0.canonical_bytes
     }
 }
 
@@ -502,13 +525,16 @@ impl PartialOrd for CrashPredicateIdentity {
 
 impl Ord for CrashPredicateIdentity {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.canonical_bytes.cmp(&other.canonical_bytes)
+        if Arc::ptr_eq(&self.0, &other.0) {
+            return Ordering::Equal;
+        }
+        self.0.canonical_bytes.cmp(&other.0.canonical_bytes)
     }
 }
 
 impl Hash for CrashPredicateIdentity {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.canonical_bytes.hash(state);
+        self.0.canonical_bytes.hash(state);
     }
 }
 
