@@ -962,6 +962,12 @@ pub(crate) fn structural_scalar_graph_parameter_admission(
                 ) {
                     return false;
                 }
+                // A borrowed fixed primitive array is a bounded-view carrier:
+                // the referent stays caller-owned and the graph forwards the
+                // same borrow on each re-entry edge.
+                if validation::is_closed_primitive_array_type(program, *referee) {
+                    return false;
+                }
                 if program.primitive_type_reference(*referee).is_none() {
                     return true;
                 }
@@ -1010,7 +1016,10 @@ pub(super) fn structural_scalar_graph_signature(
             || !matches!(
                 (parameter.access, parameter.multiplicity),
                 (_, Multiplicity::Unrestricted)
-                    | (CheckedStructuralAccess::Owned, Multiplicity::Affine)
+                    | (CheckedStructuralAccess::Owned
+                    | CheckedStructuralAccess::SharedBorrow
+                    | CheckedStructuralAccess::MutableBorrow
+                    | CheckedStructuralAccess::WriteOnlyBorrow, Multiplicity::Affine)
             )
             || !parameter.qualifications.is_empty()
     }) {
