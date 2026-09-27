@@ -7,8 +7,11 @@
 //! checks both before granting execution authority. No ranking premise is used.
 //! An outer join can depend on an earlier join, so discover prerequisite demands
 //! before proving the group. Discovery shares one finite budget and stops on a
-//! stable canonical roster. Failed expansion can restore the initial proposals
-//! once; restoration reruns proof checking and cannot confer authority itself.
+//! stable canonical roster, and the discovery/proof rounds — each a whole-module
+//! reconstruction or revalidation — draw from one aggregate bound so the pass's
+//! total compile-time work is named and accounted rather than emergent. Failed
+//! expansion can restore the initial proposals once; restoration reruns proof
+//! checking and cannot confer authority itself.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -52,9 +55,28 @@ pub(crate) fn retain_provable(lowered: &mut LoweredPsi) -> Result<(), LoweringEr
     cyclic_guarantees::strengthen(lowered, retained_nothing.then_some(&original))
 }
 
+/// Aggregate bound on the roster pass's repeated whole-module work: each
+/// discovery round below reconstructs the module's obligation set and
+/// regenerates join demands, and each proof round revalidates and
+/// reconstructs the module before checking every retained site. Both loops
+/// draw from this one budget so the pass's aggregate compile-time proof work
+/// stays a named, accounted constant rather than an emergent convergent
+/// schedule. Declining a round drops only provisional proposals — every
+/// retained row still passes the all-arrival proof transaction — so
+/// exhaustion is never itself a reason to reject the module.
+const MAX_ROSTER_ROUNDS: usize = 128;
+
 fn retain_provable_roster(
     lowered: &mut LoweredPsi,
     original: &ReconstructedTerminalObligationSet,
+) -> Result<(), LoweringError> {
+    retain_provable_roster_bounded(lowered, original, MAX_ROSTER_ROUNDS)
+}
+
+fn retain_provable_roster_bounded(
+    lowered: &mut LoweredPsi,
+    original: &ReconstructedTerminalObligationSet,
+    mut rounds: usize,
 ) -> Result<(), LoweringError> {
     let module = &mut lowered.semantic_module;
     let mut remaining = 4096usize;
@@ -150,6 +172,15 @@ fn retain_provable_roster(
         // Discover that demand before rejecting the outer proposal. These rows are
         // provisional: the unchanged all-arrival proof/drop transaction below is
         // the acceptance boundary, including every discovered prerequisite.
+        //
+        // Another whole-module reconstruction follows; when the round budget
+        // is spent, keep the merged roster for the proof transaction to judge
+        // and stop discovering instead of looping without bound.
+        let Some(next_round) = rounds.checked_sub(1) else {
+            crate::proofs::proof_timing::count_budget_exhaustion();
+            break;
+        };
+        rounds = next_round;
         let started = std::time::Instant::now();
         let questions = terminal_verifier::reconstruct_terminal_obligations(module);
         crate::proofs::proof_timing::count_reconstruct(started.elapsed());
@@ -183,7 +214,24 @@ fn retain_provable_roster(
     // context reads the machine's own places, which roster pruning never
     // mutates.
     let mut contexts = BTreeMap::new();
+    if module.scalar_block_invariants.is_empty() {
+        // Nothing survived discovery: the proof loop checks only invariant
+        // arrivals, so its whole-module revalidation would decide nothing.
+        // Source-supplied certificates are unaffected because `original` was
+        // reconstructed under this same empty roster.
+        return Ok(());
+    }
     loop {
+        // Each round revalidates and reconstructs the whole module before
+        // checking the retained sites. A declined round clears the
+        // provisional roster: the pass is optional inference, so running out
+        // of rounds is never itself a reason to reject the module.
+        let Some(next_round) = rounds.checked_sub(1) else {
+            crate::proofs::proof_timing::count_budget_exhaustion();
+            module.scalar_block_invariants.clear();
+            return Ok(());
+        };
+        rounds = next_round;
         // A candidate may not name the verifier's canonical feedback header.
         // The original module was validated above; optional inference must not
         // turn an unsupported candidate shape into a new program restriction.
