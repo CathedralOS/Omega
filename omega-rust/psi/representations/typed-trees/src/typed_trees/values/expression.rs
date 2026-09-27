@@ -2103,7 +2103,15 @@ impl ExpressionTable {
     }
 
     pub fn display_name(&self, handle: ExpressionHandle) -> String {
-        self.expression(handle).display_name(self)
+        let mut rendered = String::new();
+        self.write_display_name(handle, &mut rendered);
+        rendered
+    }
+
+    /// Appends `handle`'s display name to `out`; see
+    /// `ExpressionNode::write_display_name`.
+    pub fn write_display_name(&self, handle: ExpressionHandle, out: &mut String) {
+        self.expression(handle).write_display_name(self, out);
     }
 
     /// Const-evaluate a PURE integer expression: a literal, or checked
