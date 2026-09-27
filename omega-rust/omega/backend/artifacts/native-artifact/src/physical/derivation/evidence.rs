@@ -11,15 +11,16 @@ pub(crate) use crate::NormalizedForeignCallbackRelocations;
 use crate::PhysicalChildParent;
 use crate::PhysicalRelocationDisposition;
 use crate::native_artifact::boundary_application_coverage_identity;
-use crate::physical::derivation::children::{
-    derive_admitted_provider_settlement_child, derive_hosted_builtin_child,
-    derive_normalized_foreign_child, hosted_builtin_settlement,
-};
+use crate::physical::derivation::foreign_calls::derive_normalized_foreign_child;
 use crate::physical::derivation::hashing::{
     canonical_usize, hash_bytes, hash_callback_relocation, hash_machine_function_identity,
     hash_object_symbol, hash_relocation_origin, physical_evidence_gap_identity,
     relocation_kind_tag,
 };
+use crate::physical::derivation::hosted_builtins::{
+    derive_hosted_builtin_child, hosted_builtin_settlement,
+};
+use crate::physical::derivation::provider_settlements::derive_admitted_provider_settlement_child;
 use crate::physical::dynamic_call_dispatch;
 use crate::physical::native_optimization_projection;
 use crate::physical::native_physical_evidence;
