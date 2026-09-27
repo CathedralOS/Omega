@@ -5,6 +5,25 @@ A producer proves it using available premises; it cannot substitute a sufficient
 but different question. Representability uses
 [mathematical terms](mathematical_values.md#integer-terms).
 
+## Comparison denotations
+
+Builtin fixed-integer comparisons, including mixed widths and signedness, denote
+the [exact mathematical relation](../language/numeric_values.md#integer-equality-and-order)
+between the original operands. Reconstruction retains both source carriers,
+exact value identities, the selected comparison and branch polarity. It must
+not reinterpret a negative operand as unsigned or truncate a wider operand.
+
+Any normalization into narrower operation forms must preserve that denotation
+with checked subject correspondence and valid conversion premises; a producer
+cannot merely relabel operands to satisfy a same-carrier schema. The individual
+certificate rules below retain their declared premise restrictions. Their
+same-carrier restrictions do not impose a same-carrier source-language rule.
+Mathematical embeddings retain each source's exact range and identity.
+
+A mixed signed-index/unsigned-length upper-bound branch supplies no implicit
+nonnegativity fact. Bounds and later arithmetic safety still need their exact
+independent premises; optimization cannot obtain them from unsigned promotion.
+
 ## Canonical scalar goals
 
 Let `n` be the dividend, `d` the divisor, and `MIN` the carrier minimum.
@@ -27,8 +46,8 @@ Closed shift counts reduce to truth or falsehood. Symbolic signed counts retain
 both needed bounds in canonical proposition order: the value-leading upper
 bound precedes the literal-leading lower bound. Unsigned counts omit the
 carrier-implied lower bound.
-A count carrier may imply the whole goal. Address carriers and mismatched
-operand types reject.
+A count carrier may imply the whole goal. For these shift goals, address carriers
+and mismatched operand types reject.
 
 Branch facts retain the selected Boolean/integer predicate polarity. Integer
 order complements reverse endpoints; integer disequality retains both possible

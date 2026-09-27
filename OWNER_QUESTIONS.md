@@ -6,12 +6,11 @@ and deliberately deferred research live in `TASKS.md`. Questions are numbered
 consecutively; pruning or adding one requires updating every repository
 reference in the same change.
 
-Two owner-level decisions remain. Only the affected behavior below awaits a
+One owner-level decision remains. Only the affected behavior below awaits a
 ruling; other work on the same task may proceed under existing contracts.
 
 | Named decision | Affected work |
 | --- | --- |
-| `mixed-integer-comparison` | Mixed typed-integer guards in the five text samples named below |
 | `assumed-binding-refutable-claim` | Whether ASSUMED-BINDING-CONTRACTS may override a checker-refutable semantic claim |
 
 Question numbers are mutable queue positions, not permanent decision identities.
@@ -73,42 +72,7 @@ Proposed solutions below are recommendations, not owner rulings. Remove an
 entry when the contract answers it; retain any unfinished implementation on
 its owning task.
 
-### Q1 - How does a comparison order two integer operands of different types?
-
-Named decision: `mixed-integer-comparison`.
-
-**Context:** [numeric values](wiki/spec/language/numeric_values.md) lands an
-anonymous operand at its typed partner and says a binary result uses the
-selected operator's result type; it is silent on two already-typed operands of
-different integer types. [Expressions](wiki/spec/language/expressions.md)
-mentions comparison only for operator discovery. Typing and checking accept
-`self.i < self.text.len` with `i: i32` and the `u64` length. The checked
-interpreter compares both operands as unsigned whenever either is `u64`
-(`checked-interpreter` `expressions_and_value_calls.rs`, `unsigned_operands`),
-so `-1 < len` is false there. Terminal integer comparisons take one scalar type,
-and `construct_integer_comparison` (typed-trees-to-checked-trees
-`boolean_lowering.rs`) refuses operands of unequal types.
-
-**Problem:** Five text samples (`longest_run`, `parse_int`, `roman_numeral`,
-`string_hash`, `substring_search`) guard a loop with an `i32` cursor against a
-byte field's `u64` length. They pass checking and then fail native compilation:
-the unit plan is omitted at "state graph: terminator: conditional successors:
-guard expression". A lowering has to pick one meaning, and the interpreter's
-unsigned reading and exact integer order disagree for a negative left operand.
-
-**Proposed solution:** Compare exact integer values, as range facts and exact
-arithmetic already do. Lowering then emits `x < 0 || (x as u64) < n` for a
-signed `x` and unsigned `n` (and the mirrored forms), and the interpreter drops
-its unsigned promotion.
-
-**Alternatives:**
-- Refuse comparisons between typed integer operands of different types at
-  checking, and require an explicit cast. Each comparison stays single-typed;
-  the five samples declare `u64` cursors or cast after proving non-negativity.
-- Adopt the interpreter's promotion to unsigned. This is C's rule and silently
-  answers wrongly for negative operands.
-
-### Q2 - May an assumed runtime binding override a checker-refutable claim?
+### Q1 - May an assumed runtime binding override a checker-refutable claim?
 
 Named decision: `assumed-binding-refutable-claim`.
 

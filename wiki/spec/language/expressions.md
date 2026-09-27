@@ -94,6 +94,11 @@ comparison or user operator discovery. Type/value role resolution happens before
 choosing that operation. It produces no type object or runtime metadata lookup;
 ordinary `==` on values keeps its selected value-comparison semantics.
 
+Builtin comparisons between fixed integers of different widths or signedness
+follow [exact integer equality and order](numeric_values.md#integer-equality-and-order),
+not a common-carrier promotion. This does not change operator selection or add
+conversions to ordinary machine arguments.
+
 An operator binding is a property of an ordinary named machine declaration,
 package-private unless declared `pub machine`. A qualified path does not inherit
 its namespace type's visibility. An optional fixed token immediately after

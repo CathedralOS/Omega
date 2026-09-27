@@ -661,6 +661,7 @@ the complete product bar; focused successes below do not establish that baseline
   | `recursive_sum`, `framed_payload` | Exits 70/60, preserving saved reads, untouched siblings and shared payload loans. **STATE-LOCAL-VALUE-FRONTIER** and **GENERAL-CYCLIC-EXECUTION** own indexed storage, views and transfers; do not invent scalar-array field IDs or ranking for unranked cycles. |
   | `dutch_flag` | Native Color-array construction, reads, swaps and case dispatch, Console interaction and exit 70. Its field is already intrinsic `Binding<Console>`. **STATE-LOCAL-VALUE-FRONTIER** and **WRITE-ONLY-BORROW** own composition; replacing nominal enum storage with integers is not acceptance. |
   | `calendar` | Publish unchanged trapping conversions through **ARITHMETIC-POLICY-REALIZATION**, finish ordinary package review, and verify all five grid rows plus the live 20-byte header in capacity-21 buffers. A `contains: 30` banner match is not a rendered calendar. `compiler --test byte_index_carriers` is the arithmetic/bounds/write control, not application acceptance. |
+  | `longest_run`, `parse_int`, `roman_numeral`, `string_hash`, `substring_search` | Complete mixed `i32` cursor / `u64` length comparisons under **ARITHMETIC-POLICY-REALIZATION**, then execute the unchanged algorithms and documented outputs through ordinary package review. Do not change cursor types or add casts to avoid the settled comparison semantics; indexing still needs a nonnegative cursor. |
   | `windowed_calculator` | Reproduce and locate the checked-compilation stall: at `50559da3ab9` on Linux x86-64 it exceeded 25 minutes of CPU without a diagnostic while the other 146 maintained mains checked. The cause was not established; do not label it a provider-selection or proof-search defect without evidence. Native GUI acceptance remains **MACOS-APPLICATION-PUBLICATION**. |
   | Other text/index/match samples | Close `binary_search_viz`, `maze_flood`, `prime_sieve`, `multiplication_table`, `dice_histogram`, `dungeon_render`, `mandelbrot{,_zoom}`, `wire_protocol` and `dungeon_crawler_cli` through **NOMINAL-FIELD-FLOW**, **WRITE-ONLY-BORROW**, **STATE-LOCAL-VALUE-FRONTIER**, **MATCH-SELECTIVE-LOWERING** or **CML4**, not one task per source permutation. Encoding facts use ordinary domains, not recognized function names. |
   | `text_greeting`, `status_report`, `string_catalog` | Carrier concatenation `self.t = "a" + self.s + "b"` into a bounded `Utf8` field. Checking and the checked interpreter accept it, but Terminal Psi has no operation that appends a view at a bounded field's live length: `StructuralByteSequenceFieldStore` replaces the whole prefix and `StructuralByteSequenceFieldByteStore` keeps the length. 04 declines at `structural field store: byte sequence carrier`, and the active run tests `runtime_bounded_carrier_concat_exit_canary_runs` and `runtime_bounded_carrier_alias_concat_exit_canary_runs` fail the same way (the alias variant stops earlier, at `call operation: projected operand support`). Add one append operation through Terminal encoding, verifier, interpreter and Omega lowering; an unrolled per-capacity byte sequence is not acceptance. |
@@ -2774,11 +2775,31 @@ syntax and other terminal services are not prerequisites.
   reject. Proof-only mathematical terms do not authorize executable guard use;
   retired proposition declarations remain **PROOF-CONTRACT-MIGRATION** scope.
 
-- **ARITHMETIC-POLICY-REALIZATION.** (new-scope) Complete executable policies
+- **ARITHMETIC-POLICY-REALIZATION.** (new-scope) Complete integer comparisons and executable policies
   from [numeric values](wiki/spec/language/numeric_values.md) through Terminal,
   interpretation and native realization. Owners:
+  `04_typed-trees-to-checked-trees`' comparison producer, checked interpretation,
   `05_checked-trees-to-lowered-psi/src/expression_preparation/`, Terminal
   operation/observation vocabulary and its independent checking/realization.
+
+  - Implement [exact integer comparisons](wiki/spec/language/numeric_values.md#integer-equality-and-order)
+    for all six relations across fixed-integer widths and signedness. The reported
+    gaps are checked interpretation's `unsigned_operands` promotion and
+    `construct_integer_comparison` refusing unequal types in `boolean_lowering.rs`.
+    Reproduce those paths, then carry the exact predicate through source facts,
+    compile-time evaluation, Terminal production/reload, independent verification
+    and native execution. A shared-type IR is not a source restriction; preserve
+    both original values and prove any normalization rather than silently changing
+    signedness or forcing a cast into either operand's carrier.
+    Acceptance: all relations and operand orientations agree for negative signed
+    values versus unsigned zero/positive values, equal values in different types,
+    differing same-sign widths, signed extrema, and `u64` values above `i64::MAX`.
+    Include dynamic parameters as well as constants, negated guards, and an
+    indexing rejection where only the upper bound is known. Keep selected domain
+    meanings, literal landing, arithmetic-overflow and once-only operand-evaluation
+    controls. SAMPLE-CORPUS owns the five text algorithms named in its customer
+    row; their unchanged cursor/length guards must reach native execution with
+    documented results, not merely pass checking or a synthetic comparison test.
 
   - Trapping integer arithmetic is realized end to end. Each
     `OperationKind::TrappingInteger` (add, subtract, multiply, divide,
