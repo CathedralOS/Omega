@@ -48,7 +48,7 @@ impl<'program> Evaluator<'program> {
                 "named build inputs require a compiler-issued facet".to_owned(),
             ));
         };
-        if type_name != "$OmegaBuildInputSlots" {
+        if **type_name != *"$OmegaBuildInputSlots" {
             return Err(Halt::Trap(
                 "named build inputs require a compiler-issued facet".to_owned(),
             ));
@@ -119,11 +119,11 @@ impl<'program> Evaluator<'program> {
             Value::Struct {
                 type_name, fields, ..
             } if matches!(
-                type_name.as_str(),
+                &**type_name,
                 SOURCE_ROOT_FACET_TYPE | OUTPUT_ROOT_FACET_TYPE
             ) =>
             {
-                let attached = if type_name == SOURCE_ROOT_FACET_TYPE {
+                let attached = if **type_name == *SOURCE_ROOT_FACET_TYPE {
                     "BuildSource"
                 } else {
                     "BuildOutput"
@@ -160,14 +160,14 @@ impl<'program> Evaluator<'program> {
         validate_build_relative_path(&relative)?;
         Ok(Some(Value::Struct {
             type_symbol: SymbolHandle::invalid(),
-            type_name: ROOTED_BUILD_PATH_TYPE.to_owned(),
+            type_name: ROOTED_BUILD_PATH_TYPE.into(),
             fields: BTreeMap::from([
                 (
-                    "root".to_owned(),
+                    "root".into(),
                     self.allocate_cell(Value::Int(i64::from(root.get())))?,
                 ),
                 (
-                    "relative".to_owned(),
+                    "relative".into(),
                     self.allocate_cell(self.allocate_text(relative)?)?,
                 ),
             ]),
@@ -244,8 +244,12 @@ impl<'program> Evaluator<'program> {
     ) -> EvalResult<Option<FilesystemHostOperation>> {
         let receiver = self.deref_cell(receiver.clone());
         let attached = match &*receiver.borrow() {
-            Value::Struct { type_name, .. } if type_name == SOURCE_ROOT_FACET_TYPE => "BuildSource",
-            Value::Struct { type_name, .. } if type_name == OUTPUT_ROOT_FACET_TYPE => "BuildOutput",
+            Value::Struct { type_name, .. } if **type_name == *SOURCE_ROOT_FACET_TYPE => {
+                "BuildSource"
+            }
+            Value::Struct { type_name, .. } if **type_name == *OUTPUT_ROOT_FACET_TYPE => {
+                "BuildOutput"
+            }
             _ => return Ok(None),
         };
         let operation = match (attached, target) {
@@ -317,7 +321,7 @@ impl<'program> Evaluator<'program> {
         let output_root = match &*receiver.borrow() {
             Value::Struct {
                 type_name, fields, ..
-            } if type_name == OUTPUT_ROOT_FACET_TYPE => fields
+            } if **type_name == *OUTPUT_ROOT_FACET_TYPE => fields
                 .get("root")
                 .and_then(|root| root.borrow().as_int())
                 .and_then(|root| u32::try_from(root).ok())
@@ -485,7 +489,7 @@ pub(in crate::interpreter::evaluator) fn rooted_build_path_parts(
     else {
         return Ok(None);
     };
-    if type_name != ROOTED_BUILD_PATH_TYPE {
+    if **type_name != *ROOTED_BUILD_PATH_TYPE {
         return Ok(None);
     }
     let root = fields

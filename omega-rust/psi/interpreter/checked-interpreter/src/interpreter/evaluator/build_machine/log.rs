@@ -56,7 +56,7 @@ impl<'program> Evaluator<'program> {
         let receiver = self.deref_cell(receiver);
         if !matches!(
             &*receiver.borrow(),
-            Value::Struct { type_name, .. } if type_name == BUILD_LOG_FACET_TYPE
+            Value::Struct { type_name, .. } if **type_name == *BUILD_LOG_FACET_TYPE
         ) {
             return Ok(false);
         }

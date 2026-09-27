@@ -720,7 +720,7 @@ impl<'program> Evaluator<'program> {
                     .data_definitions()
                     .iter()
                     .find(|data| type_symbol.is_valid() && data.symbol == *type_symbol)
-                    .map(|data| data.name.as_str().to_owned())?;
+                    .map(|data| crate::value::ValueName::from(data.name.as_str()))?;
                 (*type_symbol, name)
             }
             _ => return None,
@@ -780,7 +780,7 @@ impl<'program> Evaluator<'program> {
         let group = {
             let self_name = match &*frame.self_cell.borrow() {
                 Value::Struct { type_name, .. } => type_name.clone(),
-                _ => String::new(),
+                _ => "".into(),
             };
             self_name
                 .split("::")

@@ -513,7 +513,7 @@ impl<'program> Evaluator<'program> {
     /// Build a machine instance as a `Struct` whose fields are the attached data's
     /// fields (with their defaults) plus the machine's contained sub-objects.
     fn instantiate_machine(&mut self, machine: &Machine) -> EvalResult<Cell> {
-        let mut fields: BTreeMap<String, Cell> = BTreeMap::new();
+        let mut fields: BTreeMap<crate::value::ValueName, Cell> = BTreeMap::new();
 
         if let Some(data_name) = machine.attached_data.as_ref()
             && let Some(data) = self.find_data_by_name(data_name.as_str())
@@ -530,12 +530,12 @@ impl<'program> Evaluator<'program> {
             } else {
                 self.default_value_for_type(owned.type_reference)?
             };
-            fields.insert(owned.name.as_str().to_owned(), self.allocate_cell(value)?);
+            fields.insert(owned.name.as_str().into(), self.allocate_cell(value)?);
         }
 
         self.allocate_cell(Value::Struct {
             type_symbol: machine.symbol,
-            type_name: machine.name.as_str().to_owned(),
+            type_name: machine.name.as_str().into(),
             fields,
         })
     }
@@ -545,7 +545,7 @@ impl<'program> Evaluator<'program> {
     pub(in crate::interpreter::evaluator) fn populate_data_fields(
         &mut self,
         data: &DataDefinition,
-        fields: &mut BTreeMap<String, Cell>,
+        fields: &mut BTreeMap<crate::value::ValueName, Cell>,
     ) -> EvalResult<()> {
         self.populate_data_fields_with_bindings(data, fields, &[])
     }
@@ -553,7 +553,7 @@ impl<'program> Evaluator<'program> {
     fn populate_data_fields_with_bindings(
         &mut self,
         data: &DataDefinition,
-        fields: &mut BTreeMap<String, Cell>,
+        fields: &mut BTreeMap<crate::value::ValueName, Cell>,
         bindings: &[(
             SymbolHandle,
             String,
@@ -569,7 +569,7 @@ impl<'program> Evaluator<'program> {
             // Field defaults are retired: every field ZII zero-initializes.
             let value =
                 self.default_value_for_type_with_bindings(field.type_reference, bindings)?;
-            fields.insert(name, self.allocate_cell(value)?);
+            fields.insert(name.into(), self.allocate_cell(value)?);
         }
         Ok(())
     }
@@ -726,7 +726,7 @@ impl<'program> Evaluator<'program> {
                     )?;
                     return Ok(Value::Struct {
                         type_symbol: definition.symbol,
-                        type_name: definition.name.as_str().to_owned(),
+                        type_name: definition.name.as_str().into(),
                         fields: nested_fields,
                     });
                 }
@@ -738,7 +738,7 @@ impl<'program> Evaluator<'program> {
                 self.populate_data_fields(nested, &mut nested_fields)?;
                 return Ok(Value::Struct {
                     type_symbol: nested.symbol,
-                    type_name: nested.name.as_str().to_owned(),
+                    type_name: nested.name.as_str().into(),
                     fields: nested_fields,
                 });
             }
@@ -755,11 +755,11 @@ impl<'program> Evaluator<'program> {
                 for field in payload_fields {
                     let value =
                         self.default_value_for_type_with_bindings(field.type_reference, bindings)?;
-                    payload.push((field.name.as_str().to_owned(), self.allocate_cell(value)?));
+                    payload.push((field.name.as_str().into(), self.allocate_cell(value)?));
                 }
                 return Ok(Value::Enum {
                     type_symbol,
-                    variant_name,
+                    variant_name: variant_name.into(),
                     payload,
                 });
             }

@@ -31,7 +31,7 @@ impl<'program> Evaluator<'program> {
                 ..
             } => payload
                 .iter()
-                .find(|(name, _)| name == field)
+                .find(|(name, _)| **name == *field)
                 .map(|(_, cell)| cell.clone())
                 .ok_or_else(|| {
                     Halt::Trap(format!(
@@ -503,7 +503,7 @@ impl<'program> Evaluator<'program> {
         else {
             return Ok(None);
         };
-        let common: Vec<(String, Cell)> = self
+        let common: Vec<(crate::value::ValueName, Cell)> = self
             .program
             .data_members(data)
             .iter()
@@ -513,7 +513,7 @@ impl<'program> Evaluator<'program> {
             })
             .map(|field| {
                 Ok((
-                    field.name.as_str().to_owned(),
+                    field.name.as_str().into(),
                     self.allocate_cell(self.default_for_type(field.type_reference)?)?,
                 ))
             })
@@ -524,7 +524,7 @@ impl<'program> Evaluator<'program> {
             // primitive default is the zero value). Pure sums add nothing.
             Value::Enum {
                 type_symbol: data.symbol,
-                variant_name: variant_name.to_owned(),
+                variant_name: variant_name.into(),
                 payload: common,
             },
         ))
