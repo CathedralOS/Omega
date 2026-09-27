@@ -160,9 +160,10 @@ fn converted_call_results_carry_their_conversion_bounds() {
         ),
         // An effect-free nested Unit call inside the callee stays
         // transparent; a real write footprint still retires the capture.
+        // Keep its operand arithmetic in range so it tests call effects.
         (
             "machine observe(value: u64) {}
-             machine digit(value: u64) -> u64 { observe(value + 1); value % 10 + 48 }",
+             machine digit(value: u64) -> u64 { observe(value % 10 + 1); value % 10 + 48 }",
             "output[position] = ((digit(unknown) as u8 in Wrapping) as u8);",
             true,
         ),
