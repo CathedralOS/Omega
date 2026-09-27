@@ -71,6 +71,7 @@ jobs:
         run: |
           python tools/tests/test_release_package.py -v
           python tools/tests/test_release_workflow.py -v
+          python tools/tests/test_release_notices.py -v
       - name: Build and test the relocated host bundle
         run: python tools/release/package.py --version "$RELEASE_VERSION" --output build/releases
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

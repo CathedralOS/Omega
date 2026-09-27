@@ -2,11 +2,13 @@
 import importlib.util
 from pathlib import Path
 import tempfile
+import sys
 import unittest
 from unittest.mock import patch
 import zipfile
 import tarfile
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "release"))
 SPEC = importlib.util.spec_from_file_location("release_package", Path(__file__).resolve().parents[1] / "release/package.py")
 package = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(package)
@@ -60,6 +62,44 @@ class ReleasePackageTests(unittest.TestCase):
         manifest = package.verify_manifest(bundle)
         self.assertEqual(len(manifest["files"]), 5)
         self.assertFalse((bundle / "lib/omega/library/README.md").exists())
+
+    def test_dependency_notices_participate_in_bundle_manifest(self):
+        notices = self.root / "notices"
+        notices.mkdir()
+        (notices / "LICENSE").write_text("upstream license")
+        bundle = self.root / "bundle"
+        package.stage_bundle(bundle, self.binary, self.library, self.metadata,
+                             dependency_notices=notices)
+        manifest = package.verify_manifest(bundle)
+        self.assertIn("licenses/third-party/LICENSE", manifest["files"])
+
+    def test_git_fixture_is_pinned_and_offline_after_review(self):
+        metadata = dict(host="x86_64-pc-windows-msvc", commit="a" * 40)
+        calls = []
+        def execute(command, **options):
+            calls.append((command, options))
+            project = self.root / "git source smoke"
+            if "update" in command and "--resume" not in command:
+                review = project / "build/package-manager/review-windows_x86_64.txt"
+                review.parent.mkdir(parents=True)
+                review.write_bytes(b"decision fixed-fixture pending\n")
+            if "--resume" in command:
+                (project / "omega.lock").write_bytes(b"accepted")
+            return ""
+        with patch.object(package, "run", side_effect=execute), \
+             patch.object(package.shutil, "which", return_value="git"), \
+             patch.dict(package.os.environ, GH_TOKEN="not-for-child", GITHUB_TOKEN="not-for-child"):
+            package.git_source_smoke(self.binary, metadata, self.root)
+        source = (self.root / "git source smoke/build.omg").read_text()
+        self.assertIn('revision: "' + "a" * 40 + '"', source)
+        self.assertIn('PackageSelection::Named { package: "omega_language_std" }', source)
+        self.assertEqual(len(calls), 4)
+        self.assertNotIn("--offline", calls[0][0])
+        for command, options in calls[1:3]:
+            self.assertIn("--offline", command)
+            self.assertNotIn("GH_TOKEN", options["environment"])
+            self.assertNotIn("GITHUB_TOKEN", options["environment"])
+        self.assertIn("omega-program", str(calls[3][0][0]))
 
     def test_manifest_detects_corruption_and_extra_files(self):
         bundle = self.stage()

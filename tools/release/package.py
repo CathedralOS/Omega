@@ -15,6 +15,8 @@ import tarfile
 import tempfile
 import zipfile
 
+import notices
+
 ROOT = Path(__file__).resolve().parents[2]
 HOST_TARGETS = {
     "x86_64-pc-windows-msvc": "windows_x86_64",
@@ -59,7 +61,7 @@ def library_digest(root):
     return digest.hexdigest()
 
 
-def stage_bundle(destination, binary, library, metadata):
+def stage_bundle(destination, binary, library, metadata, *, dependency_notices=None):
     destination.mkdir()
     executable = destination / "bin" / binary.name
     executable.parent.mkdir()
@@ -73,6 +75,8 @@ def stage_bundle(destination, binary, library, metadata):
         target = destination / "licenses" / name
         target.parent.mkdir(exist_ok=True)
         shutil.copyfile(ROOT / name, target)
+    if dependency_notices is not None:
+        shutil.copytree(dependency_notices, destination / "licenses/third-party")
     files = {path.relative_to(destination).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
              for path in sorted(destination.rglob("*")) if path.is_file()}
     manifest = dict(metadata, schema="omega-release-bundle/1", files=files)
@@ -161,7 +165,7 @@ def publish_archive(archive, destination):
         output.write(f"{checksum}  {destination.name}\n")
 
 
-def smoke_test(bundle, workspace):
+def smoke_test(bundle, workspace, *, git_sources=False):
     manifest = verify_manifest(bundle)
     executable = bundle / "bin" / ("omega.exe" if os.name == "nt" else "omega")
     environment = os.environ.copy()
@@ -221,7 +225,16 @@ def smoke_test(bundle, workspace):
     # This is our fixed local fixture, not a user's dependency graph. Exercise
     # normal review publication rather than bypassing the package policy gate.
     target = HOST_TARGETS[manifest["host"]]
-    run([executable, "update", "--project", project, "--target", target, "--offline"],
+    review_fixture(executable, project, target, workspace, environment, offline=True)
+    run([executable, "--offline", project / "main.omg"], cwd=workspace, environment=environment, timeout=600)
+    run([executable, "run", project / "main.omg"], cwd=workspace, environment=environment, expected=42, timeout=600)
+    if git_sources:
+        git_source_smoke(executable, manifest, workspace)
+
+
+def review_fixture(executable, project, target, workspace, environment, *, offline):
+    transport = ["--offline"] if offline else []
+    run([executable, "update", "--project", project, "--target", target, *transport],
         cwd=workspace, environment=environment, expected=3, timeout=600)
     review = project / "build/package-manager" / f"review-{target}.txt"
     document = review.read_bytes().decode("utf-8")
@@ -231,8 +244,41 @@ def smoke_test(bundle, workspace):
     review.write_bytes(document.encode("utf-8"))
     run([executable, "update", "--resume", "--project", project, "--offline"],
         cwd=workspace, environment=environment, timeout=600)
-    run([executable, "--offline", project / "main.omg"], cwd=workspace, environment=environment, timeout=600)
-    run([executable, "run", project / "main.omg"], cwd=workspace, environment=environment, expected=42, timeout=600)
+
+
+def git_source_smoke(executable, manifest, workspace):
+    """Acquire the public std package, approve this fixed fixture, rebuild offline."""
+    if not shutil.which("git"):
+        raise ValueError("Git-source smoke requires host Git")
+    environment = os.environ.copy()
+    for name in ("OMEGA_LIBRARY_ROOT", "GH_TOKEN", "GITHUB_TOKEN"):
+        environment.pop(name, None)
+    home = workspace / "git smoke home"
+    home.mkdir(mode=0o700)
+    environment.update(HOME=str(home), USERPROFILE=str(home),
+                       LOCALAPPDATA=str(home), XDG_CACHE_HOME=str(home))
+    project = workspace / "git source smoke"
+    project.mkdir()
+    source = ('Source::Git { repository: "https://github.com/CathedralOS/Omega.git", '
+              f'revision: "{manifest["commit"]}", '
+              'selection: PackageSelection::Named { package: "omega_language_std" } }')
+    build = (ROOT / "tools/release/smoke/build.omg").read_text(encoding="utf-8")
+    build = build.replace("Source::Path { location: @STDLIB@ }", source)
+    (project / "build.omg").write_text(build, encoding="utf-8")
+    shutil.copyfile(ROOT / "tools/release/smoke/main.omg", project / "main.omg")
+    target = HOST_TARGETS[manifest["host"]]
+    review_fixture(executable, project, target, workspace, environment, offline=False)
+    lock = project / "omega.lock"
+    accepted_lock = lock.read_bytes()
+    # The normal locked build must consume accepted cached sources without a
+    # network refresh. It still needs Git to inspect authenticated cached objects.
+    output = workspace / "git native output"
+    run([executable, "--offline", "--build-dir", output, project / "main.omg"],
+        cwd=workspace, environment=environment, timeout=600)
+    program = output / ("omega-program.exe" if os.name == "nt" else "omega-program")
+    run([program], cwd=workspace, environment=environment, expected=42, timeout=600)
+    if lock.read_bytes() != accepted_lock:
+        raise ValueError("offline compilation changed the accepted package lock")
 
 
 def main():
@@ -240,6 +286,7 @@ def main():
     parser.add_argument("--output", type=Path, default=ROOT / "build/releases")
     parser.add_argument("--version", help="release version; defaults to workspace version")
     parser.add_argument("--allow-dirty", action="store_true", help="produce an explicitly dirty development bundle")
+    parser.add_argument("--git-smoke", action="store_true", help="also test public Git acquisition and offline rebuild (network required)")
     arguments = parser.parse_args()
     version = arguments.version or re.search(r'^version = "([^"]+)"', (ROOT / "Cargo.toml").read_text(), re.M)[1]
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?", version):
@@ -287,13 +334,15 @@ def main():
     with tempfile.TemporaryDirectory(prefix="omega bundle ") as temporary:
         scratch = Path(temporary)
         bundle = scratch / name
-        stage_bundle(bundle, binary, library, metadata)
+        dependency_notices = scratch / "dependency notices"
+        notices.collect(dependency_notices, ROOT, host)
+        stage_bundle(bundle, binary, library, metadata, dependency_notices=dependency_notices)
         archive = scratch / (name + suffix)
         archive_bundle(bundle, archive)
         extracted = scratch / "relocated installation"
         extracted.mkdir()
         extract_bundle(archive, extracted)
-        smoke_test(extracted / name, scratch)
+        smoke_test(extracted / name, scratch, git_sources=arguments.git_smoke)
         verify_manifest(extracted / name)
         publish_archive(archive, destination)
     print(destination)
