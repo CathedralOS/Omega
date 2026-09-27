@@ -9,6 +9,7 @@
 //!
 //! Start at `fragment_object_publication.rs` for fragment emission, entry
 //! binding and object publication evidence,
+//! `entry_receiver.rs` for executable receiver admission before construction,
 //! `native_artifact.rs` for artifact construction and replay,
 //! `proof.rs` for standalone native proof construction and verification,
 //! `callable_entry.rs` for validated callable-entry staging, or
@@ -16,6 +17,7 @@
 //! semantic-wrapper object records and codec that native realization stages.
 
 mod callable_entry;
+mod entry_receiver;
 mod fragment_object_publication;
 mod native_artifact;
 pub mod optimized_semantic_wrapper_object;
@@ -33,6 +35,7 @@ pub use callable_entry::{
     StagedValidatedOptimizedOrdinaryCallableEntry, ValidatedOptimizedOrdinaryCallableEntryManifest,
     stage_validated_optimized_ordinary_callable_entry, validate_optimized_ordinary_callable_entry,
 };
+pub use entry_receiver::admit_executable_entry_receiver;
 pub use fragment_object_publication::{
     FragmentObjectPublicationRequest, PublishedFragmentObject, publish_fragment_object,
 };
