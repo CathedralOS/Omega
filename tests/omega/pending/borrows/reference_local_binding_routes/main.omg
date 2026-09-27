@@ -41,6 +41,16 @@
 // This fixture pins the SHARED-BORROW trigger, the simplest of the three: no
 // array, no record, no recast, no `requires`, no runtime index.
 //
+// A RECORD LITERAL carrying a reference field is one more producer, found
+// while recovering a deleted termination customer:
+// `Indirect { target: &mut owner }`, where `owner` is a plain local, omits at
+// `statement sequence: local data: structural call binding` -- while the
+// record literal alone checks and the bare `&mut owner` binding omits at
+// `statement sequence: unsupported statement kind`. Pinned at
+// `tests/omega/pending/termination/rank_endpoint_borrows_recovery`, which
+// TERMINATION-RANKING-CHECKS is waiting on: that item asks to recover
+// `rank_endpoint_borrows` as a corpus entry, and this is what stops it.
+//
 // The `&` of a plain local is listed above for completeness but is a
 // DIFFERENT omission -- it reports `state graph: result custody accounting`,
 // and it is reported to check when no transition follows, which was not
