@@ -998,7 +998,7 @@ pass/blockexec/blocking_executor_custody_claims_compile rejected 2389ms
 pass/borrow/copyable_array_view_survives_owner_pass_compile checked 1874ms
 pass/borrow/explicit_aggregate_lifetime_selects_source checked 1822ms
 pass/borrow/runtime_exclusive_loan_local_write_exit checked 5254ms
-pass/borrow/runtime_method_view_write_after_last_use_exit rejected 4809ms
+pass/borrow/runtime_method_view_write_after_last_use_exit rejected 10165ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: destination parameter` (state 0, statement 1)
 pass/borrow/write_only_constrained_record_field checked 1958ms
 pass/borrow/write_only_whole_scalar_replace checked 1975ms
@@ -1023,8 +1023,8 @@ pass/calls/nested_value_call_arg_compile rejected 5371ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `outer calls: unconsumed nested call in a local initializer` (state 0, statement 0)
 pass/calls/runtime_alias_write_through_guarded_transition_exit rejected 5996ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: initializer expression` (state 0, statement 0)
-pass/calls/runtime_assignment_call_post_mutation_value_exit rejected 9127ms
-	native-artifact Terminal production failed: Lowering(Unsupported("structural scalar store names an unknown parameter"))
+pass/calls/runtime_assignment_call_post_mutation_value_exit rejected 16783ms
+	native-artifact Terminal production failed: Lowering(Unsupported("structural scalar store lost exact exclusive custody"))
 pass/calls/runtime_constructor_computed_field_exit rejected 7681ms
 	native artifact canonical abstract optimization failed: explicit optimization pipeline failed: Run(InitialValidation(StructuralCallContractMismatch { machine: MachineId(1), block: BlockId(1), node: 1 }))
 pass/calls/runtime_cross_machine_substate_name_exit checked 8802ms
@@ -1039,10 +1039,10 @@ pass/calls/runtime_dispatch_result_enum_case_exit rejected 5018ms
 pass/calls/runtime_dispatch_slice_element_terminal_exit rejected 5107ms
 	native-artifact Terminal production failed: Lowering(InvalidTerminalModule(OverlappingExclusiveStructuralArguments { operation: OperationId(11), first_argument: 0, second_argument: 1 }))
 pass/calls/runtime_distinct_receiver_value_calls_exit checked 5913ms
-pass/calls/runtime_enum_self_method_exit rejected 8947ms
+pass/calls/runtime_enum_self_method_exit rejected 9279ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: case field type` (state 0, statement 0)
-pass/calls/runtime_explicit_discard_executes_exit rejected 6575ms
-	native-artifact Terminal production failed: Lowering(Unsupported("structural scalar store names an unknown parameter"))
+pass/calls/runtime_explicit_discard_executes_exit rejected 9260ms
+	native-artifact Terminal production failed: Lowering(Unsupported("structural scalar store lost exact exclusive custody"))
 pass/calls/runtime_guard_call_vs_call_exit checked 8266ms
 pass/calls/runtime_guarded_effectful_transition_argument_exit rejected 5674ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: scalar arguments` (state 0, statement 1)
@@ -1061,7 +1061,7 @@ pass/calls/runtime_option_value_call_exit checked 12564ms
 pass/calls/runtime_owned_case_temporaries_exhaustive_dispatch_exit checked 7474ms
 pass/calls/runtime_param_receiver_second_instance_exit rejected 6387ms
 	native-artifact Terminal production failed: Lowering(InvalidTerminalModule(OverlappingExclusiveStructuralArguments { operation: OperationId(14), first_argument: 0, second_argument: 1 }))
-pass/calls/runtime_reference_returned_slice_element_write_exit rejected 6528ms
+pass/calls/runtime_reference_returned_slice_element_write_exit rejected 9244ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::fill`), which was itself omitted at local construction at `structural field store: destination parameter`
 pass/calls/runtime_referenced_local_outlives_sibling_guard_call_exit rejected 7960ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::run`), which was itself omitted at an unavailable callee (`Dungeon::initialize`), which was itself omitted at an unavailable callee (`MazeBuilder::build`), which was itself omitted at local construction at `statement sequence: local data: initializer expression` (state 0, statement 0)
@@ -1076,8 +1076,8 @@ pass/calls/runtime_value_call_dispatch_results_exit checked 11359ms
 pass/calls/runtime_value_call_literal_len_arm_guard_exit checked 6688ms
 pass/calls/runtime_value_call_nested_entry_call_exit checked 10433ms
 pass/calls/runtime_value_call_return_types_exit checked 9801ms
-pass/calls/runtime_value_call_single_execution_exit rejected 6482ms
-	native-artifact Terminal production failed: Lowering(Unsupported("structural scalar store names an unknown parameter"))
+pass/calls/runtime_value_call_single_execution_exit rejected 11302ms
+	native-artifact Terminal production failed: Lowering(Unsupported("structural scalar store lost exact exclusive custody"))
 pass/calls/runtime_value_call_statement_recursive_walk_exit rejected 5610ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::count`), which was itself omitted at an unavailable scalar target (`Main::walk`), which was itself omitted at local construction at `state graph: natural ranks`
 pass/calls/runtime_value_call_terminal_exit rejected 21080ms
@@ -1118,7 +1118,7 @@ pass/collections/runtime_double_indexed_rmw_exit rejected 8432ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: scalar local: pure initializer` (state 0, statement 3)
 pass/collections/runtime_dutch_flag_partition_exit rejected 10820ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 3, statement 0)
-pass/collections/runtime_fixed_vec_round_trip_exit rejected 8727ms
+pass/collections/runtime_fixed_vec_round_trip_exit rejected 10885ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`FixedVecI32x4::push`), which was itself omitted at local construction at `structural field store: destination parameter`
 pass/collections/runtime_frame_indexed_param_read_exit rejected 5523ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: unsupported statement kind`
@@ -1129,7 +1129,7 @@ pass/collections/runtime_maze_pathfind_exit checked 16698ms
 pass/collections/runtime_nested_const_row_indexed_read_exit checked 6809ms
 pass/collections/runtime_signed_element_offset_read_exit checked 6346ms
 pass/collections/runtime_vec_u32_growth_exit checked 25284ms
-pass/collections/runtime_whole_array_value_copy_exit rejected 7233ms
+pass/collections/runtime_whole_array_value_copy_exit rejected 11572ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: scalar field type` (state 0, statement 3)
 pass/collections/std_option_runtime_match_exit rejected 5087ms
 	native-artifact Terminal production failed: Lowering(Unsupported("runtime field observation requires a record-only field path"))
@@ -1181,7 +1181,7 @@ pass/control_flow/runtime_integer_literal_dispatch_exit checked 5276ms
 pass/control_flow/runtime_loop_patterns_exit checked 6291ms
 pass/control_flow/runtime_nonplace_record_pattern_single_evaluation_exit rejected 4809ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: unsupported tail: jump followed by a transition` (state 0)
-pass/control_flow/runtime_string_literal_dispatch_exit rejected 4806ms
+pass/control_flow/runtime_string_literal_dispatch_exit rejected 5601ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field` (state 0, statement 0)
 pass/control_flow/runtime_sum_tuple_matrix_exhaustive_exit rejected 4749ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: unsupported tail: transition chain` (state 0)
@@ -1224,7 +1224,7 @@ pass/data/record_pattern_let_exit checked 5472ms
 pass/data/runtime_case_reassignment_exit rejected 4842ms
 	native-artifact Terminal production failed: Lowering(Unsupported("runtime field observation requires a record-only field path"))
 pass/data/runtime_data_properties_exit checked 5366ms
-pass/data/runtime_mixed_shape_exit rejected 4868ms
+pass/data/runtime_mixed_shape_exit rejected 5592ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: case field type` (state 0, statement 0)
 pass/data/runtime_proof_only_data_declared_exit checked 5138ms
 pass/data/runtime_record_field_value_pattern_exit rejected 4848ms
@@ -1283,7 +1283,7 @@ pass/domains/transparent_alias_expansion checked 1866ms
 pass/domains/user_authored_predicate_machine checked 1835ms
 pass/domains/utf8_equals_literal_exit rejected 4982ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::classify`), which was itself omitted at local construction at `state graph: terminator: conditional successors: guard expression` (state 0)
-pass/domains/utf8_field_read_carries_domain_exit rejected 4954ms
+pass/domains/utf8_field_read_carries_domain_exit rejected 5997ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field`
 pass/domains/utf8_field_write_from_param rejected 2243ms
 	native-artifact Terminal production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`Main::main` has no admitted body (local construction stopped at signature)") })
@@ -1525,7 +1525,7 @@ pass/generics/runtime_const_data_where_fact_exit rejected 2704ms
 pass/generics/runtime_container_setter_matrix_exit checked 6103ms
 pass/generics/runtime_generic_multiple_specializations_exit rejected 5062ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable scalar target (`Main::pick$specialized$06d3f610208d1c9a$1`), which was itself omitted at local construction at `signature`
-pass/generics/runtime_mixed_generic_erased_sum_exit rejected 4797ms
+pass/generics/runtime_mixed_generic_erased_sum_exit rejected 5504ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: case field type` (state 0, statement 0)
 pass/generics/runtime_nested_generic_instantiations_exit checked 5418ms
 pass/generics/runtime_value_generic_subject_exit checked 5803ms
@@ -1711,7 +1711,7 @@ pass/providers/token_machine_family_override_exit checked 8397ms
 pass/range/runtime_funnel_guard_agreement_exit checked 8966ms
 pass/range/runtime_guarded_runtime_index_increment_exit rejected 5629ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: contract shape unadmitted` (state 1)
-pass/ranges/sum_payload_range_arith_narrowed_exit rejected 6177ms
+pass/ranges/sum_payload_range_arith_narrowed_exit rejected 6921ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: case field type` (state 0, statement 0)
 pass/recast/nested_operand_view_compile checked 2450ms
 pass/recast/runtime_aggregate_slice_representation_recast_exit rejected 7790ms
@@ -1741,7 +1741,7 @@ pass/recast/runtime_shared_domain_weakening_recast_exit rejected 4746ms
 pass/recast/runtime_shared_record_float_range_weakening_exit rejected 14556ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: parameter signature: attached data shape` (state 0)
 pass/references/runtime_shared_ref_param_guard_exit checked 5428ms
-pass/relevance/erased_case_payload_field_exit rejected 4733ms
+pass/relevance/erased_case_payload_field_exit rejected 6553ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: case field type` (state 0, statement 0)
 pass/relevance/erased_parameter_named_transition_forward checked 1876ms
 pass/relevance/erased_parameter_proof_only checked 5214ms
@@ -1763,7 +1763,7 @@ pass/slices/requires_field_count_alias_index_compile checked 1852ms
 pass/slices/runtime_bounded_fixed_array_subslice_arg_exit rejected 4622ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: unsupported statement kind`
 pass/slices/runtime_join_meet_bound_exit checked 5340ms
-pass/slices/runtime_mutable_slice_element_write_exit rejected 4643ms
+pass/slices/runtime_mutable_slice_element_write_exit rejected 4612ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: destination parameter` (state 0, statement 1)
 pass/slices/runtime_nested_subslice_fixed_index_exit rejected 4698ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 0, statement 7)
@@ -1818,9 +1818,9 @@ pass/structs/zeroed_record_member_wide_array_exit rejected 5042ms
 	native artifact canonical abstract optimization failed: explicit optimization pipeline failed: Run(InitialValidation(StructuralCatalogMismatch { machine: Some(MachineId(1)) }))
 pass/structs/zeroed_record_members_exit rejected 5076ms
 	native artifact canonical abstract optimization failed: explicit optimization pipeline failed: Run(InitialValidation(StructuralCatalogMismatch { machine: Some(MachineId(1)) }))
-pass/structural/case_field_local_store rejected 4859ms
-	native-artifact Terminal production failed: Lowering(Unsupported("structural case field store value names an unknown parameter"))
-pass/structural/case_field_member_store rejected 4806ms
+pass/structural/case_field_local_store rejected 5272ms
+	native artifact native artifact lowering failed: Lowering(InvalidBorrowedStorageWindow(OperationId(9)))
+pass/structural/case_field_member_store rejected 5795ms
 	native artifact canonical abstract optimization failed: explicit optimization pipeline failed: Run(InitialValidation(StructuralCallContractMismatch { machine: MachineId(1), block: BlockId(2), node: 0 }))
 pass/structural/case_payload_record_member_read rejected 4751ms
 	native-artifact Terminal production failed: Lowering(InvalidTerminalModule(UnknownStructuralArgument { operation: OperationId(3), argument_index: 1, place: PlaceId(4) }))

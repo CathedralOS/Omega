@@ -789,13 +789,15 @@ impl OperationFrame<'_, '_> {
         // owned structural local roots it at the local's live home place,
         // resolved through the structural-local roster.
         let (destination_place, lowered) = match store.destination {
-            checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter { .. } => {
-                let destination = self
-                    .parameters
+            checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter { position } => {
+                // The destination names the authored parameter position;
+                // `structural_parameters` pairs each checked plan's authored
+                // position with the declaration that position lowered into.
+                let (_, destination) = self
+                    .evaluation
+                    .structural_parameters
                     .iter()
-                    .find(|parameter| {
-                        Some(parameter.position) == store.destination.parameter_position()
-                    })
+                    .find(|(authored, _)| *authored == position)
                     .ok_or(LoweringError::Unsupported(
                         "structural scalar store names an unknown parameter",
                     ))?;
@@ -904,17 +906,22 @@ impl OperationFrame<'_, '_> {
         // The window pair below writes through either root identically.
         let (root_type, source) = match store.destination {
             checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter { position } => {
-                let root = self
-                    .parameters
+                // The destination field names the authored parameter position;
+                // the window source names its dense signature index instead.
+                // `structural_parameters` pairs each checked plan's authored
+                // position with the declaration that position lowered into.
+                let (_, root) = self
+                    .evaluation
+                    .structural_parameters
                     .iter()
-                    .find(|parameter| parameter.position == position)
+                    .find(|(authored, _)| *authored == position)
                     .ok_or(LoweringError::Unsupported(
                         "structural case field store names an unknown parameter",
                     ))?;
                 (
                     root.structural_type,
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                        parameter_index: position,
+                        parameter_index: root.position,
                     },
                 )
             }
@@ -959,7 +966,7 @@ impl OperationFrame<'_, '_> {
             return unsupported("structural case field store names a non-structural field");
         };
         let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-            parameter_index: value_position,
+            parameter_index: value_index,
         } = store.value.source
         else {
             return unsupported("structural case field store value is not a parameter");
@@ -975,7 +982,7 @@ impl OperationFrame<'_, '_> {
         let value_root = self
             .parameters
             .iter()
-            .find(|parameter| parameter.position == value_position)
+            .find(|parameter| parameter.position == value_index)
             .ok_or(LoweringError::Unsupported(
                 "structural case field store value names an unknown parameter",
             ))?;

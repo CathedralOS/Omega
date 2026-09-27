@@ -846,10 +846,10 @@ pub(super) fn validate_move_structural_field(
     {
         return malformed("structural field move result carries attached custody");
     }
-    let Some(parameter) = borrowed_field_store_root(machine, *source) else {
+    let Some(root_type) = borrowed_field_store_root_type(machine, *source) else {
         return malformed("structural field move requires a mutable-borrowed parameter");
     };
-    let field_type = window_field_type(module, parameter.structural_type, path, *field)?;
+    let field_type = window_field_type(module, root_type, path, *field)?;
     if result.structural_type != field_type {
         return malformed("structural field move result type does not match field");
     }
@@ -876,21 +876,26 @@ pub(super) fn validate_store_structural_field(
     if value.access != terminal_psi::StructuralAccess::Owned || !value.path.is_empty() {
         return malformed("structural field store value must be a whole owned place");
     }
-    let Some(parameter) = borrowed_field_store_root(machine, *destination) else {
+    let Some(root_type) = borrowed_field_store_root_type(machine, *destination) else {
         return malformed("structural field store requires a mutable-borrowed parameter");
     };
-    let field_type = window_field_type(module, parameter.structural_type, path, *field)?;
+    let field_type = window_field_type(module, root_type, path, *field)?;
     if structural_place_type(machine, value.place) != Some(field_type) {
         return malformed("structural field store value type does not match field");
     }
     Ok(())
 }
 
-fn borrowed_field_store_root(
+/// The declared type of the root storage a window operation may name: either
+/// a mutable-borrowed machine parameter or an owned home place an earlier
+/// operation completed -- the same admission the ordered verifier's
+/// `borrowed_window_root` applies, so a local's established home can carry a
+/// restoration window beside a borrowed parameter's.
+fn borrowed_field_store_root_type(
     machine: &TerminalMachine,
     place: semantic_vocabulary::PlaceId,
-) -> Option<&terminal_psi::StructuralParameterDeclaration> {
-    machine.structural_parameters.iter().find(|parameter| {
+) -> Option<semantic_vocabulary::StructuralTypeId> {
+    if let Some(parameter) = machine.structural_parameters.iter().find(|parameter| {
         parameter.place == place
             && parameter.access == terminal_psi::StructuralAccess::MutableBorrow
             && matches!(
@@ -907,7 +912,36 @@ fn borrowed_field_store_root(
                 .content_entry_claims
                 .iter()
                 .any(|claim| claim.input.root == place)
-    })
+    }) {
+        return Some(parameter.structural_type);
+    }
+    machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter(|producer| {
+            matches!(
+                producer.kind,
+                OperationKind::EstablishRecord { .. }
+                    | OperationKind::EstablishZeroedStructural { .. }
+                    | OperationKind::CallStructural { .. }
+                    | OperationKind::CallStructuralWithScalarArguments { .. }
+                    | OperationKind::StructuralLeafCopy { .. }
+                    | OperationKind::StructuralCaseLeafCopy { .. }
+            )
+        })
+        .filter_map(|producer| producer.result.structural())
+        .find(|result| {
+            result.place == place
+                && matches!(
+                    result.multiplicity,
+                    StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                )
+                && result.qualifications.is_empty()
+                && result.projected_qualifications.is_empty()
+                && result.claims.is_empty()
+        })
+        .map(|result| result.structural_type)
 }
 
 /// The declared hole type a window operation opens: a field leaf resolves

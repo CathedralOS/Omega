@@ -698,9 +698,10 @@ fn case_field_store(
     if !same_named_type {
         return None;
     }
-    let value_plan = structural_parameters
+    let (value_index, value_plan) = structural_parameters
         .iter()
-        .find(|parameter| parameter.position as usize == value_position)?;
+        .enumerate()
+        .find(|(_, parameter)| parameter.position as usize == value_position)?;
     if value_plan.is_self
         || !matches!(
             value_plan.access,
@@ -721,7 +722,7 @@ fn case_field_store(
             field_identity: terminal_field_identity(program, field.symbol)?,
             value: checked_trees::CheckedUnitStructuralArgumentPlan {
                 source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                    parameter_index: u32::try_from(value_position).ok()?,
+                    parameter_index: u32::try_from(value_index).ok()?,
                 },
                 path: value_path,
                 type_identity: super::types::base_type_identity(program, projected, &[])?,
