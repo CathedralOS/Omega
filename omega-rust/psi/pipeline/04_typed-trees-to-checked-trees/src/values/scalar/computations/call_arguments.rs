@@ -51,6 +51,9 @@ impl Builder<'_, '_> {
                 // the call, exactly as a `let` initializer is established.
                 // A record field that moves a place carries that custody in
                 // its value node; the sequence consumes it before the call.
+                // Cases with structural payloads use that same construction
+                // owner. Scalar-case admission alone misses nested enums and
+                // record payloads even though local initializers retain them.
                 if !parameter.is_self
                     && !parameter.is_const
                     && (validation::scalar_case_constructor(self.program, *argument).is_some_and(
@@ -62,6 +65,10 @@ impl Builder<'_, '_> {
                                     .normalized_type_identity(parameter.type_reference)
                         },
                     ) || super::structural_values::is_record_value(
+                        self.program,
+                        *argument,
+                        parameter.type_reference,
+                    ) || super::structural_values::is_structural_case_value(
                         self.program,
                         *argument,
                         parameter.type_reference,

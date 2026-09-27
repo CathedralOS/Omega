@@ -146,10 +146,10 @@ pub(in crate::validation) fn validate_structural_argument(
                             && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
                             && argument.path.is_empty()
                             && matches!(argument.access, StructuralAccess::Owned | StructuralAccess::SharedBorrow)
-                            && crate::validation::scalar::case::plain_return_source(module, caller, argument.place) =>
+                            && (crate::validation::scalar::case::plain_return_source(module, caller, argument.place) || crate::validation::structural::case::plain_return_source(module, caller, argument.place)) =>
                     {
-                        // Atomic case establishment supplies the same complete
-                        // owned value at calls as at returns. Keep its actual
+                        // Scalar and nested-payload case establishment supply the
+                        // same complete owned value at calls as at returns. Keep its actual
                         // multiplicity; frontier replay still requires the
                         // exact producer to dominate and transfer only once.
                         crate::validation::structural::result_contracts::source_signature(caller, argument.place).map(|source| (
@@ -498,11 +498,15 @@ pub(in crate::validation) fn validate_structural_argument(
         && actual_multiplicity == StructuralMultiplicity::Affine
         && (is_structural_call_result(caller, argument.place)
             || crate::validation::record::plain_return_source(module, caller, argument.place)
-            || crate::validation::scalar::case::plain_return_source(
+            || (crate::validation::scalar::case::plain_return_source(
                 module,
                 caller,
                 argument.place,
-            )
+            ) || crate::validation::structural::case::plain_return_source(
+                module,
+                caller,
+                argument.place,
+            ))
             || crate::validation::block_views::parameter(caller, argument.place).is_some()
             || caller
                 .structural_parameters

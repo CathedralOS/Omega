@@ -8,7 +8,11 @@ use super::{
     TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, ValueId, unit_module,
     validate_module, verify_module,
 };
-use terminal_psi::StructuralCaseSuccessorEdge;
+use semantic_vocabulary::StructuralFieldId;
+use terminal_psi::{
+    RecordFieldInitializer, RecordFieldValue, StructuralCaseSuccessorEdge,
+    StructuralFieldDeclaration, StructuralFieldType,
+};
 
 fn membership_module(access: StructuralAccess) -> TerminalModule {
     let mut module = dispatch_module(access);
@@ -167,6 +171,201 @@ fn constructed_case_call_module(
     module
 }
 
+/// Keep the same caller/callee contract, but make the selected case contain
+/// another case. The inner value establishes before the outer atomic producer;
+/// only the outer value is supplied to the ordinary call.
+fn nested_case_call_module(
+    scalar_result: bool,
+    multiplicity: StructuralMultiplicity,
+) -> TerminalModule {
+    let mut module = constructed_case_call_module(scalar_result, multiplicity);
+    let child_type = StructuralTypeId::new(10).unwrap();
+    let child_case = StructuralCaseId::new(10).unwrap();
+    let child_place = PlaceId::new(10).unwrap();
+    let child_operation = OperationId::new(10).unwrap();
+    let field = StructuralFieldId::new(10).unwrap();
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: child_type,
+        identity: "NestedChoice".into(),
+        shape: StructuralTypeShape::Sum {
+            cases: vec![StructuralCaseDeclaration {
+                id: child_case,
+                identity: "Present".into(),
+                fields: Vec::new(),
+            }],
+        },
+    });
+    let StructuralTypeShape::Sum { cases } = &mut module.structural_types[0].shape else {
+        unreachable!()
+    };
+    cases[0].fields.push(StructuralFieldDeclaration {
+        id: field,
+        identity: "nested".into(),
+        field_type: StructuralFieldType::Structural(child_type),
+        relevance: terminal_psi::BindingRelevance::Relevant,
+    });
+    let caller = &mut module.machines[0];
+    caller.structural_places.push(StructuralPlaceDeclaration {
+        id: child_place,
+        kind: StructuralPlaceKind::OperationResult {
+            producer: child_operation,
+            structural_type: child_type,
+        },
+    });
+    caller.blocks[0].operations[0].kind = OperationKind::EstablishStructuralCase {
+        result_case: StructuralCaseId::new(1).unwrap(),
+        fields: vec![RecordFieldInitializer {
+            field,
+            value: RecordFieldValue::Structural(StructuralArgument {
+                place: child_place,
+                path: Vec::new(),
+                access: StructuralAccess::Owned,
+            }),
+        }],
+    };
+    caller.blocks[0].operations.insert(
+        0,
+        Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: child_operation,
+            result: OperationResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
+                place: child_place,
+                structural_type: child_type,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            }),
+            kind: OperationKind::EstablishScalarCase {
+                result_case: child_case,
+                fields: Vec::new(),
+            },
+        },
+    );
+    module
+}
+
+#[test]
+fn nested_case_owned_arguments_retain_atomic_producer_custody() {
+    for (scalar, multiplicity) in [
+        (false, StructuralMultiplicity::Unrestricted),
+        (true, StructuralMultiplicity::Unrestricted),
+        (false, StructuralMultiplicity::Affine),
+    ] {
+        verify_module(
+            &nested_case_call_module(scalar, multiplicity),
+            &ProofBundle::default(),
+            &AdmissionProfile::default(),
+        )
+        .unwrap_or_else(|error| {
+            panic!("nested case scalar={scalar} multiplicity={multiplicity:?}: {error:?}")
+        });
+    }
+}
+
+#[test]
+fn nested_case_copy_actuals_allow_copies_and_shared_observations_only() {
+    for access in [StructuralAccess::Owned, StructuralAccess::SharedBorrow] {
+        let mut module = nested_case_call_module(false, StructuralMultiplicity::Unrestricted);
+        let callee = &mut module.machines[1];
+        let mut parameter = callee.structural_parameters[0].clone();
+        parameter.place = PlaceId::new(4).unwrap();
+        parameter.position = 1;
+        parameter.access = access;
+        callee.structural_parameters.push(parameter);
+        callee.structural_places.push(StructuralPlaceDeclaration {
+            id: PlaceId::new(4).unwrap(),
+            kind: StructuralPlaceKind::Parameter {
+                position: 1,
+                is_self: false,
+            },
+        });
+        let OperationKind::CallUnit {
+            structural_arguments,
+            ..
+        } = &mut module.machines[0].blocks[0].operations[2].kind
+        else {
+            unreachable!()
+        };
+        structural_arguments.push(StructuralArgument {
+            place: PlaceId::new(1).unwrap(),
+            path: Vec::new(),
+            access,
+        });
+        verify_module(
+            &module,
+            &ProofBundle::default(),
+            &AdmissionProfile::default(),
+        )
+        .unwrap_or_else(|error| panic!("nested copy plus {access:?}: {error:?}"));
+        module.machines[1].structural_parameters[1].access = StructuralAccess::MutableBorrow;
+        let OperationKind::CallUnit {
+            structural_arguments,
+            ..
+        } = &mut module.machines[0].blocks[0].operations[2].kind
+        else {
+            unreachable!()
+        };
+        structural_arguments[1].access = StructuralAccess::MutableBorrow;
+        assert!(
+            validate_module(&module).is_err(),
+            "copy cannot alias a mutable loan"
+        );
+    }
+}
+
+#[test]
+fn nested_case_call_requires_prior_producers_and_exact_carrier() {
+    let valid = nested_case_call_module(false, StructuralMultiplicity::Unrestricted);
+    for (first, second, operation, place) in [(1, 2, 2, 1), (0, 1, 1, 10)] {
+        let mut module = valid.clone();
+        module.machines[0].blocks[0].operations.swap(first, second);
+        assert_eq!(
+            validate_module(&module).err(),
+            Some(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
+                operation: OperationId::new(operation).unwrap(),
+                place: PlaceId::new(place).unwrap(),
+            }),
+        );
+    }
+    for forged_producer in [false, true] {
+        let mut module = valid.clone();
+        let StructuralPlaceKind::OperationResult {
+            producer,
+            structural_type,
+        } = &mut module.machines[0].structural_places[0].kind
+        else {
+            unreachable!()
+        };
+        if forged_producer {
+            *producer = OperationId::new(2).unwrap();
+        } else {
+            *structural_type = StructuralTypeId::new(10).unwrap();
+        }
+        assert!(
+            validate_module(&module).is_err(),
+            "nested producer/carrier forgery"
+        );
+    }
+}
+
+#[test]
+fn nested_affine_case_cannot_be_owned_by_two_calls() {
+    let mut module = nested_case_call_module(false, StructuralMultiplicity::Affine);
+    let mut second = module.machines[0].blocks[0].operations[2].clone();
+    second.id = OperationId::new(3).unwrap();
+    module.machines[0].blocks[0].operations.push(second);
+    assert_eq!(
+        validate_module(&module).err(),
+        Some(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
+            operation: OperationId::new(3).unwrap(),
+            place: PlaceId::new(1).unwrap(),
+        }),
+    );
+}
+
 #[test]
 fn constructed_case_owned_arguments_retain_atomic_producer_custody() {
     for scalar in [false, true] {
@@ -323,11 +522,22 @@ fn constructed_case_copy_and_shared_actual_can_use_the_same_value() {
 
 #[test]
 fn constructed_case_sibling_establishment_cannot_authorize_owned_call() {
-    let mut module = constructed_case_call_module(false, StructuralMultiplicity::Unrestricted);
+    for module in [
+        constructed_case_call_module(false, StructuralMultiplicity::Unrestricted),
+        nested_case_call_module(false, StructuralMultiplicity::Unrestricted),
+    ] {
+        assert_sibling_establishment_cannot_authorize_call(module);
+    }
+}
+
+fn assert_sibling_establishment_cannot_authorize_call(mut module: TerminalModule) {
     let machine = &mut module.machines[0];
     let mut operations = std::mem::take(&mut machine.blocks[0].operations);
     let call = operations.pop().unwrap();
     let construction = operations.pop().unwrap();
+    // A nested payload may dominate both siblings; that does not establish
+    // the enclosing case on the sibling which calls with it.
+    machine.blocks[0].operations = operations;
     machine.parameters.push(ValueDeclaration {
         id: ValueId::new(10).unwrap(),
         scalar_type: ScalarType::Boolean,

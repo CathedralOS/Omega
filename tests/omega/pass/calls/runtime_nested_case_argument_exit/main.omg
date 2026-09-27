@@ -1,0 +1,55 @@
+// A non-scalar case payload remains a constructed call argument, including
+// its nested enum or owned record. Both calls are reached, and the caller
+// observes the selected case through the factory's returned record. The
+// affine payload moves into its callee, which owns its selected-case cleanup.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data ScanCompareTypeImmediate [copy] {
+    case Equal;
+    case NotEqual;
+}
+data ScanCompareType [copy] {
+    case Immediate(compare_type: ScanCompareTypeImmediate);
+    case Relative;
+}
+
+data Payload { value: u64; }
+data Message {
+    case Present(payload: Payload);
+    case Empty;
+}
+
+data Output { value: u64; }
+machine Output::from_compare(compare: ScanCompareType) -> Output {
+    transition compare {
+        ScanCompareType::Immediate { compare_type } -> (Output { value: 30 })
+        ScanCompareType::Relative -> (Output { value: 0 })
+    }
+}
+machine Output::from_message(message: Message) -> Output {
+    transition message {
+        Message::Present { payload } -> (Output { value: 40 })
+        Message::Empty -> (Output { value: 0 })
+    }
+}
+machine Output::forward(output: Output) -> Output {
+    Output { value: output.value }
+}
+
+data Main { console: Binding<Console>; }
+machine Main::main(&mut self) reaches Console {
+    let comparison: Output = Output::from_compare(
+        ScanCompareType::Immediate { compare_type: ScanCompareTypeImmediate::Equal }
+    );
+    let message: Output = Output::from_message(
+        Message::Present { payload: Payload { value: 40 } }
+    );
+    let forwarded: Output = Output::forward(message);
+    transition comparison.value == 30 && forwarded.value == 40 {
+        true -> passed()
+        false -> failed()
+    }
+    state passed(&mut self) { self.console.exit_process(70); }
+    state failed(&mut self) { self.console.exit_process(71); }
+}

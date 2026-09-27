@@ -415,7 +415,12 @@ fn validate_owned_reads(
             let unrestricted_parameter = source.multiplicity
                 == StructuralMultiplicity::Unrestricted
                 && (super::record::completed_source(module, machine, argument.place).is_some()
-                    || super::scalar::case::plain_return_source(module, machine, argument.place)
+                    || (super::scalar::case::plain_return_source(module, machine, argument.place)
+                        || super::structural::case::plain_return_source(
+                            module,
+                            machine,
+                            argument.place,
+                        ))
                     || super::scalar::array::plain_return_source(module, machine, argument.place)
                     || machine.structural_parameters.iter().any(|parameter| {
                         parameter.place == argument.place
@@ -550,7 +555,7 @@ fn validate_owned_reads(
             // producer and dominance are checked by crate::validation::scalar::case::validate_uses;
             // Shared observations can accompany owned copies of the same
             // unrestricted value; neither grants mutable or projected access.
-            && !(super::scalar::case::plain_return_source(module, machine, *place)
+            && !((super::scalar::case::plain_return_source(module, machine, *place) || super::structural::case::plain_return_source(module, machine, *place))
                 && super::structural::result_contracts::source_signature(machine, *place)
                     .is_some_and(|source| source.multiplicity == StructuralMultiplicity::Unrestricted)
                 && arguments.iter().any(|argument| argument.place == *place)
