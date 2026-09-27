@@ -1,46 +1,17 @@
-# Exact-rule promotion evidence
+# Exact-rule promotion records
 
-These records support the checked [rule inventory](../rules.md), not a release diary.
+The [promotion contract](../../../../../wiki/spec/build/optimizations.md#release-rollback-and-promotion)
+requires an explicit owner decision and evidence for one exact optimizer rule.
+This directory is for completed reviewed records, not per-rule progress logs.
+There is currently no architecture gate validating these Markdown records.
 
-One file promotes one exact optimizer rule. Copy the schema below to
-`<ExactRuleName>.md`; do not create a suite-wide or optimization-level record.
-Every field must point to reviewed, reproducible evidence and must not remain
-`PENDING` when the release inventory status changes. A record may be staged
-while its row stays `Experimental`: carry the full schema with `PENDING`
-values, keep the `Exact rule` and `Rollback` lines exact, and leave `Approved
-status` incomplete — the architecture gate rejects a completed approval that
-the inventory does not yet reflect.
+Incomplete historical evidence pointers live in the
+[promotion draft](../../../../../wiki/drafts/measurements/optimizer_promotion_evidence.md);
+they confer no approval. The [inventory](../rules.md) keeps those rules
+experimental.
 
-Cite evidence as backticked repository citations: `` `path` `` names a file or
-directory under the repository root, and `` `path::subject` `` requires the
-file's text to name `subject` (a test function, section, or record). Paths are
-plain repository-relative names — absolute paths, `..` components, and `\`
-separators do not resolve into the checkout, and every `::` subject must be
-nonempty. The architecture gate resolves every citation in the record, and
-each completed evidence field must carry at least one — unverifiable prose
-does not count as evidence. Bare identifiers (`Optimization::ALL`, target
-names, flags) stay prose and are not resolved.
-
-Every schema label is single-occurrence: the title, `Exact rule`,
-`Approved status`, `Owner approval`, each evidence field, and `Rollback`
-appear exactly once — a second line under the same label is rejected even when
-it repeats the same value, and never with a contradictory value.
-
-```text
-# <ExactRuleName> Promotion
-
-- Exact rule: <ExactRuleName>
-- Approved status: Recommended | Default
-- Owner approval: <owner, review, date>
-- Semantic and corruption evidence: <tests/results>
-- Differential evidence: <corpus/results>
-- Determinism and bounded-work evidence: <tests/results>
-- Target matrix evidence: <targets/results>
-- Measurement evidence: <versioned benchmark/results>
-- Rollback evidence: <tests/results>
-- Rollback: --disable-optimization <ExactRuleName>
-```
-
-Promotion never creates or authorizes a broad `O1`/`O2`/`O3`, debug, or
-release bundle. The source-visible exact name and rollback mechanism remain
-available after promotion.
+A completed record names the exact rule, approved status, owner decision,
+semantic/corruption controls, differential execution, determinism and bounded
+work, target coverage, measurements, and exact rollback evidence. Cite actual
+repository artifacts and observed commands/results, distinguishing missing or
+retired evidence. Promotion never implies an optimization-level bundle.

@@ -148,7 +148,7 @@ Open:
   evidence](machine_state_evidence.md) requires has no production caller —
   `FinalFootprintCertificate` construction and region-inventory validation are
   exercised by tests only; see
-  [footprint replay status](../../../omega-rust/omega/backend/images/image/footprint_replay.md).
+  [footprint replay status](../../../omega-rust/omega/backend/images/image/src/lib.rs).
   A passing plan evaluator therefore does not yet imply a replayed final
   footprint.
 

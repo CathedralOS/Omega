@@ -5,7 +5,7 @@
 [Verification](../terminal-psi/verification.md) checks the corresponding evidence.
 [Authority establishment](authority.md) defines qualified claim origins.
 These contracts are not a claim of complete source/native integration;
-[production limits](../../../omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/content_custody.md)
+[production limits](../../../omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/proofs/content_conservation.rs)
 remain beside the implementation.
 
 ## Content terms

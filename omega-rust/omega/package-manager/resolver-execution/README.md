@@ -73,5 +73,5 @@ Landlock filesystem mediation, executable/write allowlists, native-guarantee
 matrices, and canonical command/policy/completion observations are absent.
 Stronger host or CI isolation is an operator concern, not package evidence.
 
-The full source-resolution contract is maintained in
-[`SOURCE_RESOLVER_SECURITY.md`](../source-acquisition/SOURCE_RESOLVER_SECURITY.md).
+The [resolver security contract](../../../../wiki/spec/packages/resolver_security.md)
+owns the source-resolution rules implemented by this boundary.

@@ -15,6 +15,10 @@ Drafts are grouped by kind. A draft belongs to exactly one folder, and
 
 ## Reference
 
+- [Scalar call lowering notes](reference/scalar_call_lowering.md): bounded source-call
+  implementation snapshot and guarded-operand migration; delete after the shared
+  value frontier replaces those routes. Not current coverage or language rules.
+
 Cross-cutting notes that outlive any single rung.
 
 - [Floating-point realization](reference/float_realization.md): selected float
@@ -108,6 +112,10 @@ Inventories of an existing surface and what each row still owes.
 
 ## Measurements
 
+- [Incomplete optimizer promotion evidence](measurements/optimizer_promotion_evidence.md):
+  retained evidence pointers, without approval or an automated gate; delete when
+  the candidates receive completed reviews or are abandoned.
+
 Dated cost and failure evidence, superseded by a later run.
 
 - [Benchmark records](measurements/benchmarks.md): methodology and host coverage for the
@@ -151,6 +159,10 @@ Dated cost and failure evidence, superseded by a later run.
   `Filesystem::host` join regression closes and the check is remeasured.
 
 ## Designs
+
+- [UEFI bootstrap migration](designs/uefi_bootstrap_migration.md): remaining Rust
+  catalogs and protocol ownership to replace with authored source; delete when
+  the existing UEFI entry and handoff tasks close.
 
 A proposed shape for work that has not landed.
 

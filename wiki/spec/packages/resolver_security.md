@@ -1,9 +1,12 @@
-# Source resolver security boundary
+# Source resolver security
 
-Status: engineering contract, revised 2026-08-30. This document defines the
-security properties that Omega's package-source resolver must enforce;
-remaining implementation work is tracked in `TASKS.md`. It does
-not define package or language syntax.
+This contract governs package source acquisition, not package acceptance or
+language syntax. [Source selection](sources.md) owns graph identity and member
+selection; [acceptance](acceptance.md) owns project decisions.
+
+Implementation entrances and host mechanisms remain with
+[source acquisition](../../../omega-rust/omega/package-manager/source-acquisition/README.md)
+and [resolver execution](../../../omega-rust/omega/package-manager/resolver-execution/README.md).
 
 ## Trust boundary
 
