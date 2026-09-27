@@ -58,6 +58,30 @@ Land in this order so each repair collides with the fewest in-flight changes:
 - `C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT` — compile-time proof blowup from
   repeated whole-module reconstruction.
 
+## Repair: the pending-pin omission family (TASKS.md)
+
+Measured silent omissions of valid programs, each pinned under
+`tests/omega/pending/` and bound to a named sample. Defect-shaped (the surface
+exists; admission declines or omits without diagnostic), not new-capability:
+
+- `MEMBER-POLICY-REMOVES-COMPOSITE-ROWS` — a member-level arithmetic policy
+  removes a Terminal row the same policy on the composite keeps.
+- `REFERENCE-LOCAL-BINDING-ROUTES` — `&` bindings into `let` locals omit at
+  any depth; `&mut` works only for a self-rooted direct name.
+- `RECORD-LITERAL-ARRAY-FIELD` — array-typed record-literal fields have no
+  route.
+- `FIELD-SUBJECT-NAMED-ARM-CHAIN` — 3+ named case arms on a field subject
+  omit; two one-token rescues pinned.
+- `VALUE-CALL-SUBEXPRESSION` — value calls omit in any non-root expression
+  position.
+- `BYTE-CARRIER-STORE-LITERAL-ONLY` — owned `[u8; N]` field store admits only
+  a bare string literal; anything else declines with no diagnostic.
+- `COMPOSITE-TRANSITION-ARGUMENT` — composite transition arguments route only
+  from locals.
+- `VALUE-CALL-TRANSITION-ARGUMENT` — value calls omit as transition arguments.
+- `BOUNDARY-PRIMITIVE-ARRAY-PARAMETER` — primitive fixed-array boundary
+  parameters/results have no lowering route (3 GUI samples pinned).
+
 ## Repair (TASKS_BOOTSTRAP.md)
 
 - `ALPHA-WINDOWS-DIV-TRAP` — Windows `div`/`mod` take hardware faults instead
@@ -65,12 +89,20 @@ Land in this order so each repair collides with the fewest in-flight changes:
 
 ## Basis: corpus and release gates
 
-- `CANARY-CORPUS` — includes the ~42 fixtures no roster compiles and the
-  `Lowering(InvalidUnitMachinePlan)` red cluster; attribution belongs to the
-  named capability items, the roster accounting is repair.
+- `CANARY-CORPUS` — the roster accounting is repair; the red cluster's causes
+  belong to their named capability items. The wave's drain attributed the
+  dominant corpus-rejection family (154 `ProgramEntry rejoins 0 attachment
+  identities` — missing transitive Unit plan) to `GENERAL-CYCLIC-EXECUTION`,
+  `ENTRY-CONTENT-ROOTS`, and `STATE-LOCAL-VALUE-FRONTIER`; those stay
+  feature-classed, but their reds are the canary ledger's live load.
 - `SAMPLE-CORPUS` — the sample refusal census (unit-plan omission, `Clock`
   provider) is the basis reading; fixing the underlying causes belongs to
-  their owning items.
+  their owning items. 75/150 samples build natively after the review sweep;
+  the remaining reds attribute to the pending-pin family above plus
+  `MATCH-SELECTIVE-LOWERING` (float `==` position binding) and
+  `selection_provenance`'s auto-select of uninstantiated generic candidates.
+- `MATCH-SELECTIVE-LOWERING` — owns three measured `float_match_*`
+  package-evidence reds (match-equality position binding for `Float::equal`).
 - `RC-REPOSITORY-CLOSURE` — the wave's natural acceptance gate.
 - `RC-BUILD-AND-PACKAGES`, `RC-PCC-REPLAY`, `RC-RELEASE-RECORD-AND-CLOSURE`
 - `RC-NATIVE-MATRIX-LINUX-X86-64`, `RC-NATIVE-MATRIX-LINUX-ARM64`,
@@ -80,6 +112,8 @@ Land in this order so each repair collides with the fewest in-flight changes:
 
 ## Basis (TASKS_OPTIMIZER.md)
 
+- `PIPELINE-OWNER-CONSOLIDATION` — connected-route conformance: no competing
+  entrances or orphan outputs; structural integrity, classed basis.
 - `WORKSPACE-ROLLOUT`, `TRANSLATION-VALIDATION`,
   `CUSTODY-MUTATION-COVERAGE`, `PER-RULE-COVERAGE` — coverage/validation
   surfaces; the remaining optimizer items are missing optimizations and are
