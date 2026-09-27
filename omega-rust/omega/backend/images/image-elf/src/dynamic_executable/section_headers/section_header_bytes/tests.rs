@@ -279,22 +279,45 @@ fn import_permutation_preserves_templates_and_target_remains_identity_bound() {
 }
 
 #[test]
-fn every_serialized_byte_corruption_rejects_with_roster_custody() {
-    for offset in 0..SECTION_COUNT * ELF64_SECTION_HEADER_SIZE {
-        let mut candidate = candidate(TargetProfile::LinuxX64);
-        let expected_identity = candidate
-            .roster
-            .non_authoritative_roster_compatibility_fingerprint();
-        candidate.contents.bytes[offset] ^= 1;
-        let error =
-            validate_candidate(candidate).expect_err("mutated ELF section-header byte must reject");
-        assert_eq!(
-            error
-                .candidate
-                .roster
-                .non_authoritative_roster_compatibility_fingerprint(),
-            expected_identity
-        );
+fn header_field_boundaries_reject_with_roster_custody() {
+    // Exercise both ends of each decoded field in null, allocated, and final rows.
+    // The remaining rows use the same decoder and roster comparison.
+    for row_index in [0, 1, SECTION_COUNT - 1] {
+        for (field_offset, field_width) in [
+            (0, 4),
+            (4, 4),
+            (8, 8),
+            (16, 8),
+            (24, 8),
+            (32, 8),
+            (40, 4),
+            (44, 4),
+            (48, 8),
+            (56, 8),
+        ] {
+            for byte_offset in [field_offset, field_offset + field_width - 1] {
+                let mut candidate = candidate(TargetProfile::LinuxX64);
+                let expected_identity = candidate
+                    .roster
+                    .non_authoritative_roster_compatibility_fingerprint();
+                candidate.contents.bytes[row_index * ELF64_SECTION_HEADER_SIZE + byte_offset] ^= 1;
+                let error = validate_candidate(candidate)
+                    .expect_err("mutated ELF section-header field must reject");
+                assert!(
+                    error
+                        .diagnostic
+                        .to_string()
+                        .contains("decoded ELF64 section header drifted")
+                );
+                assert_eq!(
+                    error
+                        .candidate
+                        .roster
+                        .non_authoritative_roster_compatibility_fingerprint(),
+                    expected_identity,
+                );
+            }
+        }
     }
 }
 

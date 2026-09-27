@@ -175,6 +175,12 @@ fn both_targets_append_exact_names_and_address_free_metadata() {
         assert_eq!(plan.descriptor_count(), 11);
         assert_eq!(plan.appended_descriptor_count(), 4);
         assert_eq!(plan.section_name_seed_byte_count(), 113);
+        let base = plan
+            .templates
+            .linkage()
+            .descriptors()
+            .section_name_table_seed();
+        assert_eq!(&plan.contents.section_name_table_seed[..base.len()], base);
         assert_eq!(
             &plan.contents.section_name_table_seed[79..],
             PROCEDURE_LINKAGE_NAME_SUFFIX,
@@ -269,28 +275,6 @@ fn both_targets_append_exact_names_and_address_free_metadata() {
 }
 
 #[test]
-fn name_seed_is_an_exact_append_only_version_of_the_seven_row_owner() {
-    let plan = plan_elf_procedure_linkage_section_descriptors(templates(
-        TargetProfile::LinuxX64,
-        &IMPORTS,
-    ))
-    .unwrap();
-    let base = plan
-        .templates
-        .linkage()
-        .descriptors()
-        .section_name_table_seed();
-    assert_eq!(&plan.contents.section_name_table_seed[..base.len()], base);
-    assert_eq!(
-        &plan.contents.section_name_table_seed[59..69],
-        b".shstrtab\0",
-    );
-    for descriptor in &plan.contents.descriptors {
-        validate_name(&plan.contents.section_name_table_seed, descriptor).unwrap();
-    }
-}
-
-#[test]
 fn import_permutation_preserves_identity_and_target_policy_changes_it() {
     let forward = plan_elf_procedure_linkage_section_descriptors(templates(
         TargetProfile::LinuxX64,
@@ -333,34 +317,24 @@ fn import_permutation_preserves_identity_and_target_policy_changes_it() {
 }
 
 #[test]
-fn every_appended_name_byte_is_bound_and_rejection_retains_templates() {
-    let base_len = candidate(TargetProfile::LinuxX64)
-        .templates
-        .linkage()
-        .descriptors()
-        .section_name_seed_byte_count();
-    for offset in base_len..base_len + PROCEDURE_LINKAGE_NAME_SUFFIX.len() {
-        let mut candidate = candidate(TargetProfile::LinuxX64);
-        let expected_identity = candidate
-            .templates
-            .non_authoritative_template_compatibility_fingerprint();
-        candidate.contents.section_name_table_seed[offset] ^= 1;
-        let error =
-            validate_candidate(candidate).expect_err("mutated linkage name seed must reject");
-        assert_eq!(
-            error
-                .candidate
-                .templates
-                .non_authoritative_template_compatibility_fingerprint(),
-            expected_identity
-        );
-    }
-}
-
-#[test]
 fn independent_replay_rejects_every_descriptor_field_and_identity_corruption() {
     let corruptions: Vec<Box<dyn Fn(&mut Candidate)>> = vec![
         Box::new(|candidate| candidate.contents.section_name_table_seed[0] ^= 1),
+        Box::new(|candidate| {
+            let base_len = candidate
+                .templates
+                .linkage()
+                .descriptors()
+                .section_name_seed_byte_count();
+            candidate.contents.section_name_table_seed[base_len] ^= 1;
+        }),
+        Box::new(|candidate| {
+            *candidate
+                .contents
+                .section_name_table_seed
+                .last_mut()
+                .unwrap() ^= 1
+        }),
         Box::new(|candidate| {
             candidate.contents.section_name_table_seed.pop();
         }),

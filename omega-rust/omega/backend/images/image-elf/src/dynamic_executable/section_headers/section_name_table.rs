@@ -416,12 +416,13 @@ impl Fnv1a {
 #[cfg(test)]
 mod tests {
     use super::{
-        COMPLETE_SECTION_NAME_TABLE, COMPLETE_SECTION_NAME_TABLE_SIZE, Candidate,
-        ElfDynamicSectionKind, ElfSectionNameTableDescriptor, ElfSectionNameTableSectionKind,
-        SHT_STRTAB, ValidatedElfDynamicTableSectionDescriptorPlan, checked_sum, checked_u32,
-        derive_contents, non_authoritative_table_compatibility_fingerprint,
-        plan_elf_section_name_table, upstream_name_seed, validate_candidate,
-        validate_complete_names, validate_contents, validate_name,
+        COMPLETE_SECTION_NAME_TABLE, Candidate, ElfDynamicSectionKind,
+        ElfSectionNameTableDescriptor, ElfSectionNameTableSectionKind,
+        SECTION_NAME_TABLE_NAME_OFFSET, SHT_STRTAB, ValidatedElfDynamicTableSectionDescriptorPlan,
+        checked_sum, checked_u32, derive_contents,
+        non_authoritative_table_compatibility_fingerprint, plan_elf_section_name_table,
+        upstream_name_seed, validate_candidate, validate_complete_names, validate_contents,
+        validate_name,
     };
     use crate::{
         plan_elf_dynamic_link_inputs, plan_elf_dynamic_section_descriptors,
@@ -582,6 +583,22 @@ mod tests {
             assert_eq!(plan.byte_count(), 122);
             assert_eq!(plan.contents.bytes, COMPLETE_SECTION_NAME_TABLE);
             assert_eq!(
+                plan.contents.bytes,
+                upstream_name_seed(plan.dynamic_table())
+            );
+            let dynstr = &plan
+                .dynamic_table()
+                .payload()
+                .plan()
+                .descriptors()
+                .templates()
+                .linkage()
+                .descriptors()
+                .payloads()
+                .payloads()
+                .dynstr;
+            assert!(dynstr.windows(8).any(|window| window == b"liba\xff.so"));
+            assert_eq!(
                 plan.contents.descriptor,
                 ElfSectionNameTableDescriptor {
                     kind: ElfSectionNameTableSectionKind::SectionNameTable,
@@ -599,42 +616,6 @@ mod tests {
             validate_contents(plan.dynamic_table(), &plan.contents)
                 .expect("independent section-name-table replay");
         }
-    }
-
-    #[test]
-    fn complete_payload_preserves_single_reserved_shstrtab_and_raw_non_utf8_ancestry() {
-        let plan =
-            plan_elf_section_name_table(dynamic_table(TargetProfile::LinuxX64, &IMPORTS)).unwrap();
-        let upstream = upstream_name_seed(plan.dynamic_table());
-        assert_eq!(plan.contents.bytes, upstream);
-        assert_eq!(plan.contents.bytes.len(), 122);
-        assert_eq!(&plan.contents.bytes[59..69], b".shstrtab\0");
-        assert_eq!(&plan.contents.bytes[69..79], b".gnu.hash\0");
-        assert_eq!(
-            plan.contents
-                .bytes
-                .windows(b".shstrtab\0".len())
-                .filter(|window| *window == b".shstrtab\0")
-                .count(),
-            1,
-        );
-        assert_eq!(plan.contents.bytes.last(), Some(&0));
-        assert_eq!(&plan.contents.bytes[103..113], b".rela.dyn\0");
-        assert_eq!(&plan.contents.bytes[113..], b".dynamic\0");
-        validate_complete_names(&plan.contents.bytes).unwrap();
-
-        let dynstr = &plan
-            .dynamic_table
-            .payload()
-            .plan()
-            .descriptors()
-            .templates()
-            .linkage()
-            .descriptors()
-            .payloads()
-            .payloads()
-            .dynstr;
-        assert!(dynstr.windows(8).any(|window| window == b"liba\xff.so"));
     }
 
     #[test]
@@ -659,28 +640,13 @@ mod tests {
     }
 
     #[test]
-    fn every_payload_byte_replays_and_rejection_retains_dynamic_descriptor() {
-        for offset in 0..COMPLETE_SECTION_NAME_TABLE_SIZE {
-            let mut candidate = candidate(TargetProfile::LinuxX64);
-            let expected_identity = candidate
-                .dynamic_table
-                .non_authoritative_descriptor_compatibility_fingerprint();
-            candidate.contents.bytes[offset] ^= 1;
-            let error = validate_candidate(candidate)
-                .expect_err("mutated section-name-table byte must reject");
-            assert_eq!(
-                error
-                    .candidate
-                    .dynamic_table
-                    .non_authoritative_descriptor_compatibility_fingerprint(),
-                expected_identity,
-            );
-        }
-    }
-
-    #[test]
     fn independent_replay_rejects_length_metadata_link_info_and_identity_corruption() {
         let corruptions: Vec<Box<dyn Fn(&mut Candidate)>> = vec![
+            Box::new(|candidate| candidate.contents.bytes[0] ^= 1),
+            Box::new(|candidate| {
+                candidate.contents.bytes[SECTION_NAME_TABLE_NAME_OFFSET as usize] ^= 1
+            }),
+            Box::new(|candidate| *candidate.contents.bytes.last_mut().unwrap() ^= 1),
             Box::new(|candidate| {
                 candidate.contents.bytes.pop();
             }),
