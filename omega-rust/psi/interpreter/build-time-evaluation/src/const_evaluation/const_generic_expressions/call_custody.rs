@@ -101,9 +101,12 @@ pub(super) fn contains_call(program: &TypedTrees, root: ExpressionHandle) -> Res
             continue;
         }
         let children = expression_children(program, expression)?;
+        // A `size_of`/`align_of` request is the compiler's layout query, not
+        // an invocation: it carries no callee for admission to select and no
+        // machine body for replay to re-execute.
         contains_call |= matches!(
             program.expression_table.expression(expression),
-            ExpressionNode::Call(_)
+            ExpressionNode::Call(call) if call.layout_query.is_none()
         );
         active.push(expression);
         pending.push((expression, true));

@@ -214,7 +214,16 @@ impl Collector<'_> {
         }
         match table.expression(expression) {
             ExpressionNode::Call(call) => {
-                self.call(call.target_symbol, call.target.source_span())?;
+                // `size_of<T>()`/`align_of<T>()` carry no callee: the
+                // compiler answers them from the selected target's layout
+                // after constant dependency ordering has already run.
+                if !language_core::data_layout_queries::is_data_layout_query_spelling(
+                    call.target.as_str(),
+                    call.target_symbol.is_valid(),
+                    call.receiver.is_valid(),
+                ) {
+                    self.call(call.target_symbol, call.target.source_span())?;
+                }
                 if call.receiver.is_valid() {
                     self.expressions.push(call.receiver);
                 }

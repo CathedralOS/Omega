@@ -1053,9 +1053,21 @@ fn expression_candidates(
                         ),
                     SymbolLookup::NotFound
                 );
+            // A `size_of<T>()`/`align_of<T>()` spelling that resolved to no
+            // declaration is the compiler's data-layout query, not a call:
+            // no Call occurrence exists for it to finalize. The static type
+            // operand below still mints its ordinary authored-selection
+            // occurrences.
+            let data_layout_query =
+                language_core::data_layout_queries::is_data_layout_query_spelling(
+                    call.target.as_str(),
+                    call.target_symbol.is_valid(),
+                    call.receiver.is_valid(),
+                );
             if call.operational_acknowledgement.origin
                 == language_semantics::CallOperationalAcknowledgementOrigin::Source
                 && !unbound_contract_call
+                && !data_layout_query
             {
                 candidates.push(Candidate {
                     expression,

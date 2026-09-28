@@ -220,6 +220,17 @@ pub(crate) fn check_selected_execution(
         },
     )?;
     let mut checked = prepared.bind(program, provider_request)?;
+    // `size_of<T>`/`align_of<T>` survive Psi as retained typed requests; only
+    // this realization's selected target can answer them. Fold every query to
+    // an ordinary `u64` literal before the const replay validator, checked
+    // optimization, and codegen see the program. The same target custody the
+    // rest of this settlement uses applies: the native target the build
+    // selected, or the host for a targetless shared product.
+    provider_planning::data_layout_queries::fold_data_layout_queries(
+        std::sync::Arc::make_mut(&mut checked.program),
+        provider_selection_target,
+        &opaque_representation_selections,
+    )?;
     // Every sibling was checked before realizing this target. Only the
     // selected bodies remain in its executable product.
     checked.program = std::sync::Arc::new(typed_trees_to_checked_trees::prune_target_siblings(

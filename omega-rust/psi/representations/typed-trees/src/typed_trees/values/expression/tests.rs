@@ -324,6 +324,7 @@ fn call_shape_predicates_reject_each_disqualifying_field_alone() {
         machine_arguments: Box::default(),
         quotient_operation: None,
         private_layout_operation: None,
+        layout_query: None,
         arguments: Default::default(),
         evidence_arguments: Box::default(),
         operational_acknowledgement: Default::default(),
