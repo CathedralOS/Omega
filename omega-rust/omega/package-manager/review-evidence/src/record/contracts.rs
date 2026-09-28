@@ -33,6 +33,7 @@ pub use propositions::{
     PackageReviewPropositionShape, PackageReviewPublicPropositionBody,
 };
 pub use stand_downs::{
-    PackageReviewContractEntailmentAssumptionDischarge,
+    PackageReviewContractEntailmentAssumptionDischarge, PackageReviewContractEntailmentCoveredExit,
+    PackageReviewContractEntailmentExitMembershipDischarge,
     PackageReviewContractEntailmentOpenObligation, PackageReviewContractEntailmentOpenReason,
 };

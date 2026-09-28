@@ -182,6 +182,7 @@ pub use operators::{
 };
 pub use proof::{
     BoundaryQualificationAuthorization, CheckedContractEntailmentAssumptionDischarge,
+    CheckedContractEntailmentExitMembershipDischarge, CheckedContractMembershipExit,
     CheckedDirectBlockFloatParameter, CheckedDirectCallFloatResult,
     CheckedDirectMachineFloatParameter, CheckedDirectMachineFloatResult,
     CheckedDirectOperationFloatResult, CheckedDirectStructuralFloatLeaf,

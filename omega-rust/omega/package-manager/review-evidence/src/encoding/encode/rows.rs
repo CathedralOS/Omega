@@ -11,6 +11,7 @@ use super::values::callables::{
 };
 use super::values::contracts::{
     encode_contract_entailment_assumption_discharge_value,
+    encode_contract_entailment_exit_membership_discharge_value,
     encode_contract_entailment_open_obligation_value,
 };
 use super::values::declarations::{
@@ -97,6 +98,7 @@ pub(crate) fn encode_rows_with_limits(
         .saturating_add(review.callables.len())
         .saturating_add(review.contract_entailment_open_obligations.len())
         .saturating_add(review.contract_entailment_assumption_discharges.len())
+        .saturating_add(review.contract_entailment_exit_membership_discharges.len())
         .saturating_add(review.external_executable_supply.len())
         .saturating_add(
             review
@@ -371,6 +373,33 @@ pub(crate) fn encode_rows_with_limits(
                 )?,
                 |encoder| encode_contract_entailment_obligation_key(encoder, &discharge.obligation),
                 |encoder| encode_contract_entailment_assumption_discharge_value(encoder, discharge),
+            )?,
+        )?;
+    }
+    for (index, discharge) in review
+        .contract_entailment_exit_membership_discharges
+        .iter()
+        .enumerate()
+    {
+        push_row(
+            &mut rows,
+            &mut total_row_bytes,
+            limits,
+            encode_row(
+                review,
+                limits,
+                PackageReviewCanonicalRowKind::ContractEntailmentExitMembershipDischarge,
+                PackageReviewCanonicalRowRisk::Blocking,
+                row_source(
+                    &review
+                        .row_sources
+                        .contract_entailment_exit_membership_discharges,
+                    index,
+                )?,
+                |encoder| encode_contract_entailment_obligation_key(encoder, &discharge.obligation),
+                |encoder| {
+                    encode_contract_entailment_exit_membership_discharge_value(encoder, discharge)
+                },
             )?,
         )?;
     }

@@ -291,3 +291,8 @@ fn check_checked_facts_recording_with_crash_admission(
         Err(diagnostics)
     }
 }
+
+pub use contracts::{
+    derive_contract_entailment_exit_membership_discharges,
+    recheck_contract_entailment_exit_membership_discharge,
+};

@@ -215,3 +215,125 @@ pub(in crate::capture) fn project_package_contract_entailment_assumption_dischar
     }
     Ok(projected)
 }
+
+/// A supplied semantic candidate is review data, not the source of live facts.
+/// Only the immutable successful compilation can establish exit coverage.
+pub(in crate::capture) fn project_package_contract_entailment_exit_membership_discharges(
+    compilation: &PackageReviewInput<'_>,
+    package: PackageKeyIdentity,
+    open_obligations: &[ProjectedReviewRow<PackageReviewContractEntailmentOpenObligation>],
+) -> Result<
+    Vec<ProjectedReviewRow<crate::record::PackageReviewContractEntailmentExitMembershipDischarge>>,
+    Vec<Diagnostic>,
+> {
+    use crate::record::{
+        PackageReviewContractEntailmentCoveredExit,
+        PackageReviewContractEntailmentExitMembershipDischarge,
+    };
+
+    if !open_obligations.iter().any(|open| {
+        open.row.reason == PackageReviewContractEntailmentOpenReason::UnsupportedEnsuresFact
+    }) {
+        return Ok(Vec::new());
+    }
+    let custody = PackageReviewInput::from(compilation.custody);
+    let certificates =
+        typed_trees_to_checked_trees::derive_contract_entailment_exit_membership_discharges(
+            &custody.typed,
+            &custody.facts,
+        );
+    let certificates = certificates
+        .iter()
+        .filter(|certificate| {
+            custody
+                .symbols
+                .symbol_package_identity(certificate.machine_symbol())
+                == Some(package)
+        })
+        .collect::<Vec<_>>();
+    if certificates.is_empty() {
+        return Ok(Vec::new());
+    }
+    // Compare the complete semantic and flow graphs once, before using any
+    // certificate. A canonical contract alone does not identify its proof body.
+    if !std::ptr::eq(compilation.program, custody.program)
+        && (compilation.typed != custody.typed || compilation.facts != custody.facts)
+    {
+        return Err(vec![Diagnostic::error(
+            "exit-membership discharge candidate differs from immutable checked compilation custody",
+        )]);
+    }
+    let mut projected = Vec::with_capacity(certificates.len());
+    for certificate in certificates {
+        // These certificates were freshly reconstructed from custody above,
+        // not loaded from candidate facts. Reuse that complete exit judgment
+        // instead of rebuilding every machine once per postcondition.
+        let callable = nominal_identity(&custody, certificate.machine_symbol())?;
+        let commitment = certificate.machine_contract_commitment().as_bytes();
+        let key = (
+            &callable,
+            certificate.contract_position(),
+            certificate.fact_position(),
+            commitment,
+        );
+        let compare = |open: &ProjectedReviewRow<PackageReviewContractEntailmentOpenObligation>| {
+            (
+                &open.row.callable,
+                open.row.contract_position,
+                open.row.fact_position,
+                open.row.machine_contract_commitment,
+            )
+                .cmp(&key)
+        };
+        let start = open_obligations.partition_point(|open| compare(open).is_lt());
+        let end = start + open_obligations[start..].partition_point(|open| compare(open).is_eq());
+        let [open] = &open_obligations[start..end] else {
+            return Err(vec![Diagnostic::error(
+                "exit-membership certificate does not rejoin exactly one package-evidence obligation",
+            )]);
+        };
+        if open.row.reason != PackageReviewContractEntailmentOpenReason::UnsupportedEnsuresFact {
+            return Err(vec![Diagnostic::error(
+                "exit-membership certificate has the wrong open-obligation reason",
+            )]);
+        }
+        let mut covered_exits = certificate
+            .covered_exits()
+            .iter()
+            .map(|exit| {
+                Ok(PackageReviewContractEntailmentCoveredExit {
+                    state: nominal_identity(&custody, exit.state_symbol())?,
+                    statement_index: u32::try_from(exit.statement_index()).map_err(|_| {
+                        vec![Diagnostic::error(
+                            "exit-membership statement index exceeds canonical u32",
+                        )]
+                    })?,
+                })
+            })
+            .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+        covered_exits.sort();
+        if covered_exits.is_empty() {
+            return Err(vec![Diagnostic::error(
+                "exit-membership certificate has empty exit coverage",
+            )]);
+        }
+        projected.push(ProjectedReviewRow {
+            row: PackageReviewContractEntailmentExitMembershipDischarge {
+                obligation: open.row.clone(),
+                covered_exits,
+            },
+            declaration: open.declaration,
+            nested_source_locations: open.nested_source_locations.clone(),
+        });
+    }
+    projected.sort_by(|left, right| left.row.cmp(&right.row));
+    if projected
+        .windows(2)
+        .any(|pair| pair[0].row.obligation == pair[1].row.obligation)
+    {
+        return Err(vec![Diagnostic::error(
+            "package review contains duplicate exit-membership discharges",
+        )]);
+    }
+    Ok(projected)
+}

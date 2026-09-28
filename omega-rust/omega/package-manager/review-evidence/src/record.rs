@@ -80,6 +80,8 @@ pub use contracts::{
     PackageReviewCallableSupply, PackageReviewCastForm, PackageReviewCollectionViewOperation,
     PackageReviewConstShape, PackageReviewConstructorField, PackageReviewContractBinaryOperator,
     PackageReviewContractCallTarget, PackageReviewContractEntailmentAssumptionDischarge,
+    PackageReviewContractEntailmentCoveredExit,
+    PackageReviewContractEntailmentExitMembershipDischarge,
     PackageReviewContractEntailmentOpenObligation, PackageReviewContractEntailmentOpenReason,
     PackageReviewContractEvidenceArgument, PackageReviewContractEvidenceTerm,
     PackageReviewContractExpression, PackageReviewContractFact, PackageReviewContractKind,

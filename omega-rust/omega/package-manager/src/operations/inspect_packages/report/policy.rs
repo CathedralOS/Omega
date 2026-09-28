@@ -342,5 +342,15 @@ pub(super) fn observations(
     for discharge in projection.contract_entailment_assumption_discharges() {
         writeln!(output, "  assumption-discharge {discharge:?}")?;
     }
+    for discharge in projection.contract_entailment_exit_membership_discharges() {
+        writeln!(
+            output,
+            "  checked-exit-membership-discharge {} contract {} fact {}: {} normal exits",
+            names.name(discharge.obligation().callable()),
+            discharge.obligation().contract_position(),
+            discharge.obligation().fact_position(),
+            discharge.covered_exits().len(),
+        )?;
+    }
     Ok(())
 }

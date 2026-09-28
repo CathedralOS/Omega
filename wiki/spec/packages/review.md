@@ -164,7 +164,16 @@ additional lock-certification or package-promotion workflow.
 
 Open contract-entailment obligations cannot be accepted by policy. An exact
 locally rechecked discharge may close one; accepted axioms remain disclosed
-assumptions. Reports separate mechanical checking from admissions and from
+assumptions. A membership postcondition may carry checked exit evidence when
+the live facts prove its exact subject and domain application at every normal
+exit. The compiler derives the complete exit roster; an empty or selected
+subset supplies no discharge. This evidence rejoins the original obligation,
+callable contract commitment and checked source custody. The open question and
+its discharge remain separate canonical rows. Recovering those rows alone
+does not establish the claim: fresh source reconstruction must reproduce the
+exit evidence before ordinary package results close that obligation.
+
+Reports separate mechanical checking from admissions and from
 producer/signature/audit metadata. A signature records custody, not review quality;
 a kernel establishes only its exact checked logical claim. Observing pathname
 bytes at `current_exe()` does not identify the loaded compiler image and enters
