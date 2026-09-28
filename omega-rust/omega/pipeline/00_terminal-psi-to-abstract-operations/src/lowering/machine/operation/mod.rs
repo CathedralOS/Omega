@@ -39,7 +39,6 @@ pub(super) fn lower_operation(
     byte_sequence_literals: &[StructuralLiteral<'_>],
     unit_affine_locals: &[StructuralLiteral<'_>],
     lowered_unit_affine_locals: &mut Vec<LoweredAffineLocal>,
-    lowered_byte_sequence_literals: &mut usize,
     operations: &mut Vec<AbstractOperation>,
 ) -> Result<(), LoweringError> {
     let lowered = routing::lower(
@@ -53,7 +52,6 @@ pub(super) fn lower_operation(
         byte_sequence_literals,
         unit_affine_locals,
         lowered_unit_affine_locals,
-        lowered_byte_sequence_literals,
     )?;
     operations.push(lowered);
     Ok(())

@@ -16,7 +16,6 @@ pub(super) fn lower(
     byte_sequence_literals: &[StructuralLiteral<'_>],
     unit_affine_locals: &[StructuralLiteral<'_>],
     lowered_unit_affine_locals: &mut Vec<LoweredAffineLocal>,
-    lowered_byte_sequence_literals: &mut usize,
 ) -> Result<AbstractOperation, LoweringError> {
     Ok(match operation.kind.clone() {
         OperationKind::EstablishByteSequenceConcatenation {
@@ -93,7 +92,7 @@ pub(super) fn lower(
             qualifications,
             ..
         } => {
-            let (place, ordinal, structural_type) = byte_sequence_literals
+            let (place, _, structural_type) = byte_sequence_literals
                 .iter()
                 .find(|(place, _, _)| place.id == destination)
                 .copied()
@@ -103,17 +102,19 @@ pub(super) fn lower(
                 .find(|declaration| declaration.id == structural_type)
                 .cloned()
                 .ok_or(LoweringError::UnsupportedByteSequenceLiteral(operation.id))?;
-            if usize::try_from(ordinal) != Ok(*lowered_byte_sequence_literals)
-                || !matches!(
-                    declaration.shape,
-                    StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                    )
+            if !matches!(
+                declaration.shape,
+                StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
                 )
-            {
+            ) {
                 return Err(LoweringError::UnsupportedByteSequenceLiteral(operation.id));
             }
-            *lowered_byte_sequence_literals += 1;
+            // The ordinal identifies a declaration, not an evaluation position.
+            // Terminal verification already checks dense declaration ordinals,
+            // exactly one establishment per place, and dominance of each use.
+            // Keep the operation at its authored position and retain that exact
+            // place rather than imposing a second traversal-order restriction.
             AbstractOperation::EstablishByteSequenceLiteral {
                 psi_operation: operation.id,
                 place: *place,
