@@ -33,18 +33,42 @@ per-checkout step and the new gate performs it.
 
 ## The 58 that do not reach a running program
 
+**27 of them never check**, so realization was never reachable; they are the
+check gate's own refusals seen from here. With the two that exceeded the
+per-call budget below, that accounts for all 29 the check gate reports.
+
+The other **31 are genuine realization refusals: samples that check and
+cannot be built.**
+
 | count | refusal |
 | --- | --- |
 | 10 | `byte replacement requires bounded bytes and exact branch-free operands` — the [predicate byte carrier gap](predicate_byte_carrier_native_gap.md) |
-| 9 | `InvalidUnitMachinePlan { machine: "darwin_poll", reason: "scalar callee has no checked executable body" }` |
-| 13 | package review incomplete — a limitation of this gate, not a compiler result |
-| 3 | `record operand lost its exact nominal source type` (`slice_maximum`, `clamp_sum`, `fletcher_checksum`) |
+| 9 | `InvalidUnitMachinePlan { machine: "darwin_poll" / "darwin_clock_ns", reason: "scalar callee has no checked executable body" }` |
 | 3 | `OperationProofUnavailable` (`heat_grid`, `nested_counters`, `substring_search`) |
+| 3 | `record operand lost its exact nominal source type` (`slice_maximum`, `clamp_sum`, `fletcher_checksum`) |
 | 2 | `runtime field observation requires a record-only field path` (`brightness_control`, `shape_area`) |
 | 1 | `UnsupportedByteSequenceLiteral` (`run_length_encode`) |
 | 1 | `scalar graph slice element is not primitive` (`slice_accum_probe`) |
 | 1 | `UnsupportedControlFlow` (`atomics_cross`) |
-| 12 | does not check at all, so realization was never reachable |
+| 1 | `terminal-artifact production requires one exact selected program entry` (`trapping_probe`) |
+
+### The whole corpus reconciles
+
+| | count |
+| --- | --- |
+| check (`tools/sample_gate.py`) | 119 |
+| — meet their documented oracle natively | **83** |
+| — check but cannot be realized | **31** |
+| — document no oracle (`wrapping_collatz_max`, `wrapping_square_sum`, `standalone`, `structural_proofs`) | 4 |
+| — freestanding, no host oracle (`uefi_hello`) | 1 |
+| do not check | 29 |
+| total | 148 |
+
+Two of the 29, `matrix_multiply` and `descriptor_walk`, appear here as
+`review-timeout` rather than as refusals: they take 2232s and 805s to check,
+which is how a long check presents to a gate with a per-call budget. See the
+timings in [sample_gate_macos_arm64.md](sample_gate_macos_arm64.md). **A
+timeout is not a refusal**; do not pool them.
 
 ### `darwin_poll` has no checked executable body
 
