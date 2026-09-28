@@ -121,6 +121,7 @@ pub(super) fn lower_typed_frontier(
     let selected_target_machine_declarations =
         provider_planning::target_machines::prepare_target_machines(
             &mut syntax.syntax_trees,
+            Some(&syntax.sources),
             Some(provider_planning::target_machines::BuildTargetScope {
                 execution,
                 sources: &build_scope_sources,
@@ -213,8 +214,8 @@ fn continue_generated_sources(
                 retained_base: Some(&resolved_base),
             },
         )?;
-    let selected_target_machine_declarations =
-        selected_target_machine_declarations.filter_generated_extension(&mut extension_syntax)?;
+    let selected_target_machine_declarations = selected_target_machine_declarations
+        .filter_generated_extension(&mut extension_syntax, Some(&sources))?;
     let seeded = timings.record(
         artifacts::compile_timings::SYNTAX_TREES_TO_SYMBOL_RESOLVED_TREES,
         || {

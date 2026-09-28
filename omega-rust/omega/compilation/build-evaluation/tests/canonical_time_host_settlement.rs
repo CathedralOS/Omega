@@ -85,7 +85,7 @@ impl Fixture {
             .expect("tokenize fixture");
         let mut syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens)
             .expect("parse fixture");
-        let target_machines = prepare_target_machines(&mut syntax, None)
+        let target_machines = prepare_target_machines(&mut syntax, Some(&sources), None)
             .expect("the fixture declares no target machine");
         let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
             syntax_trees_to_symbol_resolved_trees::ResolutionRequest {

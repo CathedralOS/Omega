@@ -16,9 +16,9 @@
 
 use crate::SettledTargetMachineDeclarations;
 use diagnostics::Diagnostic;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::HashSet;
 use syntax_trees::SyntaxTrees;
-use syntax_trees::item::Item;
+use syntax_trees::item::{Item, ItemHandle};
 use target::NativeTarget;
 use typed_trees::TypedTrees;
 use typed_trees::typed_trees::inspection::callees::ExplicitStateCallees;
@@ -45,6 +45,7 @@ pub struct SelectedTargetMachineDeclarations {
 /// separate rows that never share a validation group.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct TargetMachineOrigin {
+    namespace: TargetNamespace,
     full_name: String,
     target: String,
     /// The checked instance (dependency scope) of the declaring source.
@@ -53,14 +54,13 @@ struct TargetMachineOrigin {
     selected: bool,
 }
 
-/// The selected target per dependency scope. Product scope selects each
-/// family's canonical body (the first recognized target in name order), so the
-/// frontend is the same program for every realized target; the realized
-/// target's body replaces it before checking
-/// (`SelectedTargetMachineDeclarations::select_product_target`).
-struct ScopeTargets<'a> {
-    product: BTreeMap<String, String>,
-    build: Option<BuildTargetScope<'a>>,
+/// Namespace identity is needed only before resolution supplies exact handles.
+/// A reconciled package identity supersedes its physical source root.
+#[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord)]
+struct TargetNamespace {
+    package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
+    package_root: std::path::PathBuf,
+    module: Vec<String>,
 }
 
 /// Sources executed by the build, paired with their admitted execution target.
@@ -70,39 +70,32 @@ pub struct BuildTargetScope<'a> {
     pub sources: &'a HashSet<source::SourceId>,
 }
 
-impl ScopeTargets<'_> {
-    /// Which dependency scope a machine declaration belongs to.
-    fn scope_of(&self, machine: &syntax_trees::item::Machine) -> source::DependencyScope {
-        if self.build.as_ref().is_some_and(|build| {
-            build
-                .sources
-                .contains(&machine.name.source_span().source_id)
-        }) {
-            source::DependencyScope::Build
-        } else {
-            source::DependencyScope::Product
-        }
+impl TargetMachineOrigin {
+    fn same_family(&self, other: &Self) -> bool {
+        self.scope == other.scope
+            && self.namespace == other.namespace
+            && self.full_name == other.full_name
     }
+}
 
-    fn selects(&self, machine: &syntax_trees::item::Machine, target: &str) -> bool {
-        if let Some(build) = &self.build {
-            if build
-                .sources
-                .contains(&machine.name.source_span().source_id)
-            {
-                return NativeTarget::from_omega_target_name(Some(target))
-                    .is_ok_and(|resolved| resolved == build.execution);
-            }
-        }
-        self.product.get(machine.name.as_str()).map(String::as_str) == Some(target)
-    }
+fn sort_origins(origins: &mut [TargetMachineOrigin]) {
+    origins.sort_by(compare_origins);
+}
+
+fn compare_origins(left: &TargetMachineOrigin, right: &TargetMachineOrigin) -> std::cmp::Ordering {
+    left.scope
+        .cmp(&right.scope)
+        .then_with(|| left.namespace.cmp(&right.namespace))
+        .then_with(|| left.full_name.cmp(&right.full_name))
+        .then_with(|| left.target.cmp(&right.target))
+        .then_with(|| left.source.0.cmp(&right.source.0))
 }
 
 impl SelectedTargetMachineDeclarations {
     fn new(
         mut provider_default_machine_names: Vec<(String, source::SourceId)>,
         mut selected_machine_origins: Vec<(String, String, source::SourceId)>,
-        mut all_machine_origins: Vec<TargetMachineOrigin>,
+        all_machine_origins: Vec<TargetMachineOrigin>,
     ) -> Self {
         provider_default_machine_names.sort_by(|(name, source), (other, other_source)| {
             name.cmp(other).then(source.0.cmp(&other_source.0))
@@ -114,13 +107,6 @@ impl SelectedTargetMachineDeclarations {
                     .then(source.0.cmp(&other_source.0))
             },
         );
-        all_machine_origins.sort_by(|left, right| {
-            left.scope
-                .cmp(&right.scope)
-                .then_with(|| left.full_name.cmp(&right.full_name))
-                .then_with(|| left.target.cmp(&right.target))
-                .then_with(|| left.source.0.cmp(&right.source.0))
-        });
         Self {
             provider_default_machine_names,
             selected_machine_origins,
@@ -135,28 +121,26 @@ impl SelectedTargetMachineDeclarations {
     pub fn filter_generated_extension(
         mut self,
         syntax: &mut SyntaxTrees,
+        sources: Option<&source::SourceMap>,
     ) -> Result<Self, Vec<Diagnostic>> {
         // Generated source is product source: like the base, it selects each
         // family's canonical body, and the realized target's body replaces it
         // before checking. No build execution target enters this preparation.
-        let scopes = ScopeTargets {
-            product: canonical_product_targets(syntax, None),
-            build: None,
-        };
-        let extension_origins = target_machine_origins(syntax, &scopes);
-        let mut complete_origins = self.all_machine_origins.clone();
+        let (extension_origins, selected_declarations) =
+            target_machine_origins(syntax, sources, None)?;
+        let mut complete_origins = std::mem::take(&mut self.all_machine_origins);
         complete_origins.extend(extension_origins.iter().cloned());
+        sort_origins(&mut complete_origins);
         validate_target_machine_origins(&complete_origins)?;
 
-        let extension = select_target_machines(syntax, &scopes, extension_origins);
+        let extension = select_target_machines(syntax, extension_origins, selected_declarations);
         // Generated units were evaluated before they reached this filter.
         extension.release_provider_default_declarations(syntax);
         self.provider_default_machine_names
             .extend(extension.provider_default_machine_names);
         self.selected_machine_origins
             .extend(extension.selected_machine_origins);
-        self.all_machine_origins
-            .extend(extension.all_machine_origins);
+        self.all_machine_origins = complete_origins;
         self.provider_default_machine_names
             .sort_by(|(name, source), (other, other_source)| {
                 name.cmp(other).then(source.0.cmp(&other_source.0))
@@ -168,13 +152,7 @@ impl SelectedTargetMachineDeclarations {
                     .then(source.0.cmp(&other_source.0))
             },
         );
-        self.all_machine_origins.sort_by(|left, right| {
-            left.scope
-                .cmp(&right.scope)
-                .then_with(|| left.full_name.cmp(&right.full_name))
-                .then_with(|| left.target.cmp(&right.target))
-                .then_with(|| left.source.0.cmp(&right.source.0))
-        });
+
         Ok(self)
     }
 
@@ -244,21 +222,6 @@ impl SelectedTargetMachineDeclarations {
         Ok(())
     }
 
-    /// Product-scope target-scoped declarations grouped by their authored
-    /// contract name: one entry per family, in name order.
-    fn product_families(&self) -> BTreeMap<&str, Vec<&TargetMachineOrigin>> {
-        let mut families: BTreeMap<&str, Vec<&TargetMachineOrigin>> = BTreeMap::new();
-        for origin in &self.all_machine_origins {
-            if origin.scope == source::DependencyScope::Product {
-                families
-                    .entry(origin.full_name.as_str())
-                    .or_default()
-                    .push(origin);
-            }
-        }
-        families
-    }
-
     /// Replace each product-scope family's canonical body with `target`'s own
     /// body before checking: calls that resolved to the canonical body move to
     /// the target's sibling, which loses its sibling marker and so brings its
@@ -271,16 +234,7 @@ impl SelectedTargetMachineDeclarations {
         typed: &mut TypedTrees,
         target: NativeTarget,
     ) -> Result<(), Vec<Diagnostic>> {
-        let families = self.product_families();
-        // The roster — not another name/marker/source scan — is the family
-        // record the swap consults: members are unique per authored target
-        // (admission rejects a duplicate target row).
-        let roster: HashMap<&str, &typed_trees::machine::TargetMachineFamily> = typed
-            .target_machine_families
-            .iter()
-            .map(|family| (family.name.as_str(), family))
-            .collect();
-        let machine_index = |typed: &TypedTrees, symbol: symbols::SymbolHandle| {
+        let machine_index = |symbol| {
             typed
                 .machines()
                 .iter()
@@ -289,35 +243,41 @@ impl SelectedTargetMachineDeclarations {
         let mut diagnostics = Vec::new();
         let mut replacements = Vec::new();
         let mut swaps = Vec::new();
-        for (name, origins) in &families {
-            let Some(canonical) = origins.iter().find(|origin| origin.selected) else {
-                continue;
+        // Typing already owns family membership. Never rebuild a name-keyed
+        // map here: equal names in different namespaces remain independent.
+        for family in &typed.target_machine_families {
+            let name = family.name.as_str();
+            let Some(canonical) = family
+                .members
+                .iter()
+                .find(|member| member.machine == family.canonical)
+            else {
+                return Err(vec![Diagnostic::error(format!(
+                    "target family `{name}` has no canonical member"
+                ))]);
             };
             if NativeTarget::from_omega_target_name(Some(canonical.target.as_str()))
                 .is_ok_and(|resolved| resolved == target)
             {
                 continue;
             }
-            let wanted = origins.iter().find(|origin| {
-                NativeTarget::from_omega_target_name(Some(origin.target.as_str()))
+            let Some(canonical_index) = machine_index(canonical.machine) else {
+                return Err(vec![Diagnostic::error(format!(
+                    "canonical body of target family `{name}` did not survive typing"
+                ))]);
+            };
+            let canonical_origin = self.origin_index(typed, canonical)?;
+            let wanted = family.members.iter().find(|member| {
+                NativeTarget::from_omega_target_name(Some(member.target.as_str()))
                     .is_ok_and(|resolved| resolved == target)
             });
-            let Some(canonical_index) = roster
-                .get(*name)
-                .and_then(|family| machine_index(typed, family.canonical))
-            else {
-                // Provider defaults and other declarations that never reach
-                // typing keep no typed body to swap.
-                continue;
-            };
             let Some(wanted) = wanted else {
-                let mut providers = origins
-                    .iter()
-                    .map(|origin| origin.target.as_str())
-                    .collect::<Vec<_>>();
-                providers.sort();
-                providers.dedup();
-                if providers.len() >= 2 {
+                if family.members.len() >= 2 {
+                    let providers = family
+                        .members
+                        .iter()
+                        .map(|member| member.target.as_str())
+                        .collect::<Vec<_>>();
                     diagnostics.push(Diagnostic::error(format!(
                         "machine `{name}` has no implementation for the selected target -- \
                          target-scoped implementations exist for: {} (add this target's \
@@ -325,21 +285,17 @@ impl SelectedTargetMachineDeclarations {
                         providers.join(", "),
                     )));
                 }
-                swaps.push((canonical_index, None, (*canonical).clone(), None));
+                swaps.push((canonical_index, None, canonical_origin, None));
                 continue;
             };
-            let Some(wanted_index) = roster[*name]
-                .members
-                .iter()
-                .find(|member| member.target.as_str() == wanted.target.as_str())
-                .and_then(|member| machine_index(typed, member.machine))
-            else {
+            let Some(wanted_index) = machine_index(wanted.machine) else {
                 diagnostics.push(Diagnostic::error(format!(
                     "target `{}` body of machine `{name}` did not survive typing",
                     wanted.target,
                 )));
                 continue;
             };
+            let wanted_origin = self.origin_index(typed, wanted)?;
             let canonical_machine = &typed.machines()[canonical_index];
             let wanted_machine = &typed.machines()[wanted_index];
             let canonical_identity = typed
@@ -369,16 +325,17 @@ impl SelectedTargetMachineDeclarations {
             swaps.push((
                 canonical_index,
                 Some(wanted_index),
-                (*canonical).clone(),
-                Some((*wanted).clone()),
+                canonical_origin,
+                Some(wanted_origin),
             ));
         }
         if !diagnostics.is_empty() {
             return Err(diagnostics);
         }
-        for (canonical_index, wanted_index, canonical, wanted) in swaps {
-            let canonical_target =
-                typed_trees::name::Identifier::generated(canonical.target.clone());
+        for (canonical_index, wanted_index, canonical_origin, wanted_origin) in swaps {
+            let canonical_target = typed_trees::name::Identifier::generated(
+                self.all_machine_origins[canonical_origin].target.clone(),
+            );
             let machines = typed.machines_mut();
             machines[canonical_index].target = Some(canonical_target);
             let canonical_symbol = machines[canonical_index].symbol;
@@ -396,26 +353,44 @@ impl SelectedTargetMachineDeclarations {
             if let Some((symbol, spelling)) = promoted {
                 typed.symbols.rename(symbol, &spelling);
             }
-            self.reselect(&canonical, wanted.as_ref());
+            self.reselect(canonical_origin, wanted_origin);
         }
         typed.statement_table.retarget_call_states(&replacements);
         typed.expression_table.retarget_call_states(&replacements);
         reject_inert_sibling_callers(typed, target)
     }
 
-    /// Move the retained selection of one family from its canonical body to
-    /// the realized target's body, or drop it when that target has none.
-    fn reselect(&mut self, canonical: &TargetMachineOrigin, wanted: Option<&TargetMachineOrigin>) {
-        for origin in &mut self.all_machine_origins {
-            if origin.scope != source::DependencyScope::Product
-                || origin.full_name != canonical.full_name
-            {
-                continue;
-            }
-            origin.selected = wanted.is_some_and(|wanted| {
-                origin.target == wanted.target && origin.source == wanted.source
-            });
+    /// Join the exact resolved member back to source-admission custody.
+    fn origin_index(
+        &self,
+        typed: &TypedTrees,
+        member: &typed_trees::machine::TargetMachineFamilyMember,
+    ) -> Result<usize, Vec<Diagnostic>> {
+        let machine = typed.machine_by_symbol(member.machine);
+        let source = typed.symbols.symbol_provenance_source_span(member.machine);
+        let origin = machine.zip(source).and_then(|(machine, source)| {
+            self.all_machine_origins.iter().position(|origin| {
+                origin.scope == source::DependencyScope::Product
+                    && origin.source == source.source_id
+                    && origin.full_name == machine.name.as_str()
+                    && origin.target == member.target.as_str()
+            })
+        });
+        origin.ok_or_else(|| {
+            vec![Diagnostic::error(
+                "typed target-family member has no retained source declaration",
+            )]
+        })
+    }
+
+    /// Update only the two exact source rows selected by the typed family.
+    fn reselect(&mut self, canonical_index: usize, wanted_index: Option<usize>) {
+        self.all_machine_origins[canonical_index].selected = false;
+        if let Some(wanted_index) = wanted_index {
+            self.all_machine_origins[wanted_index].selected = true;
         }
+        let canonical = &self.all_machine_origins[canonical_index];
+        let wanted = wanted_index.map(|index| &self.all_machine_origins[index]);
         self.selected_machine_origins
             .retain(|(name, target, source)| {
                 !(name == &canonical.full_name
@@ -512,144 +487,148 @@ impl SelectedTargetMachineDeclarations {
 /// Runtime product targets belong to later selection, not source preparation.
 pub fn prepare_target_machines(
     syntax: &mut SyntaxTrees,
+    sources: Option<&source::SourceMap>,
     build: Option<BuildTargetScope<'_>>,
 ) -> Result<SelectedTargetMachineDeclarations, Vec<Diagnostic>> {
-    let scopes = ScopeTargets {
-        product: canonical_product_targets(syntax, build.as_ref()),
-        build,
-    };
-    let origins = target_machine_origins(syntax, &scopes);
+    let (origins, selected_declarations) = target_machine_origins(syntax, sources, build.as_ref())?;
     validate_target_machine_origins(&origins)?;
-    Ok(select_target_machines(syntax, &scopes, origins))
+    Ok(select_target_machines(
+        syntax,
+        origins,
+        selected_declarations,
+    ))
 }
 
-/// Each product-scope family's canonical target: the first recognized target
-/// in name order among its bodies.
-fn canonical_product_targets(
-    syntax: &SyntaxTrees,
-    build: Option<&BuildTargetScope<'_>>,
-) -> BTreeMap<String, String> {
-    let mut canonical: BTreeMap<String, String> = BTreeMap::new();
-    for item in syntax.root_items() {
-        let Item::Machine(machine) = item else {
-            continue;
-        };
-        let Some(target) = &machine.target else {
-            continue;
-        };
-        if build.is_some_and(|build| {
-            build
-                .sources
-                .contains(&machine.name.source_span().source_id)
-        }) || NativeTarget::from_omega_target_name(Some(target.as_str())).is_err()
-        {
-            continue;
-        }
-        canonical
-            .entry(machine.name.as_str().to_owned())
-            .and_modify(|current| {
-                if target.as_str() < current.as_str() {
-                    *current = target.as_str().to_owned();
-                }
-            })
-            .or_insert_with(|| target.as_str().to_owned());
-    }
-    canonical
-}
-
+/// Construct one source roster, then choose the canonical member within each
+/// exact namespace. No target-name map or second family grouping is needed.
 fn target_machine_origins(
     syntax: &SyntaxTrees,
-    scopes: &ScopeTargets<'_>,
-) -> Vec<TargetMachineOrigin> {
+    sources: Option<&source::SourceMap>,
+    build: Option<&BuildTargetScope<'_>>,
+) -> Result<(Vec<TargetMachineOrigin>, Vec<ItemHandle>), Vec<Diagnostic>> {
+    let modules = syntax
+        .root_items()
+        .filter_map(|item| {
+            let Item::Module(module) = item else {
+                return None;
+            };
+            let path = syntax.items.identifier_path_members(module.path);
+            Some((
+                path.first()?.source_span().source_id,
+                path.iter()
+                    .map(|name| name.as_str().to_owned())
+                    .collect::<Vec<_>>(),
+            ))
+        })
+        .collect::<Vec<_>>();
     let mut origins = Vec::new();
-    for handle in syntax.root_item_handles().to_vec() {
+    for &handle in syntax.root_item_handles() {
         let Item::Machine(machine) = syntax.root_item(handle) else {
             continue;
         };
         let Some(target) = &machine.target else {
             continue;
         };
-        // The parser's machine name is already the complete spelled path
-        // (`Owner::provider_defaults` for an attached declaration). Rebuilding
-        // it from `attached_data` would produce
-        // `Owner::Owner::provider_defaults`, which still groups target rows but
-        // cannot be resolved against the later typed machine.
-        let full_name = machine.name.as_str().to_owned();
-        origins.push(TargetMachineOrigin {
-            selected: scopes.selects(machine, target.as_str()),
-            scope: scopes.scope_of(machine),
-            source: machine.name.source_span().source_id,
-            full_name,
-            target: target.as_str().to_owned(),
+        let source = machine.name.source_span().source_id;
+        let file = sources
+            .map(|sources| {
+                sources.get(source).ok_or_else(|| {
+                    vec![
+                        Diagnostic::error(
+                            "target declaration has no source in the supplied source map",
+                        )
+                        .with_source_span(machine.name.source_span()),
+                    ]
+                })
+            })
+            .transpose()?;
+        let package_identity = file.and_then(|file| file.package_identity);
+        let namespace = TargetNamespace {
+            package_identity,
+            package_root: file
+                .filter(|_| package_identity.is_none())
+                .map(|file| file.package_root.clone())
+                .unwrap_or_default(),
+            module: modules
+                .iter()
+                .find(|(owner, _)| *owner == source)
+                .map(|(_, module)| module.clone())
+                .unwrap_or_default(),
+        };
+        origins.push((
+            handle,
+            TargetMachineOrigin {
+                namespace,
+                full_name: machine.name.as_str().to_owned(),
+                target: target.as_str().to_owned(),
+                scope: if build.is_some_and(|build| build.sources.contains(&source)) {
+                    source::DependencyScope::Build
+                } else {
+                    source::DependencyScope::Product
+                },
+                source,
+                selected: false,
+            },
+        ));
+    }
+    origins.sort_by(|left, right| compare_origins(&left.1, &right.1));
+    for family in origins.chunk_by_mut(|left, right| left.1.same_family(&right.1)) {
+        if family[0].1.scope == source::DependencyScope::Build {
+            for (_, origin) in family {
+                origin.selected = NativeTarget::from_omega_target_name(Some(&origin.target))
+                    .is_ok_and(|target| build.is_some_and(|build| build.execution == target));
+            }
+            continue;
+        }
+        let canonical = family.iter().position(|(_, origin)| {
+            NativeTarget::from_omega_target_name(Some(&origin.target)).is_ok()
         });
+        if let Some(canonical) = canonical {
+            // Mark duplicate rows too, so validation reports them instead of
+            // making source order silently choose an implementation.
+            let target = family[canonical].1.target.clone();
+            for (_, origin) in family {
+                origin.selected = origin.target == target;
+            }
+        }
     }
-    origins
+    // Carry exact syntax handles to the immediate consumer rather than joining
+    // the roster back to declarations by name. They do not survive this pass.
+    let selected_declarations = origins
+        .iter()
+        .filter_map(|(handle, origin)| origin.selected.then_some(*handle))
+        .collect();
+    Ok((
+        origins.into_iter().map(|(_, origin)| origin).collect(),
+        selected_declarations,
+    ))
 }
 
+/// Admission consumes the already sorted source roster, including generated rows.
 fn validate_target_machine_origins(origins: &[TargetMachineOrigin]) -> Result<(), Vec<Diagnostic>> {
-    validate_selected_target_machine_origins(origins)?;
-    // A sibling target supplies exactly one body as well: two would lower to
-    // one `<path>::<target>` name and collide.
-    let mut per_target: BTreeMap<(source::DependencyScope, &str, &str), usize> = BTreeMap::new();
-    for origin in origins.iter().filter(|origin| !origin.selected) {
-        *per_target
-            .entry((
-                origin.scope,
-                origin.full_name.as_str(),
-                origin.target.as_str(),
-            ))
-            .or_default() += 1;
-    }
-    for ((_, full_name, target), count) in per_target {
-        if count > 1 {
-            return Err(vec![Diagnostic::error(format!(
-                "machine `{full_name}` is implemented twice for `{target}` -- \
-                 a target supplies exactly one implementation of a contract machine",
-            ))]);
-        }
-    }
-    Ok(())
-}
-
-fn validate_selected_target_machine_origins(
-    origins: &[TargetMachineOrigin],
-) -> Result<(), Vec<Diagnostic>> {
-    // (dependency scope, full machine name) -> (selected count, non-selected
-    // target names). The zero-or-two rule applies within one checked
-    // instance: two instances of a dual-purpose file legitimately select the
-    // same-named row once each. BTreeMap keeps diagnostics deterministic
-    // across runs and generated units.
-    let mut rows: BTreeMap<(source::DependencyScope, &str), (usize, Vec<&str>)> = BTreeMap::new();
-    for origin in origins {
-        let entry = rows
-            .entry((origin.scope, origin.full_name.as_str()))
-            .or_default();
-        if origin.selected {
-            entry.0 += 1;
-        } else {
-            entry.1.push(origin.target.as_str());
-        }
-    }
-    for ((_, full_name), (selected_count, other_targets)) in rows {
+    for family in origins.chunk_by(|left, right| left.same_family(right)) {
+        let full_name = &family[0].full_name;
+        let selected_count = family.iter().filter(|origin| origin.selected).count();
         if selected_count > 1 {
             return Err(vec![Diagnostic::error(format!(
                 "machine `{full_name}` is implemented twice for the selected target -- \
                  a target supplies exactly one implementation of a contract machine",
             ))]);
         }
-        if selected_count == 0 {
-            let mut providers = other_targets;
-            providers.sort();
-            providers.dedup();
-            // A name implemented by ONE foreign target is that target's
-            // paradigm INTERNAL (the windows dir-walk's find-enumeration
-            // helpers exist on no posix target), not a portable-contract
-            // surface -- filter it silently with its callers. The loud edge
-            // is for CONTRACT names: two or more targets implementing a name
-            // is the evidence a selected target is missing its row.
-            if providers.len() < 2 {
-                continue;
+        for members in family.chunk_by(|left, right| left.target == right.target) {
+            if members.len() > 1 {
+                let target = &members[0].target;
+                return Err(vec![Diagnostic::error(format!(
+                    "machine `{full_name}` is implemented twice for `{target}` -- \
+                     a target supplies exactly one implementation of a contract machine",
+                ))]);
             }
+        }
+        if selected_count == 0 && family.len() >= 2 {
+            let providers = family
+                .iter()
+                .map(|origin| origin.target.as_str())
+                .collect::<Vec<_>>();
             return Err(vec![Diagnostic::error(format!(
                 "machine `{full_name}` has no implementation for the selected target -- \
                  target-scoped implementations exist for: {} (add this target's \
@@ -663,8 +642,8 @@ fn validate_selected_target_machine_origins(
 
 fn select_target_machines(
     syntax: &mut SyntaxTrees,
-    scopes: &ScopeTargets<'_>,
     all_machine_origins: Vec<TargetMachineOrigin>,
+    selected_declarations: Vec<ItemHandle>,
 ) -> SelectedTargetMachineDeclarations {
     // PRV4c: a target package may contribute ordinary provider defaults with
     // a target-scoped, package-owned `Owner::provider_defaults` machine. Keep
@@ -672,16 +651,13 @@ fn select_target_machines(
     // typed machines intentionally carry no deployment marker after this pass.
     let mut provider_default_machines = Vec::new();
     let mut selected_machine_origins = Vec::new();
-    for handle in syntax.root_item_handles().to_vec() {
+    for handle in selected_declarations {
         let Item::Machine(machine) = syntax.root_item(handle) else {
             continue;
         };
         let Some(target) = machine.target.as_ref() else {
             continue;
         };
-        if !scopes.selects(machine, target.as_str()) {
-            continue;
-        }
         let full_name = machine.name.as_str().to_owned();
         let declaring_source = machine.name.source_span().source_id;
         let provider_default = full_name.ends_with("::provider_defaults");
@@ -831,6 +807,7 @@ mod tests {
             ));
             let retained = prepare_target_machines(
                 &mut authored,
+                None,
                 Some(BuildTargetScope {
                     execution,
                     sources: &build_sources,
@@ -842,7 +819,7 @@ mod tests {
                 "windows_x86_64 machine Generated::value() -> u64 { 6 }\nlinux_x86_64 machine Generated::value() -> u64 { 5 }\n",
             );
             let retained = retained
-                .filter_generated_extension(&mut generated)
+                .filter_generated_extension(&mut generated, None)
                 .expect("generated product families have no execution target");
             for origin in &retained.all_machine_origins {
                 let expected = if origin.scope == source::DependencyScope::Build {
@@ -862,12 +839,35 @@ mod tests {
     #[test]
     fn generated_extension_rejects_duplicate_against_authored_product() {
         let mut authored = syntax(0, "linux_x86_64 machine Product::value() -> u64 { 1 }\n");
-        let retained = prepare_target_machines(&mut authored, None).expect("single member");
+        let retained = prepare_target_machines(&mut authored, None, None).expect("single member");
         let mut generated = syntax(1, "linux_x86_64 machine Product::value() -> u64 { 2 }\n");
         let diagnostics = retained
-            .filter_generated_extension(&mut generated)
+            .filter_generated_extension(&mut generated, None)
             .expect_err("generated source cannot replace an authored member");
         assert!(diagnostics[0].message.contains("implemented twice"));
+    }
+
+    #[test]
+    fn build_target_aliases_do_not_select_two_bodies() {
+        let mut program = syntax(
+            0,
+            "local_unchecked machine helper() {}\ncross_platform_cli machine helper() {}",
+        );
+        let sources = std::collections::HashSet::from([source::SourceId(0)]);
+        let errors = prepare_target_machines(
+            &mut program,
+            None,
+            Some(BuildTargetScope {
+                execution: target::NativeTarget::host(),
+                sources: &sources,
+            }),
+        )
+        .expect_err("two spellings of the build target cannot supply two bodies");
+        assert!(
+            errors[0]
+                .message
+                .contains("implemented twice for the selected target")
+        );
     }
 
     #[test]
@@ -878,6 +878,62 @@ mod tests {
 
         assert!(settled.provider_defaults.is_empty());
         assert!(settled.origins.is_empty());
+    }
+
+    #[test]
+    fn generated_family_admission_uses_the_same_namespace_as_authored_source() {
+        for (module, should_accept) in [("other", true), ("original", false)] {
+            let mut sources = source::SourceMap::default();
+            let base_text = "module original; linux_x86_64 machine helper() -> u64 { 1 }";
+            let base_id = sources.add("base.omg".into(), base_text.into()).source_id;
+            let mut base = syntax(base_id.0, base_text);
+            let retained =
+                prepare_target_machines(&mut base, Some(&sources), None).expect("authored family");
+            let generated_text =
+                format!("module {module}; linux_x86_64 machine helper() -> u64 {{ 2 }}");
+            let generated_id = sources
+                .add("generated.omg".into(), generated_text.clone())
+                .source_id;
+            let mut generated = syntax(generated_id.0, &generated_text);
+            let result = retained.filter_generated_extension(&mut generated, Some(&sources));
+            assert_eq!(result.is_ok(), should_accept);
+            if let Err(errors) = result {
+                assert!(errors[0].message.contains("implemented twice"));
+            }
+        }
+    }
+
+    #[test]
+    fn reconciled_package_identity_not_source_root_owns_the_family() {
+        let mut sources = source::SourceMap::default();
+        let mut program = syntax_trees::SyntaxTrees::default();
+        let identity = semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32])
+            .expect("package identity");
+        let text = "linux_x86_64 machine helper() -> u64 { 1 }";
+        for root in ["first", "second"] {
+            let source_id = sources
+                .add_with_metadata(
+                    std::path::PathBuf::from(root).join("helper.omg"),
+                    text.into(),
+                    root.into(),
+                    Some(identity),
+                    source::SourceOrigin::User,
+                )
+                .source_id;
+            program.extend_from(&syntax(source_id.0, text));
+        }
+        let errors = prepare_target_machines(&mut program, Some(&sources), None)
+            .expect_err("one package identity cannot supply the same member twice");
+        assert!(errors[0].message.contains("implemented twice"));
+    }
+
+    #[test]
+    fn supplied_source_map_must_account_for_target_declarations() {
+        let mut program = syntax(3, "linux_x86_64 machine helper() {}");
+        let errors =
+            prepare_target_machines(&mut program, Some(&source::SourceMap::default()), None)
+                .expect_err("missing provenance is not a source-free fixture");
+        assert!(errors[0].message.contains("no source"));
     }
 
     #[test]
@@ -913,15 +969,15 @@ mod tests {
             0,
             "linux_x86_64 machine Base::value() -> u64 { 1 }\nwindows_x86_64 machine Base::value() -> u64 { 2 }\n",
         );
-        let retained =
-            prepare_target_machines(&mut base, None).expect("base target cohort selects exactly");
+        let retained = prepare_target_machines(&mut base, None, None)
+            .expect("base target cohort selects exactly");
         let mut extension = syntax(
             1,
             "linux_x86_64 machine Generated::value() -> u64 { 3 }\nwindows_x86_64 machine Generated::value() -> u64 { 4 }\nlinux_x86_64 machine Generated::provider_defaults() { }\nwindows_x86_64 machine Generated::provider_defaults() { }\n",
         );
 
         let retained = retained
-            .filter_generated_extension(&mut extension)
+            .filter_generated_extension(&mut extension, None)
             .expect("generated target cohort selects against retained base");
 
         assert_eq!(
@@ -993,6 +1049,74 @@ mod tests {
         assert_family_roster_and_swap("module arithmetic;\n");
     }
 
+    #[test]
+    fn same_named_target_families_remain_independent_across_modules() {
+        assert_independent_target_families([
+            ("first.omg", "module first;"),
+            ("second.omg", "module second;"),
+        ]);
+    }
+
+    #[test]
+    fn same_named_target_families_remain_independent_across_packages() {
+        assert_independent_target_families([("first/helper.omg", ""), ("second/helper.omg", "")]);
+    }
+
+    fn assert_independent_target_families(units: [(&str, &str); 2]) {
+        let mut sources = source::SourceMap::default();
+        let mut program = syntax_trees::SyntaxTrees::default();
+        for (path, module) in units {
+            let text = format!(
+                "{module}\nlinux_x86_64 machine helper() -> u64 {{ 1 }}\nwindows_x86_64 machine helper() -> u64 {{ 2 }}"
+            );
+            let source_id = sources.add(path.into(), text.clone()).source_id;
+            program.extend_from(&syntax(source_id.0, &text));
+        }
+        let mut declarations = prepare_target_machines(&mut program, Some(&sources), None)
+            .expect("equal names in distinct namespaces are separate families");
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                syntax: &program,
+                sources: Some(std::sync::Arc::new(sources)),
+                top_level_bindings: Vec::new(),
+            },
+        )
+        .expect("independent families resolve");
+        let mut typed =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+                .expect("independent families type");
+        assert_eq!(typed.target_machine_families.len(), 2);
+        let selected = typed
+            .target_machine_families
+            .iter()
+            .map(|family| {
+                family
+                    .members
+                    .iter()
+                    .find(|member| member.target.as_str() == "windows_x86_64")
+                    .expect("each family has a Windows member")
+                    .machine
+            })
+            .collect::<Vec<_>>();
+        declarations
+            .select_product_target(&mut typed, target::NativeTarget::windows_x64())
+            .expect("realization consumes each exact family");
+        for symbol in selected {
+            assert!(
+                typed
+                    .machine_by_symbol(symbol)
+                    .expect("retained member")
+                    .target
+                    .is_none()
+            );
+        }
+        let settled = declarations
+            .settle_provider_defaults(&mut typed)
+            .expect("selected origins retain both namespaces");
+        assert_eq!(settled.origins.len(), 2);
+        assert_ne!(settled.origins[0].machine, settled.origins[1].machine);
+    }
+
     fn assert_family_roster_and_swap(module: &str) {
         // Resolution retains product scope from the source map.
         let text = format!(
@@ -1010,7 +1134,8 @@ mod tests {
             .expect("tokenize target-machine fixture");
         let mut syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens)
             .expect("parse target-machine fixture");
-        let mut declarations = prepare_target_machines(&mut syntax, None).expect("cohort selects");
+        let mut declarations =
+            prepare_target_machines(&mut syntax, Some(&sources), None).expect("cohort selects");
         let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
             syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
                 syntax: &syntax,
@@ -1083,13 +1208,14 @@ mod tests {
     #[test]
     fn generated_units_reject_a_duplicate_selected_target_row() {
         let mut base = syntax(0, "const BASE: u64 = 1;\n");
-        let retained = prepare_target_machines(&mut base, None).expect("base has no target rows");
+        let retained =
+            prepare_target_machines(&mut base, None, None).expect("base has no target rows");
         let mut extension = syntax(1, "linux_x86_64 machine Duplicate::value() -> u64 { 2 }\n");
         let second = syntax(2, "linux_x86_64 machine Duplicate::value() -> u64 { 3 }\n");
         extension.extend_from(&second);
 
         let diagnostics = retained
-            .filter_generated_extension(&mut extension)
+            .filter_generated_extension(&mut extension, None)
             .expect_err("generated units must not split a duplicate selected row");
 
         assert_eq!(diagnostics.len(), 1);
