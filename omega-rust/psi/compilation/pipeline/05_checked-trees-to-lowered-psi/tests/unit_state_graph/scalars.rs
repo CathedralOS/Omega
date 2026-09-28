@@ -111,6 +111,54 @@ fn effects(checked: &checked_trees::CheckedTrees) -> Vec<(Vec<u8>, i128)> {
 }
 
 #[test]
+fn a_state_arrival_proves_every_conjunct_of_its_requires_clause() {
+    let source = r#"
+        boundary trait Output { machine write(bytes: &[u8], marker: i32) reaches Output; }
+        machine relay(bytes: &[u8], first: u64, second: u64) reaches Output {
+            transition (first <= 2) && (second <= 2) {
+                true -> bounded(bytes, first, second)
+                false -> done()
+            }
+            state bounded(bytes: &[u8], first: u64, second: u64)
+            requires first <= 2, second <= 2 {
+                Output::write(bytes, 7i32);
+            }
+            state done() { }
+        }
+        data Root {}
+        machine Root::enter() reaches Output {
+            relay("inside", 1, 2);
+            relay("outside", 1, 3);
+        }
+    "#;
+    let checked = crate::front_end::checked_program(source);
+    assert_eq!(effects(&checked), vec![(b"inside".to_vec(), 7)]);
+
+    for missing_conjunct in 0..2 {
+        let mut changed = checked.clone();
+        let state = changed
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_machines
+            .iter_mut()
+            .flat_map(|plan| &mut plan.states)
+            .find(|state| state.requires.len() == 2)
+            .expect("the bounded state retains both clauses");
+        state.requires.remove(missing_conjunct);
+        assert!(matches!(
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Root::enter"),
+            ),
+            Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
+                "structural graph state has unrepresented authored contracts"
+            ))
+        ));
+    }
+}
+
+#[test]
 fn only_the_selected_successor_evaluates_its_scalar_operands() {
     let source = r#"
         boundary trait Output { machine write(bytes: &[u8], marker: i32) reaches Output; }
