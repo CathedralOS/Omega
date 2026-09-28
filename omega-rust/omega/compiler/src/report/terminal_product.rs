@@ -4,44 +4,7 @@
 
 pub use backend_plan::{TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact};
 
-/// One compiler-owned builtin proposed beside a target-neutral Terminal
-/// artifact. The local lowerer still has to rejoin this row to the exact
-/// selected plan, Terminal demand, and its own target catalog.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TerminalCompilerBuiltinProposal {
-    requirement_identity: String,
-    provider_plan_index: usize,
-    execution: target_operations::CompilerBuiltinExecution,
-}
-
-impl TerminalCompilerBuiltinProposal {
-    pub fn new(
-        requirement_identity: String,
-        provider_plan_index: usize,
-        execution: target_operations::CompilerBuiltinExecution,
-    ) -> Result<Self, &'static str> {
-        if requirement_identity.is_empty() {
-            return Err("Terminal compiler-builtin proposal has an empty requirement identity");
-        }
-        Ok(Self {
-            requirement_identity,
-            provider_plan_index,
-            execution,
-        })
-    }
-
-    pub fn requirement_identity(&self) -> &str {
-        &self.requirement_identity
-    }
-
-    pub const fn provider_plan_index(&self) -> usize {
-        self.provider_plan_index
-    }
-
-    pub const fn execution(&self) -> target_operations::CompilerBuiltinExecution {
-        self.execution
-    }
-}
+pub use abstract_operations_to_target_operations::provider_admission::TerminalCompilerBuiltinProposal;
 
 pub use boundary_applications::{
     TerminalIeeeFloatComparisonOccurrenceProposal, TerminalIntegerComparisonOccurrenceProposal,
@@ -260,35 +223,10 @@ impl TerminalNativeRealizationProposal {
             &self.external_binding_rows,
         )?;
         self.validate_package_terminal_authority_permissions()?;
-        let mut requirements = std::collections::BTreeSet::new();
-        for builtin in &self.compiler_builtins {
-            if !requirements.insert(builtin.requirement_identity()) {
-                return Err("Terminal native proposal repeats a compiler-builtin requirement");
-            }
-            let Some(plan) = self
-                .selected_provider_plans
-                .plans()
-                .get(builtin.provider_plan_index())
-            else {
-                return Err("Terminal native proposal names an absent selected provider plan");
-            };
-            let matching_rows = plan
-                .rows
-                .iter()
-                .filter(|row| {
-                    row.requirement_identity == builtin.requirement_identity
-                        && matches!(
-                            row.binding,
-                            effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
-                        )
-                })
-                .count();
-            if matching_rows != 1 {
-                return Err(
-                    "Terminal native proposal compiler builtin does not rejoin one exact selected row",
-                );
-            }
-        }
+        abstract_operations_to_target_operations::provider_admission::validate_retained_compiler_builtins(
+            &self.compiler_builtins,
+            self.selected_provider_plans.plans(),
+        )?;
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).map_err(
             |_| "Terminal callback occurrence replay could not decode canonical semantics",
         )?;

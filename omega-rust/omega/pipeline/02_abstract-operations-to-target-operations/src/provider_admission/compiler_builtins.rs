@@ -1,3 +1,14 @@
+//! Native builtin admission: independently rejoin selected provider rows,
+//! Terminal demand and the target catalog before producing settlements.
+//! Retained request construction and plan-index custody live in `retained`.
+
+mod retained;
+
+pub use retained::{
+    TerminalCompilerBuiltinProposal, prepare_retained_compiler_builtins,
+    validate_retained_compiler_builtins,
+};
+
 use crate::provider_admission::AdmittedTerminalMechanism;
 use crate::provider_admission::{NativeRealizationInput, ProviderAdmissionRequest};
 use crate::{AdmittedBoundaryExecution, AdmittedBoundarySettlement};
