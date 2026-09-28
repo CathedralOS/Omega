@@ -4668,54 +4668,46 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   post-compilation callback. **BUILD-SNAPSHOT-OUTPUTS** owns committed outputs
   and required-output settlement at publication.
 
-- **OPTIONAL-STDLIB-SEMANTIC-BINDINGS.** Finish ordinary explicit std/alloc
-  dependency migration under the [toolchain/library contract](wiki/spec/packages/toolchain.md).
-  Std may be replaced, split or absent; only core and the specified
-  compiler-injected vocabulary retain toolchain authority. Standalone
-  std/alloc still receive broad `Toolchain` classification in
-  `omega-rust/omega/compiler/build-evaluation/src/sources/source/source_storage.rs`.
-  Remove that fallback as remaining consumers acquire exact source-byte
-  catalog roles or accepted semantic bindings, not by relabeling a directory.
+- **OPTIONAL-STDLIB-SEMANTIC-BINDINGS.** Remove broad standalone std/alloc
+  `Toolchain` provenance from
+  `build-evaluation/src/sources/source/source_storage.rs` under the
+  [toolchain/library contract](wiki/spec/packages/toolchain.md).
+  Package-aware compilation already retains ordinary std ownership and limits
+  the magic mount to core. Finish migrating fallback consumers to ordinary
+  dependency edges and exact source-byte catalog roles or accepted semantic
+  bindings; directory relabeling grants no authority. Reuse the
+  [existing roles](omega-rust/omega/package-manager/compilation-inputs/semantic_bindings.md)
+  for Console, host services and target-correct physical entries.
 
-  The migration is 131 directories. 127 carry no `build.omg` at all and
-  compile standalone straight into the fallback -- 91 `fail`, 23 `pass`, one
-  `run` and 12 samples -- so each needs a build declaration before it can
-  carry an ordinary edge. The other four have a `build.omg` with no `depend`:
-  `fail/build/build_effects_undeclared`,
-  `fail/build/uefi_program_entry_wrong_calling_policy`,
-  `fail/build/build_machine_wrong_arity`, and `source/library/std` itself.
-  Migrate remaining corpus/member imports and package roots, including
-  bundled proof, host/objc, fail and run consumers, through ordinary
-  dependency edges and target-correct Console, Filesystem and physical-entry
-  bindings. Keep freestanding roots dependency-free. The existing narrow
-  roles, including macOS x64 entry, are documented
-  [beside package compilation](omega-rust/omega/compiler/package-compilation/semantic_bindings.md).
-  Route exposed composed-call, ownership, entry and proof failures to their
-  capability owners, retaining each customer's intended checking/execution
-  acceptance; unrelated blocked features do not stop independent migrations.
-  Private core proof declarations remain private: obtain an authorized proof
-  route with PROOF-CONTRACT-MIGRATION/PROOF-KERNEL-CORE, not a per-fixture
-  visibility exception.
+  Prioritize executable host/objc and
+  `run/nested_mut_alias_assignment_return` customers, then proof/fail
+  consumers and nested member imports such as the interrupt/secondary-processor
+  canaries' std calling contracts. Preserve intended execution and diagnostics,
+  including malformed build fixtures. Build and product imports require their
+  respective edges. Route exposed call, ownership, entry and proof failures to
+  their capability owners without blocking independent migrations.
+  **UEFI-PHYSICAL-SEMANTIC-ENTRY** owns the wrong-policy canary's earlier
+  duplicate-schema rejection. Private core proofs stay private;
+  **PROOF-CONTRACT-MIGRATION** and **PROOF-KERNEL-CORE** own the authorized
+  proof route.
 
-  Acceptance: removing a dependency rejects its imports/provider selections;
-  aliases, paths, names and same-spelled substitutes confer no authority.
-  Rejoin exact package, declaration, schema and any role-required selected
-  plan; stale/substituted bindings reject independently of lock replay.
-  `repository_build_declarations.rs`'s sample check now handles a workspace
-  root and its members and skips registered submodules, so it passes again;
-  its 131-directory backlog is invisible to it, because a directory with no
-  `build.omg` is never collected as a root. `samples/apps/squalr` is why the
-  skip exists: all seventeen member declarations spell hyphenated package
-  identities that Omega's snake_case rule refuses, and this checkout must not
-  edit that submodule. Its sibling
-  `omega_cases_declare_a_standard_library_edge_exactly_when_they_use_it`
-  still fails, on the opposite error --
-  `tests/omega/pass/providers/boundary_scalar_field_store` declares a
-  standard-library edge it never uses. Extend those recursive member/import
-  checks further as fixtures migrate and preserve the missing-edge/alias controls in
-  `standard_library_package_resolution.rs`. Early missing-import rejection
-  is sufficient; do not weaken assembly to manufacture a second diagnostic
-  for a provider selection whose import already failed.
+  Replace the build-file census with an inventory of actual library use.
+  `repository_build_declarations.rs` collects only roots with `build.omg`;
+  its pass/run std-edge check scans member text for one alias, omits build
+  sources and never visits fail-tier imports. Extend coverage to those
+  consumers and imports below member directories; respect registered submodule
+  ownership. Preserve valid dependency-free/default-build roots: a missing
+  build file alone is not migration debt, and std's own ordinary package
+  does not need a dependency on itself.
+
+  Acceptance: remaining consumers retain their intended check, rejection or
+  execution outcome after broad fallback removal. Removing an edge rejects its
+  imports/provider selections; aliases, paths, names and same-spelled substitutes
+  confer no authority. Rejoin exact package, declaration, schema and role-required
+  selected plan; stale/substituted bindings reject independently of lock replay.
+  Preserve `standard_library_package_resolution.rs`'s missing-edge and alias
+  controls. Early import rejection suffices; do not weaken assembly to obtain
+  a second provider diagnostic. Std remains replaceable, splittable or absent.
 
 - **COMPONENT-SUBSTRATE.** Deliver independently selected component products
   and their admission/replacement closure under the
