@@ -1,9 +1,9 @@
 //! Bind the request's package and root staging scope before build admission.
 
 use crate::BuildMachineFilesystemScope;
+use crate::PackageCompilationInputs;
 use build_time_evaluation::BuildMachineFilesystemSponsor;
 use diagnostics::Diagnostic;
-use package_compilation::PackageCompilationInputs;
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -143,26 +143,22 @@ pub fn prepare_filesystem_scope(
                         "a package-inventory build snapshot requires compiler-validated canonical Source metadata",
                     )]);
                 }
-                package_compilation::capture_package_source_input(&source_root).map_err(
-                    |reason| {
-                        vec![Diagnostic::error(format!(
-                            "could not capture the build source snapshot: {reason}"
-                        ))]
-                    },
-                )?
-            }
-            crate::BuildSnapshotCapture::Scoped(request) => {
-                package_compilation::capture_scoped_source_input(
-                    &source_root,
-                    request,
-                    required_sources.files().map(|file| file.path.clone()),
-                )
-                .map_err(|reason| {
+                crate::capture_package_source_input(&source_root).map_err(|reason| {
                     vec![Diagnostic::error(format!(
                         "could not capture the build source snapshot: {reason}"
                     ))]
                 })?
             }
+            crate::BuildSnapshotCapture::Scoped(request) => crate::capture_scoped_source_input(
+                &source_root,
+                request,
+                required_sources.files().map(|file| file.path.clone()),
+            )
+            .map_err(|reason| {
+                vec![Diagnostic::error(format!(
+                    "could not capture the build source snapshot: {reason}"
+                ))]
+            })?,
         };
         // The snapshot backing lives under a private parent the occurrence
         // alone can traverse: create-exclusive 0o700 custody mirrors
@@ -205,12 +201,11 @@ pub fn prepare_filesystem_scope(
             // package. Compare exact captured entries against that package's
             // authenticated full capture rather than dropping provenance or
             // treating matching path kinds/lengths as matching source bytes.
-            let complete = package_compilation::capture_package_source_input(&source_root)
-                .map_err(|reason| {
-                    vec![Diagnostic::error(format!(
-                        "could not validate the scoped package source snapshot: {reason}"
-                    ))]
-                })?;
+            let complete = crate::capture_package_source_input(&source_root).map_err(|reason| {
+                vec![Diagnostic::error(format!(
+                    "could not validate the scoped package source snapshot: {reason}"
+                ))]
+            })?;
             build_machine_filesystem_scope.with_scoped_package_source_input(
                 captured_input,
                 &complete,
@@ -231,8 +226,8 @@ mod tests {
     use super::{
         AtomicU64, BuildMachineFilesystemSponsor, Ordering, Path, prepare_filesystem_scope,
     };
+    use crate::BuildSourceCaptureObligation;
     use build_time_evaluation::BuildMachineFilesystemAccess;
-    use package_compilation::BuildSourceCaptureObligation;
     use std::path::PathBuf;
 
     static NEXT_TEST_ROOT: AtomicU64 = AtomicU64::new(0);
@@ -286,7 +281,7 @@ mod tests {
     fn scoped_snapshot_request() -> crate::BuildSnapshotRequest {
         crate::BuildSnapshotRequest::scoped(
             Vec::<Vec<u8>>::new(),
-            package_compilation::BuildSourceCaptureRequest::new([(
+            crate::BuildSourceCaptureRequest::new([(
                 b"main.omg".to_vec(),
                 BuildSourceCaptureObligation::Required,
             )])

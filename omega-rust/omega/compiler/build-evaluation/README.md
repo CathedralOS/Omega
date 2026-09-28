@@ -1,9 +1,16 @@
 # Build evaluation
 
 `src/lib.rs` admits and executes one selected companion build machine. Its
-configuration, declarations, target/root selection, optimization, observation,
-and output custody modules own their respective results and checks. The admitted
+configuration, declarations, target/root selection, and optimization
+modules own their respective results and checks. The admitted
 machine executes once against its selected filesystem.
+
+Filesystem preparation, captured-input lifetime, observation identities and
+sealed-output settlement belong to
+[package compilation custody](../../package-manager/compilation-inputs/src/build_execution.rs).
+The evaluator captures the interpreter observations, validates the returned
+Build configuration, then asks that owner to settle outputs and select generated
+sources. It does not assemble durable filesystem evidence itself.
 
 Target-declaration preparation, provider-selection decoding and settlement belong to
 [provider planning](../../realization/provider-planning/README.md), not this

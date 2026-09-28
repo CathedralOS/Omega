@@ -1,0 +1,121 @@
+//! Custody of one build execution: project interpreter observations, then
+//! settle sealed outputs before publishing evidence or generated source.
+//!
+//! Capture precedes Build-value validation; settlement follows it. Keeping
+//! these two operations separate preserves diagnostic order without exposing
+//! partially settled observation records to the compiler.
+
+mod filesystem_scope;
+mod observation_identity;
+mod observation_projection;
+mod observations;
+mod output_custody;
+mod snapshot_request;
+
+pub use filesystem_scope::preparation::prepare_filesystem_scope;
+pub use filesystem_scope::{
+    BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildMachineFilesystemScope,
+    CapturedSnapshotRelease,
+};
+pub use observation_identity::BuildObservationIdentity;
+pub use observations::*;
+pub use snapshot_request::{BuildSnapshotCapture, BuildSnapshotRequest};
+
+use checked_interpreter::{BuildOutputObligation, BuildOutputReceipt, EvaluationObservations};
+use diagnostics::Diagnostic;
+
+/// Interpreter observations whose output obligations have not yet settled.
+/// Only successful settlement publishes a durable observation summary.
+pub struct CapturedBuildObservations<'scope> {
+    scope: &'scope BuildMachineFilesystemScope,
+    filesystem_host_observed: bool,
+    filesystem_operation_schema_version: u32,
+    filesystem_operation_attempts: Vec<BuildFilesystemOperationAttempt>,
+    included_source_handoffs: Vec<BuildIncludedSourceHandoff>,
+    output_obligations: Vec<BuildOutputObligation>,
+    output_receipts: Vec<BuildOutputReceipt>,
+    build_log: Vec<u8>,
+}
+
+impl<'scope> CapturedBuildObservations<'scope> {
+    /// Rejoin interpreter root identities and generated-source handoffs to
+    /// this activation's admitted filesystem custody.
+    pub fn capture(
+        observations: &EvaluationObservations,
+        scope: &'scope BuildMachineFilesystemScope,
+        machine_name: &str,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let filesystem_operation_attempts =
+            observation_projection::project_filesystem_operation_attempts(
+                observations,
+                scope,
+                machine_name,
+            )?;
+        let included_source_handoffs = observation_projection::project_included_source_handoffs(
+            observations,
+            filesystem_operation_attempts.len(),
+            machine_name,
+        )?;
+        Ok(Self {
+            scope,
+            filesystem_host_observed: observations.filesystem_host_observed(),
+            filesystem_operation_schema_version: observations.filesystem_operation_schema_version(),
+            filesystem_operation_attempts,
+            included_source_handoffs,
+            output_obligations: observations.build_output_obligations().to_vec(),
+            output_receipts: observations.build_output_receipts().to_vec(),
+            build_log: observations.build_log().to_vec(),
+        })
+    }
+
+    /// Capture staged outputs, reject unadmitted host observations, then
+    /// discharge both caller-required and authored output obligations.
+    pub fn settle(
+        self,
+        filesystem_reachable: bool,
+        machine_name: &str,
+    ) -> Result<BuildObservationSummary, Vec<Diagnostic>> {
+        let scope = self.scope;
+        let staged_output_tree = scope.staged_output_tree(filesystem_reachable)?;
+        if self.filesystem_host_observed && !filesystem_reachable {
+            return Err(vec![Diagnostic::error(format!(
+                "build-time evaluation of `{machine_name}` observed filesystem host state without admitted filesystem reach"
+            ))]);
+        }
+        scope.verify_required_outputs(staged_output_tree.as_ref(), machine_name)?;
+        let required_output_settlements = output_custody::settle_build_output_obligations(
+            &self.output_obligations,
+            &self.output_receipts,
+            staged_output_tree.as_ref(),
+            machine_name,
+        )?;
+        Ok(BuildObservationSummary {
+            schema_version: BUILD_OBSERVATION_SCHEMA_VERSION,
+            filesystem_host_observed: self.filesystem_host_observed,
+            filesystem_operation_schema_version: self.filesystem_operation_schema_version,
+            filesystem_operation_attempts: self.filesystem_operation_attempts,
+            canonical_source_metadata_identity: scope.canonical_source_metadata_identity(),
+            activation: scope.activation(),
+            captured_source_inventory: scope.captured_source_inventory(),
+            named_input_inventories: scope.named_input_inventories(),
+            included_source_handoffs: self.included_source_handoffs,
+            required_output_settlements,
+            staged_output_tree,
+            build_log: self.build_log,
+        })
+    }
+}
+
+impl BuildObservationSummary {
+    /// Select only source handoffs sealed by this settled execution.
+    pub fn select_generated_sources(
+        &self,
+        machine_name: &str,
+    ) -> Result<Vec<build_output::PackageGeneratedSource>, Vec<Diagnostic>> {
+        output_custody::select_generated_sources(
+            self.staged_output_tree.as_ref(),
+            &self.included_source_handoffs,
+            machine_name,
+        )
+    }
+}

@@ -50,15 +50,15 @@
 //! program and assembles its checked result. `admission/` owns what the build
 //! program declares and selects (entry selection, vocabulary, grants,
 //! wire protocol, behavior exclusions, configuration), and
-//! `evidence/` owns the evaluation evidence execution consults (observations
-//! and their identity, filesystem scope and output custody).
+//! package compilation's `build_execution` owner retains filesystem scope,
+//! observation identities and output custody. Execution captures interpreter
+//! observations and requests settlement; it cannot construct the summary fields.
 //! `optimization` owns exact optimization selection admission. Provider planning
 //! including target declarations, selection decoding and settlement belongs to
 //! the independent `provider-planning` realization owner.
 
 mod admission;
 mod admitted_build_program;
-mod evidence;
 mod execution;
 mod optimization;
 pub mod sources;
@@ -84,26 +84,23 @@ pub use admission::selection::{
 pub use admission::vocabulary::is_build_machine;
 pub use admitted_build_program::{
     AdmittedBuildAuthorityVerdict, AdmittedBuildProgram, AdmittedBuildProgramDisposition,
-    BuildSnapshotCapture, BuildSnapshotRequest, ComputedBuildConfig, RestrictedBuildBounds,
-    RestrictedBuildGrant, RestrictedBuildGrantRoot, RestrictedBuildOperation,
-    RestrictedBuildRequest, admit_build_program,
+    ComputedBuildConfig, RestrictedBuildBounds, RestrictedBuildGrant, RestrictedBuildGrantRoot,
+    RestrictedBuildOperation, RestrictedBuildRequest, admit_build_program,
 };
 pub use build_output::BuildStagedOutputEntryKind;
 pub use effects::AuthoredBehaviorExclusion;
-pub use evidence::filesystem_scope::preparation::prepare_filesystem_scope;
-pub use evidence::filesystem_scope::{
-    BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildMachineFilesystemScope,
-};
-pub use evidence::observation_identity::BuildObservationIdentity;
-pub use evidence::observations::{
-    BUILD_OBSERVATION_SCHEMA_VERSION, BuildActivation, BuildCanonicalSourceMetadataIdentity,
-    BuildCapturedSourceInventory, BuildEvaluationUsage, BuildFilesystemAuthorizedPath,
-    BuildFilesystemGrantAccess, BuildFilesystemGrantRefusal, BuildFilesystemGrantRefusalReason,
+pub use execution::execute_admitted_build_program;
+pub use package_compilation::build_execution::{
+    BUILD_OBSERVATION_SCHEMA_VERSION, BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY,
+    BuildActivation, BuildCanonicalSourceMetadataIdentity, BuildCapturedSourceInventory,
+    BuildEvaluationUsage, BuildFilesystemAuthorizedPath, BuildFilesystemGrantAccess,
+    BuildFilesystemGrantRefusal, BuildFilesystemGrantRefusalReason,
     BuildFilesystemLogicalHandleIdentity, BuildFilesystemLogicalHandleInput,
     BuildFilesystemLogicalHandleInputResolution, BuildFilesystemLogicalHandleKind,
     BuildFilesystemLogicalHandleOutput, BuildFilesystemLogicalHandleOutputSource,
     BuildFilesystemOperationAttempt, BuildFilesystemOperationResult, BuildFilesystemProvider,
-    BuildFilesystemRoot, BuildIncludedSourceHandoff, BuildNamedInputInventory,
-    BuildObservationSummary, BuildRequiredOutputSettlement,
+    BuildFilesystemRoot, BuildIncludedSourceHandoff, BuildMachineFilesystemScope,
+    BuildNamedInputInventory, BuildObservationIdentity, BuildObservationSummary,
+    BuildRequiredOutputSettlement, BuildSnapshotCapture, BuildSnapshotRequest,
+    prepare_filesystem_scope,
 };
-pub use execution::execute_admitted_build_program;
