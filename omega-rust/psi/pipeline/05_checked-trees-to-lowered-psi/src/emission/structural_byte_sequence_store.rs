@@ -181,8 +181,13 @@ pub(crate) fn prepare_types(
     types: &mut Vec<StructuralTypeDeclaration>,
 ) -> Result<(), LoweringError> {
     literal_view_type(types)?;
-    for (_, node) in store.value.nodes.iter() {
-        if let ByteValue::Concatenation { capacity, .. } = node {
+    for (identity, node) in store.value.nodes.iter() {
+        let capacity = match node {
+            ByteValue::Concatenation { capacity, .. } => Some(capacity),
+            ByteValue::Field { capacity, .. } if identity == store.value.root => Some(capacity),
+            _ => None,
+        };
+        if let Some(capacity) = capacity {
             let identity = format!("compiler(byte-sequence-owned:{capacity})");
             let shape = StructuralTypeShape::ByteSequence(
                 terminal_psi::ByteSequenceCarrier::BoundedOwned {
@@ -317,7 +322,7 @@ pub(crate) fn emit(
             Some((path, field.id))
         }
     };
-    let (operand, _) = ValueEmitter {
+    let mut emitter = ValueEmitter {
         plan: &store.value,
         parameters,
         structural_types,
@@ -326,10 +331,18 @@ pub(crate) fn emit(
         next_value,
         next_obligation,
         operations,
-    }
-    .emit(store.value.root, 0)?;
-    let ByteSequenceOperand::Whole { source, length } = operand else {
-        return unsupported("whole field replacement requires a materialized byte value");
+    };
+    let (operand, capacity) = emitter.emit(store.value.root, 0)?;
+    let (source, length) = match operand {
+        ByteSequenceOperand::Whole { source, length } => (source, length),
+        field @ ByteSequenceOperand::Field { .. } => {
+            // A mutable field cannot back an immutable store source. The
+            // existing two-span materialization with an empty second span
+            // snapshots its live bytes into fresh owned backing before any
+            // destination write, including a write through an alias.
+            let (empty, _) = emitter.literal(&[])?;
+            emitter.owned(field, empty, capacity)?
+        }
     };
     let obligation = obligation_id(allocate_dense(next_obligation)?);
     match field_destination {
@@ -388,6 +401,88 @@ impl ValueEmitter<'_> {
         Ok(length)
     }
 
+    fn literal(&mut self, bytes: &[u8]) -> Result<(ByteSequenceOperand, u64), LoweringError> {
+        let structural_type = existing_literal_view_type(self.structural_types)?;
+        let source = place_id(allocate_dense(self.next_place)?);
+        let declaration_ordinal = super::next_byte_sequence_literal_ordinal(self.places)?;
+        self.places.push(StructuralPlaceDeclaration {
+            id: source,
+            kind: StructuralPlaceKind::ByteSequenceLiteral {
+                declaration_ordinal,
+                structural_type,
+            },
+        });
+        let id = self.operations.allocate();
+        self.operations.push(Operation {
+            id,
+            static_reach_binding: None,
+            suspension_crossing: None,
+            result: OperationResult::Unit,
+            kind: OperationKind::EstablishByteSequenceLiteral {
+                destination: source,
+                bytes: bytes.to_vec(),
+                qualifications: Vec::new(),
+            },
+        });
+        let capacity = u64::try_from(bytes.len())
+            .map_err(|_| LoweringError::Unsupported("byte literal length overflow"))?;
+        let length = self.length(OperationKind::ByteSequenceLength { source })?;
+        Ok((ByteSequenceOperand::Whole { source, length }, capacity))
+    }
+
+    fn owned(
+        &mut self,
+        left: ByteSequenceOperand,
+        right: ByteSequenceOperand,
+        capacity: u64,
+    ) -> Result<(semantic_vocabulary::PlaceId, semantic_vocabulary::ValueId), LoweringError> {
+        let identity = format!("compiler(byte-sequence-owned:{capacity})");
+        let structural_type = self
+            .structural_types
+            .iter()
+            .find(|candidate| {
+                candidate.identity == identity
+                    && candidate.shape
+                        == StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
+                        )
+            })
+            .ok_or(LoweringError::Unsupported(
+                "owned byte carrier absent from shared catalog",
+            ))?
+            .id;
+        let source = place_id(allocate_dense(self.next_place)?);
+        let id = self.operations.allocate();
+        self.places.push(StructuralPlaceDeclaration {
+            id: source,
+            kind: StructuralPlaceKind::OperationResult {
+                producer: id,
+                structural_type,
+            },
+        });
+        self.operations.push(Operation {
+            id,
+            static_reach_binding: None,
+            suspension_crossing: None,
+            result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                place: source,
+                structural_type,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                qualification_establishments: Vec::new(),
+                claims: Vec::new(),
+            }),
+            kind: OperationKind::EstablishByteSequenceConcatenation {
+                left,
+                right,
+                capacity_obligation: obligation_id(allocate_dense(self.next_obligation)?),
+            },
+        });
+        let length = self.length(OperationKind::ByteSequenceLength { source })?;
+        Ok((source, length))
+    }
+
     fn emit(
         &mut self,
         node: arena::Handle<ByteValue>,
@@ -397,34 +492,7 @@ impl ValueEmitter<'_> {
             return unsupported("byte value plan has an invalid child");
         }
         match self.plan.nodes.get(node) {
-            ByteValue::Literal(bytes) => {
-                let structural_type = existing_literal_view_type(self.structural_types)?;
-                let source = place_id(allocate_dense(self.next_place)?);
-                let declaration_ordinal = super::next_byte_sequence_literal_ordinal(self.places)?;
-                self.places.push(StructuralPlaceDeclaration {
-                    id: source,
-                    kind: StructuralPlaceKind::ByteSequenceLiteral {
-                        declaration_ordinal,
-                        structural_type,
-                    },
-                });
-                let id = self.operations.allocate();
-                self.operations.push(Operation {
-                    id,
-                    static_reach_binding: None,
-                    suspension_crossing: None,
-                    result: OperationResult::Unit,
-                    kind: OperationKind::EstablishByteSequenceLiteral {
-                        destination: source,
-                        bytes: bytes.clone(),
-                        qualifications: Vec::new(),
-                    },
-                });
-                let capacity = u64::try_from(bytes.len())
-                    .map_err(|_| LoweringError::Unsupported("byte literal length overflow"))?;
-                let length = self.length(OperationKind::ByteSequenceLength { source })?;
-                Ok((ByteSequenceOperand::Whole { source, length }, capacity))
-            }
+            ByteValue::Literal(bytes) => self.literal(bytes),
             ByteValue::Field {
                 parameter_position,
                 carrier_path,
@@ -493,52 +561,7 @@ impl ValueEmitter<'_> {
                         "byte concatenation capacity differs from operand carriers",
                     );
                 }
-                let identity = format!("compiler(byte-sequence-owned:{capacity})");
-                let structural_type = self
-                    .structural_types
-                    .iter()
-                    .find(|candidate| {
-                        candidate.identity == identity
-                            && candidate.shape
-                                == StructuralTypeShape::ByteSequence(
-                                    terminal_psi::ByteSequenceCarrier::BoundedOwned {
-                                        capacity: *capacity,
-                                    },
-                                )
-                    })
-                    .ok_or(LoweringError::Unsupported(
-                        "owned byte carrier absent from shared catalog",
-                    ))?
-                    .id;
-                let source = place_id(allocate_dense(self.next_place)?);
-                let id = self.operations.allocate();
-                self.places.push(StructuralPlaceDeclaration {
-                    id: source,
-                    kind: StructuralPlaceKind::OperationResult {
-                        producer: id,
-                        structural_type,
-                    },
-                });
-                self.operations.push(Operation {
-                    id,
-                    static_reach_binding: None,
-                    suspension_crossing: None,
-                    result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
-                        place: source,
-                        structural_type,
-                        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
-                        qualifications: Vec::new(),
-                        projected_qualifications: Vec::new(),
-                        qualification_establishments: Vec::new(),
-                        claims: Vec::new(),
-                    }),
-                    kind: OperationKind::EstablishByteSequenceConcatenation {
-                        left,
-                        right,
-                        capacity_obligation: obligation_id(allocate_dense(self.next_obligation)?),
-                    },
-                });
-                let length = self.length(OperationKind::ByteSequenceLength { source })?;
+                let (source, length) = self.owned(left, right, *capacity)?;
                 Ok((ByteSequenceOperand::Whole { source, length }, *capacity))
             }
         }
