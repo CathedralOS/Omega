@@ -994,8 +994,19 @@ pub(crate) fn target_contract_mentions_projected_parameter(
             | SignatureContractKind::Ensures
             | SignatureContractKind::EnsuresForResultCase { .. } => true,
         })
-        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
-        .any(|fact| {
+        .flat_map(|contract| {
+            program
+                .proof_facts
+                .span_or_empty(contract.facts)
+                .iter()
+                .map(move |fact| {
+                    (
+                        matches!(contract.kind, SignatureContractKind::Requires),
+                        fact,
+                    )
+                })
+        })
+        .any(|(requires, fact)| {
             let ProofFact::Membership(membership) = fact else {
                 return false;
             };
@@ -1006,8 +1017,13 @@ pub(crate) fn target_contract_mentions_projected_parameter(
                 membership.value,
             )
             .is_some_and(|place| {
-                place.root == facts::PlaceRoot::Symbol(expected_root)
-                    || place.root == facts::PlaceRoot::Symbol(parameter.symbol)
+                (place.root == facts::PlaceRoot::Symbol(expected_root)
+                    || place.root == facts::PlaceRoot::Symbol(parameter.symbol))
+                    && !(requires
+                        && place.segments.is_empty()
+                        && byte_parameter_qualification_carries_membership(
+                            program, parameter, membership,
+                        ))
             })
         });
     if authored_contract_mentions_parameter {
@@ -1045,6 +1061,57 @@ pub(crate) fn target_contract_mentions_projected_parameter(
                 })
             })
         })
+}
+
+/// A declared byte qualification also appears as a source requires fact. Its
+/// exact domain is already carried by the formal and independently checked by
+/// bounded-owner loan admission; it does not need a second projected-contract
+/// representation. Other memberships and all exit contracts still need theirs.
+fn byte_parameter_qualification_carries_membership(
+    program: &TypedTrees,
+    parameter: &StateParameter,
+    membership: &typed_trees::domain::ProofMembershipFact,
+) -> bool {
+    if !matches!(
+        byte_sequence_carrier(program, parameter.type_reference, &[]),
+        Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. })
+    ) || !membership.semantic_domain.is_valid()
+        || !membership.domain_arguments.is_empty()
+        || !program.domain_definitions().iter().any(|definition| {
+            definition.symbol == membership.domain_symbol
+                && definition.semantic_id == membership.semantic_domain
+        })
+        || typed_trees::byte_predicates::domain_byte_predicate(program, membership.domain_symbol)
+            .is_none()
+    {
+        return false;
+    }
+    let mut reference = parameter.type_reference;
+    loop {
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Reference { referee, .. } => reference = *referee,
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                if program
+                    .type_reference_table
+                    .constraints(*constraints)
+                    .iter()
+                    .any(|constraint| {
+                        matches!(constraint, typed_trees::types::TypeConstraintNode::Domain(domain)
+                        if domain.symbol == membership.domain_symbol
+                            && domain.semantic_id == membership.semantic_domain
+                            && domain.arguments.is_empty())
+                    })
+                {
+                    return true;
+                }
+                reference = *base_type;
+            }
+            _ => return false,
+        }
+    }
 }
 
 pub(crate) fn crash_expression_is_nonempty_member_path_from_parameter(
