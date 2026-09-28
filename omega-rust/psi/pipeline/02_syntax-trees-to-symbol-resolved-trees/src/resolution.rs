@@ -226,8 +226,8 @@ fn drive_recorded(
     constant::finalize_operator_obligations(&mut lowerer)?;
     selection::finalize(&mut lowerer)?;
     lowering::machine::reject_duplicate_direct_token_bindings(&lowerer.symbol_resolved_trees)?;
-    crate::symbols::target_siblings::bind_sibling_calls(&mut lowerer.symbol_resolved_trees);
     crate::symbols::target_machine_families::bind(&mut lowerer.symbol_resolved_trees);
+    crate::symbols::target_siblings::bind_sibling_calls(&mut lowerer.symbol_resolved_trees);
     let links = lowerer.equation_sources.take();
     Ok((lowerer.into_trees(), constant_selection, links))
 }

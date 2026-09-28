@@ -41,13 +41,25 @@ pub(crate) fn bind(program: &mut SymbolResolvedTrees) {
         // Admission retains every sibling but clears only the canonical
         // body's marker. Do not import Omega's target catalog to choose one
         // here. Unknown-only families remain inert.
-        if let Some(canonical) = family
-            .iter()
-            .map(|&member| &program.machines[member])
-            .find(|machine| machine.target.is_none())
-            .map(|machine| machine.symbol)
-        {
-            for &member in family {
+        // Equal spellings in distinct modules or packages are not one
+        // family. Resolve that association here once; sibling calls and
+        // typing consume the canonical symbol, not a second name search.
+        for &member in family {
+            let declaration = &program.machines[member];
+            let canonical = family
+                .iter()
+                .map(|&candidate| &program.machines[candidate])
+                .find(|candidate| {
+                    candidate.target.is_none()
+                        && program.symbols.symbol_module(candidate.symbol)
+                            == program.symbols.symbol_module(declaration.symbol)
+                        && program.symbols.same_source_package(
+                            candidate.name.source_span(),
+                            declaration.name.source_span(),
+                        )
+                })
+                .map(|machine| machine.symbol);
+            if let Some(canonical) = canonical {
                 program.machines[member].target_family = canonical;
             }
         }
