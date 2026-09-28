@@ -4,3 +4,4 @@
 //! `admitted_build_program.rs` is the route that consults them.
 
 pub(crate) mod configuration;
+pub(crate) mod declaration_authority;

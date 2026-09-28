@@ -1,10 +1,10 @@
 //! Build admission, execution, and checked result assembly.
 //!
-//! [`admit_build_program`] fixes the exact entry, target inputs, and authority
-//! before issuing an opaque [`AdmittedBuildProgram`]. Its consuming execution
-//! runs that checkpoint once, checks output custody, and assembles one
-//! [`ComputedBuildConfig`]. Selection and evidence operations live with their
-//! domain owners; this root retains the admission-to-result route.
+//! [`evaluate_build`] owns declaration admission, filesystem preparation,
+//! restricted-request consent, and execution. Its private admitted checkpoint
+//! binds the exact program and entry before effects. The returned [`EvaluatedBuild`]
+//! carries configuration, requested authority and source commitment together.
+//! Selection and evidence operations remain with their domain owners.
 //!
 //! Build configuration (wiki/spec/build/configuration.md):
 //! image facts come from `build.omg`'s augmenting machine, never from an
@@ -45,9 +45,9 @@
 //!   product declarations without executing them; target-default declarations
 //!   remain under their separate admitted target roster.
 //!
-//! Start at `admitted_build_program.rs`: the admission request, the
-//! admitted program and `admit_build_program`. `execution` runs an admitted
-//! program and assembles its checked result. `compilation_products` owns the
+//! Start at `build_evaluation.rs` for the complete activation protocol.
+//! `admitted_build_program.rs` fixes its private checkpoint; `execution` runs
+//! that checkpoint and assembles its checked result. `compilation_products` owns the
 //! retained Build records; admission and execution produce them without making
 //! downstream product custody depend on this evaluator.
 //! Trust grants, component assumptions and executed exclusions are checked by
@@ -66,19 +66,21 @@
 
 mod admission;
 mod admitted_build_program;
+mod build_evaluation;
 mod execution;
 #[cfg(test)]
 mod tests;
 
-pub use admitted_build_program::{
-    AdmittedBuildAuthorityVerdict, AdmittedBuildProgram, AdmittedBuildProgramDisposition,
-    admit_build_program,
+pub use admission::declaration_authority::preliminary_check_totals;
+use admitted_build_program::{AdmittedBuildProgram, admit_build_program};
+pub use build_evaluation::{
+    BuildEvaluationRequest, EvaluatedBuild, RestrictedBuildGrants, evaluate_build,
 };
 pub use build_output::BuildStagedOutputEntryKind;
 pub use build_time_evaluation::wire_compatibility::WireCompatibilityDemand;
 pub use compilation_products::{BuildConfig, ComputedBuildConfig};
 pub use effects::AuthoredBehaviorExclusion;
-pub use execution::execute_admitted_build_program;
+use execution::execute_admitted_build_program;
 pub use package_compilation::build_execution::{
     BUILD_OBSERVATION_SCHEMA_VERSION, BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY,
     BuildActivation, BuildCanonicalSourceMetadataIdentity, BuildCapturedSourceInventory,

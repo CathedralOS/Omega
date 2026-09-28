@@ -175,6 +175,7 @@ name = "build-evaluation"
 version = "0.1.0"
 dependencies = [
  "arena",
+ "artifacts",
  "build-declarations",
  "build-output",
  "build-time-evaluation",
@@ -183,7 +184,6 @@ dependencies = [
  "component-description",
  "diagnostics",
  "effects",
- "flow-effects",
  "language-core",
  "language-semantics",
  "layout-plans",
@@ -203,6 +203,7 @@ dependencies = [
  "tokens-to-syntax-trees",
  "trust-model",
  "typed-trees",
+ "typed-trees-to-checked-trees",
  "validation",
 ]
 

@@ -8,12 +8,11 @@
 //! continuation, direct calls into the Psi stages, execution
 //! settlement; `compilation_products` owns the sealed carrier and its projections.
 //! The checked product settles trust through the realization trust owner;
-//! `package` owns declaration admission.
+//! Build evaluation owns declaration admission before any Build effects.
 //! Checked-product selection executes in Psi stage 04. Exact-rule rollback
 //! settlement is owned by `optimization_core`.
 
 mod checking;
-mod package;
 
 pub(crate) use checking::CheckedChildExecution;
 pub(crate) use checking::build_continuation::{BuiltCheckedProgram, evaluate_build_and_continue};

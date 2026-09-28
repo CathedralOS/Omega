@@ -1,31 +1,12 @@
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
 
-/// Opaque proof that the exact pre-build package source closure passed the
-/// authored-declaration authority gate.
-///
-/// The retained commitment belongs to the base frontend before this
-/// activation appends any own generated source. Construction stays private so
-/// build orchestration cannot pair an authority verdict with a different
-/// source closure.
-pub(crate) struct AuthoredDeclarationAuthorityVerdict {
-    base_source_consumption_commitment: package_compilation::PackageSourceConsumptionCommitment,
-}
-
-impl AuthoredDeclarationAuthorityVerdict {
-    pub(crate) const fn base_source_consumption_commitment(
-        &self,
-    ) -> package_compilation::PackageSourceConsumptionCommitment {
-        self.base_source_consumption_commitment
-    }
-}
-
-pub(crate) fn validate_authored_declaration_selections_before_build(
+pub(crate) fn admit_authored_declarations(
     typed: &typed_trees::TypedTrees,
     packages: &PackageCompilationInputs,
     generated_source_custody: &[(source::SourceId, build_output::PackageGeneratedSource)],
     timings: &mut artifacts::compile_timings::CompileTimings,
-) -> Result<AuthoredDeclarationAuthorityVerdict, Vec<Diagnostic>> {
+) -> Result<package_compilation::PackageSourceConsumptionCommitment, Vec<Diagnostic>> {
     // Package build execution can carry filesystem and other boundary
     // authority. Check the frozen ordinary source graph first; the ordinary
     // final checked pass repeats this gate after any explicit generated-source
@@ -52,7 +33,7 @@ pub(crate) fn validate_authored_declaration_selections_before_build(
                 &typed_trees_to_checked_trees::CheckingRequest::preliminary()
                     .with_declaration_authority(Some(packages)),
             );
-            crate::checked::checking::record_preliminary_check(started.elapsed());
+            record_preliminary_check(started.elapsed());
             typed_trees_to_checked_trees::prune_target_siblings(result?)
         },
     )?;
@@ -61,7 +42,33 @@ pub(crate) fn validate_authored_declaration_selections_before_build(
         packages,
         generated_source_custody,
     )?;
-    Ok(AuthoredDeclarationAuthorityVerdict {
-        base_source_consumption_commitment: base.source_consumption_commitment(),
-    })
+    Ok(base.source_consumption_commitment())
+}
+
+static PRELIMINARY_CHECK_CALLS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static PRELIMINARY_CHECK_MICROS: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(0);
+
+/// Monotonic `(calls, wall microseconds)` totals of the pre-build
+/// declaration-authority checks `lower_typed_trees` served. A call served
+/// from the exact-input check memo returns in microseconds while a fresh
+/// check of a package graph takes seconds, so a review pass whose
+/// preliminary total stays near zero while its call count rises was already
+/// deduplicated, and the microseconds that remain name the residual
+/// preliminary-versus-settled duplication inside each compile.
+#[doc(hidden)]
+pub fn preliminary_check_totals() -> (u64, u64) {
+    (
+        PRELIMINARY_CHECK_CALLS.load(std::sync::atomic::Ordering::Relaxed),
+        PRELIMINARY_CHECK_MICROS.load(std::sync::atomic::Ordering::Relaxed),
+    )
+}
+
+/// Account one pre-build declaration-authority check's wall time.
+fn record_preliminary_check(elapsed: std::time::Duration) {
+    PRELIMINARY_CHECK_CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    PRELIMINARY_CHECK_MICROS.fetch_add(
+        u64::try_from(elapsed.as_micros()).unwrap_or(u64::MAX),
+        std::sync::atomic::Ordering::Relaxed,
+    );
 }

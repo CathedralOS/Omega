@@ -49,7 +49,7 @@ Existing sets are checked against retained bytes, not trusted by directory name.
 Scratch never publishes, and a failed compilation returns no successful set. See
 [scoped build inputs](../../../wiki/spec/build/scoped_execution.md#inputs-and-default-filesystem).
 The [checked entrance](src/checked/checking.rs) shows the lifecycle:
-[admit and execute the build, then continue generated source](src/checked/checking/build_continuation.rs),
+[evaluate Build and continue generated source](src/checked/checking/build_continuation.rs),
 [check selected execution](src/checked/checking/execution_settlement.rs),
 then [seal the result against current source custody](../realization/compilation-products/src/checked_compilation.rs).
 The product owner retains the complete checked result, its evaluated Build and
@@ -59,7 +59,13 @@ they do not import the evaluator or coordinator. Compilation still visibly
 schedules the stages and supplies their complete results to sealing.
 The continuation calls resolution and typing directly, including generated-source
 extension, with timing around those actual calls rather than another transition
-module. The package gate likewise shows its preliminary check and sibling pruning.
+module. The existing [Build evaluator](build-evaluation/src/build_evaluation.rs)
+owns the complete pre-effect admission/consent/execution protocol and returns
+configuration, restricted requests and the admitted source commitment together.
+Its private declaration-admission operation still uses the preliminary Psi
+checked pass; eliminating that duplicate semantic work is separate from moving
+the protocol out of the coordinator. There is no compiler-private package gate
+or public raw Build checkpoint that can bypass the evaluation protocol.
 Checked-product selection belongs to
 [Psi stage 04](../../psi/pipeline/04_typed-trees-to-checked-trees/src/product_pruning/mod.rs):
 the coordinator supplies the requested roots after rollback; the stage owns the

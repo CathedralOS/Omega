@@ -9,6 +9,8 @@ name = "build_evaluation"
 path = "src/lib.rs"
 
 [dependencies]
+artifacts = { path = "../../foundation/artifacts" }
+typed-trees-to-checked-trees = { path = "../../../psi/pipeline/04_typed-trees-to-checked-trees" }
 compilation-products = { path = "../../realization/compilation-products" }
 arena = { path = "../../../psi/foundation/arena" }
 language-core = { path = "../../../psi/foundation/language-core" }
@@ -24,7 +26,6 @@ trust-model = { path = "../../realization/trust-model" }
 build-time-evaluation = { path = "../../../psi/interpreter/build-time-evaluation" }
 checked-interpreter = { path = "../../../psi/interpreter/checked-interpreter" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
-flow-effects = { path = "../../../psi/foundation/flow-effects" }
 language-semantics = { path = "../../../psi/foundation/language-semantics" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 terminal-psi = { path = "../../../psi/representations/terminal-psi" }
