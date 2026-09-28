@@ -71,11 +71,8 @@ fn lower_callback_thunk(
             ),
         )
         .map_err(|error| realization_error("callback thunk target lowering", error))?;
-    let physical = crate::native::stage_optimized_verified_physical_pipeline(
-        optimized_target,
-        request.optimization_selections,
-    )
-    .map_err(|error| realization_error("callback thunk physical pipeline", error))?;
+    let physical = crate::native::stage_optimized_verified_physical_pipeline(optimized_target)
+        .map_err(|error| realization_error("callback thunk physical pipeline", error))?;
     let emitted = machine_emission::stage_optimized_function_fragment_emission(physical)
         .map_err(|error| realization_error("callback thunk fragment emission", error))?;
     let applied = machine_emission::stage_function_fragment_frame_application(emitted)

@@ -26,7 +26,8 @@
 #[cfg(any(test, feature = "test-support"))]
 use optimization_core::ExternalDecisionLog;
 use optimization_core::{
-    OptimizationSelections, OptimizationWorkBudget, PsiOptimizationSelectionProjection,
+    OptimizationExecutionPhase, OptimizationSelections, OptimizationWorkBudget,
+    PsiOptimizationSelectionProjection,
 };
 use terminal_psi_to_abstract_operations::{
     VerifiedPsiOptimizationInput, VerifiedPsiOptimizationUnit,
@@ -49,6 +50,7 @@ use crate::rules::registry::OrderedRuleRegistry;
 
 #[derive(Debug)]
 pub enum AbstractOptimizationError {
+    UnconsumedOptimizationPhase(OptimizationExecutionPhase),
     UnitBuild(VerifiedPsiOptimizationUnitBuildError),
     Run(OptimizationRunError),
     Publication(OptimizedAbstractProjectionError),
@@ -70,6 +72,14 @@ pub fn optimize_abstract_operations(
     psi_selections: &PsiOptimizationSelectionProjection,
     budget_per_pass: OptimizationWorkBudget,
 ) -> Result<ValidatedOptimizedAbstractPlan, AbstractOptimizationError> {
+    // The legacy Psi rule catalog executes here; the distinct abstract phase
+    // has no executor yet. Direct callers must not silently skip selected work.
+    let phase = OptimizationExecutionPhase::AbstractOperations;
+    if !selections.for_phase(phase).is_empty() {
+        return Err(AbstractOptimizationError::UnconsumedOptimizationPhase(
+            phase,
+        ));
+    }
     let verified = build_verified_psi_optimization_unit(
         input,
         terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),

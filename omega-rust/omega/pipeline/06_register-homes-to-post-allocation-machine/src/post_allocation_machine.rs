@@ -2,6 +2,8 @@
 //!
 //! Allocation replay supplies the same postcondition after every rewrite.
 //! Machine analysis consumes only current facts and retains allocation evidence separately.
+//! Analysis does not execute selected post-allocation rewrites. Both production
+//! and custody replay refuse those selections until this stage implements them.
 //! This file owns the sealed plan and its custody receipt; `validation` replays
 //! the custody join against the same allocation evidence.
 
@@ -12,6 +14,7 @@ pub use validation::validate_optimized_post_allocation_machine_plan_custody;
 use crate::PostAllocationMachineError;
 use crate::ValidatedPostAllocationMachinePlan;
 use crate::plan::analyze_post_allocation_machine_plan;
+use optimization_core::OptimizationExecutionPhase;
 use physical_instructions::PostAllocationMachineIdentity;
 use selected_instructions_to_register_homes::AllocationReplayError;
 use selected_instructions_to_register_homes::MachineEffectStageError;
@@ -26,6 +29,12 @@ pub fn stage_optimized_post_allocation_machine_plan(
     let allocation = source
         .replay_allocation()
         .map_err(OptimizedPostAllocationMachinePipelineError::Allocation)?;
+    let phase = OptimizationExecutionPhase::PostAllocationMachine;
+    if !allocation.selections().for_phase(phase).is_empty() {
+        return Err(
+            OptimizedPostAllocationMachinePipelineError::UnconsumedOptimizationPhase(phase),
+        );
+    }
     let selected = allocation.selected();
     let environment = allocation.register_environment();
     let effects = analyze_machine_effects(selected, environment)
@@ -138,6 +147,7 @@ impl StagedOptimizedPostAllocationMachineCustodyReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedPostAllocationMachinePipelineError {
+    UnconsumedOptimizationPhase(OptimizationExecutionPhase),
     Allocation(AllocationReplayError),
     MachineEffects(MachineEffectStageError),
     PostAllocation(PostAllocationMachineError),

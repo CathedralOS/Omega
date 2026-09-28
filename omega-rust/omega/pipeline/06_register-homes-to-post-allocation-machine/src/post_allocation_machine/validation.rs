@@ -4,6 +4,7 @@ use super::{
     post_allocation_machine_custody,
 };
 use crate::validate_post_allocation_machine_plan;
+use optimization_core::OptimizationExecutionPhase;
 use selected_instructions_to_register_homes::AllocationSource;
 use selected_instructions_to_register_homes::validate_machine_effects;
 
@@ -17,6 +18,12 @@ pub fn validate_optimized_post_allocation_machine_plan_custody(
     let allocation = source
         .replay_allocation()
         .map_err(OptimizedPostAllocationMachinePipelineError::Allocation)?;
+    let phase = OptimizationExecutionPhase::PostAllocationMachine;
+    if !allocation.selections().for_phase(phase).is_empty() {
+        return Err(
+            OptimizedPostAllocationMachinePipelineError::UnconsumedOptimizationPhase(phase),
+        );
+    }
     let selected = allocation.selected();
     let environment = allocation.register_environment();
     validate_machine_effects(selected, environment, staged.effects())

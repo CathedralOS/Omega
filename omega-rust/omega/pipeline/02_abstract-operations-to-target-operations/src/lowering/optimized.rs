@@ -1,4 +1,5 @@
 use abstract_operations_to_abstract_operations::ValidatedOptimizedAbstractPlan;
+use optimization_core::OptimizationExecutionPhase;
 use std::sync::Arc;
 use target::NativeTarget;
 use target_operations::TargetOperationPlan;
@@ -60,6 +61,11 @@ fn lower_validated_abstract_to_target_operations(
     installation: Option<AdmittedProviderInstallation>,
     native_callbacks: &[crate::AdmittedNativeCallbackArgument],
 ) -> Result<ValidatedOptimizedTargetOperations, LoweringError> {
+    // Translation is implemented; selected target-operation rewrites are not.
+    let phase = OptimizationExecutionPhase::TargetOperations;
+    if !optimized.selections().for_phase(phase).is_empty() {
+        return Err(LoweringError::UnconsumedOptimizationPhase(phase));
+    }
     let installed = installation
         .as_ref()
         .map(|value| value as &dyn installation_evidence::ProviderInstallationEvidence);
