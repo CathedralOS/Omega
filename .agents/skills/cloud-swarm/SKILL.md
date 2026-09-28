@@ -637,7 +637,11 @@ per-wave counter is how four sessions once all answered to the same number.
 - Keep `tools/swarm/waves/wave-N.outcomes.json` append-only: each settle adds
   {name, item, board, session_id, devin_mode, result, item_closed, commits,
   notes, recorded_utc}. Verify `git merge-base --is-ancestor <sha> origin/main`
-  for every reported commit before recording `landed`.
+  for every reported commit before recording `landed`. The wave report leads
+  with `native_scoreboard` — `python3 tools/corpus_scoreboard.py --base
+  <wave base> --json` (base from `build/swarm/<wave>/base.txt`) — the
+  authored run-count delta with `lost` fixtures listed as regressions,
+  ahead of commit counts.
 - Drain claim notes with the verdicts: `python3 tools/claims.py notes` lists
   findings workers attached to their tickets ("already resolved upstream,
   verified at <sha>"); fold what they justify into the coordinator's next

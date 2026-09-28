@@ -161,6 +161,12 @@ than the fixture's own behavior.
 python3 tools/corpus_gate.py --native --filter providers/
 ```
 
+`python3 tools/corpus_scoreboard.py` reports the golden as a scoreboard —
+`macos_arm64 native: 64 authored / 172 executed / 746 fixtures` — where
+"authored" means executed with a matching `expected_native_exit.txt`
+oracle. `--base <rev>` diffs two goldens and lists `lost` authored runs as
+regressions; wave reports lead with this number, not commit counts.
+
 Large structural moves (deleting a mechanism, rewriting a seam) may land while
 some fixtures stop compiling, under one rule. A regressed pass or run fixture
 must reject with a diagnostic whose message starts `unimplemented:` and names
