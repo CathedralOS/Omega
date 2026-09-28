@@ -11,18 +11,7 @@ use provider_planning::{ProviderSelection, ProviderSelectionIdentity};
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct WireCompatibilityDemand {
-    pub edge: String,
-    pub lineage: String,
-    pub local_schema: String,
-    pub peer_schema: String,
-    pub require_readable: bool,
-    pub require_writable: bool,
-    pub require_unknown_preservation: bool,
-    pub require_canonical: bool,
-    pub require_complete_migration: bool,
-}
+pub use build_time_evaluation::wire_compatibility::WireCompatibilityDemand;
 
 /// Collect the edge-specific wire facts requested by the one
 /// authoritative build machine. The parser has already validated the closed

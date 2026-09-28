@@ -1,10 +1,10 @@
-//! Wire-schema and compatibility observation records assembled by the compiler.
+//! Typed observations produced by Psi's wire compatibility evaluation.
 
 /// Compatibility report for `wire data` protocol schemas (chapter 20): field
 /// tables, retired numbers, declared version eras, and per-era verdicts along
 /// the VERSION CHAIN (each era against its successor; the newest era against
-/// the current schema body). Built from typed trees by the compiler pipeline;
-/// this crate only owns the artifact shape and rendering.
+/// the current schema body). Built from typed source and codec evaluation; compact report identities never
+/// replace exact schema comparison or independent codec evidence.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct WireProtocolReport {
     pub schemas: Vec<WireSchemaReportEntry>,
