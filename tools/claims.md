@@ -74,7 +74,7 @@ but are not authentication.
 
 ```text
 python tools/claims.py note --ticket <ticket> --text "<finding>"
-python tools/claims.py notes
+python tools/claims.py notes [--ticket <prefix>] [--owner <substr>] [--all]
 python tools/claims.py sweep
 ```
 
@@ -83,7 +83,10 @@ files: `note` records `text` (1–2000 characters) under the claim's ticket,
 item, and owner, and requires a live claim. Notes survive claim release, so a
 finding like "already resolved upstream, verified at `<sha>`" reaches the
 coordinator without a board-only commit on `main`. `notes` lists pending
-(unswept) entries; `status` reports their count as `notes_pending`. The
+(unswept) entries — each carries its ticket, item, owner, and `created_utc`
+— and `--ticket <prefix>` (unambiguous prefixes work), `--owner <substr>`,
+and `--all` (include swept history) filter that list; `status` reports the
+pending count as `notes_pending`. The
 coordinator reads them at drain, writes the board updates they justify in its
 own sweep commit, then marks them consumed with `sweep`. Swept notes stay in
 the record for audit, bounded to the most recent hundred; the ledger is not a
