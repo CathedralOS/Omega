@@ -29,30 +29,49 @@ fn unchanged_since(
     use_site: OperationId,
     invalidates: impl Fn(&terminal_psi::Operation) -> bool,
 ) -> bool {
-    let Some(producer_position) = operation_position(machine, producer) else {
-        return false;
-    };
+    operation_position(machine, producer).is_some()
+        && established_on_every_path(
+            machine,
+            use_site,
+            |candidate| candidate.id == producer,
+            invalidates,
+        )
+}
+
+/// Every finite execution reaching `use_site` must have passed some
+/// operation that `establishes` the fact, with no `invalidates` operation
+/// after the last such establishment. The walk runs backward from the use
+/// and stops each path at its nearest establishment, so a fact may come from
+/// different establishments on different arrivals. Reaching the machine
+/// entry, or a point with no predecessor, first fails: a machine parameter's
+/// entry state establishes nothing here.
+fn established_on_every_path(
+    machine: &TerminalMachine,
+    use_site: OperationId,
+    establishes: impl Fn(&terminal_psi::Operation) -> bool,
+    invalidates: impl Fn(&terminal_psi::Operation) -> bool,
+) -> bool {
     let Some(use_position) = operation_position(machine, use_site) else {
         return false;
     };
     let outgoing = crate::control_graph::successors(machine);
     let mut pending = vec![use_position];
     let mut visited = BTreeSet::new();
-    let mut reached_producer = false;
+    let mut established = false;
     while let Some((block_index, position)) = pending.pop() {
         if !visited.insert((block_index, position)) {
             continue;
         }
         let block = &machine.blocks[block_index];
         if position != 0 {
-            let previous = (block_index, position - 1);
-            if previous == producer_position {
-                reached_producer = true;
+            let previous = &block.operations[position - 1];
+            if establishes(previous) {
+                established = true;
             } else {
-                if invalidates(&block.operations[position - 1]) {
+                if invalidates(previous) {
                     return false;
                 }
-                pending.push(previous);
+                pending.push((block_index, position - 1));
             }
         } else {
             if block.id == machine.entry {
@@ -73,7 +92,7 @@ fn unchanged_since(
             }
         }
     }
-    reached_producer
+    established
 }
 
 fn overlaps(left: &[StructuralPathSegment], right: &[StructuralPathSegment]) -> bool {
@@ -244,6 +263,66 @@ pub(in crate::validation) fn exact_length_is_current(
     unchanged_since(machine, producer.id, operation.id, |candidate| {
         changes_length(module, machine, root, &exact_path, candidate)
     })
+}
+
+/// Whether an indexed store's exact destination field holds only ASCII bytes
+/// on every path into the store. Each path must reach a whole replacement of
+/// the identical root, path and field whose source predicates -- replayed
+/// from literal octets, qualified formals and concatenation inputs, never a
+/// producer's roster -- include `ascii_only`. Between that replacement and
+/// the store, byte stores into the identical field keep the class: this
+/// check runs only for a predicate-bearing field, and every store into it
+/// proves its stored byte ASCII in its own goal. Any other operation that
+/// could change the field's extent or contents rejects, including a
+/// replacement from a source not proved ASCII, a projected move, an
+/// overlapping mutable or write-only call argument, and dynamic dispatch.
+pub(crate) fn field_content_is_ascii(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &terminal_psi::Operation,
+) -> bool {
+    let OperationKind::StructuralByteSequenceFieldByteStore {
+        destination: root,
+        path,
+        field,
+        ..
+    } = &operation.kind
+    else {
+        return false;
+    };
+    let Some(exact_path) = field_path(module, machine, *root, path, *field, true, false) else {
+        return false;
+    };
+    let mut ascii = terminal_psi::ByteSequencePredicateSet::EMPTY;
+    ascii.insert(terminal_psi::ByteSequencePredicate::AsciiOnly);
+    established_on_every_path(
+        machine,
+        operation.id,
+        |candidate| {
+            matches!(&candidate.kind,
+                OperationKind::StructuralByteSequenceFieldStore {
+                    destination, path: written, field: written_field, source, ..
+                } if destination == root && written == path && written_field == field
+                    && terminal_semantics::byte_sequence_source_predicates(module, machine, *source)
+                        .is_some_and(|predicates| predicates.implies(ascii)))
+        },
+        |candidate| match &candidate.kind {
+            OperationKind::StructuralByteSequenceFieldByteStore {
+                destination,
+                path: written,
+                field: written_field,
+                ..
+            } if destination == root => {
+                // A store into the identical field is class-preserving; a
+                // store into any other field is disjoint unless its path
+                // cannot be resolved.
+                !(written == path && written_field == field)
+                    && field_path(module, machine, *root, written, *written_field, true, false)
+                        .is_none_or(|written| overlaps(&exact_path, &written))
+            }
+            _ => changes_length(module, machine, *root, &exact_path, candidate),
+        },
+    )
 }
 
 /// A concatenation captures content as well as extent. A byte write preserves

@@ -491,6 +491,15 @@ pub(super) fn append_operation(
             });
         }
         if let Some((id, proposition)) = observation.canonical_obligation() {
+            // An indexed byte store into a predicate-bearing field owes the
+            // stored byte's class legs beside its bound, reconstructed from
+            // the exact destination declaration rather than the operands.
+            let proposition = crate::validation::structural_byte_sequence_field_byte_store_goal(
+                module,
+                machine,
+                operation,
+                proposition,
+            )?;
             operation_obligations.push(ReconstructedOperationObligation {
                 owner: ReconstructedTerminalObligationOwner::Operation {
                     machine: machine.id,
