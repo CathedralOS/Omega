@@ -673,9 +673,17 @@ fn shared_nominal_argument(
                 CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
             )
         });
+    // A whole-attachment receiver loan forwards the caller's `self` as the
+    // callee's `&self`: custody stays with the machine's own storage and the
+    // statement lane performs the same receiver-to-receiver binding without
+    // reading a plain-field closure. The is_self tail below still verifies
+    // the authored receiver place and rules out an overlapping exclusive
+    // actual, so capability (non-plain) members of the attachment do not
+    // disqualify this loan the way they would an observed record borrow.
     if identity != target_identity
         || !parameter_qualifications(program, &mut shapes, reference, &[])?.is_empty()
-        || (!plain_structural_referent
+        || (!receiver_argument
+            && !plain_structural_referent
             && !whole_primitive_scalar
             && !shapes.types.values().all(|shape| {
                 matches!(&shape.shape, CheckedUnitStructuralTypeShape::Record { fields }

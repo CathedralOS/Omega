@@ -227,8 +227,16 @@ pub(super) fn validate(
     {
         return unsupported("shared case operand requires a non-erased nominal sum");
     }
-    if !validation::has_plain_owned_contents_with_numeric_constraints(checked, reference)
-        || checked.normalized_type_identity(reference).as_str() != argument.type_identity
+    // A `&self` receiver operand is verified nominally below: its referent
+    // must be the callee's own attached declaration and the authored place
+    // must be the call's actual receiver — a stronger identity check than the
+    // plain-contents closure an observed record borrow owes. Capability
+    // members of the attachment (provider bindings and the like) stay under
+    // the machine's custody on a forwarded receiver loan, matching the
+    // statement lane.
+    if !target.is_self
+        && (!validation::has_plain_owned_contents_with_numeric_constraints(checked, reference)
+            || checked.normalized_type_identity(reference).as_str() != argument.type_identity)
     {
         return unsupported("record operand changed its declared referent type");
     }
