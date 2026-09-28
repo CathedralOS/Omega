@@ -1,12 +1,8 @@
 //! One abstract-to-object sequence, independent of optimization selection.
 
 use crate::native::native_realization::callback_thunks::lower_callback_thunks;
-use crate::native::native_realization::native_optimization_budget;
 use crate::native::native_realization::realization_diagnostics::{
     realization_error, selected_physical_pipeline_failed,
-};
-use crate::native::native_realization::realization_request::{
-    NativeRealizationInput, NativeRealizationRequest,
 };
 use crate::native::stage_optimized_verified_physical_pipeline;
 use abstract_operations_to_target_operations::{
@@ -14,14 +10,16 @@ use abstract_operations_to_target_operations::{
     lower_optimized_to_target_operations,
 };
 use boundary_applications::TerminalBoundaryApplicationCoverage;
+use compilation_products::NativeRealizationRequest;
 use diagnostics::Diagnostic;
 use native_artifact::{
     FragmentObjectPublicationRequest, PublishedFragmentObject, publish_fragment_object,
 };
 use terminal_psi_to_abstract_operations::AdmittedProviderInstallation;
+use terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput;
 
 pub(crate) fn emit_realization_object(
-    input: NativeRealizationInput,
+    input: VerifiedNativeArtifactInput,
     provider_installation: Option<AdmittedProviderInstallation>,
     settlements: &[AdmittedBoundarySettlement<'_>],
     boundary_application_coverage: Option<&TerminalBoundaryApplicationCoverage>,
@@ -34,7 +32,7 @@ pub(crate) fn emit_realization_object(
         input.into_optimization_input(),
         selections,
         &selections.project_psi(),
-        native_optimization_budget(),
+        request.optimization_budget(),
     )
     .map_err(|error| realization_error("canonical abstract optimization", error))?;
     // Thunks are independent canonical artifacts: materialize them once the

@@ -13,13 +13,10 @@
 //! materializes as a `CompilerPrivateMachineCodeFunction` the retained
 //! object's private-function channel can publish.
 
-use crate::native::native_realization::native_optimization_budget;
 use crate::native::native_realization::realization_diagnostics::{
     artifact_lowering_error, realization_error,
 };
-use crate::native::native_realization::realization_request::{
-    NativeCallbackThunkSettlement, NativeRealizationRequest,
-};
+use crate::native::native_realization::{NativeCallbackThunkSettlement, NativeRealizationRequest};
 use diagnostics::Diagnostic;
 use machine_code::CompilerPrivateMachineCodeFunction;
 
@@ -60,7 +57,7 @@ fn lower_callback_thunk(
         input.into_optimization_input(),
         selections,
         &selections.project_psi(),
-        native_optimization_budget(),
+        request.optimization_budget(),
     )
     .map_err(|error| realization_error("callback thunk abstract optimization", error))?;
     let optimized_target =

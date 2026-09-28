@@ -7,14 +7,11 @@
 mod callback_thunks;
 mod object_emission;
 pub(crate) mod realization_diagnostics;
-mod realization_request;
 pub use terminal_psi_to_abstract_operations::provider_admission::terminal_authority_permissions;
 
-pub use realization_request::{
-    NativeBoundaryRealization, NativeCallbackThunkSettlement, NativeCompilerBuiltinSettlement,
-    NativeProviderSettlement, NativeRealizationRequest, RequestedNativeArtifact,
-    RequestedNativeArtifactError,
-};
+pub use backend_plan::NativeCallbackThunkSettlement;
+pub use compilation_products::{NativeRealizationRequest, RequestedNativeArtifactError};
+pub use native_artifact::RequestedNativeArtifact;
 pub use terminal_psi_to_abstract_operations::provider_admission::{
     COMPILER_INTRINSIC_TERMINAL_AUTHORITY_POLICY_VERSION, CompilerIntrinsicTerminalAuthorityPolicy,
     FilesystemCohortDisposition, FilesystemOrdinaryReleaseContract,
@@ -36,6 +33,9 @@ pub use terminal_psi_to_abstract_operations::provider_admission::{
     TerminalAuthorityPermissionPolicyRow, current_terminal_authority_permission_policy,
     terminal_authority_permission_policy_with_rows,
 };
+pub use terminal_psi_to_abstract_operations::provider_admission::{
+    NativeBoundaryRealization, NativeCompilerBuiltinSettlement, NativeProviderSettlement,
+};
 pub use terminal_psi_to_abstract_operations::{
     PreparedNativeRealizationInput, prepare_native_realization_input,
 };
@@ -44,13 +44,6 @@ use diagnostics::Diagnostic;
 
 use self::object_emission::emit_realization_object;
 use terminal_psi_to_abstract_operations::{AdmittedNativeRealization, admit_native_realization};
-
-/// Product-owned per-pass ceilings shared by program and callback realization.
-/// Identity staging meters input traversal as well as optimizer iterations.
-fn native_optimization_budget() -> optimization_core::OptimizationWorkBudget {
-    optimization_core::OptimizationWorkBudget::new(1_000_000, 100_000, 100_000, 100_000, 100_000)
-        .expect("compiler baseline optimizer ceilings are nonzero")
-}
 
 /// Realize one Terminal artifact using explicit image, custody, reuse, and
 /// behavior-exclusion inputs. The request's retained behavior-exclusion union
@@ -62,10 +55,7 @@ pub fn realize_native_artifact(
     artifact: terminal_codec::CanonicalTerminalArtifact,
     request: NativeRealizationRequest<'_>,
 ) -> Result<RequestedNativeArtifact, RequestedNativeArtifactError> {
-    realize_image(artifact, &request).map_err(|diagnostics| RequestedNativeArtifactError {
-        image_request: request.image_request,
-        diagnostics,
-    })
+    realize_image(artifact, &request).map_err(|diagnostics| request.into_failure(diagnostics))
 }
 
 fn realize_image(

@@ -16,7 +16,10 @@ use terminal_psi_to_abstract_operations::provider_admission::{
 
 mod native;
 pub mod options;
-pub use native::NativeProductRequest;
+pub use native::{
+    NativeProductRequest, NativeRealizationRequest, RequestedNativeArtifactError,
+    RetainedNativeRealizationRequest,
+};
 #[cfg(test)]
 mod tests;
 
