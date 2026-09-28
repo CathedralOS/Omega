@@ -1,6 +1,6 @@
 use super::{
     PreparedSourceEvaluatedImports, SourceEvaluatedImportSettlement,
-    prepare_source_evaluated_imports,
+    prepare_source_evaluated_imports, validate_evaluated_import_rows,
 };
 use crate::provider_admission::{NativeBoundaryRealization, NativeProviderSettlement};
 use effects::provider_plan::{
@@ -11,6 +11,137 @@ use effects::provider_plan::{
 };
 use std::borrow::Cow;
 use std::collections::BTreeSet;
+
+fn external_import_row(plan: &ProviderPlan) -> calling_conventions::ExternalBindingRow {
+    let row = &plan.rows[0];
+    let ProviderBinding::Import { evaluated } = &row.binding else {
+        panic!("fixture must select an evaluated import");
+    };
+    calling_conventions::ExternalBindingRow {
+        target_name: "windows_x86_64".into(),
+        trait_name: plan.schema.trait_name.clone(),
+        method: row.method.clone(),
+        requirement_identity: row.requirement_identity.clone(),
+        table_type: plan.provider_type.clone(),
+        boundary_entry_plan: None,
+        binding: calling_conventions::ExternalBindingKind::Import {
+            locator: evaluated.locator().clone(),
+        },
+    }
+}
+
+#[test]
+fn retained_roster_accepts_exact_and_target_inherited_imports() {
+    let mut plans = [import_plan("first"), import_plan("second")];
+    plans[1].target.clear();
+    let mut rows = vec![
+        external_import_row(&plans[1]),
+        external_import_row(&plans[0]),
+    ];
+    let mut unrelated = rows[0].clone();
+    unrelated.requirement_identity = "other".into();
+    unrelated.binding = calling_conventions::ExternalBindingKind::Syscall { number: 1 };
+    rows.push(unrelated);
+    assert_eq!(
+        validate_evaluated_import_rows(target::TargetProfile::WindowsX64, &plans, &rows),
+        Ok(())
+    );
+    assert_eq!(
+        validate_evaluated_import_rows(target::TargetProfile::WindowsX64, &[], &[]),
+        Ok(())
+    );
+}
+
+#[test]
+fn retained_roster_rejects_each_external_coordinate_drift() {
+    let plan = import_plan("first");
+    for coordinate in 0..5 {
+        let mut row = external_import_row(&plan);
+        let field = match coordinate {
+            0 => &mut row.target_name,
+            1 => &mut row.trait_name,
+            2 => &mut row.method,
+            3 => &mut row.requirement_identity,
+            _ => &mut row.table_type,
+        };
+        field.push_str("::substituted");
+        assert_eq!(
+            validate_evaluated_import_rows(
+                target::TargetProfile::WindowsX64,
+                std::slice::from_ref(&plan),
+                &[row]
+            ),
+            Err(
+                "Terminal native proposal selected import does not rejoin one exact external-binding row"
+            ),
+        );
+    }
+}
+
+#[test]
+fn retained_roster_rejects_missing_duplicate_reused_and_unmatched_imports() {
+    let plan = import_plan("first");
+    let row = external_import_row(&plan);
+    let plans = std::slice::from_ref(&plan);
+    let target = target::TargetProfile::WindowsX64;
+    let no_exact_row = Err(
+        "Terminal native proposal selected import does not rejoin one exact external-binding row",
+    );
+    assert_eq!(
+        validate_evaluated_import_rows(target, plans, &[]),
+        no_exact_row
+    );
+    assert_eq!(
+        validate_evaluated_import_rows(target, plans, &[row.clone(), row.clone()]),
+        no_exact_row
+    );
+    assert_eq!(
+        validate_evaluated_import_rows(target, &[plan.clone(), plan], std::slice::from_ref(&row)),
+        Err("Terminal native proposal external import was reused by multiple selected rows"),
+    );
+    assert_eq!(
+        validate_evaluated_import_rows(target, &[], &[row]),
+        Err("Terminal native proposal retains an unmatched evaluated external import row"),
+    );
+}
+
+#[test]
+fn retained_roster_rejects_target_binding_kind_and_locator_substitution() {
+    let plan = import_plan("first");
+    let row = external_import_row(&plan);
+    let target = target::TargetProfile::WindowsX64;
+    let wrong_target =
+        Err("Terminal native proposal selected import disagrees with its target profile");
+    let mut wrong_plan_target = plan.clone();
+    wrong_plan_target.target = "linux_x86_64".into();
+    assert_eq!(
+        validate_evaluated_import_rows(target, &[wrong_plan_target], std::slice::from_ref(&row)),
+        wrong_target
+    );
+    let mut inherited = plan.clone();
+    inherited.target.clear();
+    assert_eq!(
+        validate_evaluated_import_rows(
+            target::TargetProfile::MacosArm64,
+            &[inherited],
+            std::slice::from_ref(&row)
+        ),
+        wrong_target
+    );
+
+    let mut substituted = row.clone();
+    substituted.binding = calling_conventions::ExternalBindingKind::Syscall { number: 1 };
+    assert_eq!(
+        validate_evaluated_import_rows(target, std::slice::from_ref(&plan), &[substituted]),
+        Err("Terminal native proposal selected import rejoined a non-evaluated external binding"),
+    );
+    let mut substituted = row;
+    substituted.binding = external_import_row(&import_plan("other")).binding;
+    assert_eq!(
+        validate_evaluated_import_rows(target, &[plan], &[substituted]),
+        Err("Terminal native proposal external import substituted the selected evaluated locator"),
+    );
+}
 
 fn import_plan(requirement: &str) -> ProviderPlan {
     let locator = effects::normalize_foreign_locator(
