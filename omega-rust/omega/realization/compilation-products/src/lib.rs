@@ -36,7 +36,9 @@ pub use batch_manifest::{
     BatchChildCommitment, BatchChildOutcome, BatchChildRow, BatchCompilationManifest,
     BatchCompilationManifestIdentity,
 };
-pub use checked_compilation::{CheckedCompilation, CheckedCompilationInputs};
+pub use checked_compilation::{
+    CheckedCompilation, CheckedCompilationInputs, CheckedProductReport, CompileReportSettlement,
+};
 pub use compilation_products::{CompileOutputKind, CompileReport};
 pub use compile_outcomes::{CompileOutcomes, CompileTargetOutcome};
 pub use compile_request::options::CompileOptions;

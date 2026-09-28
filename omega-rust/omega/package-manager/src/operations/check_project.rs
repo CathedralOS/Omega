@@ -7,7 +7,9 @@ use crate::review::{
     compile_candidate_for_check_reusing, compile_resolved_package_candidate_for_check,
     compile_resolved_package_candidate_for_check_with_checkpoint,
 };
-use compiler::{CompileOptions, CompileOutputKind, CompileReport, TrustAdmission};
+#[cfg(test)]
+use compiler::CompileOutputKind;
+use compiler::{CompileOptions, CompileReport, TrustAdmission};
 use diagnostics::Diagnostic;
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -220,26 +222,13 @@ pub fn check_prepared_local_project(
             &accepted_trust_admissions
         })
         .map_err(CheckPreparedLocalProjectError::TrustAdmission)?;
-    compiler::RequestedCompileProduct::Check
-        .admit_build_requirements(
-            checked.application_artifact_only(),
-            checked.pcc_requests(),
+    checked
+        .check_report(
+            options.root_path,
             &compiler::OptimizationRollback::default(),
+            settlement,
         )
-        .map_err(CheckPreparedLocalProjectError::ProofProduct)?;
-    CompileReport::checked(
-        options.root_path,
-        checked.source_file_count(),
-        false,
-        CompileOutputKind::CheckOnly,
-        None,
-    )
-    .map(|report| {
-        report
-            .with_trust_admission_settlement(settlement)
-            .with_timings(checked.timings().phases().to_vec())
-    })
-    .map_err(CheckPreparedLocalProjectError::Report)
+        .map_err(CheckPreparedLocalProjectError::ProofProduct)
 }
 
 /// The same check for every requested target under one prepared source union.
@@ -340,24 +329,11 @@ fn check_one_prepared_target(
             accepted_trust_admissions
         })
         .map_err(CheckPreparedLocalProjectError::TrustAdmission)?;
-    compiler::RequestedCompileProduct::Check
-        .admit_build_requirements(
-            checked.application_artifact_only(),
-            checked.pcc_requests(),
+    checked
+        .check_report(
+            options.root_path,
             &compiler::OptimizationRollback::default(),
+            settlement,
         )
-        .map_err(CheckPreparedLocalProjectError::ProofProduct)?;
-    CompileReport::checked(
-        options.root_path,
-        checked.source_file_count(),
-        false,
-        CompileOutputKind::CheckOnly,
-        None,
-    )
-    .map(|report| {
-        report
-            .with_trust_admission_settlement(settlement)
-            .with_timings(checked.timings().phases().to_vec())
-    })
-    .map_err(CheckPreparedLocalProjectError::Report)
+        .map_err(CheckPreparedLocalProjectError::ProofProduct)
 }
