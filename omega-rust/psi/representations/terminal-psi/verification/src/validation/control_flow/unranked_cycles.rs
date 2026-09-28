@@ -8,9 +8,9 @@ use super::{
     TerminalMachineResult, TerminalModule, Terminator,
 };
 use crate::validation::{
-    BTreeSet, ClaimId, ControlCycleIneligibility, OperationResult, PlaceId, StructuralArgument,
-    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPlaceKind,
-    TerminalAffineCleanupAction,
+    BTreeSet, BlockId, ClaimId, ControlCycleIneligibility, OperationResult, PlaceId,
+    StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPlaceKind, TerminalAffineCleanupAction,
 };
 use crate::validation::{block_views, primitive_storage};
 
@@ -166,7 +166,7 @@ pub(super) fn ineligibility(
                 (cyclic_blocks.contains(&block.id)
                     || operation.result.structural().is_none_or(|result|
                         block_views::mutable_records::owned_home(module, machine, result.place).is_none()))
-                    && !cycle_operation_eligible(module, machine, block, case_source, operation)
+                    && !cycle_operation_eligible(module, machine, block, case_source, &cyclic_blocks, operation)
             })
             .map(|operation| ControlCycleIneligibility::BlockOperation {
                 block: block.id,
@@ -408,11 +408,84 @@ fn terminator_leaves_custody(
     }
 }
 
+/// Whether some edge leaving a cyclic block schedules `place` for disposal.
+/// The producing block's own edges count the same as a successor's — the
+/// check is "a traversal cannot re-enter the cycle head still owning the
+/// place", which the fixed-point frontier join then proves edge by edge.
+fn result_discarded_in_cycle(
+    machine: &TerminalMachine,
+    cyclic_blocks: &BTreeSet<BlockId>,
+    place: PlaceId,
+) -> bool {
+    machine
+        .blocks
+        .iter()
+        .filter(|block| cyclic_blocks.contains(&block.id))
+        .flat_map(|block| terminator_discards(&block.terminator))
+        .any(|discarded| discarded == place)
+}
+
+fn terminator_discards(terminator: &Terminator) -> Vec<PlaceId> {
+    match terminator {
+        Terminator::Jump {
+            trivial_affine_discards,
+            residual_affine_discards,
+            ..
+        }
+        | Terminator::ReturnUnitPartialAffine {
+            trivial_affine_discards,
+            residual_affine_discards,
+            ..
+        } => trivial_affine_discards
+            .iter()
+            .copied()
+            .chain(residual_affine_discards.iter().map(|discard| discard.place))
+            .collect(),
+        Terminator::Conditional {
+            when_true,
+            when_false,
+            ..
+        } => when_true
+            .trivial_affine_discards
+            .iter()
+            .copied()
+            .chain(when_false.trivial_affine_discards.iter().copied())
+            .collect(),
+        Terminator::StructuralCase { cases, .. } => cases
+            .iter()
+            .flat_map(|case| case.trivial_affine_discards.iter().copied())
+            .collect(),
+        Terminator::Return {
+            cleanup_actions, ..
+        } => cleanup_actions
+            .iter()
+            .filter_map(|action| match action {
+                TerminalAffineCleanupAction::DiscardRoot(place) => Some(*place),
+                TerminalAffineCleanupAction::DiscardResidual(discard) => Some(discard.place),
+                TerminalAffineCleanupAction::InvokeNominal(cleanup) => Some(cleanup.place),
+            })
+            .collect(),
+        Terminator::ReturnUnit {
+            trivial_affine_discards,
+            ..
+        }
+        | Terminator::ReturnStructural {
+            trivial_affine_discards,
+            ..
+        } => trivial_affine_discards.clone(),
+        Terminator::ReturnUnitNominalAffine { cleanups, .. } => {
+            cleanups.iter().map(|cleanup| cleanup.place).collect()
+        }
+        Terminator::Crash { .. } => Vec::new(),
+    }
+}
+
 fn cycle_operation_eligible(
     module: &TerminalModule,
     machine: &TerminalMachine,
     block: &terminal_psi::Block,
     case_source: Option<semantic_vocabulary::PlaceId>,
+    cyclic_blocks: &BTreeSet<BlockId>,
     operation: &terminal_psi::Operation,
 ) -> bool {
     match &operation.kind {
@@ -453,6 +526,19 @@ fn cycle_operation_eligible(
                             machine,
                             result.place,
                         )))
+                    // A claim-free affine result stays confined when some
+                    // in-cycle edge schedules its disposal: the place enters
+                    // `owned_places` at the call, the frontier replay refuses
+                    // an already-owned place on re-entry, and the fixed-point
+                    // join proves disposal identical on every traversal — so
+                    // a scheduled back-edge discard is the confinement, while
+                    // a result no edge discards remains ineligible.
+                    || (result.multiplicity == StructuralMultiplicity::Affine
+                        && result.claims.is_empty()
+                        && result.qualifications.is_empty()
+                        && result.projected_qualifications.is_empty()
+                        && result.qualification_establishments.is_empty()
+                        && result_discarded_in_cycle(machine, cyclic_blocks, result.place))
             })
         }
         // Ordinary scalar calls retain their complete signature,
@@ -571,23 +657,55 @@ fn cycle_operation_eligible(
         // `Call` above. Claim transfers stay fenced until cyclic machines admit
         // claim-bearing custody.
         OperationKind::CallStructuralScalar {
+            callee,
             structural_arguments,
             claim_transfers,
             ..
         } => {
+            let callee_parameters = module
+                .machines
+                .iter()
+                .find(|candidate| candidate.id == *callee)
+                .map(|candidate| candidate.structural_parameters.as_slice())
+                .unwrap_or(&[]);
             operation.result.scalar().is_some()
-                && structural_arguments.iter().all(|argument| {
-                    argument.path.is_empty()
-                        && ((argument.access != StructuralAccess::Owned
-                            && primitive_storage::local_result(machine, argument.place).is_some())
-                            || (argument.access == StructuralAccess::SharedBorrow
-                                && crate::validation::element_view::subslice::borrowed_result(
-                                    machine,
-                                    argument.place,
-                                )
-                                .is_some())
-                            || owned_argument(module, machine, argument))
-                })
+                && structural_arguments
+                    .iter()
+                    .enumerate()
+                    .all(|(index, argument)| {
+                        (argument.path.is_empty()
+                            && ((argument.access != StructuralAccess::Owned
+                                && primitive_storage::local_result(machine, argument.place)
+                                    .is_some())
+                                || (argument.access == StructuralAccess::SharedBorrow
+                                    && (crate::validation::element_view::subslice::borrowed_result(
+                                        machine,
+                                        argument.place,
+                                    )
+                                    .is_some()
+                                        // A whole-parameter shared re-borrow
+                                        // loans the caller's own borrowed
+                                        // place for the call's duration only —
+                                        // the same admission the boundary arm
+                                        // gives `&self`-style arguments.
+                                        || machine.structural_parameters.iter().any(|parameter| {
+                                            parameter.place == argument.place
+                                        }) || block_views::parameter(machine, argument.place)
+                                            .is_some()))
+                                || owned_argument(module, machine, argument)))
+                            // Same loan shape as `CallUnit` below: a borrowed
+                            // projection loans for the call only, so cyclic
+                            // eligibility keys on the callee's positional
+                            // parameter shape rather than the empty path.
+                            || (!argument.path.is_empty()
+                                && callee_parameters.get(index).is_some_and(|parameter| {
+                                    crate::validation::structural::operations::is_unrestricted_shared_subloan(
+                                        module, machine, parameter, argument,
+                                    ) || crate::validation::structural::operations::is_unrestricted_mutable_subloan(
+                                        module, machine, parameter, argument,
+                                    )
+                                }))
+                    })
                 && claim_transfers.is_empty()
         }
         OperationKind::BoundaryCall {
@@ -696,6 +814,19 @@ fn cycle_operation_eligible(
                                             },
                                         )
                                         .is_ok()))
+                                // Borrowing a place an earlier operation in
+                                // the same machine produced loans it for the
+                                // call only; the loan releases on return, so
+                                // loop-carried custody is identical on every
+                                // traversal.
+                                || (argument.access != StructuralAccess::Owned
+                                    && machine.structural_places.iter().any(|place| {
+                                        place.id == argument.place
+                                            && matches!(
+                                                place.kind,
+                                                StructuralPlaceKind::OperationResult { .. }
+                                            )
+                                    }))
                                 || owned_argument(module, machine, argument)))
                             // A borrowed projection loans one element for the
                             // call's duration only: the loan is created and

@@ -934,6 +934,28 @@ fn expected_trivial_affine_discards(
     output
 }
 
+/// A place the edge may dispose without an affine row: a machine or block
+/// structural parameter owned with unrestricted multiplicity. Its storage
+/// release is real (the interpreter frees it), but the frontier tracks only
+/// affine custody, so eligibility lives here instead of in
+/// `expected_trivial_affine_discards`.
+fn unrestricted_owned_parameter(machine: &TerminalMachine, place: PlaceId) -> bool {
+    machine
+        .structural_parameters
+        .iter()
+        .chain(
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters),
+        )
+        .any(|parameter| {
+            parameter.place == place
+                && parameter.access == StructuralAccess::Owned
+                && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+        })
+}
+
 fn apply_edge_trivial_affine_discards(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -948,14 +970,22 @@ fn apply_edge_trivial_affine_discards(
     {
         return Err(ModuleError::EdgeAffineDiscardsInvalid { edge });
     }
+    // Unrestricted owned parameters stay live by binding rather than an
+    // owned_places row, so they never appear in the affine-eligible list.
+    // A consumed case subject's shell is one such place: the edge still
+    // releases its storage, which the interpreter executes unconditionally.
+    let tracked: Vec<&PlaceId> = discards
+        .iter()
+        .filter(|place| !unrestricted_owned_parameter(machine, **place))
+        .collect();
     let eligible = expected_trivial_affine_discards(machine, parameter_order, frontier);
     let mut next = 0;
-    for eligible_place in eligible {
-        if discards.get(next) == Some(&eligible_place) {
+    for eligible_place in eligible.iter() {
+        if tracked.get(next).copied() == Some(eligible_place) {
             next += 1;
         }
     }
-    if next != discards.len() {
+    if next != tracked.len() {
         return Err(ModuleError::EdgeAffineDiscardsInvalid { edge });
     }
     for place in discards {

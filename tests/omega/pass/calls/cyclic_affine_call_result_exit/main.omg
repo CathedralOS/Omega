@@ -1,0 +1,74 @@
+// A cyclic block that mints a fresh affine record by call each traversal:
+// `Cell::blanked(position)` produces a claim-free owned result, two unit
+// calls borrow the local result place (`&mut scratch` / `&scratch`), and
+// the loop's back edge discards it before re-entering the cycle head. The
+// terminal verifier admits the shape once eligibility counts an affine
+// call result's disposal as proven by the frontier replay itself — the
+// result place enters `owned_places` at the call and the fixed-point join
+// rejects any traversal that fails to dispose it.
+
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Cell {
+    value: u64;
+}
+
+machine Cell::blanked(seed: u64) -> Cell {
+    transition { _ -> (Cell { value: seed }) }
+}
+
+machine Cell::copy_from(&mut self, source: &Cell) {
+    self.value = source.value;
+}
+
+data Holder {
+    cells: [Cell; 4];
+}
+
+machine Holder::refresh(&mut self) {
+    transition { _ -> scan(0) }
+
+    state scan(&mut self, position: u64) {
+        transition position < 4 {
+            true -> step(position)
+            false -> done()
+        }
+    }
+
+    state step(&mut self, position: u64) {
+        let mut scratch: Cell = Cell::blanked(position);
+        scratch.copy_from(&self.cells[position]);
+        self.cells[position].copy_from(&scratch);
+        transition { _ -> scan(position + 1) }
+    }
+
+    state done(&mut self) { }
+}
+
+data Main {
+    console: Binding<Console>;
+    holder: Holder;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.holder.cells[0].value = 10;
+    self.holder.cells[1].value = 20;
+    self.holder.cells[2].value = 30;
+    self.holder.cells[3].value = 40;
+
+    self.holder.refresh();
+
+    transition self.holder.cells[2].value == 30 {
+        true -> done()
+        false -> missed()
+    }
+
+    state done(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state missed(&mut self) {
+        self.console.exit_process(71);
+    }
+}
