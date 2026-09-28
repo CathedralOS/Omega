@@ -1,9 +1,15 @@
 //! Native builtin admission: independently rejoin selected provider rows,
 //! Terminal demand and the target catalog before producing settlements.
-//! Retained request construction and plan-index custody live in `retained`.
+//! Candidate projection lives in `proposals`; retained request construction
+//! and plan-index custody live in `retained`. Neither replaces admission.
 
+mod proposals;
 mod retained;
 
+pub use proposals::{
+    CompilerIntrinsicPlanProvenance, CompilerIntrinsicSettlementProposal,
+    demanded_boundary_identities, derive_selected_intrinsic_settlement_proposals,
+};
 pub use retained::{
     TerminalCompilerBuiltinProposal, prepare_retained_compiler_builtins,
     validate_retained_compiler_builtins,

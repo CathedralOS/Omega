@@ -138,13 +138,16 @@ format and identities.
 
 ## Intrinsic settlement conversion
 
-[intrinsic_settlements.rs](provider-planning/src/compiler_intrinsics/mod.rs) validates all
+[Native builtin projection](../pipeline/02_abstract-operations-to-target-operations/src/provider_admission/compiler_builtins/proposals.rs) validates all
 selected plan provenance, then joins sorted borrowed intrinsic rows to lexical
 Terminal demand. Original plan indices remain attached to each row. Duplicate
 demanded rows reject; undemanded rows need no executable proposal. One exhaustive
 optional mapping converts planner classifications into the native catalog and
 rejects unsupported executions, as required by the
 [boundary contract](../../../wiki/spec/terminal-psi/boundary_calls.md).
+It consumes source-free plan and execution-identity views; provider planning
+does not depend on target-operation IR. Native admission independently rejoins
+the proposals to the receiving target catalog.
 
 ## Target set and realization
 

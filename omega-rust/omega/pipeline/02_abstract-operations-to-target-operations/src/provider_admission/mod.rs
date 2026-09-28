@@ -25,7 +25,9 @@ mod terminal_authority_review;
 
 pub use callback_arguments::admit_native_callback_arguments;
 pub use compiler_builtins::{
-    TerminalCompilerBuiltinProposal, prepare_retained_compiler_builtins,
+    CompilerIntrinsicPlanProvenance, CompilerIntrinsicSettlementProposal,
+    TerminalCompilerBuiltinProposal, demanded_boundary_identities,
+    derive_selected_intrinsic_settlement_proposals, prepare_retained_compiler_builtins,
     validate_retained_compiler_builtins,
 };
 

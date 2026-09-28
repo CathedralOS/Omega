@@ -6,13 +6,17 @@
 //! canonical Terminal artifact receive a structural proposal. The consuming
 //! lowerer independently accepts it through its local target catalog.
 
-pub mod requirement_view;
-
-use crate::CompilerIntrinsicExecutionIdentity;
-use crate::SelectedProviderReviewProvenance;
 use diagnostics::Diagnostic;
+use effects::CompilerIntrinsicExecutionIdentity;
 use effects::provider_plan::ProviderPlan;
 use std::collections::BTreeSet;
+
+/// The source-free part of one retained provider review. The complete plan is
+/// compared before its row-aligned execution identities can supply a proposal.
+pub struct CompilerIntrinsicPlanProvenance<'a> {
+    pub plan: &'a ProviderPlan,
+    pub row_executions: &'a [Option<CompilerIntrinsicExecutionIdentity>],
+}
 
 #[derive(Debug)]
 pub struct CompilerIntrinsicSettlementProposal {
@@ -57,9 +61,12 @@ struct SelectedIntrinsicRow<'a> {
     execution: Option<CompilerIntrinsicExecutionIdentity>,
 }
 
-pub fn derive_selected_intrinsic_settlement_proposals(
+/// Project called intrinsic rows into native catalog proposals. Provenance
+/// stays borrowed and source-free; every plan is checked even without demand.
+/// The receiving target catalog independently admits these proposals later.
+pub fn derive_selected_intrinsic_settlement_proposals<'a>(
     plans: &[ProviderPlan],
-    provenance: &[SelectedProviderReviewProvenance],
+    provenance: impl ExactSizeIterator<Item = CompilerIntrinsicPlanProvenance<'a>>,
     demanded_boundaries: &BTreeSet<String>,
 ) -> Result<Vec<CompilerIntrinsicSettlementProposal>, Vec<Diagnostic>> {
     if plans.len() != provenance.len() {
@@ -67,44 +74,35 @@ pub fn derive_selected_intrinsic_settlement_proposals(
             "selected provider plans are not aligned with compiler-intrinsic settlement provenance",
         )]);
     }
-    for (plan, retained) in plans.iter().zip(provenance) {
-        if retained.plan != *plan
-            || retained.row_compiler_intrinsic_executions.len() != plan.rows.len()
-        {
+    let mut selected_rows = Vec::new();
+    for (plan_index, (plan, retained)) in plans.iter().zip(provenance).enumerate() {
+        if retained.plan != plan || retained.row_executions.len() != plan.rows.len() {
             return Err(vec![Diagnostic::error(format!(
                 "selected compiler-intrinsic plan `{}` has misaligned retained settlement provenance",
                 plan.name,
             ))]);
         }
-    }
-
-    // Keep the row/execution association from its producing plan. Sorting only
-    // this borrowed selection leaves plan identity and row ownership unchanged.
-    let mut selected_rows = Vec::new();
-    if !demanded_boundaries.is_empty() {
-        for (plan_index, (plan, retained)) in plans.iter().zip(provenance).enumerate() {
-            for (row, execution) in plan
-                .rows
-                .iter()
-                .zip(&retained.row_compiler_intrinsic_executions)
-            {
-                if matches!(
-                    row.binding,
-                    effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
-                ) {
-                    selected_rows.push(SelectedIntrinsicRow {
-                        requirement_identity: &row.requirement_identity,
-                        plan_index,
-                        plan_name: &plan.name,
-                        execution: *execution,
-                    });
-                }
+        if demanded_boundaries.is_empty() {
+            continue;
+        }
+        for (row, execution) in plan.rows.iter().zip(retained.row_executions) {
+            if matches!(
+                row.binding,
+                effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
+            ) {
+                selected_rows.push(SelectedIntrinsicRow {
+                    requirement_identity: &row.requirement_identity,
+                    plan_index,
+                    plan_name: &plan.name,
+                    execution: *execution,
+                });
             }
         }
-        selected_rows.sort_unstable_by(|left, right| {
-            left.requirement_identity.cmp(right.requirement_identity)
-        });
     }
+    // Keep the row/execution association from its producing plan. Sorting only
+    // this borrowed selection leaves plan identity and row ownership unchanged.
+    selected_rows
+        .sort_unstable_by(|left, right| left.requirement_identity.cmp(right.requirement_identity));
 
     // Both sides are lexical. Each selected row is consumed once, including
     // complete duplicate groups, without allocating a match list per demand.

@@ -142,7 +142,7 @@ pub fn realize_retained_native_artifact(
             )
         })?;
         let demanded =
-            provider_planning::compiler_intrinsics::demanded_boundary_identities(&module)?;
+            abstract_operations_to_target_operations::provider_admission::demanded_boundary_identities(&module)?;
         let prepared_imports = prepare_source_evaluated_imports(
             proposal.selected_provider_plans().plans(),
             &demanded,

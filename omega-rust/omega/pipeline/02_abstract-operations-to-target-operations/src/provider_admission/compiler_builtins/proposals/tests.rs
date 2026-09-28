@@ -1,15 +1,31 @@
 use super::{
-    CompilerIntrinsicExecutionIdentity, ProviderPlan, SelectedProviderReviewProvenance,
+    CompilerIntrinsicExecutionIdentity, CompilerIntrinsicPlanProvenance, ProviderPlan,
     derive_selected_intrinsic_settlement_proposals,
 };
-use crate::{ProviderPlanProvenance, ProviderSchemaDeclaration, ProviderSelectionProvenance};
 use effects::provider_plan::{ProviderBinding, ProviderPlanRow};
 use std::collections::BTreeSet;
+
+#[derive(Clone)]
+struct RetainedPlan {
+    plan: ProviderPlan,
+    row_compiler_intrinsic_executions: Vec<Option<CompilerIntrinsicExecutionIdentity>>,
+}
+
+fn provenance(
+    plans: &[RetainedPlan],
+) -> impl ExactSizeIterator<Item = CompilerIntrinsicPlanProvenance<'_>> {
+    plans
+        .iter()
+        .map(|retained| CompilerIntrinsicPlanProvenance {
+            plan: &retained.plan,
+            row_executions: &retained.row_compiler_intrinsic_executions,
+        })
+}
 
 fn selected_plan(
     name: &str,
     rows: &[(&str, Option<CompilerIntrinsicExecutionIdentity>)],
-) -> (ProviderPlan, SelectedProviderReviewProvenance) {
+) -> (ProviderPlan, RetainedPlan) {
     let plan = ProviderPlan {
         name: name.to_owned(),
         rows: rows
@@ -25,16 +41,8 @@ fn selected_plan(
             .collect(),
         ..ProviderPlan::default()
     };
-    let retained = SelectedProviderReviewProvenance {
+    let retained = RetainedPlan {
         plan: plan.clone(),
-        provider: ProviderPlanProvenance {
-            schema: ProviderSchemaDeclaration::BoundaryTrait(symbols::SymbolHandle::invalid()),
-            provider_type: None,
-            row_requirements: Vec::new(),
-            row_realizations: Vec::new(),
-            row_target_machine_origins: Vec::new(),
-        },
-        selected_by: ProviderSelectionProvenance::UniqueCoveringCandidate,
         row_compiler_intrinsic_executions: rows.iter().map(|(_, execution)| *execution).collect(),
     };
     (plan, retained)
@@ -45,6 +53,77 @@ fn demands(identities: &[&str]) -> BTreeSet<String> {
         .iter()
         .map(|identity| (*identity).to_owned())
         .collect()
+}
+
+#[test]
+fn called_intrinsics_keep_original_plan_indices_and_execution_identity() {
+    use CompilerIntrinsicExecutionIdentity::{
+        HostedExitProcessI32, HostedReadByte, HostedWriteByteI32,
+    };
+    let (first, first_retained) = selected_plan(
+        "first",
+        &[
+            ("zeta", Some(HostedExitProcessI32)),
+            ("beta", None),
+            ("unused", None),
+        ],
+    );
+    let (mut second, mut second_retained) = selected_plan(
+        "second",
+        &[
+            ("alpha", Some(HostedReadByte)),
+            ("middle", Some(HostedWriteByteI32)),
+            ("zeta", None),
+        ],
+    );
+    // A nonintrinsic row with the same identity must not become a duplicate
+    // intrinsic candidate or donate its absent execution identity.
+    second.rows[2].binding = ProviderBinding::Syscall { number: 0 };
+    second_retained.plan = second.clone();
+    let plans = [first, second];
+    let retained = [first_retained, second_retained];
+    let proposals = derive_selected_intrinsic_settlement_proposals(
+        &plans,
+        provenance(&retained),
+        &demands(&["zeta", "middle", "alpha", "missing"]),
+    )
+    .expect("called catalog rows project in lexical demand order");
+    assert_eq!(
+        proposals
+            .iter()
+            .map(|proposal| (
+                proposal.requirement_identity.as_str(),
+                proposal.plan_index,
+                proposal.execution
+            ))
+            .collect::<Vec<_>>(),
+        [
+            (
+                "alpha",
+                1,
+                target_operations::CompilerBuiltinExecution::HostedReadByte
+            ),
+            (
+                "middle",
+                1,
+                target_operations::CompilerBuiltinExecution::HostedWriteByteI32
+            ),
+            (
+                "zeta",
+                0,
+                target_operations::CompilerBuiltinExecution::HostedExitProcessI32
+            ),
+        ]
+    );
+    assert!(
+        derive_selected_intrinsic_settlement_proposals(
+            &plans,
+            provenance(&retained),
+            &BTreeSet::new()
+        )
+        .expect("undemanded rows need no executable identity")
+        .is_empty()
+    );
 }
 
 #[test]
@@ -65,7 +144,7 @@ fn duplicate_missing_and_unsupported_executions_keep_lexical_diagnostics() {
     let (second, second_retained) = selected_plan("second", &[("alpha", Some(HostedReadByte))]);
     let diagnostics = derive_selected_intrinsic_settlement_proposals(
         &[first, second],
-        &[first_retained, second_retained],
+        provenance(&[first_retained, second_retained]),
         &demands(&["zeta", "missing", "alpha", "beta"]),
     )
     .expect_err("duplicates must not choose a row or hide later diagnostics");
@@ -89,7 +168,7 @@ fn undemanded_plans_still_require_complete_aligned_provenance() {
     for demanded in [BTreeSet::new(), demands(&["unmatched"])] {
         let diagnostics = derive_selected_intrinsic_settlement_proposals(
             std::slice::from_ref(&plan),
-            &[],
+            provenance(&[]),
             &demanded,
         )
         .expect_err("missing retained plan rejects even without demand");
@@ -103,7 +182,7 @@ fn undemanded_plans_still_require_complete_aligned_provenance() {
             }
             let diagnostics = derive_selected_intrinsic_settlement_proposals(
                 std::slice::from_ref(&plan),
-                &[malformed],
+                provenance(&[malformed]),
                 &demanded,
             )
             .expect_err("all retained plan and execution alignments are checked");
