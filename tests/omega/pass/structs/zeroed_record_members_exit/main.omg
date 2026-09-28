@@ -1,7 +1,8 @@
 // Omitted zero-constructible members begin wholly zeroed: a record literal
 // spells `count` only, leaving `pts` (an array of scalar-only records) and
-// `inner` (a nested record) to EstablishZeroedStructural. Reads back one
-// array element's leaf, a nested leaf, and a trailing member. Exits 70.
+// `inner` (a nested record) to EstablishZeroedStructural, and `tail` to the
+// declared-type zero mint. Reads back one array element's leaf, a nested
+// leaf, and a trailing member. Exits 70.
 
 use omega_language_std::console;
 use omega::language::core::binding;
@@ -29,7 +30,7 @@ data Main {
 }
 
 machine Main::main(&mut self) reaches Console {
-    self.bag = Bag { count: 2, tail: 9 };
+    self.bag = Bag { count: 2 };
 
     transition self.bag.pts[1].x == 0 { true -> check_inner() _ -> bad() }
     state check_inner(&mut self) {
@@ -39,7 +40,7 @@ machine Main::main(&mut self) reaches Console {
         transition self.bag.inner.flag == false { true -> check_tail() _ -> bad() }
     }
     state check_tail(&mut self) {
-        transition self.bag.tail == 9 { true -> good() _ -> bad() }
+        transition self.bag.tail == 0 { true -> good() _ -> bad() }
     }
     state good(&mut self) {
         self.console.exit_process(70);
