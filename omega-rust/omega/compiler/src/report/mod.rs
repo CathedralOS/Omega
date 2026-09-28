@@ -4,7 +4,7 @@
 //! its custody joins. It does not choose output paths or install files;
 //! `crate::artifact_publication::publish_compilation` owns that operation.
 //!
-//! `build_outputs` selects completed files from sealed build staging;
+//! `package_compilation` retains and publishes completed build files;
 //! `terminal_product` retains the portable artifact and native proposal;
 //! production and batch manifests commit their exact subjects. `pcc` describes
 //! published proof pairs and dispatches receiver checking, independently of
@@ -12,7 +12,6 @@
 //! with `native_artifact`; filesystem mechanics remain with `platform_custody`.
 
 mod batch_manifest;
-mod build_outputs;
 mod compile_report;
 mod pcc;
 mod production_manifest;
@@ -22,7 +21,7 @@ pub use batch_manifest::{
     BatchChildCommitment, BatchChildOutcome, BatchChildRow, BatchCompilationManifest,
     BatchCompilationManifestIdentity,
 };
-pub use build_outputs::RetainedBuildOutputs;
+pub use package_compilation::RetainedBuildOutputs;
 pub use compile_report::{CompileOutputKind, CompileReport};
 pub use native_artifact::{
     ExecutableContainerDigest, ExecutableInstallationEvidenceDigest, ExecutablePublicationReceipt,

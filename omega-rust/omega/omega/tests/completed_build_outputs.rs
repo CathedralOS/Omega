@@ -174,6 +174,31 @@ fn package_artifact_only_and_executable_companions_publish_exact_completed_files
             });
             success(Command::new(executable).output().unwrap());
         }
+
+        // A fresh compilation may reuse the exact set, but its address alone
+        // cannot authorize changed files or a replaced manifest.
+        let command = ["--offline", "--target", host.target_name(), "main.omg"];
+        success(project.omega(&command));
+        assert_eq!(project.completed_set(), set);
+        let file = set.join("files/report.txt");
+        fs::write(&file, b"wrong!\n").unwrap();
+        let rejected = project.omega(&command);
+        assert!(!rejected.status.success(), "{rejected:?}");
+        assert!(
+            String::from_utf8_lossy(&rejected.stderr).contains("materialized staged-output"),
+            "{rejected:?}"
+        );
+        assert_eq!(fs::read(&file).unwrap(), b"wrong!\n");
+
+        fs::write(&file, b"report\n").unwrap();
+        fs::write(set.join("manifest.bin"), b"replaced manifest").unwrap();
+        let rejected = project.omega(&command);
+        assert!(!rejected.status.success(), "{rejected:?}");
+        assert!(
+            String::from_utf8_lossy(&rejected.stderr)
+                .contains("completed-output manifest differs from this compilation"),
+            "{rejected:?}"
+        );
     }
 }
 

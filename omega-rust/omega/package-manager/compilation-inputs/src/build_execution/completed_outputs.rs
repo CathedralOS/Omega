@@ -4,7 +4,7 @@
 //! settled required-output roster selects products. Selection shares immutable
 //! bytes; neither report construction nor publication executes the build again.
 
-use build_evaluation::{BuildObservationIdentity, BuildObservationSummary};
+use super::{BuildObservationIdentity, BuildObservationSummary};
 use build_output::{BuildStagedOutputEntryKind, BuildStagedOutputTree};
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
@@ -80,8 +80,59 @@ impl RetainedBuildOutputs {
         self.published_directory.as_deref()
     }
 
-    /// Record the directory after the publisher installs or replays its exact bytes.
-    pub(crate) fn record_publication(&mut self, directory: PathBuf) {
+    /// Install the content-addressed file set and its manifest, or verify an
+    /// existing set against these retained bytes. The manifest is installed last.
+    /// Failure may leave a partial copy but never records successful publication.
+    pub fn publish(&mut self, build_directory: &Path) -> Result<(), String> {
+        if self.published_directory.is_some() {
+            return Err("completed outputs have already been published".into());
+        }
+        let name = self
+            .identity()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        let sets = build_directory.join("completed");
+        std::fs::create_dir_all(&sets)
+            .map_err(|error| format!("cannot create completed-output directory: {error}"))?;
+        let directory = sets.join(name);
+        let fresh = match std::fs::create_dir(&directory) {
+            Ok(()) => true,
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => false,
+            Err(error) => return Err(format!("cannot create completed-output set: {error}")),
+        };
+        let files = directory.join("files");
+        let manifest = directory.join("manifest.bin");
+        if fresh {
+            std::fs::create_dir(&files)
+                .map_err(|error| format!("cannot create completed-output files: {error}"))?;
+            self.files()
+                .materialize_into(&files)
+                .map_err(|error| error.to_string())?;
+            platform_custody::file_publication::publish_exact_file_bytes(
+                &manifest,
+                self.manifest_bytes(),
+            )?;
+        } else {
+            let metadata =
+                std::fs::symlink_metadata(&directory).map_err(|error| error.to_string())?;
+            if !metadata.is_dir() || metadata.file_type().is_symlink() {
+                return Err("completed-output set is not a concrete directory".into());
+            }
+            let metadata =
+                std::fs::symlink_metadata(&manifest).map_err(|error| error.to_string())?;
+            if !metadata.is_file()
+                || metadata.file_type().is_symlink()
+                || std::fs::read(&manifest).map_err(|error| error.to_string())?
+                    != self.manifest_bytes()
+            {
+                return Err("completed-output manifest differs from this compilation".into());
+            }
+            self.files()
+                .verify_materialized_at(&files)
+                .map_err(|error| error.to_string())?;
+        }
         self.published_directory = Some(directory);
+        Ok(())
     }
 }

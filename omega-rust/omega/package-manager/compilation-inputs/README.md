@@ -28,4 +28,9 @@ follows it. No partially settled observation is published, and the evaluator
 does not reconstruct the evidence fields. The subordinate filesystem scope owns
 root-overlap checks, snapshot materialization and release; observations retain
 their canonical identity independently of their compiler consumer.
+The [completed output owner](src/build_execution/completed_outputs.rs) selects
+only settled required files, commits their manifest, and publishes or verifies
+their exact content-addressed set. Publication custody is recorded only after
+the files and manifest succeed; compiler reports cannot assert a directory on
+the output owner's behalf. Scratch files and generated source are not products.
 See [observation custody](observation_custody.md) for the retained contract.
