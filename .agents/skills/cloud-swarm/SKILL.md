@@ -79,8 +79,15 @@ endgame — the leaf-handoff churn machinery only pays at hundreds of workers.
    merge-check conflicts at drain; clerical conflicts get resolved, real
    semantic conflicts get reported in the verdict instead of guessed at.
    Never `cargo clean` and never build `omega` from source for evidence:
-   fetch the `swarm-binaries` release binary — a local
+   fetch the `swarm-binaries` release bundle — a local
    `cargo build --release` is the single largest measured leg-time waste.
+   The bundle is `omega-<sha>.tar.gz` (layout `omega-*/bin/omega` +
+   `lib/omega/library` + manifest.json): extract it and run `bin/omega` —
+   the library resolves adjacent to the binary, digest-verified. Bare
+   `omega` assets are deprecated dev builds whose baked library path
+   points at the publishing box's checkout and silently diverges on any
+   other VM (measured: pin-vs-source verification split on squalr
+   decision-17 diagnostics, same sha, different toolchain std).
    Before any gate projected past ~15min, confirm the fetched binary's
    pinned rev still matches `origin/main` — the coordinator republishes on
    toolchain-touching merges and posts the new sha to every active worker;
@@ -253,8 +260,15 @@ pinned packaged binary (e.g. Squalr's `swarm-binaries` omega build), the
 coordinator rebuilds and re-pins it in a dedicated worktree after merges
 that touch the toolchain path — never per-leg "build your own binary"
 instructions, which burn leg time and split evidence across mismatched
-binaries. On every republish, message all active workers the new pinned
-sha so no gate runs on a superseded binary.
+binaries. Republish with the real packager, never a bare cargo build:
+`python3 tools/release/package.py --version 0.1.0-swarm-<shortsha>`
+(clean checkout required; it bakes OMEGA_RELEASE_LIBRARY_SHA256, ships
+`lib/omega/library` beside `bin/omega`, and runs relocated-install +
+native + offline smoke itself), then `gh release upload swarm-binaries
+build/releases/omega-*.tar.gz` as both the `omega-<sha>.tar.gz` pin and
+the latest `omega-0.1.0-swarm-*.tar.gz` asset. On every republish, message
+all active workers the new pinned sha so no gate runs on a superseded
+binary.
 
 **Residual treadmill.** Prefer re-dispatching the settled worker onto the
 smallest same-domain residual its own verdict names; warm clone + warm
