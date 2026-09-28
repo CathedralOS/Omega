@@ -89,6 +89,16 @@ The `Utf8` qualifications, Wrapping policies, and search algorithm are unchanged
 Execution on the other hosts remains open; these repairs do not refresh the
 historical whole-corpus counts above.
 
+`slice_accum_probe` now runs unchanged on macOS ARM64:
+`omega run --both samples/cli/collections/slice_accum_probe/main.omg < /dev/null`
+prints `PASS: both slice accumulations summed to 70 (exit 70)` and reports
+native and interpreted exit **70**. Scalar-graph parameter custody now reconstructs
+borrowed slice elements from their exact source declarations, using the same
+recursive catalog check as owned parameters. Record fields, nested types and
+numeric restrictions remain checked; a retained element identity alone grants
+no authority. Existing Terminal verification and native record-view realization
+are unchanged. The historical counts above are not a refreshed whole-corpus run.
+
 ### The whole corpus reconciles
 
 | | count |

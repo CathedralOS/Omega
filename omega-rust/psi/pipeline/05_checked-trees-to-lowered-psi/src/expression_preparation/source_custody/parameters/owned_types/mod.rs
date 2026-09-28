@@ -1,9 +1,11 @@
-//! Reconstruct owned graph catalog shapes from their exact typed declarations.
+//! Reconstruct graph catalog shapes from their exact typed declarations.
 //!
 //! Plain ownership does not imply an unrestricted payload. Numeric constraints
 //! carry no cleanup, but their admitted values remain part of field identity.
 //! Reconstruct those restrictions from the original type and substitutions before
 //! comparing catalogs; agreement between retained catalogs cannot replace this.
+//! Borrowed slice elements use the same reconstruction as owned parameters:
+//! borrowing changes access, not the referent's fields or numeric restrictions.
 
 use checked_trees::TypeIdentityRequest;
 use checked_trees::data::{DataDefinition, DataField, DataMember};
@@ -20,6 +22,22 @@ use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
 
 mod scalar_fields;
+
+pub(super) fn validate_slice_element(
+    checked: &CheckedTrees,
+    element: TypeReferenceHandle,
+    retained_identity: &str,
+) -> Result<(), LoweringError> {
+    let mut source = SourceTypes {
+        checked,
+        active: Vec::new(),
+        complete: Vec::new(),
+    };
+    if source.validate_type(element, &[])? != retained_identity {
+        return unsupported("scalar graph slice element identity differs from its source");
+    }
+    Ok(())
+}
 
 /// Signature admission owns plain-content and no-code eligibility. Catalog
 /// correspondence must still be reconstructed: agreement among retained
