@@ -1,6 +1,8 @@
 // COMPILE CANARY. A record literal may elide a member of sum type whose first
 // case carries scalar payloads: zero establishment mints the first-case tag
-// cell and the zero spelling of its scalar payload fields.
+// cell and the zero spelling of its scalar payload fields. Elided scalar
+// members in a partially-authored literal establish their declared type's
+// zero as the field's scalar value.
 use omega_language_std::console;
 use omega::language::core::binding;
 
@@ -21,5 +23,6 @@ data Main {
 
 machine Main::main(&mut self) reaches Console {
     let snapshot: Snapshot = Snapshot {};
+    let partial: Snapshot = Snapshot { region_count: 4 };
     self.console.exit_process(70);
 }
