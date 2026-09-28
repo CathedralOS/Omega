@@ -39,13 +39,24 @@ pub(super) struct OperatorPhysicalSpan {
 /// scalar-local admission (`pure initializer`);
 /// `tests::boundary_operator_frontier` in stage 05 pins all three outcomes.
 /// Of the remaining `ExactCompilerIntrinsic` families, only the float and
-/// integer comparisons are producible (f64 operator demand resolves through
-/// record fields and pure initializers that admission currently rejects, and
-/// the float builtin/checked float families sit behind the same upstream
-/// statements). The `Call*` arms and the FMA tail still bind replayed
-/// artifacts naming them; extending the intrinsic arms before an occurrence
-/// exists would dead-code this lane, so the arm to extend is whichever family
-/// the next replay change first makes survivable.
+/// integer comparisons are producible: they are the only intrinsic
+/// realizations with a Terminal operation of their own, and stage 07's
+/// occurrence replay rebuilds only them. Float arithmetic, negation,
+/// conversion and builtins have no Terminal operation to bind, and Terminal
+/// nearest-FMA is refused at comparison-coverage settlement for lack of
+/// selected-provider custody. A selected float guard over receiver fields
+/// stops earlier still, at stage 05 scalar field observation
+/// (`tests::boundary_operator_frontier`). The `Call*` arms and the FMA tail
+/// still bind replayed artifacts naming them; extending the intrinsic arms
+/// before an occurrence exists would dead-code this lane, so the arm to
+/// extend is whichever family the next replay change first makes survivable.
+///
+/// Production native publication admits physical evidence only through
+/// `NativePhysicalEvidenceScope::from_validated_fragment_publication`, so
+/// `fragment_publication` is true on every compiler-produced artifact; the
+/// non-fragment arms serve the constructed optimized and unoptimized scopes.
+/// The driver's `boundary_internal_call_evidence` test witnesses the
+/// fragment comparison arm end to end on both canonical architectures.
 pub(super) fn derive_operator_physical_span(
     occurrence: &OptimizedOperatorOccurrence,
     realization: &BoundaryApplicationRealization,
