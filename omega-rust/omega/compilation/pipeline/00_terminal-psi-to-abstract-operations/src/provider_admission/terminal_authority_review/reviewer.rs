@@ -139,19 +139,19 @@ impl<'a> Reviewer<'a> {
         provider_plan: ProviderPlanDigest,
         mechanism: TerminalMechanismIdentity,
     ) -> Result<(), String> {
-        let exercised = self
-            .context
-            .physical_policy
-            .classify(mechanism)
-            .map_err(|unclassified| {
-                format!(
+        let exercised = match self.context.physical_policy.classify(mechanism) {
+            Ok(exercised) => Some(exercised),
+            Err(unclassified) if self.context.permission_policy.is_some() => {
+                return Err(format!(
                     "receiving terminal-authority policy does not classify {:?} required by `{requirement}`",
                     unclassified.mechanism()
-                )
-            })?;
+                ));
+            }
+            Err(_) => None,
+        };
         // The receiver-admission axis is consulted only when a receiving
         // permission policy was explicitly supplied. Without one the leaf
-        // carries its physical classification and exercised authority with no
+        // retains its mechanism and any available classification with no
         // adjudicated permission; the leaf cannot claim admission later.
         let permitted = self
             .context

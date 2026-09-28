@@ -33,7 +33,6 @@ pub fn settle_provider_executions<'request>(
     let (mechanisms, cohort_rows) = validate_source_evaluated_import_coverage(
         input.plan(),
         request.selected_provider_plans,
-        request.terminal_authority_policy,
         request.target,
         request.external_binding_rows,
         request.settlements,

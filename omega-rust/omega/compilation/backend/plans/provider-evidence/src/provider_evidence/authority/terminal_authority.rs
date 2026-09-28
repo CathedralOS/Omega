@@ -817,7 +817,7 @@ pub struct TerminalAuthorityClosureLeaf {
     requirement_identity: String,
     provider_plan: crate::provider_plan::ProviderPlanDigest,
     mechanism: TerminalMechanismIdentity,
-    exercised: TerminalAuthorityDisposition,
+    exercised: Option<TerminalAuthorityDisposition>,
     permitted: Option<TerminalAuthorityDisposition>,
 }
 
@@ -827,25 +827,37 @@ impl TerminalAuthorityClosureLeaf {
         requirement_identity: String,
         provider_plan: crate::provider_plan::ProviderPlanDigest,
         mechanism: TerminalMechanismIdentity,
-        exercised: TerminalAuthorityDisposition,
+        exercised: Option<TerminalAuthorityDisposition>,
         permitted: Option<TerminalAuthorityDisposition>,
     ) -> Result<Self, TerminalAuthorityClosureReviewBuildError> {
-        if requirement_identity.is_empty() {
-            return Err(TerminalAuthorityClosureReviewBuildError::EmptyRequirement);
-        }
-        if let Some(permitted) = &permitted
-            && !permitted.contains_all(&exercised)
-        {
-            return Err(TerminalAuthorityClosureReviewBuildError::ExercisedAuthorityNotPermitted);
-        }
-        Ok(Self {
+        let leaf = Self {
             service_schema,
             requirement_identity,
             provider_plan,
             mechanism,
             exercised,
             permitted,
-        })
+        };
+        leaf.validate()?;
+        Ok(leaf)
+    }
+
+    fn validate(&self) -> Result<(), TerminalAuthorityClosureReviewBuildError> {
+        if self.requirement_identity.is_empty() {
+            return Err(TerminalAuthorityClosureReviewBuildError::EmptyRequirement);
+        }
+        if let Some(permitted) = &self.permitted {
+            let exercised = self
+                .exercised
+                .as_ref()
+                .ok_or(TerminalAuthorityClosureReviewBuildError::UnclassifiedAuthority)?;
+            if !permitted.contains_all(exercised) {
+                return Err(
+                    TerminalAuthorityClosureReviewBuildError::ExercisedAuthorityNotPermitted,
+                );
+            }
+        }
+        Ok(())
     }
 
     pub const fn service_schema(&self) -> crate::provider_plan::ServiceSchemaDigest {
@@ -864,8 +876,10 @@ impl TerminalAuthorityClosureLeaf {
         self.mechanism
     }
 
-    pub const fn exercised(&self) -> &TerminalAuthorityDisposition {
-        &self.exercised
+    /// `None` retains an exact mechanism without a classification. It is not
+    /// an empty disposition and cannot establish admission or an exclusion.
+    pub const fn exercised(&self) -> Option<&TerminalAuthorityDisposition> {
+        self.exercised.as_ref()
     }
 
     /// The exact permission this leaf was admitted under, or `None` when the
@@ -881,9 +895,9 @@ impl TerminalAuthorityClosureLeaf {
 ///
 /// `permission_policy` is `Some` only when a receiving permission policy was
 /// explicitly supplied and adjudicated every leaf. `None` means the review
-/// recorded physical classification and exercised authority without making
-/// any receiver-admission claim; such a receipt can never satisfy an explicit
-/// admission replay.
+/// retained exact mechanisms and any available classifications without making
+/// a receiver-admission claim. Unclassified leaves remain explicit; such a
+/// receipt can never satisfy an explicit admission replay.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalAuthorityClosureReviewReceipt {
     terminal_artifact_identity: [u8; 32],
@@ -924,12 +938,8 @@ impl TerminalAuthorityClosureReviewReceipt {
         {
             return Err(TerminalAuthorityClosureReviewBuildError::AdmissionAxisInconsistent);
         }
-        if leaves.iter().any(|leaf| {
-            leaf.permitted
-                .as_ref()
-                .is_some_and(|permitted| !permitted.contains_all(&leaf.exercised))
-        }) {
-            return Err(TerminalAuthorityClosureReviewBuildError::ExercisedAuthorityNotPermitted);
+        for leaf in &leaves {
+            leaf.validate()?;
         }
         let identity = terminal_authority_closure_review_identity(
             terminal_artifact_identity,
@@ -991,23 +1001,12 @@ impl TerminalAuthorityClosureReviewReceipt {
         if self
             .leaves
             .iter()
-            .any(|leaf| leaf.requirement_identity.is_empty())
-        {
-            return Err(TerminalAuthorityClosureReviewBuildError::EmptyRequirement);
-        }
-        if self
-            .leaves
-            .iter()
             .any(|leaf| leaf.permitted.is_some() != self.permission_policy.is_some())
         {
             return Err(TerminalAuthorityClosureReviewBuildError::AdmissionAxisInconsistent);
         }
-        if self.leaves.iter().any(|leaf| {
-            leaf.permitted
-                .as_ref()
-                .is_some_and(|permitted| !permitted.contains_all(&leaf.exercised))
-        }) {
-            return Err(TerminalAuthorityClosureReviewBuildError::ExercisedAuthorityNotPermitted);
+        for leaf in &self.leaves {
+            leaf.validate()?;
         }
         let expected = terminal_authority_closure_review_identity(
             self.terminal_artifact_identity,
@@ -1033,6 +1032,7 @@ pub enum TerminalAuthorityClosureReviewBuildError {
     /// unadjudicated leaves, or naming no policy while carrying adjudicated
     /// leaves, does not form one consistent receiver-admission axis.
     AdmissionAxisInconsistent,
+    UnclassifiedAuthority,
     ExercisedAuthorityNotPermitted,
     IdentityMismatch,
 }
@@ -1076,7 +1076,7 @@ fn terminal_authority_closure_review_identity(
     leaves: &[TerminalAuthorityClosureLeaf],
 ) -> [u8; 32] {
     let mut digest = Sha256::new();
-    digest.update(b"omega.terminal-authority.closure-review.v2\0");
+    digest.update(b"omega.terminal-authority.closure-review.v3\0");
     digest.update(terminal_artifact_identity);
     digest.update([match target.architecture {
         target::Architecture::Aarch64 => 0,
@@ -1111,7 +1111,13 @@ fn terminal_authority_closure_review_identity(
         let mechanism = terminal_mechanism_identity_bytes(leaf.mechanism);
         digest.update((mechanism.len() as u64).to_be_bytes());
         digest.update(mechanism);
-        encode_authority_classes(&mut digest, &leaf.exercised);
+        match &leaf.exercised {
+            None => digest.update([0]),
+            Some(exercised) => {
+                digest.update([1]);
+                encode_authority_classes(&mut digest, exercised);
+            }
+        }
         match &leaf.permitted {
             None => digest.update([0]),
             Some(permitted) => {
@@ -1396,9 +1402,9 @@ mod tests {
             "test::Console::exit()".to_owned(),
             crate::provider_plan::ProviderPlanDigest::from_digest([43; 32]),
             CompilerIntrinsicExecutionIdentity::HostedExitProcessI32.into(),
-            TerminalAuthorityDisposition::from_classes([
+            Some(TerminalAuthorityDisposition::from_classes([
                 TerminalAuthorityClass::ProcessTermination,
-            ]),
+            ])),
             permitted,
         )
         .expect("fixture leaf")
@@ -1446,6 +1452,62 @@ mod tests {
         assert_ne!(
             unclaimed.leaves()[0].permitted(),
             claimed.leaves()[0].permitted()
+        );
+    }
+
+    #[test]
+    fn unclassified_closure_is_not_empty_authority_or_receiver_admission() {
+        let mut unknown = closure_leaf(None);
+        unknown.exercised = None;
+        let receipt = closure_receipt(None, vec![unknown.clone()]).unwrap();
+        receipt.validate().unwrap();
+        assert!(receipt.leaves()[0].exercised().is_none());
+
+        let mut empty = unknown.clone();
+        empty.exercised = Some(TerminalAuthorityDisposition::from_classes([]));
+        let empty_receipt = closure_receipt(None, vec![empty.clone()]).unwrap();
+        assert_ne!(receipt.identity(), empty_receipt.identity());
+        let mut substituted = receipt;
+        substituted.leaves[0] = empty;
+        assert_eq!(
+            substituted.validate(),
+            Err(super::TerminalAuthorityClosureReviewBuildError::IdentityMismatch),
+        );
+
+        let permitted = TerminalAuthorityDisposition::from_classes([
+            TerminalAuthorityClass::ProcessTermination,
+        ]);
+        assert_eq!(
+            super::TerminalAuthorityClosureLeaf::new(
+                unknown.service_schema,
+                unknown.requirement_identity.clone(),
+                unknown.provider_plan,
+                unknown.mechanism,
+                None,
+                Some(permitted.clone()),
+            ),
+            Err(super::TerminalAuthorityClosureReviewBuildError::UnclassifiedAuthority),
+        );
+        // Free-data construction and replay must enforce the same rule.
+        unknown.permitted = Some(permitted);
+        let policy = super::TerminalAuthorityPermissionPolicyIdentity::from_parts(1, [17; 32]);
+        assert_eq!(
+            closure_receipt(Some(policy), vec![unknown]),
+            Err(super::TerminalAuthorityClosureReviewBuildError::UnclassifiedAuthority),
+        );
+        let mut forged = closure_receipt(
+            Some(policy),
+            vec![closure_leaf(Some(
+                TerminalAuthorityDisposition::from_classes([
+                    TerminalAuthorityClass::ProcessTermination,
+                ]),
+            ))],
+        )
+        .unwrap();
+        forged.leaves[0].exercised = None;
+        assert_eq!(
+            forged.validate(),
+            Err(super::TerminalAuthorityClosureReviewBuildError::UnclassifiedAuthority),
         );
     }
 

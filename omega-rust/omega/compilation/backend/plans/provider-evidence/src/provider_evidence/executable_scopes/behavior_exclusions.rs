@@ -174,7 +174,15 @@ impl BehaviorExclusions {
         }
         let mut violations = Vec::new();
         for leaf in closure_review.leaves() {
-            for &class in leaf.exercised().classes() {
+            let Some(exercised) = leaf.exercised() else {
+                violations.push(format!(
+                    "requirement `{}` has no physical authority classification for mechanism {:?}; requested exclusions cannot be established",
+                    leaf.requirement_identity(),
+                    leaf.mechanism(),
+                ));
+                continue;
+            };
+            for &class in exercised.classes() {
                 if self.excludes_physical_authority_class(class) {
                     violations.push(format!(
                         "requirement `{}` exercises excluded physical authority class {class:?} through mechanism {:?}",

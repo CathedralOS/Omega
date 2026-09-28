@@ -17,8 +17,8 @@ use reviewer::Reviewer;
 /// Review the selected-provider closure's terminal leaves. `permission_policy`
 /// is the receiver-admission axis: `Some` adjudicates every leaf against one
 /// exact supplied row and binds that policy identity into the receipt; `None`
-/// records physical classification and exercised authority only and produces a
-/// receipt that carries no receiver-admission claim.
+/// retains exact mechanisms and any available classifications, without claiming
+/// receiver admission. Unknown classifications are not empty dispositions.
 pub fn review_terminal_authority_closure(
     terminal_artifact_identity: [u8; 32],
     target_profile: target::TargetProfile,
