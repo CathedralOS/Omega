@@ -127,9 +127,23 @@ def check_rust_toolchain():
     return check("rustc", "ok", detail)
 
 
+def versioned_sdk(path):
+    """True for a version-numbered SDK directory (MacOSX26.2.sdk), which an
+    Xcode update deletes. The unversioned MacOSX.sdk is maintained across
+    updates — and Apple's /usr/bin/python3 shim exports exactly that path
+    into its own process, so flagging it would warn about a variable the
+    user never set."""
+    return re.fullmatch(r"MacOSX\d[\d.]*\.sdk", Path(path).name) is not None
+
+
 def check_rust_link_probe():
     """Compile, link, and run a trivial binary — the end-to-end check that
-    catches a linker/SDK version mismatch version strings cannot see."""
+    catches a linker/SDK version mismatch version strings cannot see.
+
+    rustc runs with the repository as its working directory, so rustup
+    resolves rust-toolchain.toml and the probe exercises the pinned
+    toolchain; from a scratch directory rustup falls back to its default
+    (stable on the development Mac), which is not what builds Omega."""
     sdkroot = os.environ.get("SDKROOT", "").strip()
     if sdkroot and not Path(sdkroot).is_dir():
         return check("rust-link", "fail",
@@ -143,7 +157,7 @@ def check_rust_link_probe():
         source.write_text("fn main() { std::process::exit(7) }\n",
                           encoding="utf-8")
         built = run(["rustc", str(source), "-o", str(binary)],
-                    timeout=PROBE_TIMEOUT, cwd=scratch)
+                    timeout=PROBE_TIMEOUT, cwd=ROOT)
         if built is None:
             return check("rust-link", "fail", "rustc probe timed out")
         code, out, error = built
@@ -175,13 +189,15 @@ def check_rust_link_probe():
         if ran[0] != 7:
             return check("rust-link", "fail",
                          f"probe binary exited {ran[0]}, expected 7")
-    suffix = f" (SDKROOT={sdkroot})" if sdkroot else ""
-    if sdkroot:
+    detail = "compiled, linked, and ran a probe with the pinned toolchain"
+    if sdkroot and versioned_sdk(sdkroot):
         return check("rust-link", "warn",
-                     "linked and ran" + suffix,
-                     fix="prefer SDKROOT unset or resolved via xcrun — a "
-                         "hard-coded SDK path breaks when Xcode updates")
-    return check("rust-link", "ok", "compiled, linked, and ran a probe")
+                     f"{detail} (SDKROOT={sdkroot})",
+                     fix="SDKROOT names a version-numbered SDK that the "
+                         "next Xcode update deletes; unset it or resolve "
+                         'it via xcrun: export SDKROOT="$(xcrun --sdk '
+                         'macosx --show-sdk-path)"')
+    return check("rust-link", "ok", detail)
 
 
 def check_mbx():

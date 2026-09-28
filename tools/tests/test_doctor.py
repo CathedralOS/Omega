@@ -121,6 +121,46 @@ class CheckTests(unittest.TestCase):
             entry = module.check_rust_link_probe()
         self.assertEqual(entry["status"], "ok")
 
+    def healthy_probe(self, calls):
+        def run(arguments, timeout=45, cwd=None):
+            calls.append((arguments[0], cwd))
+            if arguments[0] == "rustc" and len(arguments) > 1:
+                return (0, "", "")
+            if arguments[0].endswith(("probe", "probe.exe")):
+                return (7, "", "")
+            return None
+        return run
+
+    def test_probe_compiles_from_the_repository_so_the_pin_applies(self):
+        module = self.module
+        calls = []
+        with patch.object(module, "run", self.healthy_probe(calls)), \
+                patch.dict(os.environ, {"SDKROOT": ""}):
+            entry = module.check_rust_link_probe()
+        self.assertEqual(entry["status"], "ok")
+        self.assertIn("pinned toolchain", entry["detail"])
+        self.assertEqual([cwd for name, cwd in calls if name == "rustc"],
+                         [module.ROOT])
+
+    def test_unversioned_sdkroot_is_fine_and_versioned_warns(self):
+        module = self.module
+        self.assertFalse(module.versioned_sdk(
+            "/Applications/Xcode.app/Contents/Developer/Platforms/"
+            "MacOSX.platform/Developer/SDKs/MacOSX.sdk"))
+        self.assertTrue(module.versioned_sdk("/x/SDKs/MacOSX26.2.sdk"))
+        self.assertTrue(module.versioned_sdk("/x/SDKs/MacOSX27.sdk"))
+        with tempfile.TemporaryDirectory() as scratch:
+            unversioned = Path(scratch) / "MacOSX.sdk"
+            versioned = Path(scratch) / "MacOSX26.2.sdk"
+            unversioned.mkdir()
+            versioned.mkdir()
+            for sdk, expected in ((unversioned, "ok"), (versioned, "warn")):
+                with patch.object(module, "run", self.healthy_probe([])), \
+                        patch.dict(os.environ, {"SDKROOT": str(sdk)}):
+                    self.assertEqual(
+                        module.check_rust_link_probe()["status"], expected,
+                        sdk.name)
+
     def test_sdkroot_naming_a_missing_sdk_fails_before_probing(self):
         module = self.module
         with patch.dict(os.environ,
