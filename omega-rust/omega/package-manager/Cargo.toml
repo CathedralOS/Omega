@@ -38,7 +38,7 @@ cap-fs-ext = "4.0.3"
 sha2 = "0.10.9"
 
 [dev-dependencies]
-build-evaluation = { path = "../compiler/build-evaluation", features = ["test-support"] }
+build-evaluation = { path = "../compiler/build-evaluation" }
 mimalloc = { version = "0.1", default-features = false }
 package-source = { path = "source-acquisition", features = ["test-fixtures"] }
 

@@ -2,21 +2,23 @@
 
 use build_output::BuildStagedOutputTree;
 
-pub use checked_interpreter::BuildEvaluationUsage;
+// Filesystem facts retain the evaluator's vocabulary and logical identities.
+// Only root meaning and successful-run custody are build-specific below.
+pub use checked_interpreter::{
+    BuildEvaluationUsage, FilesystemGrantAccess as BuildFilesystemGrantAccess,
+    FilesystemGrantRefusal as BuildFilesystemGrantRefusal,
+    FilesystemGrantRefusalReason as BuildFilesystemGrantRefusalReason,
+    FilesystemLogicalHandleIdentity as BuildFilesystemLogicalHandleIdentity,
+    FilesystemLogicalHandleInput as BuildFilesystemLogicalHandleInput,
+    FilesystemLogicalHandleInputResolution as BuildFilesystemLogicalHandleInputResolution,
+    FilesystemLogicalHandleKind as BuildFilesystemLogicalHandleKind,
+    FilesystemLogicalHandleOutput as BuildFilesystemLogicalHandleOutput,
+    FilesystemLogicalHandleOutputSource as BuildFilesystemLogicalHandleOutputSource,
+    FilesystemObservationProvider as BuildFilesystemProvider,
+    FilesystemOperationResult as BuildFilesystemOperationResult,
+};
 
 pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 82;
-
-/// Provider used for an observed filesystem operation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BuildFilesystemProvider {
-    /// Deterministic in-memory provider.
-    Virtual,
-    /// Real process filesystem without path grants; never selected by admitted
-    /// build execution.
-    RealUnscoped,
-    /// Real filesystem constrained by compiler-supplied path grants.
-    RealScoped,
-}
 
 /// Exact immutable-source coordinate governing canonical build-visible
 /// metadata. This is compiler sponsorship, not package admission evidence.
@@ -73,41 +75,6 @@ impl BuildActivation {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BuildFilesystemGrantAccess {
-    Read,
-    Write,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BuildFilesystemGrantRefusalReason {
-    Unresolvable,
-    OutsideGrantedRoots,
-    UnrepresentableRootedPath,
-    ObservationEvidenceLimitExceeded,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BuildFilesystemGrantRefusal {
-    pub(crate) operand_ordinal: u8,
-    pub(crate) access: BuildFilesystemGrantAccess,
-    pub(crate) reason: BuildFilesystemGrantRefusalReason,
-}
-
-impl BuildFilesystemGrantRefusal {
-    pub const fn operand_ordinal(self) -> u8 {
-        self.operand_ordinal
-    }
-
-    pub const fn access(self) -> BuildFilesystemGrantAccess {
-        self.access
-    }
-
-    pub const fn reason(self) -> BuildFilesystemGrantRefusalReason {
-        self.reason
-    }
-}
-
 /// Stable build-evaluation identity for a package filesystem root.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuildFilesystemRoot {
@@ -143,166 +110,6 @@ impl BuildFilesystemAuthorizedPath {
 
     pub fn relative_path(&self) -> &[u8] {
         &self.relative_path
-    }
-}
-
-/// Stable build-evaluation identity for one descriptor/handle lifetime in a
-/// package build evaluation. Provider token values never define this identity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct BuildFilesystemLogicalHandleIdentity(u64);
-
-impl BuildFilesystemLogicalHandleIdentity {
-    pub(crate) const fn new(value: u64) -> Option<Self> {
-        if value == 0 { None } else { Some(Self(value)) }
-    }
-
-    pub const fn get(self) -> u64 {
-        self.0
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BuildFilesystemLogicalHandleKind {
-    Descriptor,
-    Native,
-    Find,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BuildFilesystemLogicalHandleInputResolution {
-    Resolved(BuildFilesystemLogicalHandleIdentity),
-    Null,
-    Unknown,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BuildFilesystemLogicalHandleInput {
-    pub(crate) operand_ordinal: u8,
-    pub(crate) kind: BuildFilesystemLogicalHandleKind,
-    pub(crate) resolution: BuildFilesystemLogicalHandleInputResolution,
-}
-
-impl BuildFilesystemLogicalHandleInput {
-    pub const fn operand_ordinal(self) -> u8 {
-        self.operand_ordinal
-    }
-
-    pub const fn kind(self) -> BuildFilesystemLogicalHandleKind {
-        self.kind
-    }
-
-    pub const fn resolution(self) -> BuildFilesystemLogicalHandleInputResolution {
-        self.resolution
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BuildFilesystemLogicalHandleOutputSource {
-    Created,
-    Duplicated(BuildFilesystemLogicalHandleIdentity),
-    Borrowed(BuildFilesystemLogicalHandleIdentity),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BuildFilesystemLogicalHandleOutput {
-    pub(crate) kind: BuildFilesystemLogicalHandleKind,
-    pub(crate) identity: BuildFilesystemLogicalHandleIdentity,
-    pub(crate) source: BuildFilesystemLogicalHandleOutputSource,
-}
-
-impl BuildFilesystemLogicalHandleOutput {
-    pub const fn kind(self) -> BuildFilesystemLogicalHandleKind {
-        self.kind
-    }
-
-    pub const fn identity(self) -> BuildFilesystemLogicalHandleIdentity {
-        self.identity
-    }
-
-    pub const fn source(self) -> BuildFilesystemLogicalHandleOutputSource {
-        self.source
-    }
-}
-
-pub(crate) const fn project_logical_handle_identity(
-    identity: checked_interpreter::FilesystemLogicalHandleIdentity,
-) -> BuildFilesystemLogicalHandleIdentity {
-    match BuildFilesystemLogicalHandleIdentity::new(identity.get()) {
-        Some(identity) => identity,
-        None => panic!("checked-interpreter logical handle identity must be nonzero"),
-    }
-}
-
-pub(crate) const fn project_logical_handle_kind(
-    kind: checked_interpreter::FilesystemLogicalHandleKind,
-) -> BuildFilesystemLogicalHandleKind {
-    match kind {
-        checked_interpreter::FilesystemLogicalHandleKind::Descriptor => {
-            BuildFilesystemLogicalHandleKind::Descriptor
-        }
-        checked_interpreter::FilesystemLogicalHandleKind::Native => {
-            BuildFilesystemLogicalHandleKind::Native
-        }
-        checked_interpreter::FilesystemLogicalHandleKind::Find => {
-            BuildFilesystemLogicalHandleKind::Find
-        }
-    }
-}
-
-pub(crate) const fn project_logical_handle_input_resolution(
-    resolution: checked_interpreter::FilesystemLogicalHandleInputResolution,
-) -> BuildFilesystemLogicalHandleInputResolution {
-    match resolution {
-        checked_interpreter::FilesystemLogicalHandleInputResolution::Resolved(identity) => {
-            BuildFilesystemLogicalHandleInputResolution::Resolved(project_logical_handle_identity(
-                identity,
-            ))
-        }
-        checked_interpreter::FilesystemLogicalHandleInputResolution::Null => {
-            BuildFilesystemLogicalHandleInputResolution::Null
-        }
-        checked_interpreter::FilesystemLogicalHandleInputResolution::Unknown => {
-            BuildFilesystemLogicalHandleInputResolution::Unknown
-        }
-    }
-}
-
-pub(crate) const fn project_logical_handle_output_source(
-    source: checked_interpreter::FilesystemLogicalHandleOutputSource,
-) -> BuildFilesystemLogicalHandleOutputSource {
-    match source {
-        checked_interpreter::FilesystemLogicalHandleOutputSource::Created => {
-            BuildFilesystemLogicalHandleOutputSource::Created
-        }
-        checked_interpreter::FilesystemLogicalHandleOutputSource::Duplicated(identity) => {
-            BuildFilesystemLogicalHandleOutputSource::Duplicated(project_logical_handle_identity(
-                identity,
-            ))
-        }
-        checked_interpreter::FilesystemLogicalHandleOutputSource::Borrowed(identity) => {
-            BuildFilesystemLogicalHandleOutputSource::Borrowed(project_logical_handle_identity(
-                identity,
-            ))
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BuildFilesystemOperationResult {
-    Scalar(i64),
-    LogicalHandle(BuildFilesystemLogicalHandleIdentity),
-}
-
-pub(crate) const fn project_operation_result(
-    result: checked_interpreter::FilesystemOperationResult,
-) -> BuildFilesystemOperationResult {
-    match result {
-        checked_interpreter::FilesystemOperationResult::Scalar(value) => {
-            BuildFilesystemOperationResult::Scalar(value)
-        }
-        checked_interpreter::FilesystemOperationResult::LogicalHandle(identity) => {
-            BuildFilesystemOperationResult::LogicalHandle(project_logical_handle_identity(identity))
-        }
     }
 }
 

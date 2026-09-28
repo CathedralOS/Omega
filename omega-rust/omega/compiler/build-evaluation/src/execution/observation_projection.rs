@@ -3,12 +3,8 @@
 
 use crate::evidence::filesystem_scope::{BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY};
 use crate::evidence::observations::{
-    BuildFilesystemAuthorizedPath, BuildFilesystemGrantAccess, BuildFilesystemGrantRefusal,
-    BuildFilesystemGrantRefusalReason, BuildFilesystemLogicalHandleInput,
-    BuildFilesystemLogicalHandleOutput, BuildFilesystemOperationAttempt, BuildFilesystemProvider,
-    BuildFilesystemRoot, BuildIncludedSourceHandoff, project_logical_handle_identity,
-    project_logical_handle_input_resolution, project_logical_handle_kind,
-    project_logical_handle_output_source, project_operation_result,
+    BuildFilesystemAuthorizedPath, BuildFilesystemOperationAttempt, BuildFilesystemRoot,
+    BuildIncludedSourceHandoff,
 };
 use checked_interpreter::EvaluationObservations;
 use diagnostics::Diagnostic;
@@ -42,95 +38,26 @@ pub(super) fn project_filesystem_operation_attempts(
                     };
                     Ok(BuildFilesystemAuthorizedPath {
                         operand_ordinal: path.operand_ordinal(),
-                        access: match path.access() {
-                            checked_interpreter::FilesystemGrantAccess::Read => {
-                                BuildFilesystemGrantAccess::Read
-                            }
-                            checked_interpreter::FilesystemGrantAccess::Write => {
-                                BuildFilesystemGrantAccess::Write
-                            }
-                        },
+                        access: path.access(),
                         root,
                         relative_path: path.relative_path().to_vec(),
                     })
                 })
                 .collect::<Result<Vec<_>, Diagnostic>>()?;
-            let logical_handle_inputs = attempt
-                .logical_handle_inputs()
-                .iter()
-                .map(|input| BuildFilesystemLogicalHandleInput {
-                    operand_ordinal: input.operand_ordinal(),
-                    kind: project_logical_handle_kind(input.kind()),
-                    resolution: project_logical_handle_input_resolution(input.resolution()),
-                })
-                .collect();
-            let logical_handle_output = attempt.logical_handle_output().map(|output| {
-                BuildFilesystemLogicalHandleOutput {
-                    kind: project_logical_handle_kind(output.kind()),
-                    identity: project_logical_handle_identity(output.identity()),
-                    source: project_logical_handle_output_source(output.source()),
-                }
-            });
-            let retired_logical_handles = attempt
-                .retired_logical_handles()
-                .iter()
-                .copied()
-                .map(project_logical_handle_identity)
-                .collect();
             Ok(BuildFilesystemOperationAttempt {
                 operation_tag: attempt.operation_tag(),
-                provider: match attempt.provider() {
-                checked_interpreter::FilesystemObservationProvider::Virtual => {
-                    BuildFilesystemProvider::Virtual
-                }
-                checked_interpreter::FilesystemObservationProvider::RealUnscoped => {
-                    BuildFilesystemProvider::RealUnscoped
-                }
-                checked_interpreter::FilesystemObservationProvider::RealScoped => {
-                    BuildFilesystemProvider::RealScoped
-                }
-            },
-                result: project_operation_result(
-                    attempt
+                provider: attempt.provider(),
+                result: attempt
                         .result()
                         .expect("successful build evaluation cannot retain a halted filesystem call"),
-                ),
                 post_error: attempt
                     .post_error()
                     .expect("successful build evaluation cannot retain a halted filesystem call"),
                 authorized_paths,
-                logical_handle_inputs,
-                logical_handle_output,
-                retired_logical_handles,
-                grant_refusals: attempt
-                    .grant_refusals()
-                    .iter()
-                    .map(|refusal| BuildFilesystemGrantRefusal {
-                        operand_ordinal: refusal.operand_ordinal(),
-                        access: match refusal.access() {
-                            checked_interpreter::FilesystemGrantAccess::Read => {
-                                BuildFilesystemGrantAccess::Read
-                            }
-                            checked_interpreter::FilesystemGrantAccess::Write => {
-                                BuildFilesystemGrantAccess::Write
-                            }
-                        },
-                        reason: match refusal.reason() {
-                            checked_interpreter::FilesystemGrantRefusalReason::Unresolvable => {
-                                BuildFilesystemGrantRefusalReason::Unresolvable
-                            }
-                            checked_interpreter::FilesystemGrantRefusalReason::OutsideGrantedRoots => {
-                                BuildFilesystemGrantRefusalReason::OutsideGrantedRoots
-                            }
-                            checked_interpreter::FilesystemGrantRefusalReason::UnrepresentableRootedPath => {
-                                BuildFilesystemGrantRefusalReason::UnrepresentableRootedPath
-                            }
-                            checked_interpreter::FilesystemGrantRefusalReason::ObservationEvidenceLimitExceeded => {
-                                BuildFilesystemGrantRefusalReason::ObservationEvidenceLimitExceeded
-                            }
-                        },
-                    })
-                    .collect(),
+                logical_handle_inputs: attempt.logical_handle_inputs().to_vec(),
+                logical_handle_output: attempt.logical_handle_output(),
+                retired_logical_handles: attempt.retired_logical_handles().to_vec(),
+                grant_refusals: attempt.grant_refusals().to_vec(),
             })
         })
         .collect::<Result<Vec<_>, Diagnostic>>()
