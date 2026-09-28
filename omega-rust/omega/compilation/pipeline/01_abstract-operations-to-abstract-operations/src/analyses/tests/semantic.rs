@@ -3,13 +3,55 @@
 use super::fixtures::*;
 use crate::analyses::analysis_dependencies;
 use crate::analyses::{
-    ExecutableEdgeKnowledge, PlaceAliasRelation, PlaceView, ScalarConstantSupport,
+    CallResultOrigin, ExecutableEdgeKnowledge, PlaceAccessStep, PlaceAccessView,
+    PlaceAliasRelation, PlaceView, ResultSourceResolution, ScalarConstantSupport, declared_access,
 };
 use crate::{AnalysisProduct, EffectKnowledge, compute_analysis};
-use abstract_operations::AbstractOperation as O;
+use abstract_operations::{AbstractOperation as O, AbstractResult};
 use optimization_core::*;
 use optimization_unit::*;
 use semantic_vocabulary::*;
+
+fn structural_parameter(
+    place: u64,
+    position: u32,
+    access: terminal_psi::StructuralAccess,
+) -> terminal_psi::StructuralParameterDeclaration {
+    terminal_psi::StructuralParameterDeclaration {
+        place: id(place, PlaceId::new),
+        position,
+        is_self: false,
+        structural_type: id(9000 + position as u64, StructuralTypeId::new),
+        multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+        access,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    }
+}
+
+fn argument_view(
+    place: u64,
+    path: Vec<terminal_psi::StructuralPathSegment>,
+    access: terminal_psi::StructuralAccess,
+) -> terminal_psi::StructuralArgument {
+    terminal_psi::StructuralArgument {
+        place: id(place, PlaceId::new),
+        path,
+        access,
+    }
+}
+
+fn call_unit(callee: u64, structural_arguments: Vec<terminal_psi::StructuralArgument>) -> O {
+    O::CallUnit {
+        psi_operation: id(700, OperationId::new),
+        callee: id(callee, MachineId::new),
+        arguments: Vec::new(),
+        structural_arguments,
+        claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
+    }
+}
 
 #[test]
 fn sccp_case_paths_and_payloads_do_not_invent_join_constants() {
@@ -436,4 +478,547 @@ fn place_aliases_classify_views_from_declared_roots_and_live_claims() {
             .contains(AnalysisKind::OwnershipFrontiers),
         "frontier claims are the producer's evidence, so invalidation must cascade"
     );
+}
+
+fn scalar_result(raw: u64) -> AbstractResult {
+    AbstractResult {
+        value: id(raw, ValueId::new),
+        scalar_type: ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8)
+                .unwrap(),
+        ),
+    }
+}
+
+fn runtime_step(identity: &str) -> PlaceAccessStep {
+    PlaceAccessStep::Runtime(terminal_psi::StructuralPathSegment::from(identity))
+}
+
+#[test]
+fn place_access_summaries_project_observed_surfaces_through_calls() {
+    use terminal_psi::StructuralAccess;
+    let store_field = id(810, StructuralFieldId::new);
+
+    // The leaf reads parameter 0's `len` field and writes parameter 1's `pos`
+    // field — observed bounds its declared access rows alone cannot state.
+    let mut leaf = function(200, 1, vec![(1, Terminator::Return)]);
+    leaf.structural_parameters = vec![
+        structural_parameter(200, 0, StructuralAccess::SharedBorrow),
+        structural_parameter(201, 1, StructuralAccess::MutableBorrow),
+    ];
+    leaf.declared_places = [id(200, PlaceId::new), id(201, PlaceId::new)]
+        .into_iter()
+        .collect();
+    leaf.blocks[0].nodes.insert(
+        0,
+        node(O::PrimitiveScalarRead {
+            psi_operation: id(701, OperationId::new),
+            result: scalar_result(702),
+            source: id(200, PlaceId::new),
+            path: vec![terminal_psi::StructuralPathSegment::from("len")],
+        }),
+    );
+    leaf.blocks[0].nodes.insert(
+        1,
+        node(O::StructuralScalarFieldStore {
+            psi_operation: id(703, OperationId::new),
+            destination: leaf.structural_parameters[1].clone().into(),
+            path: vec![terminal_psi::StructuralPathSegment::from("pos")],
+            field: store_field,
+            value: scalar_result(704),
+            range_obligation: None,
+        }),
+    );
+
+    // The mid caller lends two views of its own parameter to the leaf; the
+    // root lends the mid one view of its parameter in turn.
+    let mut mid = function(300, 1, vec![(1, Terminator::Return)]);
+    mid.structural_parameters = vec![structural_parameter(300, 0, StructuralAccess::Owned)];
+    mid.blocks[0].nodes.insert(
+        0,
+        node(call_unit(
+            200,
+            vec![
+                argument_view(
+                    300,
+                    vec![terminal_psi::StructuralPathSegment::from("a")],
+                    StructuralAccess::SharedBorrow,
+                ),
+                argument_view(
+                    300,
+                    vec![terminal_psi::StructuralPathSegment::from("b")],
+                    StructuralAccess::MutableBorrow,
+                ),
+            ],
+        )),
+    );
+    let mut root = function(100, 1, vec![(1, Terminator::Return)]);
+    root.structural_parameters = vec![structural_parameter(100, 0, StructuralAccess::Owned)];
+    root.blocks[0].nodes.insert(
+        0,
+        node(call_unit(
+            300,
+            vec![argument_view(
+                100,
+                vec![terminal_psi::StructuralPathSegment::from("m")],
+                StructuralAccess::Owned,
+            )],
+        )),
+    );
+
+    let unit = unit(vec![root, leaf, mid], b"place-access-calls");
+    let AnalysisProduct::PlaceAccessSummaries(summaries) =
+        compute_analysis(&unit, AnalysisKind::PlaceAccessSummaries).unwrap()
+    else {
+        unreachable!()
+    };
+
+    let leaf_summary = summaries.function(id(200, MachineId::new)).unwrap();
+    assert!(leaf_summary.parameters[0].is_read());
+    assert!(!leaf_summary.parameters[0].is_written());
+    assert_eq!(
+        leaf_summary.parameters[0].reads,
+        vec![vec![runtime_step("len")]]
+    );
+    assert!(leaf_summary.parameters[1].is_written());
+    assert_eq!(
+        leaf_summary.parameters[1].writes,
+        vec![vec![
+            runtime_step("pos"),
+            PlaceAccessStep::Canonical(CanonicalStructuralPathSegment::Field(store_field)),
+        ]]
+    );
+    assert_eq!(leaf_summary.revision, unit.identity);
+    assert!(leaf_summary.result_sources.is_empty());
+    assert!(!leaf_summary.unsummarized_targets);
+
+    // A caller's summary keeps the may-bound at the lent argument view — the
+    // callee's deeper spelling never composes onto it, which is what keeps
+    // the transitive join finite through recursive components.
+    let mid_summary = summaries.function(id(300, MachineId::new)).unwrap();
+    assert_eq!(
+        mid_summary.parameters[0].reads,
+        vec![vec![runtime_step("a")]]
+    );
+    assert_eq!(
+        mid_summary.parameters[0].writes,
+        vec![vec![runtime_step("b")]]
+    );
+    let root_summary = summaries.function(id(100, MachineId::new)).unwrap();
+    assert_eq!(
+        root_summary.parameters[0].reads,
+        vec![vec![runtime_step("m")]]
+    );
+    assert_eq!(
+        root_summary.parameters[0].writes,
+        vec![vec![runtime_step("m")]]
+    );
+
+    // The call-site query composes the callee's observed paths beneath the
+    // call's own argument views.
+    let arguments = vec![argument_view(
+        100,
+        vec![terminal_psi::StructuralPathSegment::from("m")],
+        StructuralAccess::Owned,
+    )];
+    let call = summaries
+        .call_accesses(id(100, MachineId::new), id(300, MachineId::new), &arguments)
+        .unwrap();
+    assert_eq!(call.arguments.len(), 1);
+    assert!(call.arguments[0].signature_bound);
+    assert_eq!(
+        call.arguments[0].reads,
+        vec![PlaceAccessView {
+            owner: id(100, MachineId::new),
+            root: id(100, PlaceId::new),
+            path: vec![runtime_step("m"), runtime_step("a")],
+        }]
+    );
+    assert_eq!(
+        call.arguments[0].writes,
+        vec![PlaceAccessView {
+            owner: id(100, MachineId::new),
+            root: id(100, PlaceId::new),
+            path: vec![runtime_step("m"), runtime_step("b")],
+        }]
+    );
+    assert!(call.result_references.is_empty());
+    assert!(call.external_reads.is_empty() && call.external_writes.is_empty());
+    assert!(!call.unsummarized_targets);
+
+    // A machine the unit does not carry has no summary to project through.
+    assert!(
+        summaries
+            .call_accesses(id(100, MachineId::new), id(999, MachineId::new), &[])
+            .is_none()
+    );
+}
+
+#[test]
+fn place_access_summaries_resolve_aliases_external_roots_and_result_sources() {
+    use terminal_psi::StructuralAccess;
+    let index_value = id(720, ValueId::new);
+    let index_obligation = id(721, ObligationId::new);
+    let runtime_index = terminal_psi::StructuralPathSegment::RuntimeIndex {
+        index: index_value,
+        obligation: index_obligation,
+    };
+
+    let mut callee = function(
+        200,
+        1,
+        vec![(1, Terminator::Jump(2)), (2, Terminator::Return)],
+    );
+    callee.structural_parameters =
+        vec![structural_parameter(200, 0, StructuralAccess::SharedBorrow)];
+    let view_place = id(210, PlaceId::new);
+    let carrier_place = id(211, PlaceId::new);
+    let local_place = id(212, PlaceId::new);
+    let result_place = id(220, PlaceId::new);
+    callee.structural_places = vec![
+        terminal_psi::StructuralPlaceDeclaration {
+            id: view_place,
+            kind: StructuralPlaceKind::OperationResult {
+                producer: id(730, OperationId::new),
+                structural_type: id(9010, StructuralTypeId::new),
+            },
+        },
+        terminal_psi::StructuralPlaceDeclaration {
+            id: carrier_place,
+            kind: StructuralPlaceKind::OperationResult {
+                producer: id(731, OperationId::new),
+                structural_type: id(9011, StructuralTypeId::new),
+            },
+        },
+        terminal_psi::StructuralPlaceDeclaration {
+            id: local_place,
+            kind: StructuralPlaceKind::TrivialAffineLocal {
+                declaration_ordinal: 0,
+                structural_type: id(9012, StructuralTypeId::new),
+                construction: None,
+            },
+        },
+    ];
+    callee.declared_places = [
+        id(200, PlaceId::new),
+        view_place,
+        carrier_place,
+        local_place,
+        result_place,
+    ]
+    .into_iter()
+    .collect();
+    let result_type = id(9013, StructuralTypeId::new);
+    callee.result = abstract_operations::AbstractFunctionResult::Structural(
+        terminal_psi::StructuralResultDeclaration {
+            place: result_place,
+            structural_type: result_type,
+            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            reference_sources: vec![terminal_psi::StructuralReferenceResultSource {
+                path: vec![terminal_psi::StructuralPathSegment::from("out")],
+                source: argument_view(
+                    200,
+                    vec![terminal_psi::StructuralPathSegment::from("inner")],
+                    StructuralAccess::SharedBorrow,
+                ),
+            }],
+        },
+    );
+
+    callee.blocks[0].nodes.insert(
+        0,
+        node(O::EstablishElementView {
+            psi_operation: id(730, OperationId::new),
+            result: terminal_psi::StructuralOperationResult {
+                place: view_place,
+                structural_type: id(9010, StructuralTypeId::new),
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                qualification_establishments: Vec::new(),
+                claims: Vec::new(),
+            },
+            destination: local_place,
+            source: argument_view(
+                200,
+                vec![terminal_psi::StructuralPathSegment::from("items")],
+                StructuralAccess::SharedBorrow,
+            ),
+            element: id(9014, StructuralTypeId::new),
+        }),
+    );
+    callee.blocks[0].nodes.insert(
+        1,
+        node(O::EstablishReference {
+            psi_operation: id(731, OperationId::new),
+            result: terminal_psi::StructuralOperationResult {
+                place: carrier_place,
+                structural_type: result_type,
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                qualification_establishments: Vec::new(),
+                claims: Vec::new(),
+            },
+            source: argument_view(
+                200,
+                vec![terminal_psi::StructuralPathSegment::from("cell")],
+                StructuralAccess::SharedBorrow,
+            ),
+        }),
+    );
+    // The element view composes its source prefix beneath the read path; the
+    // runtime index stays inside the callee's own summary row.
+    callee.blocks[0].nodes.insert(
+        2,
+        node(O::PrimitiveScalarRead {
+            psi_operation: id(732, OperationId::new),
+            result: scalar_result(733),
+            source: view_place,
+            path: vec![
+                runtime_index.clone(),
+                terminal_psi::StructuralPathSegment::from("x"),
+            ],
+        }),
+    );
+    // Crossing the carrier's referent boundary resolves to the borrowed
+    // parameter's storage beneath the retained source projection.
+    callee.blocks[0].nodes.insert(
+        3,
+        node(O::PrimitiveScalarRead {
+            psi_operation: id(734, OperationId::new),
+            result: scalar_result(735),
+            source: carrier_place,
+            path: vec![
+                terminal_psi::StructuralPathSegment::Referent,
+                terminal_psi::StructuralPathSegment::from("val"),
+            ],
+        }),
+    );
+    // A root outside the declared roster is external evidence, not silence.
+    callee.blocks[0].nodes.insert(
+        4,
+        node(O::PrimitiveScalarRead {
+            psi_operation: id(736, OperationId::new),
+            result: scalar_result(737),
+            source: id(888, PlaceId::new),
+            path: Vec::new(),
+        }),
+    );
+    let O::Jump {
+        structural_bindings,
+        ..
+    } = &mut callee.blocks[0].nodes[5].operation
+    else {
+        unreachable!()
+    };
+    structural_bindings.push(abstract_operations::AbstractStructuralBinding {
+        parameter: id(230, PlaceId::new),
+        argument: argument_view(
+            200,
+            vec![terminal_psi::StructuralPathSegment::from("bound")],
+            StructuralAccess::SharedBorrow,
+        ),
+    });
+    // The jump binds block 2's structural parameter to `param0.bound`; a read
+    // of the block parameter resolves to the bound caller-side storage.
+    callee.blocks[1].structural_parameters =
+        vec![structural_parameter(230, 0, StructuralAccess::SharedBorrow)];
+    callee.blocks[1].nodes.insert(
+        0,
+        node(O::PrimitiveScalarRead {
+            psi_operation: id(738, OperationId::new),
+            result: scalar_result(739),
+            source: id(230, PlaceId::new),
+            path: Vec::new(),
+        }),
+    );
+    let O::ReturnUnit { .. } = callee.blocks[1].nodes[1].operation else {
+        unreachable!()
+    };
+    callee.blocks[1].nodes[1].operation = O::ReturnStructural {
+        psi_edge: id(740, EdgeId::new),
+        source: local_place,
+        returned_claims: Vec::new(),
+        trivial_affine_locals: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+    };
+    // An unreachable block's accesses never pollute the summary.
+    callee.blocks.push(OptimizationBlock {
+        id: id(3, BlockId::new),
+        parameters: Vec::new(),
+        structural_parameters: Vec::new(),
+        nodes: vec![node(O::PrimitiveScalarRead {
+            psi_operation: id(741, OperationId::new),
+            result: scalar_result(742),
+            source: id(200, PlaceId::new),
+            path: vec![terminal_psi::StructuralPathSegment::from("dead")],
+        })],
+    });
+
+    let mut caller = function(100, 1, vec![(1, Terminator::Return)]);
+    caller.structural_parameters = vec![structural_parameter(100, 0, StructuralAccess::Owned)];
+    caller.blocks[0].nodes.insert(
+        0,
+        node(call_unit(
+            200,
+            vec![argument_view(
+                100,
+                vec![terminal_psi::StructuralPathSegment::from("m")],
+                StructuralAccess::SharedBorrow,
+            )],
+        )),
+    );
+    // A machine the unit does not carry bounds its argument lane by the
+    // declared access alone and marks the external surface a lower bound.
+    caller.blocks[0].nodes.insert(
+        1,
+        node(call_unit(
+            999,
+            vec![argument_view(
+                100,
+                vec![terminal_psi::StructuralPathSegment::from("opaque")],
+                StructuralAccess::MutableBorrow,
+            )],
+        )),
+    );
+
+    let unit = unit(vec![caller, callee], b"place-access-aliases");
+    let AnalysisProduct::PlaceAccessSummaries(summaries) =
+        compute_analysis(&unit, AnalysisKind::PlaceAccessSummaries).unwrap()
+    else {
+        unreachable!()
+    };
+
+    let callee_summary = summaries.function(id(200, MachineId::new)).unwrap();
+    let mut expected_reads = vec![
+        vec![
+            runtime_step("items"),
+            PlaceAccessStep::Runtime(runtime_index),
+            runtime_step("x"),
+        ],
+        vec![runtime_step("cell"), runtime_step("val")],
+        vec![runtime_step("bound")],
+    ];
+    expected_reads.sort();
+    assert_eq!(callee_summary.parameters[0].reads, expected_reads);
+    assert!(!callee_summary.parameters[0].is_written());
+    assert_eq!(
+        callee_summary.external_reads,
+        vec![PlaceAccessView {
+            owner: id(200, MachineId::new),
+            root: id(888, PlaceId::new),
+            path: Vec::new(),
+        }]
+    );
+    assert_eq!(
+        callee_summary.result_sources.len(),
+        1,
+        "one declared result reference leaf resolves once at compute time"
+    );
+    assert_eq!(
+        callee_summary.result_sources[0].origins,
+        vec![ResultSourceResolution::Parameter {
+            position: 0,
+            path: vec![runtime_step("inner")],
+        }]
+    );
+
+    let caller_summary = summaries.function(id(100, MachineId::new)).unwrap();
+    assert!(caller_summary.unsummarized_targets);
+    assert_eq!(
+        caller_summary.parameters[0].writes,
+        vec![vec![runtime_step("opaque")]],
+        "the unsummarized callee's argument lane keeps only its declared access bound"
+    );
+    assert!(
+        caller_summary
+            .external_reads
+            .iter()
+            .any(|view| view.owner == id(200, MachineId::new) && view.root == id(888, PlaceId::new)),
+        "callee external rows propagate to the caller's external surface"
+    );
+
+    let arguments = vec![argument_view(
+        100,
+        vec![terminal_psi::StructuralPathSegment::from("m")],
+        StructuralAccess::SharedBorrow,
+    )];
+    let call = summaries
+        .call_accesses(id(100, MachineId::new), id(200, MachineId::new), &arguments)
+        .unwrap();
+    // The runtime index quotes a callee-local scalar: the caller-facing bound
+    // truncates just before it.
+    assert!(
+        call.arguments[0].reads.contains(&PlaceAccessView {
+            owner: id(100, MachineId::new),
+            root: id(100, PlaceId::new),
+            path: vec![runtime_step("m"), runtime_step("items")],
+        }),
+        "callee read paths truncate at their first runtime segment"
+    );
+    assert_eq!(
+        call.result_references[0].origins,
+        vec![CallResultOrigin::Argument(PlaceAccessView {
+            owner: id(100, MachineId::new),
+            root: id(100, PlaceId::new),
+            path: vec![runtime_step("m"), runtime_step("inner")],
+        })]
+    );
+}
+
+#[test]
+fn place_access_summaries_declared_bounds_cover_unobserved_lanes() {
+    use terminal_psi::StructuralAccess;
+    assert_eq!(
+        declared_access(StructuralAccess::SharedBorrow),
+        (true, false)
+    );
+    assert_eq!(
+        declared_access(StructuralAccess::MutableBorrow),
+        (true, true)
+    );
+    assert_eq!(
+        declared_access(StructuralAccess::WriteOnlyBorrow),
+        (false, true)
+    );
+    assert_eq!(declared_access(StructuralAccess::Owned), (true, true));
+
+    // A self-recursive callee still converges: the bound inserts the lent
+    // argument view itself, so the fixpoint cannot manufacture deeper rows
+    // beyond the callee's own observed ones.
+    let mut spinner = function(400, 1, vec![(1, Terminator::Return)]);
+    spinner.structural_parameters =
+        vec![structural_parameter(400, 0, StructuralAccess::SharedBorrow)];
+    spinner.blocks[0].nodes.insert(
+        0,
+        node(O::PrimitiveScalarRead {
+            psi_operation: id(760, OperationId::new),
+            result: scalar_result(761),
+            source: id(400, PlaceId::new),
+            path: Vec::new(),
+        }),
+    );
+    spinner.blocks[0].nodes.insert(
+        1,
+        node(call_unit(
+            400,
+            vec![argument_view(
+                400,
+                Vec::new(),
+                StructuralAccess::SharedBorrow,
+            )],
+        )),
+    );
+    let unit = unit(vec![spinner], b"place-access-recursion");
+    let AnalysisProduct::PlaceAccessSummaries(summaries) =
+        compute_analysis(&unit, AnalysisKind::PlaceAccessSummaries).unwrap()
+    else {
+        unreachable!()
+    };
+    let spinner_summary = summaries.function(id(400, MachineId::new)).unwrap();
+    assert_eq!(spinner_summary.parameters[0].reads, vec![Vec::new()]);
+    assert!(!spinner_summary.unsummarized_targets);
 }

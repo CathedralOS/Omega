@@ -2,10 +2,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use abstract_operations::AbstractOperation as O;
 use optimization_core::OptimizationUnitIdentity;
-use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance};
+use optimization_unit::{PsiOptimizationUnit, PsiProvenance};
 use semantic_vocabulary::{BlockId, BoundaryMachineId, MachineId, ServiceId};
 
-use super::scalar_operation_successors;
+use super::semantically_reachable_blocks;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum EffectKnowledge {
@@ -297,34 +297,6 @@ fn join_operation_effect(
     summary.structural_state = join(summary.structural_state, structural);
     summary.crash = join(summary.crash, crash);
     summary.suspension = join(summary.suspension, suspension);
-}
-
-fn semantically_reachable_blocks(function: &PsiOptimizationFunction) -> BTreeSet<BlockId> {
-    let successors = function
-        .blocks
-        .iter()
-        .map(|block| {
-            (
-                block.id,
-                block
-                    .nodes
-                    .last()
-                    .map(|node| scalar_operation_successors(&node.operation))
-                    .unwrap_or_default()
-                    .into_iter()
-                    .map(|edge| edge.target)
-                    .collect::<Vec<_>>(),
-            )
-        })
-        .collect::<BTreeMap<_, _>>();
-    let mut reachable = BTreeSet::new();
-    let mut pending = vec![function.entry];
-    while let Some(block) = pending.pop() {
-        if reachable.insert(block) {
-            pending.extend(successors.get(&block).into_iter().flatten().copied());
-        }
-    }
-    reachable
 }
 
 fn operation_effect(

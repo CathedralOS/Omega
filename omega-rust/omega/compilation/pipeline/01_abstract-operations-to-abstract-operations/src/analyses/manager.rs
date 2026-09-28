@@ -162,6 +162,10 @@ impl AnalysisManager {
         if unit.identity != self.revision {
             invalidated.insert(AnalysisKind::OwnershipFrontiers);
             invalidated.insert(AnalysisKind::ValueRanges);
+            // Place-access rows carry the unit revision as their freshness
+            // bound; a retained row could project a rewritten callee's old
+            // surface through an unchanged call site.
+            invalidated.insert(AnalysisKind::PlaceAccessSummaries);
         }
         if validate_retained {
             for (kind, cached) in self
