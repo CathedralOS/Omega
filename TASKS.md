@@ -1670,6 +1670,64 @@ the complete product bar; focused successes below do not establish that baseline
   sites and stale writes reject. Proof-only terms cannot authorize executable
   guards; legacy propositions remain **PROOF-CONTRACT-MIGRATION** scope.
 
+- **ARITHMETIC-POLICY-REALIZATION.** Close remaining
+  [numeric-policy](wiki/spec/language/numeric_values.md) realization and full
+  program acceptance. Owners: stage 04 scalar checking, stage 05 expression
+  preparation, Terminal `validation/trapping_integer.rs` and its observation,
+  interpreter and native consumers.
+
+  Mixed fixed-integer comparisons already preserve both carriers through
+  checking, Terminal and native execution. The corpus's
+  `expressions/mixed_integer_comparison_{widths,places}` and
+  `mixed_integer_guard_comparison` execute on macOS ARM64, as does
+  `core/numeric_cross_signed_conversion_surface`. Wrapping/Saturating casts and
+  operation-level Trapping arithmetic exist; do not repeat those milestones.
+
+  - Support guarded Trap ceilings for Trapping primitives. A source
+    `u16 -> u8` conversion with `crashes Trap input > 255u16` rejects with
+    `TrappingIntegerCrashUncovered`; `validate_trapping_crash_sites` requires
+    `[CrashRouteGuard::Truth]`. Reconstruct the exact primitive's trap condition
+    under incoming path facts and prove coverage by the authored same-cause
+    guard; the false ceiling `input > 256u16` must reject. Preserve its operation
+    site, operands, carrier, cause and normal-only
+    result equation through observation, interpretation and native realization.
+    Coordinate **CRASH-CONTRACT**; never replace the policy or invent a Crash edge.
+  - Finish the five unchanged cursor/length customers under **SAMPLE-CORPUS**:
+    `longest_run`, `parse_int`, `roman_numeral`, `string_hash`, `substring_search`.
+    All five pass `tools/sample_gate.py`'s source check; establish reviewed
+    native execution and diagnose any later failure while keeping their
+    algorithms, declared cursor types and documented outputs.
+  - Complete hosted acceptance for the public
+    `source/library/core/numeric_conversion.omg` surface, including same-sign
+    narrowing, sign changes, widening and all four policies. Only two
+    `core/numeric_*` fixtures survive from the former six-canary surface.
+    Surviving stage 05
+    `tests/{integer_policy_realization,signed_wrapping_conversion_values}.rs`
+    cover selected compositions and interpreted values, not every sign/width
+    pair natively. Preserve current success and trap fixtures, including dead
+    results and overflowing shifts; `tests/trapping_operation_sites.rs` owns
+    exact-site and altered-cause/carrier/ceiling controls.
+  - Keep distinct failures with their actual owners. Float policy/conversion
+    customers remain **OPERATOR-BOUNDARY-CALLS** / **FLOAT-PROVIDERS** work:
+    `float/float_trapping_*` and `expressions/runtime_numeric_cast_exit` currently
+    stop at field-store scalar-expression construction. The float Trapping
+    fixtures no longer reproduce their recorded policy-weakening diagnostics;
+    preserve overflow/propagated-NaN traps without erasing Trapping.
+    `types/runtime_addr_field_exit` asks for `addr -> i32 in Trapping`, outside
+    the current fixed-integer denotation. Resolve that conversion under
+    [address semantics](wiki/spec/language/counts_and_addresses.md), preserving
+    address-field behavior rather than assuming `addr` is `u64`.
+
+  Acceptance: comparisons and conversions agree across source evaluation,
+  verified artifacts and matching-host execution. Preserve all six relations
+  and operand orientations, constants and dynamic operands, differing widths,
+  negative values versus unsigned zero/positive values, equality and extrema
+  above `i64::MAX`. Retain negated guards, selected meanings, literal landing,
+  once-only ordered evaluation and independent overflow obligations.
+  `fail/slices/signed_slice_index_upper_only` must still reject: an upper bound
+  supplies no nonnegativity proof. Coordinate library range-suffix migration
+  with **CANONICALIZE-SCALAR-RANGE-CONTRACTS** without weakening these obligations.
+
 ## Automatic service reach
 
 Finish portable coverage of
@@ -2527,91 +2585,6 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   cannot repair these assertions; preserve Omega's no-default-debug-dumps contract.
 
 ## P3 - Terminal Psi, PCC, and observation
-
-- **ARITHMETIC-POLICY-REALIZATION.** (new-scope) Complete integer comparisons and executable policies
-  from [numeric values](wiki/spec/language/numeric_values.md) through Terminal,
-  interpretation and native realization. Owners:
-  `04_typed-trees-to-checked-trees`' comparison producer, checked interpretation,
-  `05_checked-trees-to-lowered-psi/src/expression_preparation/`, Terminal
-  operation/observation vocabulary and its independent checking/realization.
-
-  - Implement [exact integer comparisons](wiki/spec/language/numeric_values.md#integer-equality-and-order)
-    for all six relations across fixed-integer widths and signedness. The reported
-    gaps are checked interpretation's `unsigned_operands` promotion and
-    `construct_integer_comparison` refusing unequal types in `boolean_lowering.rs`.
-    Reproduce those paths, then carry the exact predicate through source facts,
-    compile-time evaluation, Terminal production/reload, independent verification
-    and native execution. A shared-type IR is not a source restriction; preserve
-    both original values and prove any normalization rather than silently changing
-    signedness or forcing a cast into either operand's carrier.
-    Acceptance: all relations and operand orientations agree for negative signed
-    values versus unsigned zero/positive values, equal values in different types,
-    differing same-sign widths, signed extrema, and `u64` values above `i64::MAX`.
-    Include dynamic parameters as well as constants, negated guards, and an
-    indexing rejection where only the upper bound is known. Keep selected domain
-    meanings, literal landing, arithmetic-overflow and once-only operand-evaluation
-    controls. SAMPLE-CORPUS owns the five text algorithms named in its customer
-    row; their unchanged cursor/length guards must reach native execution with
-    documented results, not merely pass checking or a synthetic comparison test.
-
-  - Trapping integer arithmetic is realized end to end. Each
-    `OperationKind::TrappingInteger` (add, subtract, multiply, divide,
-    remainder, shifts, conversion) is its own `Trap` site in observation
-    profile v2, checked by the verifier and executed by the interpreter at
-    `TerminalCrashSite::Operation`. Native realization lowers it to
-    `AbstractOperation::TrappingInteger`, an ordered scalar definition, and one
-    carrier-named `TrappingForm` selected instruction (72 forms: seven
-    primitives at eight carriers, conversions keyed by destination and source
-    sign) that computes the exact result and skips an inline `brk #0` / `ud2`
-    (the `Crash` leaf's bytes) only while the `numerics::integer_policy`
-    predicate is false. Optimizers treat it as a may-crash event, never dead
-    or folded. On macOS arm64, `cargo nextest run -p compiler --test
-    canary_suite -E 'test(/trapping/) | test(/numeric_conversions::/)'` runs
-    the Trapping customers natively (exit 70 without a trap, `SIGTRAP` when
-    one fires), and `policy_arithmetic_native_targets` compiles every form for
-    the four bound targets. Remaining stops the old refusal masked:
-    `runtime_numeric_signed_conversion_surface_exit` reaches
-    `narrow_i16_to_i8_exact`, whose sub-64-bit signed-to-signed
-    `IntegerExactCast` no longer lies outside `exact_cast_has_native_carriers`
-    -- that gate is now `scalar_shape` on both carriers plus
-    `can_exact_cast_to`, which asks only that both be `Fixed`, and
-    `scalar_graph_input/exact_cast_carrier_tests.rs` asserts
-    `(Signed, 16) -> (Signed, 8)` is admitted. Rerun the fixture for its
-    current stop rather than reusing the `SourceCustodyMismatch` attribution.
-    `runtime_addr_field_exit`
-    plans no value because `addr as i32 in Trapping` has no checked cast
-    (address carriers have no Trapping denotation). Guarded `Trap` ceilings
-    over Trapping arithmetic reject until the operation retains its incoming
-    conjunction.
-  - Wrapping conversions landed at `9085ca9132`: `expression_preparation/
-    wrapping_cast.rs` realizes `value as T in Wrapping` for every fixed-integer
-    sign/width pair from masked halves — unsigned destinations take the
-    `operand mod 2^B` residue (`& (2^B−1)` mask for signed sources, low-63 +
-    sign-bit split for `u64`), signed destinations take
-    `low | (bit <<% (B−1))` with each half masked to a range the proof
-    machinery can derive, avoiding the direct fold and carrier-less `i_C ->
-    i_B` casts. Serialized-Terminal execution tests cover every sign/width
-    combination.
-  - Signed/mixed-sign saturating conversions landed at `3590f2f67c`
-    (macw9): `IntegerSaturatingCast` retained for every fixed-integer
-    source/destination pair — unsigned sources clamp via
-    `value -% (value sat_sub target_max)`, signed sources extract the
-    nonnegative portion via a sign-mask floor plus modular ceiling clamp,
-    and the clamped operand crosses through the wrapping conversion's
-    masked-halves route. Serialized-Terminal coverage in
-    `integer_policy_realization.rs` exercises every sign/width pair.
-
-  Acceptance: the six `core/numeric_*` canaries and Trapping conversions in
-  `source/library/core/numeric_conversion.omg` reach native execution with
-  policy-correct success/failure and independent crash-site replay.
-  Advance `05_checked-trees-to-lowered-psi/tests/integer_policy_realization.rs`
-  controls beside valid neighbors differing in one relevant coordinate.
-  Reproduce `float/float_trapping_*`,
-  `expressions/arithmetic_domain_trapping_*` and
-  `arithmetic/constant_trapping_shift_value_overflow_traps` before attributing
-  their failures;
-  a generic missing-plan diagnostic does not identify arithmetic policy.
-  Never silently weaken one policy into another.
 
 - **PROOF-KERNEL-CORE.** Finish independently checked mathematical proofs
   under the [foundation](wiki/spec/proofs/foundation.md) and
