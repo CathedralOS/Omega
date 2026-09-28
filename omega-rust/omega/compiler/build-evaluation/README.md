@@ -38,7 +38,9 @@ host services and independent-component rejection.
 
 ## Source-stage ownership
 
-Source assembly schedules file frontiers. Package compilation's
+Source assembly is not an evaluator responsibility. Package compilation's
+[source assembly](../../package-manager/compilation-inputs/src/source_assembly.rs)
+prepares file frontiers through Psi 00/01. Its
 [source import owner](../../package-manager/compilation-inputs/src/source_imports.rs)
 owns project roots, dependency-scope selection, generated-source collision
 checks, parsed-file ownership and exact import bindings. Its
@@ -51,12 +53,12 @@ Build/Product scope, source coordinates, backing text and diagnostic order trave
 through those operations unchanged. The shared
 [Build declarations](../../package-manager/build-declarations/src/prelude.rs)
 own prelude content; package source preparation selects its injection and scoped
-aliases. This coordinator loads and parses the result. Entry-contract seed
+aliases. Source assembly loads and parses the result. Entry-contract seed
 selection belongs to the package source owner; neither lexical nor grammar rules
 depend on build evaluation. `ProjectSourceSelection` retains exact Build/Product
 root scopes and rejoins the selected Build source after parsing. `SourceStorage`
 admits the package-root roster, while `admit_dependency_generated_sources` checks
-scope-qualified paths before this coordinator loads any generated unit.
+scope-qualified paths before source assembly loads any generated unit.
 
 ## Root-binding implementation boundary
 

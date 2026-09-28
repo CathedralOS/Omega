@@ -244,7 +244,7 @@ batch manifest binding the realization set and each realization's
 commitment/outcome; it grants no support, test or audit claim.
 
 Today's implementation instead retains one immutable source parse checkpoint
-([source preparation](build-evaluation/src/sources/source_assembly/checkpoint.rs))
+([package source preparation](../package-manager/compilation-inputs/src/source_assembly.rs))
 and runs an exact-target child per configuration: per-target source assembly,
 declaration filtering, build evaluation, provider settlement and checking, with
 request-level policy copied into each configuration.

@@ -14,6 +14,8 @@
 //! `compilation_reuse` owns exact source/build input comparisons, not admission
 //! or scheduling; the compiler consumes those keys without re-projecting them.
 //! `source_imports` resolves source frontiers through exact package scopes;
+//! `source_assembly` loads and parses them through Psi 00/01, retaining one
+//! immutable checkpoint and assembling generated inputs without Build execution.
 //! `toolchain_library` locates and validates the compiler's bundled sources.
 //! `build_execution` owns immutable build inputs, filesystem custody and
 //! output settlement; it consumes interpreter observations, not compiler state.
@@ -23,6 +25,7 @@
 pub mod build_execution;
 mod checked_source_cache;
 mod compilation_reuse;
+pub mod source_assembly;
 pub mod source_imports;
 pub mod toolchain_library;
 pub use build_execution::*;

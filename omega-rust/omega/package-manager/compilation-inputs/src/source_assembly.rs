@@ -1,23 +1,54 @@
-use super::{
-    AssembledSyntax, append_dependency_generated_sources_to_storage, assemble_syntax,
-    load_pending_imports,
+//! Assemble one source forest with exact package, import and generated-source custody.
+//!
+//! `ImmutableSourceParseCheckpoint::prepare` discovers and parses immutable
+//! physical sources. `assemble` admits a child's inputs, appends dependency
+//! outputs, resolves deferred imports, and injects entry contracts and the Build
+//! prelude. Both use one ordered loading loop and the ordinary Psi 00/01 stages.
+//! No Build machine executes here; resolution and typing consume the result.
+
+use crate::PackageCompilationInputs;
+use crate::source_imports::{
+    PackageImportPhase, PendingPackageImport, ProjectSourceSelection, SourceStorage,
+    discover_imports, discover_imports_with_packages, discover_package_imports,
+    validate_package_source_frontier, validate_selected_build_role,
 };
-use artifacts::compile_timings::CompileTimings;
-use artifacts::compile_timings::{SOURCE_FILES_TO_TOKENS, TOKENS_TO_SYNTAX_TREES};
+use artifacts::compile_timings::{CompileTimings, SOURCE_FILES_TO_TOKENS, TOKENS_TO_SYNTAX_TREES};
 use diagnostics::Diagnostic;
-use package_compilation::PackageCompilationInputs;
-use package_compilation::source_imports::ProjectSourceSelection;
-use package_compilation::source_imports::{
-    PackageImportPhase, PendingPackageImport, discover_imports, discover_package_imports,
+use source_files_to_tokens::{
+    ImportQueue, lex_sources, load_package_generated_source, load_sources,
 };
-use package_compilation::source_imports::{
-    SourceStorage, validate_package_source_frontier, validate_selected_build_role,
-};
-use source_files_to_tokens::ImportQueue;
-use source_files_to_tokens::{lex_sources, load_sources};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use syntax_trees::SyntaxTrees;
 use tokens_to_syntax_trees::parse_sources;
+
+#[derive(Clone)]
+pub struct AssembledSyntax {
+    pub syntax_trees: SyntaxTrees,
+    pub sources: Arc<source::SourceMap>,
+    /// Exact companion `build.omg` selected during project discovery. Build
+    /// authority is attached to this source, never reconstructed from a leaf
+    /// filename after imports have expanded the source frontier.
+    pub build_source_id: Option<source::SourceId>,
+    /// The validated authored application declaration (name and artifact-only
+    /// intent) when the selected build root declares `builder.application(...)`;
+    /// `None` for package/workspace roles or a missing build root. Publication
+    /// never re-derives it.
+    pub application: Option<build_declarations::ApplicationDeclaration>,
+    pub source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+    pub generated_source_custody: Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
+    /// Sources the build scope owns: the selected build entry, the
+    /// root-local helpers it transitively imports, and every source of a
+    /// package the root reaches only through build-purpose edges (including
+    /// such a package's own ordinary dependencies) — its physical files and
+    /// the generated source its build handed off alike, since both execute in
+    /// the same host context. Their target-scoped declarations select against
+    /// the admitted build execution profile, never the product target; every
+    /// other source — product packages, dual-purpose packages, and their
+    /// generated dependency source — is product scope.
+    pub build_scope_sources: HashSet<source::SourceId>,
+}
 
 /// Immutable physical source and parse frontier formed before exact target
 /// generated sources or target-scoped imports join compilation.
@@ -32,7 +63,7 @@ pub struct ImmutableSourceParseCheckpoint {
     /// admitted route, all without revisiting source text.
     application: Option<build_declarations::ApplicationDeclaration>,
     package_imports: Arc<[PendingPackageImport]>,
-    package_source_inputs: Option<Arc<package_compilation::PackageCompilationSourceInputs>>,
+    package_source_inputs: Option<Arc<crate::PackageCompilationSourceInputs>>,
 }
 
 impl ImmutableSourceParseCheckpoint {
@@ -47,11 +78,12 @@ impl ImmutableSourceParseCheckpoint {
             imports.seed(path.clone(), *scope);
         }
         let mut source_storage = SourceStorage::prepare(root_path, package_inputs)?;
-        let package_imports = load_target_independent_imports(
+        let package_imports = load_imports(
             &mut source_storage,
             &mut imports,
             root_path,
             package_inputs,
+            PackageImportPhase::TargetIndependent,
             timings,
         )?;
         let build_source_id = project.build_source_id(&source_storage)?;
@@ -76,36 +108,6 @@ impl ImmutableSourceParseCheckpoint {
         timings: &mut CompileTimings,
     ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
         self.validate_child(package_inputs)?;
-        self.assemble_sources(package_inputs, timings)
-    }
-
-    fn validate_child(
-        &self,
-        package_inputs: Option<&PackageCompilationInputs>,
-    ) -> Result<(), Vec<Diagnostic>> {
-        if package_inputs
-            .map(PackageCompilationInputs::source_inputs)
-            .as_deref()
-            != self.package_source_inputs.as_deref()
-        {
-            return Err(vec![Diagnostic::error(
-                "package source inputs do not match the immutable source checkpoint",
-            )]);
-        }
-        if let Some(package_inputs) = package_inputs {
-            package_inputs.validate_for_compilation(
-                &self.root_path,
-                &package_compilation::source_imports::bundled_core_root()?,
-            )?;
-        }
-        Ok(())
-    }
-
-    fn assemble_sources(
-        self,
-        package_inputs: Option<&PackageCompilationInputs>,
-        timings: &mut CompileTimings,
-    ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
         let mut source_storage = Arc::unwrap_or_clone(self.source_storage);
         let mut imports = ImportQueue::default();
         for (_, source) in source_storage.files.iter() {
@@ -136,19 +138,17 @@ impl ImmutableSourceParseCheckpoint {
                 source_storage.resolved_imports.push(resolved);
             }
         }
-        load_pending_imports(
+        load_imports(
             &mut source_storage,
             &mut imports,
             &self.root_path,
             package_inputs,
+            PackageImportPhase::ExactTarget(None),
             timings,
         )?;
         // Every target's entry contract joins the set; the selected target
         // only decides which one realizes the program entry later.
-        let seeds = package_compilation::source_imports::entry_contract_seeds(
-            package_inputs,
-            &source_storage,
-        )?;
+        let seeds = crate::source_imports::entry_contract_seeds(package_inputs, &source_storage)?;
         if !seeds.is_empty() {
             for seed in seeds {
                 imports.seed(
@@ -156,19 +156,19 @@ impl ImmutableSourceParseCheckpoint {
                     source::DependencyScope::Product,
                 );
             }
-            load_pending_imports(
+            load_imports(
                 &mut source_storage,
                 &mut imports,
                 &self.root_path,
                 package_inputs,
+                PackageImportPhase::ExactTarget(None),
                 timings,
             )?;
         }
         let mut source_scoped_top_level_bindings = Vec::new();
-        if let Some(prelude) = package_compilation::source_imports::prepare_build_prelude(
-            &source_storage,
-            self.build_source_id,
-        ) {
+        if let Some(prelude) =
+            crate::source_imports::prepare_build_prelude(&source_storage, self.build_source_id)
+        {
             let lexed = timings.record(SOURCE_FILES_TO_TOKENS, || {
                 let sources = source_files_to_tokens::load_injected_source(
                     "<build-prelude>",
@@ -184,25 +184,105 @@ impl ImmutableSourceParseCheckpoint {
             source_scoped_top_level_bindings = prelude.bindings;
         }
         source_scoped_top_level_bindings.extend(
-            package_compilation::source_imports::retain_module_import_bindings(&source_storage)?,
+            crate::source_imports::retain_module_import_bindings(&source_storage)?,
         );
         let source_file_count = source_storage.file_count();
-        let syntax = assemble_syntax(
-            source_storage,
-            self.build_source_id,
-            self.application.clone(),
+        let build_scope_sources = source_storage
+            .sources
+            .files()
+            .filter(|file| file.dependency_scope == source::DependencyScope::Build)
+            .map(|file| file.source_id)
+            .collect();
+        let syntax = AssembledSyntax {
+            syntax_trees: source_storage.syntax_trees,
+            sources: Arc::new(source_storage.sources),
+            build_source_id: self.build_source_id,
+            application: self.application,
             source_scoped_top_level_bindings,
             generated_source_custody,
-        )?;
+            build_scope_sources,
+        };
         Ok((source_file_count, syntax))
+    }
+
+    fn validate_child(
+        &self,
+        package_inputs: Option<&PackageCompilationInputs>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if package_inputs
+            .map(PackageCompilationInputs::source_inputs)
+            .as_deref()
+            != self.package_source_inputs.as_deref()
+        {
+            return Err(vec![Diagnostic::error(
+                "package source inputs do not match the immutable source checkpoint",
+            )]);
+        }
+        if let Some(package_inputs) = package_inputs {
+            package_inputs.validate_for_compilation(
+                &self.root_path,
+                &crate::source_imports::bundled_core_root()?,
+            )?;
+        }
+        Ok(())
     }
 }
 
-fn load_target_independent_imports(
+fn append_dependency_generated_sources_to_storage(
+    source_storage: &mut SourceStorage,
+    imports: &mut ImportQueue,
+    package_inputs: &PackageCompilationInputs,
+    timings: &mut CompileTimings,
+) -> Result<Vec<(source::SourceId, build_output::PackageGeneratedSource)>, Vec<Diagnostic>> {
+    let entries = crate::source_imports::admit_dependency_generated_sources(package_inputs)?;
+
+    for entry in &entries {
+        imports.mark_loaded(&entry.logical_path, entry.scope);
+    }
+
+    let mut retained = Vec::with_capacity(entries.len());
+    for entry in entries {
+        let text = entry.source_text()?;
+        let crate::source_imports::DependencyGeneratedSource {
+            logical_path,
+            source,
+            package,
+            scope,
+        } = entry;
+        let source_id = source::SourceId(source_storage.next_source_id());
+        let lexed = timings.record(SOURCE_FILES_TO_TOKENS, || {
+            lex_sources(load_package_generated_source(
+                logical_path,
+                text,
+                source_id.0,
+                scope,
+            ))
+        })?;
+        let parsed = timings.record(TOKENS_TO_SYNTAX_TREES, || {
+            parse_sources(lexed, &mut source_storage.syntax_trees)
+        })?;
+        let contract_custody = source_storage.toolchain_contract_custody();
+        let discovered = discover_imports_with_packages(
+            &parsed,
+            &source_storage.syntax_trees,
+            package_inputs,
+            Some(package),
+            &mut source_storage.resolved_imports,
+            &contract_custody,
+        )?;
+        imports.enqueue(discovered)?;
+        source_storage.extend(parsed)?;
+        retained.push((source_id, source.clone()));
+    }
+    Ok(retained)
+}
+
+fn load_imports(
     source_storage: &mut SourceStorage,
     imports: &mut ImportQueue,
     root_path: &Path,
     package_inputs: Option<&PackageCompilationInputs>,
+    phase: PackageImportPhase,
     timings: &mut CompileTimings,
 ) -> Result<Vec<PendingPackageImport>, Vec<Diagnostic>> {
     let mut retained_requests = Vec::new();
@@ -229,7 +309,7 @@ fn load_target_independent_imports(
                     &parsed,
                     &source_storage.syntax_trees,
                     package_inputs,
-                    PackageImportPhase::TargetIndependent,
+                    phase,
                     &mut source_storage.resolved_imports,
                     &contract_custody,
                 )?;
@@ -248,3 +328,6 @@ fn load_target_independent_imports(
     }
     Ok(retained_requests)
 }
+
+#[cfg(test)]
+mod tests;

@@ -11,9 +11,7 @@ path = "src/lib.rs"
 [dependencies]
 compilation-products = { path = "../../realization/compilation-products" }
 arena = { path = "../../../psi/foundation/arena" }
-artifacts = { path = "../../foundation/artifacts" }
 language-core = { path = "../../../psi/foundation/language-core" }
-syntax-trees = { path = "../../../psi/representations/syntax-trees" }
 validation = { path = "../../../psi/checking" }
 build-output = { path = "../../package-manager/build-output" }
 effects = { path = "../../backend/plans/provider-evidence" }
@@ -35,12 +33,11 @@ source = { path = "../../../psi/foundation/source" }
 symbols = { path = "../../../psi/foundation/symbols" }
 typed-trees = { path = "../../../psi/representations/typed-trees" }
 build-declarations = { path = "../../package-manager/build-declarations" }
-tokens = { path = "../../../psi/representations/tokens" }
-source-files-to-tokens = { path = "../../../psi/pipeline/00_source-files-to-tokens" }
-tokens-to-syntax-trees = { path = "../../../psi/pipeline/01_tokens-to-syntax-trees" }
 sha2 = "0.10.9"
 
 [dev-dependencies]
+source-files-to-tokens = { path = "../../../psi/pipeline/00_source-files-to-tokens" }
+tokens-to-syntax-trees = { path = "../../../psi/pipeline/01_tokens-to-syntax-trees" }
 component-description = { path = "../../backend/artifacts/component-description", features = ["test-support"] }
 symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/03_symbol-resolved-trees-to-typed-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/02_syntax-trees-to-symbol-resolved-trees" }

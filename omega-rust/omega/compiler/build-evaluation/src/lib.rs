@@ -67,7 +67,6 @@
 mod admission;
 mod admitted_build_program;
 mod execution;
-pub mod sources;
 #[cfg(test)]
 mod tests;
 
