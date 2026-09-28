@@ -2,12 +2,14 @@
 use super::super::super::{StructuralAccess, StructuralArgument, StructuralFieldType};
 use super::super::{
     CheckedScalarExpressionRole, LoweringError, Multiplicity, Operation, OperationKind,
-    OperationResult, PlaceId, StructuralMultiplicity, StructuralOperationResult,
+    OperationResult, PlaceId, ScalarType, StructuralMultiplicity, StructuralOperationResult,
     StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId, StructuralTypeShape,
-    allocate_dense, lookup_type_id, obligation_id, place_id, unsupported,
+    ValueDeclaration, allocate_dense, lookup_type_id, obligation_id, place_id, unsupported,
 };
 use super::emission;
 use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::emission::operation_emission::expressions::emit_scalar_leaf;
+use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue, IntegerSign, IntegerValue};
 
 impl emission::Emission<'_, '_, '_> {
     pub(super) fn record(
@@ -172,69 +174,130 @@ impl emission::Emission<'_, '_, '_> {
                     }
                 }
                 checked_trees::CheckedStructuralRecordFieldValue::Structural(value) => {
-                    // A `&[T]` view member's declared carrier is the borrowed
-                    // byte sequence itself: the nested value's descriptor is
-                    // the shared view element type the signature registers
-                    // under the view's unwrapped carrier identity — the same
-                    // identity the leaf's shared-borrow argument plan mints.
-                    let child_type = match &target.field_type {
-                        StructuralFieldType::Structural(child_type) => *child_type,
-                        StructuralFieldType::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
-                        ) => lookup_type_id(
-                            self.type_ids,
+                    if let Some(scalar_type) = target.field_type.scalar_type() {
+                        // Omitted scalar members mint a zeroed structural
+                        // child with no authored operand; establish the
+                        // declared type's zero as the field's scalar value.
+                        if !matches!(
                             self.checked
-                                .normalized_type_identity(
-                                    validation::unwrapped_type_reference(
-                                        &self.checked.typed,
-                                        field.type_reference,
-                                    )
-                                    .ok_or(
-                                        LoweringError::Unsupported(
-                                            "view record member lost its carrier",
-                                        ),
-                                    )?,
-                                )
-                                .as_str(),
-                        )?,
-                        _ => return unsupported("nested record operand has a scalar destination"),
-                    };
-                    if !matches!(
-                        target.field_type,
-                        StructuralFieldType::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                        )
-                    ) && lookup_type_id(
-                        self.type_ids,
-                        self.checked
-                            .normalized_type_identity(field.type_reference)
-                            .as_str(),
-                    )? != child_type
-                    {
-                        return unsupported("nested record operand changed its exact carrier");
-                    }
-                    let parent_type = self.structural_type;
-                    let parent_multiplicity = self.multiplicity;
-                    self.structural_type = child_type;
-                    self.multiplicity =
-                        match validation::reference_result_custody::result_multiplicity(
-                            &self.checked.typed,
-                            field.type_reference,
+                                .facts
+                                .values
+                                .structural_values
+                                .nodes
+                                .get(value)
+                                .kind,
+                            checked_trees::CheckedStructuralValueKind::ZeroedStructural { .. }
                         ) {
-                            Multiplicity::Affine => StructuralMultiplicity::Affine,
-                            Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
-                            Multiplicity::Linear => {
-                                return unsupported("nested record cannot create linear custody");
+                            return unsupported("nested record operand has a scalar destination");
+                        }
+                        let kind = match scalar_type {
+                            ScalarType::Integer(integer) => OperationKind::IntegerConstant {
+                                value: match integer.sign() {
+                                    IntegerSign::Signed => IntegerValue::Signed(0),
+                                    IntegerSign::Unsigned => IntegerValue::Unsigned(0),
+                                },
+                            },
+                            ScalarType::Boolean => OperationKind::BooleanConstant { value: false },
+                            ScalarType::IeeeFloat(format) => OperationKind::IeeeFloatConstant {
+                                value: match format {
+                                    IeeeFloatFormat::Binary32 => IeeeFloatValue::Binary32(0),
+                                    IeeeFloatFormat::Binary64 => IeeeFloatValue::Binary64(0),
+                                },
+                            },
+                        };
+                        let zero =
+                            emit_scalar_leaf(kind, scalar_type, self.next_value, self.operations);
+                        scalar_positions.push((initialized.len(), self.values.len()));
+                        self.values.push(ValueDeclaration {
+                            qualifications: Default::default(),
+                            id: zero,
+                            scalar_type,
+                        });
+                        let range_obligation = if matches!(
+                            target.field_type,
+                            StructuralFieldType::BoundedInteger(_)
+                        ) {
+                            Some(obligation_id(allocate_dense(
+                                &mut self.calls.next_obligation_identity,
+                            )?))
+                        } else {
+                            None
+                        };
+                        terminal_psi::RecordFieldValue::Scalar {
+                            value: zero,
+                            range_obligation,
+                        }
+                    } else {
+                        // A `&[T]` view member's declared carrier is the borrowed
+                        // byte sequence itself: the nested value's descriptor is
+                        // the shared view element type the signature registers
+                        // under the view's unwrapped carrier identity — the same
+                        // identity the leaf's shared-borrow argument plan mints.
+                        let child_type = match &target.field_type {
+                            StructuralFieldType::Structural(child_type) => *child_type,
+                            StructuralFieldType::ByteSequence(
+                                terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
+                            ) => lookup_type_id(
+                                self.type_ids,
+                                self.checked
+                                    .normalized_type_identity(
+                                        validation::unwrapped_type_reference(
+                                            &self.checked.typed,
+                                            field.type_reference,
+                                        )
+                                        .ok_or(
+                                            LoweringError::Unsupported(
+                                                "view record member lost its carrier",
+                                            ),
+                                        )?,
+                                    )
+                                    .as_str(),
+                            )?,
+                            _ => {
+                                return unsupported(
+                                    "nested record operand has a scalar destination",
+                                );
                             }
                         };
-                    let place = self.record_field_value(value)?;
-                    self.structural_type = parent_type;
-                    self.multiplicity = parent_multiplicity;
-                    terminal_psi::RecordFieldValue::Structural(StructuralArgument {
-                        place,
-                        path: Vec::new(),
-                        access: StructuralAccess::Owned,
-                    })
+                        if !matches!(
+                            target.field_type,
+                            StructuralFieldType::ByteSequence(
+                                terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                            )
+                        ) && lookup_type_id(
+                            self.type_ids,
+                            self.checked
+                                .normalized_type_identity(field.type_reference)
+                                .as_str(),
+                        )? != child_type
+                        {
+                            return unsupported("nested record operand changed its exact carrier");
+                        }
+                        let parent_type = self.structural_type;
+                        let parent_multiplicity = self.multiplicity;
+                        self.structural_type = child_type;
+                        self.multiplicity =
+                            match validation::reference_result_custody::result_multiplicity(
+                                &self.checked.typed,
+                                field.type_reference,
+                            ) {
+                                Multiplicity::Affine => StructuralMultiplicity::Affine,
+                                Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
+                                Multiplicity::Linear => {
+                                    return unsupported(
+                                        "nested record cannot create linear custody",
+                                    );
+                                }
+                            };
+                        let place = self.record_field_value(value)?;
+                        self.structural_type = parent_type;
+                        self.multiplicity = parent_multiplicity;
+                        terminal_psi::RecordFieldValue::Structural(StructuralArgument {
+                            place,
+                            path: Vec::new(),
+                            access: StructuralAccess::Owned,
+                        })
+                    }
                 }
             };
             initialized.push((
