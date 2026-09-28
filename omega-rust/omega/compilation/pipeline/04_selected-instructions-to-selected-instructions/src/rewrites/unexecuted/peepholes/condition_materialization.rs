@@ -30,14 +30,14 @@
 //! least-fixpoint walk, with the read position at the consumer's own body
 //! index rather than the terminator's — and the producer's record defines
 //! every used unit. The producer's operands then decide the predicate under
-//! the shared operand grammars, exactly as the terminator family's branches
+//! the shared operand grammars, exactly as the constant-branch family's descriptors
 //! decide their edge: `left == right` materializes one for the equality
 //! reader, the unsigned and signed orderings materialize one when theirs
 //! holds.
 //!
 //! Under `ConditionMaterializationUnitFlow::ConditionStateResolved` the
 //! flag uses retire — the compile-time decision replaces the observation —
-//! under the same republish contract the terminator family declares: every
+//! under the same republish contract the constant-branch family declares: every
 //! non-flag unit the consumer used must stay read on the rewritten row, and
 //! the rewritten row republishes the consumer's implicit definitions and
 //! clobbers verbatim. The `MaterializeI64` row carries no implicit traffic

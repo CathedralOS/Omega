@@ -172,6 +172,90 @@ pub(crate) fn constant_operands(
     }
 }
 
+/// How a producer record resolves the bits a consumer predicate decides
+/// on — `left - right` in the compare's own direction.
+///
+/// Each variant binds one producer kind's operand grammar: a declarative
+/// pair descriptor (`constant_branch::pair`, and the staged
+/// `condition_materialization` family) names the grammar rather than
+/// leaving admission to infer it from operand counts, and the independent
+/// validators restate the same grammar from the producer's kind alone. The
+/// grammars are producer-side facts shared by every condition-state pair
+/// family, so this executed owner holds the one vocabulary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ConditionOperandResolution {
+    /// `CompareI64`: two plain `Use` operands. Each register resolves to the
+    /// bits its unique in-function `MaterializeI64` producer publishes — a
+    /// `UseDef` or a terminator-carried write makes it a second producer and
+    /// refuses — or both operands name the same register, where `x - x`
+    /// fixes the state at `(0, 0)` whatever produced `x`.
+    TwoRegisterOperands,
+    /// `CompareI64Immediate`: operand 0 resolves as under
+    /// [`TwoRegisterOperands`](Self::TwoRegisterOperands); the right operand
+    /// is the literal the kind's `immediate` field carries.
+    RegisterAndKindImmediate,
+    /// `CompareI64Zero`: operand 0 resolves as under
+    /// [`TwoRegisterOperands`](Self::TwoRegisterOperands); the right operand
+    /// is the kind's zero bound.
+    RegisterAndZeroBound,
+}
+
+/// The `(left, right)` bit patterns the producer's published flag state
+/// describes under the operand grammar `resolution` declares for the
+/// producer kind. A producer whose kind is not the grammar's refuses with
+/// [`ConditionStateError::Use`]; otherwise the decision is exactly
+/// [`constant_operands`]'s.
+pub(crate) fn resolved_operands(
+    function: &SelectedFunction,
+    producer: &SelectedInstruction,
+    resolution: ConditionOperandResolution,
+) -> Result<(u64, u64), ConditionStateError> {
+    let grammar_kind = matches!(
+        (resolution, producer.kind),
+        (
+            ConditionOperandResolution::TwoRegisterOperands,
+            SelectedInstructionKind::CompareI64
+        ) | (
+            ConditionOperandResolution::RegisterAndKindImmediate,
+            SelectedInstructionKind::CompareI64Immediate { .. },
+        ) | (
+            ConditionOperandResolution::RegisterAndZeroBound,
+            SelectedInstructionKind::CompareI64Zero,
+        )
+    );
+    if !grammar_kind {
+        return Err(ConditionStateError::Use);
+    }
+    constant_operands(function, producer)
+}
+
+/// The unit-surface contract every condition-resolved rewrite republishes:
+/// the flag uses retire — the compile-time decision replaces the
+/// observation — while every non-flag unit the consumer record used must
+/// stay read on the rewritten row, the rewritten row republishes the
+/// consumer's implicit definitions and clobbers verbatim, and it may read
+/// no unit the consumer did not read. The branch family's `Jump` row
+/// carries the control unit forward under this contract; the
+/// materialization family's `MaterializeI64` row reads nothing, so its
+/// consumer may carry flag uses only.
+pub(crate) fn resolved_unit_surface(
+    flag_uses: &[RegisterUnitId],
+    plain_uses: &[RegisterUnitId],
+    consumer: &SelectedInstruction,
+    rewritten: &register_model::RegisterInstructionConstraint,
+) -> bool {
+    !flag_uses.is_empty()
+        && plain_uses
+            .iter()
+            .all(|unit| rewritten.implicit_uses.contains(unit))
+        && rewritten.implicit_defs == consumer.implicit_defs
+        && rewritten.clobbers == consumer.clobbers
+        && rewritten
+            .implicit_uses
+            .iter()
+            .all(|unit| consumer.implicit_uses.contains(unit))
+}
+
 /// The `(left, right)` operand resolution the boundary folds use — each
 /// side the bit pattern the compare provably reads there, or `None` when no
 /// guarantee pins it. Where `constant_operands` refuses any side that is

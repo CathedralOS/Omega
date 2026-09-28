@@ -972,10 +972,11 @@ fn effect_surface_mismatches_reject() {
 
 /// The two flag consumers compose on the same published compare: the
 /// materialization folds to its literal while a conditional-branch
-/// terminator keeps reading the compare's flags — and the terminator fold
+/// terminator keeps reading the compare's flags — and the executed
+/// constant-branch fold, which carries the decided-branch descriptors,
 /// then accepts this fold's validated output.
 #[test]
-fn validated_results_compose_with_terminator_pair() {
+fn validated_results_compose_with_constant_branch() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     let source = mutated(target, |function, environment| {
@@ -1002,12 +1003,12 @@ fn validated_results_compose_with_terminator_pair() {
         function.blocks.push(returning(1, 8, 4, &terminal_row));
         function.blocks.push(returning(2, 9, 5, &terminal_row));
     });
-    // The boolean materialization folds first; the terminator pair then
-    // consumes the same compare from the transformed plan.
+    // The boolean materialization folds first; the constant-branch fold
+    // then consumes the same compare from the transformed plan.
     let materialization_fold = fold(&source, &environment).unwrap();
     materialized(&materialization_fold, 0, 3, 0);
     let effect_catalog = catalog(&source, &environment);
-    let result = crate::rewrites::unexecuted::peepholes::fold_selected_terminator_pair(
+    let result = crate::rewrites::fold_selected_constant_branch(
         &materialization_fold,
         0,
         SelectedInstructionId(6),

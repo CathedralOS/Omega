@@ -1,25 +1,35 @@
-//! Shared admission for constant condition branch folding: locate the
-//! named conditional-branch terminator, confirm its emitted zero-operand
-//! shape, partition its implicit uses by the flag universe — flag units
-//! resolve to the one compare through the shared reaching walk, non-flag
-//! units must lie in the jump row's implicit surface — and decide the
-//! successor from the compare's compile-time-constant operands.
+//! Descriptor-driven admission for constant condition branch folding:
+//! locate the named conditional-branch terminator, confirm the declared
+//! consumer's emitted zero-operand shape, partition its implicit uses by
+//! the flag universe — flag units resolve to the one producer through the
+//! shared reaching walk, non-flag units must lie in the jump row's implicit
+//! surface — then complete the pair from the [`TerminatorPairRule`] table:
+//! the reached producer's kind selects the rule, whose operand grammar
+//! decides the successor, whose unit-flow axis states the retired and
+//! preserved unit roles, and whose control-flow axis is checked against the
+//! bound machine-effect catalog.
 use std::collections::BTreeSet;
 
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::{RegisterInstructionConstraint, RegisterUnitId};
 use selected_instructions::{
-    SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
-    SelectedInstructionProvenance, SelectedSuccessor, SelectedTerminator,
+    MachineEffectDeclaration, MachineSemanticKind, SelectedInstruction, SelectedInstructionId,
+    SelectedInstructionKind, SelectedInstructionProvenance, SelectedSuccessor, SelectedTerminator,
+    ValidatedMachineEffectCatalog,
 };
 
 use super::ConstantBranchError;
+use super::pair::{
+    TERMINATOR_PAIR_RULES, TerminatorPairRule, declared_consumer, declared_producers,
+    terminator_pair_for,
+};
 use crate::ValidatedSelectedAnalysis;
+use crate::analyses::machine_effects::machine_semantic_kind;
 use crate::rewrites::block_edges::terminator_instruction;
 use crate::rewrites::condition_state::{
-    ConditionStateError, adjacency, backward_cone, constant_operands, entry_index, instruction_at,
-    reaching_event,
+    ConditionStateError, adjacency, backward_cone, entry_index, instruction_at, reaching_event,
+    resolved_operands,
 };
 
 impl From<ConditionStateError> for ConstantBranchError {
@@ -44,75 +54,56 @@ pub(super) struct Admission<'source> {
     pub row: &'source RegisterInstructionConstraint,
 }
 
-/// The successor the branch selects when its compare observed
-/// `(left, right)` — the predicates the selected catalog defines over
-/// `left - right`, evaluated at compile time: `ConditionalBranchNonZero`
-/// is the zero-condition reader selection emits for equality, so it takes
-/// `when_nonzero` exactly when the difference is nonzero, and the
-/// predicate-aware forms take `when_less` on their strict ordering.
-fn decided(
-    terminator: &SelectedTerminator,
-    kind: SelectedInstructionKind,
-    left: u64,
-    right: u64,
-) -> Option<&SelectedSuccessor> {
-    match (terminator, kind) {
-        (
-            SelectedTerminator::ConditionalBranch {
-                when_nonzero,
-                when_zero,
-                ..
-            },
-            SelectedInstructionKind::ConditionalBranchNonZero,
-        ) => Some(if left != right {
-            when_nonzero
-        } else {
-            when_zero
-        }),
-        (
-            SelectedTerminator::ConditionalBranchU64LessThan {
-                when_less,
-                when_not_less,
-                ..
-            },
-            SelectedInstructionKind::ConditionalBranchU64LessThan,
-        ) => Some(if left < right {
-            when_less
-        } else {
-            when_not_less
-        }),
-        (
-            SelectedTerminator::ConditionalBranchI64LessThan {
-                when_less,
-                when_not_less,
-                ..
-            },
-            SelectedInstructionKind::ConditionalBranchI64LessThan,
-        ) => Some(if (left as i64) < (right as i64) {
-            when_less
-        } else {
-            when_not_less
-        }),
-        _ => None,
+/// The single catalog declaration for `semantic` bound to `constraint`, or
+/// none when the catalog does not declare exactly one such form.
+fn effect_declaration(
+    catalog: &ValidatedMachineEffectCatalog,
+    semantic: MachineSemanticKind,
+    constraint: register_model::RegisterConstraintKey,
+) -> Option<&MachineEffectDeclaration> {
+    let mut matches = catalog.catalog().declarations.iter().filter(|declaration| {
+        declaration.semantic == semantic && declaration.constraint == constraint
+    });
+    let declaration = matches.next()?;
+    if matches.next().is_some() {
+        return None;
     }
+    Some(declaration)
 }
 
-/// The branch/kind pairings `decided` admits without consulting operands —
-/// used by the shape gate before any flag resolution runs.
-fn branch_kind(terminator: &SelectedTerminator, instruction: &SelectedInstruction) -> bool {
-    decided(terminator, instruction.kind, 0, 0).is_some()
-}
-
+/// Admit `branch` — the instruction a block's terminator carries — as a
+/// declared decided-branch pair.
+///
+/// The order of gates fixes the error vocabulary: the catalog binding and
+/// the record shape (declared consumer kind, terminator variant, operands,
+/// implicit uses) refuse first, then the constraint rows, then the unit
+/// flow — flag-universe partition, reaching resolution, and the producer's
+/// published definitions — then the producer kind the table must pair with
+/// this consumer and the rule's unit-flow axis, then the rule's operand
+/// grammar, then the catalog declarations' encoded control relationship,
+/// and last the bounded-work charge.
 pub(super) fn admit<'source>(
     source: &'source impl ValidatedSelectedAnalysis,
     function_index: usize,
     branch: SelectedInstructionId,
     environment: &'source ValidatedTargetRegisterEnvironment,
+    effect_catalog: &ValidatedMachineEffectCatalog,
     budget: OptimizationWorkBudget,
 ) -> Result<Admission<'source>, ConstantBranchError> {
     let plan = source.selected_plan();
     if plan.target != environment.target() {
         return Err(ConstantBranchError::SourceMismatch);
+    }
+    // The bound catalog must describe this plan's target and this
+    // environment's constraint catalog and selected-key inventory: a
+    // foreign catalog's declarations cannot attest this program's encoded
+    // control surfaces even where constraint keys coincide numerically.
+    let catalog = effect_catalog.catalog();
+    if catalog.target != plan.target
+        || catalog.register_constraints != environment.constraints().identity()
+        || catalog.selected_keys != environment.selected_keys()
+    {
+        return Err(ConstantBranchError::EffectSurfaceMismatch);
     }
     let function = plan
         .functions
@@ -128,12 +119,21 @@ pub(super) fn admit<'source>(
         .ok_or(ConstantBranchError::SourceMismatch)?;
     let block = &function.blocks[block_index];
     let branch_instruction = terminator_instruction(&block.terminator);
-    // The terminator must be the emitted zero-operand flag reader: the
-    // variant/kind pairing must match — a `ConditionalBranch` terminator
-    // carrying a less-than kind is not the shape selection emits — explicit
-    // operands are never present, and a use roster holding no flag unit has
-    // no condition to decide.
-    if !branch_kind(&block.terminator, branch_instruction)
+    // The terminator must be a declared consumer in its emitted
+    // zero-operand flag-reader shape: the table names the kind, the kind
+    // must pair with the terminator variant it rides — a
+    // `ConditionalBranch` terminator carrying a less-than kind is not the
+    // shape selection emits — explicit operands are never present, and a
+    // use roster holding no unit has no condition to decide.
+    let consumer_kind = machine_semantic_kind(branch_instruction.kind);
+    let candidate_rules: Vec<&TerminatorPairRule> = TERMINATOR_PAIR_RULES
+        .iter()
+        .filter(|rule| rule.consumer() == consumer_kind)
+        .collect();
+    if !declared_consumer(branch_instruction.kind)
+        || !candidate_rules
+            .iter()
+            .any(|rule| rule.matches_terminator(&block.terminator))
         || !branch_instruction.operands.is_empty()
         || branch_instruction.implicit_uses.is_empty()
     {
@@ -141,15 +141,14 @@ pub(super) fn admit<'source>(
     }
     let keys = environment.selected_keys();
     // The flag universe partitions the branch's implicit uses: the units
-    // the target's three compare rows publish are the condition state the
+    // the declared producers' rows publish are the condition state the
     // fold decides, and every other observed unit must survive on the jump
     // row's own implicit surface.
     let mut flag_universe = BTreeSet::new();
-    for key in [
-        keys.compare_i64,
-        keys.compare_i64_immediate,
-        keys.compare_i64_zero,
-    ] {
+    for producer_kind in declared_producers() {
+        let key = keys
+            .for_semantic(producer_kind)
+            .ok_or(ConstantBranchError::ConstraintMismatch)?;
         flag_universe.extend(
             environment
                 .constraint(key)
@@ -159,8 +158,13 @@ pub(super) fn admit<'source>(
                 .copied(),
         );
     }
+    // Every declared pair rewrites to the same `Jump` form, so the first
+    // candidate's declaration names the row the rewrite binds.
+    let jump_key = keys
+        .for_semantic(candidate_rules[0].rewritten())
+        .ok_or(ConstantBranchError::ConstraintMismatch)?;
     let jump_row = environment
-        .constraint(keys.jump)
+        .constraint(jump_key)
         .ok_or(ConstantBranchError::ConstraintMismatch)?;
     let jump_surface: BTreeSet<RegisterUnitId> = jump_row
         .implicit_uses
@@ -189,24 +193,26 @@ pub(super) fn admit<'source>(
     let (successors, predecessors) = adjacency(function);
     let entry = entry_index(function).ok_or(ConstantBranchError::SourceMismatch)?;
     let cone = backward_cone(&predecessors, block_index);
-    // Every flag unit the branch reads must reach from the same compare:
+    // Every flag unit the branch reads must reach from the same producer:
     // on every execution path to the terminator, the last event touching
     // each used flag unit is that one instruction, and the unit is among
     // its published definitions — a clobber there would leave the observed
     // value unknown. Every other used unit must keep its observation on
-    // the jump row's surface. The compare stays published for readers the
+    // the jump row's surface. The producer stays published for readers the
     // rewrite leaves behind.
     let read_position = block.instructions.len();
-    let mut flag_uses = 0usize;
+    let mut flag_uses = Vec::new();
+    let mut plain_uses = Vec::new();
     let mut compare_site = None;
     for unit in &branch_instruction.implicit_uses {
         if !flag_universe.contains(unit) {
             if !jump_surface.contains(unit) {
                 return Err(ConstantBranchError::UnsupportedUse);
             }
+            plain_uses.push(*unit);
             continue;
         }
-        flag_uses += 1;
+        flag_uses.push(*unit);
         let event = reaching_event(
             function,
             entry,
@@ -221,23 +227,51 @@ pub(super) fn admit<'source>(
         }
         compare_site = Some(event);
     }
-    if flag_uses == 0 {
+    if flag_uses.is_empty() {
         return Err(ConstantBranchError::UnsupportedInstruction);
     }
     let compare_site = compare_site.ok_or(ConstantBranchError::UnsupportedUse)?;
     let compare_instruction = instruction_at(function, compare_site);
-    if branch_instruction
-        .implicit_uses
+    if flag_uses
         .iter()
-        .filter(|unit| flag_universe.contains(unit))
         .any(|unit| !compare_instruction.implicit_defs.contains(unit))
     {
         return Err(ConstantBranchError::UnsupportedUse);
     }
-    let (left, right) = constant_operands(function, compare_instruction)?;
-    let successor = decided(&block.terminator, branch_instruction.kind, left, right)
+    // The reached producer completes the pair: the table must declare a
+    // rule for this (producer, consumer) combination. Its unit-flow axis
+    // then states the concrete roles — flag uses retire, every non-flag
+    // use stays read on the rewritten row, and the rewritten row
+    // republishes the branch's implicit definitions and clobbers — and its
+    // operand grammar decides the predicate.
+    let rule = terminator_pair_for(
+        machine_semantic_kind(compare_instruction.kind),
+        consumer_kind,
+    )
+    .ok_or(ConstantBranchError::UnsupportedProducer)?;
+    if !rule.matches_producer(compare_instruction.kind) {
+        return Err(ConstantBranchError::UnsupportedProducer);
+    }
+    if !rule.admits_unit_flow(&flag_uses, &plain_uses, branch_instruction, jump_row) {
+        return Err(ConstantBranchError::UnsupportedUse);
+    }
+    let (left, right) =
+        resolved_operands(function, compare_instruction, rule.operand_resolution())?;
+    let successor = rule
+        .decided_successor(&block.terminator, left, right)
         .ok_or(ConstantBranchError::UnsupportedInstruction)?
         .clone();
+    // The declared control-flow relationship, checked against the bound
+    // catalog: the branch encodes a conditional relative branch, the jump
+    // row an unconditional one, and both are otherwise effect-isolated.
+    let consumer_declaration =
+        effect_declaration(effect_catalog, consumer_kind, branch_instruction.constraint)
+            .ok_or(ConstantBranchError::EffectSurfaceMismatch)?;
+    let rewritten_declaration = effect_declaration(effect_catalog, rule.rewritten(), jump_row.key)
+        .ok_or(ConstantBranchError::EffectSurfaceMismatch)?;
+    if !rule.admits_declarations(consumer_declaration, rewritten_declaration) {
+        return Err(ConstantBranchError::EffectSurfaceMismatch);
+    }
     let function_scan = function
         .blocks
         .iter()

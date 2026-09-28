@@ -1,7 +1,7 @@
 //! Declarative condition-materialization descriptors: producer, consumer,
 //! and the rewritten form plus the admissibility axes each must satisfy.
 //!
-//! The [`terminator_pair`](super::terminator_pair) grammar describes
+//! The decided-branch grammar in `rewrites::constant_branch::pair` describes
 //! consumers whose flag reads sit at a block's terminator; the
 //! `MaterializeBoolean*` instruction reads the same condition state at a
 //! body position and publishes it as a GPR. This module extends the same

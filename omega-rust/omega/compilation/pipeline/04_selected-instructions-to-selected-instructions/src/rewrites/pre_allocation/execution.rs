@@ -30,6 +30,7 @@ use crate::StagedPreAllocationOptimizationCustodyReceipt;
 use crate::StagedPreAllocationOptimizationRun;
 use crate::ValidatedPreAllocationTransformation;
 use crate::ValidatedSelectedAnalysis;
+use crate::analyses::validated_machine_effect_catalog;
 use crate::analyze_allocation_legality;
 use crate::analyze_live_ranges;
 use crate::analyze_liveness;
@@ -527,6 +528,13 @@ fn constant_branch_pass(
     let mut validation_steps = 0u64;
     let (flag_universe, jump_surface) = constant_branch_surface_sizes(environment)
         .map_err(OptimizedPreAllocationCustodyError::ConstantBranch)?;
+    // The decided-branch pair descriptors admit the control-flow
+    // relationship through the environment's own validated catalog — a
+    // pure function of the target and the constraint catalog, so the
+    // custody replay re-running this pass binds the same declarations.
+    let effect_catalog =
+        validated_machine_effect_catalog(environment.target(), environment.constraints())
+            .map_err(OptimizedPreAllocationCustodyError::MachineEffects)?;
     for (function_index, function) in current.selected_plan().functions.iter().enumerate() {
         let (successors, _) = adjacency(function);
         for block in &function.blocks {
@@ -553,6 +561,7 @@ fn constant_branch_pass(
                 function_index,
                 instruction.id,
                 environment,
+                &effect_catalog,
                 budget,
             ) {
                 Ok(fold) => {

@@ -69,8 +69,9 @@
 //! - `load_forwarding` — staged, owner row **ALIAS-AWARE-MEMORY**
 //! - `scheduled_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `peepholes` (`condition_materialization`, `copied_call_operand`,
-//!   `projected_access`, `terminator_pair`) — staged, owner row
-//!   **DECLARATIVE-PEEPHOLES**
+//!   `projected_access`) — staged, owner row **DECLARATIVE-PEEPHOLES**;
+//!   the former `terminator_pair` descriptors now drive the executed
+//!   `constant_branch` rule
 //! - `relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `store_motion` — staged, owner row **ALIAS-AWARE-MEMORY**
 //!

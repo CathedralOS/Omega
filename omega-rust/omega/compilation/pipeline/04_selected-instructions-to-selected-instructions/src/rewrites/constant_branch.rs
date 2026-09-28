@@ -47,6 +47,23 @@
 //! definitions, and producer elimination stays with the
 //! producer-elimination rules.
 //!
+//! Admission is declarative. The [`pair`] table declares each decided
+//! pair — one condition-state producer kind (`CompareI64`,
+//! `CompareI64Immediate`, `CompareI64Zero`), one conditional-branch
+//! consumer kind, and the `Jump` rewrite — with independent axes for the
+//! producer's operand grammar, the unit roles (flag uses retired, the
+//! control-unit use preserved, definitions and clobbers republished), and
+//! the control-flow relationship the bound machine-effect catalog must
+//! declare: every alternative of the branch row encodes
+//! `ConditionalRelativeBranchV1`, every alternative of the jump row
+//! `UnconditionalRelativeBranchV1`, and both rows are otherwise
+//! effect-isolated. A target whose rows encode anything else cannot
+//! admit the fold. These descriptors were staged as the unexecuted
+//! `peepholes::terminator_pair` family beside this rule, repeating its
+//! admission; they now drive the executed rule directly, so the declared
+//! relationship reaches compiler-produced plans on every target without a
+//! second rule identity over the same transformation.
+//!
 //! Validation consumes the proposed program, requires the terminator in
 //! the branch's block to equal the independently computed `Jump`, and
 //! restores the complete source by content: every other instruction,
@@ -55,11 +72,14 @@
 //! the branch/kind pairing and zero-operand shape, the flag partition
 //! every implicit use must satisfy, the jump row's exact implicit-surface
 //! match, and the constant operands the successor is decided from —
-//! never consulting the producer's `admission` routine; only the
-//! module's shared condition-state walk and operand audit are common to
-//! both sides.
+//! never consulting the producer's `admission` routine or the `pair`
+//! table — and restates the catalog control surface from the bound
+//! declarations itself. Only the module's shared condition-state walk and
+//! operand audit are common to both sides; that shared reaching walk is
+//! the validator-independence gap DECLARATIVE-PEEPHOLES still names.
 
 mod admission;
+mod pair;
 mod rewrite;
 mod validation;
 
@@ -178,6 +198,13 @@ pub enum ConstantBranchError {
     UnsupportedProducer,
     UnsupportedLiteral,
     ConstraintMismatch,
+    /// The bound machine-effect catalog does not describe this plan's
+    /// target, constraints, and selected keys, does not declare exactly one
+    /// form for the branch or the jump row under the record's constraint
+    /// key, or the declarations do not satisfy the declared control-flow
+    /// axis — a conditional relative branch resolving to an unconditional
+    /// one, both otherwise effect-isolated.
+    EffectSurfaceMismatch,
     WorkBudgetExceeded,
     IdentityOverflow,
     ReplayMismatch,

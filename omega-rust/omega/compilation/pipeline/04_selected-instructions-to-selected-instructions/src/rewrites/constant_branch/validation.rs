@@ -10,8 +10,12 @@
 //! the branch's implicit definitions and clobbers, and the compare's
 //! compile-time constant operands — then decides the successor on its own
 //! predicate table, rebuilds the `Jump` terminator the contract demands,
-//! and requires the proposal to carry it in the branch's block.
-//! Reinserting the source terminator must restore the complete source by
+//! and requires the proposal to carry it in the branch's block. The
+//! catalog control surface is restated here too: the branch row must
+//! encode a conditional relative branch and the jump row an unconditional
+//! one on every alternative, both otherwise effect-isolated — read off the
+//! bound catalog directly, never through the `pair` descriptor table the
+//! producer consults. Reinserting the source terminator must restore the complete source by
 //! content: every other instruction, register, call, settlement, and
 //! function included. A producer admission error therefore fails
 //! validation even when the proposal is exactly what that producer
@@ -23,8 +27,13 @@ use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::{RegisterInstructionConstraint, RegisterUnitId};
 use selected_instructions::{
-    SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
-    SelectedInstructionPlan, SelectedInstructionProvenance, SelectedSuccessor, SelectedTerminator,
+    MachineAlternative, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
+    MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
+    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
+    MachineSemanticKind, MachineTrapBehavior, SelectedFunction, SelectedInstruction,
+    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
+    SelectedInstructionProvenance, SelectedSuccessor, SelectedTerminator,
+    ValidatedMachineEffectCatalog,
 };
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
@@ -121,6 +130,74 @@ fn branch_kind(terminator: &SelectedTerminator, instruction: &SelectedInstructio
     decided(terminator, instruction.kind, 0, 0).is_some()
 }
 
+/// The branch semantic the validator reads off the terminator variant and
+/// its carried kind together — never the producer's descriptor table.
+fn branch_semantic(
+    terminator: &SelectedTerminator,
+    kind: SelectedInstructionKind,
+) -> Option<MachineSemanticKind> {
+    match (terminator, kind) {
+        (
+            SelectedTerminator::ConditionalBranch { .. },
+            SelectedInstructionKind::ConditionalBranchNonZero,
+        ) => Some(MachineSemanticKind::ConditionalBranchNonZero),
+        (
+            SelectedTerminator::ConditionalBranchU64LessThan { .. },
+            SelectedInstructionKind::ConditionalBranchU64LessThan,
+        ) => Some(MachineSemanticKind::ConditionalBranchU64LessThan),
+        (
+            SelectedTerminator::ConditionalBranchI64LessThan { .. },
+            SelectedInstructionKind::ConditionalBranchI64LessThan,
+        ) => Some(MachineSemanticKind::ConditionalBranchI64LessThan),
+        _ => None,
+    }
+}
+
+/// The single catalog declaration for `semantic` bound to `constraint`, or
+/// none when the catalog does not declare exactly one such form — the
+/// validator's own lookup.
+fn declaration_for(
+    catalog: &ValidatedMachineEffectCatalog,
+    semantic: MachineSemanticKind,
+    constraint: register_model::RegisterConstraintKey,
+) -> Option<&MachineEffectDeclaration> {
+    let mut matches = catalog.catalog().declarations.iter().filter(|declaration| {
+        declaration.semantic == semantic && declaration.constraint == constraint
+    });
+    let declaration = matches.next()?;
+    if matches.next().is_some() {
+        return None;
+    }
+    Some(declaration)
+}
+
+/// The control surface a decided-branch declaration must carry, restated
+/// from the catalog row alone: no declared memory, trap, call, or cleanup
+/// effect and the control-flow barrier, with every alternative encoding no
+/// memory, an unchanged stack, only the architectural fault a relative
+/// branch encoding can raise, and `control` — the conditional relative
+/// branch on the source row, the unconditional one on the jump row.
+fn decided_control_surface(
+    declaration: &MachineEffectDeclaration,
+    control: MachineEncodedControlEffect,
+) -> bool {
+    declaration.memory == MachineMemoryEffect::NoneV1
+        && declaration.trap == MachineTrapBehavior::NeverV1
+        && declaration.barrier == MachineBarrier::ControlFlow
+        && declaration.call == MachineCallEffect::NoneV1
+        && declaration.cleanup == MachineCleanupEffect::NoneV1
+        && declaration
+            .alternatives
+            .iter()
+            .all(|alternative: &MachineAlternative| {
+                let encoded = &alternative.encoded;
+                encoded.memory == MachineEncodedMemoryEffect::NoneV1
+                    && encoded.stack == MachineEncodedStackEffect::UnchangedV1
+                    && encoded.trap == MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+                    && encoded.control == control
+            })
+}
+
 /// The family's own mapping of a shared condition-state rejection onto
 /// its error vocabulary. The producer's `From` implementation lives in
 /// `admission`; the validator maps each site itself so a changed producer
@@ -148,10 +225,20 @@ fn reconstruct<'source>(
     function_index: usize,
     branch: SelectedInstructionId,
     environment: &'source ValidatedTargetRegisterEnvironment,
+    effect_catalog: &ValidatedMachineEffectCatalog,
 ) -> Result<Reconstructed<'source>, ConstantBranchError> {
     let plan = source.selected_plan();
     if plan.target != environment.target() {
         return Err(ConstantBranchError::SourceMismatch);
+    }
+    // The validator re-derives the catalog binding: the bound catalog must
+    // describe this plan's target, constraint catalog, and selected keys.
+    let catalog = effect_catalog.catalog();
+    if catalog.target != plan.target
+        || catalog.register_constraints != environment.constraints().identity()
+        || catalog.selected_keys != environment.selected_keys()
+    {
+        return Err(ConstantBranchError::EffectSurfaceMismatch);
     }
     let function = plan
         .functions
@@ -279,6 +366,26 @@ fn reconstruct<'source>(
     let successor = decided(&block.terminator, branch_instruction.kind, left, right)
         .ok_or(ConstantBranchError::UnsupportedInstruction)?
         .clone();
+    // The control relationship, restated on the bound catalog: the branch
+    // row encodes a conditional relative branch, the jump row an
+    // unconditional one, and both are otherwise effect-isolated. A target
+    // whose rows encode anything else cannot carry the fold.
+    let semantic = branch_semantic(&block.terminator, branch_instruction.kind)
+        .ok_or(ConstantBranchError::UnsupportedInstruction)?;
+    let branch_declaration =
+        declaration_for(effect_catalog, semantic, branch_instruction.constraint)
+            .ok_or(ConstantBranchError::EffectSurfaceMismatch)?;
+    let jump_declaration = declaration_for(effect_catalog, MachineSemanticKind::Jump, jump_row.key)
+        .ok_or(ConstantBranchError::EffectSurfaceMismatch)?;
+    if !decided_control_surface(
+        branch_declaration,
+        MachineEncodedControlEffect::ConditionalRelativeBranchV1,
+    ) || !decided_control_surface(
+        jump_declaration,
+        MachineEncodedControlEffect::UnconditionalRelativeBranchV1,
+    ) {
+        return Err(ConstantBranchError::EffectSurfaceMismatch);
+    }
     Ok(Reconstructed {
         function,
         block_index,
@@ -493,10 +600,11 @@ pub fn validate_constant_branch_fold(
     function_index: usize,
     branch: SelectedInstructionId,
     environment: &ValidatedTargetRegisterEnvironment,
+    effect_catalog: &ValidatedMachineEffectCatalog,
     budget: OptimizationWorkBudget,
     proposed: SelectedInstructionPlan,
 ) -> Result<ValidatedConstantBranch, ConstantBranchError> {
-    let reconstructed = reconstruct(source, function_index, branch, environment)?;
+    let reconstructed = reconstruct(source, function_index, branch, environment, effect_catalog)?;
     if measured_steps(
         source.selected_plan(),
         reconstructed.function,
@@ -546,8 +654,8 @@ mod independence_tests {
     use selected_instructions::{
         SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
         SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedOperand,
-        SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator, VirtualRegister,
-        VirtualRegisterId, VirtualRegisterOrigin,
+        SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator,
+        ValidatedMachineEffectCatalog, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
     };
     use semantic_vocabulary::{
         BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
@@ -807,6 +915,69 @@ mod independence_tests {
         OptimizationWorkBudget::new(100, 100, 100_000, 100, 100).unwrap()
     }
 
+    /// The machine-effect catalog the stage binds for `environment`.
+    fn catalog(environment: &ValidatedTargetRegisterEnvironment) -> ValidatedMachineEffectCatalog {
+        crate::analyses::validated_machine_effect_catalog(
+            environment.target(),
+            environment.constraints(),
+        )
+        .unwrap()
+        .as_ref()
+        .clone()
+    }
+
+    /// The branch record is rebound to the jump row's constraint key: the
+    /// bound catalog declares no conditional-branch semantic under that key,
+    /// so nothing attests the conditional-to-unconditional control
+    /// relationship. A producer that skipped the catalog binding still emits
+    /// the `Jump`; the validator's own catalog restatement refuses with
+    /// `EffectSurfaceMismatch`. A catalog bound to another target refuses
+    /// the untouched legal source the same way.
+    #[test]
+    fn validator_refuses_a_control_surface_the_catalog_never_declared() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let mut plan = plan(&environment, target);
+        let jump_key = environment.selected_keys().jump;
+        let SelectedTerminator::ConditionalBranch { instruction, .. } =
+            &mut plan.functions[0].blocks[0].terminator
+        else {
+            unreachable!("the fixture terminator is a ConditionalBranch")
+        };
+        instruction.constraint = jump_key;
+        let rebound = source(plan);
+        let proposed = forged_jump(&rebound, &environment);
+        assert_eq!(
+            validate_constant_branch_fold(
+                &rebound,
+                0,
+                BRANCH,
+                &environment,
+                &catalog(&environment),
+                budget(),
+                proposed
+            )
+            .unwrap_err(),
+            ConstantBranchError::EffectSurfaceMismatch
+        );
+        let legal = source(self::plan(&environment, target));
+        let foreign = baseline_target_register_environment(NativeTarget::linux_arm64()).unwrap();
+        let proposed = forged_jump(&legal, &environment);
+        assert_eq!(
+            validate_constant_branch_fold(
+                &legal,
+                0,
+                BRANCH,
+                &environment,
+                &catalog(&foreign),
+                budget(),
+                proposed
+            )
+            .unwrap_err(),
+            ConstantBranchError::EffectSurfaceMismatch
+        );
+    }
+
     /// `ra = materialize 3; ra = materialize 9; rb = materialize 5;
     /// compare ra, rb; branch` — the compare's left operand has two
     /// producers, so its value is not pinned function-wide and the fold's
@@ -838,8 +1009,16 @@ mod independence_tests {
         let source = source(plan);
         let proposed = forged_jump(&source, &environment);
         assert_eq!(
-            validate_constant_branch_fold(&source, 0, BRANCH, &environment, budget(), proposed)
-                .unwrap_err(),
+            validate_constant_branch_fold(
+                &source,
+                0,
+                BRANCH,
+                &environment,
+                &catalog(&environment),
+                budget(),
+                proposed
+            )
+            .unwrap_err(),
             ConstantBranchError::UnsupportedProducer
         );
     }
@@ -862,8 +1041,16 @@ mod independence_tests {
         let source = source(plan);
         let proposed = forged_jump(&source, &environment);
         assert_eq!(
-            validate_constant_branch_fold(&source, 0, BRANCH, &environment, budget(), proposed)
-                .unwrap_err(),
+            validate_constant_branch_fold(
+                &source,
+                0,
+                BRANCH,
+                &environment,
+                &catalog(&environment),
+                budget(),
+                proposed
+            )
+            .unwrap_err(),
             ConstantBranchError::UnsupportedUse
         );
     }
@@ -883,8 +1070,16 @@ mod independence_tests {
         let source = source(plan);
         let proposed = forged_jump(&source, &environment);
         assert_eq!(
-            validate_constant_branch_fold(&source, 0, BRANCH, &environment, budget(), proposed)
-                .unwrap_err(),
+            validate_constant_branch_fold(
+                &source,
+                0,
+                BRANCH,
+                &environment,
+                &catalog(&environment),
+                budget(),
+                proposed
+            )
+            .unwrap_err(),
             ConstantBranchError::UnsupportedUse
         );
     }

@@ -10,6 +10,7 @@ use crate::DeadCompareError;
 use crate::EquivalentCompareError;
 use crate::LiveRangeError;
 use crate::LivenessError;
+use crate::MachineEffectStageError;
 use crate::OptimizedAllocationLegalityCustodyError;
 use crate::RedundantCompareError;
 use crate::RedundantExtensionError;
@@ -650,6 +651,10 @@ pub enum OptimizedPreAllocationCustodyError {
     DeadCompare(DeadCompareError),
     RedundantCompare(RedundantCompareError),
     EquivalentCompare(EquivalentCompareError),
+    /// The target's machine-effect catalog — the declarations the
+    /// constant-branch pair descriptors bind — could not be built or
+    /// validated for the environment's constraint catalog.
+    MachineEffects(MachineEffectStageError),
     Liveness(LivenessError),
     LiveRanges(LiveRangeError),
     AllocationLegality(AllocationLegalityError),
