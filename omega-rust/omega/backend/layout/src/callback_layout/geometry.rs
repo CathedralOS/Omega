@@ -1,11 +1,8 @@
-use super::super::BoundaryCallbackLayoutEntry;
-use layout::TargetClosedPlanLaidDataLayoutIdentity;
+use super::PrivateCallbackLayout;
+use crate::TargetClosedPlanLaidDataLayoutIdentity;
 use target::NativeTarget;
 
-pub(super) fn validate(
-    entry: &BoundaryCallbackLayoutEntry,
-    target: NativeTarget,
-) -> Result<(), String> {
+pub(super) fn validate(entry: &PrivateCallbackLayout, target: NativeTarget) -> Result<(), String> {
     let root = &entry.root_layout;
     let terminal = &entry.terminal_slot;
     if !valid_layout(root)

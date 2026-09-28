@@ -707,13 +707,14 @@ pub fn close_outbound_callback_materializations(
                     demand.requirement,
                     demand.callback_requirement_identity.to_string(),
                 ));
-                let entry = BoundaryCallbackLayoutEntry::direct(parameter, &layout_plan, demand)
-                    .map_err(|reason| {
-                        vec![
-                            Diagnostic::error(reason)
-                                .with_source_span(realization.relationship_span),
-                        ]
-                    })?;
+                let entry = BoundaryCallbackLayoutEntry::direct(
+                    parameter,
+                    &layout_plan.plan_laid_layout_identities,
+                    demand,
+                )
+                .map_err(|reason| {
+                    vec![Diagnostic::error(reason).with_source_span(realization.relationship_span)]
+                })?;
                 demands.push((demand.native_demand(parameter.identity), Some(entry)));
             }
             for path in layout_plan
