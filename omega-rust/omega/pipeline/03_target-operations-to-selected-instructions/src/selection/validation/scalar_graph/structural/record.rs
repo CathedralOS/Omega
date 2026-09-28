@@ -54,7 +54,7 @@ pub(super) fn establish(
     )?;
     let mut offset = 0u32;
     while offset < u32::from(shape.byte_size) {
-        let width = chunk(u32::from(shape.byte_size) - offset);
+        let width = chunk(u32::from(shape.byte_size) - offset, offset, offset);
         store(
             replay,
             row,
@@ -204,7 +204,11 @@ pub(super) fn write_fields(
                     .ok_or_else(|| invalid())?;
                 let mut cursor = 0u32;
                 while cursor < u32::from(field_shape.byte_size) {
-                    let width = chunk(u32::from(field_shape.byte_size) - cursor);
+                    let width = chunk(
+                        u32::from(field_shape.byte_size) - cursor,
+                        cursor,
+                        offset + cursor,
+                    );
                     let value = super::result(replay, argument.place, cursor)?;
                     memory(
                         replay,
@@ -265,10 +269,20 @@ pub(super) fn write_fields(
     Ok(())
 }
 
-fn chunk(remaining: u32) -> u8 {
+// A completed child can begin at a narrower-aligned field offset than its
+// total size suggests. Both ends must use encodable scaled displacements;
+// copying eight bytes merely because eight remain can select an impossible
+// AArch64 store. Keep wide chunks when both offsets permit them, and never
+// round the live extent up into a neighboring field.
+fn chunk(remaining: u32, source_offset: u32, destination_offset: u32) -> u8 {
     [8u8, 4, 2, 1]
         .into_iter()
-        .find(|width| u32::from(*width) <= remaining)
+        .find(|width| {
+            let width = u32::from(*width);
+            width <= remaining
+                && source_offset.is_multiple_of(width)
+                && destination_offset.is_multiple_of(width)
+        })
         .unwrap_or(1)
 }
 #[allow(clippy::too_many_arguments)]
