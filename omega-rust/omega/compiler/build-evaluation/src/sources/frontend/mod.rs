@@ -1,128 +1,25 @@
+//! Package-aware source selection, import discovery and injected source policy.
+//! Loading, tokenization and parsing belong to Psi stages 00 and 01.
+
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use crate::sources::source::{SourceStorage, ToolchainContractCustody};
-use arena::{Arena, HandleSpan};
+use crate::sources::source::ToolchainContractCustody;
+use arena::Arena;
 use build_declarations::DependencyPurpose;
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
-use source::{DependencyScope, SourceId, SourceOrigin, SourcePosition};
-use syntax_trees::SyntaxTrees;
+use source::{DependencyScope, LoadedSource, LoadedSources, SourceId, SourceOrigin};
 use syntax_trees::identifier::Identifier;
-use syntax_trees::item::{Item, ItemHandle};
-use tokens::{PunctuationKind, Token, TokenKind, TokenStream, TokenText};
+use syntax_trees::item::Item;
+use syntax_trees::{ParsedSources, SyntaxTrees};
+use tokens::{PunctuationKind, TokenKind};
 
 mod import_bindings;
 use import_bindings::{ImportOccurrence, direct_source_import};
 pub use import_bindings::{
     PendingPackageImport, ResolvedSourceImport, retain_module_import_bindings,
 };
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LoadedSource {
-    pub source_id: SourceId,
-    pub path: PathBuf,
-    pub source: Arc<str>,
-    pub origin: Option<SourceOrigin>,
-    /// The checked instance this load produces. The same path may appear in
-    /// one frontier once per scope.
-    pub scope: DependencyScope,
-}
-
-impl Default for LoadedSource {
-    fn default() -> Self {
-        Self {
-            source_id: SourceId::default(),
-            path: PathBuf::default(),
-            source: Arc::from(""),
-            origin: None,
-            scope: DependencyScope::Product,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct LoadedSources {
-    pub sources: Arena<LoadedSource>,
-    pub batch: HandleSpan<LoadedSource>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct LexedSource {
-    pub source_id: SourceId,
-    pub path: PathBuf,
-    pub source: Arc<str>,
-    pub origin: Option<SourceOrigin>,
-    pub tokens: TokenStream<'static>,
-    pub scope: DependencyScope,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct LexedSources {
-    pub sources: Arena<LexedSource>,
-    pub batch: HandleSpan<LexedSource>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParsedSource {
-    pub source_id: SourceId,
-    pub path: PathBuf,
-    pub source: Arc<str>,
-    pub origin: Option<SourceOrigin>,
-    pub root_items: Vec<ItemHandle>,
-    /// Which dependency context checked this instance. An identical path may
-    /// have a second [`ParsedSource`] under the other scope.
-    pub scope: DependencyScope,
-}
-
-impl Default for ParsedSource {
-    fn default() -> Self {
-        Self {
-            source_id: SourceId::default(),
-            path: PathBuf::default(),
-            source: Arc::from(""),
-            origin: None,
-            root_items: Vec::new(),
-            scope: DependencyScope::Product,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct ParsedSources {
-    pub sources: Arena<ParsedSource>,
-    pub batch: HandleSpan<ParsedSource>,
-}
-
-pub fn load_sources(
-    frontier: Vec<(PathBuf, DependencyScope)>,
-    first_source_id: usize,
-) -> Result<LoadedSources, Vec<Diagnostic>> {
-    let source_count = frontier.len();
-    let mut sources = Arena::with_capacity(source_count);
-    let mut loaded = Vec::with_capacity(source_count);
-
-    for (index, (path, scope)) in frontier.into_iter().enumerate() {
-        let source = std::fs::read_to_string(&path).map_err(|error| {
-            vec![Diagnostic::error(format!(
-                "failed to read {}: {error}",
-                path.display()
-            ))]
-        })?;
-
-        loaded.push(LoadedSource {
-            source_id: SourceId(first_source_id + index),
-            path,
-            source: Arc::from(source),
-            origin: None,
-            scope,
-        });
-    }
-
-    let batch = sources.insert_many(loaded);
-
-    Ok(LoadedSources { sources, batch })
-}
 
 /// Load a COMPILER-PROVIDED source (a virtual file with no on-disk backing):
 /// the build-vocabulary prelude and its future siblings. The synthetic path
@@ -162,89 +59,6 @@ pub fn load_package_generated_source(
         scope,
     }]);
     LoadedSources { sources, batch }
-}
-
-pub fn lex_sources(sources: LoadedSources) -> Result<LexedSources, Vec<Diagnostic>> {
-    let loaded_sources = sources.sources.span_or_empty(sources.batch);
-    let source_count = loaded_sources.len();
-    let mut lexed_sources = Arena::with_capacity(source_count);
-    let mut lexed = Vec::with_capacity(source_count);
-
-    for loaded_source in loaded_sources {
-        let tokens = source_files_to_tokens::Lexer::new(loaded_source.source.as_ref())
-            .tokenize()
-            .map_err(|error| {
-                let position = SourcePosition::of(loaded_source.source.as_ref(), error.span.start);
-                vec![Diagnostic::error(format!(
-                    "{}:{}:{}: {}",
-                    loaded_source.path.display(),
-                    position.line,
-                    position.column,
-                    error.message
-                ))]
-            })?;
-
-        lexed.push(LexedSource {
-            source_id: loaded_source.source_id,
-            path: loaded_source.path.clone(),
-            source: loaded_source.source.clone(),
-            origin: loaded_source.origin,
-            tokens: own_token_stream(tokens, &loaded_source.source),
-            scope: loaded_source.scope,
-        });
-    }
-
-    let batch = lexed_sources.insert_many(lexed);
-
-    Ok(LexedSources {
-        sources: lexed_sources,
-        batch,
-    })
-}
-
-pub fn parse_sources(
-    lexed: LexedSources,
-    syntax_trees: &mut SyntaxTrees,
-) -> Result<ParsedSources, Vec<Diagnostic>> {
-    let lexed_sources = lexed.sources.span_or_empty(lexed.batch);
-    let source_count = lexed_sources.len();
-    let mut parsed_sources = Arena::with_capacity(source_count);
-    let mut parsed = Vec::with_capacity(source_count);
-
-    for lexed_source in lexed_sources {
-        let root_items = tokens_to_syntax_trees::parse(
-            syntax_trees,
-            lexed_source.source_id,
-            &lexed_source.tokens,
-        )
-        .map_err(|error| {
-            let position =
-                SourcePosition::of(lexed_source.source.as_ref(), error.source_span.span.start);
-            vec![Diagnostic::error(format!(
-                "{}:{}:{}: {}",
-                lexed_source.path.display(),
-                position.line,
-                position.column,
-                error.message
-            ))]
-        })?;
-
-        parsed.push(ParsedSource {
-            source_id: lexed_source.source_id,
-            path: lexed_source.path.clone(),
-            source: lexed_source.source.clone(),
-            origin: lexed_source.origin,
-            root_items,
-            scope: lexed_source.scope,
-        });
-    }
-
-    let batch = parsed_sources.insert_many(parsed);
-
-    Ok(ParsedSources {
-        sources: parsed_sources,
-        batch,
-    })
 }
 
 /// Discover standalone imports without interpreting dependency declarations.
@@ -864,38 +678,6 @@ pub fn discover_package_imports(
         }
     }
     Ok((imports, requests))
-}
-
-pub fn extend_source_storage(
-    source_storage: &mut SourceStorage,
-    parsed: ParsedSources,
-) -> Result<(), Vec<Diagnostic>> {
-    source_storage.extend(parsed)
-}
-
-/// Retain this source's lexer output beyond its borrow, moving decoded literal
-/// buffers. Individual shared lexemes also supply source ownership to the
-/// parser's independently retained identifiers and source text.
-fn own_token_stream(tokens: TokenStream<'_>, source: &Arc<str>) -> TokenStream<'static> {
-    TokenStream::new(
-        tokens
-            .into_tokens()
-            .into_iter()
-            .map(|token| {
-                let lexeme = match token.lexeme {
-                    TokenText::Source(_) => TokenText::shared(source.clone(), token.span),
-                    TokenText::Shared { source, span } => TokenText::Shared { source, span },
-                    TokenText::Owned(value) => TokenText::Owned(value),
-                    TokenText::OwnedBytes(value) => TokenText::OwnedBytes(value),
-                };
-                Token {
-                    kind: token.kind,
-                    lexeme,
-                    span: token.span,
-                }
-            })
-            .collect(),
-    )
 }
 
 fn resolve_source_path(

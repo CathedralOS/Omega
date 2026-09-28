@@ -3,9 +3,55 @@ pub use crate::diagnostics::parse_error;
 use crate::ParseError;
 use crate::declarations::parse_declaration::{ParsedDeclaration, parse_item};
 use crate::input::token_cursor::Input;
-use source::SourceId;
-use syntax_trees::{SyntaxTrees, item::ItemHandle};
-use tokens::Token;
+use arena::Arena;
+use diagnostics::Diagnostic;
+use source::{SourceId, SourcePosition};
+use syntax_trees::{ParsedSource, ParsedSources, SyntaxTrees, item::ItemHandle};
+use tokens::{LexedSources, Token};
+
+/// Parse an ordered token batch into the caller's syntax arena, retaining
+/// per-source roots, backing text and metadata. Failure leaves the already
+/// parsed prefix in that arena and reports the current source's exact location.
+pub fn parse_sources(
+    lexed: LexedSources,
+    syntax_trees: &mut SyntaxTrees,
+) -> Result<ParsedSources, Vec<Diagnostic>> {
+    let lexed_sources = lexed.sources.span_or_empty(lexed.batch);
+    let source_count = lexed_sources.len();
+    let mut parsed_sources = Arena::with_capacity(source_count);
+    let mut parsed = Vec::with_capacity(source_count);
+
+    for lexed_source in lexed_sources {
+        let root_items = parse(syntax_trees, lexed_source.source_id, &lexed_source.tokens)
+            .map_err(|error| {
+                let position =
+                    SourcePosition::of(lexed_source.source.as_ref(), error.source_span.span.start);
+                vec![Diagnostic::error(format!(
+                    "{}:{}:{}: {}",
+                    lexed_source.path.display(),
+                    position.line,
+                    position.column,
+                    error.message
+                ))]
+            })?;
+
+        parsed.push(ParsedSource {
+            source_id: lexed_source.source_id,
+            path: lexed_source.path.clone(),
+            source: lexed_source.source.clone(),
+            origin: lexed_source.origin,
+            root_items,
+            scope: lexed_source.scope,
+        });
+    }
+
+    let batch = parsed_sources.insert_many(parsed);
+
+    Ok(ParsedSources {
+        sources: parsed_sources,
+        batch,
+    })
+}
 
 /// Parses one source into the caller's arena and returns that source's root
 /// item handles. Top-level `let`/`boundary let` declarations land on

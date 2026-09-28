@@ -9,6 +9,7 @@ name = "tokens_to_syntax_trees"
 path = "src/lib.rs"
 
 [dependencies]
+diagnostics = { path = "../../foundation/diagnostics" }
 arena = { path = "../../foundation/arena" }
 language-core = { path = "../../foundation/language-core" }
 numerics = { path = "../../foundation/numerics" }

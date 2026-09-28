@@ -1925,6 +1925,7 @@ checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
 name = "source"
 version = "0.1.0"
 dependencies = [
+ "arena",
  "semantic-vocabulary",
 ]
 
@@ -1932,6 +1933,8 @@ dependencies = [
 name = "source-files-to-tokens"
 version = "0.1.0"
 dependencies = [
+ "arena",
+ "diagnostics",
  "source",
  "tokens",
 ]
@@ -2237,6 +2240,7 @@ dependencies = [
 name = "tokens"
 version = "0.1.0"
 dependencies = [
+ "arena",
  "source",
 ]
 
@@ -2245,6 +2249,7 @@ name = "tokens-to-syntax-trees"
 version = "0.1.0"
 dependencies = [
  "arena",
+ "diagnostics",
  "language-core",
  "numerics",
  "source",

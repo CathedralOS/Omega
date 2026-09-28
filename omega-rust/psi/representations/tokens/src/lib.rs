@@ -17,4 +17,5 @@ pub use token_kind::{
     NumericLiteralKind, PunctuationKind, TokenKind,
 };
 pub use token_stream::TokenStream;
+pub use token_stream::sources::{LexedSource, LexedSources};
 pub use token_text::TokenText;

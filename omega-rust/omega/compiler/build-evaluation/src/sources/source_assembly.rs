@@ -1,16 +1,17 @@
 use crate::sources::frontend::{
-    discover_imports, discover_imports_with_packages, extend_source_storage, lex_sources,
-    load_package_generated_source, load_sources, parse_sources,
+    discover_imports, discover_imports_with_packages, load_package_generated_source,
 };
 use crate::sources::source::{ImportQueue, SourceStorage};
 use artifacts::compile_timings::CompileTimings;
 use artifacts::compile_timings::{SOURCE_FILES_TO_TOKENS, TOKENS_TO_SYNTAX_TREES};
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
+use source_files_to_tokens::{lex_sources, load_sources};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use syntax_trees::SyntaxTrees;
+use tokens_to_syntax_trees::parse_sources;
 
 mod build_prelude;
 mod build_vocabulary;
@@ -310,7 +311,7 @@ fn append_dependency_generated_sources_to_storage(
             &contract_custody,
         )?;
         imports.enqueue(discovered)?;
-        extend_source_storage(source_storage, parsed)?;
+        source_storage.extend(parsed)?;
         retained.push((source_id, source.clone()));
     }
     Ok(retained)
@@ -404,7 +405,7 @@ fn load_pending_imports(
         };
 
         imports.enqueue(discovered_imports)?;
-        extend_source_storage(source_storage, parsed)?;
+        source_storage.extend(parsed)?;
     }
 
     Ok(())

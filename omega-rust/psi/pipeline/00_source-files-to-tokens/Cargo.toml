@@ -9,5 +9,7 @@ name = "source_files_to_tokens"
 path = "src/lib.rs"
 
 [dependencies]
+arena = { path = "../../foundation/arena" }
+diagnostics = { path = "../../foundation/diagnostics" }
 source = { path = "../../foundation/source" }
 tokens = { path = "../../representations/tokens" }

@@ -8,10 +8,12 @@
 //! files and positions. Past resolution, source text is diagnostic and debug
 //! payload, never identity.
 
+mod loaded_sources;
 mod source_file;
 mod source_map;
 mod source_text;
 
+pub use loaded_sources::{LoadedSource, LoadedSources};
 pub use source_file::{
     DependencyScope, SourceFile, SourceOrigin, SourcePosition, SourceResolutionStratum,
 };

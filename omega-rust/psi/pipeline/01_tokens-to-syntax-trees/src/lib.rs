@@ -2,7 +2,8 @@
 
 //! Psi-owned parsing of Omega tokens into unresolved source-shaped syntax.
 //!
-//! One entrance: [`parse`], in `parser.rs`. It walks one source's tokens on an
+//! Start at `parser.rs`: [`parse_sources`] appends an ordered source batch;
+//! [`parse`] owns the per-source grammar route. It walks tokens on an
 //! `input::token_cursor::Input` and hands each top-level item to
 //! `declarations::parse_declaration`, publishing the roots into the caller's
 //! `SyntaxTrees`. [`parse_syntax_trees`] and [`parse_syntax_trees_with_id`]
@@ -47,9 +48,9 @@ mod diagnostics;
 mod input;
 
 // The entrance, and the two forms that create the arena for the caller.
-pub use parser::{parse, parse_syntax_trees, parse_syntax_trees_with_id};
+pub use parser::{parse, parse_sources, parse_syntax_trees, parse_syntax_trees_with_id};
 
-// The failure every one of those names can return.
+// Per-source grammar failure; batch parsing adds source locations as diagnostics.
 pub use diagnostics::parse_error::ParseError;
 
 #[cfg(test)]
