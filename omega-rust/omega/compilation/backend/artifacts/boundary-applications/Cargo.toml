@@ -9,9 +9,9 @@ name = "boundary_applications"
 path = "src/lib.rs"
 
 [dependencies]
-lowered-psi = { path = "../../../../../psi/representations/lowered-psi" }
+lowered-psi = { path = "../../../../../psi/compilation/representations/lowered-psi" }
 numerics = { path = "../../../../../psi/foundation/numerics" }
 effects = { path = "../../plans/provider-evidence" }
 semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
-terminal-psi = { path = "../../../../../psi/representations/terminal-psi" }
+terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
 sha2 = "0.10.9"

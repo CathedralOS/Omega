@@ -63,15 +63,15 @@ test-only channels are cataloged, not flagged.
 
 | Output type | Defining crate | Self-accessors | External readers | Test-only | Zero external |
 | --- | --- | --- | --- | --- | --- |
-| `TokenStream` | psi/representations/tokens | 2 | 2 | 0 | 0 |
-| `SyntaxTrees` | psi/representations/syntax-trees | 19 | 16 | 1 | 2 |
-| `SymbolResolvedTrees` | psi/representations/symbol-resolved-trees | 43 | 40 | 2 | 1 |
-| `SeededSymbolResolvedTrees` | psi/pipeline/02_syntax-trees-to-symbol-resolved-trees | 4 | 2 | 0 | 2 |
-| `ConstInitializerSelection` | psi/pipeline/02_syntax-trees-to-symbol-resolved-trees | 6 | 5 | 0 | 1 |
-| `TypedTrees` | psi/representations/typed-trees | 162 | 145 | 8 | 9 |
-| `CheckedTrees` | psi/representations/checked-trees | 2 | 1 | 1 | 0 |
-| `LoweredPsi` | psi/representations/lowered-psi | 0 | — | — | — |
-| `PsiOptimizationStageResult` | psi/pipeline/06_lowered-psi-to-lowered-psi | 4 | 4 | 0 | 0 |
+| `TokenStream` | psi/compilation/representations/tokens | 2 | 2 | 0 | 0 |
+| `SyntaxTrees` | psi/compilation/representations/syntax-trees | 19 | 16 | 1 | 2 |
+| `SymbolResolvedTrees` | psi/compilation/representations/symbol-resolved-trees | 43 | 40 | 2 | 1 |
+| `SeededSymbolResolvedTrees` | psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees | 4 | 2 | 0 | 2 |
+| `ConstInitializerSelection` | psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees | 6 | 5 | 0 | 1 |
+| `TypedTrees` | psi/compilation/representations/typed-trees | 162 | 145 | 8 | 9 |
+| `CheckedTrees` | psi/compilation/representations/checked-trees | 2 | 1 | 1 | 0 |
+| `LoweredPsi` | psi/compilation/representations/lowered-psi | 0 | — | — | — |
+| `PsiOptimizationStageResult` | psi/compilation/pipeline/06_lowered-psi-to-lowered-psi | 4 | 4 | 0 | 0 |
 | `CheckedCompilation` | omega/compilation/driver/checked-compilation | 57 | 49 | 8 | 0 |
 | `AdmittedArtifactPlan` | omega/compilation/pipeline/00_terminal-psi-to-abstract-operations | 4 | 4 | 0 | 0 |
 | `AdmittedOptimizationArtifact` | omega/compilation/pipeline/00_terminal-psi-to-abstract-operations | 5 | 5 | 0 | 0 |

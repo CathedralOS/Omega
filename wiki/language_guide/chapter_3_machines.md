@@ -437,5 +437,5 @@ Working rules:
 - Transition dispatch arms add proof assumptions for the target edge.
 
 The [machine specification](../spec/language/machines.md) defines the complete
-contract. [Semantic representation notes](../../omega-rust/psi/representations/README.md)
+contract. [Semantic representation notes](../../omega-rust/psi/compilation/representations/README.md)
 describe its compiler owners; this guide is not an implementation coverage report.

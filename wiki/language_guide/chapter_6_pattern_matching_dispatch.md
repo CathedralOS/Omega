@@ -27,7 +27,7 @@ through checked trees into Terminal and native lowering. Value-position arms
 still admit value and wildcard patterns only; record, domain and guarded
 spellings belong to `transition` dispatch, and the residual owned/borrowed
 custody frontier is recorded in the
-[source processing note](../../omega-rust/psi/pipeline/README.md#lexing-and-parsing).
+[source processing note](../../omega-rust/psi/compilation/pipeline/README.md#lexing-and-parsing).
 An accepted scalar example is not coverage for those shapes or for general
 owned results.
 

@@ -63,4 +63,4 @@ A proof-visible proposition alone does not imply an executable test. Overlapping
 domain alternatives use first-match order; unordered union proofs do not.
 
 Current parser/coverage limitations are recorded beside
-[source processing](../../../omega-rust/psi/pipeline/README.md#lexing-and-parsing).
+[source processing](../../../omega-rust/psi/compilation/pipeline/README.md#lexing-and-parsing).

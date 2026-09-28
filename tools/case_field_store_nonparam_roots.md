@@ -101,8 +101,8 @@ machine Main::main(&mut self) reaches Console {
 - `flow/reference_places/result_candidates.rs`,
   `flow/mutation/local_origins.rs`, `flow/transfers{,/projected}.rs`,
   `flow/ownership/{type_references,place_types}.rs`
-- `psi/checking/src/machine_calls/reference_result_custody.rs`,
-  `psi/checking/src/borrow/loans.rs`
+- `psi/compilation/checking/src/machine_calls/reference_result_custody.rs`,
+  `psi/compilation/checking/src/borrow/loans.rs`
 
 ## Fix sketch for the resumer (if r2's land leaves the gap)
 

@@ -555,7 +555,7 @@ SWE-2 Max and never plan.
 - **Size surplus legs big — small legs churn.** A one-doc mine leg finishes in
   ~2-5 min, so ~half the pool settles every cycle and the coordinator drowns
   in message volume. Give each miner a whole directory/tree
-  (`ALL of wiki/drafts/`, `every crate under omega-rust/psi/pipeline/`) and
+  (`ALL of wiki/drafts/`, `every crate under omega-rust/psi/compilation/pipeline/`) and
   require 20+ candidates per report; mix in fuzz legs (~15 cases each). Deep
   legs take 15-30+ min, which damps the settle wave AND yields ~650
   candidates per cycle vs ~165 for shallow sweeps.

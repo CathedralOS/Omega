@@ -26,8 +26,8 @@
       "item": "FLOAT-PROVIDERS",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts",
-        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/authored_selections",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/authored_selections",
         "omega-rust/omega/compilation/driver/compiler/tests/canary_suite/providers_float_and_console",
         "tests/omega/pass/float"
       ],
@@ -52,7 +52,7 @@
       "host": "linux",
       "owning_paths": [
         "omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/artifact",
-        "omega-rust/psi/interpreter/build-time-evaluation/src/plan_laid.rs"
+        "omega-rust/psi/compilation/compile-time/src/plan_laid.rs"
       ],
       "suggested_first_slice": "Rejoin one plan-laid view's layout identity, backing, range, access, or lifetime at a use site so a stale substitution rejects with a checked witness."
     },
@@ -63,7 +63,7 @@
       "host": "linux",
       "owning_paths": [
         "omega-rust/psi/foundation/layout-plans",
-        "omega-rust/psi/interpreter/build-time-evaluation/src/layout_plans.rs"
+        "omega-rust/psi/compilation/compile-time/src/layout_plans.rs"
       ],
       "suggested_first_slice": "Materialize one symbolic layout-plan case through build-time evaluation without baking in a concrete address."
     },
@@ -96,7 +96,7 @@
       "item": "STRICT-FLOAT-RANGES",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/proof",
+        "omega-rust/psi/compilation/proof",
         "tests/omega/pass/ranges"
       ],
       "suggested_first_slice": "Extend one proof obligation so a float range claim requires strict evidence rather than permissive widening."
@@ -107,7 +107,7 @@
       "item": "PROOF-KERNEL-CORE",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/proof/admission"
+        "omega-rust/psi/compilation/proof/admission"
       ],
       "suggested_first_slice": "Move one kernel check into proof-admission so admitted proofs carry their inductive profile rather than inferred context."
     },
@@ -117,7 +117,7 @@
       "item": "WRITE-ONLY-BORROW",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/checking/src/write_only_borrows.rs"
+        "omega-rust/psi/compilation/checking/src/write_only_borrows.rs"
       ],
       "suggested_first_slice": "Converge one write-only borrow rule with the shared borrow-proof machinery; a prior worktree exists but this session starts from origin/main."
     },
@@ -127,7 +127,7 @@
       "item": "CRASH-CONTRACT",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/checks/crashes"
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/crashes"
       ],
       "suggested_first_slice": "Make one crash-path contract explicit in the crashes check so a crash cannot silently bypass an ordinary return obligation."
     },
@@ -137,8 +137,8 @@
       "item": "OPERATOR-MACHINE-SUPPLY",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/src/operator.rs",
-        "omega-rust/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/src/machine",
+        "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/operator.rs",
+        "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/machine",
         "tests/omega/pass/expressions/declared_operator_match_result"
       ],
       "suggested_first_slice": "Supply one missing declared-operator machine case through the ordinary operator resolution path."
@@ -149,7 +149,7 @@
       "item": "STRUCTURAL-GENERIC-MATCHING",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/src/type_reference",
+        "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/type_reference",
         "tests/omega/pass/generics/declared_range_endpoint_inference"
       ],
       "suggested_first_slice": "Extend structural generic matching for one declared-range endpoint or type-reference shape the board names."
@@ -211,7 +211,7 @@
       "item": "PSI-PRE-TERMINAL-OPTIMIZATION",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/pipeline/06_lowered-psi-to-lowered-psi"
+        "omega-rust/psi/compilation/pipeline/06_lowered-psi-to-lowered-psi"
       ],
       "suggested_first_slice": "Add or generalize one target-neutral lowered-Psi optimization preserving the representation's invariants."
     },

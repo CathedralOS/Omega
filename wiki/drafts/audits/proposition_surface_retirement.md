@@ -33,19 +33,19 @@ declaration and its parameters resolved identities.
 
 | Stage | Owning file |
 |---|---|
-| Parse | `psi/pipeline/01_tokens-to-syntax-trees/src/declarations/proposition.rs` |
-| Resolve | `psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lowering/proposition.rs` |
-| Type | `psi/pipeline/03_symbol-resolved-trees-to-typed-trees/src/declarations/proposition.rs` |
-| Check | `psi/pipeline/04_typed-trees-to-checked-trees/src/proof/proposition_vocabulary.rs`, `proof/proof_output_calls.rs` (named-witness call lanes), `proof/contracts.rs`, `proof/contracts/inherited.rs`, `proof/contracts/operators.rs`, `proof/evidence_forwarding.rs`, `proof/outcome_arms.rs`, `proof/contract_entailment.rs` |
+| Parse | `psi/compilation/pipeline/01_tokens-to-syntax-trees/src/declarations/proposition.rs` |
+| Resolve | `psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lowering/proposition.rs` |
+| Type | `psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/declarations/proposition.rs` |
+| Check | `psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/proof/proposition_vocabulary.rs`, `proof/proof_output_calls.rs` (named-witness call lanes), `proof/contracts.rs`, `proof/contracts/inherited.rs`, `proof/contracts/operators.rs`, `proof/evidence_forwarding.rs`, `proof/outcome_arms.rs`, `proof/contract_entailment.rs` |
 
 ## 3. Representations
 
-- `psi/representations/symbol-resolved-trees/src/symbol_resolved_trees/evidence/proposition.rs`
-- `psi/representations/typed-trees/src/typed_trees/evidence/proposition.rs`
-- `psi/representations/checked-trees/src/checked_trees/proof/propositions.rs`
+- `psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees/evidence/proposition.rs`
+- `psi/compilation/representations/typed-trees/src/typed_trees/evidence/proposition.rs`
+- `psi/compilation/representations/checked-trees/src/checked_trees/proof/propositions.rs`
   (`CheckedPropositionVocabulary`: `CheckedPropositionDeclaration` +
   `CheckedPropositionApplication` rosters)
-- `psi/representations/terminal-psi/src/terminal_module/proof/*` and
+- `psi/compilation/representations/terminal-psi/src/terminal_module/proof/*` and
   `artifacts/proof_bundle/*` — proposition-shaped proof content and witnesses
   on the Terminal boundary.
 

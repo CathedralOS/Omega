@@ -20,13 +20,13 @@ selected-instructions = { path = "../../representations/selected-instructions" }
 target = { path = "../../backend/target" }
 target-operations-to-selected-instructions = { path = "../03_target-operations-to-selected-instructions" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
-terminal-psi = { path = "../../../../psi/representations/terminal-psi" }
+terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
 optimization-unit = { path = "../../representations/abstract-operations/optimization-unit" }
 abstract-operations = { path = "../../representations/abstract-operations" }
 calling-conventions = { path = "../../backend/calling-conventions" }
 legalized-operations = { path = "../../representations/target-operations/legalized-operations" }
 target-operations = { path = "../../representations/target-operations" }
-terminal-codec = { path = "../../../../psi/representations/terminal-psi/codec" }
+terminal-codec = { path = "../../../../psi/compilation/representations/terminal-psi/codec" }
 sha2 = "0.10.9"
 
 [dev-dependencies]

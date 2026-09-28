@@ -40,7 +40,7 @@ implies deletion.
 
 - [Pipeline and ownership](pipeline.md): the connected source-to-Terminal and
   Terminal-to-native route, and placement rules for new work.
-- [Psi](psi/README.md) and its [frontend](psi/pipeline/README.md): source identity,
+- [Psi](psi/README.md) and its [frontend](psi/compilation/pipeline/README.md): source identity,
   syntax, typing, checking, and portable publication.
 - [Compiler coordination](omega/compilation/driver/README.md): product boundaries,
   optional reports, and multi-target source reuse.
@@ -55,7 +55,7 @@ implies deletion.
   activation, declaration admission, restricted-request consent and execution,
   independent of compiler coordination.
 - [Psi interpreters](psi/interpreter): separate checked-tree and Terminal Psi
-  engines. [Build-time evaluation](psi/interpreter/build-time-evaluation) uses
+  engines. [Build-time evaluation](psi/compilation/compile-time) uses
   target-neutral execution without depending on the Omega compiler coordinator.
 - [Runtime component installation](omega/compilation/backend/runtime/component-deployment/README.md):
   custody composition under backend runtime ownership.
@@ -67,7 +67,7 @@ Omega has four domains: `application/`, `compilation/`, `packages/` and
 supporting crate retains its own manifest and API. The package manager can use
 compiler services without the compiler depending back on package management;
 shared foundations and utilities remain independently owned. Durable IRs stay
-in `psi/representations/` and `omega/compilation/representations/`, separate
+in `psi/compilation/representations/` and `omega/compilation/representations/`, separate
 from their producing pipeline stages. The
 independent optimization-unit checker sits beside its IR at
 [`omega/compilation/representations/abstract-operations/optimization-unit/semantics/`](omega/compilation/representations/abstract-operations/optimization-unit/semantics),

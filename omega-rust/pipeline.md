@@ -20,14 +20,14 @@ setup are not additional public program stages.
 
 | Input → output | Owner |
 | --- | --- |
-| Source files → tokens | [source-files-to-tokens](psi/pipeline/00_source-files-to-tokens/src/lib.rs) |
-| Tokens → syntax trees | [tokens-to-syntax-trees](psi/pipeline/01_tokens-to-syntax-trees/src/lib.rs) |
-| Syntax → symbol-resolved trees | [syntax-trees-to-symbol-resolved-trees](psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lib.rs) |
-| Resolved → typed trees | [symbol-resolved-trees-to-typed-trees](psi/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lib.rs) |
-| Typed → checked trees | [typed-trees-to-checked-trees](psi/pipeline/04_typed-trees-to-checked-trees/README.md) |
-| Checked trees → lowered Psi | [checked-trees-to-lowered-psi](psi/pipeline/05_checked-trees-to-lowered-psi/README.md) |
-| Lowered Psi → lowered Psi | [lowered-psi-to-lowered-psi](psi/pipeline/06_lowered-psi-to-lowered-psi/src/lib.rs) |
-| Lowered Psi → Terminal Psi | [lowered-psi-to-terminal-psi](psi/pipeline/07_lowered-psi-to-terminal-psi/src/lib.rs) |
+| Source files → tokens | [source-files-to-tokens](psi/compilation/pipeline/00_source-files-to-tokens/src/lib.rs) |
+| Tokens → syntax trees | [tokens-to-syntax-trees](psi/compilation/pipeline/01_tokens-to-syntax-trees/src/lib.rs) |
+| Syntax → symbol-resolved trees | [syntax-trees-to-symbol-resolved-trees](psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lib.rs) |
+| Resolved → typed trees | [symbol-resolved-trees-to-typed-trees](psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lib.rs) |
+| Typed → checked trees | [typed-trees-to-checked-trees](psi/compilation/pipeline/04_typed-trees-to-checked-trees/README.md) |
+| Checked trees → lowered Psi | [checked-trees-to-lowered-psi](psi/compilation/pipeline/05_checked-trees-to-lowered-psi/README.md) |
+| Lowered Psi → lowered Psi | [lowered-psi-to-lowered-psi](psi/compilation/pipeline/06_lowered-psi-to-lowered-psi/src/lib.rs) |
+| Lowered Psi → Terminal Psi | [lowered-psi-to-terminal-psi](psi/compilation/pipeline/07_lowered-psi-to-terminal-psi/src/lib.rs) |
 | Terminal Psi → abstract operations | [terminal-psi-to-abstract-operations](omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/README.md) |
 | Abstract → abstract operations | [abstract-operations-to-abstract-operations](omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/lib.rs) |
 | Abstract → target operations | [abstract-operations-to-target-operations](omega/compilation/pipeline/02_abstract-operations-to-target-operations/README.md) |
@@ -89,13 +89,19 @@ Omega groups packages under four domains: `application/`, `compilation/`,
 `representations/`, `realization/` and `backend/`, lives within `compilation/`.
 The domains are directory groupings; they do not merge package boundaries.
 
+Psi groups its packages under `compilation/`, `interpreter/` and `foundation/`.
+Source transforms, program representations, semantic checking, proof and
+compile-time elaboration belong to compilation. The interpreter domain contains
+only execution engines. These groupings preserve independent IR and semantic
+library APIs; they do not introduce another compiler driver.
+
 
 | Responsibility | Owner |
 | --- | --- |
-| Current program forms and their attached records/codecs | Psi `representations/` and Omega `compilation/representations/`, grouped by program family |
-| Source-program judgments | Psi `checking/`; source proof planning/search in `proof/`, independent mathematical checking in `proof/admission/` |
-| Terminal encoding, semantic reconstruction, verification and fuel | Independent packages beneath `representations/terminal-psi/` |
-| Transformation, rewrite, private scratch and analyses | Psi `pipeline/` or Omega `compilation/pipeline/`, in the owning `X-to-Y` or `X-to-X` package |
+| Current program forms and their attached records/codecs | Each half's `compilation/representations/`, grouped by program family |
+| Source-program judgments | Psi `compilation/checking/`; source proof planning/search in `compilation/proof/`, independent mathematical checking in `compilation/proof/admission/` |
+| Terminal encoding, semantic reconstruction, verification and fuel | Independent packages beneath Psi `compilation/representations/terminal-psi/` |
+| Transformation, rewrite, private scratch and analyses | Each half's `compilation/pipeline/`, in the owning `X-to-Y` or `X-to-X` package |
 | ISA, ABI, runtime carriers, object/relocation/image mechanics | Omega `compilation/backend/` |
 | Shared target-neutral source/arena/numeric primitives and optimization selections | Psi `foundation/` |
 | Shared host primitives, native function identities and optimization vocabulary | Omega `foundation/` |
@@ -104,15 +110,15 @@ The domains are directory groupings; they do not merge package boundaries.
 | Requested outputs, configuration admission, retained outcomes and publication | Omega `compilation/products/` |
 | Source acquisition, package operations and review | Omega `packages/` |
 | Checked and Terminal Psi execution | Psi `interpreter/` |
-| Compile-time interpretation and result elaboration | Psi `interpreter/build-time-evaluation/` |
-| Checked program → published Terminal artifact | Psi `terminal-production/` |
+| Compile-time interpretation and result elaboration | Psi `compilation/compile-time/` |
+| Checked program → published Terminal artifact | Psi `compilation/pipeline/terminal-production/` |
 | Ordinary library reference implementations | `library/`, outside the compiler halves |
 
 ### Program families and support packages
 
 Psi exposes seven successive program forms: tokens, syntax trees, resolved
 trees, typed trees, checked trees, Lowered Psi and Terminal Psi. Checked fact
-contexts have their own package at `psi/representations/checked-trees/facts/`.
+contexts have their own package at `psi/compilation/representations/checked-trees/facts/`.
 Shared effect-summary records and pass-selection vocabulary live in
 `psi/foundation/flow-effects/` and `psi/foundation/optimization-selections/`.
 
@@ -137,7 +143,7 @@ installation/task evidence belongs to backend runtime; boundary-application
 companions belong to backend artifacts; provider authority evidence belongs to
 backend plans. Target-independent opaque representation-selection records remain
 an independent package beside their Psi admission owner at
-`psi/checking/representation-planning/`. None of these is a pipeline program IR.
+`psi/compilation/checking/representation-planning/`. None of these is a pipeline program IR.
 
 ### Subsystem entrances and supporting packages
 
@@ -197,24 +203,24 @@ and review evidence consume compiler services, never the reverse.
 Shared process and filesystem utilities remain under `omega/foundation/`.
 
 `psi/interpreter/` contains the independent `checked-interpreter` and
-`terminal-interpreter` engines and `build-time-evaluation`, which admits
-compile-time execution and elaborates its results into source and typed trees.
-`psi/terminal-production/` sequences checked-program lowering, optimization and
+`terminal-interpreter` engines. `psi/compilation/compile-time/` admits execution
+through the checked interpreter and elaborates results into source and typed trees.
+`psi/compilation/pipeline/terminal-production/` sequences checked-program lowering, optimization and
 publication. These are named services, not a second complete compiler driver;
 there is no `psi/compiler/` umbrella.
 
-`psi/checking/` owns reusable source-program judgments. Its independent
-[`representation-planning`](psi/checking/representation-planning/README.md)
+`psi/compilation/checking/` owns reusable source-program judgments. Its independent
+[`representation-planning`](psi/compilation/checking/representation-planning/README.md)
 package admits source-level opaque representation relationships and checks their
 transitive cleanup and copy properties. The caller supplies build authority;
 backend layout derives target shape from the admitted carrier. Its independent
 `selections/` package keeps consumers free of a dependency on admission.
-`psi/proof/` constructs
+`psi/compilation/proof/` constructs
 and solves source proof obligations; its independent `admission/` package owns
 the mathematical kernel and supplied-certificate checking shared with Terminal
 verification. Terminal-specific codec, semantic reconstruction, verification,
 fuel schedule and fuel certification packages live beside Terminal Psi under
-`psi/representations/terminal-psi/`. Each keeps its own manifest and dependency
+`psi/compilation/representations/terminal-psi/`. Each keeps its own manifest and dependency
 direction. Nesting gives these companions a subject; it adds no program stage.
 A general `psi/semantics/` bucket obscures these distinct responsibilities.
 
@@ -356,10 +362,10 @@ names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
 - Psi `foundation/` — shared vocabulary, arenas, symbols, diagnostics.
 - Omega `foundation/` — shared host primitives, function identities and
   optimization contracts/selections.
-- `representations/` — pipeline program families, with independent internal or
+- `compilation/representations/` — pipeline program families, with independent internal or
   derived forms nested beneath the corresponding family. Shared vocabulary,
   configuration and standalone evidence are not additional program stages.
-- `pipeline/` — transforms only; crate names read literally as `X-to-Y`
+- `compilation/pipeline/` — transforms only; crate names read literally as `X-to-Y`
   (`source-files-to-tokens` → `tokens-to-syntax-trees` →
   `syntax-trees-to-symbol-resolved-trees` →
   `symbol-resolved-trees-to-typed-trees` →
@@ -375,14 +381,15 @@ names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
   the same representation; do not invent a `PreOptimized`/`PostOptimized` pair.
   The folders must expose the connected `X-to-Y`, `Y-to-Y`, `Y-to-Z` sequence,
   not merely name individually plausible calculations. See [optimization phases](../wiki/spec/build/optimizations.md#phase-and-product-boundaries).
-- Psi `checking/` — reusable source-program judgments.
-- Psi `proof/` — source obligation construction and proof search; independent
-  `proof/admission/` owns the shared mathematical checker.
-- Terminal companion packages live beneath `representations/terminal-psi/`:
+- Psi `compilation/checking/` — reusable source-program judgments.
+- Psi `compilation/proof/` — source obligation construction and proof search; independent
+  `compilation/proof/admission/` owns the shared mathematical checker.
+- Terminal companion packages live beneath `compilation/representations/terminal-psi/`:
   `codec/`, `semantics/`, `verification/`, `fuel/` and `fuel/certification/`.
   Representation data and candidate production remain independent of checking.
-- Psi `terminal-production/` — checked-program lowering through publication.
-- Psi `interpreter/` — checked and Terminal execution plus compile-time evaluation.
+- Psi `compilation/pipeline/terminal-production/` — checked-program lowering through publication.
+- Psi `compilation/compile-time/` — evaluation admission and result elaboration.
+- Psi `interpreter/` — checked and Terminal execution engines.
 - `compiler/` — compilation coordination.
 - Omega `package-manager/` — package operations and independent acquisition,
   resolver execution, and review packages.

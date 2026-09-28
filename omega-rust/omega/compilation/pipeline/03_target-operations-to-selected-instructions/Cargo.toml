@@ -24,12 +24,12 @@ legalized-operations = { path = "../../representations/target-operations/legaliz
 selected-instructions = { path = "../../representations/selected-instructions" }
 target-operations = { path = "../../representations/target-operations" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
-terminal-psi = { path = "../../../../psi/representations/terminal-psi" }
-terminal-semantics = { path = "../../../../psi/representations/terminal-psi/semantics" }
+terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
+terminal-semantics = { path = "../../../../psi/compilation/representations/terminal-psi/semantics" }
 
-terminal-codec = { path = "../../../../psi/representations/terminal-psi/codec" }
-terminal-verifier = { path = "../../../../psi/representations/terminal-psi/verification" }
-proof-admission = { path = "../../../../psi/proof/admission" }
+terminal-codec = { path = "../../../../psi/compilation/representations/terminal-psi/codec" }
+terminal-verifier = { path = "../../../../psi/compilation/representations/terminal-psi/verification" }
+proof-admission = { path = "../../../../psi/compilation/proof/admission" }
 
 [dev-dependencies]
 mimalloc = { version = "0.1", default-features = false }

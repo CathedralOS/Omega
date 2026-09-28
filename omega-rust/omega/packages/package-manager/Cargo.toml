@@ -33,12 +33,12 @@ semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 language-semantics = { path = "../../../psi/foundation/language-semantics" }
 checked-interpreter = { path = "../../../psi/interpreter/checked-interpreter" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
-proof-admission = { path = "../../../psi/proof/admission" }
+proof-admission = { path = "../../../psi/compilation/proof/admission" }
 source = { path = "../../../psi/foundation/source" }
-source-files-to-tokens = { path = "../../../psi/pipeline/00_source-files-to-tokens" }
-syntax-trees = { path = "../../../psi/representations/syntax-trees" }
-tokens = { path = "../../../psi/representations/tokens" }
-tokens-to-syntax-trees = { path = "../../../psi/pipeline/01_tokens-to-syntax-trees" }
+source-files-to-tokens = { path = "../../../psi/compilation/pipeline/00_source-files-to-tokens" }
+syntax-trees = { path = "../../../psi/compilation/representations/syntax-trees" }
+tokens = { path = "../../../psi/compilation/representations/tokens" }
+tokens-to-syntax-trees = { path = "../../../psi/compilation/pipeline/01_tokens-to-syntax-trees" }
 cap-std = "4.0.3"
 cap-fs-ext = "4.0.3"
 sha2 = "0.10.9"

@@ -81,7 +81,7 @@ importing that domain for authored lookup. Carrying neither erases that evidence
 nor exposes other declarations of the domain's package.
 
 Current support is documented beside
-[source resolution](../../../omega-rust/psi/pipeline/README.md#resolution-and-closed-instance-normalization).
+[source resolution](../../../omega-rust/psi/compilation/pipeline/README.md#resolution-and-closed-instance-normalization).
 
 ## Resolution
 

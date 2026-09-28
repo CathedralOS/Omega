@@ -1,53 +1,31 @@
-# Psi source processing and execution
+# Psi domains
 
-Psi owns Omega source semantics: lexing, parsing, resolution, typing, checking,
-proof, target-neutral optimization and production of Terminal Psi. Terminal Psi
-is the self-contained portable compilation product; interpretation and native
-realization consume it under their respective contracts.
+Psi implements target-neutral Omega meaning: compilation from source to
+Terminal Psi and interpretation of checked or Terminal programs. It does not
+own an application, package acquisition, native realization, or a second product
+compiler driver.
 
-Crates here must not depend on Omega backend, target, ABI, physical storage,
-instruction, object or installation representations. Omega consumes verified
-Terminal Psi, not a checked-tree fallback. Unsupported constructs reject rather
-than acquiring an alternate source-to-native route.
+| Directory | Responsibility |
+| --- | --- |
+| [compilation/](compilation/README.md) | Source transformations, semantic checking, proof, compile-time elaboration and Terminal publication |
+| [interpreter/](interpreter/README.md) | Checked-program and verified-Terminal execution engines |
+| [foundation/](foundation/) | Shared arenas, symbols, source, numerics and semantic vocabulary |
 
-## Implementation owners
+These domains group independent packages; they do not merge their APIs.
+Compilation owns the durable [program representations](compilation/representations/README.md),
+which interpreters and Omega consumers can depend on without depending on a
+compiler coordinator. Shared judgments are similarly reusable libraries.
+Compile-time evaluation consumes the checked interpreter; the interpreter does
+not call the compilation workflow back.
 
-- [Connected pipeline](../pipeline.md): the complete sequence and its ownership
-  boundaries. Transform crates have literal `X-to-Y` names; optimizations are
-  `X-to-X`, not new pre/post-optimized representations.
-- [Source frontend](pipeline/README.md): lexing through typing;
-  [checking](pipeline/04_typed-trees-to-checked-trees/README.md) owns proof,
-  flow and ownership settlement.
-- [Source representations](representations/README.md): durable semantic shape
-  and the links between increasingly resolved forms.
-- [Terminal production](terminal-production/README.md): checked trees
-  → Lowered Psi → optimized Lowered Psi → Terminal Psi. Its coordinator
-  sequences those transforms rather than defining another executable IR.
-- [Terminal representation](representations/terminal-psi/src/lib.rs),
-  [codec](representations/terminal-psi/codec/README.md) and
-  [verifier](representations/terminal-psi/verification/README.md): separate owners of the
-  current module, canonical serialization and independent evidence checking.
-- [Source checking](checking/src/program_validation.rs): declaration, call,
-  value and proof-contract judgments reused by checking and interpretation.
-- [Source proof](proof/src/lib.rs): obligation construction and proof search,
-  with independent mathematical checking in its admission package.
-- [Proof admission](proof/admission/README.md): product-local proof
-  judgments and certificates, distinct from the
-  [bootstrap proof tools](../../bootstrap/proofs/README.md).
-- [Build-time evaluation](interpreter/build-time-evaluation/README.md) and
-  [checked interpreter](interpreter/checked-interpreter/src/interpreter.rs): semantic
-  evaluation and source-shaped reference execution.
-- [Terminal interpreter](interpreter/terminal-interpreter/README.md): verified
-  artifact execution. Interpreter coverage does not establish native support
-  or fixed-work evidence.
+The [connected pipeline](../pipeline.md) names each transformation and its
+entrance. Omega's product driver sequences compilation; Psi stages own the
+language decisions. [Terminal Psi](../../wiki/spec/terminal-psi/product.md)
+is the portable boundary. Omega consumes verified Terminal Psi, not a
+checked-tree native fallback. Psi packages must not depend on Omega backends,
+ABI, instruction, physical-storage or installation representations.
 
-There is no separate compiler driver in this directory. The pipeline transforms,
-source checking, proof services, interpreters and Terminal production each have
-their own entrance. Terminal encoding, verification and fuel contracts are
-independent packages beside their representation, not unrelated semantics utilities.
-
-Cross-layer interpreter/native comparisons belong in test harnesses.
-Reference interpretation remains Psi-owned and is not a native fallback.
-The [Terminal specification](../../wiki/spec/terminal-psi/product.md) defines
-the public product; owner notes describe implementation limits without
-restricting that contract.
+Reference interpretation is not a fallback for unsupported native lowering.
+Cross-layer interpreter/native comparisons belong in test harnesses, and
+successful interpretation alone establishes neither native coverage nor
+fixed-work evidence.

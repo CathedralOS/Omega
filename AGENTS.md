@@ -86,7 +86,12 @@ architecture contract — deferred Psi audit policy, crate placement,
 discoverability, compositional lowering — lives in
 [omega-rust/pipeline.md](omega-rust/pipeline.md).
 
-Durable IRs stay in independent `representations/` packages grouped by actual
+Psi groups compilation machinery under `compilation/`, execution engines under
+`interpreter/`, and shared primitives under `foundation/`. Compile-time admission
+and result elaboration belong to `compilation/compile-time/`, not an interpreter.
+The product still has one driver; these domain folders do not create another.
+
+Durable IRs stay in independent `compilation/representations/` packages grouped by actual
 pipeline program family. Shared vocabulary, target/ABI descriptions, planning
 records and standalone evidence belong to their foundation, checking or backend
 owners; they are not extra IR stages. Shared foundations and utilities stay

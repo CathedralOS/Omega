@@ -7,7 +7,7 @@ requirements; a concrete selection cannot silently strengthen the generic API.
 Runtime indices follow [dependent-value rules](dependent_values.md), not
 const-generic substitution. Lifetime binders follow [lifetimes](lifetimes.md).
 These are source contracts, not a claim of complete implementation; current
-normalization limits belong beside [source resolution](../../../omega-rust/psi/pipeline/README.md#value-generic-staging).
+normalization limits belong beside [source resolution](../../../omega-rust/psi/compilation/pipeline/README.md#value-generic-staging).
 
 An explicit `where machine Step(...)` or `where machine Step satisfies
 Trait::requirement` clause can determine the kind of Step introduced without

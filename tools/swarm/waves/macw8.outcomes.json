@@ -80,5 +80,5 @@
             "note": "layer-1 backfill; claimed (ticket eb2c08ce) then rate-limit kill before any commit; worktree clean; claim released at drain"
         }
     ],
-    "wave_notes": "six concurrent subagents plus coordinator; three landed before a shared-budget rate-limit kill took the remaining six within one window (resets ~31min). Live-claim leases (120min) auto-reaped mid-cycle for some slots; claims evidence showed landings via publish before release. linw5 wave claimed SPILL-REALIZATION/GENERAL-LICM/ALIAS-AWARE-MEMORY/CUSTODY-MUTATION-COVERAGE concurrently, forcing repartition; a second macw8b wave claimed RC-NATIVE-MATRIX-MACOS-ARM64 during the drain window. zergling-z4's psi/pipeline claim narrowed to typed-trees-to-checked-trees mid-wave."
+    "wave_notes": "six concurrent subagents plus coordinator; three landed before a shared-budget rate-limit kill took the remaining six within one window (resets ~31min). Live-claim leases (120min) auto-reaped mid-cycle for some slots; claims evidence showed landings via publish before release. linw5 wave claimed SPILL-REALIZATION/GENERAL-LICM/ALIAS-AWARE-MEMORY/CUSTODY-MUTATION-COVERAGE concurrently, forcing repartition; a second macw8b wave claimed RC-NATIVE-MATRIX-MACOS-ARM64 during the drain window. zergling-z4's psi/compilation/pipeline claim narrowed to typed-trees-to-checked-trees mid-wave."
 }

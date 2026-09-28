@@ -15,4 +15,4 @@ target = { path = "../../backend/target" }
 task-plans = { path = "../../backend/runtime/task-plans" }
 abstract-operations = { path = "../abstract-operations" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
-terminal-psi = { path = "../../../../psi/representations/terminal-psi" }
+terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }

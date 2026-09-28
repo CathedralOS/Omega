@@ -67,8 +67,8 @@
       "item": "SYMBOLIC-MATERIALIZATION",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/interpreter/build-time-evaluation/src/layout_plans",
-        "omega-rust/psi/interpreter/build-time-evaluation/src/placed_views"
+        "omega-rust/psi/compilation/compile-time/src/layout_plans",
+        "omega-rust/psi/compilation/compile-time/src/placed_views"
       ],
       "suggested_first_slice": "Complete one symbolic field or index materialization path while preserving exact paths and bounds until target-dependent realization."
     },
@@ -78,8 +78,8 @@
       "item": "GENERAL-CYCLIC-EXECUTION",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/representations/terminal-psi/verification/src/validation/control_flow.rs",
-        "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/psi_lowering/attached_unit",
+        "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/control_flow.rs",
+        "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/psi_lowering/attached_unit",
         "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lowering/control_flow"
       ],
       "suggested_first_slice": "Complete one cyclic control-contract path with separate safety and progress validation for the existing Console-writer customer."
@@ -90,8 +90,8 @@
       "item": "PROOF-KERNEL-CORE",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/proof/src/checker",
-        "omega-rust/psi/proof/src/obligations.rs"
+        "omega-rust/psi/compilation/proof/src/checker",
+        "omega-rust/psi/compilation/proof/src/obligations.rs"
       ],
       "suggested_first_slice": "Build one common mathematical term or declaration rule in the independent proof checker with exact formation and rejection evidence."
     },
@@ -113,8 +113,8 @@
       "item": "BORROW-PROOF-CONVERGENCE",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/checking/src/places.rs",
-        "omega-rust/psi/checking/src/slice_ranking.rs"
+        "omega-rust/psi/compilation/checking/src/places.rs",
+        "omega-rust/psi/compilation/checking/src/slice_ranking.rs"
       ],
       "suggested_first_slice": "Extend one ordinary borrow-checking range proof beyond exact shared immutable slices without creating or amplifying authority."
     },
@@ -135,8 +135,8 @@
       "item": "RUNTIME-VALUE-GENERICS",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/generic_data",
-        "omega-rust/psi/representations/typed-trees/src/typed_trees/type_system"
+        "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/generic_data",
+        "omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/type_system"
       ],
       "suggested_first_slice": "Implement one scalar runtime-capable value binder through substitution while preserving checked subject typing."
     },
@@ -226,8 +226,8 @@
       "host": "linux",
       "probe_only": true,
       "owning_paths": [
-        "omega-rust/psi/proof/admission/src",
-        "omega-rust/psi/representations/terminal-psi/codec/src"
+        "omega-rust/psi/compilation/proof/admission/src",
+        "omega-rust/psi/compilation/representations/terminal-psi/codec/src"
       ],
       "suggested_first_slice": "Probe one source-automation certificate path as an untrusted producer for the common proof-kernel checker and identify the smallest bounded rule."
     }

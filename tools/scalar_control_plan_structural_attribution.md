@@ -3,7 +3,7 @@
 ## Claim (coordinator's census)
 
 ~24-33 `squalr-engine-api` machines collapse to `checked_state_graph` in
-`omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_scalar/mod.rs`
+`omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_scalar/mod.rs`
 returning None — attributed to scalar-only signature gates
 (`non-primitive result type` ×9, `mixed signature` ×11, `multi-state structural for` ×5,
 `record locals` ×3, `statement bindings` ×3, `terminator` ×1, `owned parameters` ×1

@@ -158,4 +158,4 @@ mismatches reject. The handoff is opaque compiler-issued state, not a package
 instance or canonical admission evidence; it has no public constructor or decoder.
 
 Implementation entry points and bounded continuation support are documented
-[beside the typing stage](../../../omega-rust/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/README.md).
+[beside the typing stage](../../../omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/README.md).
