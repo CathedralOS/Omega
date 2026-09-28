@@ -1,0 +1,79 @@
+# Sample native oracles, macOS arm64
+
+`tools/sample_native_gate.py` completes each sample's per-checkout package
+review, builds it natively, runs it, and compares the sample's own documented
+header (`Expected exit`, `Expected output contains`). This is the half of
+SAMPLE-CORPUS that `tools/sample_gate.py` does not measure.
+
+## 2026-09-27 at `4967132e292`
+
+**83 of 143 samples meet their documented exit and output**, against
+**119 of 148** that check. Five are unscored: four document no oracle, and
+`samples/uefi/uefi_hello` is freestanding with no host oracle.
+
+| state | count |
+| --- | --- |
+| pass (native build + documented exit + documented output) | 83 |
+| no native build | 58 |
+| no oracle documented | 4 |
+| review/tooling error | 2 |
+| not host-runnable | 1 |
+
+**Read the check gate as necessary, not sufficient.** A rising check count is
+not a rising native count: 36 samples check and do not reach a running
+program.
+
+## Why `omega refresh-samples` cannot produce this number
+
+It never accepts trust on a sample's behalf, and samples carry no committed
+lock. Run here it stopped at `package acceptance is missing` for **145 of
+148** samples and never reached lowering — three had accepted reviews only
+because this session had accepted them by hand. Completing the review is a
+per-checkout step and the new gate performs it.
+
+## The 58 that do not reach a running program
+
+| count | refusal |
+| --- | --- |
+| 10 | `byte replacement requires bounded bytes and exact branch-free operands` — the [predicate byte carrier gap](predicate_byte_carrier_native_gap.md) |
+| 9 | `InvalidUnitMachinePlan { machine: "darwin_poll", reason: "scalar callee has no checked executable body" }` |
+| 13 | package review incomplete — a limitation of this gate, not a compiler result |
+| 3 | `record operand lost its exact nominal source type` (`slice_maximum`, `clamp_sum`, `fletcher_checksum`) |
+| 3 | `OperationProofUnavailable` (`heat_grid`, `nested_counters`, `substring_search`) |
+| 2 | `runtime field observation requires a record-only field path` (`brightness_control`, `shape_area`) |
+| 1 | `UnsupportedByteSequenceLiteral` (`run_length_encode`) |
+| 1 | `scalar graph slice element is not primitive` (`slice_accum_probe`) |
+| 1 | `UnsupportedControlFlow` (`atomics_cross`) |
+| 12 | does not check at all, so realization was never reachable |
+
+### `darwin_poll` has no checked executable body
+
+The nine are exactly the samples wired in the "Clock-bearing samples" row:
+`binary_search_viz`, `sort_visualizer`, `bouncing_console`, `ripple_field`,
+`tick_marquee`, `cellular_automaton`, `game_of_life_glider`, `langtons_ant`,
+`random_walk`.
+
+**Wiring the provider did not cause this and does not repair it.** Before the
+wiring these samples were refused earlier, at provider selection, so they had
+no native build either; they now check and still have none. The refusal is in
+the leaf: a `satisfies Clock::sleep` machine whose body calls `darwin_poll`
+produces a unit plan whose scalar callee has no checked executable body.
+
+This qualifies the board's own note that "existing macOS wiring is in
+`samples/gui/window_app` and `source/library/std/macos_gui.omg`: exact Clock
+selection and sleep through `darwin_poll`". That route reaches checked
+semantics; it does not reach a running program. `window_app` never exercised
+it natively, because `window_app` does not check — it is refused by the
+[named operator handle mismatch](named_operator_selected_use.md).
+
+So the Clock row's macOS leg is complete for checking and open for
+realization, and closing it wants the `darwin_poll` leaf given an executable
+body rather than more per-sample wiring.
+
+## Reading this later
+
+The gate accepts every pending review decision so the corpus can be measured
+at all. That records project acceptance, **not** that an audit occurred, and
+it writes only ignored files (`omega.lock`, `build/`). A pass row here means
+the program built, ran, exited as documented and printed what it documents.
+It does not mean its dependencies were audited.
