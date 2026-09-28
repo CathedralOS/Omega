@@ -3,22 +3,17 @@
 //! runs.
 
 use crate::admission::configuration::BuildConfig;
-use crate::admission::vocabulary;
-use crate::admission::vocabulary::{
-    build_reaches_filesystem_facet, has_exact_toolchain_build_facet, is_build_machine,
-};
 use crate::execute_admitted_build_program;
-use crate::optimization;
 use build_output::PackageGeneratedSource;
 use build_time_evaluation::{
-    BuildEvaluationSponsor, BuildMachineExecutionMode, BuildMachineFilesystemGrantRootIdentity,
-    BuildMachineFilesystemMetadataLayout, BuildTimeValue, PreparedBuildMachineEntry,
-    PreparedBuildMachineProgram,
+    BuildEvaluationSponsor, BuildMachineExecutionMode, BuildMachineFilesystemMetadataLayout,
+    BuildTimeValue, PreparedBuildMachineEntry, PreparedBuildMachineProgram,
 };
 use diagnostics::Diagnostic;
+use package_compilation::BuildMachineFilesystemScope;
 use package_compilation::build_execution::RestrictedBuildRequest;
-use package_compilation::{
-    BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildMachineFilesystemScope,
+use package_compilation::build_execution::build_value::{
+    BuildValueAdmission, build_reaches_filesystem_facet, is_build_machine,
 };
 use package_compilation::{BuildEvaluationUsage, BuildObservationSummary};
 use symbols::SymbolHandle;
@@ -61,8 +56,7 @@ pub(crate) struct SelectedAdmittedBuildMachine {
     pub(crate) symbol: SymbolHandle,
     pub(crate) name: String,
     pub(crate) normalized_callable_identity: String,
-    pub(crate) optimization_admission: optimization::BuildOptimizationAdmission,
-    pub(crate) has_toolchain_build_activation: bool,
+    pub(crate) value_admission: BuildValueAdmission,
     pub(crate) filesystem_reachable: bool,
     pub(crate) execution_mode: BuildMachineExecutionMode,
     pub(crate) initial_build: BuildTimeValue,
@@ -235,9 +229,7 @@ pub fn admit_build_program(
                 "selected build machine has no canonical callable identity",
             )]
         })?;
-    let optimization_admission = optimization::BuildOptimizationAdmission::admit(typed)?;
-    let has_toolchain_build_activation =
-        build_time_evaluation::admit_toolchain_build_activation(typed)?;
+    let value_admission = BuildValueAdmission::admit(typed)?;
 
     // Build authority comes only from compiler-owned Build facets. Runtime
     // boundary services remain ordinary program authority and are never
@@ -274,115 +266,7 @@ pub fn admit_build_program(
     let filesystem_reachable =
         build_reaches_filesystem_facet(typed, &operational_plan, machine.symbol);
 
-    let mut build_fields = Vec::new();
-    if has_toolchain_build_activation {
-        build_fields.push((
-            "x86_deployment_features".to_owned(),
-            BuildTimeValue::Case {
-                variant: "Baseline".to_owned(),
-                payload: Vec::new(),
-            },
-        ));
-    }
-    build_fields.extend([
-        (
-            "subsystem".to_owned(),
-            BuildTimeValue::Case {
-                variant: "Console".to_owned(),
-                payload: Vec::new(),
-            },
-        ),
-        ("freestanding".to_owned(), BuildTimeValue::Bool(false)),
-    ]);
-    // The toolchain Build declares `identifier`; an authored Build opts in by
-    // declaring the same field. Empty bytes mean no authored identity.
-    if vocabulary::build_machine_declares_identifier_field(typed, machine) {
-        build_fields.push(("identifier".to_owned(), BuildTimeValue::Text(Vec::new())));
-    }
-    if let Some(field) = optimization_admission.zero_build_field() {
-        build_fields.push(field);
-    }
-    if has_exact_toolchain_build_facet(typed, "BuildLog") {
-        build_fields.push((
-            "log".to_owned(),
-            BuildTimeValue::Struct {
-                type_name: "$OmegaBuildLogFacet".to_owned(),
-                fields: Vec::new(),
-            },
-        ));
-    }
-    // The product facet is a compiler-issued marker: `builder.product.entry`
-    // is the only product-selection route, and an authored `BuildProduct`
-    // value never carries this private runtime identity.
-    if has_exact_toolchain_build_facet(typed, "BuildProduct") {
-        build_fields.push((
-            "product".to_owned(),
-            BuildTimeValue::Struct {
-                type_name: "$OmegaBuildProductFacet".to_owned(),
-                fields: Vec::new(),
-            },
-        ));
-    }
-    // Optional proof-product requests (wiki/spec/proofs/publication.md). Both
-    // flags are independent and false until the root build machine assigns
-    // them; dependency metadata cannot enable or override the selection.
-    if has_exact_toolchain_build_facet(typed, "Pcc") {
-        build_fields.push((
-            "pcc".to_owned(),
-            BuildTimeValue::Struct {
-                type_name: "Pcc".to_owned(),
-                fields: vec![
-                    ("psi".to_owned(), BuildTimeValue::Bool(false)),
-                    ("native".to_owned(), BuildTimeValue::Bool(false)),
-                ],
-            },
-        ));
-    }
-    // Granular privileged-service grants (wiki/spec/build/permissions.md
-    // #privileged-services): every flag is false until the root build machine
-    // assigns it, so a hosted image admits no mediated privileged class.
-    if has_exact_toolchain_build_facet(typed, "PrivilegedServices") {
-        build_fields.push((
-            "privileged_services".to_owned(),
-            BuildTimeValue::Struct {
-                type_name: "PrivilegedServices".to_owned(),
-                fields: vec![
-                    ("port_io".to_owned(), BuildTimeValue::Bool(false)),
-                    ("interrupt_table".to_owned(), BuildTimeValue::Bool(false)),
-                ],
-            },
-        ));
-    }
-    if has_exact_toolchain_build_facet(typed, "BuildSource")
-        && has_exact_toolchain_build_facet(typed, "BuildOutput")
-    {
-        let root_facet = |type_name: &str, root: BuildMachineFilesystemGrantRootIdentity| {
-            BuildTimeValue::Struct {
-                type_name: type_name.to_owned(),
-                fields: vec![(
-                    "root".to_owned(),
-                    BuildTimeValue::Int(i64::from(root.get())),
-                )],
-            }
-        };
-        build_fields.extend([
-            (
-                "source".to_owned(),
-                root_facet("$OmegaBuildSourceRoot", BUILD_SOURCE_ROOT_IDENTITY),
-            ),
-            (
-                "output".to_owned(),
-                root_facet("$OmegaBuildOutputRoot", BUILD_OUTPUT_ROOT_IDENTITY),
-            ),
-        ]);
-    }
-    if has_exact_toolchain_build_facet(typed, "BuildInputs") {
-        build_fields.push(("inputs".to_owned(), filesystem_scope.named_input_facet()));
-    }
-    let zero_build = BuildTimeValue::Struct {
-        type_name: "Build".to_owned(),
-        fields: build_fields,
-    };
+    let zero_build = value_admission.initial_value(typed, machine, filesystem_scope);
 
     // Omega owns the grant decision. Psi owns the target-neutral interpreter
     // entry selected by that explicit mode. BuildLog remains available in
@@ -403,8 +287,7 @@ pub fn admit_build_program(
             symbol: machine_symbol,
             name: machine_name,
             normalized_callable_identity,
-            optimization_admission,
-            has_toolchain_build_activation,
+            value_admission,
             filesystem_reachable,
             execution_mode,
             initial_build: zero_build,

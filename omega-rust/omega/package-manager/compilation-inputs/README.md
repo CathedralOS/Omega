@@ -9,6 +9,15 @@ Start at [package_compilation.rs](src/package_compilation.rs): it constructs the
 package graph, validates source roots and dependency bindings, and separates the
 shared source projection from target-specific attachments.
 
+[build_execution/build_value.rs](src/build_execution/build_value.rs) owns the
+Build-value protocol: admit the exact vocabulary, initialize the activation's
+facets, and decode normalized settings after interpretation. `initial` owns
+private facet construction, `vocabulary` the exact declaration checks,
+`optimization` counter admission/decoding, and `configuration` the resulting
+application, deployment, optimization, PCC and privileged-service settings.
+The compiler retains this result whole; provider/root/trust receipts remain
+separate, and interpreter execution does not move into this package.
+
 [source_imports.rs](src/source_imports.rs) discovers imports in authored order
 and rejoins them to exact parsed source instances. Its `package_selection`
 module owns requester-local aliases, build/product dependency scopes and

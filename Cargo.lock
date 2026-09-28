@@ -1298,6 +1298,7 @@ dependencies = [
  "checked-trees",
  "diagnostics",
  "effects",
+ "flow-effects",
  "optimization-core",
  "platform-custody",
  "semantic-vocabulary",
@@ -1309,6 +1310,7 @@ dependencies = [
  "target",
  "terminal-psi",
  "tokens",
+ "typed-trees",
 ]
 
 [[package]]

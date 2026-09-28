@@ -28,7 +28,7 @@ pub fn is_build_machine(
         .is_some_and(|span| span.source_id == build_source_id)
 }
 
-pub(crate) fn has_exact_toolchain_build_facet(typed: &TypedTrees, name: &str) -> bool {
+pub(super) fn has_exact_toolchain_build_facet(typed: &TypedTrees, name: &str) -> bool {
     typed.data_definitions().iter().any(|definition| {
         definition.name.as_str() == name
             && typed
@@ -81,7 +81,7 @@ fn is_exact_toolchain_build_filesystem_facet_call(
     })
 }
 
-pub(crate) fn build_reaches_filesystem_facet(
+pub fn build_reaches_filesystem_facet(
     typed: &TypedTrees,
     operational: &flow_effects::OperationalPlan,
     root: SymbolHandle,
@@ -148,7 +148,7 @@ fn named_data_symbol(
 /// Whether the build machine's selected `Build` declares the ordinary
 /// `identifier` field. The toolchain prelude declares it; an authored `Build`
 /// opts in by declaring the same member.
-pub(crate) fn build_machine_declares_identifier_field(
+pub(super) fn build_machine_declares_identifier_field(
     typed: &TypedTrees,
     machine: &typed_trees::machine::Machine,
 ) -> bool {

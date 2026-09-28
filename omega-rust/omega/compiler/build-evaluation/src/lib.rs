@@ -48,7 +48,7 @@
 //! Start at `admitted_build_program.rs`: the admission request, the
 //! admitted program and `admit_build_program`. `execution` runs an admitted
 //! program and assembles its checked result. `admission/` owns what the build
-//! program declares and selects (entry selection, vocabulary and configuration).
+//! program selects and retains its independently checked results.
 //! Trust grants, component assumptions and executed exclusions are checked by
 //! realization trust; Psi owns wire-demand decoding and compatibility.
 //! Package compilation's `build_execution` owner retains filesystem scope,
@@ -56,21 +56,21 @@
 //! observations and requests settlement; it cannot construct the summary fields.
 //! The same owner projects restricted host requests from the admitted mode and
 //! scope. These records describe requested authority; they never grant it.
-//! `optimization` owns exact optimization selection admission. Provider planning
+//! Package compilation's `build_execution::build_value` owns Build vocabulary
+//! admission, initial facet construction and evaluated settings, including
+//! exact optimization selection. The compiler retains those settings directly
+//! beside the independently checked selection receipts. Provider planning
 //! including target declarations, selection decoding and settlement belongs to
 //! the independent `provider-planning` realization owner.
 
 mod admission;
 mod admitted_build_program;
 mod execution;
-mod optimization;
 pub mod sources;
 #[cfg(test)]
 mod tests;
 
-pub use admission::configuration::{
-    ApplicationIdentifier, BuildConfig, HostedApplicationIntent, PccRequests,
-};
+pub use admission::configuration::BuildConfig;
 pub use admission::selection::root_bindings::RootBinding;
 pub use admission::selection::{
     SelectedCompilerProgramEntry, SelectedProgramEntry, SelectedProgramEntryCallingPlans,
@@ -78,7 +78,6 @@ pub use admission::selection::{
     selected_program_entry_machine, validate_selected_program_entry_calling_plan,
     validate_selected_program_entry_shape,
 };
-pub use admission::vocabulary::is_build_machine;
 pub use admitted_build_program::{
     AdmittedBuildAuthorityVerdict, AdmittedBuildProgram, AdmittedBuildProgramDisposition,
     ComputedBuildConfig, admit_build_program,
@@ -101,4 +100,5 @@ pub use package_compilation::build_execution::{
     BuildRequiredOutputSettlement, BuildSnapshotCapture, BuildSnapshotRequest,
     RestrictedBuildRequest, prepare_filesystem_scope,
 };
+pub use target::{ApplicationIdentifier, HostedApplicationIntent};
 pub use trust_model::AuthoredComponentAssumptionAcceptance;

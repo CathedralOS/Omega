@@ -7,6 +7,7 @@
 //! Restricted host requests project the admitted execution mode and scope
 //! before execution, so package review and consumption share one vocabulary.
 
+pub mod build_value;
 mod completed_outputs;
 mod filesystem_scope;
 mod observation_identity;
