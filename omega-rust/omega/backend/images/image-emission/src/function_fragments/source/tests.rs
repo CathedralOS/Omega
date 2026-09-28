@@ -3,6 +3,29 @@ use semantic_vocabulary::{IeeeFloatValue, OperationId, ValueId};
 use target_operations::TargetUnitOperation;
 
 #[test]
+fn atomic_storage_requires_retained_graph_replay() {
+    use abstract_operations::atomic::AbstractAtomicLocation;
+    use abstract_operations::{AbstractAtomicEvent, AtomicModificationAfter};
+    use semantic_vocabulary::{PlaceId, StructuralFieldId};
+
+    let operation = AbstractOperation::AtomicEvent {
+        psi_operation: OperationId::new(1).unwrap(),
+        event: AbstractAtomicEvent::Store {
+            location: AbstractAtomicLocation {
+                root: PlaceId::new(1).unwrap(),
+                path: Vec::new(),
+                field: StructuralFieldId::new(1).unwrap(),
+            },
+            ordering: terminal_psi::MemoryOrdering::NoOrdering,
+            value: ValueId::new(1).unwrap(),
+        },
+        reads_from: None,
+        modification_after: Some(AtomicModificationAfter::InitialResidency),
+    };
+    assert!(requires_graph_storage_replay(&[operation]));
+}
+
+#[test]
 fn replay_requirement_is_specific_to_primitive_storage_operations() {
     use abstract_operations::AbstractResult;
     use semantic_vocabulary::{IntegerSign, IntegerType, PlaceId, ScalarType, StructuralTypeId};

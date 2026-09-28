@@ -6,6 +6,8 @@
 
 #[path = "artifacts/acyclic_control_flow.rs"]
 mod acyclic_control_flow;
+#[path = "artifacts/atomic_events.rs"]
+mod atomic_events;
 #[path = "artifacts/dynamic_and_cleanup_plans.rs"]
 mod dynamic_and_cleanup_plans;
 #[path = "artifacts/fragment_container.rs"]

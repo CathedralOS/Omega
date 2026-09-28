@@ -1,7 +1,9 @@
 //! Admission predicates and immutable inputs shared by construction and replay.
 
 use super::Error;
-use abstract_operations::{AbstractFunction, AbstractFunctionResult, AbstractOperation};
+use abstract_operations::{
+    AbstractAtomicEvent, AbstractFunction, AbstractFunctionResult, AbstractOperation,
+};
 use machine_code::{FunctionFragmentEmissionPlan, FunctionTargetFrameLayout};
 use object_file::StagedOptimizedRelocationFreeObjectContainer;
 use semantic_vocabulary::MachineId;
@@ -39,7 +41,8 @@ pub(super) fn requires_graph_storage_replay(operations: &[AbstractOperation]) ->
         }
         matches!(
             operation,
-            AbstractOperation::EstablishByteSequenceConcatenation { .. }
+            AbstractOperation::AtomicEvent { .. }
+                | AbstractOperation::EstablishByteSequenceConcatenation { .. }
                 | AbstractOperation::EstablishPrimitiveLocal { .. }
                 | AbstractOperation::EstablishCase { .. }
                 | AbstractOperation::EstablishRecord { .. }
@@ -232,6 +235,21 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
         }
         for operation in &abstracted.operations {
             let admitted = match operation {
+                AbstractOperation::AtomicEvent {
+                    event: AbstractAtomicEvent::Load { .. }
+                        | AbstractAtomicEvent::Store { .. }
+                        | AbstractAtomicEvent::ReadModifyWrite { .. }
+                        | AbstractAtomicEvent::Swap { .. }
+                        | AbstractAtomicEvent::CompareExchange { .. },
+                    ..
+                } => {
+                    // Mandatory source/physical replay above binds the exact
+                    // location, ordering, operands and instruction-observed
+                    // result. Keep that graph evidence on the published object;
+                    // ordinary load/store records cannot witness an atomic RMW.
+                    // Fences and single-attempt outcomes remain unsupported.
+                    true
+                }
                 AbstractOperation::StructuralByteSequenceFieldByteStore { .. } => {
                     structural_fields::indexed_store_retained(abstracted, operation, targeted)
                         && structural_fields::indexed_store_footprint_retained(operation, &selected.memory_accesses)
