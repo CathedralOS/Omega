@@ -1,6 +1,6 @@
 //! Admit and execute the build machine, then type its generated-source continuation.
 
-use super::{CheckedChildExecution, RestrictedBuildGrants};
+use super::CheckedChildExecution;
 use crate::checked::checking::phase_transitions::{
     resolve_seeded_syntax_extension, symbol_resolved_trees_to_seeded_base,
     syntax_trees_to_symbol_resolved_trees, type_seeded_extension,
@@ -18,7 +18,7 @@ pub(crate) struct BuiltCheckedProgram {
     pub(super) selected_target_machine_declarations:
         provider_planning::target_machines::SelectedTargetMachineDeclarations,
     pub(super) pending_pre_checks: Vec<build_time_evaluation::PreCheckEvaluation>,
-    pub(super) computed_build_config: build_evaluation::ComputedBuildConfig,
+    pub(super) computed_build_config: Arc<build_evaluation::ComputedBuildConfig>,
     /// The normalized restricted build-host requests the admitted activation
     /// asked of the host before it executed.
     pub(super) restricted_build_requests: Vec<build_evaluation::RestrictedBuildRequest>,
@@ -26,7 +26,6 @@ pub(crate) struct BuiltCheckedProgram {
     /// assembly. Its name supplies the publication `.app` basename and inner
     /// executable leaf; its artifact-only intent narrows the admitted route.
     pub(super) application: Option<build_declarations::ApplicationDeclaration>,
-    pub(super) selected_build_machine_symbol: Option<symbols::SymbolHandle>,
     pub(super) selected_build_machine_identity: Option<String>,
 }
 
@@ -37,7 +36,6 @@ pub(crate) struct BuildSourceCustody {
     pub(super) build_execution_profile: Option<target::TargetProfile>,
     pub(super) generated_source_custody:
         Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
-    pub(super) own_generated_sources: Vec<build_output::PackageGeneratedSource>,
     pub(super) base_source_consumption_commitment:
         Option<package_compilation::PackageSourceConsumptionCommitment>,
 }
@@ -224,7 +222,7 @@ pub(crate) fn evaluate_frontier_and_continue(
         // Build evaluation is this continuation's last stop before provider
         // settlement; the caller extracts the discovery write target first.
         independent_component_discovery: _,
-        restricted_build_grants,
+        mut restricted_build_grants,
         permit_unsettled_fused_service_fields: _,
     } = child;
     // CLI aliases end at request admission. Every source, build, provider, and
@@ -324,22 +322,24 @@ pub(crate) fn evaluate_frontier_and_continue(
             .as_ref()
             .is_some_and(|application| application.artifact_only),
     )?;
-    let ExecutedBuildCheckpoint {
-        frontend: executed_frontend,
-        computed_build_config,
-        restricted_build_requests,
-        package_authority_verdict,
-        base_sources,
-    } = (AdmittedBuildCheckpoint {
-        frontend,
-        admitted_build,
-        package_authority_verdict,
-        base_sources,
-        restricted_build_grants,
-    })
-    .execute()?;
-    frontend = executed_frontend;
-    let own_generated_sources = computed_build_config.generated_sources.clone();
+    // Consent joins the admitted request meanings before any build effect.
+    // Keep the selected machine bound across execution, not in a second
+    // checkpoint that only transports this continuation's local variables.
+    let admitted_build_symbol = admitted_build.selected_build_machine_symbol();
+    let restricted_build_requests = admitted_build.restricted_build_requests();
+    if let Some(grants) = restricted_build_grants.as_mut() {
+        for request in &restricted_build_requests {
+            grants.admit(request)?;
+        }
+    }
+    let computed_build_config = admitted_build.execute()?;
+    if computed_build_config.selected_build_machine_symbol != admitted_build_symbol {
+        return Err(vec![Diagnostic::error(
+            "build execution returned a selected symbol different from its admitted checkpoint",
+        )]);
+    }
+    // The activation's grant guard ends with execution, before source continuation.
+    drop(restricted_build_grants);
     let selected_build_machine_symbol = computed_build_config.selected_build_machine_symbol;
     if !computed_build_config.generated_sources.is_empty() {
         let package_inputs = package_inputs.ok_or_else(|| {
@@ -426,17 +426,15 @@ pub(crate) fn evaluate_frontier_and_continue(
             typed,
             selected_target_machine_declarations,
             pending_pre_checks,
-            computed_build_config,
+            computed_build_config: Arc::new(computed_build_config),
             restricted_build_requests,
             application,
-            selected_build_machine_symbol,
             selected_build_machine_identity,
         },
         BuildSourceCustody {
             source_file_count,
             build_execution_profile,
             generated_source_custody,
-            own_generated_sources,
             base_source_consumption_commitment: package_authority_verdict
                 .as_ref()
                 .map(|verdict| verdict.base_source_consumption_commitment()),
@@ -478,62 +476,6 @@ impl CheckedFrontendTyping {
 impl CheckedFrontend {
     fn typed(&self) -> &typed_trees::TypedTrees {
         self.typing.typed()
-    }
-}
-
-/// One activation-local D18 checkpoint admitted before any authored build code
-/// executes.
-///
-/// The coherent base frontend, exact prepared build projection, reach and
-/// authority verdicts, package declaration verdict, and exact base source map
-/// needed to bind a generated extension stay coupled across execution.
-struct AdmittedBuildCheckpoint {
-    frontend: CheckedFrontend,
-    admitted_build: build_evaluation::AdmittedBuildProgram,
-    package_authority_verdict:
-        Option<crate::checked::package::declaration_admission::AuthoredDeclarationAuthorityVerdict>,
-    base_sources: Arc<source::SourceMap>,
-    /// Consent binding the admitted program's projected restricted requests
-    /// join before their own build effects execute.
-    restricted_build_grants: Option<Box<dyn RestrictedBuildGrants>>,
-}
-
-struct ExecutedBuildCheckpoint {
-    frontend: CheckedFrontend,
-    computed_build_config: build_evaluation::ComputedBuildConfig,
-    restricted_build_requests: Vec<build_evaluation::RestrictedBuildRequest>,
-    package_authority_verdict:
-        Option<crate::checked::package::declaration_admission::AuthoredDeclarationAuthorityVerdict>,
-    base_sources: Arc<source::SourceMap>,
-}
-
-impl AdmittedBuildCheckpoint {
-    fn execute(mut self) -> Result<ExecutedBuildCheckpoint, Vec<Diagnostic>> {
-        let selected_build_symbol = self.admitted_build.selected_build_machine_symbol();
-        // Restricted-host requests describe the admission decision, not its
-        // execution; capture them before the checkpoint is consumed.
-        let restricted_build_requests = self.admitted_build.restricted_build_requests();
-        if let Some(grants) = self.restricted_build_grants.as_mut() {
-            // A bound consent checkpoint joins each request's projected
-            // meaning before the effect it authorizes executes — an
-            // ungranted request waits on acceptance rather than running.
-            for request in &restricted_build_requests {
-                grants.admit(request)?;
-            }
-        }
-        let computed_build_config = self.admitted_build.execute()?;
-        if computed_build_config.selected_build_machine_symbol != selected_build_symbol {
-            return Err(vec![Diagnostic::error(
-                "build execution returned a selected symbol different from its admitted checkpoint",
-            )]);
-        }
-        Ok(ExecutedBuildCheckpoint {
-            frontend: self.frontend,
-            computed_build_config,
-            restricted_build_requests,
-            package_authority_verdict: self.package_authority_verdict,
-            base_sources: self.base_sources,
-        })
     }
 }
 

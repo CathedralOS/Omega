@@ -40,7 +40,14 @@ The [checked entrance](src/checked/checking.rs) shows the lifecycle:
 [admit and execute the build, then continue generated source](src/checked/checking/build_continuation.rs),
 [check selected execution](src/checked/checking/execution_settlement.rs),
 then [seal the result against current source custody](src/checked/checking/checked_compilation.rs).
-The result retains the selected-execution settlement intact. Clones share program
+The result retains the selected-execution settlement intact. Its evaluated Build
+is one shared immutable product: configuration, observations, usage, optimization
+report intent and generated outputs are not dismantled into parallel fields.
+Generated-source bundles project the same retained outputs; source custody only
+adds their source-coordinate join. Build consent and the selected-machine check
+run visibly before and after execution, without extra checkpoint couriers.
+Authored Build policy remains distinct from per-target realized evidence, and
+checked-product equality includes the complete evaluated Build. Clones share program
 storage until mutation; review instantiation borrow-projects table rows rather
 than clone-rebuilding scratch. Any mutation does not reseal evidence, and
 downstream reconstruction remains mandatory. `into_program` consumes the result and discards its compilation
