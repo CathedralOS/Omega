@@ -1836,90 +1836,6 @@ completion syntax or other terminal service is a prerequisite.
   the physical adapter with a semantic continuation. Descriptor-call customers
   retain their dependency; Fused migration does not wait for Independent installation.
 
-- **UEFI-PHYSICAL-SEMANTIC-ENTRY.** Execute the source-authored two-surface
-  bootstrap under [UEFI adapters](wiki/spec/build/uefi_entry.md#authored-firmware-definitions-and-adapters).
-  The target package owns firmware layouts, integrity checks, calling policies
-  and bootstrap machines; the compiler owns the necessary physical shell and
-  generic ABI/entry primitives.
-
-  Connect source bootstrap, semantic continuation and physical arrival through
-  `compiler/native-realization` and
-  `external-roots/src/platform_bringup/uefi_bootstrap/`.
-  System Table, Boot Services and Loaded Image layouts already replay
-  source-minted commitments from `targets/uefi_x86_64/tables.omg`;
-  physical calling-plan replay, production semantic-wrapper callers and a
-  provisioned mutable semantic receiver also exist. Do not restart those legs.
-
-  Resume the complete customer from
-  `entry_and_abi::program_entries_and_image_validation::uefi_entry_machine_plan_produces_terminal_artifact`
-  through emitted bootstrap execution on firmware or a controlled provider.
-  **UEFI-OS-HANDOFF** additionally needs native realization of its exact
-  termination/stack-transfer edges; source admission alone does not supply them.
-
-  Acceptance: authored layouts feed actual firmware projections/calls and the
-  emitted bootstrap reaches the selected continuation with checked stack,
-  roots, storage and return behavior. Malformed geometry/header integrity,
-  foreign occurrence, wrong package/target and overlapping image/storage reject.
-  Retain scoped firmware authority and independent source/plan/realization replay.
-  Layout helpers, source preflight, source digests and Rust-constructed
-  contracts are not this execution witness. Repair missing general capability
-  in its owner, not with another firmware-protocol intrinsic.
-
-- **UEFI-OS-HANDOFF.** Execute the authored
-  [Boot Services-to-OS handoff](wiki/spec/build/uefi_entry.md#returning-application-versus-os-handoff)
-  in `std/targets/uefi_x86_64/handoff.omg`.
-  `UefiOsHandoffCycle::run` already expresses acquire/grow/adopt and bounded
-  stale-key retry; bodied boundary callees and its cyclic source route lower.
-  The pinned next refusal is
-  `native_uefi_os_handoff_invocation_reports_termination_catalog_frontier`:
-  `UefiOsHandoffTermination::transfer`/`firmware_return` have selected
-  compiler-intrinsic rows but no closed native catalog identity.
-
-  **UEFI-PHYSICAL-SEMANTIC-ENTRY** owns those entry/stack-transition mechanics,
-  source layouts and scoped firmware leaves. Keep allocation, map acquisition,
-  status handling and retries in ordinary target-package code; delete
-  superseded Rust production sequencing when the authored route covers it.
-  Reuse controls in
-  `uefi_bootstrap/{os_handoff_cycle.rs,get_memory_map/,exit_boot_services/}`.
-
-  Acceptance: `build/uefi_os_handoff_invocation` runs through native emission
-  and a firmware/controlled-provider harness: grow then retry a stale key,
-  bounded exhaustion with the target error, malformed map geometry,
-  stale/foreign evidence, lost custody, forbidden Boot Services use after exit,
-  and nonreturning success to the exact selected OS entry. Preserve freshest
-  map/key, surviving-stack evidence, allocation lineage and final-map obligations.
-  Ledger tests, a selected bodyless provider, or a special multi-call leaf do not
-  establish authored execution; no destructor hides the fallible protocol.
-
-- **AP-BRINGUP.** Complete Cathedral's authored secondary-processor startup
-  under [external roots](wiki/spec/build/external_roots.md#secondary-processor-startup).
-  Cathedral owns discovery, dispatch, acknowledgement, retry and cancellation;
-  selected hardware boundaries supply premises. The compiler checks installed
-  entry, placement, resource custody and evidence, not an APIC/firmware driver.
-
-  The `external-roots/src/platform_bringup/secondary_processor` ledger,
-  emitted x86-64 startup trampoline, source canary and
-  `compiler/tests/secondary_processor_startup.rs` integration already exist.
-  Remaining: real provider/hardware receipt ingress with **BOUNDARY-ISSUANCE**,
-  and matching platform/emulator execution evidence. Use the emitted trampoline
-  and exact installed entry, not test-authored replacement bytes or
-  Rust-constructed arrival receipts as the final witness.
-
-  Preserve the lifecycle: definite nondispatch permits withdrawal;
-  dispatch-unconfirmed holds resources and permits a later exact arrival.
-  Cancellation releases only with exact outstanding-invocation evidence that
-  no later arrival is possible and nothing executes on the stack/state.
-  Started accounts retire through exact quiescence. Timeout alone grants none
-  of these facts. Bind each provider-declared profile and mechanism-specific
-  vector/low-memory geometry to its selected contract.
-
-  Acceptance: authored startup reaches installed code on dedicated,
-  nonoverlapping stack/state. Exercise nondispatch, timeout then late arrival,
-  cancellation before confirmation, arrival/cancellation races, foreign/stale/
-  replayed evidence, resource conflicts and retirement. Keep resources while any
-  admitted attempt can reach them; report unavailable host/emulator legs
-  explicitly.
-
 - **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Execute nonempty content
   claims through source, Terminal, selected providers and native execution
   under [content conservation](wiki/spec/resources/content_custody.md): partition
@@ -3423,6 +3339,83 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   introduction reject; retain `fail/memory/bump_allocator_*` and live-resident
   controls against the completed routes. Empty entry or finite checked-only
   reservations do not close executable acceptance.
+
+- **UEFI-PHYSICAL-SEMANTIC-ENTRY.** Execute the source-authored
+  [two-surface bootstrap](wiki/spec/build/uefi_entry.md#authored-firmware-definitions-and-adapters).
+  The target package owns firmware layouts, integrity, calling policies and
+  bootstrap bodies; the compiler supplies the physical shell and generic
+  ABI/entry primitives. Reuse `std/targets/uefi_x86_64/tables.omg` layout replay,
+  `program-entry-plan` physical/semantic plans and
+  [native-artifact's receiver wrapper](omega-rust/omega/backend/artifacts/native-artifact/src/fragment_object_publication.rs).
+  Connect them to actual arrival and scoped providers through
+  `external-roots/src/platform_bringup/uefi_bootstrap/`.
+  Supply a source customer and firmware/controlled-provider execution harness.
+
+  Acceptance: authored integrity/projections/calls lead from physical arrival
+  to the exact selected continuation. Establish both image and initial-storage
+  roots together, excluding live stack/receiver/bootstrap storage; preserve
+  disjoint ownership and derived stack demand. Returning applications release
+  adapter allocations and return the correct status; rejection retains inputs
+  without entering the continuation. Malformed geometry/header integrity,
+  foreign occurrence, wrong package/target and overlapping roots reject.
+  Independently replay source, plan and realization with scoped firmware
+  authority. A layout commitment, readiness ledger or emitted semantic wrapper
+  alone does not establish bootstrap execution. **UEFI-OS-HANDOFF** also needs
+  exact nonreturning entry/stack-transfer and firmware-return mechanics;
+  repair general capabilities in their owners without firmware-protocol intrinsics.
+
+- **UEFI-OS-HANDOFF.** Execute the authored
+  [Boot Services-to-OS handoff](wiki/spec/build/uefi_entry.md#returning-application-versus-os-handoff)
+  through `tests/omega/pass/build/uefi_os_handoff_invocation` and
+  `std/targets/uefi_x86_64/handoff.omg`. The acquire/grow/adopt and bounded
+  stale-key cycle exists. Native selection still lacks closed execution
+  identities for `UefiOsHandoffTermination::{transfer,firmware_return}` in
+  `compiler/selected-dispatch/src/compiler_intrinsic.rs`.
+  **UEFI-PHYSICAL-SEMANTIC-ENTRY** owns these mechanics, layouts and scoped
+  firmware leaves.
+
+  Complete authored custody/validation: `acquired` currently sends any success
+  straight to exit without validating descriptor geometry/version; `free`
+  adopts the new buffer without checking release status. Preserve both
+  allocations on rejected release and retain freshest map/key, allocation
+  lineage, final-map obligations and a stack that survives Boot Services exit.
+  Keep allocation/status/retry policy in ordinary target code; replace
+  superseded Rust sequencing in `uefi_bootstrap/os_handoff_cycle.rs` once covered.
+
+  Acceptance: native emission followed by firmware/controlled-provider execution
+  covers growth, stale-key retry, bounded exhaustion with the target error,
+  rejected allocation/release, malformed maps, stale/foreign evidence, lost
+  custody and forbidden Boot Services use after exit. Success enters the exact
+  selected OS entry without returning. Reuse `os_handoff_cycle/tests.rs`,
+  `get_memory_map/` and `exit_boot_services/` controls, which exercise Rust
+  drivers/fake firmware rather than this emitted source. A bodyless provider,
+  multi-call intrinsic or fallible cleanup destructor cannot replace the cycle.
+
+- **AP-BRINGUP.** Execute Cathedral-owned secondary-processor startup under
+  [external roots](wiki/spec/build/external_roots.md#secondary-processor-startup).
+  Cathedral owns discovery, dispatch, acknowledgement, retry and cancellation;
+  selected hardware boundaries supply premises. The compiler checks installed
+  entry, placement, resource custody and evidence.
+
+  `tests/omega/pass/memory/secondary_processor_canary` has authored entry,
+  acknowledgement and roster declarations, but an empty `Main::main`.
+  Connect an invoked customer to the emitted trampoline in
+  `backend/machine-emission/src/startup_trampoline.rs`, the
+  `external-roots/src/platform_bringup/secondary_processor.rs` ledger and real
+  provider receipt ingress through **BOUNDARY-ISSUANCE**. Ledger tests use
+  replacement bytes and Rust-created receipts; retain them as custody controls.
+
+  Acceptance: execute the emitted trampoline and exact installed entry on a
+  matching platform/emulator with dedicated, nonoverlapping stack/state.
+  Bind provider profile, arrival regime and mechanism-specific vector/low-memory
+  geometry to the selected contract. Definite nondispatch permits withdrawal;
+  unconfirmed dispatch holds resources and admits a later exact arrival.
+  Cancellation needs exact outstanding-invocation evidence of no future arrival
+  and no stack/state execution; started retirement needs exact quiescence.
+  Exercise timeout/late arrival, cancellation before confirmation, races,
+  foreign/stale/replayed evidence, resource conflicts and retirement.
+  Timeout releases nothing; hold resources while any attempt can reach them.
+  Report unavailable execution legs explicitly; no compiler-owned APIC driver.
 
 - **ADDRESS-TRANSLATION-CANARY.** Execute Cathedral-owned mapping
   installation and teardown under
