@@ -302,12 +302,18 @@ pub(crate) fn admissible_invariant_crash_continuation_structural_scalar_call(
 /// `claim_transfers` and `returned_claim_transfers` must be empty, so the
 /// node carries exactly one vacuous `ClaimTransfer` ownership row, which
 /// relocates byte-exact inside the moved operation.
-/// `requirement_obligations` and `selected_evidence` must be empty in every
-/// lane: the admitted contract carries none of them, and a call that does
-/// stays inside rather than re-expressing evidence this family has not
-/// reconstructed. Returns the callee, the result declaration, the scalar
-/// argument operands, and the carried crash-continuation roster; each lane
-/// then decides which continuations it can re-express.
+/// `requirement_obligations` move byte-exact inside the moved operation,
+/// exactly like every other call variant's: they were discharged against the
+/// argument values and structural actuals, and substitution only rebinds a
+/// member parameter to the representative every reaching edge proves equal —
+/// a shared-borrow root's rebound representative is the same place the
+/// member parameter resolved to on every traversal. `selected_evidence`
+/// instead must be empty in every lane: the admitted contract carries none
+/// of it, and a call that does stay inside rather than re-expressing
+/// evidence this family has not reconstructed stays refused. Returns the
+/// callee, the result declaration, the scalar argument operands, and the
+/// carried crash-continuation roster; each lane then decides which
+/// continuations it can re-express.
 fn structural_call_shape(
     node: &OptimizationNode,
 ) -> Option<(
@@ -322,7 +328,6 @@ fn structural_call_shape(
         arguments,
         claim_transfers,
         returned_claim_transfers,
-        requirement_obligations,
         crash_continuations,
         selected_evidence,
         ..
@@ -349,7 +354,6 @@ fn structural_call_shape(
         && result.claims.is_empty()
         && claim_transfers.is_empty()
         && returned_claim_transfers.is_empty()
-        && requirement_obligations.is_empty()
         && selected_evidence.is_empty()
         && node.ownership.as_slice() == [OwnershipEvent::ClaimTransfer(Vec::new())])
     .then(|| (*callee, result.clone(), crash_continuations.as_slice()))
@@ -368,7 +372,8 @@ fn structural_call_shape(
 /// frontier's plain-source shapes — a copy payload that never enters
 /// `owned_places`, so the relocation re-expresses no custody for it at all
 /// and the persistent preheader place simply reads the same value every
-/// traversal.
+/// traversal. Discharged `requirement_obligations` move byte-exact inside
+/// the moved operation, exactly like every other call variant's.
 /// `structural_arguments`
 /// obeys the argument whitelist the unit and scalar-result calls share: a
 /// borrow argument lets the callee observe — and for a mutating borrow,

@@ -78,7 +78,9 @@
 //! performs; or an unrestricted claim-free result spelling one of the
 //! frontier's plain-source shapes: a custody-free copy payload that moves
 //! byte-exact under the shared no-member-stores bound, with no discard
-//! roster to tolerate and no containment bound — and either form may carry
+//! roster to tolerate and no containment bound — either form keeps its
+//! discharged requirement obligations byte-exact inside the moved
+//! operation like every other call variant, and either form may carry
 //! crash-route custody, re-deriving the roster under the same scalar-only
 //! gate the borrow calls use), or
 //! an admissible scalar

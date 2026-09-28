@@ -116,8 +116,11 @@ pub(crate) mod tests;
 /// unrestricted claim-free result spelling one of the frontier's
 /// plain-source shapes — a copy payload that never enters `owned_places`
 /// and carries no disposal roster at all — either carrying no
-/// claims, obligations, crash routes, or selected
-/// evidence and structural arguments confined to the same borrow or
+/// claims or selected evidence and no crash-route
+/// custody (which takes the re-derived crash-continuation lane instead),
+/// with discharged requirement obligations moving
+/// byte-exact inside the moved operation exactly like the other call
+/// forms', and structural arguments confined to the same borrow or
 /// copyable-owned whitelist the other structural-signature calls obey. The
 /// callee passes the same purity bar and the member roster
 /// stays unobservable. The affine result place obeys the scalar-case
