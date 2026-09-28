@@ -25,6 +25,8 @@ pub struct CheckedProviderProgram {
 pub struct ProviderCheckingRequest<'a> {
     pub native_target: Option<target::NativeTarget>,
     pub package_inputs: Option<&'a package_compilation::PackageCompilationInputs>,
+    pub build_settings:
+        &'a package_compilation::build_execution::build_value::EvaluatedBuildSettings,
     pub selected_build_machine: Option<symbols::SymbolHandle>,
     pub boundary_calling_plan_realizations:
         &'a mut [provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
@@ -49,6 +51,16 @@ impl ProviderCheckingInputs {
         typed: &TypedTrees,
         settlement: &ProviderCheckingRequest<'_>,
     ) -> Result<Self, Vec<Diagnostic>> {
+        // Package authority admits whole reviewed packages, never a standalone
+        // machine grant. Reject before deriving any checking inputs.
+        if settlement.package_inputs.is_some() {
+            trust_model::reject_package_non_provider_grants(
+                typed,
+                settlement.root_grants,
+                settlement.provider_plans,
+                &settlement.selected_provider_plan_facts,
+            )?;
+        }
         let accepted_template_classifications =
             trust_model::AcceptedTemplateClassifications::capture(typed);
         let contract_entailment_stand_downs =
@@ -73,11 +85,30 @@ impl ProviderCheckingInputs {
         })
     }
 
-    /// Psi derives all candidate specializations from authored source. This
-    /// request carries only independently checked representation evidence.
-    pub fn checking_request(&self) -> typed_trees_to_checked_trees::CheckingRequest<'_> {
+    /// Supply representation evidence and this invocation's exact Build and
+    /// package authority. Psi independently checks privileged instructions and
+    /// authored declaration selections; preparation does not approve either.
+    pub fn checking_request<'request>(
+        &'request self,
+        settlement: &'request ProviderCheckingRequest<'_>,
+    ) -> typed_trees_to_checked_trees::CheckingRequest<'request> {
+        let settings = settlement.build_settings;
         typed_trees_to_checked_trees::CheckingRequest::settled()
             .with_opaque_property_receipts(&self.opaque_property_receipts)
+            .with_asm_authority(
+                typed_trees_to_checked_trees::AsmAuthorityAdmission::from_freestanding(
+                    settings.freestanding,
+                )
+                .with_grants(
+                    settings.privileged_services.port_io,
+                    settings.privileged_services.interrupt_table,
+                ),
+            )
+            .with_declaration_authority(
+                settlement
+                    .package_inputs
+                    .map(|inputs| inputs as &dyn validation::DeclarationSelectionAuthority),
+            )
     }
 
     /// Bind callback placements and provider grants after Psi has checked the

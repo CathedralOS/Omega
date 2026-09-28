@@ -283,6 +283,33 @@ fn package_check_does_not_relax_native_application_gate() {
 }
 
 #[test]
+fn package_check_rejects_individual_machine_grants_before_reporting() {
+    let project = Project::new();
+    project.write(
+        "source/build.omg",
+        r#"machine build(builder: &mut Build) {
+    builder.application("machine_grant");
+    builder.accept_boundary<Claim::accepted>();
+}
+"#,
+    );
+    project.write(
+        "source/main.omg",
+        "pub data Claim {}\nboundary machine Claim::accepted() ensures true;\n",
+    );
+    let error = check_prepared_local_project(project.request("source/main.omg", "rejected"))
+        .expect_err("package checking must not substitute an individual grant for package review");
+    assert!(
+        error
+            .to_string()
+            .contains("cannot admit individual accepted machine"),
+        "unexpected rejection: {error}"
+    );
+    assert_empty_directory(&project.0.join("rejected"));
+    assert!(!project.0.join("source/omega.lock").exists());
+}
+
+#[test]
 fn application_check_settles_explicit_trust_without_native_root_policy() {
     let project = Project::new();
     project.write(
