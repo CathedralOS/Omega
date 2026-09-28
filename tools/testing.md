@@ -63,6 +63,19 @@ python3 tools/corpus_gate.py --record             # re-pin the golden
 `OMEGA_CORPUS_FIXTURE_FILTER`); `--shard k/N` selects a
 deterministic hash slice for splitting the run across sessions.
 
+Exit codes are the gate's verdict: 0 clean, 1 moved (structural or perf
+moves, no regression), 2 usage error, 3 regressed (a fixture verdict of
+`regressed`, or a failed `expected_native_exit.txt` oracle — including the
+`--record` refusal), 4 infrastructure failure (runner build failed, no
+binary, runner exited nonzero, unreadable records). `--bisect` remaps for
+`git bisect run`: regressed -> 1 (bad), infrastructure -> 125 (skip),
+anything else -> 0 (good), usage -> 255 (abort). `--json PATH` writes the
+full per-fixture verdict document on every outcome, including
+infrastructure failure and record refusal. Diagnostics compare against the
+golden after prefix normalization (`corpus_records.DIAGNOSTIC_PREFIX_ALIASES`),
+so renaming a diagnostic's wording is not a move; golden rows stamped
+`@<revision>` report how many commits behind HEAD each measurement is.
+
 ### One golden, every host
 
 `tests/omega/corpus_outcomes.txt` is a single checked-in file shared by

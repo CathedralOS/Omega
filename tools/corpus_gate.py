@@ -76,6 +76,23 @@ genuine slowdown rather than a busier box. `OMEGA_CORPUS_JOBS` overrides the
 worker count; record and diff at the same jobs value on a quiet machine —
 `millis` inflates uniformly under external load, which floods the perf-move
 report. The unfiltered record is the scheduled baseline, not a loop check.
+
+Exit codes — the gate's machine-readable verdict (every run can also write
+a full verdict document with `--json PATH`):
+
+    0  clean: no structural or perf moves
+    1  moved: structural or perf moves, but no regression
+    2  usage error: bad arguments, missing golden, no host target
+    3  regressed: at least one fixture verdict is "regressed", or an
+       authored exit oracle failed (also the `--record` refusal)
+    4  infrastructure failure: runner build failed, no binary produced,
+       runner exited nonzero, or its records were unreadable
+
+`--bisect` remaps for `git bisect run`, whose documented contract is: 125
+skips the commit, 1..127 (except 125) mark it bad, 0 marks it good, and
+any code above 127 aborts the bisect; so regressed -> 1 (bad), infrastructure
+failure -> 125 (skip), everything else -> 0 (good), and usage errors ->
+255 (abort, since a usage error says nothing about the commit).
 """
 
 from __future__ import annotations
@@ -148,6 +165,13 @@ def native_exit_failures(records: list[dict], corpus: Path, target: str) -> list
     return failures
 
 
+class InfrastructureFailure(Exception):
+    """The gate could not measure at all — runner build failed, no binary
+    was produced, the runner exited nonzero, or its records were
+    unreadable. Distinct from a regression: exit 4, or 125 under --bisect
+    so `git bisect run` skips the commit instead of blaming it."""
+
+
 def build_runner() -> Path:
     """Build the runner via cargo/mbx message-format JSON; return its path."""
     tool = "mbx" if shutil_which("mbx") else "cargo"
@@ -157,7 +181,8 @@ def build_runner() -> Path:
     if proc.returncode != 0:
         sys.stderr.write(proc.stdout[-4000:])
         sys.stderr.write(proc.stderr[-4000:])
-        raise SystemExit(f"corpus_gate: runner build failed ({proc.returncode})")
+        raise InfrastructureFailure(
+            f"corpus_gate: runner build failed ({proc.returncode})")
     executable = None
     for line in proc.stdout.splitlines():
         try:
@@ -169,7 +194,8 @@ def build_runner() -> Path:
                 and message.get("executable")):
             executable = message["executable"]
     if executable is None:
-        raise SystemExit("corpus_gate: build produced no corpus_runner binary")
+        raise InfrastructureFailure(
+            "corpus_gate: build produced no corpus_runner binary")
     return Path(executable)
 
 
@@ -201,13 +227,15 @@ def run_runner(binary: Path) -> list[dict]:
     if proc.returncode != 0:
         sys.stderr.write(stdout[-2000:])
         sys.stderr.writelines(list(buffered_stderr)[-200:])
-        raise SystemExit(f"corpus_gate: runner exited {proc.returncode}")
+        raise InfrastructureFailure(
+            f"corpus_gate: runner exited {proc.returncode}")
     try:
         return corpus_records.parse(stdout)
     except ValueError as error:
         sys.stderr.write(stdout[-2000:])
         sys.stderr.writelines(list(buffered_stderr)[-200:])
-        raise SystemExit(f"corpus_gate: runner emitted unreadable records: {error}")
+        raise InfrastructureFailure(
+            f"corpus_gate: runner emitted unreadable records: {error}")
 
 
 # --- Jev advisory (--jev): per-diff classification + record verdict ---
@@ -362,6 +390,75 @@ def jev_advise(diffs: list) -> None:
               file=sys.stderr)
 
 
+# Status ranks for the pass/run tiers: built means the artifact exists,
+# checked means compilation succeeded, anything else is a non-movement
+# floor. Fail tiers invert the goal: rejected is success there.
+STATUS_RANK = {"built": 3, "checked": 2}
+
+
+def classify(before: dict | None, after: dict | None) -> tuple[str, list[str]]:
+    """One fixture's verdict: (verdict, reasons).
+
+    Verdicts: clean, moved, improved, regressed, perf_slower, perf_faster,
+    new, removed. Regressed dominates improved dominates moved; the reasons
+    list collects everything that fired. Diagnostics compare normalized
+    (corpus_records.normalized_diagnostics) so a diagnostic relabel is not
+    a move; recorded_at is measurement provenance, never compared.
+    """
+    if before is None:
+        return "new", ["fixture added"]
+    if after is None:
+        return "removed", ["fixture removed"]
+    regressed, improved, moved = [], [], []
+    tier = after["tier"]
+    old_status, new_status = before["status"], after["status"]
+    if tier == "fail":
+        # rejected is the goal here; a fail fixture that stopped rejecting
+        # is a soundness regression, never an improvement.
+        if old_status == "rejected" and new_status != "rejected":
+            regressed.append("fail fixture stopped rejecting")
+        elif old_status != "rejected" and new_status == "rejected":
+            improved.append(f"status {old_status} -> {new_status}")
+    else:
+        old_rank = STATUS_RANK.get(old_status, 0)
+        new_rank = STATUS_RANK.get(new_status, 0)
+        if new_rank < old_rank:
+            regressed.append(f"status {old_status} -> {new_status}")
+        elif new_rank > old_rank:
+            improved.append(f"status {old_status} -> {new_status}")
+    if before["expected_satisfied"] is True and after["expected_satisfied"] is False:
+        regressed.append("rejected without its expected fragment")
+    elif before["expected_satisfied"] is False and after["expected_satisfied"] is True:
+        improved.append("expected fragment now satisfied")
+    old_facts, new_facts = before["facts"], after["facts"]
+    old_stdout, new_stdout = old_facts.get("stdout"), new_facts.get("stdout")
+    if old_stdout == "match" and new_stdout != "match":
+        regressed.append("stdout match -> " + (new_stdout or "absent"))
+    elif old_stdout == "differs" and new_stdout == "match":
+        improved.append("stdout differs -> match")
+    if old_facts.get("exit") != new_facts.get("exit"):
+        moved.append(f"exit {old_facts.get('exit')} -> {new_facts.get('exit')}")
+    elif old_facts != new_facts:
+        moved.append("facts moved")
+    if (corpus_records.normalized_diagnostics(before["diagnostics"])
+            != corpus_records.normalized_diagnostics(after["diagnostics"])):
+        moved.append("diagnostics moved")
+    if regressed:
+        return "regressed", regressed + improved + moved
+    if improved:
+        return "improved", improved + moved
+    if moved:
+        return "moved", moved
+    # Perf moves only apply to otherwise-clean fixtures: a structural move
+    # already explains the fixture and the timing is noise on top.
+    old_ms, new_ms = before.get("millis", 0), after.get("millis", 0)
+    if old_ms >= 2000 and new_ms >= 2 * old_ms and new_ms - old_ms >= 5000:
+        return "perf_slower", [f"{old_ms}ms -> {new_ms}ms (>=2x slowdown)"]
+    if old_ms >= 2000 and new_ms <= old_ms // 2 and old_ms - new_ms >= 5000:
+        return "perf_faster", [f"{old_ms}ms -> {new_ms}ms (>=2x faster)"]
+    return "clean", []
+
+
 def move_classes(diffs: list) -> str:
     """Separate RECORDING DEBT from behaviour that moved.
 
@@ -369,22 +466,19 @@ def move_classes(diffs: list) -> str:
     for every developer until its golden row catches up, and that debt
     accumulates: it is most of what an unfiltered run shows on a clean
     checkout. Naming the classes lets a reader see in one line whether the
-    run is telling them something about their own change.
+    run is telling them something about their own change. Classes derive
+    from classify() verdicts so this line cannot disagree with the exit
+    code — the old hand-rolled mapping called a fail fixture that stopped
+    rejecting "improved", which pinned a soundness regression as progress.
     """
-    classes = collections.Counter()
-    for diff in diffs:
-        before = diff.get("before", {}).get("status")
-        after = diff.get("after", {}).get("status")
-        if before == "absent":
-            classes["fixture added, golden not recorded"] += 1
-        elif after == "absent":
-            classes["fixture removed, golden row left behind"] += 1
-        elif before == "rejected" and after == "checked":
-            classes["improved, golden not re-recorded"] += 1
-        elif before == "checked" and after == "rejected":
-            classes["REGRESSED"] += 1
-        else:
-            classes["diagnostics or facts moved"] += 1
+    labels = {"new": "fixture added, golden not recorded",
+              "removed": "fixture removed, golden row left behind",
+              "improved": "improved, golden not re-recorded",
+              "regressed": "REGRESSED",
+              "moved": "diagnostics or facts moved",
+              "perf_slower": "diagnostics or facts moved",
+              "perf_faster": "diagnostics or facts moved"}
+    classes = collections.Counter(labels[diff["verdict"]] for diff in diffs)
     if not classes:
         return "corpus_gate: no structured diffs to classify"
     parts = ", ".join(f"{count} {name}"
@@ -417,6 +511,89 @@ def baseline_path(leg: str = "") -> Path:
     ).stdout.strip() or "unknown"
     suffix = f"-{leg}" if leg else ""
     return ROOT / "build" / "corpus_baselines" / f"{revision}{suffix}.txt"
+
+
+def git_out(*arguments) -> str | None:
+    result = subprocess.run(["git", *arguments], cwd=ROOT,
+                            capture_output=True, text=True,
+                            env={**os.environ, "GIT_TERMINAL_PROMPT": "0"})
+    return result.stdout.strip() if result.returncode == 0 else None
+
+
+def commits_between(revision):
+    """git rev-list --count <rev>..HEAD; None when the revision is unknown."""
+    count = git_out("rev-list", "--count", f"{revision}..HEAD")
+    return int(count) if count and count.isdigit() else None
+
+
+def measurement_stamp(golden) -> str | None:
+    """First 12 hex of HEAD, plus `+wt` when tracked files other than the
+    golden differ — the row's provenance for `--record`. None without git."""
+    revision = git_out("rev-parse", "HEAD")
+    if not revision:
+        return None
+    status = git_out("status", "--porcelain", "--untracked-files=no") or ""
+    try:
+        relative = Path(golden).resolve().relative_to(ROOT).as_posix()
+    except ValueError:
+        relative = None
+    dirty = any(
+        line[3:].split(" -> ")[-1].strip().strip('"') != relative
+        for line in status.splitlines() if line)
+    return revision[:12] + ("+wt" if dirty else "")
+
+
+def verdict_document(options, leg, target, verdict, exit_code, records,
+                     classified, oracle_failures, infrastructure_error,
+                     golden_provenance=None):
+    """The `--json` verdict document; written on every outcome so a caller
+    (or `git bisect run` wrapper) never has to grep the text summary."""
+    golden = Path(options.golden)
+    try:
+        golden_path = golden.resolve().relative_to(ROOT).as_posix()
+    except ValueError:
+        golden_path = str(golden)
+    by_status = collections.Counter(record["status"] for record in records)
+    by_verdict = collections.Counter(entry["verdict"] for entry in classified)
+    subset = (bool(options.filter) or bool(options.shard)
+              or bool(os.environ.get("OMEGA_CORPUS_FIXTURE_FILTER", "").strip())
+              or bool(os.environ.get("OMEGA_CORPUS_SHARD", "").strip()))
+    document = {
+        "schema": "omega-corpus-verdict-v1",
+        "revision": git_out("rev-parse", "HEAD"),
+        "dirty": bool(git_out("status", "--porcelain",
+                              "--untracked-files=no")),
+        "leg": leg or "checked",
+        "target": target,
+        "golden": golden_path,
+        "subset": subset,
+        "filter": options.filter,
+        "shard": options.shard,
+        "verdict": verdict,
+        "exit_code": exit_code,
+        "counts": {
+            "fixtures": len(records),
+            "by_status": dict(by_status),
+            "wrong_reason": sum(1 for record in records
+                                if record["expected_satisfied"] is False),
+            "fail_not_rejected": sum(
+                1 for record in records
+                if record["tier"] == "fail" and record["status"] == "checked"),
+            "by_verdict": dict(by_verdict)},
+        "oracle_failures": oracle_failures,
+        "infrastructure_error": infrastructure_error,
+        "golden_provenance": golden_provenance,
+        "fixtures": classified}
+    return document
+
+
+def write_verdict(options, document):
+    if not options.json:
+        return
+    path = Path(options.json)
+    if path.parent != Path(""):
+        path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
 
 
 def main() -> int:
@@ -462,8 +639,27 @@ def main() -> int:
                              "records to PATH as JSON, untruncated — the "
                              "summary below cuts each field at 300 columns, "
                              "which hides the diagnostic that actually moved")
-    options = parser.parse_args()
+    parser.add_argument("--bisect", action="store_true",
+                        help="exit for `git bisect run`: 1 on regressed "
+                             "(bad), 125 on infrastructure failure (skip), "
+                             "0 otherwise (good), 255 on usage error (abort)")
+    parser.add_argument("--json", metavar="PATH",
+                        help="write the machine-readable verdict document "
+                             "to PATH on every outcome, including "
+                             "infrastructure failure and --record refusal")
+    try:
+        options = parser.parse_args()
+    except SystemExit as error:
+        if not error.code:
+            return 0
+        # Under `git bisect run` every code in 1..127 (except 125) means
+        # "bad", so a usage error would convict an innocent commit.
+        return 255 if "--bisect" in sys.argv else error.code
     leg = ""
+    target = None
+    # `git bisect run` reads 1..127 (except 125) as "bad"; usage errors say
+    # nothing about the commit under test, so they abort instead.
+    usage_error = 255 if options.bisect else 2
     if options.both:
         options.native = True
         options.interpret = True
@@ -476,7 +672,7 @@ def main() -> int:
         target = host_target()
         if target is None:
             print("corpus_gate: this host has no catalogued Omega target for --native")
-            return 2
+            return usage_error
         os.environ["OMEGA_CORPUS_NATIVE"] = "1"
         leg = "both" if options.interpret else "native"
         if options.golden == GOLDEN:
@@ -485,14 +681,14 @@ def main() -> int:
     if options.baseline:
         if options.golden != GOLDEN and not leg:
             print("corpus_gate: --baseline and --golden name different goldens")
-            return 2
+            return usage_error
         options.golden = baseline_path(leg)
         if not options.golden.is_file() and not options.record:
             print(f"corpus_gate: no baseline at {options.golden.relative_to(ROOT)}; "
                   "record one from a clean tree first:\n"
                   "  git stash && python3 tools/corpus_gate.py --baseline --record "
                   "&& git stash pop")
-            return 2
+            return usage_error
         options.golden.parent.mkdir(parents=True, exist_ok=True)
 
     subset = (bool(options.filter) or bool(options.shard)
@@ -506,14 +702,32 @@ def main() -> int:
     # (adaptive max(cap, 3x golden millis) — the runner derives them).
     if options.golden.is_file():
         os.environ["OMEGA_CORPUS_TIMINGS"] = str(options.golden)
-    binary = options.runner or build_runner()
-    records = run_runner(binary)
+    try:
+        binary = options.runner or build_runner()
+        records = run_runner(binary)
+    except InfrastructureFailure as error:
+        print(str(error), file=sys.stderr)
+        code = 125 if options.bisect else 4
+        write_verdict(options, verdict_document(
+            options, leg, target, "infrastructure_failed", code, [], [],
+            [], str(error)))
+        return code
     if options.native:
         failures = native_exit_failures(records, ROOT / "tests" / "omega", target)
         if failures:
             for failure in failures:
                 print(f"corpus_gate: {failure}", file=sys.stderr)
-            return 1
+            code = 1 if options.bisect else 3
+            write_verdict(options, verdict_document(
+                options, leg, target, "regressed", code, records, [],
+                failures, None))
+            return code
+    # --record stamps each row measured this run with its provenance; rows
+    # merged forward in a subset record keep the stamp they were born with.
+    stamp = measurement_stamp(options.golden) if options.record else None
+    if stamp:
+        for record in records:
+            record["recorded_at"] = stamp
     rendered = corpus_records.render(records)
 
     if options.record:
@@ -537,40 +751,67 @@ def main() -> int:
             stream.write(rendered)
         print(f"corpus_gate: recorded {len(records)} fixture outcomes "
               f"to {options.golden}")
+        write_verdict(options, verdict_document(
+            options, leg, target, "recorded", 0, records, [], [], None))
         return 0
 
     if not options.golden.is_file():
         print(f"corpus_gate: no golden at {options.golden}; "
               f"run --record first", file=sys.stderr)
-        return 2
+        return usage_error
     golden_records = corpus_records.read(options.golden)
     golden = {record["fixture"]: record for record in golden_records}
     actual = {record["fixture"]: record for record in records}
 
     structural_moves = []
     structured_diffs = []
+    classified = []
     perf_moves = []
     perf_notes = []
     for fixture, record in actual.items():
         before = golden.get(fixture)
+        verdict, reasons = classify(before, record)
+        if verdict != "clean":
+            classified.append({"fixture": fixture, "verdict": verdict,
+                               "reasons": reasons,
+                               "before": before, "after": record})
         if before is None:
             structural_moves.append(f"+ {fixture}: new fixture "
                                   f"({record['status']})")
             structured_diffs.append(
-                {"fixture": fixture,
+                {"fixture": fixture, "verdict": verdict,
                  "before": {"status": "absent"},
                  "after": {"status": record["status"],
                            "expected_satisfied": record["expected_satisfied"],
                            "diagnostics": record["diagnostics"]}})
             continue
-        for field in ("status", "expected_satisfied", "facts", "diagnostics"):
-            if record[field] != before[field]:
+        if verdict == "perf_slower":
+            perf_moves.append(f"~ {fixture}: {reasons[0]}")
+            continue
+        if verdict == "perf_faster":
+            perf_notes.append(f"  {fixture}: {reasons[0]}")
+            continue
+        if verdict == "clean":
+            continue
+        # Show the first field that moved; diagnostics compare normalized
+        # (a relabel is not a move) but print their raw text.
+        fields = {
+            "status": (before["status"], record["status"]),
+            "expected_satisfied": (before["expected_satisfied"],
+                                   record["expected_satisfied"]),
+            "facts": (before["facts"], record["facts"]),
+            "diagnostics": (corpus_records.normalized_diagnostics(
+                                before["diagnostics"]),
+                            corpus_records.normalized_diagnostics(
+                                record["diagnostics"]))}
+        for field, (old, new) in fields.items():
+            if old != new:
                 structural_moves.append(
                     f"~ {fixture}: {field} moved\n"
                     f"    - {shown(before[field])[:300]}\n"
                     f"    + {shown(record[field])[:300]}")
                 structured_diffs.append(
-                    {"fixture": fixture,
+                    {"fixture": fixture, "verdict": verdict,
                      "before": {"status": before["status"],
                                 "expected_satisfied":
                                     before["expected_satisfied"],
@@ -580,20 +821,16 @@ def main() -> int:
                                    record["expected_satisfied"],
                                "diagnostics": record["diagnostics"]}})
                 break
-        else:
-            old_ms, new_ms = before.get("millis", 0), record.get("millis", 0)
-            if old_ms >= 2000 and new_ms >= 2 * old_ms and new_ms - old_ms >= 5000:
-                perf_moves.append(
-                    f"~ {fixture}: {old_ms}ms -> {new_ms}ms (>=2x slowdown)")
-            elif old_ms >= 2000 and new_ms <= old_ms // 2 and old_ms - new_ms >= 5000:
-                perf_notes.append(
-                    f"  {fixture}: {old_ms}ms -> {new_ms}ms (>=2x faster)")
     if not subset:
         for fixture in golden:
             if fixture not in actual:
+                verdict, reasons = classify(golden[fixture], None)
+                classified.append({"fixture": fixture, "verdict": verdict,
+                                   "reasons": reasons,
+                                   "before": golden[fixture], "after": None})
                 structural_moves.append(f"- {fixture}: removed from corpus")
                 structured_diffs.append(
-                    {"fixture": fixture,
+                    {"fixture": fixture, "verdict": verdict,
                      "before": {"status": golden[fixture]["status"]},
                      "after": {"status": "absent"}})
 
@@ -617,6 +854,18 @@ def main() -> int:
         differs = sum(1 for r in executed if r["facts"].get("stdout") == "differs")
         summary += (f"; executed {len(executed)} (exit codes {dict(exits)}), "
                     f"{differs} with stdout differing from expected")
+    verdict_counts = collections.Counter(entry["verdict"]
+                                         for entry in classified)
+    if verdict_counts:
+        summary += f"; verdicts {dict(verdict_counts)}"
+    # Golden rows can outlive the commit that measured them when a subset
+    # --record merges old rows forward; provenance is the staleness readout
+    # for the fixtures this run actually exercised.
+    golden_provenance = corpus_records.provenance(
+        [golden[fixture] for fixture in actual if fixture in golden],
+        commits_between)
+    provenance = ("corpus_gate: "
+                  + corpus_records.provenance_line(golden_provenance))
 
     def write_moves() -> None:
         if not options.write_moves:
@@ -629,11 +878,15 @@ def main() -> int:
 
     if not structural_moves and not perf_moves:
         print(f"corpus_gate: clean — {summary}")
+        print(provenance)
         for line in perf_notes[:20]:
             print(line)
         # A clean run still rewrites the file, so a reader never mistakes a
         # previous run's moves for this one's.
         write_moves()
+        write_verdict(options, verdict_document(
+            options, leg, target, "clean", 0, records, classified, [], None,
+            golden_provenance))
         return 0
     for line in structural_moves[:60]:
         print(line)
@@ -644,13 +897,21 @@ def main() -> int:
         print(f"… {remaining} more moves")
     for line in perf_notes[:20]:
         print(line)
+    regressed = verdict_counts.get("regressed", 0) > 0
+    verdict = "regressed" if regressed else "moved"
+    code = (1 if regressed else 0) if options.bisect else \
+        (3 if regressed else 1)
     print(f"corpus_gate: {len(structural_moves)} structural move(s), "
           f"{len(perf_moves)} perf move(s) — {summary}")
     print(move_classes(structured_diffs))
+    print(provenance)
     write_moves()
     if options.jev:
         jev_advise(structured_diffs)
-    return 1
+    write_verdict(options, verdict_document(
+        options, leg, target, verdict, code, records, classified, [], None,
+        golden_provenance))
+    return code
 
 
 if __name__ == "__main__":

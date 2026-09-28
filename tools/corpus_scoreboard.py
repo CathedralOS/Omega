@@ -192,6 +192,18 @@ def golden_target(golden):
     return golden.stem
 
 
+def commits_between(repository):
+    """git rev-list --count <rev>..HEAD, or None for unknown revisions."""
+    def count(revision):
+        result = subprocess.run(
+            ["git", "-C", str(repository), "rev-list", "--count",
+             f"{revision}..HEAD"],
+            capture_output=True, text=True, encoding="utf-8")
+        text = result.stdout.strip()
+        return int(text) if result.returncode == 0 and text.isdigit() else None
+    return count
+
+
 def collect(repository, golden=None, base_rev=None, head_rev=None):
     """The full scoreboard record for one golden: `head` counts, plus
     `base`/`authored_delta`/`gained`/`lost`/`exit_changed` when `base_rev`
@@ -219,7 +231,11 @@ def collect(repository, golden=None, base_rev=None, head_rev=None):
     head_board = native_scoreboard(
         head, oracle_lookup(repository, golden, head_rev))
     board = {"target": target, "golden": relative,
-             "head_rev": head_rev, "head": head_board}
+             "head_rev": head_rev, "head": head_board,
+             # Rows merged forward by subset re-records keep the stamp of
+             # the commit that measured them; this is the staleness readout.
+             "provenance": corpus_records.provenance(
+                 head, commits_between(repository))}
     if base_rev is not None:
         base = records_at(repository, golden, base_rev)
         if base is None:
@@ -264,6 +280,7 @@ def main(argv=None):
         print(json.dumps(board, ensure_ascii=True, indent=2))
         return 0
     print(summary_line(board["head"], board["target"]))
+    print(corpus_records.provenance_line(board["provenance"]))
     if "base" in board:
         print(f"base {options.base}: "
               f"{board['base']['authored']} authored / "
