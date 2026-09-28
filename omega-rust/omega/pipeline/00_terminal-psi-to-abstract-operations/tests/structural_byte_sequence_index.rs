@@ -6,10 +6,12 @@ use proof_admission::{
 };
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, Proposition, PsiSemanticId, ScalarTerm, ScalarType,
+    StructuralFieldId,
 };
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_psi::{
-    Block, Operation, OperationKind, OperationResult, SuccessorEdge, Terminator, ValueDeclaration,
+    Block, Operation, OperationKind, OperationResult, StructuralFieldType, StructuralTypeShape,
+    SuccessorEdge, TerminalModule, Terminator, ValueDeclaration,
 };
 use terminal_psi_to_abstract_operations::lower_artifact;
 
@@ -17,8 +19,7 @@ fn id<Identity: PsiSemanticId>(raw: u64) -> Identity {
     Identity::new(raw).unwrap()
 }
 
-#[test]
-fn verified_indexed_field_store_survives_every_native_entrance() {
+fn indexed_field_store_module() -> (TerminalModule, StructuralFieldId) {
     let source = r#"
         domain [u8; 3]::Utf8 requires valid_utf8(self);
         data Record { out: [u8; 3] in Utf8; }
@@ -175,12 +176,52 @@ fn verified_indexed_field_store_survives_every_native_entrance() {
             },
         },
     ];
+    (module, field)
+}
+
+#[test]
+fn indexed_field_store_cannot_preserve_utf8_from_an_index_bound_alone() {
+    let (module, _) = indexed_field_store_module();
+    assert!(matches!(
+        terminal_verifier::reconstruct_terminal_obligations(&module),
+        Err(terminal_verifier::ModuleError::InvalidStructuralByteSequenceFieldAccess(operation))
+            if operation == id(105)
+    ));
+}
+
+#[test]
+fn verified_indexed_field_store_survives_every_native_entrance() {
+    let (mut module, field) = indexed_field_store_module();
+    let declaration = module
+        .structural_types
+        .iter_mut()
+        .find_map(|declaration| match &mut declaration.shape {
+            StructuralTypeShape::Record { fields } => {
+                fields.iter_mut().find(|candidate| candidate.id == field)
+            }
+            _ => None,
+        })
+        .expect("the indexed store retains its source field declaration");
+    let StructuralFieldType::PredicateByteSequence {
+        carrier,
+        predicates,
+    } = declaration.field_type
+    else {
+        panic!("source field retains its UTF-8 qualification")
+    };
+    assert!(!predicates.is_empty());
+    // This hand-built Terminal fixture tests indexed storage, not UTF-8
+    // preservation. An in-bounds byte replacement can break a multibyte
+    // sequence, so use an unqualified carrier for the positive projection
+    // case. The qualified declaration is rejected in the companion test.
+    declaration.field_type = StructuralFieldType::ByteSequence(carrier);
     let questions = terminal_verifier::reconstruct_terminal_obligations(&module).unwrap();
     let [question] = questions.obligations() else {
         panic!("one indexed-store question")
     };
     // The selected edge folds the constant index to zero. Rejoin the authored
     // SSA operand through its exact constant equation for the store's goal.
+    let count = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
     let zero = ScalarTerm::integer(
         IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
         IntegerValue::Unsigned(0),
