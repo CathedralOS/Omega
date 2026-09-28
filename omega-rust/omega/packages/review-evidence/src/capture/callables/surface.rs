@@ -4,9 +4,7 @@ use super::super::behavior::{
     canonical_checked_invocation_targets, project_installation_reaches, project_service_row,
     project_synchronous_invocations,
 };
-use super::super::contracts::facts::{
-    project_callable_contracts, project_callable_contracts_with_exposure,
-};
+use super::super::contracts::facts::{callable_contract_exposure, project_callable_contracts};
 use super::super::semantics::conformances::project_conformance_bounds;
 use super::super::semantics::facts::exactly_one;
 use super::super::semantics::signatures::parameters::project_type_parameters;
@@ -88,9 +86,8 @@ pub(super) fn project<'a>(
         crate::capture::source::invocations::validate_machine_invocations(compilation, machine)?;
         crate::capture::source::suspension::validate_machine_operational(compilation, machine)?;
     }
-    // Match the typed authored-selection owner: accepted claims use the
-    // boundary interface even when their source name is not public.
-    let publishes_interface = machine.is_public || machine.supply_mode.is_boundary_declaration();
+    let publishes_interface = callable_contract_exposure(machine)
+        == language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface;
     let (binders, type_parameters, policy_type_parameters) = if policy_mode {
         let (binders, parameters) = super::policy_parameters::type_parameters(
             compilation,
@@ -183,13 +180,7 @@ pub(super) fn project<'a>(
                 policy_mode.then_some(&mut policy_conformances),
             )?
         };
-    let contracts = if policy_mode && !publishes_interface {
-        project_callable_contracts_with_exposure(compilation, machine, entry, &binders,
-        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
-    )?
-    } else {
-        project_callable_contracts(compilation, machine, entry, &binders)?
-    };
+    let contracts = project_callable_contracts(compilation, machine, entry, &binders)?;
     let service_reach = exactly_one(
         compilation
             .facts

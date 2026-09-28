@@ -41,12 +41,7 @@ pub(super) fn project(
         &mut scopes,
         0,
     )?;
-    use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
-    let exposure = if machine.is_public || machine.supply_mode.is_boundary_declaration() {
-        AuthoredDeclarationSelectionExposure::PublicInterface
-    } else {
-        AuthoredDeclarationSelectionExposure::PrivateImplementation
-    };
+    let exposure = crate::capture::contracts::facts::callable_contract_exposure(machine);
     let (binders, static_parameters) = project_type_parameters(
         &prepared,
         compilation,

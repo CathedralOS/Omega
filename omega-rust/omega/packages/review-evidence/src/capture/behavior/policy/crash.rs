@@ -71,11 +71,7 @@ pub(crate) fn crash(
         data_symbol: None,
         lifetime_binders: &machine.lifetime_parameters,
         lifetime_substitutions: &[],
-        selection_exposure: if machine.is_public || machine.supply_mode.is_boundary_declaration() {
-            language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
-        } else {
-            language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
-        },
+        selection_exposure: crate::capture::contracts::facts::callable_contract_exposure(machine),
     };
     let published = crash_routes(
         compilation,
