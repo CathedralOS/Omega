@@ -200,6 +200,7 @@ pass/comptime/provider_boundary_range_endpoint_exit built 632ms exit:70
 pass/comptime/runtime_const_array_length_transitive_exit built 635ms exit:70
 pass/comptime/runtime_const_measured_recursion_exit rejected 92ms
 	machine `triangle` state `entry` argument `acc` stores a value not provably within its declared range: the range is a store-enforced invariant every read trusts (indexes, exact arithmetic), so the stored value must be proven to honor it. Narrow the value with a dominating guard, a dependent bound, or a requires coupling -- or widen/remove the range
+pass/comptime/selected_float_array_length_exit built 2154ms exit:70
 pass/concurrency/suspend_after_last_use_compile checked 203ms
 pass/constants/lexical_aggregate_values checked 210ms
 pass/constants/runtime_scoped_const_exit built 579ms exit:70

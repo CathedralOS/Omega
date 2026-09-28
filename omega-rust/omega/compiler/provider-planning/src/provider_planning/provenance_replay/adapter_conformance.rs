@@ -297,6 +297,75 @@ pub(crate) fn exact_row_for_schema_method<'plan>(
     Ok(*row)
 }
 
+/// Join one selected top-level requirement or legacy operator to its exact
+/// checked adapter. Absence means the declaration has no boundary schema or
+/// the selected realization is not a checked body; malformed authority rejects.
+/// Execution admissibility and source operands remain the interpreter's work.
+pub fn selected_requirement_checked_adapter<'typed>(
+    typed: &'typed TypedTrees,
+    plan: &ProviderPlan,
+    requirement: symbols::SymbolHandle,
+) -> Result<Option<&'typed typed_trees::machine::Machine>, diagnostics::Diagnostic> {
+    // Actual machines own their schemas, including token-spelled requirements.
+    // A signature view must not supply a fallback schema for an invalid machine.
+    let schema = if let Some(machine) = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == requirement)
+    {
+        crate::service_schema::from_typed_boundary_requirement(typed, machine)
+    } else {
+        typed
+            .operators()
+            .iter()
+            .find(|operator| operator.symbol == requirement)
+            .and_then(|operator| crate::service_schema::from_typed_operator(typed, operator))
+    };
+    let Some(schema) = schema else {
+        return Ok(None);
+    };
+    let [required_method] = schema.methods.as_slice() else {
+        return Err(diagnostics::Diagnostic::error(
+            "selected build-time requirement must retain exactly one schema method",
+        ));
+    };
+    let overload_identity = &required_method.requirement_identity;
+    if overload_identity.is_empty() {
+        return Err(diagnostics::Diagnostic::error(format!(
+            "selected build-time requirement for ProviderPlan `{}` has an empty canonical overload identity",
+            plan.name,
+        )));
+    }
+    let [method] = plan.schema.methods.as_slice() else {
+        return Err(diagnostics::Diagnostic::error(format!(
+            "selected build-time operator ProviderPlan `{}` must retain exactly one schema method",
+            plan.name,
+        )));
+    };
+    let [row] = plan.rows.as_slice() else {
+        return Err(diagnostics::Diagnostic::error(format!(
+            "selected build-time operator ProviderPlan `{}` must retain exactly one realization row",
+            plan.name,
+        )));
+    };
+    if plan.schema != schema || !plan.schema.row_binds_method(row, method) {
+        return Err(diagnostics::Diagnostic::error(format!(
+            "selected build-time operator ProviderPlan `{}` does not bind exact overload `{overload_identity}`",
+            plan.name,
+        )));
+    }
+    let ProviderBinding::CheckedAdapter { .. } = &row.binding else {
+        return Ok(None);
+    };
+    if plan.provider_type.is_empty() {
+        return Err(diagnostics::Diagnostic::error(format!(
+            "selected build-time operator ProviderPlan `{}` has no nominal provider type",
+            plan.name,
+        )));
+    }
+    exact_checked_adapter(typed, plan, row).map(Some)
+}
+
 pub fn exact_checked_adapter<'typed>(
     typed: &'typed TypedTrees,
     plan: &ProviderPlan,

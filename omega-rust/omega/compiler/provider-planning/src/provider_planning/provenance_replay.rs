@@ -15,10 +15,10 @@ mod specialization_rows;
 
 #[cfg(test)]
 pub(crate) use adapter_conformance::exact_canonical_provider_schema;
-pub use adapter_conformance::exact_checked_adapter;
 pub(crate) use adapter_conformance::{
     exact_authored_invocations, exact_checked_adapter_invocations, exact_row_for_schema_method,
 };
+pub use adapter_conformance::{exact_checked_adapter, selected_requirement_checked_adapter};
 pub(crate) use candidate_validation::validate_derived_provider_plan_provenance;
 pub use candidate_validation::{
     validate_derived_provider_plan_candidates, validate_provider_plan_candidates,
