@@ -6,8 +6,8 @@
 //!
 //! `boundary_signatures.rs` models and collects the signatures,
 //! `plan_computation.rs` evaluates the policy into plans,
-//! `callback_bindings.rs` binds and closes callbacks, `value_shapes.rs`
-//! derives value shapes and `build_time_decoding.rs` decodes the build-time
+//! `callback_bindings.rs` binds and closes callbacks; backend `layout` constructs
+//! their native value graphs and `build_time_decoding.rs` decodes build-time
 //! values. `callback_layout_catalog` associates backend-owned callback layouts
 //! with exact boundary parameters and demands; `native_parameters` and
 //! `opaque_representations` retain their respective signature associations.
@@ -21,7 +21,6 @@ mod opaque_representations;
 mod plan_computation;
 #[cfg(test)]
 mod tests;
-mod value_shapes;
 
 pub use boundary_signatures::{
     BoundaryCallbackBinder, BoundaryDirectCallbackParameter, BoundaryNativeParameter,
@@ -41,4 +40,3 @@ pub use plan_computation::{
     compute_boundary_calling_plans, evaluate_calling_policy_plan,
     evaluate_compatibility_boundary_entry_plan, materialized_boundary_signature_from_abi,
 };
-pub use value_shapes::selected_program_storage_source_extent_value_layout;

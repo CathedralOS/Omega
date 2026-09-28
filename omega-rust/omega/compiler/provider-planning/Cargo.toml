@@ -14,6 +14,7 @@ installed-writer = [
     "dep:executable-installation",
     "dep:external-roots",
     "dep:post-handoff-writer-plan",
+    "dep:program-entry-plan",
     "program-entry-plan/installed-writer",
 ]
 
@@ -27,7 +28,7 @@ external-roots = { path = "../../backend/runtime/external-roots", optional = tru
 layout = { path = "../../backend/layout" }
 package-compilation = { path = "../package-compilation" }
 post-handoff-writer-plan = { path = "../../backend/plans/post-handoff-writer-plan", optional = true }
-program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
+program-entry-plan = { path = "../../backend/plans/program-entry-plan", optional = true }
 representation-planning = { path = "../representation-planning" }
 target = { path = "../../backend/target" }
 task-plans = { path = "../../backend/runtime/task-plans" }

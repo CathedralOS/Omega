@@ -7,6 +7,9 @@
 //! program-storage schema it also retains the exact address-free `Extent`
 //! record graph needed to distinguish its fields from a size-only lookalike.
 
+mod extent_layout;
+pub use extent_layout::selected_program_storage_source_extent_value_layout;
+
 use crate::ProgramStorageEntryRootRole;
 use sha2::{Digest, Sha256};
 

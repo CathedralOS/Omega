@@ -12,9 +12,10 @@ use calling_conventions::{
 
 pub(crate) const PARAMETER_CAPACITY: usize = 32;
 
-pub(crate) const VALUE_SHAPE_CAPACITY: usize = 256;
-
-pub(crate) const VALUE_FIELD_CAPACITY: usize = 256;
+pub(crate) use layout::{
+    BOUNDARY_VALUE_FIELD_CAPACITY as VALUE_FIELD_CAPACITY,
+    BOUNDARY_VALUE_SHAPE_CAPACITY as VALUE_SHAPE_CAPACITY,
+};
 
 const LOCATION_CAPACITY: usize = 16;
 
@@ -552,4 +553,11 @@ fn u16_value(value: &BuildTimeValue, context: &str) -> Result<u16, String> {
 fn u32_value(value: &BuildTimeValue, context: &str) -> Result<u32, String> {
     let value = uint(value, context)?;
     u32::try_from(value).map_err(|_| format!("{context} {value} is outside u32 range"))
+}
+
+pub(crate) fn case(variant: &str, payload: Vec<(String, BuildTimeValue)>) -> BuildTimeValue {
+    BuildTimeValue::Case {
+        variant: variant.to_owned(),
+        payload,
+    }
 }
