@@ -1,7 +1,7 @@
 //! Admit and execute the build machine, then type its generated-source continuation.
 
-use super::CheckedChildExecution;
 use artifacts::compile_timings::CompileTimings;
+use compilation_products::CheckedExecutionRequest;
 use diagnostics::Diagnostic;
 use package_compilation::BuildSourceCustody;
 use package_compilation::PackageCompilationInputs;
@@ -44,11 +44,11 @@ pub(crate) struct TypedFrontier {
 /// declaration authority and Build effects are admitted for this activation.
 pub(crate) fn evaluate_build_and_continue(
     root_path: &Path,
-    child: CheckedChildExecution<'_>,
+    child: CheckedExecutionRequest<'_>,
     frontier: TypedFrontier,
     timings: &mut CompileTimings,
 ) -> Result<(BuiltCheckedProgram, BuildSourceCustody), Vec<Diagnostic>> {
-    let CheckedChildExecution {
+    let CheckedExecutionRequest {
         selected_target_profile,
         build_execution_profile,
         package_inputs,

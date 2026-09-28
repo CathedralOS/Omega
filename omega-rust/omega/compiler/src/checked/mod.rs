@@ -14,7 +14,6 @@
 
 mod checking;
 
-pub(crate) use checking::CheckedChildExecution;
 pub(crate) use checking::build_continuation::{BuiltCheckedProgram, evaluate_build_and_continue};
 pub use checking::compile_thread::run_on_compile_thread;
 pub(crate) use checking::execution_settlement::check_selected_execution;

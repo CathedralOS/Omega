@@ -14,7 +14,9 @@ use terminal_psi_to_abstract_operations::provider_admission::{
     TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy, current_terminal_authority_policy,
 };
 
+mod checked;
 mod native;
+pub use checked::CheckedExecutionRequest;
 pub mod options;
 pub use native::{
     NativeProductRequest, NativeRealizationRequest, RequestedNativeArtifactError,

@@ -43,8 +43,9 @@ pub use compilation_products::{CompileOutputKind, CompileReport};
 pub use compile_outcomes::{CompileOutcomes, CompileTargetOutcome};
 pub use compile_request::options::CompileOptions;
 pub use compile_request::{
-    CompileRequest, NativeProductRequest, NativeRealizationRequest, RequestedCompileProduct,
-    RequestedNativeArtifactError, RetainedNativeRealizationRequest, TargetCompileConfiguration,
+    CheckedExecutionRequest, CompileRequest, NativeProductRequest, NativeRealizationRequest,
+    RequestedCompileProduct, RequestedNativeArtifactError, RetainedNativeRealizationRequest,
+    TargetCompileConfiguration,
 };
 pub use evaluated_build::{
     BuildConfig, ComputedBuildConfig, IndependentComponentDiscovery, IndependentComponentSelection,

@@ -526,7 +526,8 @@ pub(super) fn compile_dependency_closure(
                         key.identity(),
                         PackageCheckedContext::new(purpose, checked_target, execution_profile),
                         closure.dependency_path(&key),
-                    )) as Box<dyn compiler::RestrictedBuildGrants>
+                    ))
+                        as Box<dyn package_compilation::build_execution::RestrictedBuildGrants>
                 }),
                 collect_timings: preparation.collect_timings,
                 // A discovery pass admits an entry whose `Service` fields still
@@ -606,7 +607,9 @@ pub(super) fn compile_dependency_closure(
                                 ),
                                 closure.dependency_path(&key),
                             ))
-                                as Box<dyn compiler::RestrictedBuildGrants>
+                                as Box<
+                                    dyn package_compilation::build_execution::RestrictedBuildGrants,
+                                >
                         }),
                         collect_timings: preparation.collect_timings,
                         retain_prepared_source: true,
