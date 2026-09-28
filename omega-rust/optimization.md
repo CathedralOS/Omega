@@ -84,13 +84,16 @@ checks the retained selection, then performs instruction selection, selected
 X-to-X execution, allocation, machine construction, and canonical frame
 realization once. Mandatory lowering is not an optional optimization.
 
-[Phase admission](omega/compiler/src/native/native_pipeline/physical_pipeline/phase_selections.rs)
-rejects selections without an implemented current-data stage before execution.
+The entrance rejects selections without an implemented current-data stage
+before execution; it does not duplicate stage-owned rule admission.
 In particular, retained selected-lowering catalog entries do not imply native
 publication support, and retired post-allocation rewrite names cannot select an
-alternate emitter. Allocation recovery and layout selection enter their owning
-catalogs. The exact executable catalogs, not historical matrices, determine
-applicability and composition.
+alternate emitter. [Selected optimization](omega/pipeline/04_selected-instructions-to-selected-instructions/src/selected_optimization.rs),
+[allocation](omega/pipeline/05_selected-instructions-to-register-homes/src/register_allocation.rs),
+and [layout optimization](omega/pipeline/09_resolved-layout-to-resolved-layout/src/phase.rs)
+admit their own exact catalog selections when executing their phase. Their errors
+return through the stage result. The exact executable catalogs, not historical
+matrices, determine applicability and composition.
 
 The current selected program and allocation are separate from the evidence of
 how they were obtained. Downstream construction consumes those current facts;

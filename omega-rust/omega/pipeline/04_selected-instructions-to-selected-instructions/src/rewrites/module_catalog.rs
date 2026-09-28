@@ -55,11 +55,10 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
     },
     RewriteModuleRow {
         module: "allocation_recovery",
-        // `selected_allocation_recovery_rule` is consulted during native
-        // phase selection and its `fixed_view_copy` materialization runs
-        // under the routed `fixed_view` stage entrances.
+        // Register allocation selects recovery through this catalog before
+        // entering the rule's materialization and replay sequence.
         route: RewriteModuleRoute::Routed {
-            caller: "omega-rust/omega/compiler/src/native/native_pipeline/physical_pipeline/phase_selections.rs",
+            caller: "omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/src/register_allocation.rs",
             evidence: "selected_allocation_recovery_rule",
         },
     },
