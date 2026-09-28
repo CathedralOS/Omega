@@ -459,6 +459,8 @@ mod tests {
             supply_mode: Default::default(),
             target: None,
             target_symbol_name: Default::default(),
+            authored_target: None,
+            target_family: SymbolHandle::invalid(),
             body_is_present: true,
             has_structural_type_equations: false,
             structural_type_equations_pending: false,

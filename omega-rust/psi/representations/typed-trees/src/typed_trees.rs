@@ -131,12 +131,13 @@ pub struct TypedTrees {
     pub machine_specializations: Vec<MachineSpecialization>,
     /// Product-scope target-machine families: one record per authored
     /// contract name implemented under target heads, keying each target's
-    /// body. The compiler coordinator populates it from the retained
-    /// target-machine roster after typing and before the per-target swap and
-    /// check run; later stages carry it so realization can select a family
-    /// member without the frontend observing the realized target. Empty for
-    /// programs without product-scope target-scoped declarations and for
-    /// producers that never admit the roster.
+    /// body. Typing produces it from resolved family handles before the
+    /// per-target swap and check run. Checking prunes its member list with
+    /// the live bodies; portable retention through Terminal Psi remains
+    /// separate work. Empty for programs without admitted product-scope
+    /// target-scoped declarations.
+    /// Seeded typing preserves the base prefix and appends new families in
+    /// name order within the extension cohort.
     pub target_machine_families: Vec<crate::machine::TargetMachineFamily>,
     /// Canonical calling-policy identities evaluated for concrete boundary
     /// requirements. The key is semantic (boundary trait + requirement

@@ -120,6 +120,8 @@ pub enum ItemSnapshot {
         is_public: bool,
         bodyless: bool,
         target: Option<IdentifierSnapshot>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        authored_target: Option<IdentifierSnapshot>,
         boundary: bool,
         is_top_level_boundary_requirement: bool,
         #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -662,6 +664,7 @@ pub(crate) fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnap
             is_public: value.is_public,
             bodyless: value.bodyless,
             target: value.target.as_ref().map(snapshot_identifier),
+            authored_target: value.authored_target.as_ref().map(snapshot_identifier),
             boundary: value.boundary,
             is_top_level_boundary_requirement: value.is_top_level_boundary_requirement,
             lifetime_parameters: value

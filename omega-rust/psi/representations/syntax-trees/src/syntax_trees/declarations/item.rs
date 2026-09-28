@@ -784,6 +784,9 @@ pub struct Machine {
     /// loud edges (duplicate / zero implementations for the selected target);
     /// a machine still carrying `Some` at resolution is inert.
     pub target: Option<Identifier>,
+    /// The authored target head, retained when admission clears `target` on
+    /// the canonical body. Resolution uses it to retain family membership.
+    pub authored_target: Option<Identifier>,
     /// The EXPORTED-CALLABLE marking (`boundary machine ...`): this machine
     /// is a callable surface the platform (or a foreign caller) invokes; its
     /// parameters are the boundary-trusted shape over the arrival bytes.

@@ -235,6 +235,11 @@ pub fn lower_seeded_extension(
     {
         return Err((retained, SeededContinuationError::Lowering(error)));
     }
+    if let Err(error) =
+        super::target_machine_families::append(&source, &mut lowerer.typed_trees, machine_frontier)
+    {
+        return Err((retained, SeededContinuationError::Lowering(error)));
+    }
     if !lowerer
         .typed_trees
         .authored_declaration_selections()
@@ -313,6 +318,9 @@ pub fn retained_typed_base_is_exact_prefix(base: &TypedTrees, candidate: &TypedT
         && candidate
             .machine_specializations
             .starts_with(&base.machine_specializations)
+        && candidate
+            .target_machine_families
+            .starts_with(&base.target_machine_families)
         && candidate
             .boundary_calling_plans
             .starts_with(&base.boundary_calling_plans)

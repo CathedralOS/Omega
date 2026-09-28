@@ -26,7 +26,8 @@
 //!    forwarding's statement index past the proof-output calls erased before
 //!    it. It then runs domain constraint normalization, proof membership
 //!    interning, qualification casts, fixed byte array literals, range
-//!    argument validation, and provider default finalization.
+//!    argument validation, provider default finalization, and target-family
+//!    publication from resolved declaration handles.
 //!
 //! Children: `name` converts resolved names to typed identifiers, `progress`
 //! holds `normalize_progress_premises`, and `seeded_continuation` is the
@@ -48,6 +49,7 @@ use typed_trees::TypedTrees;
 pub(crate) mod name;
 pub(crate) mod progress;
 pub(crate) mod seeded_continuation;
+mod target_machine_families;
 
 pub fn lower_symbol_resolved_trees(
     symbol_resolved_trees: &SymbolResolvedTrees,
@@ -404,8 +406,7 @@ impl Lowerer<'_> {
             wire_encode_obligations: _,
             wire_schema_plans: _,
             machine_specializations: _,
-            // The family roster is a coordinator-installed record filled
-            // after typing, so this stage's output always carries it empty.
+            // Family records are produced after all typed bodies settle.
             target_machine_families: _,
             boundary_calling_plans: _,
             fused_service_erasures: _,
@@ -454,6 +455,7 @@ impl Lowerer<'_> {
         )?;
         crate::type_reference::validate_range_arguments(self.source_trees, &trees)?;
         crate::declarations::provider_defaults::finalize_provider_default_calls(&mut trees)?;
+        target_machine_families::append(self.source_trees, &mut trees, 0)?;
         Ok(trees)
     }
 }
