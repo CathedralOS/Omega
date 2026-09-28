@@ -81,7 +81,8 @@ pub struct PreparedBuildMachineProgram {
 /// A raw [`SymbolHandle`] is local to an arena and can have the same numeric
 /// representation in another program. This token couples that exact handle to
 /// the preparation that admitted it, so execution can reject cross-program
-/// substitution before entering the interpreter.
+/// substitution before entering the interpreter. Its reachable static applications
+/// are closed; operational contracts and host grants remain caller obligations.
 #[derive(Clone)]
 pub struct PreparedBuildMachineEntry {
     program_identity: Arc<PreparedBuildMachineProgramIdentity>,
@@ -118,20 +119,30 @@ impl PreparedBuildMachineProgram {
         &self.typed
     }
 
-    /// Bind one exact machine declaration to this prepared program. The
-    /// lookup is symbol-only and never falls back to a matching name.
+    /// Bind one exact machine with closed static applications to this immutable
+    /// prepared program. The lookup never falls back to a matching name. No
+    /// execution mode or host grant can admit an unfinished specialization.
     pub fn entry(&self, symbol: SymbolHandle) -> Result<PreparedBuildMachineEntry, String> {
-        self.typed
+        if !self
+            .typed
             .machines()
             .iter()
             .any(|machine| machine.symbol == symbol)
-            .then(|| PreparedBuildMachineEntry {
-                program_identity: Arc::clone(&self.identity),
-                symbol,
-            })
-            .ok_or_else(|| {
-                format!("prepared build program contains no machine with exact symbol {symbol:?}")
-            })
+        {
+            return Err(format!(
+                "prepared build program contains no machine with exact symbol {symbol:?}"
+            ));
+        }
+        if self.typed.machines().iter().any(|machine| {
+            machine.structural_type_equations_pending || !machine.type_parameters.is_empty()
+        }) {
+            super::admission::BuildTimeAdmissionPlan::infer(&self.typed, None)
+                .require_closed_static_applications(&self.typed, symbol)?;
+        }
+        Ok(PreparedBuildMachineEntry {
+            program_identity: Arc::clone(&self.identity),
+            symbol,
+        })
     }
 
     fn validate_entry(
@@ -143,32 +154,17 @@ impl PreparedBuildMachineProgram {
                 "prepared build-machine entry belongs to a different prepared program".to_owned(),
             ));
         }
-        self.typed
-            .machines()
-            .iter()
-            .any(|machine| machine.symbol == entry.symbol)
-            .then_some(entry.symbol)
-            .ok_or_else(|| {
-                BuildMachineEvaluationError::Entry(format!(
-                    "prepared build-machine entry's exact symbol {:?} is absent from its program",
-                    entry.symbol
-                ))
-            })
+        // Entry construction checked membership and static closure. The prepared program
+        // is immutable, so matching its identity preserves that check without
+        // searching the machine roster again at execution.
+        Ok(entry.symbol)
     }
 }
 
-/// The build machine one evaluation runs: an entry the prepared program
-/// already validated, or a machine named at the call.
-#[derive(Clone, Copy)]
-pub enum PreparedBuildMachine<'a> {
-    Entry(&'a PreparedBuildMachineEntry),
-    Name(&'a str),
-}
-
-/// One measured build-machine invocation: which machine, its arguments, the
+/// One measured build-machine invocation: the exact prepared entry, its arguments, the
 /// pure or granted execution mode, and the sponsor that pays for its custody.
 pub struct BuildMachineInvocation<'a> {
-    pub machine: PreparedBuildMachine<'a>,
+    pub entry: &'a PreparedBuildMachineEntry,
     pub arguments: Vec<BuildTimeValue>,
     pub mode: BuildMachineExecutionMode,
     pub sponsor: Option<&'a BuildEvaluationSponsor>,
@@ -182,38 +178,9 @@ pub fn evaluate_build_machine_measured(
     program: &PreparedBuildMachineProgram,
     invocation: BuildMachineInvocation<'_>,
 ) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, BuildMachineEvaluationError> {
-    let entry = match invocation.machine {
-        PreparedBuildMachine::Entry(entry) => {
-            checked_interpreter::BuildMachineEntry::Symbol(program.validate_entry(entry)?)
-        }
-        PreparedBuildMachine::Name(machine_name) => {
-            checked_interpreter::BuildMachineEntry::Name(machine_name)
-        }
-    };
-    // The public prepared execution service also accepts calls whose caller
-    // supplied its own effect grant. Static tuple/equation discharge is
-    // independent of that grant and must precede either interpreter mode.
-    if program.typed().machines().iter().any(|machine| {
-        machine.structural_type_equations_pending || !machine.type_parameters.is_empty()
-    }) {
-        let symbol = match invocation.machine {
-            PreparedBuildMachine::Entry(entry) => entry.symbol(),
-            PreparedBuildMachine::Name(name) => program
-                .typed()
-                .realized_machine_named(name)
-                .map(|machine| machine.symbol)
-                .ok_or_else(|| {
-                    BuildMachineEvaluationError::Entry(format!(
-                        "prepared build program contains no machine `{name}`"
-                    ))
-                })?,
-        };
-        super::admission::BuildTimeAdmissionPlan::infer(program.typed(), None)
-            .require_closed_static_applications(program.typed(), symbol)
-            .map_err(BuildMachineEvaluationError::Entry)?;
-    }
+    let symbol = program.validate_entry(invocation.entry)?;
     let request = checked_interpreter::BuildMachineEvaluationRequest {
-        entry,
+        entry: checked_interpreter::BuildMachineEntry::Symbol(symbol),
         arguments: invocation.arguments,
         operators: &[],
         sponsor: invocation.sponsor,
