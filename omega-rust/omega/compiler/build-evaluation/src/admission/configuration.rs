@@ -1,9 +1,9 @@
 //! Concrete build intent and extraction from the evaluated Build value.
 
-use crate::admission::behavior_exclusions::AuthoredBehaviorExclusion;
 use crate::admission::component_assumptions::AuthoredComponentAssumptionAcceptance;
 use crate::{RootBinding, WireCompatibilityDemand, optimization};
 use build_time_evaluation::BuildTimeValue;
+use effects::AuthoredBehaviorExclusion;
 use optimization_core::OptimizationSelections;
 use provider_planning::ProviderSelection;
 use representation_planning::OpaqueRepresentationSelection;

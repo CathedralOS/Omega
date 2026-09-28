@@ -4,7 +4,6 @@
 //! configuration read back from the evaluated `Build` value.
 //! `admitted_build_program.rs` is the route that consults them.
 
-pub(crate) mod behavior_exclusions;
 pub(crate) mod component_assumptions;
 pub(crate) mod configuration;
 pub(crate) mod declarations;

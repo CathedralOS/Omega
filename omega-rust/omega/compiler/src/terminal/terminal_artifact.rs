@@ -13,7 +13,6 @@ use terminal_production::{
     TerminalProductionCustody, TerminalProductionStage, TerminalProductionTimings,
 };
 
-pub(crate) mod behavior_exclusions;
 pub(crate) mod composition_modes;
 
 /// Terminal production internally lowers, optimizes and publishes
@@ -190,8 +189,10 @@ fn produce_admitted_entry_artifact<C>(
             "{product_label} production retained no checked ProgramEntry receipt"
         ))]
     })?;
-    behavior_exclusions::verify_entry_behavior_exclusions(
+    trust_model::verify_entry_behavior_exclusions(
         checked,
+        checked.behavior_exclusions(),
+        checked.selected_provider_plans(),
         produced.unoptimized(),
         entry_machine_symbol,
     )?;
