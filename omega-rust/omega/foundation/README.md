@@ -11,11 +11,13 @@ compiler phases and product subsystems:
   identities shared across lowering and realization.
 - [optimization-core](optimization-core/src/lib.rs): phase selections,
   optimization contracts, identities and canonical evidence vocabulary.
+- [artifacts](artifacts/README.md): per-file output writing and opt-in
+  allocation/timing measurements, without semantic records or backend dependencies.
 
 Dependencies point to host libraries and Psi foundations, never to program IRs,
 producing stages or product coordinators. Source storage, arenas, symbols,
 numerics and target-neutral optimization selections remain in
 [Psi foundation](../../psi/foundation).
 
-Compiler artifact records and output writing belong to the independent
-[artifacts package](../compiler/artifacts/README.md) under compiler ownership.
+Semantic trust records and their validation belong to
+[realization admission](../realization/trust-model/README.md).

@@ -103,18 +103,7 @@ dependencies = [
 name = "artifacts"
 version = "0.1.0"
 dependencies = [
- "calling-conventions",
- "checked-trees",
  "diagnostics",
- "effects",
- "executable-installation",
- "extents",
- "external-roots",
- "layout-plans",
- "semantic-vocabulary",
- "target",
- "terminal-psi",
- "typed-trees",
 ]
 
 [[package]]
@@ -2286,7 +2275,6 @@ dependencies = [
 name = "trust-ledger"
 version = "0.1.0"
 dependencies = [
- "artifacts",
  "compiler",
  "diagnostics",
  "effects",
@@ -2300,7 +2288,6 @@ dependencies = [
 name = "trust-model"
 version = "0.1.0"
 dependencies = [
- "artifacts",
  "checked-trees",
  "diagnostics",
  "effects",

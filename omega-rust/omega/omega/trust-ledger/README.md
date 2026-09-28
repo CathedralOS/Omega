@@ -2,7 +2,7 @@
 
 [admission_policy.rs](src/admission_policy.rs) owns reading and explicitly
 replacing `omega.admissions`, including format validation.
-The independent [trust-model](../../compiler/trust-model/README.md) owns filesystem-free
+The independent [trust-model](../../realization/trust-model/README.md) owns filesystem-free
 obligation/report construction. This is separate from the
 [package lock](../../../../wiki/spec/packages/locks.md), which records source
 pins and project package acceptance.

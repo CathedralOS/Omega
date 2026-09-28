@@ -1,5 +1,10 @@
 # Trust admission and report reconstruction
 
+This realization package owns the trust obligations of a checked source program
+and its selected providers. It consumes Psi judgments and backend provider
+evidence; it does not read project policy or depend on compiler orchestration.
+Checked-tree inputs remain a transitional boundary, not a Terminal-only API.
+
 Start at [admission_settlement.rs](src/admission_settlement.rs).
 `reconstruct_trust_settlement` reconstructs obligations, compares the supplied
 admissions, then reconstructs and validates the trust report. Its result
@@ -23,6 +28,8 @@ The other owners are meaningful siblings:
   subject digests, and identity comparison. Compact report identities are not
   admission authority.
 - [trust_report.rs](src/trust_report/mod.rs) reconstructs diagnostic report evidence.
+  Its [records](src/trust_report/records.rs) retain and validate the exact report
+  vocabulary. They belong with admission, not host output writing.
 - Backend [provider_grants.rs](../../backend/plans/provider-evidence/src/provider_grants.rs)
   resolves selected-provider grants independently of report reconstruction;
   [accepted_machine_grants.rs](src/accepted_machine_grants.rs) resolves the separate

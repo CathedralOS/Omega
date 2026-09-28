@@ -11,7 +11,7 @@ path = "src/lib.rs"
 [dependencies]
 backend-plan = { path = "../../backend/plans/backend-plan" }
 representation-planning = { path = "../../../psi/checking/representation-planning" }
-trust-model = { path = "../../compiler/trust-model" }
+trust-model = { path = "../trust-model" }
 task-plans = { path = "../../backend/runtime/task-plans" }
 effects = { path = "../../backend/plans/provider-evidence" }
 package-compilation = { path = "../../compiler/package-compilation" }

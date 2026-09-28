@@ -43,7 +43,7 @@ fn planning_target_field() -> String {
     }
 }
 
-fn trust_report(checked: &CheckedCompilation) -> artifacts::TrustReport {
+fn trust_report(checked: &CheckedCompilation) -> trust_model::TrustReport {
     trust_model::reconstruct_trust_report(
         checked.terminal_production_trees(),
         checked.root_grants(),
@@ -56,7 +56,7 @@ fn trust_report(checked: &CheckedCompilation) -> artifacts::TrustReport {
 
 /// Checks the project's root and reconstructs its trust report in one step,
 /// for the tests that only ever compiled to reach the report.
-fn checked_trust_report(project: &std::path::Path, expectation: &str) -> artifacts::TrustReport {
+fn checked_trust_report(project: &std::path::Path, expectation: &str) -> trust_model::TrustReport {
     let checked = compile_to_checked(CheckedCompileRequest::new(&project.join("main.omg"), None))
         .unwrap_or_else(|diagnostics| panic!("{expectation}: {diagnostics:?}"));
     trust_report(&checked)
@@ -64,7 +64,7 @@ fn checked_trust_report(project: &std::path::Path, expectation: &str) -> artifac
 
 /// Commitment names in row order, for assertion messages that used to print the
 /// whole rendered document.
-fn commitments(report: &artifacts::TrustReport) -> Vec<&str> {
+fn commitments(report: &trust_model::TrustReport) -> Vec<&str> {
     report
         .rows
         .iter()
@@ -74,10 +74,10 @@ fn commitments(report: &artifacts::TrustReport) -> Vec<&str> {
 
 /// One provider-requirement row selected by plan name and requirement method.
 fn requirement_row<'report>(
-    report: &'report artifacts::TrustReport,
+    report: &'report trust_model::TrustReport,
     provider_plan: &str,
     method: &str,
-) -> &'report artifacts::TrustProviderRequirementRow {
+) -> &'report trust_model::TrustProviderRequirementRow {
     report
         .provider_requirements
         .iter()
@@ -335,9 +335,9 @@ machine Main::exercise(&mut self) {}
     assert!(requirement.terminates_guarantee);
     assert_eq!(
         requirement.termination_premises,
-        vec![artifacts::TrustProgressPremiseRow {
+        vec![trust_model::TrustProgressPremiseRow {
             profile: "SchedulerHandle::WeakFair".to_owned(),
-            subject: artifacts::TrustProgressPremiseSubject::Parameter(0),
+            subject: trust_model::TrustProgressPremiseSubject::Parameter(0),
             subject_projections: Vec::new(),
         }]
     );
@@ -670,7 +670,7 @@ machine Main::exercise(&mut self) {}
     };
     let first_requirement = requirement("FirstProvider");
     let second_requirement = requirement("SecondProvider");
-    let adapter = |provider: &str| artifacts::TrustProviderRealization::CheckedAdapter {
+    let adapter = |provider: &str| trust_model::TrustProviderRealization::CheckedAdapter {
         machine_identity: format!(
             "named-callable(path({provider}::choose),parameters(),result-dispatch())"
         ),

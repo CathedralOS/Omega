@@ -6,7 +6,7 @@ use compiler::{CheckedCompilation, CheckedCompileRequest, CompileOptions, compil
 /// `admit_checked_compilation` does. The fact each one is about is unchanged;
 /// only its carrier is, and the rows are the structure the renderer used to
 /// print.
-fn trust_report(checked: &CheckedCompilation) -> artifacts::TrustReport {
+fn trust_report(checked: &CheckedCompilation) -> trust_model::TrustReport {
     trust_model::reconstruct_trust_report(
         checked.terminal_production_trees(),
         checked.root_grants(),
@@ -19,7 +19,7 @@ fn trust_report(checked: &CheckedCompilation) -> artifacts::TrustReport {
 
 /// Commitment names in row order, for assertion messages that used to print the
 /// whole rendered document.
-fn commitments(report: &artifacts::TrustReport) -> Vec<&str> {
+fn commitments(report: &trust_model::TrustReport) -> Vec<&str> {
     report
         .rows
         .iter()
@@ -218,9 +218,9 @@ machine Main::exercise(&mut self) {}
     assert_eq!(accepted_row.machine_terminates_guarantee, Some(true));
     assert_eq!(
         accepted_row.machine_crash_routes,
-        Some(vec![artifacts::TrustCrashRouteBucket {
-            cause: artifacts::TrustCrashCause::Abort,
-            alternative_guards: vec![artifacts::TrustCrashRouteGuard::Truth],
+        Some(vec![trust_model::TrustCrashRouteBucket {
+            cause: trust_model::TrustCrashCause::Abort,
+            alternative_guards: vec![trust_model::TrustCrashRouteGuard::Truth],
         }])
     );
 

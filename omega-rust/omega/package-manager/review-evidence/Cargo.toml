@@ -20,7 +20,7 @@ representation-planning = { path = "../../../psi/checking/representation-plannin
 selected-dispatch = { path = "../../realization/selected-dispatch" }
 effects = { path = "../../backend/plans/provider-evidence" }
 target = { path = "../../backend/target" }
-trust-model = { path = "../../compiler/trust-model" }
+trust-model = { path = "../../realization/trust-model" }
 arena = { path = "../../../psi/foundation/arena" }
 checked-trees = { path = "../../../psi/representations/checked-trees" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }

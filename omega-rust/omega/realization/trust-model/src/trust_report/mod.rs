@@ -5,12 +5,14 @@
 //! dev-active provenance; the latter carries a standing warning. Domains are
 //! semantic declarations, not grantable trust-report subjects.
 
-use artifacts::{
+use diagnostics::Diagnostic;
+pub use records::{
     TrustCrashCause, TrustCrashRouteBucket, TrustCrashRouteGuard, TrustGenericAcceptedInstanceRow,
     TrustProgressPremiseRow, TrustProgressPremiseSubject, TrustProviderRealization,
     TrustProviderRequirementRow, TrustQualificationRow, TrustReport, TrustReportRow,
 };
-use diagnostics::Diagnostic;
+
+mod records;
 
 pub fn reconstruct_trust_report(
     checked: &checked_trees::CheckedTrees,
