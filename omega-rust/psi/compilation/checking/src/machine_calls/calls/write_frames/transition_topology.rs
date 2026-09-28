@@ -41,6 +41,7 @@ pub(super) fn named_transition_subgraph_is_acyclic(
             };
             for edge in [transition.target, transition.continuation] {
                 if !edge.is_valid()
+                    || super::terminal_calls::target(program, machine, edge).is_valid()
                     || !matches!(
                         program.statement_table.transition_target(edge),
                         TransitionTargetNode::Named { .. }
@@ -62,6 +63,9 @@ pub(super) fn named_transition_subgraph_is_acyclic(
         true
     }
 
+    if super::terminal_calls::target(program, machine, target).is_valid() {
+        return true;
+    }
     let Some(target) = named_transition_target_state(program, machine, source, target) else {
         return false;
     };
@@ -177,6 +181,9 @@ pub(super) fn reachable_cycle_edges_can_permute_write_parameters(
             };
             for edge in [transition.target, transition.continuation] {
                 if !edge.is_valid() {
+                    continue;
+                }
+                if super::terminal_calls::target(program, machine, edge).is_valid() {
                     continue;
                 }
                 let TransitionTargetNode::Named { arguments, .. } =

@@ -25,6 +25,62 @@ mod value_root_stores;
 mod where_field_stores;
 
 #[test]
+fn array_stores_before_terminal_machine_call_keep_a_complete_write_frame() {
+    let checked = checked_program(
+        r#"
+        boundary trait Output { machine observe(value: i32) reaches Output; }
+        data Main { arr: [i32; 3]; }
+        machine Main::main(&mut self) {
+            self.arr[0] = 10;
+            self.arr[1] = 20;
+            self.arr[2] = 30;
+            transition { _ -> self.pick(self.arr, 1) }
+        }
+        machine Main::pick(&mut self, arr: [i32; 3], k: u64) reaches Output
+        requires k <= 2 {
+            let value: i32 = arr[k];
+            transition value == 20 {
+                true -> yes()
+                false -> no()
+            }
+            state yes(&mut self) { Output::observe(1); }
+            state no(&mut self) { Output::observe(2); }
+        }
+    "#,
+    );
+    let program = &checked.typed;
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::main")
+        .unwrap();
+    let state = &program.machine_states(machine)[0];
+    let recorded = &checked
+        .facts
+        .mutation
+        .for_machine(machine.symbol)
+        .unwrap()
+        .state_write_frames[0]
+        .frame;
+    assert!(recorded.complete_paths().is_some(), "{recorded:?}");
+    assert!(
+        frame::matches(program, machine, state, recorded, None),
+        "{recorded:?}"
+    );
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter()
+            .any(|plan| plan.machine == machine.symbol),
+        "array stores and terminal invocation must form one executable Unit plan: {:?}",
+        checked.facts.flow.terminal_unit_effects.omissions
+    );
+}
+
+#[test]
 fn array_byte_fields_do_not_admit_stored_borrows_or_nominal_drop() {
     for extra in ["view: &[u8];", "reference: &i32;", ""] {
         let drop = if extra.is_empty() {

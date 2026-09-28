@@ -84,14 +84,34 @@ pub(crate) fn authored_postorder(
             pending.push((*expression, true, None));
             (false, *expression)
         }
+        StatementNode::Transition(transition)
+            if transition.guard == TransitionGuardNode::Always
+                && matches!(
+                    checked.statement_table.transition_target(transition.target),
+                    TransitionTargetNode::Named { .. }
+                ) =>
+        {
+            let (_, arguments) =
+                super::named_terminal_arguments(checked, caller_state, statement_index)?;
+            pending.extend(
+                arguments
+                    .iter()
+                    .rev()
+                    .map(|argument| (*argument, true, None)),
+            );
+            // The statement itself owns preorder zero. Operand calls execute
+            // first but retain their captured ordinals starting at one.
+            next_ordinal = 1;
+            (true, ExpressionHandle::invalid())
+        }
         StatementNode::Transition(transition) => {
             // Authored call order inside a transition runs the guard, then
             // the target, then the continuation — the order the borrow
             // collection numbers the same statement's calls. `pending` pops
-            // from the end, so seeds push in reverse. A named target is a
-            // transfer destination, not an authored value expression; the
-            // guarded-return route declines those arms before emission, so a
-            // call coordinate landing here can only name a `Value` arm.
+            // from the end, so seeds push in reverse. Unconditional named
+            // calls are handled above. The guarded-return route still
+            // declines named arms; a coordinate reaching this branch names
+            // a guard or a `Value` arm, never a fabricated call expression.
             let mut seeds = Vec::new();
             if let TransitionGuardNode::When(guard) = transition.guard {
                 seeds.push((guard, true, None));

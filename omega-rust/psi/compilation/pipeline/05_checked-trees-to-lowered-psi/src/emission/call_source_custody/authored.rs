@@ -25,6 +25,98 @@ pub(crate) struct AuthoredCall {
     pub target_state: SymbolHandle,
 }
 
+#[cfg(test)]
+mod named_terminal_tests {
+    use super::*;
+
+    #[test]
+    fn named_terminal_call_retains_target_and_operand_coordinates() {
+        let checked = crate::front_end::checked_program(
+            r#"
+            data Counter { value: i32; }
+            machine first(left: i32, right: i32) -> i32 { left }
+            machine Counter::finish(&mut self, value: i32) { self.value = value; }
+            machine Counter::main(&mut self) {
+                self.value = 4;
+                transition { _ -> self.finish(first(1, 2)) }
+            }
+        "#,
+        );
+        let machine = checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Counter::main")
+            .unwrap();
+        let state = checked.typed.machine_states(machine)[0].symbol;
+        let coordinate = CheckedUnitCallCoordinate {
+            statement_index: 1,
+            call_ordinal: 0,
+        };
+        let outer = locate_source(&checked, state, coordinate).expect("named outer call");
+        let nested = locate_source(
+            &checked,
+            state,
+            CheckedUnitCallCoordinate {
+                call_ordinal: 1,
+                ..coordinate
+            },
+        )
+        .expect("operand keeps preorder one");
+        assert_ne!(outer.target_state, nested.target_state);
+        assert_eq!(outer.scalar_arguments.len(), 1);
+        assert_eq!(nested.scalar_arguments.len(), 2);
+        assert_eq!(
+            nested.source_site,
+            Some(NominalMachineUseSite::Expression(
+                outer.scalar_arguments[0].0
+            ))
+        );
+        for forged in [
+            CheckedUnitCallCoordinate {
+                statement_index: 0,
+                ..coordinate
+            },
+            CheckedUnitCallCoordinate {
+                call_ordinal: 2,
+                ..coordinate
+            },
+        ] {
+            assert!(locate_source(&checked, state, forged).is_err());
+        }
+    }
+
+    #[test]
+    fn internal_transfer_cannot_be_replayed_as_a_named_machine_call() {
+        let checked = crate::front_end::checked_program(
+            r#"
+            machine main() {
+                transition { _ -> done() }
+                state done() {}
+            }
+        "#,
+        );
+        let machine = checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "main")
+            .unwrap();
+        let state = checked.typed.machine_states(machine)[0].symbol;
+        assert!(
+            locate_source(
+                &checked,
+                state,
+                CheckedUnitCallCoordinate {
+                    statement_index: 0,
+                    call_ordinal: 0
+                }
+            )
+            .is_err()
+        );
+    }
+}
+
 impl AuthoredCall {
     /// The authored expression passed at formal `position`: the explicit
     /// argument, or for the receiver formal of a call spelled on a place
@@ -104,6 +196,12 @@ pub(crate) fn locate_source(
             program.expression_table.expression(*expression),
             ExpressionNode::Call(_)
         ),
+        StatementNode::Transition(transition) => {
+            matches!(
+                program.statement_table.transition_target(transition.target),
+                checked_trees::statement::TransitionTargetNode::Named { .. }
+            ) && transition.guard == checked_trees::statement::TransitionGuardNode::Always
+        }
         _ => false,
     };
     let (source_target, arguments, source_site) = if coordinate.call_ordinal != 0 || !direct_root {
@@ -126,6 +224,11 @@ pub(crate) fn locate_source(
         expression_call(checked, expression)?
     } else {
         match statement {
+            StatementNode::Transition(_) if coordinate.call_ordinal == 0 => {
+                let (target, arguments) =
+                    named_terminal_arguments(checked, caller_state, coordinate.statement_index)?;
+                (target, arguments, None)
+            }
             StatementNode::Call(call) if coordinate.call_ordinal == 0 => {
                 if program
                     .statement_table
@@ -260,6 +363,60 @@ pub(crate) fn locate_source(
         target_machine: target.machine,
         target_state: target.state,
     })
+}
+
+/// Reconstruct a named terminal call from source, never from the operation
+/// claiming it. No expression handle exists for this syntax: the statement
+/// coordinate owns the invocation, and the explicit arguments keep theirs.
+pub(super) fn named_terminal_arguments(
+    checked: &CheckedTrees,
+    caller_state: SymbolHandle,
+    statement_index: u32,
+) -> Result<(SymbolHandle, &[ExpressionHandle]), LoweringError> {
+    use checked_trees::statement::{TransitionExit, TransitionGuardNode, TransitionTargetNode};
+    let (machine, state) =
+        crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
+    let statements = checked.statement_table.statements(state.statement_nodes);
+    let Some(StatementNode::Transition(transition)) = statements.get(statement_index as usize)
+    else {
+        return unsupported("named call custody has no authored transition");
+    };
+    if statement_index as usize != statements.len().saturating_sub(1)
+        || transition.guard != TransitionGuardNode::Always
+        || transition.continuation.is_valid()
+        || transition.exit != TransitionExit::Ordinary
+        || !checked
+            .statement_table
+            .transition_target_is_valid(transition.target)
+    {
+        return unsupported("named call custody requires an unconditional terminal invocation");
+    }
+    let TransitionTargetNode::Named {
+        path,
+        arguments,
+        static_machine_parameter,
+        ..
+    } = checked.statement_table.transition_target(transition.target)
+    else {
+        return unsupported("named call custody has no named target");
+    };
+    if static_machine_parameter.is_valid() {
+        return unsupported("named call custody has an unselected static target");
+    }
+    let source_target = checked
+        .typed
+        .machine_by_symbol(path.symbol)
+        .and_then(|owner| checked.typed.machine_states(owner).first())
+        .map_or(path.symbol, |entry| entry.symbol);
+    let target = target_signature(checked, machine.symbol, source_target)?;
+    if target.machine == machine.symbol && path.symbol != machine.symbol {
+        return unsupported("internal state transfer is not a terminal machine invocation");
+    }
+    let explicit = checked.statement_table.expression_handles(*arguments);
+    if explicit.len() != arguments.count() as usize {
+        return unsupported("named call custody has an invalid authored argument span");
+    }
+    Ok((source_target, explicit))
 }
 
 fn expression_call(
