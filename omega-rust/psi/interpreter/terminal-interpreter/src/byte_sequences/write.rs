@@ -26,6 +26,7 @@ impl TerminalExecution {
     ) -> Result<(MutableByteSequenceStorage, u64), TerminalInterpretError> {
         let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let machine = self
+            .program
             .machines
             .get(&self.current_machine)
             .ok_or_else(invalid)?;
@@ -33,7 +34,8 @@ impl TerminalExecution {
             .structural_parameters
             .iter()
             .chain(
-                self.machines
+                self.program
+                    .machines
                     .get(&self.current_machine)
                     .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(
                         self.current_machine,
@@ -45,6 +47,7 @@ impl TerminalExecution {
             .find(|parameter| parameter.place == place)
             .ok_or_else(invalid)?;
         let bounded_owner = self
+            .program
             .structural_types
             .get(&parameter.structural_type)
             .is_some_and(|declaration| {
@@ -68,13 +71,13 @@ impl TerminalExecution {
         }
         let value = self.structural_values.get(&place).ok_or_else(invalid)?;
         if value.structural_type != parameter.structural_type
-            || !matches!(self.structural_types.get(&parameter.structural_type), Some(declaration)
+            || !matches!(self.program.structural_types.get(&parameter.structural_type), Some(declaration)
                             if declaration.shape.is_borrowed_byte_carrier() || bounded_owner)
         {
             return Err(invalid());
         }
         let binding = self.byte_sequence_values.get(&place).ok_or_else(invalid)?;
-        binding.validate_mutable_referent(&self.structural_types, value)?;
+        binding.validate_mutable_referent(&self.program.structural_types, value)?;
         if let ByteSequenceBinding::MutableArray {
             array,
             array_type,
@@ -84,7 +87,7 @@ impl TerminalExecution {
         } = binding
         {
             let length = crate::structural_inputs::byte_arrays::byte_array_length(
-                &self.structural_types,
+                &self.program.structural_types,
                 *array_type,
             )
             .ok_or_else(invalid)?;

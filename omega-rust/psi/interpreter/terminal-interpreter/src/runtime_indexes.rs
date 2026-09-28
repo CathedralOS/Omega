@@ -52,11 +52,17 @@ impl TerminalExecution {
                     .ok_or_else(invalid)?
                     .structural_type;
                 let array = resolve_structural_path_type(
-                    &self.structural_types,
+                    &self.program.structural_types,
                     root_type,
                     &path[..position],
                 )?;
-                let length = match self.structural_types.get(&array).ok_or_else(invalid)?.shape {
+                let length = match self
+                    .program
+                    .structural_types
+                    .get(&array)
+                    .ok_or_else(invalid)?
+                    .shape
+                {
                     StructuralTypeShape::FixedArray { length, .. } => length,
                     StructuralTypeShape::ByteSequence(
                         terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. },

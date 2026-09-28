@@ -44,6 +44,7 @@ impl TerminalExecution {
         let mut saw_case = false;
         for segment in path {
             let declaration = self
+                .program
                 .structural_types
                 .get(&leaf.structural_type)
                 .ok_or_else(invalid)?;
@@ -120,6 +121,7 @@ impl TerminalExecution {
         cases: &[TerminalStructuralCaseValue],
     ) -> Result<(), TerminalInterpretError> {
         let machine = self
+            .program
             .machines
             .get(&self.current_machine)
             .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
@@ -132,11 +134,12 @@ impl TerminalExecution {
                 TerminalInterpretError::VerifiedStructuralPlaceMissing(parameter.place),
             )?;
             let selected_type = resolve_structural_path_type(
-                &self.structural_types,
+                &self.program.structural_types,
                 root.structural_type,
                 &contents.path,
             )?;
             let declaration = self
+                .program
                 .structural_types
                 .get(&selected_type)
                 .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
@@ -185,8 +188,11 @@ impl TerminalExecution {
         let root = self.structural_values.get(&source).ok_or(
             TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
         )?;
-        let selected_type =
-            resolve_structural_path_type(&self.structural_types, root.structural_type, path)?;
+        let selected_type = resolve_structural_path_type(
+            &self.program.structural_types,
+            root.structural_type,
+            path,
+        )?;
         let mut selected = StructuralRuntimePlace::from(root);
         selected.path.extend_from_slice(path);
         let contents = self.structural_cases.get(&selected).ok_or(

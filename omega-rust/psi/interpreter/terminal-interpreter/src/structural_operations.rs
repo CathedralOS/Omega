@@ -27,6 +27,7 @@ impl TerminalExecution {
     /// those two decisions on the same supported payload contract.
     pub(crate) fn plain_case_type(&self, structural_type: StructuralTypeId) -> bool {
         let Some(StructuralTypeShape::Sum { cases }) = self
+            .program
             .structural_types
             .get(&structural_type)
             .map(|declaration| &declaration.shape)
@@ -53,6 +54,7 @@ impl TerminalExecution {
         };
         if operation.result != terminal_psi::OperationResult::Unit
             || !self
+                .program
                 .dynamic_descriptor_templates
                 .contains_key(&(self.current_machine, descriptor_ordinal))
         {
@@ -90,7 +92,7 @@ impl TerminalExecution {
         let Some(StructuralTypeDeclaration {
             shape: StructuralTypeShape::Sum { cases },
             ..
-        }) = self.structural_types.get(&result.structural_type)
+        }) = self.program.structural_types.get(&result.structural_type)
         else {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         };
@@ -186,7 +188,7 @@ impl TerminalExecution {
         let Some(StructuralTypeDeclaration {
             shape: StructuralTypeShape::Sum { cases },
             ..
-        }) = self.structural_types.get(&result.structural_type)
+        }) = self.program.structural_types.get(&result.structural_type)
         else {
             return Err(invalid());
         };
@@ -434,7 +436,7 @@ impl TerminalExecution {
         if !matches!(operation.result, terminal_psi::OperationResult::Unit) {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
-        let machine = self.machines.get(&self.current_machine).ok_or(
+        let machine = self.program.machines.get(&self.current_machine).ok_or(
             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
         )?;
         let Some(terminal_psi::StructuralPlaceDeclaration {
@@ -514,7 +516,7 @@ impl TerminalExecution {
             return Err(invalid());
         }
         let leaves = terminal_semantics::zeroed_structural_leaves(
-            self.structural_types.values(),
+            self.program.structural_types.values(),
             result.structural_type,
         )
         .ok_or_else(invalid)?;
@@ -610,7 +612,7 @@ impl TerminalExecution {
         {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
-        let machine = self.machines.get(&self.current_machine).ok_or(
+        let machine = self.program.machines.get(&self.current_machine).ok_or(
             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
         )?;
         let Some(terminal_psi::StructuralPlaceDeclaration {
@@ -677,7 +679,7 @@ impl TerminalExecution {
         if !matches!(operation.result, terminal_psi::OperationResult::Unit) {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
-        let machine = self.machines.get(&self.current_machine).ok_or(
+        let machine = self.program.machines.get(&self.current_machine).ok_or(
             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
         )?;
         let access = machine
@@ -739,7 +741,7 @@ impl TerminalExecution {
             .copied()
             .ok_or(TerminalInterpretError::VerifiedValueMissing(value))?;
         let parent = resolve_structural_arguments(
-            &self.structural_types,
+            &self.program.structural_types,
             &self.structural_values,
             &[StructuralArgument {
                 place: destination,
@@ -749,8 +751,11 @@ impl TerminalExecution {
         )?
         .pop()
         .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-        if direct_scalar_field_type(&self.structural_types, parent.structural_type, field)
-            != Some(source.scalar_type())
+        if direct_scalar_field_type(
+            &self.program.structural_types,
+            parent.structural_type,
+            field,
+        ) != Some(source.scalar_type())
             || !terminal_scalar_belongs_to_type(source)
         {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
@@ -909,7 +914,7 @@ impl TerminalExecution {
             Some(StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. })
         ) {
             let hole = resolve_structural_arguments(
-                &self.structural_types,
+                &self.program.structural_types,
                 &self.structural_values,
                 &[StructuralArgument {
                     place: root,
@@ -924,7 +929,7 @@ impl TerminalExecution {
                 .rposition(|segment| matches!(segment, StructuralPathSegment::Field(_)))
                 .ok_or_else(invalid)?;
             let owner = resolve_structural_arguments(
-                &self.structural_types,
+                &self.program.structural_types,
                 &self.structural_values,
                 &[StructuralArgument {
                     place: root,
@@ -935,6 +940,7 @@ impl TerminalExecution {
             .pop()
             .ok_or_else(invalid)?;
             let StructuralFieldType::Structural(_) = self
+                .program
                 .structural_types
                 .get(&owner.structural_type)
                 .and_then(|declaration| match &declaration.shape {
@@ -955,7 +961,7 @@ impl TerminalExecution {
             return Ok((StructuralRuntimePlace::from(&hole), declared));
         }
         let parent = resolve_structural_arguments(
-            &self.structural_types,
+            &self.program.structural_types,
             &self.structural_values,
             &[StructuralArgument {
                 place: root,
@@ -966,6 +972,7 @@ impl TerminalExecution {
         .pop()
         .ok_or_else(invalid)?;
         let (identity, field_type) = self
+            .program
             .structural_types
             .get(&parent.structural_type)
             .and_then(|declaration| match &declaration.shape {
@@ -1190,7 +1197,7 @@ impl TerminalExecution {
         }
         let leaf = match &operation.kind {
             OperationKind::StructuralLeafCopy { source, path } => resolve_structural_arguments(
-                &self.structural_types,
+                &self.program.structural_types,
                 &self.structural_values,
                 &[StructuralArgument {
                     place: *source,
@@ -1258,7 +1265,7 @@ impl TerminalExecution {
         )?;
         let mut parent = StructuralRuntimePlace::from(structural_value);
         if let Some(carrier) = terminal_semantics::case_payload_carrier(
-            self.structural_types.values(),
+            self.program.structural_types.values(),
             structural_value.structural_type,
             path,
         ) {
@@ -1273,7 +1280,7 @@ impl TerminalExecution {
             return Ok(parent);
         }
         let carrier = terminal_semantics::record_field_carrier(
-            self.structural_types.values(),
+            self.program.structural_types.values(),
             structural_value.structural_type,
             path,
         )
@@ -1333,7 +1340,7 @@ impl TerminalExecution {
             TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
         )?;
         if terminal_semantics::observed_field_declaration(
-            self.structural_types.values(),
+            self.program.structural_types.values(),
             structural_value.structural_type,
             path,
             field,

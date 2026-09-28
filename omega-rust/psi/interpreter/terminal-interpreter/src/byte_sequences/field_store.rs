@@ -3,8 +3,7 @@
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, PlaceId, StructuralFieldId};
 use terminal_psi::{
     ByteSequenceCarrier, Operation, OperationKind, OperationResult, StructuralAccess,
-    StructuralArgument, StructuralMultiplicity, StructuralPathSegment,
-    StructuralTypeShape,
+    StructuralArgument, StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape,
 };
 
 use crate::custody::resolve_structural_arguments;
@@ -79,7 +78,7 @@ impl TerminalExecution {
         let source_value = self.structural_values.get(source).ok_or_else(invalid)?;
         if !source_value.path.is_empty()
             || !source_value.qualifications.is_empty()
-            || !matches!(self.structural_types.get(&source_value.structural_type), Some(declaration)
+            || !matches!(self.program.structural_types.get(&source_value.structural_type), Some(declaration)
                             if declaration.shape.is_borrowed_byte_view()
                                 || matches!(declaration.shape, StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })))
         {
@@ -109,6 +108,7 @@ impl TerminalExecution {
     ) -> Result<(StructuralByteSequenceRuntimeField, u64), TerminalInterpretError> {
         let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let machine = self
+            .program
             .machines
             .get(&self.current_machine)
             .ok_or_else(invalid)?;
@@ -137,7 +137,7 @@ impl TerminalExecution {
             return Err(invalid());
         }
         let parent = resolve_structural_arguments(
-            &self.structural_types,
+            &self.program.structural_types,
             &self.structural_values,
             &[StructuralArgument {
                 place: root,
@@ -148,6 +148,7 @@ impl TerminalExecution {
         .pop()
         .ok_or_else(invalid)?;
         let declaration = self
+            .program
             .structural_types
             .get(&parent.structural_type)
             .ok_or_else(invalid)?;

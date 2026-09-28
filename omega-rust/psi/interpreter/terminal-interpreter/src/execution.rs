@@ -32,16 +32,18 @@ use crate::values::{
     TerminalScalarCaseValue, TerminalScalarValue, TerminalStructuralPrimitiveValue,
     TerminalStructuralValue,
 };
-use semantic_vocabulary::{
-    BlockId, BoundaryMachineId, ClaimId, MachineId, OperationId, PlaceId, StructuralTypeId, ValueId,
-};
+#[cfg(test)]
+use semantic_vocabulary::StructuralTypeId;
+use semantic_vocabulary::{BlockId, BoundaryMachineId, ClaimId, MachineId, PlaceId, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_fuel::TerminalFuelMeter;
+#[cfg(test)]
+use terminal_psi::StructuralTypeDeclaration;
 use terminal_psi::{
-    Block, BoundaryMachineDeclaration, EntryClaim, NominalAffineCleanup, OperationKind,
-    StructuralAffineDiscard, StructuralArgument, StructuralMultiplicity, StructuralOperationResult,
+    Block, EntryClaim, NominalAffineCleanup, OperationKind, StructuralAffineDiscard,
+    StructuralArgument, StructuralMultiplicity, StructuralOperationResult,
     StructuralParameterDeclaration, StructuralPathSegment, StructuralResultClaimTransfer,
-    StructuralTypeDeclaration, TerminalMachineResult, TerminalPlacedViewInput, Terminator,
+    TerminalMachineResult, TerminalPlacedViewInput, Terminator,
 };
 
 /// What one settled terminator tells the interpreter loop to do next.
@@ -69,21 +71,13 @@ pub(crate) enum OperationFlow {
 /// so a sponsor can replenish the same meter and resume without replaying
 /// semantic work or charging it twice.
 pub struct TerminalExecution {
-    pub(crate) structural_types: BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
-    // One immutable code owner survives suspension. A resume or call borrows
-    // this owner independently of mutable runtime storage; frames retain only
-    // machine identity. There is no per-machine or per-operation Arc allocation.
-    pub(crate) machines: std::sync::Arc<BTreeMap<MachineId, ExecutableMachine>>,
-    pub(crate) dynamic_scalar_calls: BTreeMap<(MachineId, u32), (MachineId, StructuralArgument)>,
-    pub(crate) dynamic_descriptor_templates:
-        BTreeMap<(MachineId, u32), RuntimeDynamicDescriptorTemplate>,
-    pub(crate) dynamic_selection_templates:
-        BTreeMap<(MachineId, u32), RuntimeDynamicDescriptorTemplate>,
-    pub(crate) dynamic_descriptor_arguments:
-        BTreeMap<(MachineId, OperationId), Vec<terminal_psi::TerminalDynamicDescriptorArgument>>,
+    // One immutable program owner survives suspension and is shared verbatim
+    // across every independent instance admitted from the same module. A
+    // resume or call borrows this owner independently of mutable runtime
+    // storage; frames retain only machine identity. There is no per-machine
+    // or per-operation Arc allocation.
+    pub(crate) program: std::sync::Arc<crate::program::AdmittedTerminalProgram>,
     pub(crate) dynamic_parameters: BTreeMap<u32, RuntimeDynamicDescriptor>,
-    pub(crate) boundary_machines: BTreeMap<BoundaryMachineId, BoundaryMachineDeclaration>,
-    pub(crate) provider_candidates: BTreeSet<BoundaryMachineId>,
     pub(crate) provider_installation: BTreeMap<BoundaryMachineId, MachineId>,
     /// Root-authorized assumed binding contracts admitted with the provider
     /// installation. They are conditional evidence on this execution, not
@@ -141,6 +135,7 @@ pub struct TerminalExecution {
     pub(crate) effects: Vec<TerminalEffect>,
 }
 
+#[derive(Clone)]
 pub(crate) struct ExecutableMachine {
     pub(crate) parameters: Vec<terminal_psi::ValueDeclaration>,
     pub(crate) structural_parameters: Vec<StructuralParameterDeclaration>,
@@ -208,8 +203,35 @@ pub(crate) enum SuspendedCallResult {
 }
 
 impl TerminalExecution {
+    /// Admit a freshly verified module and start its first execution. Unit
+    /// tests that construct `TerminalModule`s by hand enter through here;
+    /// the public starts admit through `TerminalProgram` instead.
+    #[cfg(test)]
     pub(crate) fn start_verified_module(
-        mut module: terminal_psi::TerminalModule,
+        module: terminal_psi::TerminalModule,
+        scalar_arguments: &[TerminalScalarValue],
+        structural_arguments: &[TerminalStructuralValue],
+        structural_scalar_field_arguments: &[TerminalStructuralScalarFieldValue],
+        structural_primitive_value_arguments: &[TerminalStructuralPrimitiveValue],
+        placed_view_establishments: &[TerminalPlacedViewEstablishment],
+        installation: Option<&AdmittedProviderInstallation>,
+    ) -> Result<Self, TerminalInterpretError> {
+        Self::start_with_program(
+            std::sync::Arc::new(crate::program::AdmittedTerminalProgram::admit(module)?),
+            scalar_arguments,
+            structural_arguments,
+            structural_scalar_field_arguments,
+            structural_primitive_value_arguments,
+            placed_view_establishments,
+            installation,
+        )
+    }
+
+    /// Start one instance on an already-admitted program: bind this
+    /// invocation's inputs and custody, commit no operation. The program is
+    /// data — no decode or verification repeats here.
+    pub(crate) fn start_with_program(
+        program: std::sync::Arc<crate::program::AdmittedTerminalProgram>,
         scalar_arguments: &[TerminalScalarValue],
         structural_arguments: &[TerminalStructuralValue],
         structural_scalar_field_arguments: &[TerminalStructuralScalarFieldValue],
@@ -225,185 +247,26 @@ impl TerminalExecution {
         // all fail closed rather than start the entry machine with a declared
         // input unbound.
         let placed_view_occurrences = establish_placed_view_inputs(
-            &module,
+            &program.catalogs,
             placed_view_establishments,
             structural_arguments,
         )?;
-        let terminal_psi = terminal_codec::terminal_psi_identity(&module)
-            .map_err(|_| TerminalInterpretError::VerifiedOperationMalformed)?;
-        if installation.is_some_and(|installation| installation.terminal_psi != terminal_psi) {
+        if installation.is_some_and(|installation| installation.terminal_psi != program.identity) {
             return Err(TerminalInterpretError::ProviderInstallationIdentityMismatch);
         }
-        let local_structural_identities =
-            LocalStructuralIdentities::new(&module, structural_arguments);
-        let machines = std::mem::take(&mut module.machines)
-            .into_iter()
-            .map(|machine| {
-                (
-                    machine.id,
-                    ExecutableMachine {
-                        parameters: machine.parameters,
-                        structural_parameters: machine.structural_parameters,
-                        structural_places: machine.structural_places,
-                        entry_claims: machine.entry_claims,
-                        content_entry_claims: machine.content_entry_claims,
-                        result: machine.result,
-                        entry: machine.entry,
-                        blocks: machine
-                            .blocks
-                            .into_iter()
-                            .map(|block| (block.id, block))
-                            .collect(),
-                    },
-                )
-            })
-            .collect::<BTreeMap<_, _>>();
-        let mut dynamic_scalar_calls = module
-            .dynamic_dispatch
-            .indirect_dispatches
-            .iter()
-            .map(|dispatch| {
-                let descriptor = module
-                    .dynamic_dispatch
-                    .rebound_descriptors
-                    .iter()
-                    .find(|descriptor| {
-                        descriptor.owner == dispatch.owner
-                            && descriptor.ordinal == dispatch.descriptor_ordinal
-                    })
-                    .expect("verified indirect dispatch has one descriptor");
-                let selection = module
-                    .dynamic_dispatch
-                    .selections
-                    .iter()
-                    .find(|selection| {
-                        selection.owner == descriptor.owner
-                            && selection.ordinal == descriptor.rebound_selection_ordinal
-                    })
-                    .expect("verified descriptor has one latest selection");
-                (
-                    (dispatch.owner, dispatch.descriptor_ordinal),
-                    (dispatch.realization, selection.source.clone()),
-                )
-            })
-            .collect::<BTreeMap<_, _>>();
-        for dispatch in &module.dynamic_dispatch.stored_dispatches {
-            let descriptor = module
-                .dynamic_dispatch
-                .stored_descriptors
-                .iter()
-                .find(|descriptor| {
-                    descriptor.owner == dispatch.owner
-                        && descriptor.ordinal == dispatch.descriptor_ordinal
-                })
-                .expect("verified stored dispatch has one descriptor");
-            let selection = module
-                .dynamic_dispatch
-                .selections
-                .iter()
-                .find(|selection| {
-                    selection.owner == descriptor.owner
-                        && selection.ordinal == descriptor.selection_ordinal
-                })
-                .expect("verified stored descriptor has one selection");
-            assert!(
-                dynamic_scalar_calls
-                    .insert(
-                        (dispatch.owner, dispatch.descriptor_ordinal),
-                        (dispatch.realization, selection.source.clone()),
-                    )
-                    .is_none(),
-                "verified dynamic descriptor coordinates must be disjoint"
-            );
-        }
-        let dynamic_selection_templates = module
-            .dynamic_dispatch
-            .selections
-            .iter()
-            .map(|selection| {
-                let application = module
-                    .closed_conformance_applications
-                    .iter()
-                    .find(|application| {
-                        application.owner == selection.owner
-                            && application.report_fingerprint
-                                == selection.conformance_application_report_fingerprint
-                            && application.commitment
-                                == selection.conformance_application_commitment
-                    })
-                    .expect("verified selection has one conformance application");
-                let callables = application
-                    .rows
-                    .iter()
-                    .map(|row| {
-                        row.realization_callable_identity.as_ref().map(|identity| {
-                            application
-                                .realization_callables
-                                .iter()
-                                .find(|callable| callable.source_callable_identity == *identity)
-                                .map(|callable| callable.machine)
-                                .expect("verified dynamic row has one callable")
-                        })
-                    })
-                    .collect();
-                (
-                    (selection.owner, selection.ordinal),
-                    RuntimeDynamicDescriptorTemplate {
-                        source: selection.source.clone(),
-                        callables,
-                    },
-                )
-            })
-            .collect::<BTreeMap<_, _>>();
-        let mut dynamic_descriptor_templates = module
-            .dynamic_dispatch
-            .rebound_descriptors
-            .iter()
-            .map(|descriptor| {
-                let template = dynamic_selection_templates
-                    .get(&(descriptor.owner, descriptor.rebound_selection_ordinal))
-                    .expect("verified descriptor has one latest selection")
-                    .clone();
-                ((descriptor.owner, descriptor.ordinal), template)
-            })
-            .collect::<BTreeMap<_, _>>();
-        for descriptor in &module.dynamic_dispatch.stored_descriptors {
-            let template = dynamic_selection_templates
-                .get(&(descriptor.owner, descriptor.selection_ordinal))
-                .expect("verified stored descriptor has one selection")
-                .clone();
-            assert!(
-                dynamic_descriptor_templates
-                    .insert((descriptor.owner, descriptor.ordinal), template)
-                    .is_none(),
-                "verified dynamic descriptor coordinates must be disjoint"
-            );
-        }
-        let mut dynamic_descriptor_arguments = BTreeMap::<
-            (MachineId, OperationId),
-            Vec<terminal_psi::TerminalDynamicDescriptorArgument>,
-        >::new();
-        for argument in &module.dynamic_dispatch.arguments {
-            dynamic_descriptor_arguments
-                .entry((argument.owner, argument.operation))
-                .or_default()
-                .push(argument.clone());
-        }
-        let boundary_machines = module
-            .boundary_machines
-            .iter()
-            .cloned()
-            .map(|boundary| (boundary.id, boundary))
-            .collect::<BTreeMap<_, _>>();
-        let structural_types = module
-            .structural_types
-            .iter()
-            .cloned()
-            .map(|declaration| (declaration.id, declaration))
-            .collect();
-        let machine = machines
-            .get(&module.entry)
+        let local_structural_identities = LocalStructuralIdentities::new(
+            program
+                .machines
+                .values()
+                .flat_map(|machine| machine.structural_places.iter()),
+            structural_arguments,
+        );
+        let machine = program
+            .machines
+            .get(&program.catalogs.entry)
             .ok_or(TerminalInterpretError::VerifiedEntryMachineMissing)?;
+        let current = machine.entry;
+        let current_machine = program.catalogs.entry;
         if machine
             .parameters
             .iter()
@@ -417,13 +280,13 @@ impl TerminalExecution {
         let (structural_primitive_storage, structural_primitive_entry_places) =
             bind_structural_primitive_values(
                 machine,
-                &structural_types,
+                &program.structural_types,
                 &structural_values,
                 structural_primitive_value_arguments,
             )?;
         let structural_scalar_fields = scalar_fields::bind(
             machine,
-            &structural_types,
+            &program.structural_types,
             &structural_values,
             structural_scalar_field_arguments,
         )?;
@@ -435,21 +298,9 @@ impl TerminalExecution {
             &machine.structural_parameters,
             &structural_values,
         )?;
-        let current = machine.entry;
         Ok(Self {
-            structural_types,
-            machines: std::sync::Arc::new(machines),
-            dynamic_scalar_calls,
-            dynamic_descriptor_templates,
-            dynamic_selection_templates,
-            dynamic_descriptor_arguments,
+            program,
             dynamic_parameters: BTreeMap::new(),
-            boundary_machines,
-            provider_candidates: module
-                .provider_candidates
-                .iter()
-                .map(|candidate| candidate.boundary)
-                .collect(),
             provider_installation: installation
                 .map(|installation| installation.installed.clone())
                 .unwrap_or_default(),
@@ -473,7 +324,7 @@ impl TerminalExecution {
             live_affine_frontier,
             live_claims,
             placed_view_occurrences,
-            current_machine: module.entry,
+            current_machine,
             current,
             next_operation: 0,
             call_stack: Vec::new(),
@@ -485,6 +336,67 @@ impl TerminalExecution {
 
     pub fn effects(&self) -> &[TerminalEffect] {
         &self.effects
+    }
+
+    /// Whether the entry invocation has reached a terminal outcome — a
+    /// committed result or a crash. An unfinished execution still holds
+    /// custody; it is not reclaimable by `TerminalInstance::close`.
+    pub(crate) fn is_finished(&self) -> bool {
+        self.result.is_some() || self.crash.is_some()
+    }
+
+    /// The committed result once the entry invocation has produced one.
+    pub(crate) fn result(&self) -> Option<&TerminalExecutionResult> {
+        self.result.as_ref()
+    }
+
+    /// Test hook: apply one corruption to a structural type in both retained
+    /// copies — the lookup map the interpreter loop reads and the slim
+    /// catalog module placed-view validation consults. Only sound while this
+    /// execution is the program's sole owner.
+    #[cfg(test)]
+    pub(crate) fn mutate_structural_type(
+        &mut self,
+        id: StructuralTypeId,
+        mutation: impl Fn(&mut StructuralTypeDeclaration),
+    ) {
+        let program =
+            std::sync::Arc::get_mut(&mut self.program).expect("test mutates before sharing");
+        let mut matched = false;
+        if let Some(declaration) = program.structural_types.get_mut(&id) {
+            mutation(declaration);
+            matched = true;
+        }
+        if let Some(declaration) = program
+            .catalogs
+            .structural_types
+            .iter_mut()
+            .find(|declaration| declaration.id == id)
+        {
+            mutation(declaration);
+            matched = true;
+        }
+        assert!(matched, "mutate_structural_type: unknown structural type");
+    }
+
+    /// Test hook: insert or replace one structural type in both retained
+    /// copies — the lookup map and the slim catalog module. Only sound while
+    /// this execution is the program's sole owner.
+    #[cfg(test)]
+    pub(crate) fn insert_structural_type(&mut self, declaration: StructuralTypeDeclaration) {
+        let program =
+            std::sync::Arc::get_mut(&mut self.program).expect("test mutates before sharing");
+        if let Some(existing) = program
+            .catalogs
+            .structural_types
+            .iter_mut()
+            .find(|existing| existing.id == declaration.id)
+        {
+            *existing = declaration.clone();
+        } else {
+            program.catalogs.structural_types.push(declaration.clone());
+        }
+        program.structural_types.insert(declaration.id, declaration);
     }
 
     /// The root-authorized assumed binding contracts admitted with this
@@ -544,9 +456,10 @@ impl TerminalExecution {
             return Ok(TerminalExecutionStatus::Crashed(crash.clone()));
         }
 
-        let machines = std::sync::Arc::clone(&self.machines);
+        let program = std::sync::Arc::clone(&self.program);
         loop {
-            while let Some(operation) = machines
+            while let Some(operation) = program
+                .machines
                 .get(&self.current_machine)
                 .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(
                     self.current_machine,
@@ -641,7 +554,7 @@ impl TerminalExecution {
                     OperationKind::PortWrite { .. } => {
                         self.execute_port_write(operation, handler)?
                     }
-                    OperationKind::Call { .. } => self.execute_call(operation, &machines)?,
+                    OperationKind::Call { .. } => self.execute_call(operation, &program)?,
                     OperationKind::WriteOnlyPrimitiveStore {
                         destination,
                         value,
@@ -810,7 +723,8 @@ impl TerminalExecution {
                 }
                 self.next_operation += 1;
             }
-            let terminator = &machines
+            let terminator = &program
+                .machines
                 .get(&self.current_machine)
                 .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(
                     self.current_machine,

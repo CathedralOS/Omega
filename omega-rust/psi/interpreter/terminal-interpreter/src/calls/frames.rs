@@ -27,6 +27,7 @@ impl TerminalExecution {
     ) -> Result<BTreeMap<u32, RuntimeDynamicDescriptor>, TerminalInterpretError> {
         let mut resolved = BTreeMap::new();
         for argument in self
+            .program
             .dynamic_descriptor_arguments
             .get(&(self.current_machine, operation))
             .into_iter()
@@ -35,11 +36,12 @@ impl TerminalExecution {
             let descriptor = match argument.source {
                 terminal_psi::TerminalDynamicDescriptorSource::Selection { ordinal } => {
                     let template = self
+                        .program
                         .dynamic_selection_templates
                         .get(&(self.current_machine, ordinal))
                         .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
                     let sources = resolve_structural_arguments(
-                        &self.structural_types,
+                        &self.program.structural_types,
                         &self.structural_values,
                         std::slice::from_ref(&template.source),
                     )?;
@@ -53,11 +55,12 @@ impl TerminalExecution {
                 }
                 terminal_psi::TerminalDynamicDescriptorSource::ReboundDescriptor { ordinal } => {
                     let template = self
+                        .program
                         .dynamic_descriptor_templates
                         .get(&(self.current_machine, ordinal))
                         .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
                     let sources = resolve_structural_arguments(
-                        &self.structural_types,
+                        &self.program.structural_types,
                         &self.structural_values,
                         std::slice::from_ref(&template.source),
                     )?;
@@ -100,6 +103,7 @@ impl TerminalExecution {
             parameters.iter().zip(arguments).zip(resolved_arguments)
         {
             let declaration = self
+                .program
                 .structural_types
                 .get(&parameter.structural_type)
                 .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
@@ -136,7 +140,7 @@ impl TerminalExecution {
                     if parameter.access != StructuralAccess::MutableBorrow {
                         return Err(TerminalInterpretError::VerifiedOperationMalformed);
                     }
-                    bytes.validate_mutable_referent(&self.structural_types, resolved)?;
+                    bytes.validate_mutable_referent(&self.program.structural_types, resolved)?;
                 }
             }
             if values.insert(parameter.place, bytes.clone()).is_some() {
@@ -163,6 +167,7 @@ impl TerminalExecution {
             parameters.iter().zip(arguments).zip(resolved_arguments)
         {
             let declaration = self
+                .program
                 .structural_types
                 .get(&parameter.structural_type)
                 .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
@@ -203,8 +208,9 @@ impl TerminalExecution {
         claim_transfers: &[ClaimTransfer],
         dynamic_parameters: BTreeMap<u32, RuntimeDynamicDescriptor>,
     ) -> Result<(), TerminalInterpretError> {
-        let machines = std::sync::Arc::clone(&self.machines);
-        let callee = machines
+        let program = std::sync::Arc::clone(&self.program);
+        let callee = program
+            .machines
             .get(&callee_id)
             .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(callee_id))?;
         if callee.result != TerminalMachineResult::Unit {
@@ -306,8 +312,9 @@ impl TerminalExecution {
         claim_transfers: &[ClaimTransfer],
         dynamic_parameters: BTreeMap<u32, RuntimeDynamicDescriptor>,
     ) -> Result<(), TerminalInterpretError> {
-        let machines = std::sync::Arc::clone(&self.machines);
-        let callee = machines
+        let program = std::sync::Arc::clone(&self.program);
+        let callee = program
+            .machines
             .get(&callee_id)
             .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(callee_id))?;
         if callee.result.scalar().map(|result| result.scalar_type) != Some(result.scalar_type) {
@@ -403,8 +410,9 @@ impl TerminalExecution {
         claim_transfers: &[ClaimTransfer],
         returned_claim_transfers: Vec<StructuralResultClaimTransfer>,
     ) -> Result<(), TerminalInterpretError> {
-        let machines = std::sync::Arc::clone(&self.machines);
-        let callee = machines
+        let program = std::sync::Arc::clone(&self.program);
+        let callee = program
+            .machines
             .get(&callee_id)
             .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(callee_id))?;
         let Some(callee_result) = callee.result.structural() else {
@@ -422,6 +430,7 @@ impl TerminalExecution {
             && result.projected_qualifications.is_empty()
             && result.claims.is_empty()
             && (self
+                .program
                 .structural_types
                 .get(&result.structural_type)
                 .is_some_and(|declaration| match &declaration.shape {
@@ -433,7 +442,7 @@ impl TerminalExecution {
                 })
                 || (result.multiplicity == StructuralMultiplicity::Unrestricted
                     && terminal_semantics::scalar_array_leaf_shape(
-                        self.structural_types.values(),
+                        self.program.structural_types.values(),
                         result.structural_type,
                     )
                     .is_some()));
@@ -460,7 +469,7 @@ impl TerminalExecution {
                             .get(&parameter.place)
                             .is_some_and(|value| {
                                 value.structural_type == parameter.structural_type
-                                    && self
+                                    && self.program
                                         .structural_types
                                         .get(&value.structural_type)
                                         .is_some_and(|declaration| {
@@ -620,8 +629,9 @@ impl TerminalExecution {
         result: terminal_psi::ValueDeclaration,
         source: TerminalStructuralValue,
     ) -> Result<(), TerminalInterpretError> {
-        let machines = std::sync::Arc::clone(&self.machines);
-        let callee = machines
+        let program = std::sync::Arc::clone(&self.program);
+        let callee = program
+            .machines
             .get(&callee_id)
             .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(callee_id))?;
         if !callee.parameters.is_empty()
@@ -666,8 +676,9 @@ impl TerminalExecution {
         callee_id: MachineId,
         source: TerminalStructuralValue,
     ) -> Result<(), TerminalInterpretError> {
-        let machines = std::sync::Arc::clone(&self.machines);
-        let callee = machines
+        let program = std::sync::Arc::clone(&self.program);
+        let callee = program
+            .machines
             .get(&callee_id)
             .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(callee_id))?;
         if !callee.parameters.is_empty()

@@ -39,7 +39,7 @@ impl TerminalExecution {
         let Terminator::ReturnUnitNominalAffine { cleanups, .. } = terminator else {
             unreachable!("dispatched settle_return_unit_nominal_affine")
         };
-        let machine = self.machines.get(&self.current_machine).ok_or(
+        let machine = self.program.machines.get(&self.current_machine).ok_or(
             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
         )?;
         if machine.result != TerminalMachineResult::Unit
@@ -64,7 +64,7 @@ impl TerminalExecution {
             {
                 return Err(TerminalInterpretError::AffineFrontierMismatch);
             }
-            self.machines.get(&cleanup.cleanup_machine).ok_or(
+            self.program.machines.get(&cleanup.cleanup_machine).ok_or(
                 TerminalInterpretError::VerifiedCallTargetMissing(cleanup.cleanup_machine),
             )?;
             cleanup_values.push((cleanup.clone(), value));
@@ -91,8 +91,9 @@ impl TerminalExecution {
             .expect("non-empty nominal cleanup list was validated");
         let completed = completed.clone();
         let remaining = remaining.to_vec();
-        let machines = std::sync::Arc::clone(&self.machines);
-        let callee = machines
+        let program = std::sync::Arc::clone(&self.program);
+        let callee = program
+            .machines
             .get(&completed.0.cleanup_machine)
             .expect("all nominal cleanup targets were validated before edge charge");
         // The edge lends the consumed value to the hook's borrowed `self`
@@ -148,7 +149,7 @@ impl TerminalExecution {
         else {
             unreachable!("dispatched settle_return_unit_partial_affine")
         };
-        let machine = self.machines.get(&self.current_machine).ok_or(
+        let machine = self.program.machines.get(&self.current_machine).ok_or(
             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
         )?;
         if machine.result != TerminalMachineResult::Unit
@@ -187,7 +188,7 @@ impl TerminalExecution {
                 TerminalInterpretError::VerifiedStructuralPlaceMissing(discard.place),
             )?;
             let actual_type = resolve_structural_path_type(
-                &self.structural_types,
+                &self.program.structural_types,
                 root.structural_type,
                 &discard.path,
             )?;
@@ -286,7 +287,7 @@ impl TerminalExecution {
         }) {
             residual_roots.insert(argument.place);
             consume_affine_projection(
-                &self.structural_types,
+                &self.program.structural_types,
                 &self.structural_values,
                 projected_frontier.get_or_insert_with(|| self.live_affine_frontier.clone()),
                 argument,
@@ -299,7 +300,7 @@ impl TerminalExecution {
             )?;
             if discard.path.is_empty()
                 || resolve_structural_path_type(
-                    &self.structural_types,
+                    &self.program.structural_types,
                     root.structural_type,
                     &discard.path,
                 )? != discard.structural_type
@@ -344,7 +345,7 @@ impl TerminalExecution {
             argument.access == StructuralAccess::Owned && !argument.path.is_empty()
         }) {
             consume_affine_projection(
-                &self.structural_types,
+                &self.program.structural_types,
                 &self.structural_values,
                 &mut self.live_affine_frontier,
                 argument,
@@ -473,6 +474,7 @@ impl TerminalExecution {
             .find(|successor| successor.case == value.result_case)
             .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
         let target = self
+            .program
             .machines
             .get(&self.current_machine)
             .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(
@@ -537,7 +539,7 @@ impl TerminalExecution {
         else {
             unreachable!("dispatched settle_return")
         };
-        let machine = self.machines.get(&self.current_machine).ok_or(
+        let machine = self.program.machines.get(&self.current_machine).ok_or(
             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
         )?;
         if !matches!(machine.result, TerminalMachineResult::Scalar(_))
@@ -581,8 +583,8 @@ impl TerminalExecution {
         self.byte_sequence_values.clear();
         self.retire_plain_locals();
         let cleanups = commit_cleanup_actions(
-            &self.structural_types,
-            &self.machines,
+            &self.program.structural_types,
+            &self.program.machines,
             &mut self.structural_values,
             &mut self.reference_referents,
             &mut self.scalar_case_values,
@@ -592,8 +594,9 @@ impl TerminalExecution {
         )?;
         if let Some((completed, remaining)) = cleanups.split_first() {
             let completed = completed.clone();
-            let machines = std::sync::Arc::clone(&self.machines);
-            let callee = machines
+            let program = std::sync::Arc::clone(&self.program);
+            let callee = program
+                .machines
                 .get(&completed.0.cleanup_machine)
                 .expect("verified cleanup target remains installed");
             self.call_stack.push(SuspendedCall {
@@ -668,7 +671,7 @@ impl TerminalExecution {
         else {
             unreachable!("dispatched settle_return_unit")
         };
-        let machine = self.machines.get(&self.current_machine).ok_or(
+        let machine = self.program.machines.get(&self.current_machine).ok_or(
             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
         )?;
         if machine.result != TerminalMachineResult::Unit
@@ -727,8 +730,8 @@ impl TerminalExecution {
                     }
                     if !remaining.is_empty() {
                         let completed = remaining.remove(0);
-                        let machines = std::sync::Arc::clone(&self.machines);
-                        let callee = machines.get(&completed.0.cleanup_machine).ok_or(
+                        let program = std::sync::Arc::clone(&self.program);
+                        let callee = program.machines.get(&completed.0.cleanup_machine).ok_or(
                             TerminalInterpretError::VerifiedCallTargetMissing(
                                 completed.0.cleanup_machine,
                             ),
@@ -849,14 +852,14 @@ impl TerminalExecution {
         else {
             unreachable!("dispatched settle_return_structural")
         };
-        let machine = self.machines.get(&self.current_machine).ok_or(
+        let machine = self.program.machines.get(&self.current_machine).ok_or(
             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
         )?;
         let Some(signature) = machine.result.structural() else {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         };
         if terminal_semantics::scalar_array_leaf_shape(
-            self.structural_types.values(),
+            self.program.structural_types.values(),
             signature.structural_type,
         )
         .is_some()
@@ -1174,6 +1177,7 @@ impl TerminalExecution {
         let mut prefix = Vec::new();
         for segment in path {
             let declaration = self
+                .program
                 .structural_types
                 .get(&structural_type)
                 .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
@@ -1196,7 +1200,7 @@ impl TerminalExecution {
                 structural_type = next;
             } else {
                 structural_type = resolve_structural_path_type(
-                    &self.structural_types,
+                    &self.program.structural_types,
                     structural_type,
                     std::slice::from_ref(segment),
                 )?;

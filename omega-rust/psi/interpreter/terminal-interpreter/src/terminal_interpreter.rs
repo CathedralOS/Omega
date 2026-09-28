@@ -10,9 +10,9 @@
 //!    that exact module;
 //! 2. verify — `terminal_verifier` checks the module against the profile
 //!    before any runtime state exists;
-//! 3. construct — `TerminalExecution::start_verified_module` (in
-//!    `execution`) admits the verified machines and binds the scalar and
-//!    [`TerminalStructuralInputs`] before committing any operation;
+//! 3. construct — `TerminalProgram::load` (in `program`) admits the verified
+//!    module into shared immutable form and `start_execution` binds the scalar
+//!    and [`TerminalStructuralInputs`] before committing any operation;
 //! 4. run — [`TerminalExecution::resume`] charges fuel and dispatches every
 //!    operation and terminator until the artifact completes, crashes or the
 //!    sponsor's fuel is exhausted.
@@ -47,7 +47,6 @@ use crate::errors::{
 use crate::execution::TerminalExecution;
 use crate::results::{MeasuredTerminalExecution, TerminalExecutionResult, TerminalExecutionStatus};
 use crate::structural_inputs::TerminalStructuralInputs;
-use crate::structural_inputs::scalar_fields::TerminalStructuralScalarFieldValue;
 use crate::values::TerminalScalarValue;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -307,62 +306,11 @@ impl TerminalExecution {
         scalar_arguments: &[TerminalScalarValue],
         structural_inputs: TerminalStructuralInputs<'_>,
     ) -> Result<Self, TerminalArtifactInterpretError> {
-        let module = terminal_codec::decode_module(semantic_bytes)
-            .map_err(TerminalArtifactInterpretError::SemanticDecode)?;
-        // Only the subject-sealed proof section enters interpretation: the
-        // seal must name this module's reconstructed identity, so a proof
-        // produced for another source/model/profile cannot be replayed here.
-        let proof = terminal_codec::decode_proof_section_for(&module, proof_bytes)
-            .map_err(TerminalArtifactInterpretError::ProofDecode)?;
-        let _verified =
-            terminal_verifier::verify_module_for_interpretation(&module, &proof, profile)
-                .map_err(TerminalArtifactInterpretError::Verification)?;
-        let converted_boolean_fields;
-        let scalar_fields = if structural_inputs.boolean_fields.is_empty() {
-            structural_inputs.scalar_fields
-        } else {
-            converted_boolean_fields = structural_inputs
-                .boolean_fields
-                .iter()
-                .map(TerminalStructuralScalarFieldValue::from)
-                .collect::<Vec<_>>();
-            &converted_boolean_fields
-        };
-        let mut execution = Self::start_verified_module(
-            module,
-            scalar_arguments,
-            structural_inputs.arguments,
-            scalar_fields,
-            structural_inputs.primitive_values,
-            structural_inputs.placed_view_establishments,
-            None,
-        )
-        .map_err(TerminalArtifactInterpretError::Execution)
-        .map_err(|error| match error {
-            TerminalArtifactInterpretError::Execution(
-                TerminalInterpretError::StructuralScalarFieldArgumentInvalid {
-                    argument_index,
-                    field,
-                },
-            ) if !structural_inputs.boolean_fields.is_empty() => {
-                TerminalArtifactInterpretError::Execution(
-                    TerminalInterpretError::StructuralBooleanFieldArgumentInvalid {
-                        argument_index,
-                        field,
-                    },
-                )
-            }
-            other => other,
-        })?;
-        execution
-            .bind_structural_cases(structural_inputs.cases)
-            .map_err(TerminalArtifactInterpretError::Execution)?;
-        if !structural_inputs.byte_arrays.is_empty() {
-            execution
-                .bind_byte_arrays(structural_inputs.byte_arrays)
-                .map_err(TerminalArtifactInterpretError::Execution)?;
-        }
-        Ok(execution)
+        // One admission path serves both public surfaces: `load` decodes the
+        // subject-sealed sections and verifies under the interpretation
+        // profile; `start_execution` binds this record's inputs.
+        crate::program::TerminalProgram::load(semantic_bytes, proof_bytes, profile)?
+            .start_execution(scalar_arguments, structural_inputs, None)
     }
 
     /// Begin execution with one explicit provider installation previously
@@ -380,28 +328,17 @@ impl TerminalExecution {
             .map_err(TerminalArtifactInterpretError::SemanticDecode)?;
         // Same sealed-section requirement as the other artifact starts: an
         // admitted installation is bound to this exact Terminal-Psi identity.
+        // This entry keeps the full verification profile that admitted the
+        // installation's catalog — `TerminalProgram::load` verifies the
+        // interpretation subset for the instance path.
         let proof = terminal_codec::decode_proof_section_for(&module, proof_bytes)
             .map_err(TerminalArtifactInterpretError::ProofDecode)?;
         let _verified = terminal_verifier::verify_module(&module, &proof, profile)
             .map_err(TerminalArtifactInterpretError::Verification)?;
-        let mut execution = Self::start_verified_module(
-            module,
-            scalar_arguments,
-            structural_inputs.arguments,
-            structural_inputs.scalar_fields,
-            structural_inputs.primitive_values,
-            structural_inputs.placed_view_establishments,
-            Some(installation),
-        )
-        .map_err(TerminalArtifactInterpretError::Execution)?;
-        if !structural_inputs.cases.is_empty() {
-            execution
-                .bind_structural_cases(structural_inputs.cases)
-                .map_err(TerminalArtifactInterpretError::Execution)?;
-        }
-        execution
-            .bind_byte_arrays(structural_inputs.byte_arrays)
-            .map_err(TerminalArtifactInterpretError::Execution)?;
-        Ok(execution)
+        let program = crate::program::TerminalProgram::from_admitted(
+            crate::program::AdmittedTerminalProgram::admit(module)
+                .map_err(TerminalArtifactInterpretError::Execution)?,
+        );
+        program.start_execution(scalar_arguments, structural_inputs, Some(installation))
     }
 }

@@ -42,6 +42,8 @@ mod cyclic_receiver;
 mod effect_modules;
 #[path = "unit/embedding_lifetimes.rs"]
 mod embedding_lifetimes;
+#[path = "unit/embedding_surface.rs"]
+mod embedding_surface;
 #[path = "unit/evidence_substitution.rs"]
 mod evidence_substitution;
 #[path = "unit/ieee_float_comparisons.rs"]
@@ -112,10 +114,12 @@ use semantic_vocabulary::{
 use terminal_codec::{decode_module, encode_module, encode_proof_section};
 use terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
 use terminal_interpreter::{
-    TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult,
-    TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalInterpretError,
+    TerminalAdapterError, TerminalBindingRejection, TerminalEffect, TerminalEffectHandler,
+    TerminalEffectRejection, TerminalEffectResult, TerminalExecution, TerminalExecutionResult,
+    TerminalExecutionStatus, TerminalImportSignature, TerminalInstanceCloseError,
+    TerminalInstanceError, TerminalInterpretError, TerminalProgram, TerminalScalarImport,
     TerminalScalarValue, TerminalStructuralPrimitiveValue, TerminalStructuralValue,
-    interpret_terminal_artifact_measured,
+    TerminalUnitImport, interpret_terminal_artifact_measured,
 };
 use terminal_psi::{
     BindingRelevance, Block, BoundaryMachineDeclaration, ByteSequenceCarrier, ClaimTransfer,

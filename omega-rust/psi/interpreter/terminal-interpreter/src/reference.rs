@@ -50,6 +50,7 @@ impl TerminalExecution {
             referent,
             access: StructuralAccess::MutableBorrow,
         }) = self
+            .program
             .structural_types
             .get(&reference_type)
             .map(|declaration| &declaration.shape)
@@ -59,6 +60,7 @@ impl TerminalExecution {
             ));
         };
         if !self
+            .program
             .structural_types
             .get(referent)
             .is_some_and(|declaration| {
@@ -164,7 +166,7 @@ impl TerminalExecution {
             .all(|argument| !argument.path.contains(&StructuralPathSegment::Referent))
         {
             return resolve_structural_arguments(
-                &self.structural_types,
+                &self.program.structural_types,
                 &self.structural_values,
                 arguments,
             );
@@ -176,7 +178,7 @@ impl TerminalExecution {
                     argument.path.split_last()
                 else {
                     let mut resolved = resolve_structural_arguments(
-                        &self.structural_types,
+                        &self.program.structural_types,
                         &self.structural_values,
                         std::slice::from_ref(argument),
                     )?;
@@ -193,7 +195,7 @@ impl TerminalExecution {
                 // Referent crosses into captured storage; it is never an offset
                 // within the record or permission to move that storage.
                 let carrier = resolve_structural_arguments(
-                    &self.structural_types,
+                    &self.program.structural_types,
                     &self.structural_values,
                     &[StructuralArgument {
                         place: argument.place,
@@ -244,7 +246,7 @@ impl TerminalExecution {
                     .find(|parameter| parameter.place == origin.source.place)
                     .ok_or_else(invalid)?;
                 let leaf_type = resolve_structural_path_type(
-                    &self.structural_types,
+                    &self.program.structural_types,
                     signature.structural_type,
                     &origin.path,
                 )?;
@@ -272,7 +274,7 @@ impl TerminalExecution {
                         return Err(invalid());
                     }
                     let carrier = resolve_structural_arguments(
-                        &self.structural_types,
+                        &self.program.structural_types,
                         arguments,
                         &[StructuralArgument {
                             place: parameter.place,
@@ -310,7 +312,8 @@ impl TerminalExecution {
     ) -> Result<(), TerminalInterpretError> {
         if signature.reference_sources.is_empty() {
             return if matches!(
-                self.structural_types
+                self.program
+                    .structural_types
                     .get(&signature.structural_type)
                     .map(|declaration| &declaration.shape),
                 Some(StructuralTypeShape::Reference { .. })
@@ -370,7 +373,7 @@ impl TerminalExecution {
                 return Err(invalid());
             }
             let leaf_type = resolve_structural_path_type(
-                &self.structural_types,
+                &self.program.structural_types,
                 signature.structural_type,
                 &origin.path,
             )?;

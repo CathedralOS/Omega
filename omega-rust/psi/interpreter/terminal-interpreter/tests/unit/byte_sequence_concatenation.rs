@@ -217,11 +217,9 @@ fn proof(module: &TerminalModule) -> ProofBundle {
                 .iter()
                 .enumerate()
                 .filter(|(_, fact)| matches!(fact, Proposition::Equal(ScalarTerm::Value { .. }, _)))
-                .map(|(index, fact)| {
-                    ProofNode {
-                        conclusion: fact.clone(),
-                        rule: ProofRule::SemanticAxiom { index },
-                    }
+                .map(|(index, fact)| ProofNode {
+                    conclusion: fact.clone(),
+                    rule: ProofRule::SemanticAxiom { index },
                 })
                 .collect::<Vec<_>>();
             let closed = proof_admission::check_value_equality_denotation(

@@ -118,7 +118,7 @@ impl TerminalExecution {
         let Some(StructuralTypeDeclaration {
             shape: StructuralTypeShape::Sum { cases },
             ..
-        }) = self.structural_types.get(&value.structural_type)
+        }) = self.program.structural_types.get(&value.structural_type)
         else {
             return Err(invalid());
         };
@@ -166,7 +166,7 @@ impl TerminalExecution {
             Ok(())
         } else {
             consume_affine_projection(
-                &self.structural_types,
+                &self.program.structural_types,
                 &self.structural_values,
                 frontier,
                 argument,

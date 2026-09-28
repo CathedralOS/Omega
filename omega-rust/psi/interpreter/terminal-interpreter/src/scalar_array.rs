@@ -43,7 +43,7 @@ impl TerminalExecution {
             .get(&argument.place)
             .ok_or_else(invalid)?;
         let (scalar_type, count) = terminal_semantics::scalar_array_leaf_shape(
-            self.structural_types.values(),
+            self.program.structural_types.values(),
             parameter.structural_type,
         )
         .ok_or_else(invalid)?;
@@ -103,6 +103,7 @@ impl TerminalExecution {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         };
         let signature = self
+            .program
             .machines
             .get(&self.current_machine)
             .and_then(|machine| machine.result.structural())
@@ -210,7 +211,7 @@ impl TerminalExecution {
         let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let result = operation.result.structural().ok_or_else(invalid)?;
         let (scalar_type, count) = terminal_semantics::scalar_array_leaf_shape(
-            self.structural_types.values(),
+            self.program.structural_types.values(),
             result.structural_type,
         )
         .ok_or_else(invalid)?;

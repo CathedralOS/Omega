@@ -20,11 +20,9 @@ use crate::effects::results::TerminalEffectResult;
 use crate::effects::{TerminalEffect, TerminalEffectHandler};
 use crate::errors::TerminalInterpretError;
 use crate::execution::{
-    ExecutableMachine, LiveClaim, OperationFlow, SuspendedCall, SuspendedCallResult,
-    TerminalExecution,
+    LiveClaim, OperationFlow, SuspendedCall, SuspendedCallResult, TerminalExecution,
 };
 use crate::results::TerminalExecutionStatus;
-use semantic_vocabulary::MachineId;
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     ClaimTransfer, OperationKind, StructuralAccess, StructuralMultiplicity, TerminalMachineResult,
@@ -128,6 +126,7 @@ impl TerminalExecution {
             .scalar()
             .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
         let (callee, source) = self
+            .program
             .dynamic_scalar_calls
             .get(&(self.current_machine, descriptor_ordinal))
             .cloned()
@@ -194,12 +193,13 @@ impl TerminalExecution {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
         let (callee, source) = self
+            .program
             .dynamic_scalar_calls
             .get(&(self.current_machine, descriptor_ordinal))
             .cloned()
             .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
         let arguments = resolve_structural_arguments(
-            &self.structural_types,
+            &self.program.structural_types,
             &self.structural_values,
             std::slice::from_ref(&source),
         )?;
@@ -333,7 +333,7 @@ impl TerminalExecution {
         else {
             unreachable!("dispatched execute_boundary_call")
         };
-        let boundary_declaration = self.boundary_machines.get(&boundary).ok_or(
+        let boundary_declaration = self.program.boundary_machines.get(&boundary).ok_or(
             TerminalInterpretError::VerifiedBoundaryMachineMissing(boundary),
         )?;
         let scalar_arguments = scalar_argument_ids
@@ -346,7 +346,7 @@ impl TerminalExecution {
             })
             .collect::<Result<Vec<_>, _>>()?;
         bind_boundary_arguments(&boundary_declaration.scalar_parameters, &scalar_arguments)?;
-        if self.provider_candidates.contains(&boundary) {
+        if self.program.provider_candidates.contains(&boundary) {
             let boundary_arguments = self.prepare_boundary_arguments(
                 &boundary_declaration.structural_parameters,
                 structural_arguments,
@@ -389,6 +389,7 @@ impl TerminalExecution {
                 TerminalInterpretError::ProviderInstallationMissing(boundary),
             )?;
             let callee = self
+                .program
                 .machines
                 .get(&callee_id)
                 .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(callee_id))?;
@@ -576,7 +577,7 @@ impl TerminalExecution {
     pub(crate) fn execute_call(
         &mut self,
         operation: &terminal_psi::Operation,
-        machines: &std::sync::Arc<BTreeMap<MachineId, ExecutableMachine>>,
+        program: &std::sync::Arc<crate::program::AdmittedTerminalProgram>,
     ) -> Result<OperationFlow, TerminalInterpretError> {
         let OperationKind::Call {
             callee,
@@ -596,7 +597,8 @@ impl TerminalExecution {
             })
             .collect::<Result<Vec<_>, _>>()?;
         let callee_id = callee;
-        let callee = machines
+        let callee = program
+            .machines
             .get(&callee_id)
             .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(callee_id))?;
         if !callee.structural_parameters.is_empty()

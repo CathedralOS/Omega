@@ -19,27 +19,23 @@ use terminal_psi::OperationResult;
 
 fn array_execution(length: u64) -> TerminalExecution {
     let mut execution = execution();
-    execution.structural_types.insert(
-        structural_type(4),
-        StructuralTypeDeclaration {
-            id: structural_type(4),
-            identity: "u8".into(),
-            shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
-                IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
-            )),
-        },
-    );
-    execution
-        .structural_types
-        .get_mut(&structural_type(2))
-        .unwrap()
-        .shape = StructuralTypeShape::FixedArray {
-        element: structural_type(4),
-        length,
-    };
+    execution.insert_structural_type(StructuralTypeDeclaration {
+        id: structural_type(4),
+        identity: "u8".into(),
+        shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+            IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+        )),
+    });
+    execution.mutate_structural_type(structural_type(2), |declaration| {
+        declaration.shape = StructuralTypeShape::FixedArray {
+            element: structural_type(4),
+            length,
+        };
+    });
     let mut root = parameter(1);
     root.structural_type = structural_type(2);
-    std::sync::Arc::get_mut(&mut execution.machines)
+    std::sync::Arc::get_mut(&mut execution.program)
+        .map(|program| &mut program.machines)
         .unwrap()
         .get_mut(&execution.current_machine)
         .unwrap()
@@ -130,7 +126,8 @@ fn array_view_forwarding_keeps_raw_backing_and_rejects_resize_and_aliases() {
             .resolve_boundary_arguments(&[parameter(4)], &[argument(3)])
             .is_err()
     );
-    std::sync::Arc::get_mut(&mut execution.machines)
+    std::sync::Arc::get_mut(&mut execution.program)
+        .map(|program| &mut program.machines)
         .unwrap()
         .get_mut(&MachineId::new(2).unwrap())
         .unwrap()
@@ -168,7 +165,8 @@ fn array_view_forwarding_keeps_raw_backing_and_rejects_resize_and_aliases() {
             obligation: ObligationId::new(1).unwrap(),
         },
     };
-    std::sync::Arc::get_mut(&mut execution.machines)
+    std::sync::Arc::get_mut(&mut execution.program)
+        .map(|program| &mut program.machines)
         .unwrap()
         .get_mut(&execution.current_machine)
         .unwrap()
@@ -220,7 +218,8 @@ fn array_input_rejects_wrong_access_path_and_element_type() {
         let mut supplied = input(&[1, 2, 3]);
         match mutation {
             0 => {
-                std::sync::Arc::get_mut(&mut execution.machines)
+                std::sync::Arc::get_mut(&mut execution.program)
+                    .map(|program| &mut program.machines)
                     .unwrap()
                     .get_mut(&execution.current_machine)
                     .unwrap()
@@ -228,15 +227,11 @@ fn array_input_rejects_wrong_access_path_and_element_type() {
                     .access = StructuralAccess::WriteOnlyBorrow
             }
             1 => supplied.path.push(StructuralPathSegment::FixedIndex(0)),
-            2 => {
-                execution
-                    .structural_types
-                    .get_mut(&structural_type(4))
-                    .unwrap()
-                    .shape = StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+            2 => execution.mutate_structural_type(structural_type(4), |declaration| {
+                declaration.shape = StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
                     IntegerType::new(IntegerSign::Signed, 8).unwrap(),
                 ))
-            }
+            }),
             3 => {
                 execution
                     .structural_values
@@ -245,7 +240,8 @@ fn array_input_rejects_wrong_access_path_and_element_type() {
                     .structural_type = structural_type(1)
             }
             4 => {
-                std::sync::Arc::get_mut(&mut execution.machines)
+                std::sync::Arc::get_mut(&mut execution.program)
+                    .map(|program| &mut program.machines)
                     .unwrap()
                     .get_mut(&execution.current_machine)
                     .unwrap()
@@ -346,7 +342,8 @@ fn fixed_byte_windows_check_sibling_aliases_before_binding() {
     execution
         .bind_byte_arrays(&[input(&[17, 128, 255])])
         .unwrap();
-    std::sync::Arc::get_mut(&mut execution.machines)
+    std::sync::Arc::get_mut(&mut execution.program)
+        .map(|program| &mut program.machines)
         .unwrap()
         .get_mut(&MachineId::new(2).unwrap())
         .unwrap()
@@ -384,7 +381,9 @@ fn shared_fixed_byte_windows_read_forward_and_reject_mutable_reborrowing() {
     ] {
         for range in [None, Some((0, 0)), Some((1, 3)), Some((3, 3))] {
             let mut execution = array_execution(3);
-            let machines = std::sync::Arc::get_mut(&mut execution.machines).unwrap();
+            let machines = std::sync::Arc::get_mut(&mut execution.program)
+                .map(|program| &mut program.machines)
+                .unwrap();
             machines
                 .get_mut(&MachineId::new(1).unwrap())
                 .unwrap()
@@ -606,24 +605,25 @@ fn array_field_input_and_presentation_require_record_not_mixed_or_affine() {
             relevance: BindingRelevance::Relevant,
             field_type: StructuralFieldType::Structural(structural_type(2)),
         }];
-        execution
-            .structural_types
-            .get_mut(&structural_type(1))
-            .unwrap()
-            .shape = if mixed {
-            StructuralTypeShape::Mixed {
-                fields,
-                cases: Vec::new(),
-            }
-        } else {
-            StructuralTypeShape::Record { fields }
-        };
+        execution.mutate_structural_type(structural_type(1), |declaration| {
+            declaration.shape = if mixed {
+                StructuralTypeShape::Mixed {
+                    fields: fields.clone(),
+                    cases: Vec::new(),
+                }
+            } else {
+                StructuralTypeShape::Record {
+                    fields: fields.clone(),
+                }
+            };
+        });
         execution
             .structural_values
             .get_mut(&place(1))
             .unwrap()
             .structural_type = structural_type(1);
-        std::sync::Arc::get_mut(&mut execution.machines)
+        std::sync::Arc::get_mut(&mut execution.program)
+            .map(|program| &mut program.machines)
             .unwrap()
             .get_mut(&execution.current_machine)
             .unwrap()
@@ -657,7 +657,8 @@ fn array_field_input_and_presentation_require_record_not_mixed_or_affine() {
                     )
                     .is_ok()
             );
-            std::sync::Arc::get_mut(&mut execution.machines)
+            std::sync::Arc::get_mut(&mut execution.program)
+                .map(|program| &mut program.machines)
                 .unwrap()
                 .get_mut(&execution.current_machine)
                 .unwrap()

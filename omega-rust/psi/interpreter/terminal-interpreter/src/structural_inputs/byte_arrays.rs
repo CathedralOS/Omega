@@ -89,6 +89,7 @@ impl TerminalExecution {
     ) -> Result<(), TerminalInterpretError> {
         let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let machine = self
+            .program
             .machines
             .get(&self.current_machine)
             .ok_or_else(invalid)?;
@@ -123,11 +124,14 @@ impl TerminalExecution {
             {
                 return Err(invalid());
             }
-            let array_type =
-                array_path_type(&self.structural_types, root.structural_type, &argument.path)
-                    .ok_or_else(invalid)?;
-            let length =
-                byte_array_length(&self.structural_types, array_type).ok_or_else(invalid)?;
+            let array_type = array_path_type(
+                &self.program.structural_types,
+                root.structural_type,
+                &argument.path,
+            )
+            .ok_or_else(invalid)?;
+            let length = byte_array_length(&self.program.structural_types, array_type)
+                .ok_or_else(invalid)?;
             if argument.bytes.len() as u128 != u128::from(length) {
                 return Err(invalid());
             }
@@ -171,6 +175,7 @@ impl TerminalExecution {
             parameter.access,
             StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
         ) || !self
+            .program
             .structural_types
             .get(&parameter.structural_type)
             .is_some_and(|declaration| declaration.shape.is_borrowed_byte_carrier())
@@ -215,7 +220,7 @@ impl TerminalExecution {
             if value.structural_type != parameter.structural_type {
                 return Err(invalid());
             }
-            binding.validate_mutable_referent(&self.structural_types, value)?;
+            binding.validate_mutable_referent(&self.program.structural_types, value)?;
             if parameter.access == StructuralAccess::SharedBorrow {
                 let ByteSequenceBinding::MutableArray {
                     array,
@@ -249,22 +254,26 @@ impl TerminalExecution {
             Some((StructuralPathSegment::FixedByteRange { .. }, backing)) => backing,
             _ => &argument.path,
         };
-        let Some(array_type) =
-            array_path_type(&self.structural_types, root.structural_type, backing_path)
-        else {
+        let Some(array_type) = array_path_type(
+            &self.program.structural_types,
+            root.structural_type,
+            backing_path,
+        ) else {
             return Ok(None);
         };
-        let Some(length) = byte_array_length(&self.structural_types, array_type) else {
+        let Some(length) = byte_array_length(&self.program.structural_types, array_type) else {
             return Ok(None);
         };
         let source = self
+            .program
             .machines
             .get(&self.current_machine)
             .ok_or_else(invalid)?
             .structural_parameters
             .iter()
             .chain(
-                self.machines
+                self.program
+                    .machines
                     .get(&self.current_machine)
                     .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(
                         self.current_machine,
@@ -283,7 +292,7 @@ impl TerminalExecution {
             return Err(invalid());
         }
         let window = terminal_semantics::fixed_byte_array_window(
-            self.structural_types.values(),
+            self.program.structural_types.values(),
             source,
             argument,
             parameter,
@@ -295,7 +304,7 @@ impl TerminalExecution {
             access: argument.access,
         };
         let mut referent = resolve_structural_arguments(
-            &self.structural_types,
+            &self.program.structural_types,
             &self.structural_values,
             std::slice::from_ref(&backing_argument),
         )?

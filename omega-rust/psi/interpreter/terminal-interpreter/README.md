@@ -27,10 +27,27 @@ allocation, and does not establish a measured speedup.
 ## Embedding contract and probe limits
 
 The accepted [embedding contract](../../../../wiki/spec/build/embedding.md)
-is broader than this low-level execution entrance. The public program/instance,
-binding-adapter, shutdown, and interpreter-backed replacement library remains
-tracked under [embedding tasks](../../../../TASKS.md#embedding-and-interpreted-components).
-Do not expose the raw effect hook as an admitted binding API.
+now has its public surface here rather than only the raw hook. `TerminalProgram::load`
+decodes canonical semantic/proof bytes, verifies them under the admission profile,
+and retains the result as immutable shared code; `instantiate` starts an
+independent instance without re-reading or re-checking bytes.
+`TerminalInstance::bind_import` establishes each demanded import slot against a
+checked adapter before `invoke` runs any guest operation — a missing, unknown,
+provider-realized, duplicate, or signature-mismatched supply rejects without
+effects — and `close` releases the instance's runtime state once the activation
+settles. `TerminalImportAdapter` is the contract a host object declares;
+`TerminalScalarImport` and `TerminalUnitImport` wrap the common leaf signatures.
+[embedding_surface.rs](tests/unit/embedding_surface.rs) covers admission reuse,
+exact-slot binding checks, per-slot dispatch to different hosts, and close
+semantics.
+
+Remaining gaps toward the full contract: an instance exposes only the module's
+entry invocation (no exported secondary operations yet), adapters above the
+scalar/unit leaves are hand-implemented `TerminalImportAdapter`s, and public
+entry descriptions wired from product compilation (component publication)
+remain a named dependency outside this crate. The raw `TerminalEffectHandler`
+stays the low-level control the embedding layer is built over — it is not an
+admitted binding API.
 
 Checked assembly follows the [instruction interpretation contract](../../../../wiki/spec/language/assembly.md#interpreted-execution):
 reuse ordinary value/place/transition operations, keep scratch state block-local,
