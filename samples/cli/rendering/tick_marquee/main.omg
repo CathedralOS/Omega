@@ -8,11 +8,41 @@
 // Expected exit: 0.
 // Expected output contains: #
 use omega_language_std::console;
+use omega_language_std::macos_gui;
+use omega::language::core::numeric_conversion;
 use omega::language::core::binding;
 domain [u8; 12]::Utf8
 requires
     valid_utf8(self);
-pub boundary trait Clock2 { machine sleep(milliseconds: u32); machine tick_count() -> u64; }
+pub boundary trait Clock2 {
+    machine sleep(&mut self, milliseconds: u32) invokes DarwinClock;
+    machine tick_count(&mut self) -> u64 invokes DarwinClock;
+}
+
+// Declared-host Clock2 wiring over the darwin leaves. `tick_count` must answer
+// in MILLISECONDS: the loop asserts `elapsed >= 100` against its own header
+// contract ("GetTickCount64 measures real Sleep time"), so the raw nanosecond
+// read is scaled exactly as `MacosClock::get_tick_count` scales it.
+data MarqueeClockProvider {
+    rc: i32;
+    timeout: i32;
+    ns: u64;
+    scaled: u64;
+}
+macos_arm64 machine MarqueeClockProvider::provider_defaults(defaults: &mut MarqueeClockProvider) {
+    defaults.select_provider<Clock2, MarqueeClockProvider>();
+}
+macos_arm64 machine MarqueeClockProvider::sleep(&mut self, milliseconds: u32) satisfies Clock2::sleep
+{
+    self.timeout = narrow_u32_to_i32_wrapping(milliseconds);
+    self.rc = darwin_poll(0, 0, self.timeout);
+}
+macos_arm64 machine MarqueeClockProvider::tick_count(&mut self) -> u64 satisfies Clock2::tick_count
+{
+    self.ns = darwin_clock_ns(6);
+    self.scaled = self.ns / 1000000;
+    self.scaled
+}
 data Main {
     console: Binding<Console>;
     clock: Binding<Clock2>;
@@ -24,7 +54,7 @@ data Main {
     elapsed: u64 in Wrapping;
     pause: [u8; 256];
 }
-machine Main::main(&mut self) reaches Clock2 + Console {
+machine Main::main(&mut self) reaches Clock2 + Console + DarwinClock {
     self.console.write_line("tick_marquee: a # sweeps 24 frames, then real elapsed time is asserted");
     self.t_start = self.clock.tick_count();
     self.frame = 0;
