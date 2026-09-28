@@ -128,11 +128,38 @@ pub(super) fn validate_witness(
         }
         _ => return unsupported("Unit graph rank subjects do not match the selected view"),
     };
+    // A cyclic state may rename or reorder the ranked input — a loop
+    // header's `pending` carries the authored `remaining` — and the checked
+    // rank names the carried formal. The entry telescope the range judgment
+    // proved supplies that correspondence: one entry-parameter symbol per
+    // non-self formal of every state. A slot claiming the subject's role is
+    // the checked subject whatever its local name; where the telescope does
+    // not resolve, bare name equality decides exactly as before.
+    let required_roles = custody
+        .rank_range
+        .filter(|_| custody.subjects.len() == 1)
+        .and_then(|range| {
+            validation::ranking_range_required_symbols(
+                checked,
+                machine,
+                range,
+                validation::RankingRangeMeasure::Single(custody.subjects[0]),
+                validation::RankingRangePremises::RankInvariant,
+            )
+        })
+        .unwrap_or_else(|| vec![subject.symbol]);
+    let entry_roles = validation::discover_state_entry_mappings(
+        checked,
+        machine,
+        subject.symbol,
+        &required_roles,
+    );
     for rank in &plan.natural_ranks {
-        let state = checked
+        let (state_index, state) = checked
             .machine_states(machine)
             .iter()
-            .find(|state| state.symbol == rank.state)
+            .enumerate()
+            .find(|(_, state)| state.symbol == rank.state)
             .ok_or(LoweringError::Unsupported(
                 "Unit graph rank names a foreign state",
             ))?;
@@ -222,9 +249,22 @@ pub(super) fn validate_witness(
                         .any(|parameter| parameter.position == collection_position)
             }
         };
+        let names_subject = checked
+            .state_parameters(state)
+            .iter()
+            .filter(|formal| !formal.is_self)
+            .position(|formal| formal.symbol == parameter.symbol)
+            .is_some_and(|index| {
+                entry_roles
+                    .as_deref()
+                    .and_then(|mappings| mappings.get(state_index))
+                    .and_then(|entries| entries.get(index))
+                    .is_some_and(|role| *role == subject.symbol)
+            })
+            || parameter.name == subject.name;
         if parameter.symbol != rank.parameter
             || parameter.is_self
-            || parameter.name != subject.name
+            || !names_subject
             || !measure_matches
         {
             return unsupported("Unit graph rank no longer names its checked state subject");

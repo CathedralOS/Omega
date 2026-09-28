@@ -181,27 +181,43 @@ pub(crate) fn proven_nat_countdown_sccs_with_call_frames(
         return None;
     };
 
+    // A cyclic header may rename or reorder the ranked input — `pending`
+    // carrying the authored `remaining` — and the retained coordinates must
+    // name the carried formal. Discover the entry telescope the relational
+    // range judgment already proved; where it resolves the subject, the
+    // carried formal supplies both the header coordinate and the edge
+    // re-proof, and the bare name-match judgment never substitutes for it.
+    let entry_mappings =
+        measure_entry_mappings(program, machine, DecreaseMeasure::Single(*decreases));
     let mut retained = Vec::with_capacity(cyclic_components.len());
     for component in cyclic_components {
         let [state_index] = component.as_slice() else {
             return None;
         };
         let state = states.get(*state_index)?;
+        let state_entries = entry_mappings
+            .as_deref()
+            .and_then(|mappings| mappings.get(*state_index));
+        let carried = state_entries
+            .and_then(|entries| nat::carried_subject(program, state, entries, *decreases));
         let decrease_name = program
             .expression_table
             .name_path_members(decreases_path.members)
             .last()
             .map(|member| member.as_str())
             .unwrap_or_default();
-        let (header_rank_parameter_position, rank_parameter) = program
-            .state_parameters(state)
-            .iter()
-            .enumerate()
-            .find(|(_, parameter)| {
-                !parameter.is_self
-                    && (parameter.symbol == decreases_path.symbol
-                        || parameter.name.as_str() == decrease_name)
-            })?;
+        let (header_rank_parameter_position, rank_parameter) = match carried {
+            Some((position, parameter)) => (position, parameter),
+            None => program
+                .state_parameters(state)
+                .iter()
+                .enumerate()
+                .find(|(_, parameter)| {
+                    !parameter.is_self
+                        && (parameter.symbol == decreases_path.symbol
+                            || parameter.name.as_str() == decrease_name)
+                })?,
+        };
         let rank_primitive_type =
             program.primitive_type_reference(rank_parameter.type_reference)?;
         let rank_upper_bound = unsigned_maximum(rank_primitive_type)?;
@@ -212,14 +228,25 @@ pub(crate) fn proven_nat_countdown_sccs_with_call_frames(
             if edge.is_continuation {
                 return None;
             }
-            let proof = nat::direct_countdown_edge(
-                program,
-                state,
-                state,
-                &edge.guards,
-                edge.arguments,
-                *decreases,
-            )?;
+            let proof = match state_entries {
+                Some(entries) if carried.is_some() => nat::carried_direct_countdown_edge(
+                    program,
+                    state,
+                    &edge.guards,
+                    edge.arguments,
+                    *decreases,
+                    entries,
+                    entries,
+                )?,
+                _ => nat::direct_countdown_edge(
+                    program,
+                    state,
+                    state,
+                    &edge.guards,
+                    edge.arguments,
+                    *decreases,
+                )?,
+            };
             if proof.source_parameter != rank_parameter.symbol {
                 return None;
             }
@@ -563,6 +590,15 @@ pub(crate) fn proven_state_natural_ranks_with_call_frames(
         },
         _ => return None,
     };
+    // A cyclic state may rename or reorder the ranked input — a loop header's
+    // `pending` carries the authored `remaining` — and the executable rank
+    // must name the carried formal. Discover the entry telescope the
+    // relational range judgment already proved: one entry-parameter symbol
+    // per non-self formal of every state. Where the telescope resolves the
+    // subject, the carried formal supplies both the published rank and the
+    // edge re-proof; where no complete correspondence exists, the bare
+    // name-match judgment decides alone, exactly as before.
+    let entry_mappings = measure_entry_mappings(program, machine, measure);
     let adjacency = graph::machine_adjacency(program, machine);
     let mut ranks = Vec::new();
     for component in graph::strongly_connected_components(&adjacency)
@@ -571,19 +607,50 @@ pub(crate) fn proven_state_natural_ranks_with_call_frames(
     {
         for &source_position in &component {
             let source = states.get(source_position)?;
-            ranks.push(nat::state_rank(program, source, measure)?);
+            let source_entries = entry_mappings
+                .as_deref()
+                .and_then(|mappings| mappings.get(source_position));
+            let carried_rank = source_entries
+                .and_then(|entries| nat::carried_state_rank(program, source, measure, entries));
+            let carried_subject_resolved = carried_rank.is_some();
+            ranks.push(carried_rank.or_else(|| nat::state_rank(program, source, measure))?);
             for &target_position in &component {
                 let target = states.get(target_position)?;
                 for edge in patterns::edges_to_state(program, source, target.symbol) {
-                    if !nat::edge_decrease_proven(
-                        program,
-                        source,
-                        target,
-                        &edge.guards,
-                        edge.arguments,
-                        measure,
-                        DistanceOrientation::Declared,
-                    ) {
+                    // When the carried correspondence resolved the subject in
+                    // `source`, the same roles must decide the edge: a rank
+                    // published through the telescope is never paired with an
+                    // edge proof that named a different parameter.
+                    let proven = if carried_subject_resolved {
+                        source_entries
+                            .zip(
+                                entry_mappings
+                                    .as_deref()
+                                    .and_then(|mappings| mappings.get(target_position)),
+                            )
+                            .is_some_and(|(source_entries, target_entries)| {
+                                nat::carried_edge_decrease_proven(
+                                    program,
+                                    source,
+                                    &edge.guards,
+                                    edge.arguments,
+                                    measure,
+                                    source_entries,
+                                    target_entries,
+                                )
+                            })
+                    } else {
+                        nat::edge_decrease_proven(
+                            program,
+                            source,
+                            target,
+                            &edge.guards,
+                            edge.arguments,
+                            measure,
+                            DistanceOrientation::Declared,
+                        )
+                    };
+                    if !proven {
                         return None;
                     }
                 }
@@ -592,6 +659,42 @@ pub(crate) fn proven_state_natural_ranks_with_call_frames(
     }
     ranks.sort_by_key(|rank| (rank.state.arena_index(), rank.state.generation()));
     (!ranks.is_empty()).then_some(ranks)
+}
+
+/// The entry correspondence under which a machine-stated measure can name its
+/// subject inside a renamed or reordered cyclic state. The required set
+/// follows the range judgment's RankInvariant premises so the telescope
+/// resolves duplicated claims exactly as the membership proof did; a witness
+/// with no range still requires its own subject. `None` for a measure whose
+/// subjects are not single names, since those keep the name-based judgment.
+fn measure_entry_mappings(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    measure: DecreaseMeasure,
+) -> Option<Vec<Vec<symbols::SymbolHandle>>> {
+    let DecreaseMeasure::Single(subject) = measure else {
+        return None;
+    };
+    let ExpressionNode::Name(name) = program.expression_table.expression(subject) else {
+        return None;
+    };
+    if !name.symbol.is_valid() || name.head_symbol != name.symbol {
+        return None;
+    }
+    let required = program
+        .ranking_expression_custody_for(machine.symbol)
+        .and_then(|custody| custody.rank_range)
+        .and_then(|range| {
+            validation::ranking_range_required_symbols(
+                program,
+                machine,
+                range,
+                validation::RankingRangeMeasure::Single(subject),
+                validation::RankingRangePremises::RankInvariant,
+            )
+        })
+        .unwrap_or_else(|| vec![name.symbol]);
+    validation::discover_state_entry_mappings(program, machine, name.symbol, &required)
 }
 
 pub(super) fn machine_decrease_outcome(
