@@ -18,15 +18,13 @@ pub use artifacts::compile_timings::counters::{
     checked_compilation_call_count, preliminary_check_totals, settled_check_totals,
     source_assembly_invocation_count, typed_frontier_reuse_count,
 };
-pub(crate) use checking::build_continuation::evaluate_build_and_continue;
 pub use checking::compile_thread::run_on_compile_thread;
-pub(crate) use checking::execution_settlement::check_selected_execution;
 pub use checking::{
     CheckedCompilation, CheckedCompileOutcome, CheckedCompileRequest,
     IndependentComponentDiscovery, IndependentComponentSelection, PreparedCheckedSource,
     RestrictedBuildGrants, compile_checked, compile_to_checked,
 };
-pub(crate) use checking::{prepare_checked_source, prepare_typed_frontier};
+pub(crate) use checking::{check_prepared_source, prepare_checked_source};
 pub use optimization_core::{
     OptimizationRollback, OptimizationRollbackInputError, OptimizationRollbackSettlement,
 };
