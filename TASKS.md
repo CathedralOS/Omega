@@ -4928,30 +4928,31 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   the checked interpreter's Unit stubs and fabricated flags are not modeled
   execution. Reject unsupported effects; retain only catalog-permitted no-ops.
 
-- **RUNTIME-SIZED-ACTIVATION-CONTRACT.** Connect the ratified
-  [bounded activation claim](wiki/spec/resources/activation_storage.md) to
-  authored source and Terminal Psi. Use ordinary callable/core-declaration
-  mechanisms; an absent `claim` keyword is not an owner-design blocker.
-  `psi/foundation/extents/src/activation_claims/` supplies bookkeeping,
-  not an executable compiler route.
+- **RUNTIME-SIZED-ACTIVATION-CONTRACT.** Execute a source-authored
+  [bounded activation claim](wiki/spec/resources/activation_storage.md):
+  establish runtime-sized backing within a declared bound, access it, retain
+  it across suspension and release in reverse order. Ordinary calls/core
+  declarations can expose this mechanism; no new keyword or owner decision
+  is required.
 
-  Expose compiler-provisioned activation backing with exact activation
-  provenance/lifetime, then retain committed extent, bound, release order and
-  suspension claim-site rows through checking, lowering, codec and independent
-  verification. Keep backing nonmoving with stable materialized addresses for
-  the claim lifetime. Owners: ordinary call admission, extent/claim evidence,
-  Terminal representation and stack-demand composition. Allocation packages
-  can manage already-held backing but cannot mint its grant from an address
-  and length. Runtime generic extents and fixed-array establishment are not
-  this supply mechanism.
+  `extents::ActivationClaimLedger` and `compose_claim_bounds` have model
+  tests but no compiler consumers. They hold numeric rows, not backing or
+  an exact activation identity. Connect ordinary call admission, extent
+  evidence and Terminal production/codec/replay to compiler-provisioned
+  storage, retaining each site's bound, committed-extent computation,
+  provenance, release order and suspension storage role. Charge aligned
+  co-live bounds by sum and exclusive branches by maximum; reject open demand
+  before establishment. Keep backing nonmoving and materialized addresses stable.
 
-  Acceptance: a source-authored bounded claim supports access, reverse-order
-  release and suspension retention under its declared bound; over-bound
-  establishment returns checked failure. Escaping claims, missing/duplicate
-  sites, wrong provenance, stale loans and invalid release/suspension custody
-  reject independently. **FRAME-LAYOUT** in `TASKS_OPTIMIZER.md` owns final
-  frame, probe, unwind and native replay. Do not add implicit variable-sized
-  locals, provider-backed issuance, a new syntax category or an OS allocator.
+  Acceptance: `committed > bound` returns checked failure, never a trap or
+  clamp. Split/merge conserves coverage and lineage. Escaping claims, wrong
+  activation/provenance, stale loans, missing/duplicate sites and invalid
+  release/suspension custody reject independently. **FRAME-LAYOUT** in
+  `TASKS_OPTIMIZER.md` owns final frame, probe, unwind and native replay;
+  ordinary fixed-size calls need not wait. Allocation packages may manage held
+  backing but cannot mint this grant from an address/length. Runtime generic
+  extents, implicit variable-sized locals, provider grants and OS allocators
+  do not supply it.
 
 ## Checked boundary topology
 
