@@ -114,16 +114,25 @@ endgame — the leaf-handoff churn machinery only pays at hundreds of workers.
    make. The coordinator's drain sees a parked worker and re-dispatches,
    but every parked hour is a wasted slot — chain legs autonomously.
 
-7. **Never spin-poll a long mechanical wait.** An `omega update`, lock
-   refresh, cold check, or rebuild projected past ~30min goes to a
-   background shell while the leg continues on independent work; if the
-   leg truly cannot proceed without it, post `blocked` naming the
-   operation and its projected duration — do not sleep-poll it to
-   completion (measured: a ~10h update poll consumed a slot that could
-   have reported and moved). Before diagnosing any wall, check the
-   dispatch's owned-walls roster: a blocker listed as another worker's
-   claim means report the hit and take the next unblocked slice, never
-   re-derive a diagnosis already owned upstream.
+7. **Never spin-poll a long mechanical wait — push first, park the job,
+   resume as its own commit.** An `omega update`, lock refresh, cold
+   check, or rebuild projected past ~30min: push the SOURCE lane
+   immediately (the lane is never gated on the job), keep the job
+   running detached under nohup with its log path noted, and continue
+   the next leg; when the log completes, push the produced artifact
+   (e.g. an `omega.lock`) as its own `pin:` commit — that is the resume
+   half. Outcome notes must name parked jobs (log path + package) so the
+   coordinator can check and route the resume. Locks bind absolute
+   checkout path + content, so a committed lock mostly serves the box
+   that minted it — minting after merge on the checkout that needs it
+   is the honest shape. If the leg truly cannot proceed without the
+   result, post `blocked` naming the operation and projected duration —
+   do not sleep-poll it to completion (measured: a ~10h update poll
+   consumed a slot that could have reported and moved; a ~6h lock-mint
+   serialization stalled a whole landing day). Before diagnosing any
+   wall, check the dispatch's owned-walls roster: a blocker listed as
+   another worker's claim means report the hit and take the next
+   unblocked slice, never re-derive a diagnosis already owned upstream.
 
 And ALWAYS pass `notify_on_response=true` on every
 `devin_session_interact message` dispatch — it is one-shot (consumed on that
