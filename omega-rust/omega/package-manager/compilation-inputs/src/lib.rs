@@ -3,6 +3,8 @@
 //! Reconciled package compilation inputs and exact source-consumption custody.
 //!
 //! Start at `package_compilation.rs` for input construction and validation.
+//! `production_subject` validates and encodes package/source/build/target custody
+//! without depending on artifact producers or compiler reports.
 //! `source_snapshot` captures the package source a compilation consumed,
 //! `source_consumption` records exactly which of it was read, and
 //! `semantic_bindings` carries the optional standard-library bindings.
@@ -22,6 +24,7 @@ pub mod source_imports;
 pub mod toolchain_library;
 pub use build_execution::*;
 mod package_compilation;
+mod production_subject;
 mod semantic_bindings;
 mod source_consumption;
 mod source_snapshot;
@@ -37,6 +40,7 @@ pub use package_compilation::{
     PackageDependencyBinding, PackageDependencyClosure, PackageGeneratedSourceBundle,
     PackageSourceBinding,
 };
+pub use production_subject::ProductionCompilationSubject;
 pub use semantic_bindings::{
     AcceptedSemanticBinding, AcceptedSemanticBindingRole, accepted_service_schema_digest,
     program_entry_semantic_binding_role,
