@@ -1,0 +1,26 @@
+module right;
+
+use omega_language_std::console;
+use omega::language::core::binding;
+
+pub boundary trait Reader { machine read() -> i32; }
+pub data RightProvider {}
+machine RightProvider::read() -> i32 satisfies Reader::read { 37 }
+
+// The sibling module tags its attached data (`RightRunner`, `RightProvider`)
+// rather than spelling `Runner`/`Provider` again: receiver and unit
+// attachment still resolve attached data by leaf name, so a second same-leaf
+// declaration in one package would be read as this module's `Runner` and the
+// unit plan would be omitted. The trait leaf stays shared -- provider
+// dispatch is symbol-keyed -- so the package still carries two `Reader`
+// conformances and the selection must pick `left::Reader`'s provider.
+pub data RightRunner { reader: Binding<Reader>; console: Binding<Console>; }
+pub machine RightRunner::run(&mut self) reaches Reader, Console
+invokes Reader;
+invokes Console;
+{
+    let value: i32 = self.reader.read();
+    transition value == 37 { true -> deliver(value) _ -> wrong(value) }
+    state deliver(&mut self, observed: i32) { self.console.exit_process(observed); }
+    state wrong(&mut self, observed: i32) { self.console.exit_process(65); }
+}

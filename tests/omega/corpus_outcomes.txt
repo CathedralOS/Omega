@@ -75,6 +75,8 @@ pass/borrows/borrow_guarded_window_write_and_call checked 334ms
 pass/borrows/borrow_returned_window_write_and_call checked 352ms
 pass/borrows/borrow_stated_index_disequality_mut checked 350ms
 pass/build/conditional_root_binding checked 446ms
+pass/build/described_runner_entry_left_exit checked 1480ms
+pass/build/described_runner_entry_right_exit checked 1460ms
 pass/build/runtime_depend_mapping_exit checked 829ms
 pass/build/runtime_main_source_builder_is_ordinary_exit checked 848ms
 pass/build/uefi_os_handoff_invocation rejected 2579ms
