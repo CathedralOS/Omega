@@ -10,7 +10,7 @@ pub use compilation_products::{
 };
 pub use package_compilation::build_execution::RestrictedBuildGrants;
 
-use artifacts::compile_timings::CompileTimings;
+use artifacts::compile_timings::{CompileTimings, counters};
 use compilation_products::{
     CheckedExecutionRequest, PreparedSourceFrontier, TypedCompilationFrontier,
 };
@@ -22,7 +22,7 @@ use std::path::Path;
 /// Run the owned request on the compiler stack and return its whole outcome.
 /// Early failures retain no source frontier or Build observations.
 pub fn compile_checked(request: CheckedCompileRequest) -> CheckedCompileOutcome {
-    CHECKED_COMPILATION_CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    counters::record_checked_compilation();
     compile_thread::run_on_compile_thread(move || compile_checked_worker(request)).unwrap_or_else(
         |diagnostics| CheckedCompileOutcome {
             result: Err(diagnostics),
@@ -60,7 +60,7 @@ pub(crate) fn prepare_typed_frontier(
     let (sources, mut timings, retention) =
         match source.into_frontier(child.package_inputs, child.build_execution_profile)? {
             PreparedSourceFrontier::Retained(frontier, timings) => {
-                TYPED_FRONTIER_REUSES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                counters::record_typed_frontier_reuse();
                 return Ok((frontier, timings));
             }
             PreparedSourceFrontier::Pending {
@@ -69,7 +69,7 @@ pub(crate) fn prepare_typed_frontier(
                 retention,
             } => (sources, timings, retention),
         };
-    SOURCE_ASSEMBLY_CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    counters::record_source_assembly();
     let assembly_started = std::time::Instant::now();
     let (source_file_count, syntax) = sources.assemble(child.package_inputs, &mut timings)?;
     timings.add_completed(
@@ -108,64 +108,6 @@ pub fn compile_to_checked(
     request: CheckedCompileRequest,
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
     compile_checked(request).result
-}
-
-static CHECKED_COMPILATION_CALLS: std::sync::atomic::AtomicU64 =
-    std::sync::atomic::AtomicU64::new(0);
-
-/// Monotonic checked-request count for review-pass measurements.
-#[doc(hidden)]
-pub fn checked_compilation_call_count() -> u64 {
-    CHECKED_COMPILATION_CALLS.load(std::sync::atomic::Ordering::Relaxed)
-}
-
-static TYPED_FRONTIER_REUSES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-static SOURCE_ASSEMBLY_CALLS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-
-/// Monotonic assemblies entered; a reused typed frontier does not assemble again.
-#[doc(hidden)]
-pub fn source_assembly_invocation_count() -> u64 {
-    SOURCE_ASSEMBLY_CALLS.load(std::sync::atomic::Ordering::Relaxed)
-}
-
-/// Monotonic exact frontend reuses across checked children.
-#[doc(hidden)]
-pub fn typed_frontier_reuse_count() -> u64 {
-    TYPED_FRONTIER_REUSES.load(std::sync::atomic::Ordering::Relaxed)
-}
-
-static SETTLED_CHECK_CALLS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-static SETTLED_CHECK_MICROS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-
-pub use build_evaluation::preliminary_check_totals;
-
-/// Monotonic settled-check `(calls, wall microseconds)` totals.
-#[doc(hidden)]
-pub fn settled_check_totals() -> (u64, u64) {
-    (
-        SETTLED_CHECK_CALLS.load(std::sync::atomic::Ordering::Relaxed),
-        SETTLED_CHECK_MICROS.load(std::sync::atomic::Ordering::Relaxed),
-    )
-}
-
-/// Checks actually executed, excluding exact-input memo hits.
-#[doc(hidden)]
-pub fn executed_preliminary_check_count() -> u64 {
-    typed_trees_to_checked_trees::RepeatedCheckRetention::executed_preliminary_check_count()
-}
-
-/// Settled checks actually executed, excluding exact-input memo hits.
-#[doc(hidden)]
-pub fn executed_settled_check_count() -> u64 {
-    typed_trees_to_checked_trees::RepeatedCheckRetention::executed_settled_check_count()
-}
-
-pub(crate) fn record_settled_check(elapsed: std::time::Duration) {
-    SETTLED_CHECK_CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    SETTLED_CHECK_MICROS.fetch_add(
-        u64::try_from(elapsed.as_micros()).unwrap_or(u64::MAX),
-        std::sync::atomic::Ordering::Relaxed,
-    );
 }
 
 /// The checked request's feed-forward route. Settlement and source-sealing

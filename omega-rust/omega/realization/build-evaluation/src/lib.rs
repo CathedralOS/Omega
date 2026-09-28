@@ -71,8 +71,8 @@ mod execution;
 #[cfg(test)]
 mod tests;
 
-pub use admission::declaration_authority::preliminary_check_totals;
 use admitted_build_program::{AdmittedBuildProgram, admit_build_program};
+pub use artifacts::compile_timings::counters::preliminary_check_totals;
 pub use build_evaluation::{
     BuildEvaluationRequest, EvaluatedBuild, RestrictedBuildGrants, evaluate_build,
 };

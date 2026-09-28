@@ -2,7 +2,8 @@
 //!
 //! `artifact_writer.rs` owns atomic file writes. Trust records and validation
 //! belong to realization's trust-model, not this host utility. Timing
-//! collection is disabled by default and the CLI owns its stderr presentation.
+//! phase collection is disabled by default and the CLI owns its stderr presentation.
+//! Process-wide activity counters are separate diagnostic measurements.
 
 pub mod allocations;
 mod artifact_writer;

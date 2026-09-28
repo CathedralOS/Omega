@@ -20,6 +20,7 @@ use super::{
 use crate::resolution::graph::{ExactTargetPackageSourceClosure, ResolvedPackageSourceClosure};
 use crate::review::restricted_build_grants::RestrictedBuildCheckpoint;
 use crate::review::timings;
+use artifacts::compile_timings::counters;
 use package_pass::{CompiledPackageReviews, TargetEntryDiscovery};
 use session::ReviewBuildSession;
 use std::path::Path;
@@ -528,27 +529,30 @@ fn note_pass_accounting(
     pass: &'static str,
     run: impl FnOnce() -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError>,
 ) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
-    let compilations_before = compiler::checked_compilation_call_count();
-    let frontiers_before = compiler::typed_frontier_reuse_count();
-    let preliminary_before = compiler::preliminary_check_totals();
-    let settled_before = compiler::settled_check_totals();
-    let preliminary_executed_before = compiler::executed_preliminary_check_count();
-    let settled_executed_before = compiler::executed_settled_check_count();
+    let compilations_before = counters::checked_compilation_call_count();
+    let frontiers_before = counters::typed_frontier_reuse_count();
+    let preliminary_before = counters::preliminary_check_totals();
+    let settled_before = counters::settled_check_totals();
+    let preliminary_executed_before =
+        compiler::RepeatedCheckRetention::executed_preliminary_check_count();
+    let settled_executed_before = compiler::RepeatedCheckRetention::executed_settled_check_count();
     let result = run()?;
     let occurrences = result.occurrences.len();
     let carried = result.carried;
     timings::note(|| {
-        let (preliminary_calls, preliminary_micros) = compiler::preliminary_check_totals();
-        let (settled_calls, settled_micros) = compiler::settled_check_totals();
+        let (preliminary_calls, preliminary_micros) = counters::preliminary_check_totals();
+        let (settled_calls, settled_micros) = counters::settled_check_totals();
         format!(
             "review_pass {pass} occurrences={occurrences} compiled={} carried={carried} frontier_reused={} preliminary_checks={} preliminary_executed={} preliminary_micros={} settled_checks={} settled_executed={} settled_micros={}",
-            compiler::checked_compilation_call_count() - compilations_before,
-            compiler::typed_frontier_reuse_count() - frontiers_before,
+            counters::checked_compilation_call_count() - compilations_before,
+            counters::typed_frontier_reuse_count() - frontiers_before,
             preliminary_calls - preliminary_before.0,
-            compiler::executed_preliminary_check_count() - preliminary_executed_before,
+            compiler::RepeatedCheckRetention::executed_preliminary_check_count()
+                - preliminary_executed_before,
             preliminary_micros - preliminary_before.1,
             settled_calls - settled_before.0,
-            compiler::executed_settled_check_count() - settled_executed_before,
+            compiler::RepeatedCheckRetention::executed_settled_check_count()
+                - settled_executed_before,
             settled_micros - settled_before.1,
         )
     });
