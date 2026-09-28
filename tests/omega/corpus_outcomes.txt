@@ -722,8 +722,7 @@ pass/parser/invariant_is_an_identifier checked 284ms
 pass/progress/provider_receiver_progress_installation rejected 366ms
 	final composition cannot discharge build-bound progress demand `named-callable(path(Scheduler::notify),parameters(parameter\\(self\\(yes\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\($Self\\)\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` requiring profile `SchedulerHandle::WeakFair` at checked call 0:0; the exact installed provider occurrence and admitted establishment receipt must be bound before native lowering
 pass/proofs/accepted_axiom_cited_exit checked 1531ms
-pass/proofs/accumulator_guarantee_exit rejected 2000ms
-	native artifact canonical abstract optimization failed: explicit optimization pipeline failed: Run(InitialValidation(RankedCycleRankingEvidenceMismatch { machine: MachineId(2) }))
+pass/proofs/accumulator_guarantee_exit checked 570ms
 pass/proofs/case_call_premises checked 305ms
 pass/proofs/cauchy_predicates_compile rejected 41ms
 	machine `converges_together_at_triangle_split` cites `rat_close_triangle_split`, but the callee's requires fact `saturating_sub(Nat, q.den) == Nat` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
@@ -765,6 +764,7 @@ pass/proofs/ring_full_polynomial_compile checked 1640ms
 pass/proofs/ring_law_conformance checked 1706ms
 pass/proofs/runtime_decreases_u64_measure_exit checked 980ms
 pass/proofs/runtime_nat_structural_recursion_exit checked 896ms
+pass/proofs/runtime_ranked_accumulator_early_exit checked 559ms
 pass/proofs/runtime_ranked_accumulator_guarantee_exit checked 1272ms
 pass/providers/boundary_scalar_field_store checked 417ms
 pass/providers/checked_boundary_operator_const_application_alternate_exit checked 2177ms

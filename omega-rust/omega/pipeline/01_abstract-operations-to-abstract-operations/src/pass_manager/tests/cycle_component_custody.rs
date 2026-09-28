@@ -177,6 +177,56 @@ fn a_guard_bound_countdown_counter_carries_its_certificate() {
 }
 
 #[test]
+fn early_exit_ranked_cycles_do_not_claim_an_exact_countdown_trip_count() {
+    for guard in ["n > 0 && n < 5", "n < 5 && n > 0"] {
+        let source = GUARD_BOUND_COUNTDOWN_SOURCE
+            .replace("transition n > 0", &format!("transition {guard}"));
+        let session = countdown_session(&source, "Root::main");
+        let [component] = session.cycle_components().components() else {
+            panic!("the verified ranked component remains admitted")
+        };
+        assert!(component.members.len() > 2);
+        assert_eq!(component.exits.len(), 2);
+        assert!(session.ranking_certificates().certificates().is_empty());
+        let counted = session.counted_loop_analysis().unwrap();
+        assert!(counted.loops().is_empty());
+        session
+            .validate_counted_loop_analysis(counted.snapshot())
+            .unwrap();
+    }
+}
+
+#[test]
+fn early_exit_ranked_cycles_still_reject_a_changed_decrement() {
+    let source =
+        GUARD_BOUND_COUNTDOWN_SOURCE.replace("transition n > 0", "transition n > 0 && n < 5");
+    let session = countdown_session(&source, "Root::main");
+    assert!(session.ranking_certificates().certificates().is_empty());
+    let (input, mut unit) = session.into_parts();
+    let (machine, block) = unit
+        .functions
+        .iter_mut()
+        .find_map(|function| {
+            function.blocks.iter_mut().find_map(|block| {
+                block.nodes.iter_mut().find_map(|node| {
+                    let AbstractOperation::ExactIntegerSubtract { left, right, .. } =
+                        &mut node.operation
+                    else {
+                        return None;
+                    };
+                    *right = *left;
+                    Some((function.machine, block.id))
+                })
+            })
+        })
+        .expect("the ranked decrement");
+    assert_eq!(
+        VerifiedPsiOptimizationSession::from_transformed(input, unit).err(),
+        Some(OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch { machine, block }),
+    );
+}
+
+#[test]
 fn a_decrement_parameter_bound_from_another_value_carries_no_certificate() {
     let session = countdown_session(GUARD_BOUND_COUNTDOWN_SOURCE, "Root::main");
     let certificate = session.ranking_certificates().certificates()[0].clone();
