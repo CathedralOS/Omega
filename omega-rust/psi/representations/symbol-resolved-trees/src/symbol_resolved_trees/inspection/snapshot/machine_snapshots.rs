@@ -50,6 +50,10 @@ pub struct ConformanceRowSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct MachineSnapshot {
     pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub authored_target: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target_family: Option<u32>,
     pub attached_data: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub spelling: Option<&'static str>,
@@ -223,6 +227,11 @@ pub(crate) fn machine_snapshot(
 ) -> MachineSnapshot {
     MachineSnapshot {
         name: machine.name.to_string(),
+        authored_target: machine.authored_target.as_ref().map(ToString::to_string),
+        target_family: machine
+            .target_family
+            .is_valid()
+            .then(|| machine.target_family.arena_index()),
         attached_data: machine.attached_data.as_ref().map(ToString::to_string),
         spelling: machine.spelling.map(|spelling| spelling.symbol()),
         is_public: machine.is_public,

@@ -42,6 +42,12 @@ pub struct Machine {
     /// attachment lookups, and pruned once checking has committed. `None`
     /// for the selected declaration and every ordinary machine.
     pub target: Option<DiagnosticName>,
+    /// Authored target head, independent of the transitional sibling marker.
+    pub authored_target: Option<DiagnosticName>,
+    /// Exact canonical declaration of this product-scope target family.
+    /// Invalid for ordinary/Build declarations, synthesized generic-data
+    /// clones, and inert families without an admitted canonical body.
+    pub target_family: SymbolHandle,
     /// A sibling's symbol spelling, `<path>::<target>`, so the symbol table
     /// keeps one root machine per authored path for name lookups while the
     /// record's `name` stays the authored family path. Empty for every other

@@ -323,6 +323,7 @@ fn parse_declared_item<'tokens, 'source>(
         let input = input.take_keyword(KeywordKind::Machine, "machine")?;
         let (mut machine, rest) = parse_machine(syntax_trees, input)?;
         machine.boundary = true;
+        machine.authored_target = Some(target.clone());
         machine.target = Some(target);
         if machine.service_reach_is_installation_bound
             && (!machine.bodyless || !machine.satisfies.is_empty())
@@ -349,6 +350,7 @@ fn parse_declared_item<'tokens, 'source>(
                 "`reaches <= Bound` is legal only on a top-level bodyless `boundary machine` requirement",
             ));
         }
+        machine.authored_target = Some(target.clone());
         machine.target = Some(target);
         return Ok((Item::Machine(machine), rest));
     }

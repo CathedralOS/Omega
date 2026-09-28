@@ -287,61 +287,6 @@ impl SelectedTargetMachineDeclarations {
         families
     }
 
-    /// Install the family record `typed` carries to lowering and Terminal
-    /// Psi: one row per product-scope contract name, its canonical machine
-    /// and every authored body keyed by target. The canonical member is the
-    /// origin this roster still selects (the first recognized target in name
-    /// order); a member whose body never reached typing is left out, and a
-    /// family whose canonical body never reached typing keeps no row,
-    /// matching the swap's tolerance for declarations like provider defaults.
-    pub fn install_target_machine_families(&self, typed: &mut TypedTrees) {
-        let machine_symbol = |typed: &TypedTrees, name: &str, sibling: Option<&str>, source| {
-            typed
-                .machines()
-                .iter()
-                .find(|machine| {
-                    machine.name.as_str() == name
-                        && machine.target.as_ref().map(|target| target.as_str()) == sibling
-                        && typed
-                            .symbols
-                            .symbol_provenance_source_span(machine.symbol)
-                            .is_some_and(|span| span.source_id == source)
-                })
-                .map(|machine| machine.symbol)
-        };
-        let mut families = Vec::new();
-        for (name, origins) in self.product_families() {
-            let Some(canonical) = origins.iter().find(|origin| origin.selected) else {
-                continue;
-            };
-            let Some(canonical_symbol) = machine_symbol(typed, name, None, canonical.source) else {
-                continue;
-            };
-            let mut members = Vec::with_capacity(origins.len());
-            for origin in origins {
-                let marker = if origin.selected {
-                    None
-                } else {
-                    Some(origin.target.as_str())
-                };
-                let Some(machine) = machine_symbol(typed, name, marker, origin.source) else {
-                    continue;
-                };
-                members.push(typed_trees::machine::TargetMachineFamilyMember {
-                    target: typed_trees::name::Identifier::generated(origin.target.clone()),
-                    machine,
-                });
-            }
-            members.sort_by(|left, right| left.target.as_str().cmp(right.target.as_str()));
-            families.push(typed_trees::machine::TargetMachineFamily {
-                name: typed_trees::name::Identifier::generated(name.to_owned()),
-                canonical: canonical_symbol,
-                members,
-            });
-        }
-        typed.target_machine_families = families;
-    }
-
     /// Replace each product-scope family's canonical body with `target`'s own
     /// body before checking: calls that resolved to the canonical body move to
     /// the target's sibling, which loses its sibling marker and so brings its
@@ -354,11 +299,6 @@ impl SelectedTargetMachineDeclarations {
         typed: &mut TypedTrees,
         target: NativeTarget,
     ) -> Result<(), Vec<Diagnostic>> {
-        // Install the durable family record first: the swaps below re-mark
-        // machine roles and rename symbols, so the roster must capture the
-        // authored layout while the canonical member still sits at the
-        // family path.
-        self.install_target_machine_families(typed);
         let families = self.product_families();
         // The roster — not another name/marker/source scan — is the family
         // record the swap consults: members are unique per authored target
@@ -1196,16 +1136,15 @@ mod tests {
         );
     }
 
-    /// The typed-tree family roster is installed from the admission selection
-    /// before the per-target swap: one row keys every authored body by
+    /// Typing produces the family roster before the per-target swap:
+    /// one row keys every authored body by
     /// target, the canonical member is the body whose target head the filter
     /// stripped, and the swap then consumes the roster to re-mark roles for
     /// the realized target. A family whose names resolve to no real target
     /// keeps no row.
     #[test]
     fn family_roster_keys_every_body_and_the_swap_consumes_it() {
-        // Provenance joins origins to typed machines by source span, so the
-        // fixture registers its source in a real map the way admission does.
+        // Resolution retains product scope from the source map.
         let text = "demo_target machine inert_helper() -> u64 { 3u64 }\nlinux_x86_64 machine family_value() -> u64 { 1u64 }\nwindows_x86_64 machine family_value() -> u64 { 2u64 }\n";
         let mut sources = source::SourceMap::default();
         let source_id = sources
@@ -1232,8 +1171,6 @@ mod tests {
         let mut typed =
             symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
                 .expect("siblings type");
-
-        declarations.install_target_machine_families(&mut typed);
 
         let [family] = typed.target_machine_families.as_slice() else {
             panic!("the recognized family is the only roster row");

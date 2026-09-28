@@ -208,6 +208,11 @@ pub(crate) fn lower_machine_into(
         supply_mode,
         body_is_present: !machine.bodyless,
         target: sibling_target,
+        authored_target: machine
+            .authored_target
+            .as_ref()
+            .map(crate::lowering::name::lower_name),
+        target_family: SymbolHandle::invalid(),
         target_symbol_name,
         has_structural_type_equations: !machine.where_facts.is_empty(),
         structural_type_equations_pending: !machine.where_facts.is_empty()

@@ -441,6 +441,7 @@ impl SyntaxTrees {
             spelling: machine.spelling,
             is_public: machine.is_public,
             target: machine.target.clone(),
+            authored_target: machine.authored_target.clone(),
             boundary: machine.boundary,
             is_top_level_boundary_requirement: machine.is_top_level_boundary_requirement,
             bodyless: machine.bodyless,

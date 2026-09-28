@@ -374,6 +374,7 @@ pub(super) fn append_probe(
         is_public: false,
         bodyless: false,
         target: None,
+        authored_target: None,
         boundary: false,
         is_top_level_boundary_requirement: false,
         lifetime_parameters: Vec::new(),

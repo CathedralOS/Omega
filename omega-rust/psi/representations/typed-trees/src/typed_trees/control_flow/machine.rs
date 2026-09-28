@@ -86,15 +86,15 @@ impl Machine {
 /// and `SelectedTargetMachineDeclarations::select_product_target` later
 /// re-marks those roles for the realized target — so neither the sibling
 /// marker nor the symbol spelling is a durable family record. This record
-/// is: it is installed from the admission roster before the realized
-/// target's swap runs and names each member's machine symbol, which stays
+/// is: typing produces it from resolved family handles before the realized
+/// target's swap runs. It names each member's machine symbol, which stays
 /// valid across the swap's renames. `members` keys every authored body by
 /// its authored target name, including the canonical one; the canonical
 /// member's `Machine::target` reads `None` until a swap for another target
-/// re-marks it. Lowering and Terminal Psi retain this record so realization
-/// can select `members[target]` without the frontend ever observing the
-/// realized target. Families whose every target name resolves to no real
-/// target have no canonical member and are not recorded here: their bodies
+/// re-marks it. The current consumer still swaps bodies before checking;
+/// retaining every body through lowering and Terminal Psi is separate work.
+/// Families whose every target name resolves to no real target have no
+/// canonical member and are not recorded here: their bodies
 /// stay inert siblings that no portable call can name.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetMachineFamily {

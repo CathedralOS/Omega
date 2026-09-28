@@ -149,6 +149,7 @@ fn collects_bounded_type_sites() {
         is_public: false,
         is_top_level_boundary_requirement: false,
         target: None,
+        authored_target: None,
         boundary: false,
         bodyless: false,
         lifetime_parameters: Vec::new(),

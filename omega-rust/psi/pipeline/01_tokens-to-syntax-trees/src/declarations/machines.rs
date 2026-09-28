@@ -140,6 +140,7 @@ pub(crate) fn parse_machine<'tokens, 'source>(
             spelling,
             is_public: false,
             target: None,
+            authored_target: None,
             boundary: false,
             is_top_level_boundary_requirement: false,
             bodyless,
