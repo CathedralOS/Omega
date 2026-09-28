@@ -1,18 +1,24 @@
 //! One invocation owns shared input and independently configured target products.
 
-use crate::{CompileOptions, OptimizationRollback};
+use self::options::CompileOptions;
 use diagnostics::Diagnostic;
+use optimization_core::OptimizationRollback;
+use package_compilation::build_execution::{BuildSnapshotRequest, build_value::PccRequests};
 use package_compilation::{
     PackageCompilationInputs, PackageCompilationSourceInputs, PackageCompilationTargetInputs,
 };
 use std::path::PathBuf;
 use std::sync::Arc;
 use target::TargetProfile;
+use terminal_psi_to_abstract_operations::provider_admission::{
+    TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy, current_terminal_authority_policy,
+};
 
-mod outcomes;
-mod targets;
-pub use outcomes::{CompileOutcomes, CompileTargetOutcome};
-pub use targets::ExplicitTargetSet;
+mod native;
+pub mod options;
+pub use native::NativeProductRequest;
+#[cfg(test)]
+mod tests;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RequestedCompileProduct {
@@ -21,16 +27,82 @@ pub enum RequestedCompileProduct {
     NativeArtifact,
 }
 
+impl RequestedCompileProduct {
+    /// Refuse rollback rules belonging to stages this requested stop never executes.
+    pub fn validate_optimization_rollback(
+        self,
+        rollback: &OptimizationRollback,
+    ) -> Result<(), Diagnostic> {
+        let unavailable = rollback
+            .requested_disabled()
+            .as_slice()
+            .iter()
+            .filter(|optimization| match self {
+                Self::Check => true,
+                Self::TerminalArtifact => !matches!(
+                    optimization.execution_phase(),
+                    optimization_core::OptimizationExecutionPhase::CheckedTrees
+                        | optimization_core::OptimizationExecutionPhase::Psi
+                ),
+                Self::NativeArtifact => false,
+            })
+            .map(|optimization| format!("`{}`", optimization.build_case_name()))
+            .collect::<Vec<_>>();
+        if unavailable.is_empty() {
+            Ok(())
+        } else {
+            Err(Diagnostic::error(format!(
+                "optimization rollback {} names stages not executed by {:?}",
+                unavailable.join(", "),
+                self
+            )))
+        }
+    }
+
+    /// Admit evaluated Build requirements before dispatching product production.
+    /// This checks eligibility only; it establishes no artifact or receiving authority.
+    pub fn admit_build_requirements(
+        self,
+        artifact_only: bool,
+        pcc_requests: PccRequests,
+        optimization_rollback: &OptimizationRollback,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if artifact_only && self != RequestedCompileProduct::Check {
+            if !optimization_rollback.is_empty() {
+                return Err(vec![Diagnostic::error(
+                    "artifact-only builds execute no product optimization stages to roll back",
+                )]);
+            }
+            if pcc_requests.any() {
+                return Err(vec![Diagnostic::error(
+                    "artifact-only builds cannot publish Psi or native proof products",
+                )]);
+            }
+        }
+        match self {
+            RequestedCompileProduct::Check if pcc_requests.any() => Err(vec![Diagnostic::error(
+                "a check-only stop cannot satisfy an optional proof-product request",
+            )]),
+            RequestedCompileProduct::TerminalArtifact if pcc_requests.native => {
+                Err(vec![Diagnostic::error(
+                    "a Terminal stop cannot satisfy a native proof-product request",
+                )])
+            }
+            _ => Ok(()),
+        }
+    }
+}
+
 /// Input shared by every selected target. It cannot disagree between children.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct SharedCompileInputs {
-    pub(super) root_path: PathBuf,
-    pub(super) requested_product: RequestedCompileProduct,
+pub struct SharedCompileInputs {
+    pub root_path: PathBuf,
+    pub requested_product: RequestedCompileProduct,
     /// Collect per-stage measurements into every checked record's timing
     /// accumulator; the report carries the recorded ladder.
-    pub(super) timings: bool,
+    pub timings: bool,
 
-    pub(super) package_sources: Option<Arc<PackageCompilationSourceInputs>>,
+    pub package_sources: Option<Arc<PackageCompilationSourceInputs>>,
 }
 
 /// Target-local policy, generated inputs and output placement. Source roots and
@@ -39,16 +111,15 @@ pub(super) struct SharedCompileInputs {
 pub struct TargetCompileConfiguration {
     target_name: Option<String>,
     build_dir: Option<PathBuf>,
-    pub(super) build_snapshot: Option<build_evaluation::BuildSnapshotRequest>,
+    pub(super) build_snapshot: Option<BuildSnapshotRequest>,
     pub(super) terminal_admission_profile: proof_admission::AdmissionProfile,
-    terminal_authority_policy: crate::native::TerminalAuthorityPolicy,
+    terminal_authority_policy: TerminalAuthorityPolicy,
     /// The receiver-admission axis, supplied only by an explicit
     /// `with_terminal_authority_permission_policy` call. `None` means this
     /// production makes no receiver-admission claim: accepted package
     /// permissions are never projected into receiver rows, and the emitted
     /// artifact cannot satisfy an explicit admission replay.
-    pub(super) terminal_authority_permission_policy:
-        Option<crate::native::TerminalAuthorityPermissionPolicy>,
+    pub(super) terminal_authority_permission_policy: Option<TerminalAuthorityPermissionPolicy>,
     accepted_trust_admissions: Vec<trust_model::TrustAdmission>,
     package_target_inputs: PackageCompilationTargetInputs,
     pub(super) optimization_rollback: OptimizationRollback,
@@ -65,7 +136,7 @@ impl TargetCompileConfiguration {
             build_dir,
             build_snapshot: None,
             terminal_admission_profile: proof_admission::AdmissionProfile::default(),
-            terminal_authority_policy: crate::native::current_terminal_authority_policy(),
+            terminal_authority_policy: current_terminal_authority_policy(),
             // Ordinary production supplies no receiving permission policy: the
             // receiver-admission axis is claimed only by an explicit setter
             // call, never by defaulting to an empty or fabricated policy.
@@ -85,7 +156,7 @@ impl TargetCompileConfiguration {
     /// inputs may share one evaluation after each child's custody admission.
     /// This grants neither output sponsorship nor publication authority.
     /// Omission retains the automatic snapshot for canonical package inputs.
-    pub fn with_build_snapshot(mut self, snapshot: build_evaluation::BuildSnapshotRequest) -> Self {
+    pub fn with_build_snapshot(mut self, snapshot: BuildSnapshotRequest) -> Self {
         self.build_snapshot = Some(snapshot);
         self
     }
@@ -97,10 +168,7 @@ impl TargetCompileConfiguration {
     /// Rows classify exact normalized-foreign, syscall, or checked-physical
     /// mechanisms; the closed compiler-intrinsic inventory is never configured
     /// here. Missing demanded rows reject at terminal-authority review.
-    pub fn with_terminal_authority_policy(
-        mut self,
-        policy: crate::native::TerminalAuthorityPolicy,
-    ) -> Self {
+    pub fn with_terminal_authority_policy(mut self, policy: TerminalAuthorityPolicy) -> Self {
         self.terminal_authority_policy = policy;
         self
     }
@@ -109,7 +177,7 @@ impl TargetCompileConfiguration {
     /// adjudicated exactly as supplied, including an explicit empty policy.
     pub fn with_terminal_authority_permission_policy(
         mut self,
-        policy: crate::native::TerminalAuthorityPermissionPolicy,
+        policy: TerminalAuthorityPermissionPolicy,
     ) -> Self {
         self.terminal_authority_permission_policy = Some(policy);
         self
@@ -179,7 +247,7 @@ impl CompileRequest {
     /// Each child checks its own custody; equal captured inputs may share one
     /// evaluation. Distinct inventories and output rosters belong on their
     /// target configurations and never reuse a sibling's build result.
-    pub fn with_build_snapshot(mut self, snapshot: build_evaluation::BuildSnapshotRequest) -> Self {
+    pub fn with_build_snapshot(mut self, snapshot: BuildSnapshotRequest) -> Self {
         for configuration in &mut self.configurations {
             configuration.build_snapshot = Some(snapshot.clone());
         }
@@ -215,10 +283,7 @@ impl CompileRequest {
     /// Apply a common receiving mechanism-classification policy to every
     /// current configuration. Distinct per-target policies belong on their
     /// configurations.
-    pub fn with_terminal_authority_policy(
-        mut self,
-        policy: crate::native::TerminalAuthorityPolicy,
-    ) -> Self {
+    pub fn with_terminal_authority_policy(mut self, policy: TerminalAuthorityPolicy) -> Self {
         for configuration in &mut self.configurations {
             configuration.terminal_authority_policy = policy.clone();
         }
@@ -230,7 +295,7 @@ impl CompileRequest {
     /// admission.
     pub fn with_terminal_authority_permission_policy(
         mut self,
-        policy: crate::native::TerminalAuthorityPermissionPolicy,
+        policy: TerminalAuthorityPermissionPolicy,
     ) -> Self {
         for configuration in &mut self.configurations {
             configuration.terminal_authority_permission_policy = Some(policy.clone());
@@ -259,7 +324,7 @@ impl CompileRequest {
         self
     }
 
-    pub(super) fn validate_for_execution(self) -> Result<ValidatedCompileRequest, Vec<Diagnostic>> {
+    pub fn validate_for_execution(self) -> Result<ValidatedCompileRequest, Vec<Diagnostic>> {
         if self.configurations.is_empty() {
             return Err(vec![Diagnostic::error(
                 "compilation requires at least one target configuration",
@@ -312,28 +377,11 @@ impl CompileRequest {
                     continue;
                 }
             };
-            let unavailable = configuration
-                .optimization_rollback
-                .requested_disabled()
-                .as_slice()
-                .iter()
-                .filter(|optimization| match shared.requested_product {
-                    RequestedCompileProduct::Check => true,
-                    RequestedCompileProduct::TerminalArtifact => !matches!(
-                        optimization.execution_phase(),
-                        optimization_core::OptimizationExecutionPhase::CheckedTrees
-                            | optimization_core::OptimizationExecutionPhase::Psi
-                    ),
-                    RequestedCompileProduct::NativeArtifact => false,
-                })
-                .map(|optimization| format!("`{}`", optimization.build_case_name()))
-                .collect::<Vec<_>>();
-            if !unavailable.is_empty() {
-                diagnostics.push(Diagnostic::error(format!(
-                    "optimization rollback {} names stages not executed by {:?}",
-                    unavailable.join(", "),
-                    shared.requested_product
-                )));
+            if let Err(error) = shared
+                .requested_product
+                .validate_optimization_rollback(&configuration.optimization_rollback)
+            {
+                diagnostics.push(error);
                 continue;
             }
             let options = CompileOptions {
@@ -399,35 +447,55 @@ impl CompileRequest {
 }
 
 #[derive(Debug)]
-pub(super) struct ValidatedCompileRequest {
-    pub(super) shared: Arc<SharedCompileInputs>,
-    pub(super) targets: Vec<ValidatedTargetCompilation>,
+pub struct ValidatedCompileRequest {
+    shared: Arc<SharedCompileInputs>,
+    targets: Vec<ValidatedTargetCompilation>,
+}
+
+impl ValidatedCompileRequest {
+    /// Consume validated configuration without transferring compilation or publication authority.
+    pub fn into_parts(self) -> (Arc<SharedCompileInputs>, Vec<ValidatedTargetCompilation>) {
+        (self.shared, self.targets)
+    }
 }
 
 /// One admitted execution of the shared invocation, not another public request.
 #[derive(Debug)]
-pub(super) struct ValidatedTargetCompilation {
-    pub(super) options: CompileOptions,
-    pub(super) configuration: TargetCompileConfiguration,
+pub struct ValidatedTargetCompilation {
+    options: CompileOptions,
+    configuration: TargetCompileConfiguration,
     package_inputs: Option<PackageCompilationInputs>,
-    pub(super) profile: Option<TargetProfile>,
+    profile: Option<TargetProfile>,
 }
 
 impl ValidatedTargetCompilation {
-    pub(super) fn options(&self) -> &CompileOptions {
+    pub const fn profile(&self) -> Option<TargetProfile> {
+        self.profile
+    }
+    pub fn build_snapshot(&self) -> Option<&BuildSnapshotRequest> {
+        self.configuration.build_snapshot.as_ref()
+    }
+    pub fn optimization_rollback(&self) -> &OptimizationRollback {
+        &self.configuration.optimization_rollback
+    }
+    pub fn terminal_admission_profile(&self) -> &proof_admission::AdmissionProfile {
+        &self.configuration.terminal_admission_profile
+    }
+
+    pub fn options(&self) -> &CompileOptions {
         &self.options
     }
-    pub(super) fn accepted_trust_admissions(&self) -> &[trust_model::TrustAdmission] {
+    pub fn accepted_trust_admissions(&self) -> &[trust_model::TrustAdmission] {
         &self.configuration.accepted_trust_admissions
     }
-    pub(super) fn package_inputs(&self) -> Option<&PackageCompilationInputs> {
+    pub fn package_inputs(&self) -> Option<&PackageCompilationInputs> {
         self.package_inputs.as_ref()
     }
 
     /// Release this target's native product request; the shared invocation
     /// keeps only what native production needs.
-    pub(super) fn into_native_product_request(self) -> crate::native::NativeProductRequest {
-        crate::native::NativeProductRequest {
+    pub fn into_native_product_request(self) -> NativeProductRequest {
+        NativeProductRequest {
             root_path: self.options.root_path,
             terminal_admission_profile: self.configuration.terminal_admission_profile,
             terminal_authority_policy: self.configuration.terminal_authority_policy,

@@ -96,7 +96,8 @@ authorize removing these boundaries.
 | ISA, ABI, runtime carriers, object/relocation/image mechanics | Omega `backend/` |
 | Shared target-neutral source/arena/numeric primitives and optimization selections | Psi `foundation/` |
 | Shared host primitives, native function identities and optimization vocabulary | Omega `foundation/` |
-| Product sequencing, requested outputs and composition policy | Omega `compiler/` and its independent supporting packages |
+| Product sequencing | Omega `compiler/` |
+| Requested outputs, configuration admission, retained outcomes and publication | Omega `realization/compilation-products/` |
 | Source acquisition, package operations and review | Omega `package-manager/` and its independent supporting packages |
 | Checked and Terminal Psi execution | Psi `interpreter/` |
 | Compile-time interpretation and result elaboration | Psi `interpreter/build-time-evaluation/` |
@@ -137,8 +138,11 @@ an independent package beside their Psi admission owner at
 ### Subsystem entrances and supporting packages
 
 [`omega/realization/compilation-products/`](omega/realization/compilation-products/README.md)
-owns finished report payloads, production/batch manifests and publication of exact
-artifact/proof pairs. It consumes artifact and custody owners without depending
+owns invocation configuration and product eligibility, finished report payloads,
+production/batch manifests and publication of exact artifact/proof pairs.
+The coordinator consumes validated requests and retains the target execution
+loop; exact target-name set normalization belongs to the backend target catalog.
+This product owner consumes artifact and custody owners without depending
 on compiler orchestration or build evaluation. It is an output lifecycle, not a
 new program representation or pipeline phase. The CLI publishes through it directly.
 

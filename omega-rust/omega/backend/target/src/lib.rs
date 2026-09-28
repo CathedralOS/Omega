@@ -14,6 +14,7 @@
 
 mod application;
 mod elf_loader;
+mod explicit_target_set;
 mod foreign_locator;
 mod target_profile;
 mod target_semantics;
@@ -26,6 +27,7 @@ pub use application::{ApplicationIdentifier, HostedApplicationIntent, NativeAppl
 pub use elf_loader::{
     ElfInterpreterPlanValidationError, NormalizedElfInterpreterPlan, normalize_elf_interpreter_plan,
 };
+pub use explicit_target_set::ExplicitTargetSet;
 pub use foreign_locator::{
     ForeignLocatorCandidate, ForeignLocatorIdentityDigest, ForeignLocatorValidationError,
     NormalizedForeignLocator, evaluated_syscall_identity_digest, normalize_foreign_locator,

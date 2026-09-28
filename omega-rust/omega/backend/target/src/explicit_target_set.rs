@@ -1,5 +1,5 @@
+use crate::TargetProfile;
 use diagnostics::Diagnostic;
-use target::TargetProfile;
 
 /// A nonempty canonical set of exact profiles supplied by one compiler caller.
 ///

@@ -5,11 +5,15 @@ interface for any supplied target count. The coordinator sequences typed owner r
 not implement package loading, build evaluation, transformation algorithms or
 visualization semantics. See the [pipeline map](../../pipeline.md).
 
-[compiler.rs](src/compiler.rs) owns request admission, the shared checked
+[compiler.rs](src/compiler.rs) sequences request admission, the shared checked
 continuation, and the Check / Terminal / Native product dispatch. Its single public
 function runs one target loop: checking, trust admission, observations, then the
 requested product. There is no stateless wrapper object, finalizer callback, or
 second native scheduler.
+The independent [product request owner](../realization/compilation-products/src/compile_request.rs)
+normalizes configurations, rejects staging collisions and incompatible rollback,
+and admits evaluated Build requirements. It returns immutable per-target inputs;
+the coordinator owns the loop, not those policy decisions.
 It prepares immutable source once, then drives each target's ordinary continuation.
 [Native input reuse](src/native/native_product/input_reuse.rs) retains exactly matching
 Terminal inputs as each target reaches realization. It does not retain every
@@ -212,7 +216,7 @@ the proposals to the receiving target catalog.
 
 ## Target set and realization
 
-[Explicit targets](src/compiler/request/targets.rs) accepts an optional
+[Explicit targets](../backend/target/src/explicit_target_set.rs) accepts an optional
 selection: absent, the realization set is every deployable profile the
 toolchain closure provides; present, a nonempty set normalized to canonical
 order with duplicates removed, with wildcards, empty and unknown selections

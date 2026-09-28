@@ -1,6 +1,10 @@
 #![forbid(unsafe_code)]
 
-//! Retained compilation products, identities, and publication receipts.
+//! Compilation requests, retained products, identities, and publication receipts.
+//!
+//! `compile_request` validates target configurations and product eligibility
+//! without executing a compiler phase. `compile_outcomes` retains every result
+//! and binds its batch commitment; the compiler owns the target execution loop.
 //!
 //! `CompileReport` records which payload a compilation produced and validates
 //! its custody joins. It does not choose output paths or install files;
@@ -15,6 +19,8 @@
 
 mod batch_manifest;
 mod compilation_products;
+mod compile_outcomes;
+pub mod compile_request;
 mod pcc;
 mod production_manifest;
 pub mod publication;
@@ -24,6 +30,11 @@ pub use batch_manifest::{
     BatchCompilationManifestIdentity,
 };
 pub use compilation_products::{CompileOutputKind, CompileReport};
+pub use compile_outcomes::{CompileOutcomes, CompileTargetOutcome};
+pub use compile_request::options::CompileOptions;
+pub use compile_request::{
+    CompileRequest, NativeProductRequest, RequestedCompileProduct, TargetCompileConfiguration,
+};
 pub use native_artifact::{
     ExecutableContainerDigest, ExecutableInstallationEvidenceDigest, ExecutablePublicationReceipt,
     NativePublicationCertificateDigest, NativePublicationEvidenceDigest,
