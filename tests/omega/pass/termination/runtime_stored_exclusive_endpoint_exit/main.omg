@@ -1,0 +1,59 @@
+// RUN CANARY (exit 0) + interpreter differential -- a stored EXCLUSIVE
+// reference supplies the invocation-fixed endpoint bound. `indirect.target`
+// is a `&mut Wrap` carried inside `Indirect` through every recursive tail
+// call, and the projected read `indirect.target.remaining` forms the
+// inclusive upper bound of `n -> Nat::Descending`. `run` stores the loan
+// beside unrelated work, so the projected rank is not the only value in
+// flight. Recovered from the deleted `rank_endpoint_borrows` case
+// (c60792d7bdd); the check-only `stored_reference_endpoint_arrivals` twin
+// carries a shared `&Wrap` and never executes.
+//
+// The `&mut`-field record is constructed in the free machine `run` rather
+// than in `Main::main` itself: selected-ProgramEntry establishment still
+// omits the unit plan for a local construction minting an exclusive borrow
+// (`statement sequence: local data: structural call binding`), which
+// STATE-LOCAL-VALUE-FRONTIER owns. The ranked evidence this fixture pins --
+// the endpoint bound read through the stored loan across the whole
+// recursion -- is identical either way.
+//
+// exit 0 = the countdown reached `n == 0` and returned it;
+// exit 1 = any other outcome.
+
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Wrap where 4 <= remaining, remaining <= 500 { remaining: u64; }
+data Indirect { target: &mut Wrap; }
+data Main { console: Binding<Console>; }
+
+machine walk(n: u64, indirect: Indirect)
+    requires 0 <= n && n <= 4
+terminates by n -> Nat::Descending in 0..=indirect.target.remaining;
+-> u64 {
+    transition n > 0 {
+        true -> walk(n - 1, indirect)
+        false -> n
+    }
+}
+
+machine run() -> u64 {
+    let mut owner: Wrap = Wrap { remaining: 6 };
+    let indirect: Indirect = Indirect { target: &mut owner };
+    let tick: u64 = 40 + 2;
+    let outcome: u64 = walk(4, indirect);
+    transition outcome == 0 && tick == 42 {
+        true -> (0)
+        _ -> (1)
+    }
+}
+
+machine Main::main(&mut self) reaches Console {
+    let outcome: u64 = run();
+    transition outcome == 0 {
+        true -> passed()
+        _ -> failed()
+    }
+
+    state passed(&mut self) { self.console.exit_process(0); }
+    state failed(&mut self) { self.console.exit_process(1); }
+}
