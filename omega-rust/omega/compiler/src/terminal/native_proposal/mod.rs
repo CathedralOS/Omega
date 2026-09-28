@@ -3,7 +3,6 @@
 //! thunks, IEEE float custody, and the closed external binding rows.
 
 use crate::checked::CheckedCompilation;
-use crate::terminal::terminal_artifact::verification::verify_terminal_artifact;
 use diagnostics::Diagnostic;
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
@@ -265,7 +264,12 @@ fn produce_callback_thunk_artifact(
         ))]
     })?;
     let artifact = produced.into_artifact();
-    verify_terminal_artifact(&artifact, profile)?;
+    terminal_codec::verify_terminal_artifact_proof(&artifact, profile).map_err(|error| {
+        vec![Diagnostic::error(format!(
+            "terminal-artifact verification failed for {}: {}",
+            error.subject, error.reason,
+        ))]
+    })?;
     terminal_psi_to_abstract_operations::validate_callback_thunk_settlement(
         &artifact,
         placement,
