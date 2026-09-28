@@ -9,6 +9,21 @@ Start at [package_compilation.rs](src/package_compilation.rs): it constructs the
 package graph, validates source roots and dependency bindings, and separates the
 shared source projection from target-specific attachments.
 
+[source_imports.rs](src/source_imports.rs) discovers imports in authored order
+and rejoins them to exact parsed source instances. Its `package_selection`
+module owns requester-local aliases, build/product dependency scopes and
+physical/generated collisions; `paths` owns candidate paths and containment;
+`bindings` joins loaded declarations; `frontier` retains package and toolchain
+ownership. It does not schedule parsing or checking. The compiler asks these
+owners for the next source frontier and passes it through Psi's loading,
+lexing and parsing stages.
+
+[toolchain_library.rs](src/toolchain_library.rs) selects the installed or
+development library and verifies release-library digests. This package's
+`build.rs` records the development root or release digest for that owner.
+Package import discovery never substitutes requester-local content for those
+bundled toolchain sources.
+
 [source_snapshot.rs](src/source_snapshot.rs) owns complete physical-root capture:
 metadata rows, canonical modes, bounded traversal and byte-content commitments.
 Input construction and final compiler evidence both revalidate captured metadata

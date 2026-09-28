@@ -29,13 +29,18 @@ host services and independent-component rejection.
 
 ## Source-stage ownership
 
-Source assembly schedules file frontiers and retains package/import custody.
-Psi stage 00 owns physical loading and ordered batch lexing; stage 01 owns
+Source assembly schedules file frontiers. Package compilation's
+[source import owner](../../package-manager/compilation-inputs/src/source_imports.rs)
+owns project roots, dependency-scope selection, generated-source collision
+checks, parsed-file ownership and exact import bindings. Its
+[toolchain library owner](../../package-manager/compilation-inputs/src/toolchain_library.rs)
+selects and validates the bundled sources.
+Psi stage 00 owns physical/in-memory loading, scoped load queues and ordered batch lexing; stage 01 owns
 batch parsing into the caller's syntax arena. Their source, token and parsed-root
 records live in the existing `source`, `tokens` and `syntax-trees` packages.
 Build/Product scope, source coordinates, backing text and diagnostic order travel
-through those operations unchanged. Build-specific injection and package source
-selection stay here; neither lexical nor grammar rules depend on build evaluation.
+through those operations unchanged. Build-specific prelude and entry-contract
+injection stay here; neither lexical nor grammar rules depend on build evaluation.
 
 ## Root-binding implementation boundary
 

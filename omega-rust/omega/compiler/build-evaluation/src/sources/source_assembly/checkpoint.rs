@@ -1,16 +1,19 @@
 use super::{
     AssembledSyntax, append_dependency_generated_sources_to_storage, assemble_syntax,
-    load_pending_imports, validate_package_source_frontier, validate_selected_build_role,
+    load_pending_imports,
 };
-use crate::sources::frontend::{
-    PackageImportPhase, PendingPackageImport, discover_imports, discover_package_imports,
-};
-use crate::sources::source::project::project_roots;
-use crate::sources::source::{ImportQueue, SourceStorage};
 use artifacts::compile_timings::CompileTimings;
 use artifacts::compile_timings::{SOURCE_FILES_TO_TOKENS, TOKENS_TO_SYNTAX_TREES};
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
+use package_compilation::source_imports::project_roots;
+use package_compilation::source_imports::{
+    PackageImportPhase, PendingPackageImport, discover_imports, discover_package_imports,
+};
+use package_compilation::source_imports::{
+    SourceStorage, validate_package_source_frontier, validate_selected_build_role,
+};
+use source_files_to_tokens::ImportQueue;
 use source_files_to_tokens::{lex_sources, load_sources};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -142,7 +145,7 @@ impl ImmutableSourceParseCheckpoint {
         if let Some(package_inputs) = package_inputs {
             package_inputs.validate_for_compilation(
                 &self.root_path,
-                &crate::sources::frontend::bundled_core_root()?,
+                &package_compilation::source_imports::bundled_core_root()?,
             )?;
         }
         Ok(())
@@ -221,7 +224,7 @@ impl ImmutableSourceParseCheckpoint {
             timings,
         )?;
         source_scoped_top_level_bindings.extend(
-            crate::sources::frontend::retain_module_import_bindings(&source_storage)?,
+            package_compilation::source_imports::retain_module_import_bindings(&source_storage)?,
         );
         let source_file_count = source_storage.file_count();
         let syntax = assemble_syntax(
@@ -243,7 +246,7 @@ fn initialize_source_storage(
         Some(package_inputs) => {
             package_inputs.validate_for_compilation(
                 root_path,
-                &crate::sources::frontend::bundled_core_root()?,
+                &package_compilation::source_imports::bundled_core_root()?,
             )?;
             let root_package = package_inputs
                 .package_root(package_inputs.root())
@@ -252,7 +255,7 @@ fn initialize_source_storage(
             let mut storage = SourceStorage::for_package_compilation(
                 root_package,
                 package_inputs.root(),
-                crate::sources::frontend::bundled_core_root()?,
+                package_compilation::source_imports::bundled_core_root()?,
             );
             for (identity, source_root) in package_inputs.packages() {
                 storage.register_reconciled_package_root(source_root.to_path_buf(), identity);
@@ -274,7 +277,7 @@ fn initialize_source_storage(
                 .unwrap_or_else(|| PathBuf::from("."));
             Ok(SourceStorage::for_compilation(
                 root_package,
-                crate::sources::frontend::bundled_omega_root()?,
+                package_compilation::source_imports::bundled_omega_root()?,
             ))
         }
     }

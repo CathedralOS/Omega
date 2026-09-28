@@ -4,14 +4,12 @@
 //! and imports, loads and lexes and parses every source with its package
 //! custody, injects the build prelude, and returns the forest the next stage
 //! resolves. It re-enters once per build that generates source, appending
-//! the generated units to a retained checkpoint of the parsed base. The
-//! `frontend` folder owns loading, lexing, parsing and import binding; the
-//! `source` folder owns source storage, import queues and project roots.
+//! the generated units to a retained checkpoint of the parsed base. Package
+//! compilation owns source roots, import selection and parsed-file custody;
+//! Psi stages 00 and 01 own loading, lexing and parsing. This coordinator keeps
+//! that sequence and the build-specific prelude/entry injection visible.
 
-pub mod frontend;
-pub mod source;
 mod source_assembly;
-pub mod toolchain_library;
 
 pub use source_assembly::{
     AssembledSyntax, ImmutableSourceParseCheckpoint, RetainedGeneratedSyntaxExtension,

@@ -1,4 +1,5 @@
-use crate::sources::source::SourceFile;
+//! Parsed source instances with exact package and toolchain ownership.
+
 use arena::Arena;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -14,7 +15,7 @@ pub struct SourceStorage {
     pub files: Arena<SourceFile>,
     pub sources: SourceMap,
     pub syntax_trees: SyntaxTrees,
-    pub resolved_imports: Vec<crate::sources::frontend::ResolvedSourceImport>,
+    pub resolved_imports: Vec<super::ResolvedSourceImport>,
     default_package_root: PathBuf,
     default_package_identity: Option<PackageKeyIdentity>,
     package_roots: Vec<RegisteredPackageRoot>,
@@ -261,4 +262,64 @@ fn toolchain_contract_root_for<'a>(
             .find(|dir| path.starts_with(dir.as_path()))
             .map(PathBuf::as_path)
     })
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct SourceFile {
+    pub source_id: source::SourceId,
+    pub path: PathBuf,
+    pub root_items: Vec<syntax_trees::item::ItemHandle>,
+}
+
+pub fn validate_package_source_frontier(
+    frontier: Vec<(PathBuf, source::DependencyScope)>,
+    package_inputs: &crate::PackageCompilationInputs,
+    source_storage: &SourceStorage,
+) -> Result<Vec<(PathBuf, source::DependencyScope)>, Vec<Diagnostic>> {
+    let toolchain_root = super::bundled_core_root()?;
+    let mut validated = Vec::with_capacity(frontier.len());
+    let mut diagnostics = Vec::new();
+
+    for (source, scope) in frontier {
+        let canonical = match source.canonicalize() {
+            Ok(canonical) => canonical,
+            Err(error) => {
+                diagnostics.push(Diagnostic::error(format!(
+                    "failed to canonicalize package source {} before loading: {error}",
+                    source.display()
+                )));
+                continue;
+            }
+        };
+        if canonical.starts_with(&toolchain_root)
+            || source_storage.is_toolchain_contract_source(&canonical)
+        {
+            validated.push((canonical, scope));
+            continue;
+        }
+
+        let Some(owner) = package_inputs.package_for_source(&canonical) else {
+            diagnostics.push(Diagnostic::error(format!(
+                "package source {} escapes every reconciled source root",
+                canonical.display()
+            )));
+            continue;
+        };
+        if owner != package_inputs.root()
+            && canonical.file_name().and_then(|name| name.to_str()) == Some("build.omg")
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "dependency build file {} may not join the compiled program",
+                canonical.display()
+            )));
+            continue;
+        }
+        validated.push((canonical, scope));
+    }
+
+    if diagnostics.is_empty() {
+        Ok(validated)
+    } else {
+        Err(diagnostics)
+    }
 }
