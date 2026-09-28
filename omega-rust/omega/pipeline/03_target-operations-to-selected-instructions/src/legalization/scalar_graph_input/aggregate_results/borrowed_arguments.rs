@@ -57,6 +57,7 @@ pub(super) fn reconstruct(
             caller,
             call,
             callee.parameters.len() + position,
+            native,
             plan,
         );
     }
@@ -183,46 +184,8 @@ pub(super) fn reconstruct(
         if elements.is_empty() {
             return Err(LegalizationError::custody());
         }
-        let function = native
-            .functions
-            .iter()
-            .find(|function| function.machine == caller.machine)
-            .ok_or(LegalizationError::custody())?;
-        let (call_block, call_position) = function
-            .graph
-            .blocks
-            .iter()
-            .find_map(|block| {
-                block
-                    .operations
-                    .iter()
-                    .position(|operation| {
-                        matches!(operation,
-                            target_operations::TargetUnitOperation::Call {
-                                psi_operation, ..
-                            } if *psi_operation == call_operation)
-                    })
-                    .map(|position| (block, position))
-            })
-            .ok_or(LegalizationError::custody())?;
-        let mut sources =
-            target::control_flow::sources::available(&function.graph, caller, call_block.block);
-        sources.extend(
-            call_block.operations[..call_position]
-                .iter()
-                .filter_map(target::control_flow::sources::definition),
-        );
-        let mut indices = Vec::new();
-        for element in &elements {
-            let (_, operand) = sources
-                .iter()
-                .find(|(value, _)| *value == element.index)
-                .ok_or(LegalizationError::custody())?;
-            indices.push(target_operations::TargetStructuralRuntimeIndex {
-                operand: *operand,
-                stride: element.stride,
-            });
-        }
+        let indices =
+            target::control_flow::sources::call_indices(native, caller, call_operation, &elements)?;
         (selected, offset, indices)
     };
     let referent = crate::structural_inputs::structural_reference_input::shape(

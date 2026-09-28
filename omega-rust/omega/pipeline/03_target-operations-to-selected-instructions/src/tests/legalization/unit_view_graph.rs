@@ -337,6 +337,116 @@ fn an_exclusive_view_lends_through_a_block_parameter_and_a_shared_root_rejects()
 }
 
 #[test]
+fn projected_address_join_calls_replay_exact_geometry_and_access() {
+    let access = StructuralAccess::SharedBorrow;
+    let mut source = block_parameter_source(access);
+    let root = source.functions[0].structural_parameters[0].structural_type;
+    let element = StructuralTypeId::new(11).unwrap();
+    let scalar_type = source.functions[0].parameters[0].scalar_type;
+    source
+        .structural_types
+        .make_mut()
+        .iter_mut()
+        .find(|declaration| declaration.id == root)
+        .unwrap()
+        .shape = StructuralTypeShape::Record {
+        fields: [(1, "prefix"), (2, "value")]
+            .map(
+                |(identity, name)| terminal_psi::StructuralFieldDeclaration {
+                    id: semantic_vocabulary::StructuralFieldId::new(identity).unwrap(),
+                    identity: name.into(),
+                    relevance: terminal_psi::BindingRelevance::Relevant,
+                    field_type: terminal_psi::StructuralFieldType::Scalar(scalar_type),
+                },
+            )
+            .to_vec(),
+    };
+    source
+        .structural_types
+        .make_mut()
+        .push(StructuralTypeDeclaration {
+            id: element,
+            identity: "joined-element".into(),
+            shape: StructuralTypeShape::PrimitiveScalar(scalar_type),
+        });
+    source.functions[0].structural_parameters[0].access = access;
+    source.functions[1].structural_parameters[0].access = access;
+    source.functions[1].structural_parameters[0].structural_type = element;
+    source.functions[0].operations[0] = AbstractOperation::IntegerConstant {
+        psi_operation: OperationId::new(10).unwrap(),
+        result: ValueId::new(101).unwrap(),
+        scalar_type,
+        value: semantic_vocabulary::IntegerValue::Unsigned(4),
+    };
+    let AbstractOperation::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut source.functions[0].operations[3]
+    else {
+        panic!("joined call")
+    };
+    structural_arguments[0].access = access;
+    structural_arguments[0].path = vec![terminal_psi::StructuralPathSegment::Field("value".into())];
+
+    for native in [NativeTarget::macos_arm64(), NativeTarget::windows_x64()] {
+        let target = abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+        )
+        .unwrap();
+        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &source,
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap();
+        let legal = legalize_target_operations(&target, &source, &unit).unwrap();
+        validate_legalized_operations(&target, &source, &unit, legal.plan().clone()).unwrap();
+        let environment =
+            register_environment::baseline_target_register_environment(native).unwrap();
+        let constraints = crate::selection_constraints(&legal, &environment);
+        let selected = select_instructions(
+            &legal,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .unwrap();
+        validate_selected_instructions(
+            &legal,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+            selected.plan().clone(),
+        )
+        .unwrap();
+        for mutation in 0..4 {
+            let mut changed = target.clone();
+            let argument = changed.functions[0]
+                .graph
+                .blocks
+                .iter_mut()
+                .flat_map(|block| &mut block.operations)
+                .find_map(|operation| match operation {
+                    TargetUnitOperation::Call { arguments, .. } => arguments.first_mut(),
+                    _ => None,
+                })
+                .unwrap();
+            assert_eq!(argument.source_byte_offset, 8);
+            match mutation {
+                0 => argument.source_byte_offset = 0,
+                1 => argument.structural_type = root,
+                2 => argument.path.clear(),
+                _ => argument.access = StructuralAccess::MutableBorrow,
+            }
+            assert!(
+                legalize_target_operations(&changed, &source, &unit).is_err(),
+                "projected join mutation {mutation}, {access:?}, {native:?}"
+            );
+        }
+    }
+}
+
+#[test]
 fn shared_unit_graph_observations_and_boolean_homes_replay_on_all_hosted_targets() {
     for native in [
         NativeTarget::linux_x64(),

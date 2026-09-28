@@ -53,7 +53,7 @@ pub(in crate::legalization) fn argument_at(
             &plan.structural_types,
         );
     }
-    // A shared address join lends its whole joined referent; its carrier is
+    // An address join lends a projection of its joined referent; its carrier is
     // neither a producer home nor an entrance parameter.
     if super::address_joins::parameter(caller, semantic.place, plan).is_some() {
         return super::address_joins::call_argument(
@@ -63,6 +63,7 @@ pub(in crate::legalization) fn argument_at(
             caller,
             call,
             parameter_ordinal,
+            native,
             plan,
         );
     }

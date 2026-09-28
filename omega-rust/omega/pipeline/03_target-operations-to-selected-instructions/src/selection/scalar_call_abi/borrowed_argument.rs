@@ -180,7 +180,7 @@ pub(super) fn validate_borrowed_argument(
                 &signature.structural_types,
             )
         });
-    // An address join lends its whole joined referent through the address
+    // An address join lends from its joined referent through the address
     // its block entry loaded; it is neither a home nor a descriptor view.
     let address_join = crate::selection::address_join_input::join(source, semantic.place);
     let shape = if let Some((_, joined)) = address_join {
@@ -189,14 +189,29 @@ pub(super) fn validate_borrowed_argument(
             StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
         ) || semantic.access == StructuralAccess::MutableBorrow
             && joined.access != StructuralAccess::MutableBorrow
-            || !semantic.path.is_empty()
-            || target.structural_type != joined.structural_type
-            || target.root_structural_type != joined.structural_type
-            || target.source_byte_offset != 0
         {
             return None;
         }
-        crate::selection::address_join_input::argument_shape(source, joined)?
+        let (selected, offset, elements) =
+            crate::structural_inputs::structural_reference_input::runtime_projection(
+                joined.structural_type,
+                &semantic.path,
+                &signature.structural_types,
+            )?;
+        if target.root_structural_type != joined.structural_type
+            || target.structural_type != selected
+            || target.source_byte_offset != offset
+            || !crate::structural_inputs::structural_reference_input::runtime_indices_match(
+                indices, &elements,
+            )
+        {
+            return None;
+        }
+        let referent = crate::structural_inputs::structural_reference_input::shape(
+            selected,
+            &signature.structural_types,
+        )?;
+        ValueShape::borrowed_reference(referent.byte_size, referent.alignment)
     } else if let Some(shape) = aggregate {
         shape
     } else if let Some((offset, _)) = byte_view {
@@ -298,6 +313,7 @@ pub(super) fn validate_borrowed_argument(
         || !call.claim_transfers.is_empty()
         || call.call_plan != expected
         || (!exclusive
+            && address_join.is_none()
             && aggregate.is_none()
             && byte_view.is_none()
             && byte_field.is_none()
@@ -308,6 +324,7 @@ pub(super) fn validate_borrowed_argument(
         || target.access != semantic.access
         || target.path != semantic.path
         || (!exclusive
+            && address_join.is_none()
             && aggregate.is_none()
             && byte_view.is_none()
             && byte_field.is_none()
@@ -316,6 +333,7 @@ pub(super) fn validate_borrowed_argument(
             && target.root_structural_type != target.structural_type)
         || target.shape != shape
         || (!exclusive
+            && address_join.is_none()
             && aggregate.is_none()
             && byte_view.is_none()
             && byte_field.is_none()
