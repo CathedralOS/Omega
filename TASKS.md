@@ -3285,89 +3285,75 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   Timeout releases nothing; hold resources while any attempt can reach them.
   Report unavailable execution legs explicitly; no compiler-owned APIC driver.
 
-- **ADDRESS-TRANSLATION-CANARY.** Execute Cathedral-owned mapping
-  installation and teardown under
-  [mapping and reclamation](wiki/spec/resources/extents.md#mapping-and-reclamation).
-  The corpus stand-in at `tests/omega/pass/memory/address_translation_canary`
-  declares `CathedralTranslationProvider` requirement coverage and threads
-  the owned `Mapping` through table install/remove before activation/release.
-  It remains checked-only: `Main::main` is empty and bodyless hardware/receipt
-  crossings have no selected executable provider joining the authored
-  obligations to `extents::mapping` receipts.
+- **ADDRESS-TRANSLATION-CANARY.** Execute Cathedral-owned mapping installation
+  and teardown under [mapping and reclamation](wiki/spec/resources/extents.md#mapping-and-reclamation).
+  `tests/omega/pass/memory/address_translation_canary` checks owned single-leaf
+  install/remove routes, but its empty entry and bodyless hardware/receipt
+  crossings do not execute translations. Join selected authority, hardware and
+  shootdown providers to `extents::mapping`'s exact source/destination, identity,
+  era and activation/release receipts.
 
-  Finish that provider/receipt connection for exact source/destination custody,
-  mapping identity and era, including borrowed-source carrier transport.
-  Carried-loan mutation ceilings exist; borrowed install/remove routes retaining
-  return/field qualifications remain missing. Reproduce their current diagnostic
-  rather than assuming the fixture header's broad carried-loan blocker.
-  Extend the one-leaf routes to multi-page mappings with ordinary ranked loops.
-  TERMINATION-RANKING-CHECKS owns contract-aware boundary-call preservation;
-  nested checked-body calls in inert initializers are already supported.
-  Demand-grown tables depend on BUMP-ALLOCATOR-CANARY, placed read-back on
-  PLAN-LAID-VIEWS, and fixture range migration on CANONICALIZE-SCALAR-RANGE-CONTRACTS.
+  Complete borrowed-carrier transport: calls forwarding `BorrowedMapping in Pending`
+  or `Installed` to checked identity helpers cannot prove the required
+  `held_source in Extent::Granted`. Full borrowed installers also
+  need unambiguous returned-loan provenance and correct table-result ownership.
+  Extend installation to multi-page ranked loops through
+  TERMINATION-RANKING-CHECKS; demand-grown tables need BUMP-ALLOCATOR-CANARY,
+  placed read-back PLAN-LAID-VIEWS, and range migration
+  CANONICALIZE-SCALAR-RANGE-CONTRACTS.
 
-  Validate Cathedral's entry encoding and geometry with a semantic/execution
-  oracle: `cathedral/tables.omg::FRAME_MASK` must preserve frame bits 12..51
-  (`0x000FFFFFFFFFF000`) without admitting flag bits. The checked-only fixture
-  does not distinguish a correct mask from a wrong one. Select authority,
-  hardware and shootdown realizations on a freestanding image through
-  UEFI-PHYSICAL-SEMANTIC-ENTRY and UEFI-OS-HANDOFF, with a QEMU harness.
+  Reuse Cathedral's numeric table/walk oracles and verify this canary's geometry
+  and level-specific leaf/link encoding. The corrected `FRAME_MASK` is
+  `0x000FFFFFFFFFF000` (bits 12..51);
+  source checking alone does not test its behavior. Integrate
+  UEFI-PHYSICAL-SEMANTIC-ENTRY / UEFI-OS-HANDOFF with Cathedral's boot harness.
 
-  Acceptance: install/tear down multi-page mappings in QEMU with explicit
-  `Extent` and TLB custody. Mapped access exists only after activation and
-  before unmap; reuse waits for completion. Source use after map, premature
-  unmap, lost shootdown, forged carriers, borrowed-source reclaim, replayed
-  activation and wrong-mapping/stale-era receipts reject. Preserve the eight
-  `fail/core/translation_*` controls. A checked fixture or Rust receipt test
-  is not execution. Cathedral owns the real package, formats, walk policy and
-  lifecycle; no page-table/TLB types belong in the compiler.
+  Acceptance: QEMU installs and tears down multi-page mappings with explicit
+  Extent/TLB custody. Access exists only after activation and before unmap;
+  reuse waits for completion. Source use after map, premature unmap, lost
+  shootdown, forged carriers, borrowed-source reclaim, replayed activation and
+  wrong-mapping/stale-era receipts reject. Retain the surviving
+  `fail/core/translation_unmap_before_activation` control and cover the remaining
+  cases. Rust receipt tests do not establish execution. Cathedral owns formats,
+  walks and lifecycle; no compiler-owned page-table/TLB types.
 
-- **EXCEPTION-ROOTS-AND-TIMER.** Execute Cathedral's fatal entries on
-  dedicated critical stacks and a timer handler that acknowledges, records
-  and wakes ordinary work, under [interrupt obligations](wiki/spec/build/interrupt_obligations.md),
-  [hardware materialization](wiki/spec/build/hardware_materialization.md)
-  and [final machine-state evidence](wiki/spec/build/machine_state_evidence.md).
-  Cathedral owns exception coverage, gate/IST policy, controller/device
-  protocols, table validation and fatal behavior. Compiler mechanisms own
-  sealed installed roots, checked writers/instructions, entry/exit realization
-  and custody.
+- **EXCEPTION-ROOTS-AND-TIMER.** Execute Cathedral fatal entries on dedicated
+  critical stacks and a timer that acknowledges, records and wakes work under
+  [interrupt obligations](wiki/spec/build/interrupt_obligations.md),
+  [hardware materialization](wiki/spec/build/hardware_materialization.md) and
+  [final machine-state evidence](wiki/spec/build/machine_state_evidence.md).
+  `tests/omega/pass/memory/interrupt_table_canary` retains authored roots,
+  layouts and validators, but its entry is empty and both handlers only
+  acknowledge. The former compiler layout-test witness is gone; current stub
+  and ledger tests use supplied coordinates, bytes and receipts.
 
-  Reuse `tests/omega/pass/memory/interrupt_table_canary` and
-  `compiler/tests/layout_plans/interrupt_descriptor_tables.rs`: authored
-  root selection, table layout, member admission and validation exist, as do
-  stub emission/replay with GPR/XMM saves, stack fragments and indirect copies.
-  The source entry is empty; tests supply installed bytes, authority and
-  resource receipts. Remaining:
+  Join `machine-emission/src/entry_exit_stub.rs`'s emitted stub and member-call
+  relocation to image placement, installation and external-root admission.
+  `X86_64DeriverStubEntryEmission` has only test producers. Bind exact entry/body
+  coordinates, bytes, stack overhead and final transitive state; keep stack,
+  fuel and state columns separate. Unsupported ABI/backing rejects.
 
-  - Join `machine-emission` stub bytes and member-call relocation to real image
-    text, installation and external-root admission. Bind exact entry/body
-    coordinates, installed bytes, stack overhead and final transitive state
-    evidence; retain separate stack, fuel and state columns.
-    `X86_64DeriverStubEntryEmission` currently has only test producers.
-    Unsupported ABI/backing must reject, not fabricate borrowed caller storage.
-  - Complete authored table publication and remove compiler-owned table-policy
-    fields/checks from `InterruptTableGateDescriptor`,
-    `InterruptTableProfile` and established/publication records. Reuse the
-    package validator/member verdict and generic writer; retain exact content,
-    installed-root, publication-authority and checked-`lidt` joins. Root custody
-    and the instruction contract remain compiler-owned.
-  - Replace acknowledgement-only fixture bodies with Cathedral's fatal halt,
-    controller/timer setup, tick record and wake behavior. Join completion to
-    exact acknowledgement lineage through BOUNDED-INSTALLATION-REACH-ROWS and
-    TOP-LEVEL-BOUNDARY-REQUIREMENTS. Shared inherited requirement identities
-    must keep resolving under their own selected provider plan.
-  - Integrate UEFI-PHYSICAL-SEMANTIC-ENTRY / UEFI-OS-HANDOFF, TR3-TR8 stack
-    provisioning, and a reproducible QEMU harness. Keep external interrupts
-    disabled until the exception floor is installed; NMI, machine-check and
-    physical-failure assumptions remain explicit.
+  Finish authored table publication through the package validator/member verdict
+  and generic writer. Remove remaining compiler-owned gate/IST policy from
+  `external-roots`'s `InterruptTableGateDescriptor` and `InterruptTableProfile`,
+  preserving exact content, installed-root, publication-authority and checked-`lidt`
+  joins. Cathedral owns coverage, controller protocols and fatal behavior;
+  compiler mechanisms retain root custody and instruction contracts.
 
-  Acceptance: QEMU boots the authored customer, reports timer ticks through
-  owned output, halts between ticks, and sends a deliberately raised fault to
-  its fatal handler on the dedicated stack without resuming ordinary work.
-  Missing members, wrong writer/realization or changed table bytes, replayed
-  publication/acknowledgement, forgotten/double completion, and retirement while
-  the table names the root reject. Ledger tests and uninstalled stub bytes are
-  not the witness. Record emulator/firmware prerequisites and unavailable hosts.
+  Implement fatal halt, timer/controller setup, tick recording and wake behavior.
+  BOUNDED-INSTALLATION-REACH-ROWS / TOP-LEVEL-BOUNDARY-REQUIREMENTS own exact
+  acknowledgement lineage; inherited requirements retain their selected plans.
+  Integrate UEFI-PHYSICAL-SEMANTIC-ENTRY / UEFI-OS-HANDOFF and TR3-TR8 provisioning
+  with Cathedral's QEMU harness. Keep interrupts disabled until the exception
+  floor exists; record firmware/emulator prerequisites, unavailable hosts and
+  NMI/machine-check/physical-failure assumptions.
+
+  Acceptance: QEMU reports ticks through owned output, halts between ticks and
+  routes a deliberate fault to its dedicated-stack fatal handler without
+  resuming ordinary work. Missing members, wrong writer/realization, changed
+  bytes, replayed publication/acknowledgement, forgotten/double completion and
+  retirement while the table names a root reject. Uninstalled stubs and ledger
+  tests do not close this execution witness.
 
 - **BOUNDED-INSTALLATION-REACH-ROWS.** Finish
   [installation-bound reach](wiki/spec/build/external_roots.md#installation-bound-reach)
