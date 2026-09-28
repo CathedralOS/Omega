@@ -85,3 +85,42 @@ fn spelled_boundary_operator_initializers_fail_at_pure_initializer_admission() {
         "InvalidUnitMachinePlan { machine: \"run\", reason: \"attached Unit closure is missing a checked transitive machine plan\", omission: Some(\"`run` has no admitted body (local construction stopped at statement sequence: local data: scalar local: pure initializer, statement 1)\") }"
     );
 }
+
+/// A selected IEEE comparison guard over parameters, locals or literals
+/// already publishes one occurrence (`composed_unit_guarded_jumps`); the same
+/// guard over receiver fields stops earlier, at scalar field observation,
+/// which admits integer fields only. This is the lowering wall under the
+/// `runtime_float_*_comparison` canaries: they reach native physical replay
+/// once float field reads lower, not once another physical arm exists.
+#[test]
+fn selected_float_guards_over_receiver_fields_fail_at_field_observation() {
+    let comparison = |guard: &str| {
+        format!(
+            r#"
+            boundary operator != Float::not_equal(left: f64, right: f64) -> bool;
+            boundary trait Host {{ machine exit(code: i32); }}
+            data Root {{ f: f64; g: f64; }}
+            machine Root::enter(&mut self, left: f64, right: f64) reaches Host {{
+                transition {guard} {{ true -> good() _ -> bad() }}
+                state good(&mut self) {{ Host::exit(70); }}
+                state bad(&mut self) {{ Host::exit(71); }}
+            }}
+        "#
+        )
+    };
+    let lowered = lower_machine(
+        &crate::front_end::checked_program(&comparison("left != right")),
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("a parameter guard lowers");
+    assert_eq!(lowered.selected_ieee_float_comparison_occurrences.len(), 1);
+    let error = lower_machine(
+        &crate::front_end::checked_program(&comparison("self.f != self.g")),
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect_err("a receiver-field float guard is not observed yet");
+    assert_eq!(
+        format!("{error:?}"),
+        "Unsupported(\"runtime scalar field observation requires an integer field\")"
+    );
+}
