@@ -16,7 +16,6 @@ syntax-trees = { path = "../../../psi/representations/syntax-trees" }
 validation = { path = "../../../psi/checking" }
 build-output = { path = "../../package-manager/build-output" }
 calling-conventions = { path = "../../backend/calling-conventions" }
-component-description = { path = "../../backend/artifacts/component-description" }
 effects = { path = "../../backend/plans/provider-evidence" }
 optimization-core = { path = "../../foundation/optimization-core" }
 package-compilation = { path = "../../package-manager/compilation-inputs" }

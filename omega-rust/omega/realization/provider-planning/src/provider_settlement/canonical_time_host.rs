@@ -1,27 +1,26 @@
-//! Canonical toolchain-settled `FilesystemHost` provider plan.
+//! Canonical toolchain-settled `TimeHost` provider plan.
 //!
-//! `source/library/std/filesystem_host.omg` declares the canonical raw
-//! filesystem boundary as a requirement-only surface: packages accept the
-//! exact binding (`AcceptedSemanticBindingRole::FilesystemHostService`), but
-//! no package may author `satisfies` conformances or `select_provider` rows
-//! for the slot — slot resolution derives only from conformance provenance,
-//! so an authored conformance would never even resolve the boundary slot.
-//! Provider settlement therefore mints the canonical realization plan itself,
-//! per selected target, from the toolchain's own reviewed realization table.
+//! `source/library/std/time_host.omg` declares the canonical raw clock
+//! boundary as a requirement-only surface: packages accept the exact binding
+//! (`AcceptedSemanticBindingRole::TimeHostService`), but no package may
+//! author `satisfies` conformances or `select_provider` rows for the slot —
+//! slot resolution derives only from conformance provenance, so an authored
+//! conformance would never even resolve the boundary slot. Provider
+//! settlement therefore mints the canonical realization plan itself, per
+//! selected target, from the toolchain's own reviewed realization table.
 //!
-//! The minted plan deliberately covers only the leaves the toolchain can bind
-//! honestly on that target: scalar-only requirements whose realization is one
-//! positional kernel syscall, further narrowed to the methods the accepted
-//! service schema actually declares — a consumer-declared schema names its
-//! own demanded subset, and a leaf outside that subset has no requirement to
-//! realize. A method whose signature carries `in Path`,
-//! slice carriers, or host-dependent argument choreography is not guessable
-//! and earns no row. Demand-completeness never fabricates a broad union: a
-//! demanded leaf with no minted row still resolves to zero selected rows at
-//! closure review, and ordinary-release cohort leaves (`close`,
-//! `find_close`, `close_handle`) bind their syscall but mint no
-//! classification row — they still require the retained occurrence-specific
-//! release contract owned by FILESYSTEM-RELEASE-CONTRACT.
+//! The minted plan deliberately covers only the leaves the toolchain can
+//! name honestly on that target: requirements whose irreducible kernel
+//! realization is one reviewed syscall. `monotonic_ticks` and
+//! `wall_clock_raw` bottom out in `clock_gettime`; `sleep` bottoms out in
+//! `nanosleep`. Their timespec marshalling and result composition are
+//! checked-code adaptation, the same settlement-transport leg the
+//! `FilesystemHost` mint pins for its own rows: a demanded leaf with no
+//! transport still rejects at lowering rather than manufacturing one. The
+//! three per-target constants (`monotonic_ticks_per_second`,
+//! `wall_clock_units_per_second`, `wall_clock_epoch_offset_seconds`) carry
+//! no kernel mechanism and stay uncovered until a constant binding kind
+//! exists. Demand-completeness never fabricates a broad union.
 //!
 //! The plan joins the selected closure through
 //! [`effects::SelectedProviderPlanFacts::with_toolchain_settled_plan`], which
@@ -52,11 +51,11 @@ use typed_trees::TypedTrees;
 /// settlement table, not a package conformance closure, so provider-type and
 /// origin package identities stay `None` and consumers must not infer
 /// ownership from this name.
-const TOOLCHAIN_FILESYSTEM_HOST_PROVIDER: &str = "omega::toolchain::filesystem_host";
+const TOOLCHAIN_TIME_HOST_PROVIDER: &str = "omega::toolchain::time_host";
 
-/// One canonical `FilesystemHost` requirement realized by one positional
-/// kernel syscall on the selected target.
-struct ToolchainFilesystemLeaf {
+/// One canonical `TimeHost` requirement realized by one reviewed kernel
+/// syscall on the selected target.
+struct ToolchainTimeHostLeaf {
     /// Canonical requirement name; locates the method inside the accepted
     /// service schema. It is never an identity key in the emitted plan — the
     /// row carries the method's complete normalized requirement identity.
@@ -66,77 +65,42 @@ struct ToolchainFilesystemLeaf {
 }
 
 /// The reviewed linux_x86_64 realization table: only requirements whose
-/// checked signature is all scalar and whose honest realization is one
-/// positional syscall. Ordinary-release cohort members (`close`,
-/// `find_close`, `close_handle`) are bound here — the binding is honest —
-/// while their classification row still waits on the occurrence-bound release
-/// contract. Leaves needing path/spelling adaptation, slice carriers, error
-/// reading (`errno`, `get_last_error`), or the `get_osfhandle` host seam have
-/// no honest positional syscall and stay uncovered on purpose.
-const LINUX_X86_64_FILESYSTEM_LEAVES: &[ToolchainFilesystemLeaf] = &[
-    ToolchainFilesystemLeaf {
-        method: "close",
-        number: 3,
+/// irreducible kernel realization is one named syscall. `monotonic_ticks`
+/// and `wall_clock_raw` bind `clock_gettime` (228); `sleep` binds
+/// `nanosleep` (35). The per-target constants carry no kernel mechanism and
+/// the timespec marshalling is checked-code adaptation, so neither earns a
+/// row from this table.
+const LINUX_X86_64_TIME_HOST_LEAVES: &[ToolchainTimeHostLeaf] = &[
+    ToolchainTimeHostLeaf {
+        method: "monotonic_ticks",
+        number: 228,
     },
-    ToolchainFilesystemLeaf {
-        method: "find_close",
-        number: 3,
+    ToolchainTimeHostLeaf {
+        method: "wall_clock_raw",
+        number: 228,
     },
-    ToolchainFilesystemLeaf {
-        method: "close_handle",
-        number: 3,
-    },
-    ToolchainFilesystemLeaf {
-        method: "seek",
-        number: 8,
-    },
-    ToolchainFilesystemLeaf {
-        method: "duplicate",
-        number: 32,
-    },
-    ToolchainFilesystemLeaf {
-        method: "lock_file",
-        number: 73,
-    },
-    ToolchainFilesystemLeaf {
-        method: "sync",
-        number: 74,
-    },
-    ToolchainFilesystemLeaf {
-        method: "sync_data",
-        number: 75,
-    },
-    ToolchainFilesystemLeaf {
-        method: "set_len",
-        number: 77,
-    },
-    ToolchainFilesystemLeaf {
-        method: "set_file_permissions",
-        number: 91,
-    },
-    ToolchainFilesystemLeaf {
-        method: "change_file_owner",
-        number: 93,
+    ToolchainTimeHostLeaf {
+        method: "sleep",
+        number: 35,
     },
 ];
 
 /// Per-target canonical realization tables. A target with no reviewed table
 /// earns no plan, leaving the closure-review stop honest rather than
 /// fabricating guessed realization.
-fn toolchain_filesystem_leaves(target_name: &str) -> &'static [ToolchainFilesystemLeaf] {
+fn toolchain_time_host_leaves(target_name: &str) -> &'static [ToolchainTimeHostLeaf] {
     match target_name {
-        "linux_x86_64" => LINUX_X86_64_FILESYSTEM_LEAVES,
+        "linux_x86_64" => LINUX_X86_64_TIME_HOST_LEAVES,
         _ => &[],
     }
 }
 
-/// Resolve the accepted `FilesystemHostService` binding against the typed
-/// program: the exact package-owned boundary trait, its reified service
-/// schema, and a digest check identical to the post-checking rejoin in
-/// `selected-dispatch`'s `resolve_accepted_service_binding`. Returns the
-/// trait definition too so the caller can bind requirement symbols and
-/// fused-service erasure against it.
-fn resolve_filesystem_host_binding<'trees>(
+/// Resolve the accepted `TimeHostService` binding against the typed program:
+/// the exact package-owned boundary trait, its reified service schema, and a
+/// digest check identical to the post-checking rejoin in `selected-dispatch`'s
+/// `resolve_accepted_service_binding`. Returns the trait definition too so the
+/// caller can bind requirement symbols and fused-service erasure against it.
+fn resolve_time_host_binding<'trees>(
     typed: &'trees TypedTrees,
     binding: &AcceptedSemanticBinding,
 ) -> Result<
@@ -157,7 +121,7 @@ fn resolve_filesystem_host_binding<'trees>(
             {
                 return None;
             }
-            let schema = provider_planning::service_schema::from_typed(typed, definition)?;
+            let schema = crate::service_schema::from_typed(typed, definition)?;
             (schema.trait_package_identity == Some(binding.package())
                 && package_compilation::accepted_service_schema_digest(binding.role(), &schema)
                     == binding.normalized_schema_digest())
@@ -177,7 +141,7 @@ fn resolve_filesystem_host_binding<'trees>(
 /// The toolchain-settled plan and the exact symbols receiver admission
 /// needs to join it: the boundary trait (fused erasure + provenance schema
 /// declaration) and the row-aligned requirement machine symbols.
-pub struct MintedFilesystemHostPlan {
+pub struct MintedTimeHostPlan {
     pub plan: ProviderPlan,
     pub trait_symbol: symbols::SymbolHandle,
     /// Row-aligned with `plan.rows`: the requirement's own machine symbol.
@@ -186,37 +150,37 @@ pub struct MintedFilesystemHostPlan {
     pub requirement_symbols: Vec<symbols::SymbolHandle>,
 }
 
-/// Mint the canonical `FilesystemHost` provider plan for this build, or
-/// `Ok(None)` when the build accepts no filesystem binding, selects no
-/// target, selects a target with no reviewed realization table, or an
-/// already-selected plan covers the slot (defense in depth: authored
-/// conformances for this slot cannot resolve, so coverage implies a foreign
-/// source this mint must never override).
+/// Mint the canonical `TimeHost` provider plan for this build, or `Ok(None)`
+/// when the build accepts no clock binding, selects no target, selects a
+/// target with no reviewed realization table, or an already-selected plan
+/// covers the slot (defense in depth: authored conformances for this slot
+/// cannot resolve, so coverage implies a foreign source this mint must never
+/// override).
 ///
 /// The returned plan is candidate-shaped but toolchain-settled: the caller
 /// joins it into the selected facts, the fused-service erasure binding, and
 /// the post-derivation review provenance, and deliberately excludes it from
 /// candidate plans and pre-selection provenance replay. Package review
-/// replays the same mint against the consumed `FilesystemHostService`
-/// binding to validate a retained toolchain-settled plan's exact identity.
-pub fn mint_canonical_filesystem_host_plan(
+/// replays the same mint against the consumed `TimeHostService` binding to
+/// validate a retained toolchain-settled plan's exact identity.
+pub fn mint_canonical_time_host_plan(
     typed: &TypedTrees,
     accepted_binding: Option<&AcceptedSemanticBinding>,
     target_name: Option<&'static str>,
     already_selected: &[ProviderPlan],
-) -> Result<Option<MintedFilesystemHostPlan>, Vec<Diagnostic>> {
+) -> Result<Option<MintedTimeHostPlan>, Vec<Diagnostic>> {
     let Some(binding) = accepted_binding else {
         return Ok(None);
     };
     let Some(target_name) = target_name else {
         return Ok(None);
     };
-    let leaves = toolchain_filesystem_leaves(target_name);
+    let leaves = toolchain_time_host_leaves(target_name);
     if leaves.is_empty() {
         return Ok(None);
     }
     let (definition, schema) =
-        resolve_filesystem_host_binding(typed, binding).map_err(|error| vec![error])?;
+        resolve_time_host_binding(typed, binding).map_err(|error| vec![error])?;
     let signatures = typed.trait_machine_signatures(definition);
     if already_selected.iter().any(|selected| {
         selected.schema.trait_package_identity == schema.trait_package_identity
@@ -227,23 +191,22 @@ pub fn mint_canonical_filesystem_host_plan(
     let mut rows = Vec::with_capacity(leaves.len());
     let mut requirement_symbols = Vec::with_capacity(leaves.len());
     for leaf in leaves {
-        // A leaf absent from the accepted schema has no requirement to
-        // realize: consumer-declared schemas name their own demanded subset,
-        // and coverage stops there rather than demanding the canonical
-        // declaration's whole vocabulary.
         let Some(method) = schema
             .methods
             .iter()
             .find(|method| method.name == leaf.method)
         else {
-            continue;
+            return Err(vec![Diagnostic::error(format!(
+                "canonical `TimeHost` realization table names `{}`, which the accepted service schema does not declare",
+                leaf.method,
+            ))]);
         };
         let Some(signature) = signatures
             .iter()
             .find(|signature| signature.name.as_str() == method.name)
         else {
             return Err(vec![Diagnostic::error(format!(
-                "canonical `FilesystemHost` requirement `{}` has no retained typed requirement signature",
+                "canonical `TimeHost` requirement `{}` has no retained typed requirement signature",
                 leaf.method,
             ))]);
         };
@@ -257,18 +220,13 @@ pub fn mint_canonical_filesystem_host_plan(
             },
         });
     }
-    if rows.is_empty() {
-        // Nothing the schema demands has a toolchain-settled realization:
-        // no plan mints, the same as an unreviewed realization table.
-        return Ok(None);
-    }
     let plan = ProviderPlan {
-        name: provider_planning::satisfies_plan_name(
+        name: crate::satisfies_plan_name(
             target_name,
             &schema.trait_name,
-            TOOLCHAIN_FILESYSTEM_HOST_PROVIDER,
+            TOOLCHAIN_TIME_HOST_PROVIDER,
         ),
-        provider_type: TOOLCHAIN_FILESYSTEM_HOST_PROVIDER.to_owned(),
+        provider_type: TOOLCHAIN_TIME_HOST_PROVIDER.to_owned(),
         provider_type_package_identity: None,
         target: target_name.to_owned(),
         schema,
@@ -279,11 +237,11 @@ pub fn mint_canonical_filesystem_host_plan(
     let errors = plan.validate_candidate_against_schema();
     if !errors.is_empty() {
         return Err(vec![Diagnostic::error(format!(
-            "toolchain-settled `FilesystemHost` plan is malformed: {}",
+            "toolchain-settled `TimeHost` plan is malformed: {}",
             errors.join("; ")
         ))]);
     }
-    Ok(Some(MintedFilesystemHostPlan {
+    Ok(Some(MintedTimeHostPlan {
         plan,
         trait_symbol: definition.symbol,
         requirement_symbols,

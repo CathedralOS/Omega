@@ -61,7 +61,7 @@ pub(super) fn validate(
     // settlement admitted: custody retains the attached descriptions, and
     // re-verifying them under the build's admission profile reproduces the
     // verified set rather than trusting the retained join outcome.
-    let independent_components = build_evaluation::verify_independent_component_descriptions(
+    let independent_components = provider_planning::verify_independent_component_descriptions(
         compilation.custody.independent_component_descriptions(),
         compilation.custody.accepted_component_assumptions(),
         |_| None,

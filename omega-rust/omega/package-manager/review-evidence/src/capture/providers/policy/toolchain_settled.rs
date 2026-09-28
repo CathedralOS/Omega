@@ -28,7 +28,7 @@ pub(super) fn validate(
     for binding in compilation.custody.resolved_semantic_bindings() {
         let mint = match binding.role() {
             package_compilation::AcceptedSemanticBindingRole::FilesystemHostService => {
-                build_evaluation::mint_canonical_filesystem_host_plan(
+                provider_planning::mint_canonical_filesystem_host_plan(
                     &compilation.typed,
                     Some(binding),
                     Some(target.target_name()),
@@ -37,7 +37,7 @@ pub(super) fn validate(
                 .map(|mint| (mint.plan, mint.trait_symbol, mint.requirement_symbols))
             }
             package_compilation::AcceptedSemanticBindingRole::TimeHostService => {
-                build_evaluation::mint_canonical_time_host_plan(
+                provider_planning::mint_canonical_time_host_plan(
                     &compilation.typed,
                     Some(binding),
                     Some(target.target_name()),

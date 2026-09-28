@@ -145,15 +145,17 @@ pub(crate) fn check_selected_execution(
         .iter()
         .map(|acceptance| acceptance.digest)
         .collect();
-    let build_evaluation::CheckedProviderSelection {
+    let settled_target_machines =
+        selected_target_machine_declarations.settle_provider_defaults(&mut typed)?;
+    let provider_planning::CheckedProviderSelection {
         provider_plans,
         evaluated_via_bindings,
         selected_provider_plan_facts,
         selected_provider_provenance,
         external_binding_rows,
-    } = build_evaluation::settle_checked_providers(
+    } = provider_planning::settle_checked_providers(
         &mut typed,
-        selected_target_machine_declarations,
+        settled_target_machines,
         selected_target_profile,
         package_inputs,
         &build_config.provider_selections,

@@ -11,8 +11,14 @@ handoff; relocating the owner does not complete that boundary.
 
 [Provider selection](../../../../wiki/spec/build/provider_selection.md) and
 [opaque representation selection](../../../../wiki/spec/build/opaque_representations.md)
-own the public contract. Start at [provider_planning.rs](src/provider_planning.rs):
-it selects exact provider plans and binds them to a checked program. The binding
+own the public contract. Start at [provider_settlement.rs](src/provider_settlement.rs)
+for typed provider settlement: consume prepared target defaults, derive and
+validate candidates, select plans, construct canonical host-service plans, verify
+independent components, and retain aligned facts and provenance. Build admission
+prepares target declarations before this operation; it does not implement it.
+Package review replays host-service and component admission through the same owner.
+
+[provider_planning.rs](src/provider_planning.rs) binds selected plans to a checked program. The binding
 operation resolves grants, plans receipt and operator evidence, resolves
 installation reach, then publishes the checked updates together. [lib.rs](src/lib.rs)
 only wires the public API.

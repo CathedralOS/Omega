@@ -5,6 +5,13 @@ configuration, declarations, target/root selection, optimization, observation,
 and output custody modules own their respective results and checks. The admitted
 machine executes once against its selected filesystem.
 
+Provider-plan settlement belongs to
+[provider planning](../../realization/provider-planning/README.md), not this
+evaluator. Target declaration admission produces its exact typed defaults and
+origins; the compiler passes that result to the realization owner. The integration
+tests here exercise that declaration-to-settlement boundary, including canonical
+host services and independent-component rejection.
+
 ## Source-stage ownership
 
 Source assembly schedules file frontiers and retains package/import custody.

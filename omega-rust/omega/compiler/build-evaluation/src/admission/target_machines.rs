@@ -37,6 +37,7 @@
 //! host that executes it.
 
 use diagnostics::Diagnostic;
+use provider_planning::SettledTargetMachineDeclarations;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::Item;
@@ -112,11 +113,6 @@ impl ScopeTargets<'_> {
         NativeTarget::from_omega_target_name(Some(target))
             .is_ok_and(|resolved| resolved == scope_target)
     }
-}
-
-pub struct SettledTargetMachineDeclarations {
-    pub provider_defaults: Vec<provider_planning::ProviderSelection>,
-    pub origins: Vec<provider_planning::SelectedTargetMachineOrigin>,
 }
 
 impl SelectedTargetMachineDeclarations {
