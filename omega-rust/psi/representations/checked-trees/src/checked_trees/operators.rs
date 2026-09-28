@@ -570,14 +570,58 @@ pub struct CheckedOperatorFacts {
     /// D29 open demands retained separately from closed applications so no
     /// downstream consumer can accidentally interpret them as coverage.
     pub symbolic_boundary_applications: Vec<CheckedSymbolicBoundaryOperatorApplicationDemand>,
-    /// The first expression-occurrence use per expression, derived from
-    /// `uses` and keyed on its revision.
+    /// Ordered use rosters per expression, derived from `uses` and keyed on
+    /// its revision. Every occurrence and origin remains a distinct row.
     expression_uses: arena::OwnedIndex<ExpressionUseIndex>,
 }
 
-/// Checked lowering asks for an expression's operator use once per operand;
-/// each lookup scanned every use.
-type ExpressionUseIndex = symbols::SymbolKeyMap<ExpressionHandle, Handle<CheckedOperatorUseFact>>;
+/// The producer's use arena may interleave origins and implicit comparisons.
+/// Group handles once per revision without changing their original within-group
+/// order. A source expression never serves as unique occurrence identity.
+#[derive(Clone, Default)]
+struct ExpressionUseIndex {
+    expressions: symbols::SymbolKeyMap<ExpressionHandle, ExpressionUseRoster>,
+    handles: Arena<Handle<CheckedOperatorUseFact>>,
+}
+
+#[derive(Clone, Copy, Default)]
+struct ExpressionUseRoster {
+    first_expression: Handle<CheckedOperatorUseFact>,
+    all: HandleSpan<Handle<CheckedOperatorUseFact>>,
+}
+
+impl ExpressionUseIndex {
+    fn build(uses: &Arena<CheckedOperatorUseFact>) -> Self {
+        let mut ordered = uses
+            .iter()
+            .map(|(handle, fact)| (fact.expression, handle))
+            .collect::<Vec<_>>();
+        // Stable sorting retains the use arena's order for duplicate expression
+        // handles, including different roles/origins and repeated exact uses.
+        ordered.sort_by_key(|(expression, _)| (expression.arena_index(), expression.generation()));
+        let mut index = Self::default();
+        for group in ordered.chunk_by(|left, right| left.0 == right.0) {
+            let first_expression = group
+                .iter()
+                .find_map(|(_, handle)| {
+                    (uses.get(*handle).occurrence == CheckedOperatorOccurrence::Expression)
+                        .then_some(*handle)
+                })
+                .unwrap_or_default();
+            let all = index
+                .handles
+                .insert_many(group.iter().map(|(_, handle)| *handle));
+            index.expressions.insert(
+                group[0].0,
+                ExpressionUseRoster {
+                    first_expression,
+                    all,
+                },
+            );
+        }
+        index
+    }
+}
 
 // Written out so the derived use index stays out of the facts' rendering.
 impl std::fmt::Debug for CheckedOperatorFacts {
@@ -752,18 +796,37 @@ impl CheckedOperatorFacts {
     pub fn expression_use(&self, expression: ExpressionHandle) -> Option<&CheckedOperatorUseFact> {
         let handle = self.expression_uses.with(
             self.uses.revision(),
-            || {
-                let mut index = ExpressionUseIndex::default();
-                for (handle, operator_use) in self.uses.iter() {
-                    if operator_use.occurrence == CheckedOperatorOccurrence::Expression {
-                        index.entry(operator_use.expression).or_insert(handle);
+            || ExpressionUseIndex::build(&self.uses),
+            |index| {
+                index
+                    .expressions
+                    .get(&expression)
+                    .map(|roster| roster.first_expression)
+            },
+        )?;
+        handle.is_valid().then(|| self.uses.get(handle))
+    }
+
+    /// Visit every use of this exact expression in use-arena order. Occurrence,
+    /// origin, status and selection remain caller checks; no row is deduplicated.
+    /// The callback consumes facts while the derived roster is borrowed and must
+    /// not recursively query this expression index.
+    pub fn for_each_expression_use(
+        &self,
+        expression: ExpressionHandle,
+        mut visit: impl FnMut(Handle<CheckedOperatorUseFact>, &CheckedOperatorUseFact),
+    ) {
+        self.expression_uses.with(
+            self.uses.revision(),
+            || ExpressionUseIndex::build(&self.uses),
+            |index| {
+                if let Some(roster) = index.expressions.get(&expression) {
+                    for handle in index.handles.span_or_empty(roster.all) {
+                        visit(*handle, self.uses.get(*handle));
                     }
                 }
-                index
             },
-            |index| index.get(&expression).copied(),
-        )?;
-        Some(self.uses.get(handle))
+        );
     }
 
     pub fn expression_use_in_origin(
@@ -1013,6 +1076,95 @@ mod tests {
         SymbolHandle, TypeReferenceHandle,
     };
     use numerics::float_semantics::FloatFormat;
+
+    #[test]
+    fn expression_use_rosters_preserve_order_roles_origins_and_mutation_visibility() {
+        fn assert_matches_scan(facts: &CheckedOperatorFacts, expression: ExpressionHandle) {
+            let expected = facts
+                .uses
+                .iter()
+                .filter(|(_, fact)| fact.expression == expression)
+                .map(|(handle, fact)| (handle, *fact))
+                .collect::<Vec<_>>();
+            let mut actual = Vec::new();
+            facts.for_each_expression_use(expression, |handle, fact| actual.push((handle, *fact)));
+            assert_eq!(actual, expected);
+            assert_eq!(
+                facts.expression_use(expression),
+                expected.iter().find_map(|(_, fact)| {
+                    (fact.occurrence == CheckedOperatorOccurrence::Expression).then_some(fact)
+                })
+            );
+        }
+        let expression = ExpressionHandle::from_arena_index(1);
+        let other = ExpressionHandle::from_arena_index(2);
+        let missing = ExpressionHandle::from_arena_index(3);
+        let next_generation =
+            ExpressionHandle::from_parts(expression.arena_index(), expression.generation() + 1);
+        let mut facts = CheckedOperatorFacts::default();
+        let mut implicit = CheckedOperatorUseFact {
+            expression,
+            occurrence: CheckedOperatorOccurrence::MatchEquality {
+                source_arm: arena::Handle::from_arena_index(1),
+            },
+            ..Default::default()
+        };
+        let first = facts.uses.append(implicit);
+        facts.uses.append(CheckedOperatorUseFact {
+            expression: next_generation,
+            ..Default::default()
+        });
+        facts.uses.append(CheckedOperatorUseFact {
+            expression: other,
+            ..Default::default()
+        });
+        let mut explicit = CheckedOperatorUseFact {
+            expression,
+            origin: CheckedValueOrigin::StateStatement {
+                machine_symbol: SymbolHandle::from_arena_index(5),
+                state_symbol: SymbolHandle::from_arena_index(6),
+                statement_index: 7,
+                role: crate::CheckedValueStatementRole::AssignmentValue,
+            },
+            selected_operator_symbol: SymbolHandle::from_arena_index(8),
+            status: CheckedOperatorResolutionStatus::Resolved,
+            ..Default::default()
+        };
+        let selected = facts.uses.append(explicit);
+        facts.uses.append(explicit); // Repeated exact uses are still distinct handles.
+        explicit.origin = CheckedValueOrigin::StateStatement {
+            machine_symbol: SymbolHandle::from_arena_index(5),
+            state_symbol: SymbolHandle::from_arena_index(6),
+            statement_index: 7,
+            role: crate::CheckedValueStatementRole::CallArgument,
+        };
+        facts.uses.append(explicit);
+        implicit.occurrence = CheckedOperatorOccurrence::MatchEquality {
+            source_arm: arena::Handle::from_arena_index(2),
+        };
+        facts.uses.append(implicit);
+        for query in [expression, other, missing, next_generation] {
+            assert_matches_scan(&facts, query);
+        }
+        // A same-length rewrite changes grouping and the first explicit use.
+        facts.uses.get_mut(selected).expression = other;
+        for query in [expression, other] {
+            assert_matches_scan(&facts, query);
+        }
+        // Warm clones own independent indexes, and reuse preserves generations.
+        let original = facts.clone();
+        assert!(facts.uses.free(first));
+        let reused = facts.uses.insert(explicit);
+        assert_ne!(reused, first);
+        facts.uses.append(implicit);
+        for query in [expression, other] {
+            assert_matches_scan(&facts, query);
+            assert_matches_scan(&original, query);
+        }
+        facts.uses.clear();
+        assert_matches_scan(&facts, expression);
+        assert_matches_scan(&original, expression);
+    }
 
     #[test]
     fn checked_operator_facts_constructor_keeps_use_root_explicit() {

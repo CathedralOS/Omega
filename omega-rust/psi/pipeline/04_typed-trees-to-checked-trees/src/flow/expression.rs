@@ -405,22 +405,23 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         // separate; the consumer must not retarget a captured reference or give
         // a copied aggregate a later guarantee about its source storage.
         let mut operand_span = HandleSpan::empty();
-        for (operator_use, use_fact) in self.context.operators.uses.iter() {
+        let machine = self.machine.symbol;
+        let state = self.state.symbol;
+        let statement = self.statement_index;
+        let control = &mut self.context.control;
+        self.context.operators.for_each_expression_use(expression, |operator_use, use_fact| {
             if use_fact.expression == expression
                 && use_fact.occurrence == occurrence
                 && use_fact.selected_operator_symbol.is_valid()
                 && matches!(use_fact.origin, checked_trees::CheckedValueOrigin::StateStatement {
                     machine_symbol, state_symbol, statement_index, ..
-                } if machine_symbol == self.machine.symbol && state_symbol == self.state.symbol && statement_index == self.statement_index)
+                } if machine_symbol == machine && state_symbol == state && statement_index == statement)
             {
                 if operand_span.is_empty() {
-                    operand_span = self
-                        .context
-                        .control
-                        .operator_operands
+                    operand_span = control.operator_operands
                         .insert_many(captured_operands.iter().copied());
                 }
-                self.context.control.operator_invocations.append(
+                control.operator_invocations.append(
                     checked_trees::FlowOperatorInvocationFact {
                         operator_use,
                         named_use: arena::Handle::invalid(),
@@ -429,7 +430,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     },
                 );
             }
-        }
+        });
     }
 
     /// Named `Namespace::requirement(...)` uses that name this call
