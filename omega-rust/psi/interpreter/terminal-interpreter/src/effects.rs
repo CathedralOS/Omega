@@ -101,6 +101,56 @@ pub struct ProviderInstallationSelection {
     pub candidate: MachineId,
 }
 
+/// Omega-owned policy input authorizing one root-level assumed binding
+/// contract relationship
+/// (wiki/spec/build/assumed_binding_contracts.md).
+///
+/// This is the runtime-policy side of `Build::assume_binding_contract`: only
+/// the consuming runtime root may authorize the relationship, so it arrives
+/// as sponsor-supplied installation input, never as artifact bytes — a
+/// dependency cannot grant the assumption to itself. Admission replays the
+/// link against the verified catalog: the supplied side must reach one
+/// selected implementation, competing checked or assumed supplies for the
+/// required requirement reject, and cyclic binding aliases reject. The
+/// relationship applies at this crossing only; it mints no
+/// `provider_candidates` conformance and no `installed` redirect, so a
+/// direct call of the supplied requirement keeps its own checked evidence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct AssumedBindingSelection {
+    /// The caller-facing requirement (`Required::operation`) whose link the
+    /// root assumes.
+    pub required: BoundaryMachineId,
+    /// The requirement (`Supplied::operation`) whose selected implementation
+    /// the assumed link invokes.
+    pub supplied_requirement: BoundaryMachineId,
+}
+
+/// One admitted assumed binding contract relationship, bound to the same
+/// terminal-Psi identity as the checked provider installation it extends.
+///
+/// `implementation` is the actual selected code the assumed link invokes —
+/// binding identity cannot hide it. `supply_path` retains every assumed link
+/// followed to reach it, outermost first, so a chained assumption keeps its
+/// complete transitive trust record. Both requirements retain their own
+/// identities: the row is conditional evidence under the recorded
+/// assumption, not a checked conformance between them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AdmittedAssumedBinding {
+    /// The caller-facing requirement (`Required::operation`).
+    pub required: BoundaryMachineId,
+    /// The requirement (`Supplied::operation`) whose selection resolves the
+    /// actual implementation.
+    pub supplied_requirement: BoundaryMachineId,
+    /// The concrete selected implementation reached by following the supply
+    /// side's selection and any nested assumed links — never the abstract
+    /// requirement itself.
+    pub implementation: MachineId,
+    /// Requirements traversed through nested assumed links before reaching
+    /// `implementation`, in traversal order. Empty when
+    /// `supplied_requirement` had an ordinary checked selection.
+    pub supply_path: Vec<BoundaryMachineId>,
+}
+
 /// Validated provider installation bound to one exact terminal-Psi identity.
 /// Private fields prevent callers from manufacturing a boundary-to-machine
 /// redirect without replaying terminal decoding and verification.
@@ -108,11 +158,21 @@ pub struct ProviderInstallationSelection {
 pub struct AdmittedProviderInstallation {
     pub(crate) terminal_psi: terminal_psi::TerminalPsiIdentity,
     pub(crate) installed: BTreeMap<BoundaryMachineId, MachineId>,
+    pub(crate) assumed_bindings: Vec<AdmittedAssumedBinding>,
 }
 
 impl AdmittedProviderInstallation {
     pub const fn terminal_psi(&self) -> terminal_psi::TerminalPsiIdentity {
         self.terminal_psi
+    }
+
+    /// The root-authorized assumed binding contracts admitted alongside the
+    /// checked selections, in authored policy order. Each is conditional
+    /// evidence: the artifact's guarantees hold under the recorded
+    /// assumption, whose falsity invalidates them without producing any
+    /// unconditional claim.
+    pub fn assumed_bindings(&self) -> &[AdmittedAssumedBinding] {
+        &self.assumed_bindings
     }
 }
 

@@ -348,6 +348,7 @@ pub(super) const fn row_kind_token(kind: PackageReviewCanonicalRowKind) -> &'sta
         PackageReviewCanonicalRowKind::TerminalAuthorityPermission => {
             "terminal_authority_permission"
         }
+        PackageReviewCanonicalRowKind::AssumedBindingContract => "assumed_binding_contract",
     }
 }
 
@@ -376,6 +377,7 @@ pub(super) const fn row_kind_tag(kind: PackageReviewCanonicalRowKind) -> u8 {
         PackageReviewCanonicalRowKind::BoundaryApplicationDemand => 20,
         PackageReviewCanonicalRowKind::ContractEntailmentAssumptionDischarge => 21,
         PackageReviewCanonicalRowKind::ContractEntailmentExitMembershipDischarge => 22,
+        PackageReviewCanonicalRowKind::AssumedBindingContract => 23,
     }
 }
 

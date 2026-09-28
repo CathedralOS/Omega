@@ -146,6 +146,7 @@ fn execution() -> (TerminalExecution, Operation) {
         boundary_machines: BTreeMap::new(),
         provider_candidates: Default::default(),
         provider_installation: BTreeMap::new(),
+        assumed_bindings: Vec::new(),
         values: BTreeMap::from([
             (value(1), count(1)),
             (value(2), count(5)),

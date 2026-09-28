@@ -156,6 +156,7 @@ fn execution() -> TerminalExecution {
         boundary_machines: BTreeMap::new(),
         provider_candidates: BTreeSet::new(),
         provider_installation: BTreeMap::new(),
+        assumed_bindings: Vec::new(),
         values: BTreeMap::new(),
         structural_values: BTreeMap::from([(
             place(1),

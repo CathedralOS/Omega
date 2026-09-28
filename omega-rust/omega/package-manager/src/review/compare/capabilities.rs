@@ -483,6 +483,7 @@ const fn initial_admission_requires_root_policy(kind: PackageReviewCanonicalRowK
             | PackageReviewCanonicalRowKind::ExternalExecutableSupply
             | PackageReviewCanonicalRowKind::ContractEntailmentOpenObligation
             | PackageReviewCanonicalRowKind::TerminalAuthorityPermission
+            | PackageReviewCanonicalRowKind::AssumedBindingContract
     )
 }
 

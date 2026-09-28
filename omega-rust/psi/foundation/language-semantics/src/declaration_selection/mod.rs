@@ -210,6 +210,14 @@ impl CollectionMeasure {
 pub enum BuildOperation {
     /// `b.select_provider<Subject, Product>()` on the mutable root `Build`.
     ProviderSelection,
+    /// `b.assume_binding_contract<Required::operation, Supplied::operation>()`
+    /// on the mutable root `Build`: the consuming root's authorization of one
+    /// runtime link from a boundary requirement to another requirement's
+    /// selected implementation (wiki/spec/build/assumed_binding_contracts.md).
+    /// The vocabulary classifies declaration provenance only; compatibility,
+    /// root authority, build-time rejection, and the retained transitive
+    /// trust record belong to Omega's build evaluation and package review.
+    AssumedBindingContract,
     /// `select_representation<Type, Representation>()`.
     RepresentationSelection,
     /// `b.exclude_service<BoundaryTrait>()`.
@@ -239,8 +247,9 @@ impl BuildOperation {
     /// Every toolchain-owned build operation. Adding a variant without its
     /// spelling stops compiling here rather than silently dropping out of
     /// the map.
-    pub const ALL: [Self; 9] = [
+    pub const ALL: [Self; 10] = [
         Self::ProviderSelection,
+        Self::AssumedBindingContract,
         Self::RepresentationSelection,
         Self::ServiceExclusion,
         Self::OptimizationSelection,
@@ -263,6 +272,7 @@ impl BuildOperation {
     pub const fn authored_spelling(self) -> &'static str {
         match self {
             Self::ProviderSelection => "select_provider",
+            Self::AssumedBindingContract => "assume_binding_contract",
             Self::RepresentationSelection => "select_representation",
             Self::ServiceExclusion => "exclude_service",
             Self::OptimizationSelection => "enable",
@@ -329,6 +339,9 @@ impl BuildOperation {
             Self::ProviderSelection => {
                 AuthoredDeclarationSelectionIntrinsic::BuildProviderSelection
             }
+            Self::AssumedBindingContract => {
+                AuthoredDeclarationSelectionIntrinsic::BuildAssumedBindingContract
+            }
             Self::RepresentationSelection => {
                 AuthoredDeclarationSelectionIntrinsic::BuildRepresentationSelection
             }
@@ -379,6 +392,14 @@ pub enum AuthoredDeclarationSelectionIntrinsic {
     /// reconstruct semantic identity from the call's diagnostic spelling.
     ByteSequencePredicate(crate::byte_predicates::ByteSequencePredicate),
     BuildProviderSelection,
+    /// `b.assume_binding_contract<Required::operation, Supplied::operation>()`:
+    /// the consuming root's runtime-only authorization of one boundary
+    /// requirement's link to another requirement's selected implementation
+    /// (wiki/spec/build/assumed_binding_contracts.md). Recording the intrinsic
+    /// classifies declaration provenance only; it grants the build host no
+    /// callable binding or proposition evidence, and Omega's build evaluation
+    /// owns compatibility and acceptance before any runtime installation.
+    BuildAssumedBindingContract,
     BuildRepresentationSelection,
     /// `b.exclude_service<BoundaryTrait>()`: a build behavior exclusion of
     /// one abstract service (wiki/spec/build/behavior_exclusions.md). The

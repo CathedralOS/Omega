@@ -37,18 +37,20 @@
 //! differential checks.
 
 use crate::effects::{
-    AcceptTerminalEffects, AdmittedProviderInstallation, ProviderInstallationSelection,
-    TerminalEffectHandler,
+    AcceptTerminalEffects, AdmittedAssumedBinding, AdmittedProviderInstallation,
+    AssumedBindingSelection, ProviderInstallationSelection, TerminalEffectHandler,
 };
 use crate::errors::{
-    ProviderInstallationError, TerminalArtifactInterpretError, TerminalInterpretError,
+    AssumedBindingRejection, ProviderInstallationError, TerminalArtifactInterpretError,
+    TerminalInterpretError,
 };
 use crate::execution::TerminalExecution;
 use crate::results::{MeasuredTerminalExecution, TerminalExecutionResult, TerminalExecutionStatus};
 use crate::structural_inputs::TerminalStructuralInputs;
 use crate::structural_inputs::scalar_fields::TerminalStructuralScalarFieldValue;
 use crate::values::TerminalScalarValue;
-use std::collections::BTreeMap;
+use semantic_vocabulary::{BoundaryMachineId, MachineId};
+use std::collections::{BTreeMap, BTreeSet};
 use terminal_fuel::{FuelMeterError, TerminalFuelMeter};
 
 /// Decode one complete portable Terminal-Psi envelope, independently verify
@@ -144,6 +146,44 @@ pub fn admit_provider_installation_from_artifact(
     profile: &proof_admission::AdmissionProfile,
     selections: &[ProviderInstallationSelection],
 ) -> Result<AdmittedProviderInstallation, ProviderInstallationError> {
+    admit_provider_installation_with_assumed_bindings_from_artifact(
+        semantic_bytes,
+        proof_bytes,
+        profile,
+        selections,
+        &[],
+    )
+}
+
+/// Decode and verify an artifact, then admit its provider selections and the
+/// consuming root's assumed binding contract relationships as one
+/// installation bound to that exact artifact identity.
+///
+/// `assumptions` are the runtime-policy side of
+/// `Build::assume_binding_contract<Required::operation, Supplied::operation>()`
+/// (wiki/spec/build/assumed_binding_contracts.md): only the consuming runtime
+/// root may authorize them, so they arrive as sponsor input beside the
+/// checked selections, never from artifact bytes — a dependency cannot grant
+/// the assumption to itself. Admission replays each link against the
+/// verified catalog. An unknown requirement on either side, a competing
+/// checked selection or second assumption for the required requirement, a
+/// supply chain which reaches no selected implementation, and a cyclic
+/// binding alias each reject the whole installation.
+///
+/// An admitted assumption is retained on the installation as conditional
+/// evidence — the artifact's guarantees hold under the recorded assumption,
+/// whose falsity invalidates them without producing any unconditional claim.
+/// It mints no `provider_candidates` row and no checked `installed`
+/// redirect: the relationship applies at the named crossing only, so
+/// ordinary boundary dispatch and direct calls of either requirement keep
+/// their own evidence custody.
+pub fn admit_provider_installation_with_assumed_bindings_from_artifact(
+    semantic_bytes: &[u8],
+    proof_bytes: &[u8],
+    profile: &proof_admission::AdmissionProfile,
+    selections: &[ProviderInstallationSelection],
+    assumptions: &[AssumedBindingSelection],
+) -> Result<AdmittedProviderInstallation, ProviderInstallationError> {
     let module = terminal_codec::decode_module(semantic_bytes)
         .map_err(ProviderInstallationError::SemanticDecode)?;
     // The proof section must be sealed for this exact module: a section
@@ -175,11 +215,84 @@ pub fn admit_provider_installation_from_artifact(
             });
         }
     }
+    let assumed_bindings = admit_assumed_bindings(verified.module(), &installed, assumptions)?;
     Ok(AdmittedProviderInstallation {
         terminal_psi: terminal_codec::terminal_psi_identity(verified.module())
             .map_err(ProviderInstallationError::SemanticDecode)?,
         installed,
+        assumed_bindings,
     })
+}
+
+/// Replay each root-authorized assumed binding against the verified catalog
+/// and the admitted checked selections.
+///
+/// Every returned row carries the actual implementation its assumed link
+/// invokes: the supply side resolves through its checked selection or
+/// through nested assumed links — retaining each traversed requirement in
+/// `supply_path` — and never through artifact bytes alone.
+fn admit_assumed_bindings(
+    module: &terminal_psi::TerminalModule,
+    installed: &BTreeMap<BoundaryMachineId, MachineId>,
+    assumptions: &[AssumedBindingSelection],
+) -> Result<Vec<AdmittedAssumedBinding>, ProviderInstallationError> {
+    let boundary_ids: BTreeSet<BoundaryMachineId> = module
+        .boundary_machines
+        .iter()
+        .map(|boundary| boundary.id)
+        .collect();
+    let mut admitted = Vec::new();
+    for assumption in assumptions {
+        let reject = |reason| ProviderInstallationError::AssumedBindingRejected {
+            required: assumption.required,
+            supplied_requirement: assumption.supplied_requirement,
+            reason,
+        };
+        if !boundary_ids.contains(&assumption.required) {
+            return Err(reject(AssumedBindingRejection::UnknownRequirement));
+        }
+        // Competing explicit checked and assumed supplies for the same
+        // operation reject rather than silently preferring the assumption.
+        if installed.contains_key(&assumption.required) {
+            return Err(reject(AssumedBindingRejection::CompetingCheckedSupply));
+        }
+        // Every required member still needs exactly one supply.
+        if admitted
+            .iter()
+            .any(|binding: &AdmittedAssumedBinding| binding.required == assumption.required)
+        {
+            return Err(reject(AssumedBindingRejection::CompetingAssumption));
+        }
+        if !boundary_ids.contains(&assumption.supplied_requirement) {
+            return Err(reject(AssumedBindingRejection::UnknownSuppliedRequirement));
+        }
+        // Follow the supply side's links to the actual selected
+        // implementation, retaining every traversed assumption. Cyclic
+        // binding aliases reject rather than resolving through themselves.
+        let mut visiting = BTreeSet::from([assumption.required]);
+        let mut supply_path = Vec::new();
+        let mut requirement = assumption.supplied_requirement;
+        let implementation = loop {
+            if let Some(candidate) = installed.get(&requirement) {
+                break *candidate;
+            }
+            if !visiting.insert(requirement) {
+                return Err(reject(AssumedBindingRejection::CyclicSupply));
+            }
+            let Some(next) = assumptions.iter().find(|link| link.required == requirement) else {
+                return Err(reject(AssumedBindingRejection::UnselectedSupply));
+            };
+            supply_path.push(requirement);
+            requirement = next.supplied_requirement;
+        };
+        admitted.push(AdmittedAssumedBinding {
+            required: assumption.required,
+            supplied_requirement: assumption.supplied_requirement,
+            implementation,
+            supply_path,
+        });
+    }
+    Ok(admitted)
 }
 
 impl TerminalExecution {

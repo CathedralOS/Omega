@@ -11,7 +11,10 @@ use super::{
 };
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
-    ProviderInstallationSelection, admit_provider_installation_from_artifact,
+    AdmittedAssumedBinding, AssumedBindingRejection, AssumedBindingSelection,
+    ProviderInstallationError, ProviderInstallationSelection,
+    admit_provider_installation_from_artifact,
+    admit_provider_installation_with_assumed_bindings_from_artifact,
 };
 use terminal_psi::{
     BoundaryMachineResult, BoundaryStructuralResultDeclaration, ProviderCandidateConformance,
@@ -694,4 +697,307 @@ fn installed_boundary_result_claims_require_linear_custody() {
             qualifications: vec![live],
         });
     assert!(encode_module(&module).is_err());
+}
+
+fn assumed_required_boundary() -> BoundaryMachineDeclaration {
+    BoundaryMachineDeclaration {
+        scalar_requires: Vec::new(),
+        fixed_service_reach: Vec::new(),
+        id: boundary_id(4),
+        identity: "test::claim".into(),
+        attachment: None,
+        parameter_order: Vec::new(),
+        scalar_parameters: Vec::new(),
+        structural_parameters: Vec::new(),
+        result: BoundaryMachineResult::Unit,
+        requires: Vec::new(),
+        program_local_root_introductions: Vec::new(),
+        content_guarantees: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        crash_routes: Vec::new(),
+    }
+}
+
+fn assumed_intermediate_boundary() -> BoundaryMachineDeclaration {
+    BoundaryMachineDeclaration {
+        id: boundary_id(5),
+        identity: "test::forward_assumed".into(),
+        ..assumed_required_boundary()
+    }
+}
+
+fn assumed_admission(
+    module: &TerminalModule,
+    assumptions: &[AssumedBindingSelection],
+) -> Result<terminal_interpreter::AdmittedProviderInstallation, ProviderInstallationError> {
+    let semantic = encode_module(module).unwrap();
+    let proof = encode_proof_section(module, &ProofBundle::default()).unwrap();
+    admit_provider_installation_with_assumed_bindings_from_artifact(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[selection()],
+        assumptions,
+    )
+}
+
+#[test]
+fn assumed_binding_contract_retains_the_root_authorized_crossing() {
+    let mut module = module(false);
+    module.boundary_machines.push(assumed_required_boundary());
+    // An installation without the root's authorization admits no assumed
+    // relationship — artifact bytes alone cannot introduce one.
+    let checked = assumed_admission(&module, &[]).unwrap();
+    assert!(checked.assumed_bindings().is_empty());
+
+    let installation = assumed_admission(
+        &module,
+        &[AssumedBindingSelection {
+            required: boundary_id(4),
+            supplied_requirement: boundary_id(1),
+        }],
+    )
+    .expect("root-authorized assumed binding admits against the verified catalog");
+    // The admitted row is conditional evidence: both requirement identities
+    // stay distinct and it binds the actual selected implementation rather
+    // than minting a second checked redirect.
+    assert_eq!(
+        installation.assumed_bindings(),
+        &[AdmittedAssumedBinding {
+            required: boundary_id(4),
+            supplied_requirement: boundary_id(1),
+            implementation: machine_id(3),
+            supply_path: Vec::new(),
+        }]
+    );
+
+    let semantic = encode_module(&module).unwrap();
+    let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
+    let execution = TerminalExecution::start_installed_artifact(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs {
+            arguments: &arguments(),
+            ..Default::default()
+        },
+        &installation,
+    )
+    .unwrap();
+    assert_eq!(
+        execution.assumed_bindings(),
+        installation.assumed_bindings()
+    );
+}
+
+#[test]
+fn assumed_binding_contract_supply_chains_retain_every_traversed_link() {
+    let mut module = module(false);
+    module.boundary_machines.push(assumed_required_boundary());
+    module
+        .boundary_machines
+        .push(assumed_intermediate_boundary());
+    let installation = assumed_admission(
+        &module,
+        &[
+            AssumedBindingSelection {
+                required: boundary_id(4),
+                supplied_requirement: boundary_id(5),
+            },
+            AssumedBindingSelection {
+                required: boundary_id(5),
+                supplied_requirement: boundary_id(1),
+            },
+        ],
+    )
+    .expect("chained assumptions follow supplied links to the selection");
+    assert_eq!(
+        installation.assumed_bindings(),
+        &[
+            AdmittedAssumedBinding {
+                required: boundary_id(4),
+                supplied_requirement: boundary_id(5),
+                implementation: machine_id(3),
+                supply_path: vec![boundary_id(5)],
+            },
+            AdmittedAssumedBinding {
+                required: boundary_id(5),
+                supplied_requirement: boundary_id(1),
+                implementation: machine_id(3),
+                supply_path: Vec::new(),
+            },
+        ]
+    );
+}
+
+#[test]
+fn assumed_binding_contract_admission_rejects_invalid_or_competing_supply() {
+    let mut module = module(false);
+    module.boundary_machines.push(assumed_required_boundary());
+    module
+        .boundary_machines
+        .push(assumed_intermediate_boundary());
+    let claim = |required, supplied_requirement| AssumedBindingSelection {
+        required: boundary_id(required),
+        supplied_requirement: boundary_id(supplied_requirement),
+    };
+    for (assumptions, expected) in [
+        // Neither side may name a requirement outside the verified catalog.
+        (
+            vec![claim(9, 1)],
+            AssumedBindingRejection::UnknownRequirement,
+        ),
+        (
+            vec![claim(4, 9)],
+            AssumedBindingRejection::UnknownSuppliedRequirement,
+        ),
+        // A checked selection already supplies `forward`: competing explicit
+        // checked and assumed supplies reject rather than silently preferring
+        // the assumption.
+        (
+            vec![claim(1, 5)],
+            AssumedBindingRejection::CompetingCheckedSupply,
+        ),
+        // Every required member still needs exactly one supply.
+        (
+            vec![claim(4, 1), claim(4, 1)],
+            AssumedBindingRejection::CompetingAssumption,
+        ),
+        (
+            vec![claim(4, 1), claim(4, 5)],
+            AssumedBindingRejection::CompetingAssumption,
+        ),
+        // The supplied side must reach one selected implementation.
+        (vec![claim(4, 5)], AssumedBindingRejection::UnselectedSupply),
+        // Cyclic binding aliases reject, whether self-referential or through
+        // a nested assumed link.
+        (vec![claim(4, 4)], AssumedBindingRejection::CyclicSupply),
+        (
+            vec![claim(4, 5), claim(5, 4)],
+            AssumedBindingRejection::CyclicSupply,
+        ),
+    ] {
+        let Err(ProviderInstallationError::AssumedBindingRejected { reason, .. }) =
+            assumed_admission(&module, &assumptions)
+        else {
+            panic!("{assumptions:?} unexpectedly admitted");
+        };
+        assert_eq!(reason, expected, "{assumptions:?}");
+    }
+}
+
+#[test]
+fn assumed_boundary_keeps_host_effect_custody_without_a_checked_redirect() {
+    // The assumed relationship applies at its named crossing only: a direct
+    // boundary call of the required requirement reaches the host effect
+    // handler because the assumption mints no installed redirect and no
+    // provider-candidate conformance for it.
+    let mut module = module(false);
+    module.boundary_machines.push(assumed_required_boundary());
+    // The entry block's operations are pinned to its exact partial-affine
+    // cleanup shape, so the direct call of the assumed boundary goes through
+    // the ordinary callee the entry already invokes.
+    module.machines[1].blocks[0].operations.push(Operation {
+        static_reach_binding: None,
+        suspension_crossing: None,
+        id: operation_id(9),
+        result: OperationResult::Unit,
+        kind: OperationKind::BoundaryCall {
+            requirement_obligations: Vec::new(),
+            boundary: boundary_id(4),
+            arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            completion_receipts: Vec::new(),
+        },
+    });
+    let semantic = encode_module(&module).unwrap();
+    let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
+    let profile = AdmissionProfile::default();
+    let installation = admit_provider_installation_with_assumed_bindings_from_artifact(
+        &semantic,
+        &proof,
+        &profile,
+        &[selection()],
+        &[AssumedBindingSelection {
+            required: boundary_id(4),
+            supplied_requirement: boundary_id(1),
+        }],
+    )
+    .unwrap();
+    let mut execution = TerminalExecution::start_installed_artifact(
+        &semantic,
+        &proof,
+        &profile,
+        &[],
+        TerminalStructuralInputs {
+            arguments: &arguments(),
+            ..Default::default()
+        },
+        &installation,
+    )
+    .unwrap();
+
+    #[derive(Default)]
+    struct BoundaryProbe {
+        boundaries: Vec<semantic_vocabulary::BoundaryMachineId>,
+    }
+    impl TerminalEffectHandler for BoundaryProbe {
+        fn handle_effect(
+            &mut self,
+            effect: &TerminalEffect,
+        ) -> Result<(), TerminalEffectRejection> {
+            let TerminalEffect::BoundaryCall { boundary, .. } = effect else {
+                panic!("boundary call only")
+            };
+            self.boundaries.push(*boundary);
+            Ok(())
+        }
+        fn handle_effect_result(
+            &mut self,
+            effect: &TerminalEffect,
+        ) -> Result<super::super::TerminalEffectResult, TerminalEffectRejection> {
+            let TerminalEffect::BoundaryCall {
+                boundary, result, ..
+            } = effect
+            else {
+                panic!("boundary call only")
+            };
+            self.boundaries.push(*boundary);
+            match result {
+                BoundaryMachineResult::Unit => Ok(super::super::TerminalEffectResult::Unit),
+                BoundaryMachineResult::Structural(result) => Ok(
+                    super::super::TerminalEffectResult::Structural(TerminalStructuralValue {
+                        opaque_identity: 51,
+                        structural_type: result.structural_type,
+                        qualifications: Vec::new(),
+                        path: Vec::new(),
+                    }),
+                ),
+                BoundaryMachineResult::Scalar(_) => Err(TerminalEffectRejection::new(
+                    "scalar boundary result unexpected",
+                )),
+            }
+        }
+    }
+
+    let mut host = BoundaryProbe::default();
+    loop {
+        match execution
+            .resume(&mut TerminalFuelMeter::unbounded(), &mut host)
+            .unwrap()
+        {
+            TerminalExecutionStatus::Complete(result) => {
+                assert_eq!(result, TerminalExecutionResult::Unit);
+                break;
+            }
+            TerminalExecutionStatus::SponsorExhausted(_) => {
+                unreachable!("unbounded fuel")
+            }
+            status => panic!("unexpected {status:?}"),
+        }
+    }
+    // Only the uninstalled assumed boundary reached the host; the installed
+    // provider dispatch for `forward` stayed on its ordinary checked route.
+    assert_eq!(host.boundaries, [boundary_id(4)]);
 }
