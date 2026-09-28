@@ -94,8 +94,8 @@ pass/calls/mutable_output_host_call checked 2265ms
 pass/calls/mutual_cycle_tail_admitted_exit checked 1797ms
 pass/calls/named_target_payload_dispatch checked 1934ms
 pass/calls/nested_call_runtime_index_arg_exit checked 985ms
-pass/calls/nested_call_tail_roots_exit rejected 1579ms
-	native-artifact Terminal production failed: Lowering(InvalidTerminalModule(UnknownStructuralArgument { operation: OperationId(16), argument_index: 0, place: PlaceId(19) }))
+pass/calls/nested_call_tail_roots_exit rejected 1131ms
+	native artifact native artifact lowering failed: Lowering(InvalidStructuralLeafCopy(OperationId(21)))
 pass/calls/nested_machine_continuation checked 1719ms
 pass/calls/nested_value_call_arg_compile rejected 778ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `outer calls: unconsumed nested call in a local initializer` (state 0, statement 0)
@@ -244,6 +244,7 @@ pass/control_flow/field_view_transfer_exit checked 1650ms
 pass/control_flow/guarded_jump_field_view_forward rejected 350ms
 	native-artifact Terminal production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`Main::main` has no admitted body (local construction stopped at state graph: terminator: jump successor: parameter transfer, state 0, statement 2)") })
 pass/control_flow/guarded_leaf_branch_expansion checked 358ms
+pass/control_flow/guarded_mid_arm_return checked 872ms
 pass/control_flow/guarded_value_transition_roster rejected 823ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: guarded jump successors: roster` (state 0)
 pass/control_flow/nested_parameter_receiver_call checked 337ms
