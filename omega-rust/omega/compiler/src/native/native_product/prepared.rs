@@ -11,7 +11,6 @@ use diagnostics::Diagnostic;
 pub struct NativeInputReuseKey {
     terminal_artifact_identity: terminal_codec::TerminalArtifactIdentity,
     admission_profile: proof_admission::AdmissionProfile,
-    post_terminal_optimizations: optimization_core::PostTerminalOptimizationSelections,
 }
 
 /// One admitted native product before physical realization.
@@ -47,11 +46,9 @@ impl PreparedNativeCompilation {
     }
 
     pub(super) fn reuse_key(&self) -> NativeInputReuseKey {
-        let post_terminal = self.rollback.effective().project_post_terminal();
         NativeInputReuseKey {
             terminal_artifact_identity: self.terminal.artifact().manifest().identity(),
             admission_profile: self.request.terminal_admission_profile.clone(),
-            post_terminal_optimizations: post_terminal.selections().clone(),
         }
     }
 }
@@ -60,12 +57,13 @@ impl PreparedNativeCompilation {
     pub(super) fn prepare_reusable_input(
         &self,
     ) -> Result<crate::native::PreparedNativeRealizationInput, Vec<Diagnostic>> {
-        let post_terminal = self.rollback.effective().project_post_terminal();
         crate::native::prepare_native_realization_input(
             self.terminal.artifact(),
             &self.request.terminal_admission_profile,
-            post_terminal.selections(),
             &[],
+        )
+        .map_err(
+            crate::native::native_realization::realization_diagnostics::artifact_lowering_error,
         )
     }
 

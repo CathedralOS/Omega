@@ -176,7 +176,7 @@ later ordered joins. The
 [pipeline route items](../../../TASKS.md#pipeline-route) replace the child
 route with the single pass above; until then
 [prepared-input reuse](#prepared-input-reuse)
-shares prepared inputs across children by exact artifact/profile/selection key,
+shares prepared inputs across children by exact artifact/profile key,
 and shared parsing never permits reusing one child's checked target, providers,
 admissions or physical evidence as another child's authority.
 
@@ -272,12 +272,14 @@ Independent fragment, object, and image replay still check the complete join.
 ### Prepared-input reuse
 
 Until Psi runs once per compilation, each target prepares its own Terminal
-artifact. [PreparedNativeRealizationInput](src/native/native_realization/input_preparation.rs)
+artifact. Stage 00 owns [PreparedNativeRealizationInput](../pipeline/00_terminal-psi-to-abstract-operations/src/artifact_admission/preparation.rs), which
 shares target-neutral decoding, proof admission and abstract-input lowering
-only for equal complete `TerminalArtifactIdentity`, exact `AdmissionProfile`
-and exact `PostTerminalOptimizationSelections`, and rechecks that key on use.
+only for equal complete `TerminalArtifactIdentity` and exact `AdmissionProfile`,
+and rechecks that key on use. Preparation retains its admitted placed-view
+establishments. Later optimization choices do not affect this unoptimized
+input and are not part of its reuse key.
 Target, entry and calling plans, provider and external settlements, authority
-policies, callbacks, FMA admission and physical evidence stay per target. The
+policies, optimization selections, callbacks, FMA admission and physical evidence stay per target. The
 reuse is an optimization, not review, proof or audit evidence.
 
 Direct compilation and retained Terminal re-entry share the target stage's

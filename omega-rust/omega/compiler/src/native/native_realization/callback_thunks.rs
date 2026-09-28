@@ -13,9 +13,10 @@
 //! materializes as a `CompilerPrivateMachineCodeFunction` the retained
 //! object's private-function channel can publish.
 
-use crate::native::native_realization::input_preparation::lower_realization_input;
 use crate::native::native_realization::optimization_stage::native_optimization_budget;
-use crate::native::native_realization::realization_diagnostics::realization_error;
+use crate::native::native_realization::realization_diagnostics::{
+    artifact_lowering_error, realization_error,
+};
 use crate::native::native_realization::realization_request::{
     NativeCallbackThunkSettlement, NativeRealizationRequest,
 };
@@ -48,12 +49,12 @@ fn lower_callback_thunk(
     artifact
         .validate()
         .map_err(|error| realization_error("callback thunk artifact replay", error))?;
-    let input = lower_realization_input(
-        artifact.semantic_bytes(),
-        artifact.proof_bytes(),
+    let input = terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput::prepare(
+        artifact,
         request.profile,
         &[],
-    )?;
+    )
+    .map_err(artifact_lowering_error)?;
     let selections = request.optimization_selections.selections();
     let optimized = abstract_operations_to_abstract_operations::optimize_abstract_operations(
         input.into_optimization_input(),

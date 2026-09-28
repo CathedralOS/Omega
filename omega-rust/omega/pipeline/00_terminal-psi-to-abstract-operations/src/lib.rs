@@ -29,7 +29,8 @@ mod provider_installation;
 
 pub use artifact_admission::{
     AdmittedNativeArtifact, AdmittedOptimizationArtifact, ArtifactLoweringError, ArtifactSections,
-    TerminalPlacedViewEstablishment, VerifiedNativeArtifactInput, lower_artifact,
+    PreparedNativeRealizationInput, TerminalPlacedViewEstablishment, VerifiedNativeArtifactInput,
+    lower_artifact, prepare_native_realization_input,
 };
 pub use boundary_application_settlement::{
     BoundaryApplicationSettlement, retain_terminal_boundary_application_coverage,

@@ -20,8 +20,9 @@ pub struct NativeRealizationRequest<'request> {
     /// Optional same-artifact source custody, validated before realization.
     pub checked_scope:
         Option<&'request lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope>,
-    /// Optional target-neutral reuse; exact artifact/profile/selection equality is rechecked.
-    pub prepared_input: Option<&'request super::input_preparation::PreparedNativeRealizationInput>,
+    /// Optional target-neutral reuse; exact artifact/profile equality is rechecked.
+    /// Later optimization selections do not change the admitted input.
+    pub prepared_input: Option<&'request super::PreparedNativeRealizationInput>,
     pub profile: &'request proof_admission::AdmissionProfile,
     /// Receiving target policy used to classify every demanded compiler
     /// intrinsic before native settlement.
