@@ -282,22 +282,25 @@ impl CheckedCompilation {
         &self,
     ) -> Result<package_compilation::PackageGeneratedSourceBundle, &'static str> {
         self.sources.package_generated_source_bundle(
-            self.execution.selected_target_profile,
+            self.execution.settled.selected_target_profile,
             self.execution.build.generated_sources.clone(),
         )
     }
 
     /// Exact native target selected for this checked compilation. Semantic-only
     /// checking has no selected target and therefore cannot be staged.
-    pub const fn selected_native_target(&self) -> Option<target::NativeTarget> {
-        self.execution.selected_native_target
+    pub fn selected_native_target(&self) -> Option<target::NativeTarget> {
+        self.execution
+            .settled
+            .selected_target_profile
+            .map(target::TargetProfile::native_target)
     }
 
     /// Exact deployment-policy target selected for this checked compilation.
     /// This remains distinct when profiles share a native ABI, notably
     /// `windows_x64` and `uefi_x64`.
     pub const fn selected_target_profile(&self) -> Option<target::TargetProfile> {
-        self.execution.selected_target_profile
+        self.execution.settled.selected_target_profile
     }
 
     /// Exact build-selected x86 scalar FMA admission for this compilation.
@@ -305,7 +308,7 @@ impl CheckedCompilation {
     /// carries the canonical semantic cancellation-vector admission but does
     /// not claim native differential execution.
     pub const fn x86_scalar_fma_provider(&self) -> Option<target::AdmittedX86ScalarFmaProvider> {
-        self.execution.x86_scalar_fma_provider
+        self.execution.settled.x86_scalar_fma_provider
     }
 
     /// Exact source-selected nearest-FMA plans joined to this compilation's
@@ -314,7 +317,7 @@ impl CheckedCompilation {
     pub fn x86_scalar_fma_plan_associations(
         &self,
     ) -> &[provider_planning::x86_fma_plan_association::CheckedX86ScalarFmaPlanAssociation] {
-        &self.execution.x86_scalar_fma_plan_associations
+        &self.execution.settled.x86_scalar_fma_plan_associations
     }
 
     /// Exact target-owned `ProgramEntry` choice retained by Omega, if this
@@ -322,6 +325,7 @@ impl CheckedCompilation {
     /// agnostic; an execution caller must not infer a machine from its name.
     pub fn selected_program_entry_machine(&self) -> Option<&str> {
         self.execution
+            .settled
             .selected_program_entry
             .as_ref()
             .map(provider_planning::program_entry::SelectedCompilerProgramEntry::machine_name)
@@ -335,7 +339,7 @@ impl CheckedCompilation {
     pub const fn selected_program_entry(
         &self,
     ) -> Option<&provider_planning::program_entry::SelectedCompilerProgramEntry> {
-        self.execution.selected_program_entry.as_ref()
+        self.execution.settled.selected_program_entry.as_ref()
     }
 
     /// Whether this compile's selected program entry tolerated a `Binding`
@@ -344,7 +348,7 @@ impl CheckedCompilation {
     /// program, so a compile answering `true` is not interchangeable with the
     /// result a pass without the tolerance would produce.
     pub fn tolerated_unsettled_service_fields(&self) -> bool {
-        let Some(entry) = &self.execution.selected_program_entry else {
+        let Some(entry) = &self.execution.settled.selected_program_entry else {
             return false;
         };
         let program = &self.execution.settled.program;
@@ -580,7 +584,7 @@ impl CheckedCompilation {
     /// same one, so every field nominated here is a field establishment
     /// later requires a selected Fused provider for.
     pub fn selected_program_entry_service_requirements(&self) -> Vec<symbols::SymbolHandle> {
-        let Some(entry) = self.execution.selected_program_entry.as_ref() else {
+        let Some(entry) = self.execution.settled.selected_program_entry.as_ref() else {
             return Vec::new();
         };
         selected_dispatch::program_entry_service_requirements(

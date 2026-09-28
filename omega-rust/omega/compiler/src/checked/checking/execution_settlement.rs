@@ -21,13 +21,6 @@ pub(crate) struct CheckedExecution {
     /// supplies the `.app` basename and inner executable leaf at publication
     /// and its artifact-only intent narrows the admitted route.
     pub(super) application: Option<build_declarations::ApplicationDeclaration>,
-    pub(super) selected_target_profile: Option<target::TargetProfile>,
-    pub(super) selected_native_target: Option<target::NativeTarget>,
-    pub(super) x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
-    pub(super) x86_scalar_fma_plan_associations:
-        Vec<provider_planning::x86_fma_plan_association::CheckedX86ScalarFmaPlanAssociation>,
-    pub(super) selected_program_entry:
-        Option<provider_planning::program_entry::SelectedCompilerProgramEntry>,
     pub(super) selected_build_machine_identity: Option<String>,
     pub(super) boundary_calling_plan_realizations:
         Vec<provider_planning::calling_policy_plans::BoundaryCallingPlanRealization>,
@@ -112,16 +105,15 @@ pub(crate) fn check_selected_execution(
         .map(|profile| profile.program_entry_slot())
         .and_then(|slot| slot.physical_contract_package)
         .map(build_evaluation::program_entry_semantic_binding_role);
-    let mut selected_program_entry =
-        provider_planning::program_entry::select_compiler_program_entry(
-            &typed,
-            &build_config.root_bindings,
-            selected_target_profile,
-            &boundary_calling_plan_realizations,
-            package_inputs.and_then(|inputs| {
-                program_entry_binding_role.and_then(|role| inputs.accepted_semantic_binding(role))
-            }),
-        )?;
+    let selected_program_entry = provider_planning::program_entry::select_compiler_program_entry(
+        &typed,
+        &build_config.root_bindings,
+        selected_target_profile,
+        &boundary_calling_plan_realizations,
+        package_inputs.and_then(|inputs| {
+            program_entry_binding_role.and_then(|role| inputs.accepted_semantic_binding(role))
+        }),
+    )?;
     let accepted_component_assumptions: std::collections::BTreeSet<[u8; 32]> = build_config
         .accepted_component_assumptions
         .iter()
@@ -262,67 +254,18 @@ pub(crate) fn check_selected_execution(
         product_root_machines,
     )?;
     checked.program = program;
-    let exact_component_progress_root = selected_program_entry.as_ref().map(|entry| {
-        let source = entry.source_signature();
-        provider_planning::component_progress::ExactComponentProgressRoot::new(
-            source.machine_symbol(),
-            source.normalized_callable_identity(),
-        )
-    });
     let selected_execution_settlement = settle_selected_execution(
         checked,
         SelectedExecutionRequest {
-            exact_component_progress_root,
-            expected_entry_role: program_entry_binding_role,
-            provider_selection_target,
+            selected_program_entry,
             selected_target_profile,
+            package_inputs,
+            x86_scalar_fma_provider,
+            permit_unsettled_fused_service_fields,
             selected_provider_provenance,
             opaque_representation_selections,
-            accepted_console_binding: package_inputs.and_then(|inputs| {
-                inputs.accepted_semantic_binding(
-                    package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
-                )
-            }),
-            accepted_process_exit_binding: package_inputs.and_then(|inputs| {
-                inputs.accepted_semantic_binding(
-                    package_compilation::AcceptedSemanticBindingRole::ProcessExitExitProcessI32,
-                )
-            }),
-            accepted_filesystem_binding: package_inputs.and_then(|inputs| {
-                inputs.accepted_semantic_binding(
-                    package_compilation::AcceptedSemanticBindingRole::FilesystemHostService,
-                )
-            }),
-            accepted_time_host_binding: package_inputs.and_then(|inputs| {
-                inputs.accepted_semantic_binding(
-                    package_compilation::AcceptedSemanticBindingRole::TimeHostService,
-                )
-            }),
-            accepted_entry_binding: package_inputs.and_then(|inputs| {
-                program_entry_binding_role.and_then(|role| inputs.accepted_semantic_binding(role))
-            }),
         },
     )?;
-    let x86_scalar_fma_plan_associations =
-        provider_planning::x86_fma_plan_association::bind_checked_x86_scalar_fma_plan_associations(
-            &selected_execution_settlement.program,
-            &selected_execution_settlement.selected_provider_plan_facts,
-            &selected_execution_settlement.selected_provider_provenance,
-            x86_scalar_fma_provider,
-            selected_target_profile,
-        )?;
-
-    if let Some(entry) = selected_program_entry.as_mut() {
-        let establishments = selected_dispatch::derive_fused_program_entry_establishments(
-            &selected_execution_settlement.program,
-            entry.source_signature(),
-            &selected_execution_settlement.selected_provider_provenance,
-            permit_unsettled_fused_service_fields,
-        )?;
-        entry
-            .bind_fused_service_establishments(establishments)
-            .map_err(|message| vec![Diagnostic::error(message)])?;
-    }
 
     Ok(CheckedExecution {
         settled: selected_execution_settlement,
@@ -330,11 +273,6 @@ pub(crate) fn check_selected_execution(
         optimization_selection_identity,
         const_evaluation,
         application,
-        selected_target_profile,
-        selected_native_target,
-        x86_scalar_fma_provider,
-        x86_scalar_fma_plan_associations,
-        selected_program_entry,
         selected_build_machine_identity,
         boundary_calling_plan_realizations,
         product_selection,
