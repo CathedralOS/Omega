@@ -125,6 +125,14 @@ pub(super) fn emit(
         pointer,
         indices,
     )?;
+    let (address, displacement) = super::memory_pointer(
+        builder,
+        row,
+        destination.place(),
+        address,
+        byte_offset,
+        u32::from(byte_size),
+    )?;
     super::runtime_address::footprint(
         builder,
         row,
@@ -136,7 +144,7 @@ pub(super) fn emit(
     )?;
     builder.emit(
         SelectedInstructionKind::Store {
-            byte_offset,
+            byte_offset: displacement,
             byte_size,
         },
         builder.constraints.keys.store.ok_or_else(|| invalid())?,

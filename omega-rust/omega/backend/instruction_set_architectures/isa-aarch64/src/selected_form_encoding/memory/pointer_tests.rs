@@ -69,6 +69,36 @@ fn pointer_store_known_bytes_preserve_the_requested_width() {
     )
     .unwrap();
     assert_eq!(address.bytes(), [0x89, 0x09, 0x00, 0x91]);
+    let wide_address = encode_aarch64_selected_memory_form(
+        &physical,
+        SelectedInstructionKind::AddressOffset { byte_offset: 16400 },
+        MachineAlternativeKey {
+            family: MachineAlternativeFamily::AddressOffset,
+            variant: 0,
+        },
+        &operands,
+        16400,
+    )
+    .unwrap();
+    assert_eq!(
+        wide_address.bytes(),
+        [0x89, 0x11, 0x40, 0x91, 0x29, 0x41, 0x00, 0x91]
+    );
+    assert!(
+        encode_aarch64_selected_memory_form(
+            &physical,
+            SelectedInstructionKind::AddressOffset {
+                byte_offset: 0x0100_0000
+            },
+            MachineAlternativeKey {
+                family: MachineAlternativeFamily::AddressOffset,
+                variant: 0
+            },
+            &operands,
+            0x0100_0000,
+        )
+        .is_err()
+    );
 }
 
 #[test]
@@ -95,7 +125,7 @@ fn pointer_stores_and_offsets_replay_every_bit_and_operand() {
                     );
                 }
             }
-            for byte_offset in [0, 2, 4095] {
+            for byte_offset in [0, 2, 4095, 4096, 16400, 0x00ff_ffff] {
                 check_replay(
                     &physical,
                     SelectedInstructionKind::AddressOffset { byte_offset },

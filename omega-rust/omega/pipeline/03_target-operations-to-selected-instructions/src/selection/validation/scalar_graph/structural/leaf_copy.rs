@@ -203,6 +203,14 @@ fn copy_bytes(
     while cursor < byte_size {
         let width = chunk(byte_size - cursor);
         let load_offset = from.byte_offset + cursor;
+        let (input, load_displacement) = super::memory_pointer(
+            replay,
+            row,
+            from.place,
+            from.pointer,
+            load_offset,
+            u32::from(width),
+        )?;
         let value = super::result(replay, from.place, load_offset)?;
         super::runtime_address::footprint(
             replay,
@@ -216,25 +224,25 @@ fn copy_bytes(
         let (kind, key) = match width {
             8 => (
                 SelectedInstructionKind::Load64 {
-                    byte_offset: load_offset,
+                    byte_offset: load_displacement,
                 },
                 replay.constraints.keys.load64,
             ),
             4 => (
                 SelectedInstructionKind::Load32 {
-                    byte_offset: load_offset,
+                    byte_offset: load_displacement,
                 },
                 replay.constraints.keys.load32,
             ),
             2 => (
                 SelectedInstructionKind::Load16 {
-                    byte_offset: load_offset,
+                    byte_offset: load_displacement,
                 },
                 replay.constraints.keys.load16,
             ),
             _ => (
                 SelectedInstructionKind::Load8 {
-                    byte_offset: load_offset,
+                    byte_offset: load_displacement,
                 },
                 replay.constraints.keys.load8,
             ),
@@ -242,10 +250,18 @@ fn copy_bytes(
         replay.check_instruction(
             kind,
             key.ok_or_else(|| invalid())?,
-            &[from.pointer, value],
+            &[input, value],
             &provenance(row),
         )?;
         let store_offset = to.byte_offset + cursor;
+        let (output, store_displacement) = super::memory_pointer(
+            replay,
+            row,
+            to.place,
+            to.pointer,
+            store_offset,
+            u32::from(width),
+        )?;
         super::runtime_address::footprint(
             replay,
             row,
@@ -257,11 +273,11 @@ fn copy_bytes(
         )?;
         replay.check_instruction(
             SelectedInstructionKind::Store {
-                byte_offset: store_offset,
+                byte_offset: store_displacement,
                 byte_size: width,
             },
             replay.constraints.keys.store.ok_or_else(|| invalid())?,
-            &[to.pointer, value],
+            &[output, value],
             &provenance(row),
         )?;
         cursor += u32::from(width);

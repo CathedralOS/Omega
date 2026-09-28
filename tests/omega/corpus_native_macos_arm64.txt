@@ -855,8 +855,7 @@ pass/structs/uninit_record_local_exit built 590ms exit:70
 pass/structs/uninit_record_member_read rejected 478ms
 	native-artifact Terminal production failed: Lowering(Unsupported("scalar computation needs one checked expression and one source binding"))
 pass/structs/uninit_record_member_store built 612ms exit:77
-pass/structs/zeroed_record_member_wide_array_exit rejected 539ms
-	native artifact canonical abstract optimization failed: explicit optimization pipeline failed: Run(InitialValidation(StructuralCallContractMismatch { machine: MachineId(1), block: BlockId(6), node: 1 }))
+pass/structs/zeroed_record_member_wide_array_exit built 539ms exit:70
 pass/structs/zeroed_record_members_exit built 545ms exit:70
 pass/structural/case_field_local_store rejected 455ms
 	native artifact native artifact lowering failed: Lowering(InvalidBorrowedStorageWindow(OperationId(9)))

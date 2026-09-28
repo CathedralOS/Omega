@@ -213,6 +213,14 @@ pub(super) fn write_fields(
                         cursor,
                         offset + cursor,
                     );
+                    let (input, displacement) = super::memory_pointer(
+                        builder,
+                        row,
+                        argument.place,
+                        input,
+                        cursor,
+                        u32::from(width),
+                    )?;
                     let value = transport_register(builder, argument.place, cursor)?;
                     memory(
                         builder,
@@ -225,25 +233,25 @@ pub(super) fn write_fields(
                     let (kind, key) = match width {
                         8 => (
                             SelectedInstructionKind::Load64 {
-                                byte_offset: cursor,
+                                byte_offset: displacement,
                             },
                             builder.constraints.keys.load64,
                         ),
                         4 => (
                             SelectedInstructionKind::Load32 {
-                                byte_offset: cursor,
+                                byte_offset: displacement,
                             },
                             builder.constraints.keys.load32,
                         ),
                         2 => (
                             SelectedInstructionKind::Load16 {
-                                byte_offset: cursor,
+                                byte_offset: displacement,
                             },
                             builder.constraints.keys.load16,
                         ),
                         _ => (
                             SelectedInstructionKind::Load8 {
-                                byte_offset: cursor,
+                                byte_offset: displacement,
                             },
                             builder.constraints.keys.load8,
                         ),
@@ -301,6 +309,8 @@ fn store(
     values: Vec<ValueId>,
     obligations: Vec<semantic_vocabulary::ObligationId>,
 ) -> Result<(), SelectedInstructionError> {
+    let (pointer, displacement) =
+        super::memory_pointer(builder, row, place, pointer, offset, u32::from(width))?;
     memory(
         builder,
         row,
@@ -311,7 +321,7 @@ fn store(
     )?;
     builder.emit(
         SelectedInstructionKind::Store {
-            byte_offset: offset,
+            byte_offset: displacement,
             byte_size: width,
         },
         builder.constraints.keys.store.ok_or_else(|| invalid())?,

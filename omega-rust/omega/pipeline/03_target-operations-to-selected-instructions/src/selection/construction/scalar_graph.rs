@@ -94,6 +94,7 @@ fn select_function(
     };
     let class = operand.class;
     let mut builder = Builder {
+        environment,
         pending_provenance: SelectedInstructionProvenance::default(),
         required_values: crate::selection::value_transport::required_values(source),
         class,
@@ -469,6 +470,7 @@ fn select_function(
 }
 
 struct Builder<'a> {
+    environment: &'a register_environment::ValidatedTargetRegisterEnvironment,
     // Zero-payload constructors retain their source position without storage.
     // The next instruction in this same block carries their ordered charges.
     pending_provenance: SelectedInstructionProvenance,

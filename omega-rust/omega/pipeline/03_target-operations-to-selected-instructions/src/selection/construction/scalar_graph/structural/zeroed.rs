@@ -56,6 +56,14 @@ pub(super) fn establish(
         provenance(row),
     )?;
     for (offset, width) in stores {
+        let (pointer, displacement) = super::memory_pointer(
+            builder,
+            row,
+            established.place,
+            pointer,
+            offset,
+            u32::from(width),
+        )?;
         memory(
             builder,
             row,
@@ -66,7 +74,7 @@ pub(super) fn establish(
         )?;
         builder.emit(
             SelectedInstructionKind::Store {
-                byte_offset: offset,
+                byte_offset: displacement,
                 byte_size: width,
             },
             builder

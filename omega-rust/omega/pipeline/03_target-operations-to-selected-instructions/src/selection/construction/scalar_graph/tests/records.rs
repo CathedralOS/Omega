@@ -520,6 +520,73 @@ fn nested_fixture(target: target::NativeTarget, child_count: u16) -> LegalizedSc
 mod parameters;
 
 #[test]
+fn wide_record_accesses_stage_addresses_without_changing_the_place_extent() {
+    let target = target::NativeTarget::macos_arm64();
+    let source = nested_fixture(target, 4097);
+    let environment = register_environment::baseline_target_register_environment(target).unwrap();
+    let constraints = SelectedSelectionConstraints {
+        keys: environment.selected_keys(),
+        fixed_inputs: Vec::new(),
+    };
+    let selected = build(
+        0,
+        &source,
+        target,
+        &constraints,
+        environment.physical(),
+        environment.constraints(),
+    )
+    .unwrap();
+    let validate = |selected: &SelectedFunction| {
+        crate::selection::validation::scalar_graph::validate(
+            0,
+            &source,
+            selected,
+            target,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+    };
+    validate(&selected).unwrap();
+    for instruction in &selected.blocks[0].instructions {
+        let (offset, width) = match instruction.kind {
+            SelectedInstructionKind::Store {
+                byte_offset,
+                byte_size,
+            } => (byte_offset, u32::from(byte_size)),
+            SelectedInstructionKind::Load8 { byte_offset } => (byte_offset, 1),
+            SelectedInstructionKind::Load64 { byte_offset } => (byte_offset, 8),
+            _ => continue,
+        };
+        assert!(
+            offset.is_multiple_of(width) && offset / width <= 4095,
+            "{:?}",
+            instruction.kind
+        );
+    }
+    assert!(
+        selected
+            .memory_accesses
+            .iter()
+            .any(|access| access.byte_offset == 4096 && access.byte_count == 1)
+    );
+    let mut changed = selected.clone();
+    let address = changed.blocks[0]
+        .instructions
+        .iter_mut()
+        .find(|instruction| {
+            matches!(
+                instruction.kind,
+                SelectedInstructionKind::AddressOffset { byte_offset: 4096 }
+            )
+        })
+        .unwrap();
+    address.kind = SelectedInstructionKind::AddressOffset { byte_offset: 4095 };
+    assert!(validate(&changed).is_err());
+}
+
+#[test]
 fn nested_record_copy_uses_encodable_offsets_after_a_narrow_prefix() {
     for target in [
         target::NativeTarget::linux_x64(),

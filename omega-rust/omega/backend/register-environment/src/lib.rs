@@ -163,6 +163,21 @@ impl ValidatedTargetRegisterEnvironment {
         self.target
     }
 
+    /// Whether an exact scalar pointer access can retain its displacement in
+    /// the native load/store. Otherwise selection must form an address first;
+    /// this does not change the access's semantic place or byte extent.
+    pub const fn admits_pointer_displacement(&self, byte_offset: u32, byte_size: u32) -> bool {
+        if !matches!(byte_size, 1 | 2 | 4 | 8) {
+            return false;
+        }
+        match self.target.architecture {
+            Architecture::X86_64 => byte_offset <= i32::MAX as u32,
+            Architecture::Aarch64 => {
+                byte_offset.is_multiple_of(byte_size) && byte_offset / byte_size <= 4095
+            }
+        }
+    }
+
     pub const fn physical(&self) -> &ValidatedPhysicalRegisterModel {
         &self.physical
     }
