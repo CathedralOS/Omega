@@ -58,22 +58,12 @@ pub(crate) fn check_selected_execution(
         &typed,
         &build_config.wire_compatibility_demands,
     )?;
-    // A semantic-only checked compilation has no selected target and therefore
-    // no storage root. Authored bindings remain available in the evaluated
-    // build configuration, but only an exact target selection may activate one
-    // for interpreter or production execution.
-    let program_entry_binding_role = selected_target_profile
-        .map(|profile| profile.program_entry_slot())
-        .and_then(|slot| slot.physical_contract_package)
-        .map(build_evaluation::program_entry_semantic_binding_role);
     let selected_program_entry = provider_planning::program_entry::select_compiler_program_entry(
         &typed,
         &build_config.root_bindings,
         selected_target_profile,
         &boundary_calling_plan_realizations,
-        package_inputs.and_then(|inputs| {
-            program_entry_binding_role.and_then(|role| inputs.accepted_semantic_binding(role))
-        }),
+        package_inputs,
     )?;
     let accepted_component_assumptions: std::collections::BTreeSet<[u8; 32]> = build_config
         .accepted_component_assumptions
@@ -124,17 +114,10 @@ pub(crate) fn check_selected_execution(
         .iter()
         .map(|grant| grant.selector.clone())
         .collect::<Vec<_>>();
-    if package_inputs.is_some() {
-        trust_model::reject_package_non_provider_grants(
-            &typed,
-            &root_grants,
-            &provider_plans,
-            &selected_provider_plan_facts,
-        )?;
-    }
     let provider_request = ProviderCheckingRequest {
         native_target: selected_native_target,
         package_inputs,
+        build_settings: &build_config.settings,
         selected_build_machine: selected_build_machine_symbol,
         boundary_calling_plan_realizations: &mut boundary_calling_plan_realizations,
         opaque_representation_selections,
@@ -144,20 +127,7 @@ pub(crate) fn check_selected_execution(
         authored_root_grants: &build_config.grants,
     };
     let prepared = ProviderCheckingInputs::prepare(&typed, &provider_request)?;
-    let checking = prepared
-        .checking_request()
-        .with_asm_authority(
-            typed_trees_to_checked_trees::AsmAuthorityAdmission::from_freestanding(
-                build_config.settings.freestanding,
-            )
-            .with_grants(
-                build_config.settings.privileged_services.port_io,
-                build_config.settings.privileged_services.interrupt_table,
-            ),
-        )
-        .with_declaration_authority(
-            package_inputs.map(|inputs| inputs as &dyn validation::DeclarationSelectionAuthority),
-        );
+    let checking = prepared.checking_request(&provider_request);
     let program = timings.record(
         artifacts::compile_timings::TYPED_TREES_TO_CHECKED_TREES,
         || {

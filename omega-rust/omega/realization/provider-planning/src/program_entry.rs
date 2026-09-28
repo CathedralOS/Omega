@@ -532,12 +532,21 @@ pub fn select_compiler_program_entry(
     root_bindings: &[RootBinding],
     selected_profile: Option<target::TargetProfile>,
     realizations: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
-    accepted_entry_binding: Option<&package_compilation::AcceptedSemanticBinding>,
+    package_inputs: Option<&package_compilation::PackageCompilationInputs>,
 ) -> Result<Option<SelectedCompilerProgramEntry>, Vec<Diagnostic>> {
     let Some(selected) = selected_program_entry_machine(root_bindings, selected_profile)? else {
         return Ok(None);
     };
     let source_signature = validate_selected_program_entry_shape(typed, selected)?;
+    // Only an exact selected target activates an entry. Resolve its physical
+    // contract's accepted package role here, never from the host or a caller-
+    // chosen binding for another target. Calling-plan validation still rejoins
+    // the accepted nominal and schema independently.
+    let accepted_entry_binding = selected
+        .slot
+        .physical_contract_package
+        .map(package_compilation::program_entry_semantic_binding_role)
+        .and_then(|role| package_inputs.and_then(|inputs| inputs.accepted_semantic_binding(role)));
     let calling_plans = validate_selected_program_entry_calling_plan(
         typed,
         selected,
