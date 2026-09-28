@@ -9,7 +9,7 @@ use crate::record::{
 };
 use semantic_vocabulary::PackageKeyIdentity;
 
-pub(super) fn nominal(path: &str) -> PackageReviewNominalIdentity {
+pub(in crate::encoding::recovery) fn nominal(path: &str) -> PackageReviewNominalIdentity {
     PackageReviewNominalIdentity {
         owner: PackageReviewNominalOwner::Package(
             PackageKeyIdentity::from_digest([7; 32]).unwrap(),
@@ -18,7 +18,7 @@ pub(super) fn nominal(path: &str) -> PackageReviewNominalIdentity {
     }
 }
 
-pub(super) fn empty() -> PackagePolicyRepresentation {
+pub(in crate::encoding::recovery) fn empty() -> PackagePolicyRepresentation {
     PackagePolicyRepresentation {
         package: PackageKeyIdentity::from_digest([7; 32]).unwrap(),
         target: PackageReviewRepresentationTarget {
@@ -35,7 +35,7 @@ pub(super) fn empty() -> PackagePolicyRepresentation {
     }
 }
 
-pub(in crate::encoding::recovery::policy) fn complete() -> PackagePolicyRepresentation {
+pub(in crate::encoding::recovery) fn complete() -> PackagePolicyRepresentation {
     let mut policy = empty();
     let calling = super::super::calling_application::tests::complete_fixture();
     let used = &calling.opaque_uses[0];

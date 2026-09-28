@@ -37,6 +37,18 @@ impl SourceCacheLane<'_> {
             .path()
             .to_path_buf())
     }
+
+    /// Retained child lane persisting compiled review records for custodies
+    /// rooted under this lane.
+    pub(super) fn compiled_review_cache_dir(
+        &self,
+    ) -> Result<std::path::PathBuf, ResolvePackageSourceError> {
+        let Self::Retained(lane) = self;
+        Ok(lane
+            .retain_child(crate::resolution::source::COMPILED_REVIEW_CACHE_LANE)?
+            .path()
+            .to_path_buf())
+    }
 }
 
 pub(super) struct GitAcquisitionCache<'a> {

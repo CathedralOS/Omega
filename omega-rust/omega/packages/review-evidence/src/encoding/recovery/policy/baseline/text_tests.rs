@@ -1,12 +1,12 @@
 use super::{tests::fixture, *};
 use crate::encoding::PackagePolicyTextRecoveryLimits;
 
-fn recover(text: &str) -> Result<PackagePolicyBaseline, Error> {
+pub(in crate::encoding::recovery) fn recover(text: &str) -> Result<PackagePolicyBaseline, Error> {
     PackagePolicyBaseline::recover_text(text, PackagePolicyTextRecoveryLimits::default())
 }
 
 #[test]
-fn named_text_recovers_exact_binary_and_typed_meaning() {
+pub(in crate::encoding::recovery) fn named_text_recovers_exact_binary_and_typed_meaning() {
     let value = fixture();
     let text = value.canonical_text().unwrap();
     for label in [
@@ -36,7 +36,8 @@ fn named_text_recovers_exact_binary_and_typed_meaning() {
 }
 
 #[test]
-fn labels_variants_whitespace_and_scalar_spellings_are_authoritative() {
+pub(in crate::encoding::recovery) fn labels_variants_whitespace_and_scalar_spellings_are_authoritative()
+ {
     let text = fixture().canonical_text().unwrap();
     let version = crate::encoding::PACKAGE_POLICY_BASELINE_VERSION;
     for changed in [
@@ -65,7 +66,7 @@ fn labels_variants_whitespace_and_scalar_spellings_are_authoritative() {
 }
 
 #[test]
-fn text_diff_localizes_one_changed_declared_constant() {
+pub(in crate::encoding::recovery) fn text_diff_localizes_one_changed_declared_constant() {
     let original = fixture();
     let mut changed = original.clone();
     changed.public_api.consts[0].canonical_value_encoding = "43".to_owned();
@@ -83,7 +84,8 @@ fn text_diff_localizes_one_changed_declared_constant() {
 }
 
 #[test]
-fn expanded_text_and_all_owned_recovery_storage_obey_shared_limits() {
+pub(in crate::encoding::recovery) fn expanded_text_and_all_owned_recovery_storage_obey_shared_limits()
+ {
     let value = fixture();
     let text = value.canonical_text().unwrap();
     let binary = value.canonical_bytes().unwrap();

@@ -16,6 +16,8 @@ mod observation_projection;
 mod observations;
 mod output_custody;
 mod restricted_requests;
+#[doc(hidden)]
+pub mod retained_review_codec;
 mod snapshot_request;
 
 pub use build_admission::{SelectedBuildMachine, admit_build_machine, select_build_machine};

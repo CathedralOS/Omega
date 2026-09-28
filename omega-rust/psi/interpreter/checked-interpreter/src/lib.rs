@@ -144,6 +144,7 @@ pub use filesystem::{
     FilesystemOperationAttemptOutcome, FilesystemOperationResult,
     FilesystemRootedPathOperandResolution, FilesystemServiceBinding, FsGrants,
     canonical_filesystem_metadata_path_is_canonical, filesystem_root_relative_path_is_canonical,
+    observation_codec,
 };
 pub use interpreter::{
     BuildMachineEntry, BuildMachineEvaluationRequest, InterpretOptions, ProductEntryCompatibility,

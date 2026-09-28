@@ -131,4 +131,9 @@ impl DecodedPackageReviewCanonicalRow {
     pub const fn source(&self) -> &PackageReviewCanonicalRowSource {
         &self.row.source
     }
+
+    /// Consume the envelope and return the decoded canonical row payload.
+    pub fn into_row(self) -> PackageReviewCanonicalRow {
+        self.row
+    }
 }

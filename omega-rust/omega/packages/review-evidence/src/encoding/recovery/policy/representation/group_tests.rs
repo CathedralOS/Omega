@@ -6,7 +6,7 @@ use calling_conventions::{
     CallSignature, CallingPolicy, ValueShape, evaluate_ordinary_boundary_entry_plan,
 };
 
-fn two_opaque_demands() -> PackagePolicyRepresentation {
+pub(in crate::encoding::recovery) fn two_opaque_demands() -> PackagePolicyRepresentation {
     let mut policy = fixtures::complete();
     let mut calling = policy.demands[0].calling.clone();
     let native = evaluate_ordinary_boundary_entry_plan(
@@ -62,7 +62,8 @@ fn two_opaque_demands() -> PackagePolicyRepresentation {
 }
 
 #[test]
-fn a_calling_application_requires_all_opaque_demands_and_one_shared_meaning() {
+pub(in crate::encoding::recovery) fn a_calling_application_requires_all_opaque_demands_and_one_shared_meaning()
+ {
     let policy = two_opaque_demands();
     let bytes = policy.canonical_bytes().unwrap();
     assert_eq!(recover(&bytes).unwrap(), policy);
@@ -85,7 +86,8 @@ fn a_calling_application_requires_all_opaque_demands_and_one_shared_meaning() {
 }
 
 #[test]
-fn the_same_opaque_can_be_used_by_distinct_complete_calling_applications() {
+pub(in crate::encoding::recovery) fn the_same_opaque_can_be_used_by_distinct_complete_calling_applications()
+ {
     let mut policy = two_opaque_demands();
     let mut other = policy.demands.clone();
     for demand in &mut other {

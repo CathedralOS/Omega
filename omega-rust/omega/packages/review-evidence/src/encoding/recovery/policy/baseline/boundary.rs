@@ -12,7 +12,7 @@ use crate::record::PackageReviewBoundaryApplication;
 use crate::record::PackageReviewBoundaryApplicationArgument;
 use crate::record::PackageReviewSymbolicBoundaryApplicationArgument;
 
-pub(super) fn applications(
+pub(in crate::encoding::recovery) fn applications(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyBoundaryApplications, Error> {
     Ok(PackagePolicyBoundaryApplications {
@@ -56,7 +56,9 @@ pub(super) fn applications(
     })
 }
 
-fn application(reader: &mut Reader<'_>) -> Result<PackageReviewBoundaryApplication, Error> {
+pub(in crate::encoding::recovery) fn application(
+    reader: &mut Reader<'_>,
+) -> Result<PackageReviewBoundaryApplication, Error> {
     Ok(match reader.byte()? {
         0 => PackageReviewBoundaryApplication::Empty,
         1 => PackageReviewBoundaryApplication::Exact(reader.sequence(1, |reader| {

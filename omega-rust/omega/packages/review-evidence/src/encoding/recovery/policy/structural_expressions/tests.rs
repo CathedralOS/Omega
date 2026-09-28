@@ -34,7 +34,7 @@ const PRIMITIVES: [Primitive; 12] = [
     Primitive::Addr,
 ];
 
-fn field() -> PackageReviewStructuralParameterField {
+pub(in crate::encoding::recovery) fn field() -> PackageReviewStructuralParameterField {
     PackageReviewStructuralParameterField {
         parameter_position: 2,
         path: vec![
@@ -46,7 +46,8 @@ fn field() -> PackageReviewStructuralParameterField {
 }
 
 #[test]
-fn fixed_index_paths_retain_numeric_identity_and_reject_malformed_payloads() {
+pub(in crate::encoding::recovery) fn fixed_index_paths_retain_numeric_identity_and_reject_malformed_payloads()
+ {
     use PackageReviewStructuralPredicatePathSegment as Segment;
     let indexed = |element_index| Boolean::StructuralParameterField {
         parameter_position: 0,
@@ -87,35 +88,38 @@ fn fixed_index_paths_retain_numeric_identity_and_reject_malformed_payloads() {
         );
     }
 }
-fn literal() -> Scalar {
+pub(in crate::encoding::recovery) fn literal() -> Scalar {
     Scalar::IntegerLiteral(PackageReviewIntegerLiteral {
         canonical_text: "9".into(),
         landing: None,
     })
 }
-fn boolean_bytes(value: &Boolean) -> Vec<u8> {
+pub(in crate::encoding::recovery) fn boolean_bytes(value: &Boolean) -> Vec<u8> {
     let mut encoder = Encoder::policy_bounded(4 * 1024 * 1024);
     encode_boolean_expression(&mut encoder, value).unwrap();
     encoder.finish().unwrap()
 }
-fn scalar_bytes(value: &Scalar) -> Vec<u8> {
+pub(in crate::encoding::recovery) fn scalar_bytes(value: &Scalar) -> Vec<u8> {
     let mut encoder = Encoder::policy_bounded(4 * 1024 * 1024);
     encode_scalar_expression(&mut encoder, value).unwrap();
     encoder.finish().unwrap()
 }
-fn recover_boolean(bytes: &[u8], limits: PackagePolicyRecoveryLimits) -> Result<Boolean, Error> {
+pub(in crate::encoding::recovery) fn recover_boolean(
+    bytes: &[u8],
+    limits: PackagePolicyRecoveryLimits,
+) -> Result<Boolean, Error> {
     let mut reader = Reader::new(bytes, limits)?;
     let value = boolean_expression(&mut reader)?;
     reader.finish()?;
     Ok(value)
 }
-fn recover_scalar(bytes: &[u8]) -> Result<Scalar, Error> {
+pub(in crate::encoding::recovery) fn recover_scalar(bytes: &[u8]) -> Result<Scalar, Error> {
     let mut reader = Reader::new(bytes, PackagePolicyRecoveryLimits::default())?;
     let value = scalar_expression(&mut reader)?;
     reader.finish()?;
     Ok(value)
 }
-fn boolean_roundtrip(value: Boolean) {
+pub(in crate::encoding::recovery) fn boolean_roundtrip(value: Boolean) {
     crate::encoding::encode::text_test_support::meaning(|encoder| {
         encode_boolean_expression(encoder, &value)
     });
@@ -137,7 +141,7 @@ fn boolean_roundtrip(value: Boolean) {
         Err(Error::TrailingBytes)
     );
 }
-fn scalar_roundtrip(value: Scalar) {
+pub(in crate::encoding::recovery) fn scalar_roundtrip(value: Scalar) {
     crate::encoding::encode::text_test_support::meaning(|encoder| {
         encode_scalar_expression(encoder, &value)
     });
@@ -155,7 +159,8 @@ fn scalar_roundtrip(value: Scalar) {
 }
 
 #[test]
-fn every_boolean_variant_comparison_kind_and_structural_path_roundtrips() {
+pub(in crate::encoding::recovery) fn every_boolean_variant_comparison_kind_and_structural_path_roundtrips()
+ {
     let values = [
         Boolean::Constant(true),
         Boolean::Parameter { position: 3 },
@@ -233,7 +238,7 @@ fn every_boolean_variant_comparison_kind_and_structural_path_roundtrips() {
 }
 
 #[test]
-fn every_scalar_variant_and_primitive_tag_roundtrips() {
+pub(in crate::encoding::recovery) fn every_scalar_variant_and_primitive_tag_roundtrips() {
     let values = [
         Scalar::Parameter {
             position: 0,
@@ -288,7 +293,8 @@ fn every_scalar_variant_and_primitive_tag_roundtrips() {
 }
 
 #[test]
-fn all_integer_binary_kinds_and_literal_landing_domains_roundtrip() {
+pub(in crate::encoding::recovery) fn all_integer_binary_kinds_and_literal_landing_domains_roundtrip()
+ {
     use PackageReviewIntegerBinaryKind as Kind;
     let kinds = [
         Kind::ExactAdd,
@@ -352,7 +358,8 @@ fn all_integer_binary_kinds_and_literal_landing_domains_roundtrip() {
 }
 
 #[test]
-fn closed_tags_reject_unknown_nodes_kinds_paths_primitive_names_and_domains() {
+pub(in crate::encoding::recovery) fn closed_tags_reject_unknown_nodes_kinds_paths_primitive_names_and_domains()
+ {
     for bytes in [vec![13], vec![0, 2], vec![6, 3], vec![7, 2]] {
         assert_eq!(
             recover_boolean(&bytes, PackagePolicyRecoveryLimits::default()),
@@ -397,7 +404,8 @@ fn closed_tags_reject_unknown_nodes_kinds_paths_primitive_names_and_domains() {
 }
 
 #[test]
-fn mixed_boolean_scalar_recursion_shares_exact_depth_element_and_owned_limits() {
+pub(in crate::encoding::recovery) fn mixed_boolean_scalar_recursion_shares_exact_depth_element_and_owned_limits()
+ {
     let expression = Boolean::IntegerComparison {
         kind: PackageReviewIntegerComparisonKind::Equal,
         left: Box::new(Scalar::Boolean(Box::new(Boolean::Not(Box::new(

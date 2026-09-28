@@ -2,7 +2,7 @@ use super::{Error, PackagePolicyRecoveryLimits, fixtures};
 use crate::encoding::recovery::policy::calling_application::budgets::fixture_elements;
 use crate::record::PackagePolicySelectedProviders;
 
-fn elements(policy: &PackagePolicySelectedProviders) -> usize {
+pub(in crate::encoding::recovery) fn elements(policy: &PackagePolicySelectedProviders) -> usize {
     policy.plans.len()
         + policy.families.len()
         + policy
@@ -70,7 +70,8 @@ fn elements(policy: &PackagePolicySelectedProviders) -> usize {
 }
 
 #[test]
-fn aggregate_byte_element_field_and_depth_ceilings_cover_nested_calling() {
+pub(in crate::encoding::recovery) fn aggregate_byte_element_field_and_depth_ceilings_cover_nested_calling()
+ {
     let policy = fixtures::complete();
     let bytes = policy.canonical_bytes().unwrap();
     let limits = |bytes, fields, elements, depth| {
@@ -113,7 +114,8 @@ fn aggregate_byte_element_field_and_depth_ceilings_cover_nested_calling() {
 }
 
 #[test]
-fn empty_provider_aggregate_accounts_target_string_and_canonical_scratch() {
+pub(in crate::encoding::recovery) fn empty_provider_aggregate_accounts_target_string_and_canonical_scratch()
+ {
     let policy = fixtures::empty();
     let bytes = policy.canonical_bytes().unwrap();
     let owned = policy.target.identity().as_str().len() + bytes.len();

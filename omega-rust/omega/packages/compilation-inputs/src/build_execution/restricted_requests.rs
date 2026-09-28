@@ -70,6 +70,21 @@ pub struct RestrictedBuildGrant {
 }
 
 impl RestrictedBuildGrant {
+    /// Rebuild a grant from retained review evidence. The value was produced
+    /// by the authority projection before it entered the record.
+    #[doc(hidden)]
+    pub const fn from_retained(
+        root: RestrictedBuildGrantRoot,
+        narrowed: bool,
+        captured: Option<BuildCapturedSourceInventory>,
+    ) -> Self {
+        Self {
+            root,
+            narrowed,
+            captured,
+        }
+    }
+
     pub const fn root(&self) -> RestrictedBuildGrantRoot {
         self.root
     }
@@ -100,6 +115,23 @@ pub struct RestrictedBuildBounds {
 }
 
 impl RestrictedBuildBounds {
+    /// Rebuild bounds from retained review evidence. The value was produced
+    /// by the authority projection before it entered the record.
+    #[doc(hidden)]
+    pub const fn from_retained(
+        filesystem_sponsor_limits: Option<checked_interpreter::FilesystemSponsorLimits>,
+        evaluation_sponsor_limits: Option<BuildEvaluationSponsorLimits>,
+        required_outputs: Vec<Vec<u8>>,
+        artifact_only: bool,
+    ) -> Self {
+        Self {
+            filesystem_sponsor_limits,
+            evaluation_sponsor_limits,
+            required_outputs,
+            artifact_only,
+        }
+    }
+
     pub const fn filesystem_sponsor_limits(
         &self,
     ) -> Option<checked_interpreter::FilesystemSponsorLimits> {
@@ -169,6 +201,27 @@ impl RestrictedBuildRequest {
     /// target's compilation records its own copy (`for_target`).
     pub const fn selected_target_profile(&self) -> Option<target::TargetProfile> {
         self.selected_target_profile
+    }
+
+    /// Rebuild a request from retained review evidence. The value was
+    /// produced by the authority projection before it entered the record.
+    #[doc(hidden)]
+    pub const fn from_retained(
+        operation: RestrictedBuildOperation,
+        read_grants: Vec<RestrictedBuildGrant>,
+        write_grants: Vec<RestrictedBuildGrant>,
+        bounds: RestrictedBuildBounds,
+        build_execution_profile: Option<target::TargetProfile>,
+        selected_target_profile: Option<target::TargetProfile>,
+    ) -> Self {
+        Self {
+            operation,
+            read_grants,
+            write_grants,
+            bounds,
+            build_execution_profile,
+            selected_target_profile,
+        }
     }
 
     /// This request as recorded by one realized target's compilation.

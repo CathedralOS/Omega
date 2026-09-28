@@ -12,13 +12,15 @@ use crate::record::{
     PackageReviewSynchronousInvocation, PackageReviewTypeIdentity,
 };
 
-fn value_type() -> PackageReviewTypeIdentity {
+pub(in crate::encoding::recovery) fn value_type() -> PackageReviewTypeIdentity {
     PackageReviewTypeIdentity {
         canonical: "u64".into(),
     }
 }
 
-fn parameter(kind: PackagePolicyTypeParameterKind) -> PackagePolicyTypeParameter {
+pub(in crate::encoding::recovery) fn parameter(
+    kind: PackagePolicyTypeParameterKind,
+) -> PackagePolicyTypeParameter {
     PackagePolicyTypeParameter {
         kind,
         bounds: PackageReviewDataProperties {
@@ -28,7 +30,7 @@ fn parameter(kind: PackagePolicyTypeParameterKind) -> PackagePolicyTypeParameter
     }
 }
 
-fn static_parameters(
+pub(in crate::encoding::recovery) fn static_parameters(
     machine: PackagePolicyMachineParameterContract,
 ) -> Vec<PackagePolicyTypeParameter> {
     vec![
@@ -48,7 +50,7 @@ fn static_parameters(
     ]
 }
 
-fn contract(
+pub(in crate::encoding::recovery) fn contract(
     kind: PackageReviewContractKind,
     fact: PackageReviewContractFact,
 ) -> PackageReviewCallableContract {
@@ -61,7 +63,7 @@ fn contract(
     }
 }
 
-fn result_equals_input() -> PackageReviewContractExpression {
+pub(in crate::encoding::recovery) fn result_equals_input() -> PackageReviewContractExpression {
     PackageReviewContractExpression::Binary {
         meaning: PackageReviewContractOperatorMeaning::Builtin,
         operator: PackageReviewContractBinaryOperator::Equal,
@@ -70,7 +72,10 @@ fn result_equals_input() -> PackageReviewContractExpression {
     }
 }
 
-fn scope_call(offset: u32, lifetime: u32) -> PackageReviewContractExpression {
+pub(in crate::encoding::recovery) fn scope_call(
+    offset: u32,
+    lifetime: u32,
+) -> PackageReviewContractExpression {
     use PackageReviewContractStaticArgument as Argument;
     PackageReviewContractExpression::Call {
         receiver: None,
@@ -95,7 +100,10 @@ fn scope_call(offset: u32, lifetime: u32) -> PackageReviewContractExpression {
     }
 }
 
-fn contracts(offset: u32, lifetime: u32) -> Vec<PackageReviewCallableContract> {
+pub(in crate::encoding::recovery) fn contracts(
+    offset: u32,
+    lifetime: u32,
+) -> Vec<PackageReviewCallableContract> {
     use PackageReviewContractFact as Fact;
     use PackageReviewContractKind as Kind;
     let guarantee = contract(Kind::Ensures, Fact::Expression(result_equals_input()));
@@ -116,7 +124,7 @@ fn contracts(offset: u32, lifetime: u32) -> Vec<PackageReviewCallableContract> {
     ]
 }
 
-fn static_fixture() -> PackagePolicyCallables {
+pub(in crate::encoding::recovery) fn static_fixture() -> PackagePolicyCallables {
     let mut policy = fixture();
     let nested = PackagePolicyMachineParameterSignature {
         lifetime_parameter_count: 1,
@@ -153,7 +161,8 @@ fn static_fixture() -> PackagePolicyCallables {
 }
 
 #[test]
-fn reach_dependency_recovery_requires_an_exact_nominal_static_binder() {
+pub(in crate::encoding::recovery) fn reach_dependency_recovery_requires_an_exact_nominal_static_binder()
+ {
     let mut valid = static_fixture();
     valid.callables[0].type_parameters[2].kind =
         PackagePolicyTypeParameterKind::Machine(PackagePolicyMachineParameterContract::Nominal {
@@ -178,7 +187,9 @@ fn reach_dependency_recovery_requires_an_exact_nominal_static_binder() {
     assert!(recover(&unchecked_bytes(&structural)).is_err());
 }
 
-fn nested(policy: &mut PackagePolicyCallables) -> &mut PackagePolicyMachineParameterSignature {
+pub(in crate::encoding::recovery) fn nested(
+    policy: &mut PackagePolicyCallables,
+) -> &mut PackagePolicyMachineParameterSignature {
     let PackagePolicyTypeParameterKind::Machine(PackagePolicyMachineParameterContract::Structural(
         signature,
     )) = &mut policy.callables[0].type_parameters[2].kind
@@ -188,7 +199,7 @@ fn nested(policy: &mut PackagePolicyCallables) -> &mut PackagePolicyMachineParam
     signature
 }
 
-fn arguments(
+pub(in crate::encoding::recovery) fn arguments(
     contract: &mut PackageReviewCallableContract,
 ) -> &mut Vec<PackageReviewContractStaticArgument> {
     let PackageReviewContractFact::Expression(PackageReviewContractExpression::Call {
@@ -201,7 +212,7 @@ fn arguments(
     static_arguments
 }
 
-fn rejects(policy: &PackagePolicyCallables) {
+pub(in crate::encoding::recovery) fn rejects(policy: &PackagePolicyCallables) {
     assert!(
         policy.canonical_bytes().is_err(),
         "writer accepted {policy:?}"
@@ -213,7 +224,8 @@ fn rejects(policy: &PackagePolicyCallables) {
 }
 
 #[test]
-fn every_static_kind_nested_scope_and_ordered_duplicate_contract_round_trips() {
+pub(in crate::encoding::recovery) fn every_static_kind_nested_scope_and_ordered_duplicate_contract_round_trips()
+ {
     let policy = static_fixture();
     let bytes = policy.canonical_bytes().unwrap();
     let recovered = recover(&bytes).unwrap();
@@ -232,7 +244,8 @@ fn every_static_kind_nested_scope_and_ordered_duplicate_contract_round_trips() {
 }
 
 #[test]
-fn static_argument_categories_ordinals_and_proposition_arity_are_checked() {
+pub(in crate::encoding::recovery) fn static_argument_categories_ordinals_and_proposition_arity_are_checked()
+ {
     use PackageReviewContractStaticArgument as Argument;
     for invalid in [
         Argument::GenericTypeBinder(1),
@@ -275,7 +288,8 @@ fn static_argument_categories_ordinals_and_proposition_arity_are_checked() {
 }
 
 #[test]
-fn lifetimes_are_bounded_by_the_containing_and_nested_telescope() {
+pub(in crate::encoding::recovery) fn lifetimes_are_bounded_by_the_containing_and_nested_telescope()
+{
     for is_nested in [false, true] {
         let mut policy = static_fixture();
         let contract = if is_nested {
@@ -295,7 +309,7 @@ fn lifetimes_are_bounded_by_the_containing_and_nested_telescope() {
 }
 
 #[test]
-fn result_is_only_available_to_postconditions_with_a_result() {
+pub(in crate::encoding::recovery) fn result_is_only_available_to_postconditions_with_a_result() {
     for is_nested in [false, true] {
         let mut policy = static_fixture();
         let contract = if is_nested {

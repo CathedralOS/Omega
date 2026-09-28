@@ -6,7 +6,9 @@ use crate::record::{
 };
 use effects::provider_plan::{ServiceProgressEstablishmentRouteKind, ServiceProgressSubject};
 
-pub(super) fn authority(reader: &mut Reader<'_>) -> Result<PackagePolicyServiceAuthority, Error> {
+pub(in crate::encoding::recovery) fn authority(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyServiceAuthority, Error> {
     Ok(PackagePolicyServiceAuthority {
         service_reach: reader.sequence(41, nominal)?,
         synchronous_invocations: reader.sequence(5, synchronous_invocation)?,

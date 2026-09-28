@@ -7,7 +7,9 @@ use crate::record::{
     PackagePolicyCallbacks,
 };
 
-pub(super) fn decode(reader: &mut Reader<'_>) -> Result<PackagePolicyCallbacks, Error> {
+pub(in crate::encoding::recovery) fn decode(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyCallbacks, Error> {
     Ok(PackagePolicyCallbacks {
         binders: reader.sequence(90, |reader| {
             Ok(PackagePolicyCallbackBinder {
@@ -53,7 +55,9 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<PackagePolicyCallbacks, 
     })
 }
 
-fn destination(reader: &mut Reader<'_>) -> Result<PackagePolicyCallbackDestination, Error> {
+pub(in crate::encoding::recovery) fn destination(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyCallbackDestination, Error> {
     Ok(match reader.byte()? {
         0 => PackagePolicyCallbackDestination::Parameter {
             native_ordinal: reader.u32()?,
@@ -66,7 +70,7 @@ fn destination(reader: &mut Reader<'_>) -> Result<PackagePolicyCallbackDestinati
     })
 }
 
-fn layout_application(
+pub(in crate::encoding::recovery) fn layout_application(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyCallbackLayoutApplication, Error> {
     Ok(PackagePolicyCallbackLayoutApplication {

@@ -15,7 +15,9 @@ use crate::record::{
     PackageReviewTraitRequirementParameter,
 };
 
-pub(super) fn trait_shape(reader: &mut Reader<'_>) -> Result<PackagePolicyTraitShape, Error> {
+pub(in crate::encoding::recovery) fn trait_shape(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyTraitShape, Error> {
     Ok(PackagePolicyTraitShape {
         identity: nominal(reader)?,
         is_boundary: reader.boolean()?,
@@ -27,7 +29,9 @@ pub(super) fn trait_shape(reader: &mut Reader<'_>) -> Result<PackagePolicyTraitS
     })
 }
 
-fn trait_requirement(reader: &mut Reader<'_>) -> Result<PackagePolicyTraitRequirement, Error> {
+pub(in crate::encoding::recovery) fn trait_requirement(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyTraitRequirement, Error> {
     Ok(PackagePolicyTraitRequirement {
         identity: nominal(reader)?,
         spelling: reader.option(operator_spelling)?,
@@ -55,7 +59,7 @@ fn trait_requirement(reader: &mut Reader<'_>) -> Result<PackagePolicyTraitRequir
     })
 }
 
-pub(in crate::encoding::recovery::policy) fn conformance_shape(
+pub(in crate::encoding::recovery) fn conformance_shape(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyConformanceShape, Error> {
     Ok(PackagePolicyConformanceShape {
@@ -72,7 +76,9 @@ pub(in crate::encoding::recovery::policy) fn conformance_shape(
     })
 }
 
-pub(super) fn operator_shape(reader: &mut Reader<'_>) -> Result<PackagePolicyOperatorShape, Error> {
+pub(in crate::encoding::recovery) fn operator_shape(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyOperatorShape, Error> {
     Ok(PackagePolicyOperatorShape {
         coordinate: operator_coordinate(reader)?,
         is_boundary: reader.boolean()?,

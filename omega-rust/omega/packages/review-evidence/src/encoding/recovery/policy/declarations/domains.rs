@@ -1,14 +1,11 @@
 use super::super::{Error, identity::nominal, reader::Reader};
-#[cfg(test)]
 use super::super::{contracts::contract_fact, identity::type_identity, signatures::type_parameter};
 use crate::record::{PackageReviewDomainAliasAtom, PackageReviewDomainEstablishmentRoute};
-#[cfg(test)]
 use crate::record::{
     PackageReviewDomainClassification, PackageReviewDomainSemanticRole, PackageReviewDomainShape,
 };
 
-#[cfg(test)]
-pub(in crate::encoding::recovery::policy) fn domain_shape(
+pub(in crate::encoding::recovery) fn domain_shape(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewDomainShape, Error> {
     Ok(PackageReviewDomainShape {
@@ -39,7 +36,7 @@ pub(in crate::encoding::recovery::policy) fn domain_shape(
     })
 }
 
-pub(in crate::encoding::recovery::policy) fn alias_atom(
+pub(in crate::encoding::recovery) fn alias_atom(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewDomainAliasAtom, Error> {
     Ok(match reader.byte()? {
@@ -57,7 +54,7 @@ pub(in crate::encoding::recovery::policy) fn alias_atom(
 
 /// Minimum route size is tag + nominal owner tag/digest + empty path length:
 /// 42 bytes. Requirement variants additionally carry a second nominal.
-pub(in crate::encoding::recovery::policy) fn establishment_route(
+pub(in crate::encoding::recovery) fn establishment_route(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewDomainEstablishmentRoute, Error> {
     Ok(match reader.byte()? {

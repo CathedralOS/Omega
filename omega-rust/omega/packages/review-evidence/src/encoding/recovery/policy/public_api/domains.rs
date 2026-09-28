@@ -10,7 +10,9 @@ use crate::record::{
     PackagePolicyDomainShape, PackageReviewDomainClassification, PackageReviewDomainSemanticRole,
 };
 
-pub(super) fn domain_shape(reader: &mut Reader<'_>) -> Result<PackagePolicyDomainShape, Error> {
+pub(in crate::encoding::recovery) fn domain_shape(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyDomainShape, Error> {
     Ok(PackagePolicyDomainShape {
         identity: nominal(reader)?,
         type_parameters: reader.sequence(3, type_parameter)?,

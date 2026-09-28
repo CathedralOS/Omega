@@ -39,7 +39,7 @@ use language_semantics::{
     CarryAddress, CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension, Multiplicity,
 };
 
-fn identity(name: &str) -> PackageReviewNominalIdentity {
+pub(in crate::encoding::recovery) fn identity(name: &str) -> PackageReviewNominalIdentity {
     PackageReviewNominalIdentity {
         owner: PackageReviewNominalOwner::ToolchainSource(PackageReviewToolchainSourceIdentity {
             digest: [7; 32],
@@ -48,20 +48,20 @@ fn identity(name: &str) -> PackageReviewNominalIdentity {
     }
 }
 
-fn value_type() -> PackageReviewTypeIdentity {
+pub(in crate::encoding::recovery) fn value_type() -> PackageReviewTypeIdentity {
     PackageReviewTypeIdentity {
         canonical: "u64".to_owned(),
     }
 }
 
-fn properties() -> PackageReviewDataProperties {
+pub(in crate::encoding::recovery) fn properties() -> PackageReviewDataProperties {
     PackageReviewDataProperties {
         multiplicity: Multiplicity::Unrestricted,
         carry: None,
     }
 }
 
-fn signature() -> PackageReviewMachineParameterSignature {
+pub(in crate::encoding::recovery) fn signature() -> PackageReviewMachineParameterSignature {
     PackageReviewMachineParameterSignature {
         lifetime_parameter_count: 2,
         type_parameters: Vec::new(),
@@ -89,7 +89,9 @@ fn signature() -> PackageReviewMachineParameterSignature {
     }
 }
 
-fn proposition(evidence: PackageReviewPropositionEvidence) -> PackageReviewContractFact {
+pub(in crate::encoding::recovery) fn proposition(
+    evidence: PackageReviewPropositionEvidence,
+) -> PackageReviewContractFact {
     let mut binder_arguments = vec![
         PackageReviewPropositionBinderArgument {
             kind: PackageReviewPropositionBinderArgumentKind::Type,
@@ -149,7 +151,9 @@ fn proposition(evidence: PackageReviewPropositionEvidence) -> PackageReviewContr
     })
 }
 
-fn round_trip(contract: &PackageReviewMachineParameterContract) -> Vec<u8> {
+pub(in crate::encoding::recovery) fn round_trip(
+    contract: &PackageReviewMachineParameterContract,
+) -> Vec<u8> {
     let mut encoder = Encoder::bounded(1024 * 1024);
     encode_machine_parameter_contract(&mut encoder, contract).unwrap();
     let bytes = encoder.finish().unwrap();
@@ -167,7 +171,8 @@ fn round_trip(contract: &PackageReviewMachineParameterContract) -> Vec<u8> {
 }
 
 #[test]
-fn structural_machine_contract_recovers_all_parameter_and_fact_kinds() {
+pub(in crate::encoding::recovery) fn structural_machine_contract_recovers_all_parameter_and_fact_kinds()
+ {
     let witness = PackageReviewEvidenceInterface {
         trait_identity: identity("Witness"),
         lifetime_arguments: vec![0, 1],
@@ -253,7 +258,8 @@ fn structural_machine_contract_recovers_all_parameter_and_fact_kinds() {
 }
 
 #[test]
-fn property_decoder_preserves_every_closed_carry_axis_and_multiplicity() {
+pub(in crate::encoding::recovery) fn property_decoder_preserves_every_closed_carry_axis_and_multiplicity()
+ {
     for multiplicity in [
         Multiplicity::Unrestricted,
         Multiplicity::Affine,
@@ -309,7 +315,8 @@ fn property_decoder_preserves_every_closed_carry_axis_and_multiplicity() {
 }
 
 #[test]
-fn recursive_machine_contracts_obey_depth_element_and_storage_limits() {
+pub(in crate::encoding::recovery) fn recursive_machine_contracts_obey_depth_element_and_storage_limits()
+ {
     let mut outer = signature();
     outer.type_parameters.push(PackageReviewTypeParameter {
         kind: PackageReviewTypeParameterKind::Machine(
@@ -358,7 +365,8 @@ fn recursive_machine_contracts_obey_depth_element_and_storage_limits() {
 }
 
 #[test]
-fn conformance_bounds_preserve_binder_free_and_selected_application_shapes() {
+pub(in crate::encoding::recovery) fn conformance_bounds_preserve_binder_free_and_selected_application_shapes()
+ {
     let unselected = PackageReviewConformanceBound {
         binder_ordinal: None,
         subject_parameter: 2,

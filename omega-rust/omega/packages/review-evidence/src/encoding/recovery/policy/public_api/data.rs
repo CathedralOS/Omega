@@ -9,7 +9,9 @@ use super::super::{
 use super::signatures::type_parameter;
 use crate::record::{PackagePolicyDataShape, PackageReviewDataKind};
 
-pub(super) fn data_shape(reader: &mut Reader<'_>) -> Result<PackagePolicyDataShape, Error> {
+pub(in crate::encoding::recovery) fn data_shape(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyDataShape, Error> {
     Ok(PackagePolicyDataShape {
         identity: nominal(reader)?,
         kind: match reader.byte()? {

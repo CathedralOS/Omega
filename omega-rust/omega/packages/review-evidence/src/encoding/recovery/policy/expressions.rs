@@ -15,7 +15,7 @@ use crate::record::{
 };
 use symbols::BuiltinFunction;
 
-pub(super) fn expression(
+pub(in crate::encoding::recovery) fn expression(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewContractExpression, Error> {
     reader.nested(|reader| {
@@ -137,7 +137,7 @@ pub(super) fn expression(
     })
 }
 
-fn operator_meaning(
+pub(in crate::encoding::recovery) fn operator_meaning(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewContractOperatorMeaning, Error> {
     match reader.byte()? {
@@ -149,7 +149,9 @@ fn operator_meaning(
     }
 }
 
-fn binary_operator(reader: &mut Reader<'_>) -> Result<PackageReviewContractBinaryOperator, Error> {
+pub(in crate::encoding::recovery) fn binary_operator(
+    reader: &mut Reader<'_>,
+) -> Result<PackageReviewContractBinaryOperator, Error> {
     use PackageReviewContractBinaryOperator as Operator;
     Ok(match reader.byte()? {
         0 => Operator::Add,
@@ -174,7 +176,9 @@ fn binary_operator(reader: &mut Reader<'_>) -> Result<PackageReviewContractBinar
     })
 }
 
-fn call_target(reader: &mut Reader<'_>) -> Result<PackageReviewContractCallTarget, Error> {
+pub(in crate::encoding::recovery) fn call_target(
+    reader: &mut Reader<'_>,
+) -> Result<PackageReviewContractCallTarget, Error> {
     Ok(match reader.byte()? {
         0 => PackageReviewContractCallTarget::Nominal(nominal(reader)?),
         1 => PackageReviewContractCallTarget::ByteSequencePredicate(match reader.byte()? {
@@ -201,7 +205,7 @@ fn call_target(reader: &mut Reader<'_>) -> Result<PackageReviewContractCallTarge
     })
 }
 
-fn evidence_argument(
+pub(in crate::encoding::recovery) fn evidence_argument(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewContractEvidenceArgument, Error> {
     Ok(PackageReviewContractEvidenceArgument {
@@ -211,7 +215,9 @@ fn evidence_argument(
     })
 }
 
-fn evidence_term(reader: &mut Reader<'_>) -> Result<PackageReviewContractEvidenceTerm, Error> {
+pub(in crate::encoding::recovery) fn evidence_term(
+    reader: &mut Reader<'_>,
+) -> Result<PackageReviewContractEvidenceTerm, Error> {
     Ok(PackageReviewContractEvidenceTerm {
         owner: nominal(reader)?,
         kind: match reader.byte()? {
@@ -223,7 +229,7 @@ fn evidence_term(reader: &mut Reader<'_>) -> Result<PackageReviewContractEvidenc
     })
 }
 
-pub(super) fn static_argument(
+pub(in crate::encoding::recovery) fn static_argument(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewContractStaticArgument, Error> {
     reader.nested(|reader| {
@@ -258,4 +264,4 @@ pub(super) fn static_argument(
 }
 
 #[cfg(test)]
-mod tests;
+pub(in crate::encoding::recovery) mod tests;

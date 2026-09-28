@@ -3,7 +3,8 @@ use crate::encoding::recovery::policy::calling_application::budgets::fixture_ele
 use crate::record::{PackagePolicyRepresentation, PackageReviewNominalIdentity};
 
 #[test]
-fn aggregate_byte_field_and_element_boundaries_include_every_nested_application() {
+pub(in crate::encoding::recovery) fn aggregate_byte_field_and_element_boundaries_include_every_nested_application()
+ {
     let policy = fixtures::complete();
     let bytes = policy.canonical_bytes().unwrap();
     // The complete fixture has one availability interface argument, two
@@ -63,7 +64,8 @@ fn aggregate_byte_field_and_element_boundaries_include_every_nested_application(
 }
 
 #[test]
-fn empty_and_declaration_owned_storage_include_outer_canonical_scratch() {
+pub(in crate::encoding::recovery) fn empty_and_declaration_owned_storage_include_outer_canonical_scratch()
+ {
     let mut declarations = fixtures::empty();
     declarations.declarations = vec![fixtures::nominal("A"), fixtures::nominal("B")];
     for policy in [fixtures::empty(), declarations] {
@@ -90,7 +92,8 @@ fn empty_and_declaration_owned_storage_include_outer_canonical_scratch() {
 }
 
 #[test]
-fn nested_calling_machine_contract_uses_the_outer_depth_ceiling() {
+pub(in crate::encoding::recovery) fn nested_calling_machine_contract_uses_the_outer_depth_ceiling()
+{
     let policy = fixtures::complete();
     let bytes = policy.canonical_bytes().unwrap();
     let limits = |depth| {

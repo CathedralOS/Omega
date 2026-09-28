@@ -18,7 +18,9 @@ use crate::record::PackageReviewWriteFrameCompleteness;
 
 use super::super::{expressions::expression, structural_expressions::boolean_expression};
 
-pub(super) fn capability(reader: &mut Reader<'_>) -> Result<PackagePolicyCapabilityFlow, Error> {
+pub(in crate::encoding::recovery) fn capability(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyCapabilityFlow, Error> {
     Ok(PackagePolicyCapabilityFlow {
         capability: nominal(reader)?,
         kind: match reader.byte()? {
@@ -32,7 +34,9 @@ pub(super) fn capability(reader: &mut Reader<'_>) -> Result<PackagePolicyCapabil
     })
 }
 
-pub(super) fn crash(reader: &mut Reader<'_>) -> Result<PackagePolicyCrash, Error> {
+pub(in crate::encoding::recovery) fn crash(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyCrash, Error> {
     Ok(PackagePolicyCrash {
         interface: match reader.byte()? {
             0 => PackageReviewCrashInterface::InternalInferred,
@@ -58,7 +62,7 @@ pub(super) fn crash(reader: &mut Reader<'_>) -> Result<PackagePolicyCrash, Error
     })
 }
 
-pub(in crate::encoding::recovery::policy) fn crash_route(
+pub(in crate::encoding::recovery) fn crash_route(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyCrashRoute, Error> {
     Ok(PackagePolicyCrashRoute {
@@ -77,7 +81,9 @@ pub(in crate::encoding::recovery::policy) fn crash_route(
     })
 }
 
-pub(super) fn mutation(reader: &mut Reader<'_>) -> Result<PackagePolicyMutation, Error> {
+pub(in crate::encoding::recovery) fn mutation(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyMutation, Error> {
     Ok(PackagePolicyMutation {
         completeness: match reader.byte()? {
             0 => PackageReviewWriteFrameCompleteness::Complete,
@@ -88,7 +94,7 @@ pub(super) fn mutation(reader: &mut Reader<'_>) -> Result<PackagePolicyMutation,
     })
 }
 
-pub(in crate::encoding::recovery::policy) fn termination(
+pub(in crate::encoding::recovery) fn termination(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyTermination, Error> {
     Ok(match reader.byte()? {

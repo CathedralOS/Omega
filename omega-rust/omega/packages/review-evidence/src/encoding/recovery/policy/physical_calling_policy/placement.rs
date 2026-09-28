@@ -6,7 +6,7 @@ use crate::record::{
     PackageReviewSystemVEightbyteClass,
 };
 
-pub(in crate::encoding::recovery::policy) fn value_placement(
+pub(in crate::encoding::recovery) fn value_placement(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewBoundaryValuePlacement, Error> {
     let class = match reader.byte()? {
@@ -32,7 +32,9 @@ pub(in crate::encoding::recovery::policy) fn value_placement(
     })
 }
 
-fn eightbyte(reader: &mut Reader<'_>) -> Result<PackageReviewSystemVEightbyteClass, Error> {
+pub(in crate::encoding::recovery) fn eightbyte(
+    reader: &mut Reader<'_>,
+) -> Result<PackageReviewSystemVEightbyteClass, Error> {
     Ok(match reader.byte()? {
         0 => PackageReviewSystemVEightbyteClass::Integer,
         1 => PackageReviewSystemVEightbyteClass::Sse,
@@ -40,7 +42,7 @@ fn eightbyte(reader: &mut Reader<'_>) -> Result<PackageReviewSystemVEightbyteCla
     })
 }
 
-fn location(reader: &mut Reader<'_>) -> Result<Location, Error> {
+pub(in crate::encoding::recovery) fn location(reader: &mut Reader<'_>) -> Result<Location, Error> {
     Ok(match reader.byte()? {
         0 => Location::Register {
             register: register(reader)?,
@@ -70,7 +72,7 @@ fn location(reader: &mut Reader<'_>) -> Result<Location, Error> {
     })
 }
 
-pub(super) fn register(reader: &mut Reader<'_>) -> Result<Register, Error> {
+pub(in crate::encoding::recovery) fn register(reader: &mut Reader<'_>) -> Result<Register, Error> {
     Ok(match reader.byte()? {
         0 => Register::X86Rax,
         1 => Register::X86Rcx,

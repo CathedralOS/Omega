@@ -5,7 +5,8 @@ use language_semantics::{
 };
 
 #[test]
-fn complete_service_claim_result_carry_and_progress_fields_remain_distinct() {
+pub(in crate::encoding::recovery) fn complete_service_claim_result_carry_and_progress_fields_remain_distinct()
+ {
     let original = fixtures::complete();
     let baseline = original.canonical_bytes().unwrap();
     let mut cases = Vec::new();
@@ -110,7 +111,8 @@ fn complete_service_claim_result_carry_and_progress_fields_remain_distinct() {
 }
 
 #[test]
-fn service_predicate_carry_authority_and_provider_binding_tags_are_closed() {
+pub(in crate::encoding::recovery) fn service_predicate_carry_authority_and_provider_binding_tags_are_closed()
+ {
     let bytes = fixtures::complete().canonical_bytes().unwrap();
     let domain = b"Authorized";
     let domain_end = bytes
@@ -136,7 +138,8 @@ fn service_predicate_carry_authority_and_provider_binding_tags_are_closed() {
 }
 
 #[test]
-fn typed_service_signature_changes_without_calling_remain_observable() {
+pub(in crate::encoding::recovery) fn typed_service_signature_changes_without_calling_remain_observable()
+ {
     let original = fixtures::complete();
     assert!(original.plans[0].methods[0].calling.is_none());
     let baseline = original.canonical_bytes().unwrap();
@@ -175,7 +178,8 @@ fn typed_service_signature_changes_without_calling_remain_observable() {
 }
 
 #[test]
-fn family_authority_coverage_target_and_package_fields_reject_unknown_values() {
+pub(in crate::encoding::recovery) fn family_authority_coverage_target_and_package_fields_reject_unknown_values()
+ {
     let policy = fixtures::complete();
     let bytes = policy.canonical_bytes().unwrap();
     let target = policy.target.identity();

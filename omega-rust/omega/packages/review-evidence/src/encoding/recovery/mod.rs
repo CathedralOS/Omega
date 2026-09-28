@@ -10,6 +10,7 @@ mod codec;
 mod envelope;
 mod framing;
 mod policy;
+mod review;
 mod source;
 
 #[cfg(test)]
@@ -30,6 +31,7 @@ pub use envelope::{
     decode_package_review_canonical_row, decode_package_review_canonical_row_with_limits,
     encode_package_review_canonical_row, encode_package_review_canonical_row_with_limits,
 };
+pub use review::recover_package_review_projection;
 
 use crate::record::{PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk};
 

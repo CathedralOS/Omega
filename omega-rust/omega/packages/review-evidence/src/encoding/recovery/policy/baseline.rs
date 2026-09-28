@@ -1,19 +1,19 @@
 //! Inert baseline recovery under one shared reader and allocation budget.
 
 use crate::record::PackagePolicyBaseline;
-mod boundary;
-mod dependencies;
+pub(in crate::encoding::recovery) mod boundary;
+pub(in crate::encoding::recovery) mod dependencies;
 #[cfg(test)]
-mod external_tests;
-mod restricted_build;
+pub(in crate::encoding::recovery) mod external_tests;
+pub(in crate::encoding::recovery) mod restricted_build;
 #[cfg(test)]
-mod row_tests;
+pub(in crate::encoding::recovery) mod row_tests;
 #[cfg(test)]
-mod tests;
+pub(in crate::encoding::recovery) mod tests;
 #[cfg(test)]
-mod text_tests;
+pub(in crate::encoding::recovery) mod text_tests;
 #[cfg(test)]
-mod usage_tests;
+pub(in crate::encoding::recovery) mod usage_tests;
 
 use super::{
     Error, PackagePolicyRecoveryLimits, PackagePolicyRecoveryUsage, callable_policy, external,
@@ -31,7 +31,7 @@ impl PackagePolicyBaseline {
         Self::recover_canonical_with_usage(bytes, limits).map(|(policy, _)| policy)
     }
 
-    pub(super) fn recover_canonical_with_usage(
+    pub(in crate::encoding::recovery) fn recover_canonical_with_usage(
         bytes: &[u8],
         limits: PackagePolicyRecoveryLimits,
     ) -> Result<(Self, PackagePolicyRecoveryUsage), Error> {

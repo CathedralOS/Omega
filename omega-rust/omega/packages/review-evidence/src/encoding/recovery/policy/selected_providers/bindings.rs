@@ -2,7 +2,9 @@ use super::{Error, Reader, nominal, package};
 use crate::encoding::recovery::policy::external::{locator, producer};
 use crate::record::{PackagePolicyProviderBinding, PackagePolicyProviderEvaluatedSyscall};
 
-pub(super) fn binding(reader: &mut Reader<'_>) -> Result<PackagePolicyProviderBinding, Error> {
+pub(in crate::encoding::recovery) fn binding(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyProviderBinding, Error> {
     use PackagePolicyProviderBinding as Binding;
     Ok(match reader.byte()? {
         // Tag 0 carried the retired string-backed import bootstrap. A row

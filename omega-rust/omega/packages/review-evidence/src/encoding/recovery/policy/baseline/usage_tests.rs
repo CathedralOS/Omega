@@ -1,7 +1,7 @@
 use super::{tests::fixture, *};
 use crate::encoding::PackagePolicyTextRecoveryLimits;
 
-fn limits(
+pub(in crate::encoding::recovery) fn limits(
     text: &str,
     binary_bytes: usize,
     elements: usize,
@@ -14,7 +14,8 @@ fn limits(
 }
 
 #[test]
-fn text_usage_includes_requested_binary_reserve_and_canonical_scratch() {
+pub(in crate::encoding::recovery) fn text_usage_includes_requested_binary_reserve_and_canonical_scratch()
+ {
     let value = fixture();
     let text = value.canonical_text().unwrap();
     let defaults = PackagePolicyRecoveryLimits::default();
@@ -89,7 +90,8 @@ fn text_usage_includes_requested_binary_reserve_and_canonical_scratch() {
 }
 
 #[test]
-fn canonical_verification_reserves_only_its_exact_charged_length() {
+pub(in crate::encoding::recovery) fn canonical_verification_reserves_only_its_exact_charged_length()
+{
     let value = fixture();
     let expected = value.canonical_bytes().unwrap();
     assert_eq!(
@@ -129,7 +131,8 @@ fn canonical_verification_reserves_only_its_exact_charged_length() {
 }
 
 #[test]
-fn individually_valid_baselines_cannot_reset_enclosing_storage_or_elements() {
+pub(in crate::encoding::recovery) fn individually_valid_baselines_cannot_reset_enclosing_storage_or_elements()
+ {
     let first = fixture();
     let mut second = first.clone();
     second.public_api.consts[0].canonical_value_encoding = "43".to_owned();
@@ -197,7 +200,8 @@ fn individually_valid_baselines_cannot_reset_enclosing_storage_or_elements() {
 }
 
 #[test]
-fn reader_usage_counts_vectors_boxes_nested_entries_and_scratch_exactly() {
+pub(in crate::encoding::recovery) fn reader_usage_counts_vectors_boxes_nested_entries_and_scratch_exactly()
+ {
     let mut bytes = Vec::new();
     bytes.extend_from_slice(&2u64.to_le_bytes());
     for value in [b"one", b"two"] {
@@ -224,7 +228,8 @@ fn reader_usage_counts_vectors_boxes_nested_entries_and_scratch_exactly() {
 }
 
 #[test]
-fn legacy_and_usage_text_entrances_reject_the_same_invalid_input() {
+pub(in crate::encoding::recovery) fn legacy_and_usage_text_entrances_reject_the_same_invalid_input()
+{
     let text = fixture().canonical_text().unwrap();
     for changed in [
         text.replacen("field public_api", "field private_api", 1),

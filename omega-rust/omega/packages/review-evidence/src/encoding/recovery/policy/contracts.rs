@@ -16,9 +16,9 @@ use crate::record::{
 };
 
 #[cfg(test)]
-mod tests;
+pub(in crate::encoding::recovery) mod tests;
 
-pub(super) fn callable_contract(
+pub(in crate::encoding::recovery) fn callable_contract(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewCallableContract, Error> {
     let (kind, result_case) = match reader.byte()? {
@@ -42,7 +42,9 @@ pub(super) fn callable_contract(
     })
 }
 
-pub(super) fn contract_fact(reader: &mut Reader<'_>) -> Result<PackageReviewContractFact, Error> {
+pub(in crate::encoding::recovery) fn contract_fact(
+    reader: &mut Reader<'_>,
+) -> Result<PackageReviewContractFact, Error> {
     Ok(match reader.byte()? {
         0 => PackageReviewContractFact::Expression(expression(reader)?),
         1 => PackageReviewContractFact::Membership {
@@ -60,7 +62,7 @@ pub(super) fn contract_fact(reader: &mut Reader<'_>) -> Result<PackageReviewCont
     })
 }
 
-fn proposition_application(
+pub(in crate::encoding::recovery) fn proposition_application(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewPropositionApplication, Error> {
     Ok(PackageReviewPropositionApplication {
@@ -77,7 +79,7 @@ fn proposition_application(
     })
 }
 
-fn binder_argument(
+pub(in crate::encoding::recovery) fn binder_argument(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewPropositionBinderArgument, Error> {
     let kind = match reader.byte()? {
@@ -107,7 +109,7 @@ fn binder_argument(
     Ok(PackageReviewPropositionBinderArgument { kind, value })
 }
 
-pub(super) fn proposition_binder(
+pub(in crate::encoding::recovery) fn proposition_binder(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewPropositionBinder, Error> {
     let kind = match reader.byte()? {
@@ -122,7 +124,7 @@ pub(super) fn proposition_binder(
     })
 }
 
-pub(super) fn evidence_interface(
+pub(in crate::encoding::recovery) fn evidence_interface(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewEvidenceInterface, Error> {
     Ok(PackageReviewEvidenceInterface {

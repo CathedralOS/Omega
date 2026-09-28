@@ -17,7 +17,7 @@ use crate::encoding::{
 use crate::record::*;
 use language_semantics::{CarryPermission, DataSupplyMode, DomainPredicateBody, Multiplicity};
 
-fn nominal(name: &str) -> PackageReviewNominalIdentity {
+pub(in crate::encoding::recovery) fn nominal(name: &str) -> PackageReviewNominalIdentity {
     PackageReviewNominalIdentity {
         owner: PackageReviewNominalOwner::ToolchainSource(PackageReviewToolchainSourceIdentity {
             digest: [7; 32],
@@ -26,20 +26,20 @@ fn nominal(name: &str) -> PackageReviewNominalIdentity {
     }
 }
 
-fn value_type() -> PackageReviewTypeIdentity {
+pub(in crate::encoding::recovery) fn value_type() -> PackageReviewTypeIdentity {
     PackageReviewTypeIdentity {
         canonical: "u64".to_owned(),
     }
 }
 
-fn properties() -> PackageReviewDataProperties {
+pub(in crate::encoding::recovery) fn properties() -> PackageReviewDataProperties {
     PackageReviewDataProperties {
         multiplicity: Multiplicity::Linear,
         carry: None,
     }
 }
 
-fn parameters() -> Vec<PackageReviewTypeParameter> {
+pub(in crate::encoding::recovery) fn parameters() -> Vec<PackageReviewTypeParameter> {
     vec![
         PackageReviewTypeParameter {
             kind: PackageReviewTypeParameterKind::Type,
@@ -74,11 +74,11 @@ fn parameters() -> Vec<PackageReviewTypeParameter> {
     ]
 }
 
-fn fact() -> PackageReviewContractFact {
+pub(in crate::encoding::recovery) fn fact() -> PackageReviewContractFact {
     PackageReviewContractFact::Expression(PackageReviewContractExpression::Boolean(true))
 }
 
-fn contracts() -> Vec<PackageReviewCallableContract> {
+pub(in crate::encoding::recovery) fn contracts() -> Vec<PackageReviewCallableContract> {
     vec![PackageReviewCallableContract {
         kind: PackageReviewContractKind::Ensures,
         result_case: Some(PackageReviewResultCaseIdentity {
@@ -91,7 +91,7 @@ fn contracts() -> Vec<PackageReviewCallableContract> {
     }]
 }
 
-fn crash() -> Vec<PackageReviewCrashRoute> {
+pub(in crate::encoding::recovery) fn crash() -> Vec<PackageReviewCrashRoute> {
     vec![PackageReviewCrashRoute {
         cause: PackageReviewCrashCause::Abort,
         alternative_guards: vec![
@@ -106,7 +106,7 @@ fn crash() -> Vec<PackageReviewCrashRoute> {
     }]
 }
 
-fn interface() -> PackageReviewEvidenceInterface {
+pub(in crate::encoding::recovery) fn interface() -> PackageReviewEvidenceInterface {
     PackageReviewEvidenceInterface {
         trait_identity: nominal("Interface"),
         lifetime_arguments: vec![1, 0],
@@ -120,7 +120,7 @@ fn interface() -> PackageReviewEvidenceInterface {
     }
 }
 
-fn bytes<T>(
+pub(in crate::encoding::recovery) fn bytes<T>(
     value: &T,
     encode: impl Fn(&mut Encoder, &T) -> Result<(), PackageReviewEncodingError>,
 ) -> Vec<u8> {
@@ -129,7 +129,7 @@ fn bytes<T>(
     encoder.finish().expect("fixture bytes")
 }
 
-fn roundtrip<T: std::fmt::Debug + PartialEq>(
+pub(in crate::encoding::recovery) fn roundtrip<T: std::fmt::Debug + PartialEq>(
     value: &T,
     encode: impl Fn(&mut Encoder, &T) -> Result<(), PackageReviewEncodingError>,
     decode: impl Fn(&mut Reader<'_>) -> Result<T, Error>,
@@ -156,7 +156,7 @@ fn roundtrip<T: std::fmt::Debug + PartialEq>(
     assert_eq!(reader.finish(), Err(Error::TrailingBytes));
 }
 
-fn data() -> PackageReviewDataShape {
+pub(in crate::encoding::recovery) fn data() -> PackageReviewDataShape {
     let field = PackageReviewDataField {
         identity: Some(9),
         name: "field".to_owned(),
@@ -190,7 +190,7 @@ fn data() -> PackageReviewDataShape {
 }
 
 #[test]
-fn data_kinds_supplies_members_and_erasure_roundtrip() {
+pub(in crate::encoding::recovery) fn data_kinds_supplies_members_and_erasure_roundtrip() {
     for kind in [
         PackageReviewDataKind::Ordinary,
         PackageReviewDataKind::Quotient {
@@ -211,7 +211,7 @@ fn data_kinds_supplies_members_and_erasure_roundtrip() {
 }
 
 #[test]
-fn domain_all_alias_roles_routes_and_presence_roundtrip() {
+pub(in crate::encoding::recovery) fn domain_all_alias_roles_routes_and_presence_roundtrip() {
     for predicate_body in [DomainPredicateBody::Bodyless, DomainPredicateBody::Present] {
         for alias_expansion in [
             None,
@@ -263,7 +263,7 @@ fn domain_all_alias_roles_routes_and_presence_roundtrip() {
 }
 
 #[test]
-fn conformance_all_subjects_keep_complete_evidence_interfaces() {
+pub(in crate::encoding::recovery) fn conformance_all_subjects_keep_complete_evidence_interfaces() {
     let mut shape = PackageReviewConformanceShape {
         identity: nominal("Conformance"),
         lifetime_parameter_count: 2,
@@ -290,7 +290,7 @@ fn conformance_all_subjects_keep_complete_evidence_interfaces() {
 }
 
 #[test]
-fn proposition_all_public_bodies_and_binder_kinds_roundtrip() {
+pub(in crate::encoding::recovery) fn proposition_all_public_bodies_and_binder_kinds_roundtrip() {
     for body in [
         PackageReviewPublicPropositionBody::Primitive,
         PackageReviewPublicPropositionBody::Witness(interface()),
@@ -317,7 +317,7 @@ fn proposition_all_public_bodies_and_binder_kinds_roundtrip() {
     }
 }
 
-fn requirement() -> PackageReviewTraitRequirement {
+pub(in crate::encoding::recovery) fn requirement() -> PackageReviewTraitRequirement {
     PackageReviewTraitRequirement {
         identity: nominal("Trait::run"),
         spelling: None,
@@ -353,7 +353,8 @@ fn requirement() -> PackageReviewTraitRequirement {
 }
 
 #[test]
-fn trait_full_requirements_and_all_operator_spellings_roundtrip() {
+pub(in crate::encoding::recovery) fn trait_full_requirements_and_all_operator_spellings_roundtrip()
+{
     for spelling in (0..13)
         .map(|tag| {
             let encoded = [tag];
@@ -426,7 +427,7 @@ fn trait_full_requirements_and_all_operator_spellings_roundtrip() {
 }
 
 #[test]
-fn constants_keep_exact_value_encoding_and_string_bounds() {
+pub(in crate::encoding::recovery) fn constants_keep_exact_value_encoding_and_string_bounds() {
     let shape = PackageReviewConstShape {
         identity: nominal("Constant"),
         declared_type: value_type(),
@@ -444,7 +445,8 @@ fn constants_keep_exact_value_encoding_and_string_bounds() {
 }
 
 #[test]
-fn declaration_children_share_element_storage_and_depth_budgets() {
+pub(in crate::encoding::recovery) fn declaration_children_share_element_storage_and_depth_budgets()
+{
     let encoded = bytes(&data(), encode_data_shape);
     for (elements, owned, depth, expected) in [
         (0, 100_000, 128, Error::ElementLimitExceeded),
@@ -479,7 +481,7 @@ fn declaration_children_share_element_storage_and_depth_budgets() {
 }
 
 #[test]
-fn malformed_declaration_tags_counts_and_utf8_reject() {
+pub(in crate::encoding::recovery) fn malformed_declaration_tags_counts_and_utf8_reject() {
     let mut encoded = bytes(&data(), encode_data_shape);
     let kind_offset = 41 + "Data".len();
     encoded[kind_offset] = 2;
@@ -521,7 +523,8 @@ fn malformed_declaration_tags_counts_and_utf8_reject() {
 }
 
 #[test]
-fn exact_machine_routes_keep_requirement_bytes_and_bound_new_payloads() {
+pub(in crate::encoding::recovery) fn exact_machine_routes_keep_requirement_bytes_and_bound_new_payloads()
+ {
     use super::establishment_route;
     use crate::encoding::encode::declarations::encode_domain_establishment_route;
     for (tag, route) in [
@@ -578,7 +581,8 @@ fn exact_machine_routes_keep_requirement_bytes_and_bound_new_payloads() {
 }
 
 #[test]
-fn exact_machine_route_short_payload_uses_one_nominal_sequence_floor() {
+pub(in crate::encoding::recovery) fn exact_machine_route_short_payload_uses_one_nominal_sequence_floor()
+ {
     let shape = PackageReviewDomainShape {
         identity: nominal("D"),
         type_parameters: vec![],

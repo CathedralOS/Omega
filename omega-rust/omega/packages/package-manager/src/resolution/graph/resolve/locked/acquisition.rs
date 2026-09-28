@@ -19,7 +19,11 @@ impl Resolver<'_> {
                 let custody = self.git(request, self.subject.root().selected(), true)?;
                 let cache_dir = SourceCacheLane::Retained(self.storage.git_sources())
                     .checked_source_cache_dir()?;
-                Ok(custody.with_checked_source_cache_dir(cache_dir))
+                let review_cache_dir = SourceCacheLane::Retained(self.storage.git_sources())
+                    .compiled_review_cache_dir()?;
+                Ok(custody
+                    .with_checked_source_cache_dir(cache_dir)
+                    .with_compiled_review_cache_dir(review_cache_dir))
             }
             PackageRootSourceRequest::ExternalLocal {
                 requested_root,
@@ -34,9 +38,13 @@ impl Resolver<'_> {
                 self.register_local_root(resolved.key(), resolved.source().canonical_live_root())?;
                 let cache_dir = SourceCacheLane::Retained(self.storage.external_local_sources())
                     .checked_source_cache_dir()?;
+                let review_cache_dir =
+                    SourceCacheLane::Retained(self.storage.external_local_sources())
+                        .compiled_review_cache_dir()?;
                 Ok(resolved
                     .into_custody()
-                    .with_checked_source_cache_dir(cache_dir))
+                    .with_checked_source_cache_dir(cache_dir)
+                    .with_compiled_review_cache_dir(review_cache_dir))
             }
             PackageRootSourceRequest::WorkspaceMember {
                 workspace_root_source,
@@ -60,9 +68,12 @@ impl Resolver<'_> {
                 self.local_workspace_root = Some(canonical_root);
                 let cache_dir = SourceCacheLane::Retained(self.storage.workspace_members())
                     .checked_source_cache_dir()?;
+                let review_cache_dir = SourceCacheLane::Retained(self.storage.workspace_members())
+                    .compiled_review_cache_dir()?;
                 Ok(resolved
                     .into_custody()
-                    .with_checked_source_cache_dir(cache_dir))
+                    .with_checked_source_cache_dir(cache_dir)
+                    .with_compiled_review_cache_dir(review_cache_dir))
             }
         }
     }
@@ -136,6 +147,8 @@ impl Resolver<'_> {
         )?;
         self.git_requests
             .insert(resolved.key().clone(), request.acquisition().clone());
-        Ok(resolved.into_custody())
+        Ok(resolved.into_custody().with_compiled_review_cache_dir(
+            SourceCacheLane::Retained(self.storage.git_sources()).compiled_review_cache_dir()?,
+        ))
     }
 }

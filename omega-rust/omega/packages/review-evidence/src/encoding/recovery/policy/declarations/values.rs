@@ -4,18 +4,16 @@ use super::super::{
     identity::{nominal, type_identity},
     reader::Reader,
 };
-#[cfg(test)]
 use super::super::{
     behavior::crash_route, contracts::callable_contract, identity::operator_coordinate,
     signatures::type_parameter,
 };
-#[cfg(test)]
 use crate::record::{PackageReviewCallableParameter, PackageReviewOperatorShape};
 use crate::record::{
     PackageReviewConstShape, PackageReviewPropositionShape, PackageReviewPublicPropositionBody,
 };
 
-pub(in crate::encoding::recovery::policy) fn proposition_shape(
+pub(in crate::encoding::recovery) fn proposition_shape(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewPropositionShape, Error> {
     Ok(PackageReviewPropositionShape {
@@ -31,7 +29,7 @@ pub(in crate::encoding::recovery::policy) fn proposition_shape(
     })
 }
 
-pub(in crate::encoding::recovery::policy) fn const_shape(
+pub(in crate::encoding::recovery) fn const_shape(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewConstShape, Error> {
     Ok(PackageReviewConstShape {
@@ -41,8 +39,7 @@ pub(in crate::encoding::recovery::policy) fn const_shape(
     })
 }
 
-#[cfg(test)]
-pub(in crate::encoding::recovery::policy) fn operator_shape(
+pub(in crate::encoding::recovery) fn operator_shape(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewOperatorShape, Error> {
     Ok(PackageReviewOperatorShape {
@@ -66,7 +63,7 @@ pub(in crate::encoding::recovery::policy) fn operator_shape(
     })
 }
 
-pub(in crate::encoding::recovery::policy) fn operator_spelling(
+pub(in crate::encoding::recovery) fn operator_spelling(
     reader: &mut Reader<'_>,
 ) -> Result<language_core::OperatorSpelling, Error> {
     use language_core::OperatorSpelling;

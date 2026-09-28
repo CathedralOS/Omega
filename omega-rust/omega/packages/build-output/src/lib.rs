@@ -27,8 +27,8 @@ pub use captured_source::{
     CapturedSourceFile, CapturedSourceMaterializationError, discard_materialized_snapshot,
 };
 pub use staged_output_tree::{
-    BuildStagedOutputEntry, BuildStagedOutputEntryKind, BuildStagedOutputMaterializationError,
-    BuildStagedOutputTree, BuildStagedOutputTreeCommitment, PackageGeneratedSource, empty,
-    select_included_sources,
+    BuildStagedOutputEntry, BuildStagedOutputEntryInput, BuildStagedOutputEntryKind,
+    BuildStagedOutputMaterializationError, BuildStagedOutputTree, BuildStagedOutputTreeCommitment,
+    PackageGeneratedSource, empty, select_included_sources,
 };
 pub use tree_from_entries::{OutputTreeEntry, from_entries};

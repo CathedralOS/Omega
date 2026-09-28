@@ -1,6 +1,8 @@
 use super::{tests::fixture, *};
 
-fn method_elements(method: &crate::record::PackagePolicyServiceMethod) -> usize {
+pub(in crate::encoding::recovery) fn method_elements(
+    method: &crate::record::PackagePolicyServiceMethod,
+) -> usize {
     method.signature.schema_arguments.len()
         + method.signature.requirement_arguments.len()
         + method.signature.requirement_lifetime_arguments.len()
@@ -33,7 +35,8 @@ fn method_elements(method: &crate::record::PackagePolicyServiceMethod) -> usize 
 }
 
 #[test]
-fn aggregate_element_byte_field_and_depth_limits_include_full_schema() {
+pub(in crate::encoding::recovery) fn aggregate_element_byte_field_and_depth_limits_include_full_schema()
+ {
     for policy in [fixture(), super::generics::generic_fixture()] {
         let bytes = policy.canonical_bytes().unwrap();
         let elements = policy.services.len()
@@ -98,7 +101,8 @@ fn aggregate_element_byte_field_and_depth_limits_include_full_schema() {
 }
 
 #[test]
-fn permission_class_storage_shares_exact_aggregate_owned_boundary() {
+pub(in crate::encoding::recovery) fn permission_class_storage_shares_exact_aggregate_owned_boundary()
+ {
     let policy = fixture();
     let bytes = policy.canonical_bytes().unwrap();
     let recover = |owned| {

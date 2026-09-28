@@ -34,7 +34,7 @@ use crate::record::PackageReviewSynchronousInvocation;
 use crate::record::PackageReviewTypeIdentity;
 use crate::record::PackageReviewWriteFrameCompleteness;
 
-pub(super) fn nominal_fixture(path: &str) -> PackageReviewNominalIdentity {
+pub(in crate::encoding::recovery) fn nominal_fixture(path: &str) -> PackageReviewNominalIdentity {
     PackageReviewNominalIdentity {
         owner: PackageReviewNominalOwner::Package(
             semantic_vocabulary::PackageKeyIdentity::from_digest([17; 32]).unwrap(),
@@ -43,7 +43,7 @@ pub(super) fn nominal_fixture(path: &str) -> PackageReviewNominalIdentity {
     }
 }
 
-pub(in crate::encoding::recovery::policy) fn fixture() -> PackagePolicyCallables {
+pub(in crate::encoding::recovery) fn fixture() -> PackagePolicyCallables {
     let identity = nominal_fixture("inspect");
     let PackageReviewNominalOwner::Package(package) = identity.owner else {
         unreachable!()
@@ -109,11 +109,13 @@ pub(in crate::encoding::recovery::policy) fn fixture() -> PackagePolicyCallables
     }
 }
 
-pub(super) fn recover(bytes: &[u8]) -> Result<PackagePolicyCallables, Error> {
+pub(in crate::encoding::recovery) fn recover(
+    bytes: &[u8],
+) -> Result<PackagePolicyCallables, Error> {
     PackagePolicyCallables::recover_canonical(bytes, PackagePolicyRecoveryLimits::default())
 }
 
-pub(super) fn unchecked_bytes(policy: &PackagePolicyCallables) -> Vec<u8> {
+pub(in crate::encoding::recovery) fn unchecked_bytes(policy: &PackagePolicyCallables) -> Vec<u8> {
     let mut encoder = crate::encoding::encode::encoder::Encoder::policy_bounded(4 * 1024 * 1024);
     encoder.fixed_bytes(CALLABLE_POLICY_MAGIC);
     encoder.u16(PACKAGE_CALLABLE_POLICY_VERSION);
@@ -129,7 +131,8 @@ pub(super) fn unchecked_bytes(policy: &PackagePolicyCallables) -> Vec<u8> {
 }
 
 #[test]
-fn callable_meaning_recovers_without_old_source_or_derivation_coordinates() {
+pub(in crate::encoding::recovery) fn callable_meaning_recovers_without_old_source_or_derivation_coordinates()
+ {
     let policy = fixture();
     component(Component::Callables(&policy));
     let bytes = policy.canonical_bytes().unwrap();
@@ -145,7 +148,8 @@ fn callable_meaning_recovers_without_old_source_or_derivation_coordinates() {
 }
 
 #[test]
-fn checked_requirement_association_round_trips_and_rejects_malformed_rows() {
+pub(in crate::encoding::recovery) fn checked_requirement_association_round_trips_and_rejects_malformed_rows()
+ {
     let mut policy = fixture();
     policy.callables[0].requirement_realizations =
         vec![crate::record::PackageReviewRequirementRealization {
@@ -183,7 +187,8 @@ fn checked_requirement_association_round_trips_and_rejects_malformed_rows() {
 }
 
 #[test]
-fn policy_preserves_empty_absent_opaque_and_lifetime_selection_distinctions() {
+pub(in crate::encoding::recovery) fn policy_preserves_empty_absent_opaque_and_lifetime_selection_distinctions()
+ {
     let original = fixture();
     let bytes = original.canonical_bytes().unwrap();
     let mut cases = Vec::new();
@@ -245,7 +250,8 @@ fn policy_preserves_empty_absent_opaque_and_lifetime_selection_distinctions() {
 }
 
 #[test]
-fn named_callable_text_retains_progress_subjects_routes_and_authority_payloads() {
+pub(in crate::encoding::recovery) fn named_callable_text_retains_progress_subjects_routes_and_authority_payloads()
+ {
     for subject in [
         PackageReviewProgressSubject::Declaration(nominal_fixture("Queue")),
         PackageReviewProgressSubject::Receiver,
@@ -289,7 +295,8 @@ fn named_callable_text_retains_progress_subjects_routes_and_authority_payloads()
 }
 
 #[test]
-fn policy_rejects_detached_roles_owners_coordinates_and_noncanonical_sets() {
+pub(in crate::encoding::recovery) fn policy_rejects_detached_roles_owners_coordinates_and_noncanonical_sets()
+ {
     let original = fixture();
     let mut cases = Vec::new();
     let mut changed = original.clone();
@@ -373,7 +380,8 @@ fn policy_rejects_detached_roles_owners_coordinates_and_noncanonical_sets() {
 }
 
 #[test]
-fn unknown_callable_roles_and_impossible_top_level_counts_reject() {
+pub(in crate::encoding::recovery) fn unknown_callable_roles_and_impossible_top_level_counts_reject()
+{
     let policy = fixture();
     let bytes = policy.canonical_bytes().unwrap();
     // Reader bounds are tested once; retain envelope, body, and final-byte cuts here.

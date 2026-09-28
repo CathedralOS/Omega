@@ -1,13 +1,13 @@
 //! Bounded receipt-free permissions, preserving complete service schemas.
 
 #[cfg(test)]
-mod budgets;
+pub(in crate::encoding::recovery) mod budgets;
 #[cfg(test)]
-mod generics;
+pub(in crate::encoding::recovery) mod generics;
 #[cfg(test)]
-mod tests;
+pub(in crate::encoding::recovery) mod tests;
 #[cfg(test)]
-pub(super) use tests::fixture as row_fixture;
+pub(in crate::encoding::recovery) use tests::fixture as row_fixture;
 
 use super::{
     Error, PackagePolicyRecoveryLimits,
@@ -51,7 +51,9 @@ impl PackagePolicyTerminalPermissions {
     }
 }
 
-pub(super) fn policy(reader: &mut Reader<'_>) -> Result<PackagePolicyTerminalPermissions, Error> {
+pub(in crate::encoding::recovery) fn policy(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyTerminalPermissions, Error> {
     Ok(PackagePolicyTerminalPermissions {
         package: package(reader)?,
         target: super::selected_providers::target(reader)?,
@@ -72,7 +74,9 @@ pub(super) fn policy(reader: &mut Reader<'_>) -> Result<PackagePolicyTerminalPer
     })
 }
 
-fn disposition(reader: &mut Reader<'_>) -> Result<TerminalAuthorityDisposition, Error> {
+pub(in crate::encoding::recovery) fn disposition(
+    reader: &mut Reader<'_>,
+) -> Result<TerminalAuthorityDisposition, Error> {
     let mut previous = None;
     let classes = reader.sequence(1, |reader| {
         use TerminalAuthorityClass as Class;

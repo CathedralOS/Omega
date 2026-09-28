@@ -1,12 +1,15 @@
 use super::{Error, PackagePolicyRecoveryLimits, REPRESENTATION_POLICY_MAGIC, fixtures};
 use crate::record::*;
 
-pub(super) fn recover(bytes: &[u8]) -> Result<PackagePolicyRepresentation, Error> {
+pub(in crate::encoding::recovery) fn recover(
+    bytes: &[u8],
+) -> Result<PackagePolicyRepresentation, Error> {
     PackagePolicyRepresentation::recover_canonical(bytes, PackagePolicyRecoveryLimits::default())
 }
 
 #[test]
-fn complete_representation_round_trips_all_families_without_nested_receipts() {
+pub(in crate::encoding::recovery) fn complete_representation_round_trips_all_families_without_nested_receipts()
+ {
     for policy in [fixtures::empty(), fixtures::complete()] {
         let bytes = policy.canonical_bytes().unwrap();
         let recovered = recover(&bytes).unwrap();
@@ -49,7 +52,8 @@ fn complete_representation_round_trips_all_families_without_nested_receipts() {
 }
 
 #[test]
-fn malformed_identity_target_counts_and_collection_order_reject() {
+pub(in crate::encoding::recovery) fn malformed_identity_target_counts_and_collection_order_reject()
+{
     let mut policy = fixtures::empty();
     policy.declarations = vec![fixtures::nominal("A"), fixtures::nominal("B")];
     let bytes = policy.canonical_bytes().unwrap();
@@ -92,7 +96,7 @@ fn malformed_identity_target_counts_and_collection_order_reject() {
 }
 
 #[test]
-fn writer_rejects_detached_selection_demand_owner_and_target() {
+pub(in crate::encoding::recovery) fn writer_rejects_detached_selection_demand_owner_and_target() {
     let original = fixtures::complete();
     let mut cases = Vec::new();
     let mut changed = original.clone();
@@ -134,7 +138,7 @@ fn writer_rejects_detached_selection_demand_owner_and_target() {
 }
 
 #[test]
-fn selected_origin_lifecycle_and_copy_tags_are_closed() {
+pub(in crate::encoding::recovery) fn selected_origin_lifecycle_and_copy_tags_are_closed() {
     let mut policy = fixtures::complete();
     policy.demands.clear();
     let bytes = policy.canonical_bytes().unwrap();

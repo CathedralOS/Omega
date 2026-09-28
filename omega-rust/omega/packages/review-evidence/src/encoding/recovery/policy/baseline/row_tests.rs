@@ -16,10 +16,11 @@ use crate::record::PackageReviewContractExpression;
 use crate::record::PackageReviewContractFact;
 use crate::record::PackageReviewContractKind;
 use crate::record::PackageReviewSemanticDependencyExposure;
-mod rich;
+pub(in crate::encoding::recovery) mod rich;
 
 #[test]
-fn compact_acceptance_is_exact_risk_subset_without_encoding_unrelated_api() {
+pub(in crate::encoding::recovery) fn compact_acceptance_is_exact_risk_subset_without_encoding_unrelated_api()
+ {
     let policy = fixture();
     let expected: Vec<_> = rows(&policy)
         .0
@@ -49,14 +50,17 @@ fn compact_acceptance_is_exact_risk_subset_without_encoding_unrelated_api() {
     assert!(changed.canonical_rows_with_limits(limits).is_err());
 }
 
-fn rows(policy: &PackagePolicyBaseline) -> (Vec<PackagePolicyRow>, PackagePolicyRowUsage) {
+pub(in crate::encoding::recovery) fn rows(
+    policy: &PackagePolicyBaseline,
+) -> (Vec<PackagePolicyRow>, PackagePolicyRowUsage) {
     policy
         .canonical_rows_with_limits(PackagePolicyRowLimits::default())
         .unwrap()
 }
 
 #[test]
-fn complete_rows_are_named_lossless_and_leave_existing_baseline_bytes_unchanged() {
+pub(in crate::encoding::recovery) fn complete_rows_are_named_lossless_and_leave_existing_baseline_bytes_unchanged()
+ {
     let value = fixture();
     let binary = value.canonical_bytes().unwrap();
     let text = value.canonical_text().unwrap();
@@ -105,7 +109,7 @@ fn complete_rows_are_named_lossless_and_leave_existing_baseline_bytes_unchanged(
 }
 
 #[test]
-fn aggregate_requested_storage_and_work_have_exact_boundaries() {
+pub(in crate::encoding::recovery) fn aggregate_requested_storage_and_work_have_exact_boundaries() {
     let value = fixture();
     let (projected, usage) = rows(&value);
     let exact_bytes = projected.len() * std::mem::size_of::<PackagePolicyRow>()
@@ -167,7 +171,8 @@ fn aggregate_requested_storage_and_work_have_exact_boundaries() {
 }
 
 #[test]
-fn constant_value_change_keeps_coordinate_and_changes_complete_row() {
+pub(in crate::encoding::recovery) fn constant_value_change_keeps_coordinate_and_changes_complete_row()
+ {
     let value = fixture();
     let mut changed = value.clone();
     changed.public_api.consts[0].canonical_value_encoding = "43".to_owned();
@@ -187,7 +192,7 @@ fn constant_value_change_keeps_coordinate_and_changes_complete_row() {
 }
 
 #[test]
-fn duplicate_exact_coordinates_reject_even_when_values_differ() {
+pub(in crate::encoding::recovery) fn duplicate_exact_coordinates_reject_even_when_values_differ() {
     let mut value = fixture();
     let mut duplicate = value.public_api.consts[0].clone();
     duplicate.canonical_value_encoding = "43".to_owned();
@@ -200,7 +205,8 @@ fn duplicate_exact_coordinates_reject_even_when_values_differ() {
 }
 
 #[test]
-fn retained_danger_and_slack_remain_audit_relevant_without_blanket_api_decisions() {
+pub(in crate::encoding::recovery) fn retained_danger_and_slack_remain_audit_relevant_without_blanket_api_decisions()
+ {
     let (projected, _) = rows(&fixture());
     let danger = projected
         .iter()
@@ -227,7 +233,7 @@ fn retained_danger_and_slack_remain_audit_relevant_without_blanket_api_decisions
 }
 
 #[test]
-fn both_semantic_exposures_are_retained_with_nonordinal_keys() {
+pub(in crate::encoding::recovery) fn both_semantic_exposures_are_retained_with_nonordinal_keys() {
     let mut value = fixture();
     let mut second = value.semantic_dependencies[0].clone();
     second.exposure = PackageReviewSemanticDependencyExposure::PublicInterface;
@@ -248,7 +254,8 @@ fn both_semantic_exposures_are_retained_with_nonordinal_keys() {
 }
 
 #[test]
-fn retained_build_requests_retain_under_ordinal_keys_as_decision_rows() {
+pub(in crate::encoding::recovery) fn retained_build_requests_retain_under_ordinal_keys_as_decision_rows()
+ {
     let mut value = fixture();
     let mut second = restricted_build_request();
     second.operation =
@@ -284,7 +291,8 @@ fn retained_build_requests_retain_under_ordinal_keys_as_decision_rows() {
 }
 
 #[test]
-fn empty_context_and_initial_ordinary_api_do_not_manufacture_findings() {
+pub(in crate::encoding::recovery) fn empty_context_and_initial_ordinary_api_do_not_manufacture_findings()
+ {
     let mut value = fixture();
     value.callables.callables.clear();
     value.dangerous_capabilities.clear();
@@ -304,7 +312,8 @@ fn empty_context_and_initial_ordinary_api_do_not_manufacture_findings() {
 }
 
 #[test]
-fn initial_assumptions_use_supply_not_visibility_or_ordinary_ensures() {
+pub(in crate::encoding::recovery) fn initial_assumptions_use_supply_not_visibility_or_ordinary_ensures()
+ {
     let mut value = fixture();
     value.callables.callables[0]
         .contracts
@@ -356,7 +365,8 @@ fn initial_assumptions_use_supply_not_visibility_or_ordinary_ensures() {
 }
 
 #[test]
-fn recursive_contract_meaning_and_depth_remain_under_one_row_budget() {
+pub(in crate::encoding::recovery) fn recursive_contract_meaning_and_depth_remain_under_one_row_budget()
+ {
     let mut value = fixture();
     let mut requirement = PackageReviewBooleanExpression::Constant(true);
     for _ in 0..16 {

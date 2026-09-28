@@ -10,13 +10,17 @@ use crate::encoding::{
 };
 use crate::record::PackageReviewCompilerIntrinsicExecution;
 
-fn encoded(value: PackageReviewCompilerIntrinsicExecution) -> Vec<u8> {
+pub(in crate::encoding::recovery) fn encoded(
+    value: PackageReviewCompilerIntrinsicExecution,
+) -> Vec<u8> {
     let mut encoder = Encoder::policy_bounded(64);
     encode_compiler_intrinsic_execution(&mut encoder, &value).unwrap();
     encoder.finish().unwrap()
 }
 
-fn recovered(bytes: &[u8]) -> Result<PackageReviewCompilerIntrinsicExecution, Error> {
+pub(in crate::encoding::recovery) fn recovered(
+    bytes: &[u8],
+) -> Result<PackageReviewCompilerIntrinsicExecution, Error> {
     let mut reader = Reader::new(bytes, PackagePolicyRecoveryLimits::default())?;
     let value = execution(&mut reader)?;
     reader.finish()?;
@@ -24,7 +28,8 @@ fn recovered(bytes: &[u8]) -> Result<PackageReviewCompilerIntrinsicExecution, Er
 }
 
 #[test]
-fn exact_intrinsic_inverse_covers_every_scalar_variant_and_builtin() {
+pub(in crate::encoding::recovery) fn exact_intrinsic_inverse_covers_every_scalar_variant_and_builtin()
+ {
     use CompilerNumericType as Numeric;
     use CompilerPrimitiveFloatBinaryOperation as Operation;
     use PackageReviewCompilerIntrinsicExecution as Execution;
@@ -120,7 +125,7 @@ fn exact_intrinsic_inverse_covers_every_scalar_variant_and_builtin() {
 }
 
 #[test]
-fn intrinsic_tags_and_builtin_ordinals_are_closed() {
+pub(in crate::encoding::recovery) fn intrinsic_tags_and_builtin_ordinals_are_closed() {
     for bytes in [
         &[8][..],
         &[255],

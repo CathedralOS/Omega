@@ -15,8 +15,8 @@ mod selection;
 mod workspace;
 pub(crate) mod workspace_path;
 
-pub(crate) use custody::CHECKED_SOURCE_CACHE_LANE;
 pub use custody::PackageSourceCustody;
+pub(crate) use custody::{CHECKED_SOURCE_CACHE_LANE, COMPILED_REVIEW_CACHE_LANE};
 pub use error::ResolvePackageSourceError;
 #[cfg(test)]
 pub(crate) use git::resolve_git_package_source_from_hardened_base;

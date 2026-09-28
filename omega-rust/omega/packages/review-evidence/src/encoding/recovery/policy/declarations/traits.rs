@@ -3,23 +3,19 @@ use super::super::{
     identity::{nominal, type_identity},
     reader::Reader,
 };
-#[cfg(test)]
 use super::super::{
     behavior::{crash_route, synchronous_invocation, termination},
     contracts::{callable_contract, evidence_interface},
     signatures::{conformance_bound, type_parameter},
 };
-#[cfg(test)]
 use super::values::operator_spelling;
-#[cfg(test)]
 use crate::record::{
     PackageReviewConformanceShape, PackageReviewConformanceSubject, PackageReviewTraitRequirement,
     PackageReviewTraitRequirementParameter, PackageReviewTraitShape,
 };
 use crate::record::{PackageReviewTraitCompositionKind, PackageReviewTraitParent};
 
-#[cfg(test)]
-pub(in crate::encoding::recovery::policy) fn trait_shape(
+pub(in crate::encoding::recovery) fn trait_shape(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewTraitShape, Error> {
     Ok(PackageReviewTraitShape {
@@ -33,7 +29,7 @@ pub(in crate::encoding::recovery::policy) fn trait_shape(
     })
 }
 
-pub(in crate::encoding::recovery::policy) fn trait_parent(
+pub(in crate::encoding::recovery) fn trait_parent(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewTraitParent, Error> {
     Ok(PackageReviewTraitParent {
@@ -48,8 +44,9 @@ pub(in crate::encoding::recovery::policy) fn trait_parent(
     })
 }
 
-#[cfg(test)]
-fn trait_requirement(reader: &mut Reader<'_>) -> Result<PackageReviewTraitRequirement, Error> {
+pub(in crate::encoding::recovery) fn trait_requirement(
+    reader: &mut Reader<'_>,
+) -> Result<PackageReviewTraitRequirement, Error> {
     Ok(PackageReviewTraitRequirement {
         identity: nominal(reader)?,
         spelling: reader.option(operator_spelling)?,
@@ -77,8 +74,7 @@ fn trait_requirement(reader: &mut Reader<'_>) -> Result<PackageReviewTraitRequir
     })
 }
 
-#[cfg(test)]
-pub(in crate::encoding::recovery::policy) fn conformance_shape(
+pub(in crate::encoding::recovery) fn conformance_shape(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewConformanceShape, Error> {
     Ok(PackageReviewConformanceShape {

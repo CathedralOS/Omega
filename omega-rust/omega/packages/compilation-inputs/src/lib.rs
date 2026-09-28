@@ -31,6 +31,7 @@ pub mod toolchain_library;
 pub use build_execution::*;
 mod package_compilation;
 mod production_subject;
+mod review_cache_key;
 mod semantic_bindings;
 mod source_consumption;
 mod source_snapshot;
@@ -47,6 +48,7 @@ pub use package_compilation::{
     PackageSourceBinding,
 };
 pub use production_subject::ProductionCompilationSubject;
+pub use review_cache_key::{review_cache_inputs_digest, review_cache_snapshot_digest};
 pub use semantic_bindings::{
     AcceptedSemanticBinding, AcceptedSemanticBindingRole, accepted_service_schema_digest,
     program_entry_semantic_binding_role,

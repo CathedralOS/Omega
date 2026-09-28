@@ -2,7 +2,9 @@ use super::framing::binary;
 use crate::encoding::encode::encoder::text::{HEADER, MAXIMUM_MARKUP_DEPTH, Writer};
 use crate::encoding::{PackagePolicyRecoveryLimits, encode::encoder::Encoder};
 
-fn fields(encoder: &mut Encoder) -> Result<(), crate::encoding::PackageReviewEncodingError> {
+pub(in crate::encoding::recovery) fn fields(
+    encoder: &mut Encoder,
+) -> Result<(), crate::encoding::PackageReviewEncodingError> {
     encoder.field("unsigned_byte", |encoder| {
         encoder.byte(255);
         Ok(())
@@ -72,7 +74,8 @@ fn fields(encoder: &mut Encoder) -> Result<(), crate::encoding::PackageReviewEnc
 }
 
 #[test]
-fn every_scalar_and_container_preserves_the_original_binary_stream() {
+pub(in crate::encoding::recovery) fn every_scalar_and_container_preserves_the_original_binary_stream()
+ {
     let mut bytes = Encoder::policy_bounded(4 * 1024 * 1024);
     fields(&mut bytes).unwrap();
     let bytes = bytes.finish().unwrap();
@@ -98,7 +101,7 @@ fn every_scalar_and_container_preserves_the_original_binary_stream() {
 }
 
 #[test]
-fn missing_field_labels_and_ignored_text_errors_cannot_publish() {
+pub(in crate::encoding::recovery) fn missing_field_labels_and_ignored_text_errors_cannot_publish() {
     let mut writer = Encoder::policy_text(Writer::new(1024, None));
     writer.byte(0);
     assert!(writer.finish_text().is_err());
@@ -119,7 +122,7 @@ fn missing_field_labels_and_ignored_text_errors_cannot_publish() {
 }
 
 #[test]
-fn malformed_framing_never_allocates_from_untrusted_counts() {
+pub(in crate::encoding::recovery) fn malformed_framing_never_allocates_from_untrusted_counts() {
     use crate::encoding::PackagePolicyRecoveryError as Error;
     for body in [
         "sequence 18446744073709551615 {\n",

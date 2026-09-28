@@ -44,7 +44,7 @@ impl PackagePolicyExternalExecutableSupply {
     }
 }
 
-pub(super) fn policy(
+pub(in crate::encoding::recovery) fn policy(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyExternalExecutableSupply, Error> {
     Ok(PackagePolicyExternalExecutableSupply {
@@ -55,7 +55,7 @@ pub(super) fn policy(
     })
 }
 
-fn external_signature(
+pub(in crate::encoding::recovery) fn external_signature(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyExternalCallableSignature, Error> {
     Ok(PackagePolicyExternalCallableSignature {
@@ -74,7 +74,9 @@ fn external_signature(
     })
 }
 
-fn requirement(reader: &mut Reader<'_>) -> Result<PackagePolicyExternalRequirement, Error> {
+pub(in crate::encoding::recovery) fn requirement(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyExternalRequirement, Error> {
     Ok(match reader.byte()? {
         0 => PackagePolicyExternalRequirement::Trait(callable_conformance(reader)?),
         1 => PackagePolicyExternalRequirement::Operator {
@@ -90,7 +92,9 @@ fn requirement(reader: &mut Reader<'_>) -> Result<PackagePolicyExternalRequireme
     })
 }
 
-fn binding(reader: &mut Reader<'_>) -> Result<PackagePolicyExternalBinding, Error> {
+pub(in crate::encoding::recovery) fn binding(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyExternalBinding, Error> {
     Ok(match reader.byte()? {
         // Tag 0 carried the retired string-backed import row. A policy that
         // still uses it is a stale artifact: reject it by name rather than
@@ -123,7 +127,7 @@ fn binding(reader: &mut Reader<'_>) -> Result<PackagePolicyExternalBinding, Erro
     })
 }
 
-fn target(reader: &mut Reader<'_>) -> Result<String, Error> {
+pub(in crate::encoding::recovery) fn target(reader: &mut Reader<'_>) -> Result<String, Error> {
     let name = reader.string()?;
     if !target::TargetProfile::ALL
         .iter()
@@ -134,7 +138,7 @@ fn target(reader: &mut Reader<'_>) -> Result<String, Error> {
     Ok(name)
 }
 
-pub(super) fn producer(
+pub(in crate::encoding::recovery) fn producer(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyEvaluatedBindingProducer, Error> {
     Ok(PackagePolicyEvaluatedBindingProducer {
@@ -144,7 +148,9 @@ pub(super) fn producer(
     })
 }
 
-pub(super) fn locator(reader: &mut Reader<'_>) -> Result<PackageReviewForeignLocator, Error> {
+pub(in crate::encoding::recovery) fn locator(
+    reader: &mut Reader<'_>,
+) -> Result<PackageReviewForeignLocator, Error> {
     Ok(match reader.byte()? {
         0 => PackageReviewForeignLocator::PeByName {
             library: reader.bytes()?,

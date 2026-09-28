@@ -1,14 +1,14 @@
 //! One bounded decoder for the complete inert calling-policy graph.
 
 #[cfg(test)]
-pub(super) mod budgets;
-mod callbacks;
+pub(in crate::encoding::recovery) mod budgets;
+pub(in crate::encoding::recovery) mod callbacks;
 #[cfg(test)]
-mod malformed;
-mod opaque;
-pub(super) mod shapes;
+pub(in crate::encoding::recovery) mod malformed;
+pub(in crate::encoding::recovery) mod opaque;
+pub(in crate::encoding::recovery) mod shapes;
 #[cfg(test)]
-pub(super) mod tests;
+pub(in crate::encoding::recovery) mod tests;
 
 use super::identity::{nominal, type_identity};
 use super::{Error, PackagePolicyRecoveryLimits, reader::Reader};
@@ -49,7 +49,9 @@ impl PackagePolicyCallingPlan {
 
 /// Decode inner fields with the caller's aggregate budgets and framing.
 /// The enclosing record validates all structural associations after decoding.
-pub(super) fn application(reader: &mut Reader<'_>) -> Result<PackagePolicyCallingPlan, Error> {
+pub(in crate::encoding::recovery) fn application(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyCallingPlan, Error> {
     Ok(PackagePolicyCallingPlan {
         boundary_trait: nominal(reader)?,
         boundary_arguments: reader.sequence(8, type_identity)?,

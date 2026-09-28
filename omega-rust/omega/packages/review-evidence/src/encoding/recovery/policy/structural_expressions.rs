@@ -5,16 +5,16 @@ use crate::record::{
     PackageReviewIntegerComparisonKind, PackageReviewStructuralParameterField,
     PackageReviewStructuralPredicatePathSegment,
 };
-mod scalars;
-mod tags;
+pub(in crate::encoding::recovery) mod scalars;
+pub(in crate::encoding::recovery) mod tags;
 #[cfg(test)]
-mod tests;
+pub(in crate::encoding::recovery) mod tests;
 
 use super::{Error, reader::Reader};
 use scalars::scalar_expression;
 use tags::primitive_type;
 
-pub(super) fn boolean_expression(
+pub(in crate::encoding::recovery) fn boolean_expression(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewBooleanExpression, Error> {
     reader.nested(|reader| {
@@ -82,7 +82,7 @@ pub(super) fn boolean_expression(
     })
 }
 
-fn structural_field(
+pub(in crate::encoding::recovery) fn structural_field(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewStructuralParameterField, Error> {
     Ok(PackageReviewStructuralParameterField {
@@ -91,7 +91,7 @@ fn structural_field(
     })
 }
 
-fn structural_path(
+pub(in crate::encoding::recovery) fn structural_path(
     reader: &mut Reader<'_>,
 ) -> Result<Vec<PackageReviewStructuralPredicatePathSegment>, Error> {
     reader.sequence(9, |reader| {

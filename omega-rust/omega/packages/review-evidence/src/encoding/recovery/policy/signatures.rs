@@ -4,13 +4,11 @@ use super::Error;
 use super::expressions::static_argument;
 use super::identity::{nominal, type_identity};
 use super::reader::Reader;
-#[cfg(test)]
 use super::{
     behavior::{crash_route, synchronous_invocation, termination},
     contracts::callable_contract,
 };
 use crate::record::{PackageReviewConformanceBound, PackageReviewDataProperties};
-#[cfg(test)]
 use crate::record::{
     PackageReviewMachineParameterContract, PackageReviewMachineParameterSignature,
     PackageReviewMachineParameterValue, PackageReviewPropositionParameterSignature,
@@ -18,8 +16,7 @@ use crate::record::{
     PackageReviewTypeParameterKind,
 };
 
-#[cfg(test)]
-pub(super) fn machine_contract(
+pub(in crate::encoding::recovery) fn machine_contract(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewMachineParameterContract, Error> {
     reader.nested(|reader| {
@@ -35,8 +32,7 @@ pub(super) fn machine_contract(
     })
 }
 
-#[cfg(test)]
-fn machine_signature(
+pub(in crate::encoding::recovery) fn machine_signature(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewMachineParameterSignature, Error> {
     Ok(PackageReviewMachineParameterSignature {
@@ -63,8 +59,9 @@ fn machine_signature(
     })
 }
 
-#[cfg(test)]
-pub(super) fn type_parameter(reader: &mut Reader<'_>) -> Result<PackageReviewTypeParameter, Error> {
+pub(in crate::encoding::recovery) fn type_parameter(
+    reader: &mut Reader<'_>,
+) -> Result<PackageReviewTypeParameter, Error> {
     let kind = match reader.byte()? {
         0 => PackageReviewTypeParameterKind::Type,
         1 => PackageReviewTypeParameterKind::Const(type_identity(reader)?),
@@ -90,7 +87,7 @@ pub(super) fn type_parameter(reader: &mut Reader<'_>) -> Result<PackageReviewTyp
     })
 }
 
-pub(super) fn conformance_bound(
+pub(in crate::encoding::recovery) fn conformance_bound(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewConformanceBound, Error> {
     let binder_ordinal = reader.option(|reader| reader.u32())?;
@@ -119,7 +116,7 @@ pub(super) fn conformance_bound(
     })
 }
 
-pub(super) fn data_properties(
+pub(in crate::encoding::recovery) fn data_properties(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewDataProperties, Error> {
     use language_semantics::{

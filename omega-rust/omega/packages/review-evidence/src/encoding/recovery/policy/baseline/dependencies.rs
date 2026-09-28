@@ -9,7 +9,7 @@ use crate::record::PackageReviewDangerousAuthoritySlack;
 use crate::record::PackageReviewSemanticDependencyExposure;
 use crate::record::PackageReviewSemanticDependencyKind;
 
-pub(super) fn dangerous_authority(
+pub(in crate::encoding::recovery) fn dangerous_authority(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewDangerousAuthority, Error> {
     Ok(PackageReviewDangerousAuthority {
@@ -18,7 +18,7 @@ pub(super) fn dangerous_authority(
     })
 }
 
-pub(super) fn slack(
+pub(in crate::encoding::recovery) fn slack(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewDangerousAuthoritySlack, Error> {
     Ok(PackageReviewDangerousAuthoritySlack {
@@ -28,7 +28,7 @@ pub(super) fn slack(
     })
 }
 
-pub(super) fn semantic_dependency(
+pub(in crate::encoding::recovery) fn semantic_dependency(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicySemanticDependency, Error> {
     Ok(PackagePolicySemanticDependency {
@@ -54,7 +54,9 @@ pub(super) fn semantic_dependency(
     })
 }
 
-fn authority_class(reader: &mut Reader<'_>) -> Result<PackageReviewDangerousAuthorityClass, Error> {
+pub(in crate::encoding::recovery) fn authority_class(
+    reader: &mut Reader<'_>,
+) -> Result<PackageReviewDangerousAuthorityClass, Error> {
     use PackageReviewDangerousAuthorityClass as Class;
     Ok(match reader.byte()? {
         0 => Class::Filesystem,

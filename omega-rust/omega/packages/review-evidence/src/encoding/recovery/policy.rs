@@ -5,27 +5,27 @@
 //! expression, identity, and behavior vocabulary without inspecting compiler
 //! representations or reconstructing proofs.
 
-mod baseline;
-mod behavior;
-mod callable_policy;
-mod calling_application;
-mod conformance;
-mod contracts;
-mod declarations;
-mod expressions;
-mod external;
-mod identity;
-mod intrinsic;
-mod physical_calling_policy;
-mod policy_recovery_accounting;
-mod public_api;
-mod reader;
-mod representation;
-mod selected_providers;
-mod signatures;
-mod structural_expressions;
-mod terminal_permissions;
-mod text;
+pub(in crate::encoding::recovery) mod baseline;
+pub(in crate::encoding::recovery) mod behavior;
+pub(in crate::encoding::recovery) mod callable_policy;
+pub(in crate::encoding::recovery) mod calling_application;
+pub(in crate::encoding::recovery) mod conformance;
+pub(in crate::encoding::recovery) mod contracts;
+pub(in crate::encoding::recovery) mod declarations;
+pub(in crate::encoding::recovery) mod expressions;
+pub(in crate::encoding::recovery) mod external;
+pub(in crate::encoding::recovery) mod identity;
+pub(in crate::encoding::recovery) mod intrinsic;
+pub(in crate::encoding::recovery) mod physical_calling_policy;
+pub(in crate::encoding::recovery) mod policy_recovery_accounting;
+pub(in crate::encoding::recovery) mod public_api;
+pub(in crate::encoding::recovery) mod reader;
+pub(in crate::encoding::recovery) mod representation;
+pub(in crate::encoding::recovery) mod selected_providers;
+pub(in crate::encoding::recovery) mod signatures;
+pub(in crate::encoding::recovery) mod structural_expressions;
+pub(in crate::encoding::recovery) mod terminal_permissions;
+pub(in crate::encoding::recovery) mod text;
 
 pub use text::PackagePolicyTextRecoveryLimits;
 #[cfg(test)]
