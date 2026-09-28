@@ -1,3 +1,8 @@
+//! Finite-family dispatch fixtures retain every demanded call. Their sums
+//! explicitly select Wrapping before addition and erase that policy afterward:
+//! the provider contract supplies no tighter result bound, and these tests
+//! exercise roster custody, not unrelated Exact arithmetic overflow.
+
 use super::{
     Arc, CheckedTrees, ProviderPlan, bind_fixture_fused_service_erasures, selected_every_plan,
     selected_plan, settle_selected_boundary_adapter_dispatch, typed_with_core_service,
@@ -20,11 +25,11 @@ const FAMILY_SETTLES: &str = r#"
         transition { _ -> (value) }
     }
     machine ScanProvider::direct() -> u64 {
-        transition { _ -> (ScanProvider::scan<16>(7) + ScanProvider::scan<32>(8)) }
+        transition { _ -> (((ScanProvider::scan<16>(7) as u64 in Wrapping) + (ScanProvider::scan<32>(8) as u64 in Wrapping)) as u64) }
     }
     data Client { service: Binding<Scanner>; }
     machine Client::run(&mut self) -> u64 reaches Scanner {
-        transition { _ -> (self.service.scan<16>(7) + self.service.scan<32>(8)) }
+        transition { _ -> (((self.service.scan<16>(7) as u64 in Wrapping) + (self.service.scan<32>(8) as u64 in Wrapping)) as u64) }
     }
 "#;
 
@@ -39,7 +44,7 @@ const CORRELATED_MISMATCH: &str = r#"
         transition { _ -> (value as u64) }
     }
     machine TableProvider::direct() -> u64 {
-        transition { _ -> (TableProvider::lookup<16, 4>(7) + TableProvider::lookup<32, 8>(8)) }
+        transition { _ -> (((TableProvider::lookup<16, 4>(7) as u64 in Wrapping) + (TableProvider::lookup<32, 8>(8) as u64 in Wrapping)) as u64) }
     }
     data Client { service: Binding<Table>; }
     machine Client::run(&mut self) -> u64 reaches Table {
@@ -122,7 +127,7 @@ const PARTIAL_COVERAGE: &str = r#"
         transition { _ -> (value as u64) }
     }
     machine ScanProvider::direct() -> u64 {
-        transition { _ -> (ScanProvider::scan<16>(7) + ScanProvider::scan<32>(8)) }
+        transition { _ -> (((ScanProvider::scan<16>(7) as u64 in Wrapping) + (ScanProvider::scan<32>(8) as u64 in Wrapping)) as u64) }
     }
     data Client { service: Binding<Scanner>; }
     machine Client::run(&mut self) -> u64 reaches Scanner {
@@ -246,6 +251,44 @@ fn inequality_ranges_do_not_enumerate() {
 }
 
 #[test]
+fn a_selected_family_settles_with_both_static_call_demands() {
+    let (checked, plans) = family_fixture(FAMILY_SETTLES, "Scanner");
+    let selected = selected_plan(&plans, "Scanner");
+    let scan = requirement_symbol(&checked, "scan");
+    let mut settled = Arc::new(checked);
+    settle_selected_boundary_adapter_dispatch(&mut settled, &selected)
+        .expect("the intact fixture settles before any roster mutation");
+    let rows = family_rows(&settled, scan);
+    let mut receivers = Vec::new();
+    for row in &rows {
+        if !receivers.contains(&row.receiver) {
+            receivers.push(row.receiver);
+        }
+    }
+    assert!(
+        !receivers.is_empty(),
+        "the fixture retains its boundary receivers"
+    );
+    // Dispatch is keyed by receiver as well as requirement and tuple.
+    for receiver in receivers {
+        let mut tuples = rows
+            .iter()
+            .filter(|row| row.receiver == receiver)
+            .map(|row| row.family_tuple.as_ref().to_vec())
+            .collect::<Vec<_>>();
+        tuples.sort();
+        assert_eq!(
+            tuples,
+            vec![
+                vec!["named(integer-const(16))".to_owned()],
+                vec!["named(integer-const(32))".to_owned()],
+            ],
+            "both demanded tuples retain exactly one dispatch row per receiver",
+        );
+    }
+}
+
+#[test]
 fn a_selected_family_settles_without_any_static_call_demand() {
     // Nothing statically calls either roster tuple; the selected adapter row
     // commits to the complete family anyway, so checking generates both.
@@ -317,7 +360,7 @@ const OFF_ROSTER_WIDTH: &str = r#"
         transition { _ -> (value as u64) }
     }
     machine ScanProvider::direct() -> u64 {
-        transition { _ -> (ScanProvider::scan<16>(7) + ScanProvider::scan<32>(8) + ScanProvider::scan<64>(9)) }
+        transition { _ -> (((ScanProvider::scan<16>(7) as u64 in Wrapping) + (ScanProvider::scan<32>(8) as u64 in Wrapping) + (ScanProvider::scan<64>(9) as u64 in Wrapping)) as u64) }
     }
     data Client { service: Binding<Scanner>; }
     machine Client::run(&mut self) -> u64 reaches Scanner {
@@ -346,7 +389,7 @@ const SIBLING_PROVIDERS: &str = r#"
         transition { _ -> (value as u64) }
     }
     machine ReserveProvider::direct() -> u64 {
-        transition { _ -> (ReserveProvider::scan<16>(7) + ReserveProvider::scan<32>(8)) }
+        transition { _ -> (((ReserveProvider::scan<16>(7) as u64 in Wrapping) + (ReserveProvider::scan<32>(8) as u64 in Wrapping)) as u64) }
     }
     data Client { service: Binding<Scanner>; }
     machine Client::run(&mut self) -> u64 reaches Scanner {
@@ -546,7 +589,7 @@ const FAMILY_VALUE_BINDER_RUNTIME_ARGUMENT: &str = r#"
         transition { _ -> (value as u64) }
     }
     machine ScanProvider::direct() -> u64 {
-        transition { _ -> (ScanProvider::scan<16>(7) + ScanProvider::scan<32>(8)) }
+        transition { _ -> (((ScanProvider::scan<16>(7) as u64 in Wrapping) + (ScanProvider::scan<32>(8) as u64 in Wrapping)) as u64) }
     }
     data Client { service: Binding<Scanner>; }
     machine Client::run(&mut self, width: u32) -> u64 reaches Scanner {
@@ -593,7 +636,7 @@ const FAMILY_VALUE_BINDER_OFF_ROSTER: &str = r#"
         transition { _ -> (value as u64) }
     }
     machine ScanProvider::direct() -> u64 {
-        transition { _ -> (ScanProvider::scan<16>(7) + ScanProvider::scan<32>(8) + ScanProvider::scan<64>(9)) }
+        transition { _ -> (((ScanProvider::scan<16>(7) as u64 in Wrapping) + (ScanProvider::scan<32>(8) as u64 in Wrapping) + (ScanProvider::scan<64>(9) as u64 in Wrapping)) as u64) }
     }
     data Client { service: Binding<Scanner>; }
     machine Client::run(&mut self) -> u64 reaches Scanner {
