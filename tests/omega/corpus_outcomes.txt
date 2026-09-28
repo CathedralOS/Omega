@@ -868,6 +868,7 @@ pass/targets/single_target_internal_machine_skipped checked 1679ms
 pass/targets/single_target_internal_package_same_target_caller checked 931ms
 pass/targets/single_target_internal_same_target_caller checked 577ms
 pass/targets/sysv_mixed_aggregate_entry checked 1434ms
+pass/targets/target_body_call_contracts_exit checked 363ms @67e9a4ce9179+wt
 pass/targets/target_machine_gating_exit checked 1843ms
 pass/tasks/task_runtime_machine_selection_compile checked 363ms
 pass/terminal_psi/content_custody_exit checked 365ms

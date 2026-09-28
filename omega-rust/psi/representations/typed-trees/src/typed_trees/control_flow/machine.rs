@@ -7,6 +7,8 @@ use arena::HandleSpan;
 use language_core::operator_spelling::OperatorSpelling;
 use symbols::SymbolHandle;
 
+mod references;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Machine {
     pub symbol: SymbolHandle,
