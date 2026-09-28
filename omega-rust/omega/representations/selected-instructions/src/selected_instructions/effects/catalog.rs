@@ -13,7 +13,7 @@ use register_model::ValidatedRegisterConstraintCatalog;
 
 use validation::validate_declaration;
 
-use crate::{SaturatingCarrier, SelectedConstraintKeys, TrappingForm};
+use crate::{AtomicForm, SaturatingCarrier, SelectedConstraintKeys, TrappingForm};
 pub use identity::{
     MachineIdentityBytes, alternative_family_tag, encode_machine_alternative_identity,
     encode_machine_alternative_key_identity, encode_machine_encoded_effects_identity,
@@ -175,13 +175,14 @@ pub enum MachineSemanticKind {
     /// One `Trapping` primitive at one carrier: the exact result, or an
     /// in-function architectural trap when the policy predicate holds.
     TrappingInteger(TrappingForm),
+    AtomicAccess(AtomicForm),
 }
 
 impl MachineSemanticKind {
     /// Every semantic in canonical declaration order: the fixed roster, then
     /// every Trapping form in its dense ordinal (and derived) order.
-    pub const ALL: [Self; Self::FIXED.len() + TrappingForm::COUNT] = {
-        let mut all = [Self::Crash; Self::FIXED.len() + TrappingForm::COUNT];
+    pub const ALL: [Self; Self::FIXED.len() + TrappingForm::COUNT + AtomicForm::COUNT] = {
+        let mut all = [Self::Crash; Self::FIXED.len() + TrappingForm::COUNT + AtomicForm::COUNT];
         let mut index = 0;
         while index < Self::FIXED.len() {
             all[index] = Self::FIXED[index];
@@ -191,6 +192,12 @@ impl MachineSemanticKind {
         while form < TrappingForm::COUNT {
             all[Self::FIXED.len() + form] = Self::TrappingInteger(TrappingForm::ALL[form]);
             form += 1;
+        }
+        let mut atomic = 0;
+        while atomic < AtomicForm::COUNT {
+            all[Self::FIXED.len() + TrappingForm::COUNT + atomic] =
+                Self::AtomicAccess(AtomicForm::ALL[atomic]);
+            atomic += 1;
         }
         all
     };
@@ -318,6 +325,7 @@ impl MachineSemanticKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MachineAlternativeFamily {
+    AtomicAccess(AtomicForm),
     Crash,
     CopyBytes,
     BitwiseAndI64,
@@ -498,6 +506,7 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::ExactRemainderI64 => Self::ExactRemainderI64,
             MachineSemanticKind::SaturatingMultiply(carrier) => Self::SaturatingMultiply(carrier),
             MachineSemanticKind::TrappingInteger(form) => Self::TrappingInteger(form),
+            MachineSemanticKind::AtomicAccess(form) => Self::AtomicAccess(form),
         }
     }
 }
@@ -541,6 +550,8 @@ pub enum MachineAlternativeApplicability {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineMemoryEffect {
+    /// The semantic form owns one indivisible sequentially consistent access.
+    AtomicPointerV1,
     /// Reads source and writes destination for the explicit runtime count.
     CopyBytesV1,
     /// Initialize an eight-byte structural home and read stdin into its i32 payload.
@@ -667,6 +678,12 @@ impl MachineEncodedEffects {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineEncodedMemoryEffect {
+    /// Exact atomic width, operation and observed-value contract. Ordinary
+    /// pointer read/write effects cannot substitute for this event.
+    AtomicPointerV1 {
+        pointer_operand: u16,
+        form: AtomicForm,
+    },
     CopyBytesV1 {
         source_pointer_operand: u16,
         destination_pointer_operand: u16,

@@ -155,6 +155,10 @@ pub fn target_register_environment_identity(
     bytes.extend_from_slice(&constraints.identity().bytes());
     bytes.extend_from_slice(&reservations.identity().bytes());
     for key in [
+        selected_keys.atomic_load,
+        selected_keys.atomic_store,
+        selected_keys.atomic_update,
+        selected_keys.atomic_compare_exchange,
         selected_keys.load64,
         selected_keys.load_packed,
         selected_keys.store_packed,

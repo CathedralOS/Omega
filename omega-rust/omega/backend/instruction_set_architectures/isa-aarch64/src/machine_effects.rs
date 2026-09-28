@@ -58,6 +58,11 @@ pub fn aarch64_machine_effect_catalog(
             .declaration_keys()
             .into_iter()
             .map(|(semantic, constraint)| {
+                if let MachineSemanticKind::AtomicAccess(form) = semantic {
+                    return Ok(crate::selected_form_encoding::atomic::declaration(
+                        form, constraint,
+                    ));
+                }
                 if semantic == MachineSemanticKind::Crash {
                     return Ok(crate::selected_form_encoding::crash::declaration(
                         constraints
@@ -235,6 +240,15 @@ fn selected_keys(
         Aarch64SelectedAbi::Darwin => AARCH64_DARWIN_RETURN_UNIT,
     };
     Ok(SelectedConstraintKeys {
+        // Apple's arm64 macOS baseline is Apple Silicon (M1 or later),
+        // which includes FEAT_LSE. Generic AArch64/ELF does not promise it.
+        atomic_load: (target == NativeTarget::macos_arm64()).then_some(crate::AARCH64_ATOMIC_LOAD),
+        atomic_store: (target == NativeTarget::macos_arm64())
+            .then_some(crate::AARCH64_ATOMIC_STORE),
+        atomic_update: (target == NativeTarget::macos_arm64())
+            .then_some(crate::AARCH64_ATOMIC_UPDATE),
+        atomic_compare_exchange: (target == NativeTarget::macos_arm64())
+            .then_some(crate::AARCH64_ATOMIC_COMPARE_EXCHANGE),
         crash: crate::AARCH64_CRASH,
         copy_bytes: Some(crate::AARCH64_COPY_BYTES),
         save_floating_control: Some(crate::AARCH64_SAVE_FLOATING_CONTROL),
@@ -433,6 +447,9 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
             .id
     };
     let (reads, writes) = match semantic {
+        MachineSemanticKind::AtomicAccess(form) => {
+            return crate::selected_form_encoding::atomic::effects(form);
+        }
         MachineSemanticKind::Crash => (Vec::new(), Vec::new()),
         MachineSemanticKind::CopyBytes => (vec![0, 1, 2], vec![3, 4]),
         MachineSemanticKind::LoadPacked3

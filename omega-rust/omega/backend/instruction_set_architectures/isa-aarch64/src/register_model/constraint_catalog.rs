@@ -860,6 +860,31 @@ pub fn aarch64_register_constraint_catalog(
         });
     }
     mixed_calls::append_constraints(&mut constraints, model);
+    // Atomic forms preserve all incoming values. The observed-prior output
+    // may temporarily hold a transformed operand or CAS expected value.
+    for (key, inputs, observes) in [
+        (crate::AARCH64_ATOMIC_LOAD, 1, true),
+        (crate::AARCH64_ATOMIC_STORE, 2, false),
+        (crate::AARCH64_ATOMIC_UPDATE, 2, true),
+        (crate::AARCH64_ATOMIC_COMPARE_EXCHANGE, 3, true),
+    ] {
+        let mut operands = (0..inputs)
+            .map(|operand| allocatable(operand, RegisterOperandAccess::Use, GPR64))
+            .collect::<Vec<_>>();
+        if observes {
+            let mut output = allocatable(inputs, RegisterOperandAccess::Def, GPR64);
+            output.early_clobber = true;
+            operands.push(output);
+        }
+        constraints.push(RegisterInstructionConstraint {
+            id: RegisterConstraintId(0),
+            key,
+            operands,
+            implicit_uses: Vec::new(),
+            implicit_defs: Vec::new(),
+            clobbers: Vec::new(),
+        });
+    }
     mixed_calls::append_normalized_foreign_constraints(&mut constraints, model);
     float_scalar_calls::append_constraints(&mut constraints, model);
     indirect_results::append_constraints(&mut constraints, model);

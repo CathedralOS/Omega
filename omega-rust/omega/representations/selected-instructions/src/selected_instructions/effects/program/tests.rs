@@ -28,6 +28,53 @@ use target::NativeTarget;
 use super::encoding::*;
 
 #[test]
+fn atomic_codec_retains_operation_width_ordering_effect_and_observed_result() {
+    for form in crate::AtomicForm::ALL {
+        let mut source = plan();
+        let instruction = &mut source.functions[0].blocks[0].instructions[0];
+        instruction.kind = SelectedInstructionKind::AtomicAccess { form };
+        instruction.memory = MachineMemoryEffect::AtomicPointerV1;
+        instruction.trap = MachineTrapBehavior::MayArchitecturalFaultV1;
+        instruction.barrier = MachineBarrier::ExternalEffect;
+        instruction.alternatives.truncate(1);
+        instruction.alternatives[0].key.family = MachineAlternativeFamily::AtomicAccess(form);
+        let mut encoded = MachineEncodedEffects::fallthrough_v1(
+            (0..form.operation.input_count()).collect(),
+            form.observed_operand().into_iter().collect(),
+        );
+        encoded.memory = MachineEncodedMemoryEffect::AtomicPointerV1 {
+            pointer_operand: 0,
+            form,
+        };
+        encoded.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
+        instruction.alternatives[0].encoded = encoded;
+        source.identity = pre_allocation_machine_effect_identity(&source);
+        assert_eq!(
+            PreAllocationMachineEffectPlan::decode(&source.encode()),
+            Ok(source.clone())
+        );
+        for mutation in 0..4 {
+            let mut changed = source.clone();
+            let instruction = &mut changed.functions[0].blocks[0].instructions[0];
+            match mutation {
+                0 => instruction.kind = SelectedInstructionKind::CopyI64,
+                1 => instruction.memory = MachineMemoryEffect::ReadPointerV1,
+                2 => instruction.barrier = MachineBarrier::None,
+                _ => instruction.alternatives[0]
+                    .encoded
+                    .external_operand_reads
+                    .clear(),
+            }
+            assert_ne!(
+                pre_allocation_machine_effect_identity(&changed),
+                source.identity
+            );
+            assert!(PreAllocationMachineEffectPlan::decode(&changed.encode()).is_err());
+        }
+    }
+}
+
+#[test]
 fn byte_copy_effect_codec_binds_dynamic_span_and_scratch_effects() {
     let mut source = plan();
     let instruction = &mut source.functions[0].blocks[0].instructions[0];
@@ -805,7 +852,7 @@ fn jump_effects_require_the_current_wire_vocabulary() {
         MachineEncodedControlEffect::UnconditionalRelativeBranchV1;
     source.identity = pre_allocation_machine_effect_identity(&source);
     let mut bytes = source.encode();
-    assert_eq!(&bytes[8..12], &27_u32.to_le_bytes());
+    assert_eq!(&bytes[8..12], &28_u32.to_le_bytes());
     assert_eq!(
         PreAllocationMachineEffectPlan::decode(&bytes).unwrap(),
         source
@@ -843,7 +890,7 @@ fn codec_zero_extension_round_trips_and_rejects_all_prior_versions() {
         PreAllocationMachineEffectPlan::decode(&encoded).unwrap(),
         source
     );
-    for version in 0_u32..27 {
+    for version in 0_u32..28 {
         let mut stale = encoded.clone();
         stale[8..12].copy_from_slice(&version.to_le_bytes());
         assert_eq!(

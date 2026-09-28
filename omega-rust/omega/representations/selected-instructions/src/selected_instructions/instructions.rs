@@ -20,6 +20,12 @@ pub struct SelectedInstruction {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedInstructionKind {
+    /// An indivisible sequentially consistent access. Address is operand 0;
+    /// value inputs follow it, then the observed prior (absent for Store).
+    /// Input registers are preserved; the observed output is early-clobber.
+    AtomicAccess {
+        form: super::AtomicForm,
+    },
     /// Unconditional trap realizing the exact semantic Crash terminator.
     Crash,
     /// Copy exactly count bytes between disjoint valid ranges. Inputs 0/1/2

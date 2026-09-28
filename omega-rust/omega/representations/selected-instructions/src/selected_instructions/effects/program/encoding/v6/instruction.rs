@@ -34,6 +34,7 @@ pub(super) fn decode_instruction(
         7 => MachineMemoryEffect::ReadFrameStorageV1,
         6 => MachineMemoryEffect::CopyBytesV1,
         4 => MachineMemoryEffect::WritePointerV1,
+        8 => MachineMemoryEffect::AtomicPointerV1,
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     };
     let trap = match cursor.byte()? {
@@ -101,6 +102,12 @@ fn decode_kind(
     allow_jump: bool,
 ) -> Result<SelectedInstructionKind, PreAllocationMachineEffectDecodeError> {
     Ok(match cursor.byte()? {
+        tag if crate::AtomicForm::from_machine_tag(tag).is_some() => {
+            SelectedInstructionKind::AtomicAccess {
+                form: crate::AtomicForm::from_machine_tag(tag)
+                    .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+            }
+        }
         24 => {
             let byte_offset = cursor.u32()?;
             let byte_size = cursor.byte()?;
@@ -455,6 +462,12 @@ fn decode_alternative_for_version(
     allow_jump: bool,
 ) -> Result<MachineAlternative, PreAllocationMachineEffectDecodeError> {
     let family = match cursor.byte()? {
+        tag if crate::AtomicForm::from_machine_tag(tag).is_some() => {
+            MachineAlternativeFamily::AtomicAccess(
+                crate::AtomicForm::from_machine_tag(tag)
+                    .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+            )
+        }
         0 => MachineAlternativeFamily::CompareI64Zero,
         1 => MachineAlternativeFamily::MaterializeI64,
         59 => MachineAlternativeFamily::CopyBytes,
@@ -624,6 +637,11 @@ fn decode_encoded_effects(
     let implicit_unit_defs = decode_units(cursor)?;
     let implicit_unit_clobbers = decode_units(cursor)?;
     let memory = match cursor.byte()? {
+        11 => MachineEncodedMemoryEffect::AtomicPointerV1 {
+            pointer_operand: cursor.u16()?,
+            form: crate::AtomicForm::from_ordinal(cursor.byte()?)
+                .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+        },
         8 => MachineEncodedMemoryEffect::HostedReadByteV1 {
             stack_pointer: register_model::RegisterViewId(cursor.u16()?),
         },

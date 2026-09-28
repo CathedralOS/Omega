@@ -50,8 +50,12 @@ pub fn validate_aarch64_selected_form_encoding(
     validate_request(physical, kind, alternative, operands)?;
     let registers = resolve_scalar_registers(physical, kind, operands)?;
     validate_return_home(kind, &registers)?;
-    let decoded = decode_words(bytes)?;
-    validate_decoded(kind, &registers, &decoded)?;
+    if let SelectedInstructionKind::AtomicAccess { form } = kind {
+        super::atomic::validate(form, &registers, bytes)?;
+    } else {
+        let decoded = decode_words(bytes)?;
+        validate_decoded(kind, &registers, &decoded)?;
+    }
     let canonical = encode_unchecked(kind, &registers)?;
     if bytes != canonical {
         return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
@@ -85,6 +89,10 @@ fn family_and_operand_count(
     kind: SelectedInstructionKind,
 ) -> Result<(MachineAlternativeFamily, usize), Aarch64SelectedFormEncodingError> {
     Ok(match kind {
+        SelectedInstructionKind::AtomicAccess { form } => (
+            MachineAlternativeFamily::AtomicAccess(form),
+            usize::from(form.operand_count()),
+        ),
         SelectedInstructionKind::Crash => (MachineAlternativeFamily::Crash, 0),
         SelectedInstructionKind::TrappingInteger { form } => (
             MachineAlternativeFamily::TrappingInteger(form),
@@ -350,6 +358,9 @@ fn encode_unchecked(
 ) -> Result<Vec<u8>, Aarch64SelectedFormEncodingError> {
     let mut words = Vec::new();
     match kind {
+        SelectedInstructionKind::AtomicAccess { form } => {
+            return super::atomic::encode(form, registers);
+        }
         SelectedInstructionKind::Crash => words.push(0xd420_0000),
         SelectedInstructionKind::TrappingInteger { form } => {
             // The result and scratch are early-clobber outputs: each is

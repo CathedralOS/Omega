@@ -456,6 +456,9 @@ pub(crate) fn encode_unchecked(
 ) -> Result<Vec<u8>, X86_64SelectedFormEncodingError> {
     let mut bytes = Vec::new();
     match kind {
+        SelectedInstructionKind::AtomicAccess { .. } => {
+            return Err(X86_64SelectedFormEncodingError::UnsupportedAtomicForm);
+        }
         SelectedInstructionKind::Crash => bytes.extend_from_slice(&[0x0f, 0x0b]),
         SelectedInstructionKind::MaterializeI64 { value } => {
             bytes.extend([0x48 | (registers[0] >> 3), 0xb8 | (registers[0] & 7)]);

@@ -250,6 +250,10 @@ fn selected_keys(
         X86_64SelectedAbi::Microsoft => X86_64_MICROSOFT_RETURN_UNIT,
     };
     Ok(SelectedConstraintKeys {
+        atomic_load: None,
+        atomic_store: None,
+        atomic_update: None,
+        atomic_compare_exchange: None,
         crash: crate::X86_64_CRASH,
         load_packed: Some(crate::X86_64_LOAD_PACKED),
         store_packed: Some(crate::X86_64_STORE_PACKED),
@@ -581,6 +585,12 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
             .id
     };
     let (reads, writes) = match semantic {
+        // No x86 atomic constraint is admitted yet. Keep hypothetical
+        // effects explicit; canonical catalog validation rejects this row.
+        MachineSemanticKind::AtomicAccess(form) => (
+            (0..form.operation.input_count()).collect(),
+            form.observed_operand().into_iter().collect(),
+        ),
         MachineSemanticKind::Crash => (Vec::new(), Vec::new()),
         MachineSemanticKind::CompareI64Zero => (vec![0], vec![]),
         MachineSemanticKind::CompareI64Immediate => (vec![0], vec![]),
@@ -848,6 +858,10 @@ fn saturating_form(semantic: MachineSemanticKind, carrier: SaturatingCarrier) ->
 
 fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
     match semantic {
+        MachineSemanticKind::AtomicAccess(_) => MachineSizeKnowledge::EncoderResolved {
+            minimum_bytes: 1,
+            maximum_bytes: None,
+        },
         MachineSemanticKind::Crash => MachineSizeKnowledge::ExactBytes(2),
         MachineSemanticKind::MaterializeBooleanEqual
         | MachineSemanticKind::MaterializeBooleanU64LessThan

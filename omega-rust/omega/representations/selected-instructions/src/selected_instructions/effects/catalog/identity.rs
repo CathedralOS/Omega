@@ -38,10 +38,14 @@ pub fn machine_effect_catalog_identity(
     catalog: &MachineEffectCatalog,
 ) -> MachineEffectCatalogIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v28\0");
+    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v29\0");
     encode_target(&mut bytes, catalog.target);
     bytes.extend_from_slice(&catalog.register_constraints.bytes());
     for key in [
+        catalog.selected_keys.atomic_load,
+        catalog.selected_keys.atomic_store,
+        catalog.selected_keys.atomic_update,
+        catalog.selected_keys.atomic_compare_exchange,
         catalog.selected_keys.copy_bytes,
         catalog.selected_keys.hosted_read_byte,
         catalog.selected_keys.hosted_write_byte_i32,
@@ -87,6 +91,7 @@ pub fn machine_effect_catalog_identity(
         // with an older catalog identity.
         bytes.push(match declaration.memory {
             crate::MachineMemoryEffect::CopyBytesV1 => 6,
+            crate::MachineMemoryEffect::AtomicPointerV1 => 8,
             crate::MachineMemoryEffect::NoneV1 => 0,
             crate::MachineMemoryEffect::ReadPointerV1 => 1,
             crate::MachineMemoryEffect::HostedReadByteV1 => 5,
@@ -268,6 +273,14 @@ pub fn encode_machine_encoded_effects_identity<Sink: MachineIdentityBytes + ?Siz
         MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand } => {
             bytes.identity_bytes(&[7]);
             bytes.identity_bytes(&pointer_operand.to_le_bytes());
+        }
+        MachineEncodedMemoryEffect::AtomicPointerV1 {
+            pointer_operand,
+            form,
+        } => {
+            bytes.identity_bytes(&[11]);
+            bytes.identity_bytes(&pointer_operand.to_le_bytes());
+            bytes.identity_bytes(&[form.ordinal()]);
         }
         MachineEncodedMemoryEffect::ReadPointerV1 {
             pointer_operand,
@@ -511,6 +524,7 @@ pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
             saturating_family_tag(SaturatingOperation::Multiply, carrier)
         }
         MachineSemanticKind::TrappingInteger(form) => trapping_family_tag(form),
+        MachineSemanticKind::AtomicAccess(form) => form.machine_tag(),
     }
 }
 
@@ -622,6 +636,7 @@ pub const fn alternative_family_tag(family: MachineAlternativeFamily) -> u8 {
             saturating_family_tag(SaturatingOperation::Multiply, carrier)
         }
         MachineAlternativeFamily::TrappingInteger(form) => trapping_family_tag(form),
+        MachineAlternativeFamily::AtomicAccess(form) => form.machine_tag(),
     }
 }
 

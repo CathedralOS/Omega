@@ -15,7 +15,9 @@
 //! roster and shares unchanged functions instead of duplicating their blocks,
 //! instructions and register tables. Wire identities still describe contents.
 
+mod atomic;
 pub mod calls;
+pub use atomic::{AtomicForm, AtomicOperation, AtomicWidth};
 pub mod constraints;
 pub mod control_flow;
 mod functions;
