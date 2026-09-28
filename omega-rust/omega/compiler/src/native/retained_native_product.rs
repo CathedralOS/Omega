@@ -74,55 +74,28 @@ pub fn realize_retained_native_artifact(
         proposal
             .validate_for_artifact(&artifact)
             .map_err(|message| diagnostic("Terminal native proposal", message))?;
-        // The image request is bound to the retained artifact's build
-        // metadata: a caller cannot substitute a different loader word or
-        // signing identity than the ones the build evaluated. An omitted
-        // request identifier inherits the retained authored identity, so the
-        // metadata follows the artifact across invocations
-        // (wiki/spec/build/macos_application.md).
         let mut image_request = image_request;
-        if let crate::native::ExecutableImageEmissionRequest::Direct {
-            subsystem,
-            code_signature_identifier,
-        } = &mut image_request
-        {
-            if *subsystem != proposal.subsystem() {
-                return Err(diagnostic(
-                    "Terminal native proposal",
-                    "image request subsystem differs from the retained build subsystem",
-                ));
-            }
-            if let (Some(retained), Some(requested)) = (
-                proposal.application_identifier(),
-                code_signature_identifier.as_deref(),
-            ) && requested != retained.as_str()
-            {
-                return Err(diagnostic(
-                    "Terminal native proposal",
-                    "image request code signature identifier differs from the retained build identifier",
-                ));
-            }
-            if let Some(retained) = proposal.application_identifier()
-                && code_signature_identifier.is_none()
-            {
-                *code_signature_identifier = Some(retained.as_str().to_owned());
-            }
-        }
-        // Signed macOS GUI image emission requires the authored identifier;
-        // absence is an early realization configuration error, not a
-        // source-semantic rejection.
-        if proposal.native_target().object_format == target::ObjectFormat::MachO
-            && matches!(
+        image_request
+            .settle_application_metadata(
+                proposal.native_target(),
                 proposal.application_intent(),
-                Some(build_evaluation::HostedApplicationIntent::Gui)
+                proposal.subsystem(),
+                proposal.application_identifier(),
             )
-            && image_request.code_signature_identifier().is_none()
-        {
-            return Err(diagnostic(
-                "Terminal native proposal",
-                "signed macOS GUI image emission requires the retained build identifier",
-            ));
-        }
+            .map_err(|error| {
+                use image_emission::ImageApplicationMetadataError;
+                diagnostic(
+                    "Terminal native proposal",
+                    match error {
+                        ImageApplicationMetadataError::SubsystemMismatch =>
+                            "image request subsystem differs from the retained build subsystem",
+                        ImageApplicationMetadataError::IdentifierMismatch =>
+                            "image request code signature identifier differs from the retained build identifier",
+                        ImageApplicationMetadataError::MissingGuiIdentifier =>
+                            "signed macOS GUI image emission requires the retained build identifier",
+                    },
+                )
+            })?;
         // Proposal validation rejoins each IEEE comparison to its exact selected
         // intrinsic and checked arm/expression occurrence. The ordinary graph
         // lowering preserves that operation identity into the D29 physical child;

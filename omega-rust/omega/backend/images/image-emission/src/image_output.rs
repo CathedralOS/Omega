@@ -8,6 +8,9 @@
 //! and invokes independent final-image replay before returning. Nothing here
 //! constructs machine code or installation authority.
 
+mod application_metadata;
+pub use application_metadata::ImageApplicationMetadataError;
+
 use diagnostics::Diagnostic;
 use image::{EmittedImageOutput, FinalImageInput, emitted_direct_executable_output};
 use object_file::{ObjectContainerInput, ObjectContainerOutput, emit_omega_object_container};

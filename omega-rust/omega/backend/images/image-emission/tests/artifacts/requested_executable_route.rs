@@ -13,12 +13,13 @@
 
 use super::{WriteExitProvider, linux_foreign_call_plan, port_effect_plan, two_function_plan};
 use image_emission::{
-    ExecutableImageEmissionRequest, RequestedExecutableImage, RequestedExecutableImageError,
-    build_object_artifact, emit_admitted_dynamic_elf_image, emit_direct_executable_image,
-    emit_dynamic_elf_image, emit_executable_image, validate_dynamic_elf_image_emission,
-    validate_executable_image, validate_requested_dynamic_elf_image,
+    ExecutableImageEmissionRequest, ImageApplicationMetadataError, RequestedExecutableImage,
+    RequestedExecutableImageError, build_object_artifact, emit_admitted_dynamic_elf_image,
+    emit_direct_executable_image, emit_dynamic_elf_image, emit_executable_image,
+    validate_dynamic_elf_image_emission, validate_executable_image,
+    validate_requested_dynamic_elf_image,
 };
-use target::{NativeTarget, TargetProfile};
+use target::{ApplicationIdentifier, HostedApplicationIntent, NativeTarget, TargetProfile};
 
 fn interpreter() -> target::NormalizedElfInterpreterPlan {
     target::normalize_elf_interpreter_plan(
@@ -248,12 +249,17 @@ fn direct_request_binds_subsystem_only_into_pe_output() {
 #[test]
 fn direct_request_binds_code_signature_identifier_into_macho_output() {
     let artifact = macos_object();
-    let image = emit_executable_image(
-        &artifact,
-        ExecutableImageEmissionRequest::direct(0)
-            .with_code_signature_identifier(Some("com.example.receiver".to_string())),
-    )
-    .expect("signed Mach-O image");
+    let identifier = ApplicationIdentifier::new(b"com.example.receiver").unwrap();
+    let mut request = ExecutableImageEmissionRequest::direct(0);
+    request
+        .settle_application_metadata(
+            artifact.target(),
+            Some(HostedApplicationIntent::Gui),
+            0,
+            Some(&identifier),
+        )
+        .expect("application identity is inherited before signing");
+    let image = emit_executable_image(&artifact, request).expect("signed Mach-O image");
     let RequestedExecutableImage::Direct(direct) = &image else {
         panic!("a Mach-O object must produce direct custody");
     };
@@ -278,6 +284,109 @@ fn direct_request_binds_code_signature_identifier_into_macho_output() {
     );
     validate_executable_image(&artifact, &image)
         .expect("the signed image replays against its exact object");
+}
+
+#[test]
+fn application_metadata_rejects_substituted_subsystem_and_identifier() {
+    let identifier = ApplicationIdentifier::new(b"com.example.receiver").unwrap();
+    let mut request = ExecutableImageEmissionRequest::direct(3)
+        .with_code_signature_identifier(Some("com.example.other".to_owned()));
+    assert_eq!(
+        request.settle_application_metadata(
+            NativeTarget::macos_arm64(),
+            Some(HostedApplicationIntent::Gui),
+            2,
+            Some(&identifier),
+        ),
+        Err(ImageApplicationMetadataError::SubsystemMismatch),
+        "loader metadata is checked before the signing identity",
+    );
+    assert_eq!(
+        request.settle_application_metadata(
+            NativeTarget::macos_arm64(),
+            Some(HostedApplicationIntent::Gui),
+            3,
+            Some(&identifier),
+        ),
+        Err(ImageApplicationMetadataError::IdentifierMismatch),
+    );
+    assert_eq!(
+        request.code_signature_identifier(),
+        Some("com.example.other")
+    );
+    let mut exact = ExecutableImageEmissionRequest::direct(3)
+        .with_code_signature_identifier(Some(identifier.as_str().to_owned()));
+    exact
+        .settle_application_metadata(
+            NativeTarget::macos_arm64(),
+            Some(HostedApplicationIntent::Gui),
+            3,
+            Some(&identifier),
+        )
+        .expect("an explicit exact identity remains valid");
+}
+
+#[test]
+fn application_metadata_requires_identity_only_for_macho_gui() {
+    for target in [NativeTarget::macos_arm64(), NativeTarget::macos_x64()] {
+        let mut request = ExecutableImageEmissionRequest::direct(2);
+        assert_eq!(
+            request.settle_application_metadata(
+                target,
+                Some(HostedApplicationIntent::Gui),
+                2,
+                None
+            ),
+            Err(ImageApplicationMetadataError::MissingGuiIdentifier),
+        );
+        for intent in [None, Some(HostedApplicationIntent::Console)] {
+            request
+                .settle_application_metadata(target, intent, 2, None)
+                .expect("a raw PE GUI word does not imply hosted GUI intent");
+            assert_eq!(request.code_signature_identifier(), None);
+        }
+        request = request.with_code_signature_identifier(Some("com.example.consumer".to_owned()));
+        request
+            .settle_application_metadata(target, Some(HostedApplicationIntent::Gui), 2, None)
+            .expect("a consumer may supply an identity when the retained application omitted it");
+    }
+    for target in [NativeTarget::windows_x64(), NativeTarget::linux_x64()] {
+        ExecutableImageEmissionRequest::direct(2)
+            .settle_application_metadata(target, Some(HostedApplicationIntent::Gui), 2, None)
+            .expect("non-Mach-O GUI output needs no signing identity");
+    }
+}
+
+#[test]
+fn application_metadata_preserves_dynamic_interpreter_on_success_and_refusal() {
+    let expected = interpreter();
+    let identifier = ApplicationIdentifier::new(b"com.example.receiver").unwrap();
+    let mut request = ExecutableImageEmissionRequest::dynamic_elf(expected.clone());
+    request
+        .settle_application_metadata(
+            NativeTarget::linux_x64(),
+            Some(HostedApplicationIntent::Gui),
+            2,
+            Some(&identifier),
+        )
+        .expect("dynamic ELF has no subsystem or signing metadata to substitute");
+    assert_eq!(request.code_signature_identifier(), None);
+    assert_eq!(
+        request.settle_application_metadata(
+            NativeTarget::macos_arm64(),
+            Some(HostedApplicationIntent::Gui),
+            2,
+            Some(&identifier),
+        ),
+        Err(ImageApplicationMetadataError::MissingGuiIdentifier),
+    );
+    let ExecutableImageEmissionRequest::DynamicElf { interpreter } = request else {
+        panic!("metadata settlement cannot change the image request variant");
+    };
+    assert_eq!(
+        interpreter, expected,
+        "refusal retains exact loader custody"
+    );
 }
 
 #[test]

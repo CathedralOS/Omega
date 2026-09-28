@@ -1,5 +1,14 @@
-//! Validated deployment identity shared by build extraction and publication.
+//! Application presentation and deployment identity shared by Build and images.
 //! No source, Build value, signing, or filesystem operations belong here.
+
+/// Portable presentation requested by the authored Console or Gui case.
+/// This does not select an execution environment or enable bundle publication
+/// independently of the selected target and requested output product.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HostedApplicationIntent {
+    Console,
+    Gui,
+}
 
 /// The authored application identifier: it supplies the GUI CodeDirectory
 /// signing identity and `CFBundleIdentifier`

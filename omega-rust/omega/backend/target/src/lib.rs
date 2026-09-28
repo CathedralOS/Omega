@@ -9,10 +9,10 @@
 //! be handed, each with its occurrence carrier beside it; `foreign_locator`
 //! identifies foreign providers. Emission reads these; none of them emits
 //! bytes.
-//! `application_identifier` validates deployment identity shared by Build
+//! `application` owns presentation intent and deployment identity shared by Build
 //! extraction, signed images, and application-package publication.
 
-mod application_identifier;
+mod application;
 mod elf_loader;
 mod foreign_locator;
 mod target_profile;
@@ -22,7 +22,7 @@ mod uefi_loaded_image;
 mod uefi_system_table;
 mod x86_features;
 
-pub use application_identifier::ApplicationIdentifier;
+pub use application::{ApplicationIdentifier, HostedApplicationIntent};
 pub use elf_loader::{
     ElfInterpreterPlanValidationError, NormalizedElfInterpreterPlan, normalize_elf_interpreter_plan,
 };
