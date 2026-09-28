@@ -74,14 +74,35 @@ fn prove(
         }
         crate::semantic::calls::CallSite::Statement(source) => {
             // The shared statement-call traversal already selected this exact
-            // target. A data namespace is not a runtime receiver place.
+            // target. A data namespace is not a runtime receiver place. A
+            // receiver that resolves to a caller place is admissible for the
+            // same reason the expression arm admits one: the goal is
+            // substituted through the receiver before it is compared, and
+            // reading a place cannot disturb the argument facts.
+            let admissible_receiver = (source.receiver.is_empty()
+                && !source.receiver_symbol.is_valid()
+                && !source.receiver_root_symbol.is_valid())
+                || (is_data_namespace(program, source.receiver_symbol)
+                    && (source.receiver_root_symbol == source.receiver_symbol
+                        || !source.receiver_root_symbol.is_valid()))
+                || (!source.receiver.is_empty()
+                    && source.receiver_root_symbol.is_valid()
+                    && crate::semantic::calls::find_state_in_machine(
+                        program,
+                        caller.machine_symbol,
+                        caller.state_symbol,
+                    )
+                    .is_some_and(|caller_state| {
+                        crate::lookup::projected_statement_receiver_place(
+                            program,
+                            caller_state,
+                            call.statement_index,
+                            source,
+                        )
+                        .is_some()
+                    }));
             source.target_symbol == call.target_symbol
-                && ((source.receiver.is_empty()
-                    && !source.receiver_symbol.is_valid()
-                    && !source.receiver_root_symbol.is_valid())
-                    || (is_data_namespace(program, source.receiver_symbol)
-                        && (source.receiver_root_symbol == source.receiver_symbol
-                            || !source.receiver_root_symbol.is_valid())))
+                && admissible_receiver
                 && source.static_requirement_dispatch.is_none()
                 && source.machine_arguments.is_empty()
                 && source.evidence_arguments.is_empty()

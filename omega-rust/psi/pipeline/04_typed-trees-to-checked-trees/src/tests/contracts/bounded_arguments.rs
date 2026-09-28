@@ -326,3 +326,42 @@ fn bounded_argument_proof_independently_preserves_negation_polarity() {
         }
     }
 }
+
+#[test]
+fn statement_call_requires_discharge_through_receiver_place_and_caller_hypotheses() {
+    for (caller_bound, callee_bound, accepted) in [
+        ("cursor < 63", "position < 64", true),
+        ("cursor < 63", "position < 63", false),
+    ] {
+        let source = format!(
+            "data Item {{ touched: u64; }}
+            machine Item::put(&mut self, position: u64)
+                requires 0 <= position && {callee_bound}
+            {{
+                self.touched = position;
+            }}
+            data Bag {{ count: u64; }}
+            machine Bag::insert(&mut self, item: &mut Item, cursor: u64)
+                requires 0 <= cursor && {caller_bound}
+            {{
+                transition {caller_bound} {{
+                    true -> call(item, cursor)
+                    false -> done()
+                }}
+                state call(&mut self, item: &mut Item, cursor: u64)
+                    requires 0 <= cursor && {caller_bound}
+                {{
+                    item.put(cursor + 1);
+                }}
+                state done(&mut self) {{}}
+            }}"
+        );
+        let result = lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled());
+        match result {
+            Ok(_) => assert!(accepted, "{source}"),
+            Err(diagnostics) => {
+                assert!(!accepted, "{source}\n{diagnostics:#?}");
+            }
+        }
+    }
+}
