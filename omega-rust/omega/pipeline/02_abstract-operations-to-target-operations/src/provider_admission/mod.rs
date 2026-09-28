@@ -20,7 +20,7 @@ mod terminal_authority_review;
 
 pub use source_evaluated_imports::{
     PreparedSourceEvaluatedImports, SourceEvaluatedImportSettlement,
-    prepare_source_evaluated_imports,
+    prepare_source_evaluated_imports, validate_evaluated_import_rows,
 };
 
 pub use request::{

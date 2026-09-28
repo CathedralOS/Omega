@@ -6,6 +6,13 @@
 //! remain diagnostics, not authority. The independent settlement checker joins
 //! the strong plan commitment, retained locator, calling contract, target and
 //! same-stack contribution before any native realization can consume them.
+//!
+//! `roster` owns the earlier retained-product check: the complete selected import
+//! roster must rejoin its external bindings before execution inputs are prepared.
+
+mod roster;
+
+pub use roster::validate_evaluated_import_rows;
 
 use super::{NativeBoundaryRealization, NativeProviderSettlement};
 use diagnostics::Diagnostic;
