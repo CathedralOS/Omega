@@ -4512,45 +4512,43 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   provider installation, **X86-FMA-PROVIDER-TRANSPORT** native FMA, and
   **FLOAT-IDENTITY-LITERAL-CARRIER** constant materialization.
 
-- **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.** Finish ordinary native
-  borrowed-descriptor invocation and forwarding under
-  [dynamic dispatch](wiki/spec/terminal-psi/dynamic_dispatch.md).
-  Start with the non-entry helper that forwards a descriptor, dispatches
-  through it, and uses the result across calculations and branches.
-  `forwarded_descriptor_calculations_execute_through_verified_artifact`
-  establishes source-to-artifact interpreter execution; Target/Legalized
-  descriptor ABI replay also exists. Instruction selection still rejects
+- **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.** Finish native borrowed
+  [dynamic dispatch](wiki/spec/terminal-psi/dynamic_dispatch.md), starting with
+  a non-entry helper that forwards a descriptor and uses its call result across
+  calculations and branches. Stage 05's
+  `tests/dynamic_composed_unit/direct_dynamic_units.rs`
+  publishes scalar-forwarding artifacts and interprets Unit helper locals/two-hop
+  forwarding. Stage 03's `tests/legalization/dynamic_parameter_call.rs` checks
+  Linux x86-64 scalar/Unit ABI replay and substitutions; selection still rejects
   `LegalizedScalarInstructionKind::DynamicParameterCall`.
-  The next milestone must advance this native customer, not repeat
-  target-only descriptor composition.
 
-  Connect the ordinary indirect-call operand through selected construction/
-  replay, register allocation, ISA encoding and emission, then exact immutable
-  table, relocation and final-image custody. Preserve the requirement-owned
-  erased caller shape, ABI/clobber/effect/reach obligations, original referent
-  and selected table through joins; Unit calls have no invented result home.
-  Tables, zero trap slots and nonoverlapping descriptor/result storage must
-  remain independently reconstructible. Remove superseded forwarded-call
-  recognizers/records as the ordinary route replaces them, rather than adding
-  another whole-body pattern or unproved devirtualization.
-  Complete source composition through ordinary ordered-operation/storage
-  owners: `unit/dynamic_composed_unit/forwarded_helpers.rs` still rejects
-  extra effects, mutable helper locals and different helper/requirement result
-  carriers. Retain their own call/result identities and access/effect evidence.
-  Preserve `cross_package_visibility`'s public dynamic return with opaque
-  producer-selected private evidence, exact receiver-loan origins and rejection
-  of consumers directly selecting a dependency's private conformance.
+  Carry the ordinary indirect call through selected construction/replay,
+  register allocation and ISA emission, then immutable tables, relocations and
+  final-image/installation custody. Image-emission's `function_fragments` emits
+  empty dynamic rosters and rejects nonempty ones. Preserve the requirement-owned
+  erased caller shape, exact instance/table/slot, ABI/clobber/effect/reach and
+  receiver-loan identities. Unit calls have no result home; descriptor/result
+  storage cannot overlap. Retain complete tables, including zero trap slots.
+  Retire superseded forwarded-call recognizers/records without unproved
+  devirtualization.
 
-  Acceptance: a source-rooted closed-conformance fixture publishes and
-  independently replays Linux x86-64/AArch64, executes on matching hosts,
-  selects distinct implementations at runtime, and preserves surrounding
-  calculations and writes to the original referent. Reject substituted
-  instance/table/slot/ABI/access/relocation/code-span evidence. Retain the
-  interpreter and legalization mutation controls; include an additional
-  ordered effect, mutable local and differing helper/requirement scalar result.
-  Receiver-entry provisioning is a separate dependency of that entry customer,
-  not of a non-entry helper.
-  Owned erased cleanup remains with
+  Complete ordinary checked storage composition: hosted
+  `traits/runtime_local_named_dyn_pass_through_exit` stops at checked
+  descriptor reassignment (`structural field store: target place`). In stage 05,
+  `unit/dynamic_composed_unit/forwarded_helpers.rs` still requires one call,
+  immutable scalar locals, matching helper/requirement result carriers, and
+  empty contracts/service summaries. Carry additional ordered effects, mutable
+  storage and differing results through
+  ordinary operation owners with their own call/result and access evidence.
+
+  Acceptance: source-rooted closed conformances publish and independently replay
+  on Linux x86-64/AArch64, execute on matching hosts, select distinct implementations
+  at runtime, and preserve calculations and writes to the original referent.
+  Reject instance/table/slot/ABI/access/relocation/code-span substitutions.
+  Preserve interpreter and legalization controls, all three helper extensions,
+  and public dynamic returns with opaque producer-private selection; consumers
+  cannot directly select private conformances. Entry-receiver provisioning is a
+  separate customer dependency; owned erased cleanup remains with
   **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP**.
 
 - **TARGET-SEMANTIC-APPLICATIONS.** Complete the portable
