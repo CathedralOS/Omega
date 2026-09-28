@@ -54,22 +54,6 @@ pub(crate) fn carrier_shape() -> ValueShape {
     ValueShape::integer(8, 8)
 }
 
-/// The borrowed-reference shape a call receives for the joined referent.
-pub(crate) fn argument_shape(
-    source: &LegalizedScalarFunction,
-    parameter: &StructuralParameterDeclaration,
-) -> Option<ValueShape> {
-    let signature = source.structural.as_ref()?;
-    let referent = crate::structural_inputs::structural_reference_input::shape(
-        parameter.structural_type,
-        &signature.structural_types,
-    )?;
-    Some(ValueShape::borrowed_reference(
-        referent.byte_size,
-        referent.alignment,
-    ))
-}
-
 /// The address transport binding `argument` into the join `parameter` of
 /// `target`. `pointers` are the source block's live place pointers and
 /// `local_slots` its declared frame homes.

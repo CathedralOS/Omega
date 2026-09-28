@@ -10,8 +10,9 @@
 //!   whose owner dominates the edge (a local producer, an owned block arrival,
 //!   a machine parameter or an earlier address join), through a static
 //!   projection naming exactly the join's referent type;
-//! - a call argument lends the whole joined referent, shared, from a join
-//!   whose block dominates the call, at the callee's exact borrowed shape.
+//! - a call argument projects from the joined referent, without widening
+//!   access, from a join whose block dominates the call, at the callee's exact
+//!   borrowed shape and with available runtime selectors.
 //!
 //! Loan duration is not decided here: the unit's current-ownership replay pins
 //! each lending root while a join can observe it.
@@ -53,7 +54,7 @@ pub(in crate::legalization) fn parameter<'a>(
     .then_some((block, parameter))
 }
 
-/// Rejoin a whole shared or mutable argument lent by an address join.
+/// Rejoin a shared or mutable projection lent by an address join.
 pub(in crate::legalization) fn call_argument(
     semantic: &terminal_psi::StructuralArgument,
     destination: &StructuralParameterDeclaration,
@@ -61,13 +62,21 @@ pub(in crate::legalization) fn call_argument(
     caller: &PsiOptimizationFunction,
     call: &CallPlan,
     parameter_ordinal: usize,
+    native: &target_operations::TargetOperationPlan,
     plan: &AbstractOperationPlan,
 ) -> Result<target_operations::TargetStructuralArgument, LegalizationError> {
     let (block, parameter) =
         parameter(caller, semantic.place, plan).ok_or(LegalizationError::custody())?;
     let call_block = operation_block(caller, call_operation).ok_or(LegalizationError::custody())?;
+    let (selected, offset, elements) =
+        crate::structural_inputs::structural_reference_input::runtime_projection(
+            parameter.structural_type,
+            &semantic.path,
+            &plan.structural_types,
+        )
+        .ok_or(LegalizationError::custody())?;
     let referent = crate::structural_inputs::structural_reference_input::shape(
-        parameter.structural_type,
+        selected,
         &plan.structural_types,
     )
     .ok_or(LegalizationError::custody())?;
@@ -77,18 +86,16 @@ pub(in crate::legalization) fn call_argument(
         .parameters
         .get(parameter_ordinal)
         .ok_or(LegalizationError::custody())?;
-    if !semantic.path.is_empty()
-        || !matches!(
-            semantic.access,
-            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-        )
-        || destination.access != semantic.access
+    if !matches!(
+        semantic.access,
+        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+    ) || destination.access != semantic.access
         || semantic.access == StructuralAccess::MutableBorrow
             && parameter.access != StructuralAccess::MutableBorrow
         || destination.multiplicity != StructuralMultiplicity::Unrestricted
         || !destination.qualifications.is_empty()
         || !destination.projected_qualifications.is_empty()
-        || destination.structural_type != parameter.structural_type
+        || destination.structural_type != selected
         || !dominates(caller, block, call_block)
         || placement.shape != shape
     {
@@ -97,14 +104,19 @@ pub(in crate::legalization) fn call_argument(
     Ok(target_operations::TargetStructuralArgument {
         place: semantic.place,
         access: semantic.access,
-        path: Vec::new(),
+        path: semantic.path.clone(),
         root_structural_type: parameter.structural_type,
-        structural_type: parameter.structural_type,
+        structural_type: selected,
         shape,
-        source_byte_offset: 0,
+        source_byte_offset: offset,
         fixed_array_length: None,
         element_stride: None,
-        indices: Vec::new(),
+        indices: super::target::control_flow::sources::call_indices(
+            native,
+            caller,
+            call_operation,
+            &elements,
+        )?,
         source: target_operations::TargetStructuralArgumentSource::BlockParameter {
             block,
             place: parameter.place,

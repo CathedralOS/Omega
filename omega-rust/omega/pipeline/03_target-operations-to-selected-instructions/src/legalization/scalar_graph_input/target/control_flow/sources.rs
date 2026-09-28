@@ -3,6 +3,57 @@ use super::super::{BlockId, ValueId};
 use super::{PsiOptimizationFunction, TargetControlGraph, TargetUnitOperation};
 use target_operations::TargetUnitScalarArgumentSource as Source;
 
+/// Resolve projection selectors at the call, excluding later definitions.
+pub(in crate::legalization::scalar_graph_input) fn call_indices(
+    native: &target_operations::TargetOperationPlan,
+    caller: &PsiOptimizationFunction,
+    call_operation: semantic_vocabulary::OperationId,
+    elements: &[crate::structural_inputs::structural_reference_input::RuntimeElement],
+) -> Result<Vec<target_operations::TargetStructuralRuntimeIndex>, crate::LegalizationError> {
+    if elements.is_empty() {
+        return Ok(Vec::new());
+    }
+    let function = native
+        .functions
+        .iter()
+        .find(|function| function.machine == caller.machine)
+        .ok_or(crate::LegalizationError::custody())?;
+    let (call_block, call_position) = function
+        .graph
+        .blocks
+        .iter()
+        .find_map(|block| {
+            block
+                .operations
+                .iter()
+                .position(|operation| {
+                    matches!(operation, TargetUnitOperation::Call { psi_operation, .. }
+                    if *psi_operation == call_operation)
+                })
+                .map(|position| (block, position))
+        })
+        .ok_or(crate::LegalizationError::custody())?;
+    let mut sources = available(&function.graph, caller, call_block.block);
+    sources.extend(
+        call_block.operations[..call_position]
+            .iter()
+            .filter_map(definition),
+    );
+    elements
+        .iter()
+        .map(|element| {
+            let (_, operand) = sources
+                .iter()
+                .find(|(value, _)| *value == element.index)
+                .ok_or(crate::LegalizationError::custody())?;
+            Ok(target_operations::TargetStructuralRuntimeIndex {
+                operand: *operand,
+                stride: element.stride,
+            })
+        })
+        .collect()
+}
+
 pub(in crate::legalization::scalar_graph_input) fn available(
     graph: &TargetControlGraph,
     optimized: &PsiOptimizationFunction,
