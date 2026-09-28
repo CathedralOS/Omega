@@ -20,12 +20,12 @@ pub use compilation_products as report;
 pub mod terminal;
 
 pub use crate::checked::{
-    CheckedAdmission, CheckedCompilation, CheckedCompileRequest, IndependentComponentDiscovery,
+    CheckedCompilation, CheckedCompileRequest, IndependentComponentDiscovery,
     IndependentComponentSelection, OptimizationRollback, OptimizationRollbackInputError,
-    PreparedCheckedSource, RestrictedBuildGrants, admit_checked_compilation,
-    checked_compilation_call_count, compile_to_checked, executed_preliminary_check_count,
-    executed_settled_check_count, preliminary_check_totals, settled_check_totals,
-    source_assembly_invocation_count, typed_frontier_reuse_count,
+    PreparedCheckedSource, RestrictedBuildGrants, checked_compilation_call_count,
+    compile_to_checked, executed_preliminary_check_count, executed_settled_check_count,
+    preliminary_check_totals, settled_check_totals, source_assembly_invocation_count,
+    typed_frontier_reuse_count,
 };
 pub use crate::native::{
     RetainedNativeRealizationRequest, SourceEvaluatedImportSettlement,

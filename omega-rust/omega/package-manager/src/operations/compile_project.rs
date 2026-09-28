@@ -301,10 +301,10 @@ fn compile_one_prepared_target<Observation>(
         accepted_target.as_ref(),
     )
     .map_err(CompilePreparedLocalProjectNativeError::Evidence)?;
-    let admission =
-        compiler::admit_checked_compilation(candidate.checked_root(), accepted_trust_admissions)
-            .map_err(CompilePreparedLocalProjectNativeError::TrustAdmission)?;
-    let trust_settlement = admission.into_settlement();
+    let trust_settlement = candidate
+        .checked_root()
+        .admit_trust(accepted_trust_admissions)
+        .map_err(CompilePreparedLocalProjectNativeError::TrustAdmission)?;
     let observation = observe(candidate.checked_root());
     realize_accepted_native_report(
         AcceptedNativeInput::Reviewed {

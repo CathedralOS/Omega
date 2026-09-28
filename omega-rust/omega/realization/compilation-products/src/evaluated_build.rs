@@ -48,6 +48,40 @@ pub struct BuildConfig {
     pub accepted_component_assumptions: Vec<AuthoredComponentAssumptionAcceptance>,
 }
 
+impl BuildConfig {
+    /// Project the effective checked-tree pruning selection into exact roots.
+    /// A target product retains only its validated entry; a targetless product
+    /// retains every authored root. An enabled selection with no roots remains
+    /// `Some(empty)` so Psi rejects it rather than silently disabling pruning.
+    /// This selects inputs only: Psi owns the transformation and its evidence.
+    pub fn checked_tree_product_roots(
+        &self,
+        selected_target: Option<target::TargetProfile>,
+        selected_entry: Option<&provider_planning::program_entry::SelectedCompilerProgramEntry>,
+        rollback: &optimization_core::OptimizationRollback,
+    ) -> Option<Vec<symbols::SymbolHandle>> {
+        let effective = rollback.settle(&self.settings.optimizations);
+        effective
+            .effective()
+            .contains(optimization_core::Optimization::CheckedTreeProductPruning)
+            .then(|| {
+                let roots: std::collections::HashSet<symbols::SymbolHandle> = match selected_target
+                {
+                    Some(_) => selected_entry
+                        .iter()
+                        .map(|entry| entry.source_signature().machine_symbol())
+                        .collect(),
+                    None => self
+                        .root_bindings
+                        .iter()
+                        .map(|binding| binding.implementation_symbol)
+                        .collect(),
+                };
+                roots.into_iter().collect()
+            })
+    }
+}
+
 /// Complete retained result of one admitted Build execution. Evaluation owns
 /// producing it; product consumers do not depend on the evaluator's orchestration.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -58,4 +92,77 @@ pub struct ComputedBuildConfig {
     pub observation_summary: Option<package_compilation::BuildObservationSummary>,
     pub selected_build_machine_symbol: Option<symbols::SymbolHandle>,
     pub generated_sources: Vec<build_output::PackageGeneratedSource>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use optimization_core::{Optimization, OptimizationRollback, OptimizationSelections};
+
+    #[test]
+    fn checked_product_roots_follow_effective_selection_without_mutating_build() {
+        let mut build = BuildConfig::default();
+        let first = symbols::SymbolHandle::from_arena_index(1);
+        let second = symbols::SymbolHandle::from_arena_index(2);
+        build.root_bindings = [first, second, first]
+            .into_iter()
+            .map(|implementation_symbol| RootBinding {
+                slot: "test::ProgramEntry".to_owned(),
+                implementation: "same_debug_name".to_owned(),
+                implementation_symbol,
+            })
+            .collect();
+        assert_eq!(
+            build.checked_tree_product_roots(None, None, &OptimizationRollback::default()),
+            None
+        );
+        build.settings.optimizations =
+            OptimizationSelections::new([Optimization::CheckedTreeProductPruning]).unwrap();
+        let roots = build
+            .checked_tree_product_roots(None, None, &OptimizationRollback::default())
+            .unwrap();
+        assert_eq!(roots.len(), 2);
+        assert!(roots.contains(&first));
+        assert!(roots.contains(&second));
+        let rollback =
+            OptimizationRollback::new([Optimization::CheckedTreeProductPruning]).unwrap();
+        assert_eq!(
+            build.checked_tree_product_roots(None, None, &rollback),
+            None
+        );
+        assert!(
+            build
+                .settings
+                .optimizations
+                .contains(Optimization::CheckedTreeProductPruning)
+        );
+    }
+
+    #[test]
+    fn selected_product_without_entry_keeps_empty_roots_for_stage_rejection() {
+        let mut build = BuildConfig::default();
+        build.settings.optimizations =
+            OptimizationSelections::new([Optimization::CheckedTreeProductPruning]).unwrap();
+        build.root_bindings.push(RootBinding {
+            slot: "other_target::ProgramEntry".to_owned(),
+            implementation: "Other::entry".to_owned(),
+            implementation_symbol: symbols::SymbolHandle::from_arena_index(1),
+        });
+        let roots = build.checked_tree_product_roots(
+            Some(target::TargetProfile::MacosArm64),
+            None,
+            &OptimizationRollback::default(),
+        );
+        assert_eq!(roots, Some(Vec::new()));
+        let error = typed_trees_to_checked_trees::select_checked_tree_product(
+            std::sync::Arc::new(checked_trees::CheckedTrees::default()),
+            roots,
+        )
+        .unwrap_err();
+        assert!(
+            error[0]
+                .message
+                .contains("requires at least one bound product root")
+        );
+    }
 }

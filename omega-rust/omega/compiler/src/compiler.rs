@@ -13,7 +13,6 @@ use crate::native::produce_native_report;
 use crate::terminal::produce_terminal_report;
 use crate::{
     CompileOutcomes, CompileReport, CompileRequest, CompileTargetOutcome, RequestedCompileProduct,
-    admit_checked_compilation,
 };
 use artifacts::compile_timings::{
     BUILD_AND_CHECKED_CONTINUATION, CompileTimings, EXECUTION_SETTLEMENT, StageMeta,
@@ -101,8 +100,7 @@ fn compile_target(
 
     // Trust settlement and the requested product's fences.
     let stage_timings = checked.timings().phases().to_vec();
-    let trust_settlement =
-        admit_checked_compilation(&checked, target.accepted_trust_admissions())?.into_settlement();
+    let trust_settlement = checked.admit_trust(target.accepted_trust_admissions())?;
     let build_observation = checked.build_observation_identity();
     // Build products are settled once, then carried alongside the requested
     // compiler product. A check-only stop publishes none.

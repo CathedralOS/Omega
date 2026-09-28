@@ -213,16 +213,13 @@ pub fn check_prepared_local_project(
         target_name: Some(target_profile.target_name().to_owned()),
     };
     let empty_admissions: &[TrustAdmission] = &[];
-    let admission = compiler::admit_checked_compilation(
-        &checked,
-        if verify {
+    let settlement = checked
+        .admit_trust(if verify {
             empty_admissions
         } else {
             &accepted_trust_admissions
-        },
-    )
-    .map_err(CheckPreparedLocalProjectError::TrustAdmission)?;
-    let settlement = admission.into_settlement();
+        })
+        .map_err(CheckPreparedLocalProjectError::TrustAdmission)?;
     compiler::RequestedCompileProduct::Check
         .admit_build_requirements(
             checked.application_artifact_only(),
@@ -336,16 +333,13 @@ fn check_one_prepared_target(
         target_name: Some(profile.target_name().to_owned()),
     };
     let empty_admissions: &[TrustAdmission] = &[];
-    let admission = compiler::admit_checked_compilation(
-        &checked,
-        if verify {
+    let settlement = checked
+        .admit_trust(if verify {
             empty_admissions
         } else {
             accepted_trust_admissions
-        },
-    )
-    .map_err(CheckPreparedLocalProjectError::TrustAdmission)?;
-    let settlement = admission.into_settlement();
+        })
+        .map_err(CheckPreparedLocalProjectError::TrustAdmission)?;
     compiler::RequestedCompileProduct::Check
         .admit_build_requirements(
             checked.application_artifact_only(),

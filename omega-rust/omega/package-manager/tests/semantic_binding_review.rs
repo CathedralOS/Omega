@@ -203,9 +203,9 @@ fn assert_accepted_native_report_custody(
         effects::provider_plan::ProviderPlanDigest::from_digest([0x74; 32]),
     )
     .expect("distinct unused admission");
-    let expected_trust = compiler::admit_checked_compilation(checked, &[unused_admission])
-        .expect("settle exact checked trust with an unused owner admission")
-        .into_settlement();
+    let expected_trust = checked
+        .admit_trust(&[unused_admission])
+        .expect("settle exact checked trust with an unused owner admission");
     assert_eq!(expected_trust.unused().len(), 1);
     let terminal_report =
         compile_terminal_report().with_trust_admission_settlement(expected_trust.clone());
