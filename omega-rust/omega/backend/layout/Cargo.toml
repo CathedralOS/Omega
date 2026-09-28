@@ -9,7 +9,6 @@ name = "layout"
 path = "src/lib.rs"
 
 [dependencies]
-checked-trees = { path = "../../../psi/representations/checked-trees" }
 typed-trees = { path = "../../../psi/representations/typed-trees" }
 arena = { path = "../../../psi/foundation/arena" }
 symbols = { path = "../../../psi/foundation/symbols" }

@@ -2,7 +2,7 @@
 //!
 //! Start at `layout_plan.rs`: `LayoutPlan` and the `TypeLayout`,
 //! `TypeLayoutDescriptor`, and field/data/machine layout vocabulary it
-//! carries. `builder.rs` turns a checked type reference into a `TypeLayout`
+//! carries. `builder.rs` turns a typed reference into a `TypeLayout`
 //! whose descriptor records packed fields, bit-field fragments, and case
 //! payloads; `field_paths` resolves a field path to its offset;
 //! `callback_layout` retains and checks private callback field paths and
@@ -11,7 +11,9 @@
 //! opaque carrier occurrences from already-typed boundary applications;
 //! `sum_materialization` projects conventional sum layouts for the
 //! layout-plans foundation. Layout never authorizes an access; it only fixes
-//! where a value's bytes live.
+//! where a value's bytes live. It consumes typed declarations and installed layout
+//! plans, never check facts; callers must not manufacture a checked program to
+//! request geometry before checking.
 
 mod boundary_values;
 mod builder;

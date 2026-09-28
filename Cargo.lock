@@ -963,7 +963,6 @@ dependencies = [
  "arena",
  "build-time-evaluation",
  "calling-conventions",
- "checked-trees",
  "diagnostics",
  "language-semantics",
  "layout-plans",

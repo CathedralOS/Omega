@@ -10,13 +10,13 @@ use crate::packing::placement_overflow;
 use crate::sizing::{
     dynamic_trait_descriptor_layout, fat_descriptor_layout, primitive_type_layout,
 };
-use checked_trees::data::DataDefinition;
-use checked_trees::types::{
-    PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
-};
 use diagnostics::Diagnostic;
 use representation_selections::selection_for_opaque;
 use symbols::SymbolHandle;
+use typed_trees::data::DataDefinition;
+use typed_trees::types::{
+    PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+};
 
 impl<'program> LayoutBuilder<'program> {
     /// Lay out a type reference under `bindings`; callers outside any generic
@@ -85,7 +85,7 @@ impl<'program> LayoutBuilder<'program> {
                     .iter()
                     .any(|constraint| match constraint {
                         TypeConstraintNode::Domain(name) => {
-                            !checked_trees::wire::is_layout_domain_constraint(name)
+                            !typed_trees::wire::is_layout_domain_constraint(name)
                                 && language_semantics::CarryPermission::from_name(name.as_str())
                                     .is_none()
                         }

@@ -4,7 +4,6 @@
 //! not a back door for programmable `Layout` policies to author case/tag
 //! placement.
 
-use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use language_semantics::{DataSupplyMode, Multiplicity};
 use layout_plans::{
@@ -17,6 +16,7 @@ use layout_plans::{
     LayoutPlanReport,
 };
 use symbols::SymbolHandle;
+use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, DataMember, DataShapeKind, TypeParameterKind};
 use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
@@ -35,7 +35,7 @@ use crate::{DataShape, ENUM_TAG_BYTES, LayoutPlan, TypeLayoutDescriptor};
 /// order, so repeated uses of the same sum type remain distinguishable.
 /// Arrays of sums, recursively nested sums, and mixed data shapes reject.
 pub fn project_conventional_record_with_sum_materialization_layout(
-    program: &CheckedTrees,
+    program: &TypedTrees,
     plan: &LayoutPlan,
     data_symbol: SymbolHandle,
 ) -> Result<(LayoutPlanReport, Vec<ConventionalSumFieldLayoutReport>), Diagnostic> {
@@ -173,7 +173,7 @@ struct RecordLevelChildren<'a> {
 /// Non-literal lengths remain fenced; the standalone rungs retain their
 /// nonzero-length restriction.
 fn project_record_level_children<'a>(
-    program: &'a CheckedTrees,
+    program: &'a TypedTrees,
     plan: &'a LayoutPlan,
     data_symbol: SymbolHandle,
     owner: &str,
@@ -423,7 +423,7 @@ fn project_record_level_children<'a>(
 /// placements must keep every element inside it, exactly as plan validation
 /// bounded the destinations they were derived from.
 fn project_field_placement_entries(
-    program: &CheckedTrees,
+    program: &TypedTrees,
     plan: &LayoutPlan,
     declared: &typed_trees::data::DataField,
     laid: &crate::FieldLayout,
@@ -584,7 +584,7 @@ fn laid_innermost_array_descriptor<'d>(
 /// validate and retain the complete all-case element layout once with the
 /// exact count and stride.
 fn project_sum_array_row(
-    program: &CheckedTrees,
+    program: &TypedTrees,
     plan: &LayoutPlan,
     declared: &typed_trees::data::DataField,
     laid: &crate::FieldLayout,
@@ -693,7 +693,7 @@ fn project_sum_array_row(
 /// is retained once with the exact count and stride, so every index shares
 /// the same record interior rather than multiplying rows by element.
 fn project_record_array_row(
-    program: &CheckedTrees,
+    program: &TypedTrees,
     plan: &LayoutPlan,
     candidate: &RecordArrayPathCandidate<'_>,
     reachability: &mut SumReachability<'_>,
@@ -806,7 +806,7 @@ fn project_record_array_row(
 /// record layouts and all child rows come from `plan`; no path flattening or
 /// independently supplied nested plan is accepted.
 pub fn project_conventional_record_with_nested_sum_record_materialization_layout(
-    program: &CheckedTrees,
+    program: &TypedTrees,
     plan: &LayoutPlan,
     data_symbol: SymbolHandle,
 ) -> Result<ConventionalNestedRecordSumPathLayoutReport, Diagnostic> {
@@ -835,7 +835,7 @@ pub fn project_conventional_record_with_nested_sum_record_materialization_layout
 /// paths to direct conventional sum fields. The outer layout is retained once;
 /// each occurrence owns one exact inner layout and complete child rows.
 pub fn project_conventional_record_with_nested_sum_records_materialization_layout(
-    program: &CheckedTrees,
+    program: &TypedTrees,
     plan: &LayoutPlan,
     data_symbol: SymbolHandle,
 ) -> Result<ConventionalNestedRecordSumPathsLayoutReport, Diagnostic> {
@@ -849,7 +849,7 @@ pub fn project_conventional_record_with_nested_sum_records_materialization_layou
 }
 
 fn project_conventional_record_with_nested_sum_records_materialization_layout_with_reachability(
-    program: &CheckedTrees,
+    program: &TypedTrees,
     plan: &LayoutPlan,
     data_symbol: SymbolHandle,
     reachability: &mut SumReachability<'_>,
@@ -1023,7 +1023,7 @@ fn project_conventional_record_with_nested_sum_records_materialization_layout_wi
 
 /// Project exact conventional record paths without encoding depth in the API.
 pub fn project_conventional_record_with_recursive_nested_sums_materialization_layout(
-    program: &CheckedTrees,
+    program: &TypedTrees,
     plan: &LayoutPlan,
     data_symbol: SymbolHandle,
 ) -> Result<ConventionalRecursiveRecordSumPathsLayoutReport, Diagnostic> {
@@ -1037,7 +1037,7 @@ pub fn project_conventional_record_with_recursive_nested_sums_materialization_la
 /// stride — beside the child's own report. The same mechanism runs at every
 /// depth; a record child's recursion advances the depth budget once.
 fn project_recursive_paths(
-    program: &CheckedTrees,
+    program: &TypedTrees,
     plan: &LayoutPlan,
     data_symbol: SymbolHandle,
     reachability: &mut SumReachability<'_>,
@@ -1191,7 +1191,7 @@ struct RecordSumProfile {
 }
 
 fn record_sum_profile(
-    program: &CheckedTrees,
+    program: &TypedTrees,
     definition: &DataDefinition,
     reachability: &mut SumReachability<'_>,
 ) -> Result<RecordSumProfile, Diagnostic> {
@@ -1239,7 +1239,7 @@ struct ReachabilityFrame<'a> {
 }
 
 struct SumReachability<'a> {
-    program: &'a CheckedTrees,
+    program: &'a TypedTrees,
     states: std::collections::HashMap<(u32, u32), ReachabilityState>,
     traversed_edges: usize,
 }
@@ -1248,7 +1248,7 @@ impl<'a> SumReachability<'a> {
     const MAX_RECORDS: usize = 4096;
     const MAX_EDGES: usize = 16384;
 
-    fn new(program: &'a CheckedTrees) -> Self {
+    fn new(program: &'a TypedTrees) -> Self {
         Self {
             program,
             states: std::collections::HashMap::new(),
@@ -1423,7 +1423,7 @@ fn symbol_identity(symbol: SymbolHandle) -> Result<(u32, u32), Diagnostic> {
 /// `type_parameters` still rejects — its `ConstParameter` lengths are the
 /// non-literal array lengths this chain cannot lay out.
 fn validate_closed_copy_record(
-    program: &CheckedTrees,
+    program: &TypedTrees,
     definition: &DataDefinition,
     role: &str,
 ) -> Result<(), Diagnostic> {
@@ -1461,7 +1461,7 @@ fn validate_closed_copy_record(
 /// const-evaluable admission judgment so the interpreter and
 /// materialization rungs agree on which substituted shapes are closed.
 fn require_closed_generic_application(
-    program: &CheckedTrees,
+    program: &TypedTrees,
     definition: &DataDefinition,
     application: TypeReferenceHandle,
     role: &str,
@@ -1541,7 +1541,7 @@ fn require_closed_generic_application(
 /// parameters admit only a closed checked-boundary type; machine parameters
 /// admit nothing at this boundary.
 fn require_closed_generic_argument(
-    program: &CheckedTrees,
+    program: &TypedTrees,
     kind: &TypeParameterKind,
     argument: TypeReferenceHandle,
     role: &str,
@@ -1580,7 +1580,7 @@ fn require_closed_generic_argument(
 /// proof-static expressions, dynamic traits, and interior-mutable types are
 /// not closed.
 fn require_closed_generic_type(
-    program: &CheckedTrees,
+    program: &TypedTrees,
     type_reference: TypeReferenceHandle,
     role: &str,
     active_data: &mut Vec<SymbolHandle>,
@@ -1709,7 +1709,7 @@ fn consistent_nominal_spelling(recorded: &str, declared: &str) -> bool {
 }
 
 fn relevant_record_fields<'a>(
-    program: &'a CheckedTrees,
+    program: &'a TypedTrees,
     definition: &'a DataDefinition,
 ) -> Vec<&'a typed_trees::data::DataField> {
     program
@@ -1735,7 +1735,7 @@ fn usize_to_u64(value: usize, role: &str) -> Result<u64, Diagnostic> {
 /// value-sensitive materialization retains the selected case separately for
 /// each literal index.
 pub fn project_conventional_record_with_sum_array_materialization_layout(
-    program: &CheckedTrees,
+    program: &TypedTrees,
     plan: &LayoutPlan,
     data_symbol: SymbolHandle,
 ) -> Result<(LayoutPlanReport, ConventionalSumArrayFieldLayoutReport), Diagnostic> {
@@ -1757,7 +1757,7 @@ pub fn project_conventional_record_with_sum_array_materialization_layout(
 /// fixed-array-of-conventional-sum fields while retaining each complete sum
 /// layout only once per outer field occurrence.
 pub fn project_conventional_record_with_sum_arrays_materialization_layout(
-    program: &CheckedTrees,
+    program: &TypedTrees,
     plan: &LayoutPlan,
     data_symbol: SymbolHandle,
 ) -> Result<(LayoutPlanReport, Vec<ConventionalSumArrayFieldLayoutReport>), Diagnostic> {
@@ -1810,7 +1810,7 @@ pub fn project_conventional_record_with_sum_arrays_materialization_layout(
 }
 
 fn unique_data_definition<'a>(
-    program: &'a CheckedTrees,
+    program: &'a TypedTrees,
     data_symbol: SymbolHandle,
     role: &str,
 ) -> Result<&'a DataDefinition, Diagnostic> {
@@ -1853,7 +1853,7 @@ fn unique_data_layout<'a>(
 }
 
 fn exact_named_data(
-    program: &CheckedTrees,
+    program: &TypedTrees,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Result<Option<&DataDefinition>, Diagnostic> {
     if program.primitive_type_reference(type_reference).is_some() {
@@ -1890,7 +1890,7 @@ fn exact_named_data(
 /// retains its leading common fields, packed between the tag and the shared
 /// payload base, in authored order.
 pub fn project_conventional_sum_materialization_layout(
-    program: &CheckedTrees,
+    program: &TypedTrees,
     plan: &LayoutPlan,
     data_symbol: SymbolHandle,
 ) -> Result<ConventionalSumLayoutReport, Diagnostic> {

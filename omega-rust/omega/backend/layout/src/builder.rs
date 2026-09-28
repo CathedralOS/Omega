@@ -26,15 +26,15 @@ use crate::{
     TypeLayout, TypeLayoutDescriptor, VariantLayout,
 };
 use arena::Arena;
-use checked_trees::CheckedTrees;
-use checked_trees::data::{DataDefinition, DataMember};
-use checked_trees::machine::Machine;
-use checked_trees::trait_definition::TraitDefinition;
-use checked_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 use diagnostics::Diagnostic;
 use representation_selections::OpaqueRepresentationSelection;
 use symbols::{BuiltinType, SymbolHandle};
 use target::NativeTarget;
+use typed_trees::TypedTrees;
+use typed_trees::data::{DataDefinition, DataMember};
+use typed_trees::machine::Machine;
+use typed_trees::trait_definition::TraitDefinition;
+use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 /// Build the selected target's general physical layout plan.
 ///
@@ -44,7 +44,7 @@ use target::NativeTarget;
 /// Merely supplying a selection does not create a package demand or expose the
 /// carrier as the semantic source type.
 pub fn build_layout_plan(
-    program: &CheckedTrees,
+    program: &TypedTrees,
     target: NativeTarget,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
 ) -> Result<LayoutPlan, Diagnostic> {
@@ -57,10 +57,10 @@ pub fn build_layout_plan(
 
     // Math roster N1: proof-only data (recursive, or holding proof-only
     // inline) HAS no layout, by definition -- skip it the way generic
-    // templates are skipped. Validation has already fenced every runtime
-    // consumption; anything that still demands a layout for one of these
-    // downstream is a pipeline bug, caught by the visit-stack backstop.
-    let proof_only = checked_trees::proof_only::classify(&program.typed);
+    // templates are skipped. Runtime admissibility belongs to checking; this
+    // catalog only omits carriers without geometry. An explicit recursive
+    // by-value demand is rejected by the visit-stack backstop.
+    let proof_only = typed_trees::proof_only::classify(program);
 
     for data_definition in program.data_definitions() {
         if !data_definition.type_parameters.is_empty() {
@@ -102,15 +102,16 @@ pub fn build_layout_plan(
     builder.finish()
 }
 
-/// Compute the selected target's concrete size/alignment for one checked type
-/// reference. Task activation elaboration uses this for argument, outcome, and
+/// Compute the selected target's concrete size/alignment for one typed reference.
+/// This consumes type structure, not check facts, and does not authorize execution.
+/// Task activation elaboration uses this for argument, outcome, and
 /// continuation-live values without duplicating layout rules. References do
 /// not descend into their referee and therefore never demand or consume an
 /// opaque representation selection. A direct by-value opaque request is an
 /// actual layout demand and rejects when the authoritative build selected no
 /// representation.
 pub fn layout_type_reference(
-    program: &CheckedTrees,
+    program: &TypedTrees,
     target: NativeTarget,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
     type_reference: TypeReferenceHandle,
@@ -157,7 +158,7 @@ struct LayoutBuilder<'program> {
     machine_layouts: Arena<MachineLayout>,
     machine_visiting: LayoutVisitStack,
     trait_definitions: &'program [TraitDefinition],
-    program: &'program CheckedTrees,
+    program: &'program TypedTrees,
     target: NativeTarget,
     variants: Arena<VariantLayout>,
 }
@@ -214,7 +215,7 @@ impl LayoutVisitStack {
 
 impl<'program> LayoutBuilder<'program> {
     fn new(
-        program: &'program CheckedTrees,
+        program: &'program TypedTrees,
         target: NativeTarget,
         opaque_representation_selections: &'program [OpaqueRepresentationSelection],
         opaque_representation_demand: OpaqueRepresentationDemand,
@@ -458,7 +459,7 @@ impl<'program> LayoutBuilder<'program> {
                 // family stays a PLAIN array (see the TypeLayout arm above).
                 let has_named_domain = constraint_list.iter().any(|constraint| match constraint {
                     TypeConstraintNode::Domain(name) => {
-                        !checked_trees::wire::is_layout_domain_constraint(name)
+                        !typed_trees::wire::is_layout_domain_constraint(name)
                             && language_semantics::CarryPermission::from_name(name.as_str())
                                 .is_none()
                     }
