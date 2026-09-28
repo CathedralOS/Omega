@@ -5203,144 +5203,79 @@ but report the missing runtime leg explicitly; it does not close that host row.
   PCC-PRODUCT-PUBLICATION and PCC-CANONICAL-SEMANTIC-LEDGER; placed-image digest
   checks alone do not close it.
 
-For each native host task below, run all of RC-NATIVE-MATRIX
-(`python tools/corpus_gate.py --native`),
-RC-SOURCE-SEMANTICS (`mbx nextest run -p compiler --all-targets --no-fail-fast`)
-and RC-REPRESENTATIVE-PROGRAMS
-(`mbx nextest run -p compiler --test samples_compile --no-fail-fast`).
-Unset corpus/canary/sample filters. Verify emitted programs' required
-exit/output observations and publish the host record at the agreed release
-commit.
-Cross-target emission does not substitute for execution. These are independently
-deliverable host runs, not four implementations of the gate.
+The four required native-host rows share the
+[completion contract](wiki/drafts/reference/rust_compiler_completion.md#release-matrix)
+and [recording procedure](tools/release/README.md#recording-a-runner-row).
+At one clean release commit, run unfiltered, unsharded:
 
-RC-SOURCE-SEMANTICS includes compiler integration targets outside `canary_suite`.
-Use bounded batches during repair when linking all targets exceeds host capacity;
-release acceptance still requires complete coverage. Remaining reported failures:
+- RC-SOURCE-SEMANTICS: `python3 tools/corpus_gate.py`.
+- RC-NATIVE-MATRIX: `python3 tools/corpus_gate.py --native`.
+- RC-REPRESENTATIVE-PROGRAMS: `mbx run -p omega -- refresh-samples`,
+  plus every documented deterministic sample exit/output oracle.
 
-- `no_selection_golden::native_artifacts::retained_native_bytes_and_metadata_match_every_target_golden`:
-  identify the semantic/proof-section drift before updating goldens; verify
-  retained bytes, metadata and repeatability on every hosted target.
-- `module_machine_indices::indexed_domains::qualified_record_projection_rejects_unproven_constructor_membership`:
-  distinguish disproved membership from failure to prove it.
-- `module_machine_indices::indexed_domains::separate_packages_cannot_exchange_mutable_domain_qualifications`:
-  restore a valid initializer so the negative reaches mutable-recast checking.
-- `module_machine_indices::rational::anonymous_comparisons_cannot_hide_undefined_values_or_landed_operands`:
-  reconcile finite float comparison acceptance with the numeric contract while
-  preserving undefined-value and landed-operand rejection.
+Retain live compiler integration coverage with
+`mbx nextest run -p compiler --all-targets --no-fail-fast`; bounded linking
+batches may cover it during repair, but release coverage must be complete.
 
-- **RC-NATIVE-MATRIX-LINUX-X86-64.** Execute the complete native, source and
-  sample gates above on Linux x86-64 and resolve remaining failures through
-  their owning capability tasks.
+Inspect the outcomes, not just command exits. Corpus goldens may retain rejected
+positive programs; `built` can mean cross-emission without execution and
+unbound fixtures only check. `expected_native_exit.txt` enforces an authored
+exit/trap independently of the golden; verify required stdout too. Sample refresh
+only builds. `tools/sample_native_gate.py` exercises documented oracles on the
+matching host but leaves no-oracle samples unscored; **SAMPLE-CORPUS** owns its
+coverage. Missing runtime coverage stays open.
 
-  The `DT_RELAENT` defect that blocked emitted execution is repaired:
-  `ElfDynamicTag::GeneralRelocationEntrySize` is tag 9 and
-  `GeneralRelocationEntryByteCount` is emitted beside the `DT_RELA`/`DT_RELASZ`
-  pair in
-  `omega-rust/omega/backend/images/image-elf/src/dynamic_executable/dynamic_table/dynamic_tags.rs`. The image
-  has not been run since, because verification needs a Linux host.
+Preserve the deleted integration tests' obligations in maintained harnesses:
+no-selection bytes/metadata and repeatability across targets; constructor-domain
+membership with disproved versus unproved outcomes; cross-package mutable
+qualification rejection using valid initializers; finite rational/float comparison
+with undefined/landed operands rejected; and matching unsigned-right-shift
+results across macOS/Linux. Deleted test names are not runnable release commands.
 
-  **SAMPLE-CORPUS** owns current shared sample failures;
-  **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW** owns the canonical filesystem plan's
-  package-review replay gap. Attribute failures against current code rather
-  than treating a historical host record as a fresh reproduction.
-  Acceptance: actual emitted ELF execution and all required full commands
-  pass, not merely a selected ABI cohort.
+Record exact commands, selected coverage, toolchain, host, observations and
+justified skips; **RC-RELEASE-RECORD-AND-CLOSURE** joins the same-commit evidence.
+These are independent host runs of shared gates; capability repairs retain
+their existing owners.
 
-- **RC-NATIVE-MATRIX-LINUX-ARM64.** Supply the same complete gate evidence
-  for emitted AArch64 ELF programs. A Linux AArch64 runner or named/versioned
-  emulation may satisfy the contract, but must execute the target runtime
-  legs: an x86-64-built harness that cfg-excludes them does not.
-  Cross-target checks plus a single `cli_mvp` QEMU execution do not close
-  the full row. Acceptance: required native/source/sample gates pass with
-  actual AArch64 execution and explicit, justified skips.
-  Include Linux host, time/filesystem and `IntegerAt` projection/write paths;
-  checked-target fixtures and cross-emission do not establish runtime behavior.
+- **RC-NATIVE-MATRIX-LINUX-X86-64.** Close the shared gates with actual ELF
+  x86-64 execution, including dynamic imports. Retain `image-elf`'s corrected
+  `GeneralRelocationEntrySize = 9` and entry-size row beside
+  `DT_RELA`/`DT_RELASZ`; encoder/replay coverage does not establish execution.
+  **SAMPLE-CORPUS** owns sample failures and
+  **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW** owns package/provider authority replay.
+  Reproduce current failures; a historical host record or selected ABI cohort
+  cannot close the full row.
 
-- **RC-NATIVE-MATRIX-MACOS-ARM64.** Run the complete native/source/sample
-  gates on macOS AArch64, executing emitted Mach-O products. Procedure and
-  cross-target coverage do not establish a completed matching-host run. Use
-  the recorder procedure in `tools/release/README.md`; it takes no `--all`.
-  Acceptance: same-commit full-gate results with native observations and exact
-  expected skips; Linux emission evidence cannot close this task.
+- **RC-NATIVE-MATRIX-LINUX-ARM64.** Close the shared gates with actual
+  AArch64 ELF execution on Linux or contract-permitted, named/versioned
+  emulation. The emulator must run the target runtime legs; an x86-64 harness
+  that cfg-excludes them does not suffice. Cover host/time/filesystem and
+  `IntegerAt` projection/write behavior. A single `cli_mvp` execution,
+  cross-target checks or emitted bytes cannot replace full coverage and
+  justified skips.
 
-  The corpus native leg NOW HAS a checked-in macOS ARM64 golden, recorded
-  2026-09-27 at `a9478e720fc`: `tests/omega/corpus_native_macos_arm64.txt`,
-  724 fixtures. The file existed before that but held only its header, so the
-  leg had zero recorded rows and nothing could detect movement in it.
-  **724 fixtures: 287 checked, 187 built, 250 rejected; 137 EXECUTED, of which
-  105 exit 70**, 0 with stdout differing from expected. The 250 rejections
-  are ATTRIBUTED in
-  [macos_arm64_native_rejections](wiki/drafts/measurements/macos_arm64_native_rejections.md),
-  and the headline reframes this item: **144 of them are unit-plan omissions
-  that never reach code generation**, plus 19 host provider-absence and a
-  dozen authoring rows. The genuinely native-side population is about **50**
-  -- Terminal production 34, canonical abstract optimization 6, authority
-  closure 6, artifact and target lowering 6. Size this matrix against 50, not
-  250. The largest omission phase (27 at `statement sequence: local data:
-  structural call binding`) is dominated by `recast/` and `slices/` rows, and
-  the recast ones are confirmed REFERENCE-LOCAL-BINDING-ROUTES customers --
-  `runtime_bool_representation_recast_exit` spells
-  `let flag_bits: &u8 = &self.flag as &u8;`, two of that item's three
-  triggers on one line. Seven phases carrying 39 rows have no filed owner and
-  are ranked there as the places new diagnosis pays. Six take `signal:5`
-  and all six are the `*trapping*`/`*_traps*` fixtures, where the trap IS the
-  asserted behavior (`runtime_trapping_overflow_traps` says so outright) --
-  read them as passes, not crashes. The remaining executed rows exit their own
-  expected codes. That roster is the RC-NATIVE-MATRIX-MACOS-ARM64 measurement
-  leg; what is still missing is the lane row, below.
+- **RC-NATIVE-MATRIX-MACOS-ARM64.** Close the shared gates with emitted
+  Mach-O execution on macOS AArch64. The native corpus has a populated golden;
+  stable results still include unfinished programs. Both committed macOS
+  release records remain open, with native observations failing on the deleted
+  `canary_suite` target. Produce current full-gate evidence and actual
+  exit/output observations.
 
-  Host prerequisite, measured on this host and corrected in
-  `tools/release/README.md`: no Xcode is required. The README told the reader
-  to point `SDKROOT` at `$(xcode-select -p)/Platforms/.../MacOSX.sdk`, a path
-  that does not exist on a CommandLineTools-only host. Only the `MacOSX27.0.sdk`
-  stub needs avoiding; where the default resolves to `MacOSX15.5.sdk`, the full
-  native leg emits and executes Mach-O with `SDKROOT` UNSET under the pinned
-  `nightly-2026-09-04`.
+  Use [native rejection attribution](wiki/drafts/measurements/macos_arm64_native_rejections.md),
+  [release-gate history](wiki/drafts/measurements/macos_arm64_rc_gates.md) and
+  [baseline failures](wiki/drafts/measurements/known_baseline_failures.md) as
+  reproduction leads, not current totals. Route omitted Unit plans to
+  **STATE-LOCAL-VALUE-FRONTIER** and other failures to their capability owners.
+  Follow the recording guide's host prerequisites; partial runs and Linux
+  emission do not establish this host's acceptance.
 
-  Two `macos_arm64` records DO now exist under `tools/release/records/`, written
-  by another session on 2026-09-27 at `0293d4cad9` (7 of 8 gates fail in the
-  later one; RC-DIAGNOSTICS passes). The row is still open for the reason the
-  next paragraph gives: every `platform_runs` entry, `macos_arm64` included,
-  carries `native_execution_exit: None`.
-
-  NOT CLAIMED, deliberately. The lane reads `recorded` when a
-  `--native-execution` command exits 0, and `python3 tools/corpus_gate.py
-  --native` now exits 0 against the golden just recorded -- but that golden
-  PINS the 250 rejections, because the corpus golden is a movement detector
-  that "pins the red as well as the green". Passing it as this lane's
-  native-execution observation would certify Mach-O correctness on evidence
-  that asserts no such thing, which is exactly what this item warns against.
-  Closing the lane needs an observation whose success means the programs ran
-  correctly, not that they ran the same as last time.
-  `-p compiler --all-targets` (RC-SOURCE-SEMANTICS) at `04d2099ae1`: 3281 run,
-  2014 passed, 1267 failed, 0 skipped (22583.2 s) — the `samples_compile` leg inside it
-  (RC-REPRESENTATIVE-PROGRAMS) read 33 run, 11 passed, 22 failed. The full
-  1215-name failure list and dominant diagnostic classes are in
-  [macos_arm64_rc_gates](wiki/drafts/measurements/macos_arm64_rc_gates.md):
-  ProgramEntry/Terminal-attachment rejoins, `runtime policy realization`
-  lowering gaps (ARITHMETIC-POLICY-REALIZATION), and domain-admission gaps
-  (CANONICALIZE-SCALAR-RANGE-CONTRACTS). The recorder writes a lane only with
-  a passing `--native-execution` observation, so the row stays open on this
-  evidence even though two `macos_arm64` records now exist.
-
-  Use [known baseline failures](wiki/drafts/measurements/known_baseline_failures.md)
-  for prior failing names and expected skips, then reproduce at the release
-  revision. Partial native/canary runs do not establish complete source/sample
-  coverage or general Mach-O correctness. Route missing Unit plans to
-  **STATE-LOCAL-VALUE-FRONTIER** while retaining independent host validation.
-  Compare `const_fold_unsigned_shift_right_arg` across macOS and Linux when
-  attributing the recorded cross-host exit difference.
-
-- **RC-NATIVE-MATRIX-WINDOWS-X64.** Run the complete native/source/sample
-  gates on Windows x86-64, executing emitted PE products, including the
-  hosted receiver. Procedure evidence is not an executed release row. Use
-  the recorder procedure in `tools/release/README.md`.
-  Acceptance: same-commit full-gate results with native observations and exact
-  expected skips; cross-emission or compiler-only success is insufficient.
-  Include `windows_set_file_time_exit_canary_runs`: SetFileTime followed by
-  `_stat64` must read back Unix time 1,500,000,000 and exit 70. Its corrected
-  unsigned byte assembly is not evidence that Windows execution passed.
+- **RC-NATIVE-MATRIX-WINDOWS-X64.** Close the shared gates with emitted
+  PE execution on Windows x86-64, including the hosted receiver.
+  `tests/omega/pass/filesystem/windows_set_file_time_exit` must perform
+  SetFileTime followed by `_stat64`, read back Unix time 1,500,000,000 and
+  exit 70. Enforce that authored oracle: the fixture currently has only a
+  comment, while the corpus records its rejection. Correct unsigned byte
+  assembly and cross-emission cannot substitute for the Windows runtime leg.
 
 - **MACOS-X64-HOST-PROFILE.** Execute the compiler/runtime route on an Intel
   macOS host. Target/provider recognition, exact physical-entry reconstruction,
