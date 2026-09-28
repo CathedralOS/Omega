@@ -2553,6 +2553,61 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
 
 ## P3 - Terminal Psi, PCC, and observation
 
+- **NORMALIZED-ABI-LOWERING.** Execute owned aggregate and descriptor foreign
+  arguments/results under the [calling-plan contract](wiki/spec/build/calling_plans.md).
+  Owners: Omega stages 02 and 03, backend call-frame emission.
+
+  Stage 02 already retains whole owned arguments from caller parameters or
+  affine call-result homes, borrowed descriptors, and scalar formal order.
+  Stage 03's `legalization/scalar_graph_input/normalized_foreign.rs::structural_argument_at`
+  and `selection/scalar_call_abi/normalized_foreign.rs::validate` only admit
+  nonempty field-path borrows placed as one pointer word. Extend these consumers
+  through emission using the selected aggregate locations and descriptor words;
+  owned indirect placement must not become a semantic borrow.
+
+  Aggregate results stop earlier: stage 02's
+  `lower_normalized_foreign_scalar_result` accepts only Unit/scalar results.
+  Carry structural result custody through target lowering, legalization,
+  selection and emission. Reuse backend `calling-conventions::BoundaryValueGraph`
+  classification and ordinary call operands, without signature-specific families.
+
+  Acceptance: an owned whole-place argument and aggregate result execute
+  source-to-C on a matching host with exact values, register/stack placement
+  and formal order. Each stage independently reconstructs the ABI and rejects
+  substituted plans, placements and provider bindings; Terminal Psi remains
+  target-neutral. Preserve stage 02's owned/descriptor and affine-home replay
+  controls and stage 03's `tests/legalization/normalized_foreign.rs` mixed-argument
+  controls; these constructed plans do not establish native execution.
+  RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY owns dynamic descriptor semantics;
+  CALLBACK-PRIVATE-MATERIALIZATION owns private callbacks.
+
+- **OPAQUE-BY-VALUE-BOUNDARY-ABI.** Execute selected opaque argument, result
+  and nested-field exchanges under
+  [representation agreement](wiki/spec/build/opaque_representations.md),
+  building on **NORMALIZED-ABI-LOWERING**'s transport.
+
+  `provider-planning/calling_policy_plans/boundary_signatures.rs::opaque_representation_movement`
+  derives exact occurrence paths and placements; its consumers replay plans
+  and capture review evidence. Connect these records to provider call-frame
+  transport and backend emission. Physical copies preserve one semantic
+  occurrence for affine and linear values; only checked semantic copying
+  creates another occurrence.
+
+  Acceptance: independently compiled producer/consumer programs exchange exact
+  values at runtime. Reconstruct application agreement at every composition
+  edge; reject provider, carrier, target, lifecycle, multiplicity and
+  historical-selection drift. Equal layout or compact fingerprints are
+  insufficient. `package-manager/tests/opaque_boundary_agreement.rs` currently
+  checks review compilation, not execution; preserve it alongside
+  `review-evidence/tests/calling_policy_opaque.rs`, provider-planning's movement
+  replay and installation-record substitution controls.
+
+  Keep sealed `Ptr<T>` TargetSemantics, `EfiSystemTable` and erased proof-only
+  `Real` distinct; proof-only use creates no runtime demand. V1 requires
+  `Inert` carriers, rejecting direct or nested cleanup ownership.
+  COMPONENT-SUBSTRATE owns replacement compatibility and stable-handle eras;
+  carry the same application commitments there.
+
 - **PROOF-KERNEL-CORE.** Finish independently checked mathematical proofs
   under the [foundation](wiki/spec/proofs/foundation.md) and
   [W-based profile](wiki/spec/proofs/inductive_profile.md). Owner:
@@ -2780,77 +2835,6 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   `erased_parameter_named_transition_forward`
   and `composed_unit_internal_calls`' exact erased ordinals, plus runtime-read,
   receiver, layout-dependent-erasure and invalid-qualifier refusals.
-
-- **NORMALIZED-ABI-LOWERING.** Finish aggregate and descriptor foreign
-  argument/result transport under the
-  [calling-plan contract](wiki/spec/build/calling_plans.md). Owners:
-  `abstract-operations-to-target-operations`,
-  `target-operations-to-selected-instructions` and backend call-frame emission.
-
-  Target lowering and replay already retain owned whole-place aggregates,
-  borrowed descriptors and scalar arguments in formal order. Instruction
-  legalization and selection still restrict structural arguments to borrowed
-  field projections passed as one pointer:
-  `legalization/scalar_graph_input/normalized_foreign.rs::structural_argument_at`
-  and `selection/scalar_call_abi/normalized_foreign.rs::validate`.
-  Realize the selected plan's aggregate locations, descriptor words and result
-  custody through those consumers and emission; do not substitute an owned
-  aggregate's indirect placement for a semantic borrow.
-
-  Both oracles this acceptance named are gone with the `compiler --test`
-  targets: neither
-  `source_evaluated_native_realization::record_native_arguments::mixed_scalar_and_record_arguments_stop_at_legalization_custody`
-  nor `scalar_native_arguments` resolves anywhere. What survives is
-  `03_target-operations-to-selected-instructions/src/tests/legalization/normalized_foreign.rs`,
-  whose six pins all pass, including
-  `mixed_arguments_preserve_authored_order_through_selection_and_replay` and
-  `flat_record_lane_projects_source_rooted_borrow_and_replays`. Mixed scalar
-  and record arguments therefore already legalize, select and replay -- through
-  the borrowed field-projection lane those pins exercise, on constructed plans,
-  not through a source-to-native execution oracle.
-
-  The restriction itself is unchanged and is what to remove.
-  `structural_argument_at` rejects unless the path is non-empty and every
-  segment is a `Field`, the access is one of the three borrow kinds, and the
-  destination is a single pointer-sized register or stack word. An owned
-  whole-place aggregate has an empty path and `Owned` access, so it cannot
-  reach the lane at all.
-
-  Acceptance: an owned whole-place aggregate argument executes source-to-C on
-  a matching host, with a new oracle since the named ones are gone. Test exact
-  argument/result values, stack/register placement, formal order, and rejection
-  of substituted plans, placements and provider bindings. Each stage must
-  independently reconstruct the ABI; Terminal Psi retains no target placement.
-  Dynamic descriptors belong to RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY;
-  private callbacks belong to CALLBACK-PRIVATE-MATERIALIZATION. Use ordinary
-  call operands and explicit custody, not one call family per signature shape.
-
-- **OPAQUE-BY-VALUE-BOUNDARY-ABI.** Connect selected opaque representations
-  to executable by-value exchanges under
-  [representation agreement](wiki/spec/build/opaque_representations.md).
-  Selection, independent rederivation, package attribution and installation
-  commitment checks exist; they do not move the carrier's bytes.
-
-  `provider-planning/calling_policy_plans/boundary_signatures.rs::opaque_representation_movement`
-  derives exact parameter/result and nested-field placements, but its consumers
-  remain planning, review and tests. Connect those movements to Omega's provider
-  call-frame transport and backend emission. Preserve one semantic occurrence
-  for affine/linear values even when placement copies bytes; only checked
-  semantic copying creates another occurrence.
-
-  Acceptance: independently compiled producer/consumer programs execute opaque
-  argument, result and nested-field exchanges. Reconstruct exact application
-  agreement at each composition edge; reject provider, carrier, target,
-  lifecycle, multiplicity and historical-selection drift. Preserve
-  `calling_policy_plans/opaque_boundaries.rs`, `opaque_boundary_agreement`
-  and installation-record substitution controls. Equal layout or a compact
-  fingerprint is not agreement. Keep sealed `Ptr<T>` target semantics,
-  `EfiSystemTable` and erased proof-only `Real` distinct: proof-only use does
-  not acquire a runtime representation demand.
-  COMPONENT-SUBSTRATE owns replacement compatibility and stable-handle eras;
-  carry these same application commitments into that path. V1 admits only
-  `Inert` carriers: direct or nested cleanup-owning carriers must continue to
-  reject, not acquire an unspecified lifecycle through this transport repair.
 
 - **WRITE-ONLY-BORROW.** Finish `&write T` under
   [write-only authority](wiki/spec/terminal-psi/structural_access.md#write-only-authority),
