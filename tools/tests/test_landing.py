@@ -547,5 +547,138 @@ class LandingTests(unittest.TestCase):
         self.assert_remote(self.initial)
 
 
+class ReceiptTests(LandingTests):
+    """`verify` receipts gate publish for Rust-touching candidates; the check
+    subprocess is mocked so the suite never runs mbx/cargo."""
+
+    def rust_crate(self, package="crate-one"):
+        manifest = self.a / "crate" / "Cargo.toml"
+        manifest.parent.mkdir(parents=True, exist_ok=True)
+        manifest.write_text(f'[package]\nname = "{package}"\nversion = "0.0.0"\n',
+                            encoding="utf-8")
+        source = manifest.parent / "src" / "lib.rs"
+        source.parent.mkdir(exist_ok=True)
+        source.write_text("pub fn answer() -> i32 { 1 }\n", encoding="utf-8")
+        self.git(self.a, "add", "-A")
+        self.git(self.a, "commit", "-m", "add crate")
+        return self.git(self.a, "rev-parse", "HEAD")
+
+    def receipt(self, module, candidate, packages, exit_code=0):
+        return module.write_receipt(
+            self.a, {"schema": module.RECEIPT_SCHEMA, "candidate": candidate,
+                     "base": self.initial, "packages": sorted(packages),
+                     "command": ["mbx", "check"], "exit_code": exit_code,
+                     "utc": "2026-01-01T00:00:00+00:00"})
+
+    def test_affected_packages_follow_manifests(self):
+        module = load_landing()
+        self.assertEqual(
+            module.affected_packages(self.a, self.initial,
+                                     self.commit(self.a, "notes only")),
+            set())
+        crate = self.rust_crate()
+        self.assertEqual(module.affected_packages(self.a, self.initial, crate),
+                         {"crate-one", "omega"})
+        root = self.a / "Cargo.lock"
+        root.write_text("version = 3\n", encoding="utf-8")
+        self.git(self.a, "add", "Cargo.lock")
+        self.git(self.a, "commit", "-m", "lockfile")
+        lock = self.git(self.a, "rev-parse", "HEAD")
+        self.assertEqual(module.affected_packages(self.a, crate, lock),
+                         {"omega"})
+
+    def test_affected_packages_walk_deleted_file_parents(self):
+        module = load_landing()
+        crate = self.rust_crate()
+        self.git(self.a, "rm", "crate/src/lib.rs")
+        self.git(self.a, "commit", "-m", "drop lib")
+        deleted = self.git(self.a, "rev-parse", "HEAD")
+        self.assertEqual(module.affected_packages(self.a, crate, deleted),
+                         {"crate-one", "omega"})
+
+    def check_recorder(self, exit_code, calls):
+        """A subprocess.run side_effect that answers `mbx`/`cargo check`
+        calls itself and delegates everything else (the git invocations) to
+        the real run."""
+        real_run = subprocess.run
+
+        def run(command, *arguments, **keyword):
+            if command[0] in ("mbx", "cargo"):
+                calls.append(command)
+                return subprocess.CompletedProcess(command, exit_code)
+            return real_run(command, *arguments, **keyword)
+
+        return run
+
+    def test_verify_runs_the_check_and_writes_the_receipt(self):
+        module = load_landing()
+        candidate = self.rust_crate()
+        calls = []
+        with mock.patch.object(module.shutil, "which", return_value="/bin/mbx"), \
+                mock.patch.object(module.subprocess, "run",
+                                  side_effect=self.check_recorder(0, calls)):
+            self.assertEqual(module.verify(self.a, self.initial), 0)
+        command = calls[0]
+        self.assertEqual(command[:2], ["mbx", "check"])
+        self.assertIn("crate-one", command)
+        self.assertIn("omega", command)
+        receipt = json.loads((self.a / "build" / "landing_receipts"
+                              / f"{candidate}.json").read_text())
+        self.assertEqual(receipt["schema"], module.RECEIPT_SCHEMA)
+        self.assertEqual(receipt["candidate"], candidate)
+        self.assertEqual(receipt["exit_code"], 0)
+
+    def test_verify_records_a_failing_check(self):
+        module = load_landing()
+        candidate = self.rust_crate()
+        calls = []
+        with mock.patch.object(module.shutil, "which", return_value=None), \
+                mock.patch.object(module.subprocess, "run",
+                                  side_effect=self.check_recorder(101, calls)):
+            self.assertEqual(module.verify(self.a, self.initial), 1)
+        receipt = json.loads((self.a / "build" / "landing_receipts"
+                              / f"{candidate}.json").read_text())
+        self.assertEqual(receipt["exit_code"], 101)
+        self.assertEqual(calls[0][0], "cargo")
+
+    def test_verify_skips_the_check_when_nothing_rust_changed(self):
+        module = load_landing()
+        candidate = self.commit(self.a, "notes only")
+        calls = []
+        with mock.patch.object(module.subprocess, "run",
+                               side_effect=self.check_recorder(0, calls)):
+            self.assertEqual(module.verify(self.a, self.initial), 0)
+        self.assertEqual(calls, [])
+        receipt = json.loads((self.a / "build" / "landing_receipts"
+                              / f"{candidate}.json").read_text())
+        self.assertEqual(receipt["packages"], [])
+        self.assertIsNone(receipt["command"])
+
+    def test_publish_refuses_a_rust_candidate_without_a_passing_receipt(self):
+        module = load_landing()
+        # The temp repository has no .gitignore; keep receipts invisible to
+        # clean_head the same way the real repository's /build/ rule does.
+        with open(self.a / ".git" / "info" / "exclude", "a",
+                  encoding="utf-8") as exclude:
+            exclude.write("build/\n")
+        claim = self.claim(self.a)
+        candidate = self.rust_crate()
+        refusal = self.publish(self.a, claim, candidate, expected=1)
+        self.assertIn("verify", str(refusal))
+        self.assert_remote(self.initial, claim["claim"])
+        # A receipt for a different sha, a failing check, or one missing an
+        # affected package are all refused; only an exact match publishes.
+        self.receipt(module, "0" * 40, {"crate-one", "omega"})
+        self.publish(self.a, claim, candidate, expected=1)
+        self.receipt(module, candidate, {"crate-one", "omega"}, exit_code=101)
+        self.publish(self.a, claim, candidate, expected=1)
+        self.receipt(module, candidate, {"omega"})
+        self.publish(self.a, claim, candidate, expected=1)
+        self.receipt(module, candidate, {"crate-one", "omega"})
+        self.assertEqual(self.publish(self.a, claim, candidate)["state"],
+                         "published")
+        self.assert_remote(candidate)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -63,6 +63,34 @@ expired head before continuing. Do not concurrently edit or
 rebase a worktree whose waiter may acquire its reservation. Read incoming main
 separately while working; cancel if the queued change needs more implementation.
 
+## Verify the build before publishing
+
+Publish never builds: the head lease is exactly 180 seconds, and a compile
+inside it has already cost a session its reservation. A candidate that
+touches Rust therefore carries a build receipt instead. At a clean HEAD on
+the exact commit you intend to publish:
+
+```text
+python tools/landing.py verify --base <base>
+```
+
+`verify` computes the affected packages from `git diff --name-only <base>
+HEAD`: each changed `.rs`, `Cargo.toml`, or `build.rs` walks up to the
+first manifest with a `[package]` table; a change to the workspace root
+`Cargo.toml`, `Cargo.lock`, or `rust-toolchain.toml` means everything. Any
+non-empty set also adds `omega`, since checking the CLI package checks the
+whole product dependency closure — dependents an API change broke. It then
+runs `mbx check -p <pkg> ...` (plain `cargo` when `mbx` is absent) and
+writes `build/landing_receipts/<candidate-sha>.json`. A non-Rust candidate
+needs no check and records an empty receipt.
+
+The flow is: verify → enqueue/claim → if main moved, rebase and verify the
+new candidate sha → publish. Publish refuses a Rust-touching candidate
+whose receipt is missing, is for a different sha, recorded a failing check,
+or covers fewer packages than the diff affects — that is the fourth publish
+guard, after empty, coordination-only, and unrecorded trusted-surface
+changes. There is no bypass flag; rebase and `verify` again.
+
 ## Check locally, then publish
 
 Capture the exact candidate before running the checks required by [tools/testing.md](testing.md)
@@ -79,7 +107,9 @@ candidate that changes a trusted-surface implementation site pinned in
 `terminal-verifier/src/trusted_surface/sites.rs` without re-recording its
 SHA-256: that is a verifier change nobody revalidated against the ledger
 entries citing it. Revalidate them, then run
-`python3 tools/trusted_surface_digests.py --write`. Only the candidate's own
+`python3 tools/trusted_surface_digests.py --write`. A fourth guard refuses a
+candidate that changes Rust packages without a passing `verify` receipt for
+this exact sha (see "Verify the build before publishing"). Only the candidate's own
 changes are checked, so drift already on main never blocks unrelated work. Compiler advancement uses the
 change-scoped validation policy in [tools/testing.md](testing.md); a fresh full baseline is not a
 publication prerequisite. Reuse evidence for unchanged inputs after rebasing,

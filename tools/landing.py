@@ -15,6 +15,7 @@ import os
 from pathlib import Path
 import random
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -79,6 +80,125 @@ def promote_head(record):
 
 def expired(record):
     return bool(record["entries"]) and datetime.now(timezone.utc) >= utc(record["head_expires_utc"])
+
+
+# Changes to these root files rebuild the world; they name the CLI package
+# directly instead of a crate-local manifest.
+WORKSPACE_SENTINELS = {"Cargo.toml", "Cargo.lock", "rust-toolchain.toml"}
+RUST_FILE = re.compile(r"\.rs$|(?:^|/)Cargo\.toml$|(?:^|/)build\.rs$")
+PACKAGE_TABLE = re.compile(r"(?ms)^\[package\](.*?)(?=^\[|\Z)")
+PACKAGE_NAME = re.compile(r'^\s*name\s*=\s*"([^"]+)"', re.M)
+RECEIPT_SCHEMA = "omega-landing-receipt-v1"
+
+
+def package_name(manifest: Path):
+    """The `name = "..."` of the manifest's [package] table, or None for a
+    workspace-only manifest. Python 3.9 has no tomllib; the regex reads the
+    one field landing needs."""
+    try:
+        text = manifest.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    table = PACKAGE_TABLE.search(text)
+    if not table:
+        return None
+    name = PACKAGE_NAME.search(table.group(1))
+    return name.group(1) if name else None
+
+
+def affected_packages(repository, base, candidate):
+    """Rust packages the base..candidate diff must re-check.
+
+    Each changed .rs/Cargo.toml/build.rs walks up to the first manifest
+    with a [package] table (deleted files still walk their parents). Any
+    non-empty answer adds `omega`: building the CLI package checks the
+    whole product dependency closure, which catches dependents an API
+    change broke. Root workspace files short-circuit to it directly.
+    """
+    changed = coordination.git(repository, "diff", "--name-only", base,
+                               candidate).stdout.splitlines()
+    packages = set()
+    for path in changed:
+        if path in WORKSPACE_SENTINELS:
+            return {"omega"}
+        if not RUST_FILE.search(path):
+            continue
+        directory = (repository / path).parent
+        while directory != repository.parent:
+            manifest = directory / "Cargo.toml"
+            name = package_name(manifest) if manifest.is_file() else None
+            if name:
+                packages.add(name)
+                break
+            if directory == repository:
+                break
+            directory = directory.parent
+    if packages:
+        packages.add("omega")
+    return packages
+
+
+def receipt_path(repository, candidate):
+    return (Path(repository) / "build" / "landing_receipts"
+            / f"{candidate}.json")
+
+
+def write_receipt(repository, receipt):
+    path = receipt_path(repository, receipt["candidate"])
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(receipt, ensure_ascii=True, indent=2) + "\n",
+                    encoding="utf-8")
+    return path
+
+
+def verify(repository, base):
+    """Build-receipt producer: `check` the affected crates at a clean HEAD.
+
+    Publish cannot afford this — the queue head lease is LEASE_SECONDS —
+    so the check runs here, ahead of enqueueing, and publish reads the
+    receipt. Prints and writes the receipt; exits 0 only when the check
+    did."""
+    repository = Path(repository).resolve()
+    head = coordination.git(repository, "rev-parse", "HEAD").stdout
+    if coordination.git(repository, "status", "--porcelain").stdout:
+        raise LandingError("Checkpoint tracked and untracked changes before verifying.")
+    packages = sorted(affected_packages(repository, base, head))
+    command = None
+    exit_code = 0
+    if packages:
+        tool = "mbx" if shutil.which("mbx") else "cargo"
+        command = [tool, "check"]
+        for package in packages:
+            command += ["-p", package]
+        exit_code = subprocess.run(command, cwd=repository).returncode
+    receipt = {"schema": RECEIPT_SCHEMA, "candidate": head, "base": base,
+               "packages": packages, "command": command,
+               "exit_code": exit_code, "utc": now()}
+    write_receipt(repository, receipt)
+    emit(receipt)
+    return 0 if exit_code == 0 else 1
+
+
+def receipt_failure(repository, candidate, affected):
+    """None when a valid build receipt covers `affected`; else the reason."""
+    path = receipt_path(repository, candidate)
+    if not path.is_file():
+        return f"no build receipt at {path}"
+    try:
+        receipt = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        return f"unreadable build receipt {path} ({error})"
+    if receipt.get("schema") != RECEIPT_SCHEMA:
+        return f"build receipt {path} is not {RECEIPT_SCHEMA}"
+    if receipt.get("candidate") != candidate:
+        return f"build receipt {path} covers {receipt.get('candidate')}, not this candidate"
+    if receipt.get("exit_code") != 0:
+        return f"build receipt {path} recorded exit {receipt.get('exit_code')}"
+    missing = affected - set(receipt.get("packages") or [])
+    if missing:
+        return (f"build receipt {path} covers {receipt.get('packages')}; "
+                f"the candidate also affects {sorted(missing)}")
+    return None
 
 
 class Landing:
@@ -342,6 +462,21 @@ class Landing:
                                "(TASKS*.md, OWNER_QUESTIONS.md, tools/swarm/waves/). Worker "
                                "evidence belongs in `claims.py note --ticket <claim>` and the "
                                "session report; a coordinator board sweep passes --board-update.")
+        # Publish must not build: the head lease is 180s and a rebuild has
+        # already cost a session its reservation. A Rust-touching candidate
+        # needs a `verify` receipt for this exact sha instead.
+        affected = affected_packages(self.repository, options.base,
+                                     options.candidate)
+        if affected:
+            failure = receipt_failure(self.repository, options.candidate,
+                                      affected)
+            if failure:
+                raise LandingError(
+                    f"{failure}; run `python tools/landing.py verify "
+                    f"--base {options.base}` at this exact candidate before "
+                    "claiming or after rebasing (a rebase makes a new "
+                    "candidate), since publish itself never builds inside "
+                    "the three-minute lease.")
 
     def maintenance(self, snapshot):
         """Persist migration/expiry separately, before interpreting an action.
@@ -498,7 +633,7 @@ class Parser(argparse.ArgumentParser):
 def main(arguments=None):
     parser = Parser(description=__doc__)
     parser.add_argument("command", nargs="?", default="status",
-                        choices=("status", "enqueue", "cancel", "claim", "publish", "release", "recover"))
+                        choices=("status", "enqueue", "cancel", "claim", "publish", "release", "recover", "verify"))
     parser.add_argument("--repository", default=".")
     parser.add_argument("--remote", default="origin")
     for name in ("owner", "ticket", "claim", "base", "candidate", "reason"):
@@ -525,6 +660,11 @@ def main(arguments=None):
             ticket_id(options.ticket)
         if options.command == "recover" and (not options.reason or not options.reason.strip()):
             raise LandingError("Recovery requires --reason after checking with the owner.")
+        if options.command == "verify":
+            if not options.base:
+                raise LandingError("verify requires --base <full-sha> — the integration base the claim reserved.")
+            object_id(options.base, "Base")
+            return verify(options.repository, options.base)
         return Landing(options.repository, options.remote).coordinate(options)
     except (LandingError, OSError) as error:
         identity = f" Ticket={options.ticket} Claim={options.claim}" if options else ""
