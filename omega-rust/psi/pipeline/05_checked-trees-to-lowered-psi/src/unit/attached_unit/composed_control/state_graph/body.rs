@@ -135,6 +135,7 @@ pub(super) fn validate(
             | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
             // A view-subslice local binds its narrowed view in the same
             // namespace an `as_slice` view local's value does.
+            | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
             // The displaced field value is a fresh structural binding in the
             // same namespace as the call result that replaces it.
@@ -728,6 +729,12 @@ pub(super) fn validate(
                 )?;
             }
             (
+                CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. },
+                StatementNode::LocalData(_),
+            ) if result.statement_index as usize == ordinal => {
+                super::super::super::literal_locals::validate(checked, state.state, operation)?;
+            }
+            (
                 CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. },
                 StatementNode::LocalData(_),
             ) if result.statement_index as usize == ordinal => {
@@ -875,6 +882,7 @@ fn authored_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32>
             Some(result.statement_index)
         }
         CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
+        | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
         | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => {
             Some(result.statement_index)
         }

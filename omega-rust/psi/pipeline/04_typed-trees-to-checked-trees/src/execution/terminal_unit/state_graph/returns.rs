@@ -360,21 +360,13 @@ pub(super) fn guarded(
     ))
 }
 
-/// First free structural result binding ordinal after `operations`' owned
-/// producers. Terminator-side return values number into the same roster.
+/// First free structural binding ordinal after every producer in `operations`. Terminator-side return values number into the same roster.
 pub(super) fn next_result_ordinal(operations: &[CheckedUnitEffectOperationPlan]) -> Option<usize> {
     operations
         .iter()
         .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
-        .filter_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
-            | CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
-            | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => {
-                Some(result.binding_ordinal)
-            }
-            _ => None,
-        })
+        .filter_map(CheckedUnitEffectOperationPlan::structural_result_binding)
+        .map(|result| result.binding_ordinal)
         .max()
         .map(|ordinal| usize::try_from(ordinal).ok()?.checked_add(1))
         .unwrap_or(Some(0))

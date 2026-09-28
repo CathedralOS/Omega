@@ -170,32 +170,42 @@ pub(super) fn validate_bindings(
             binding_ordinal,
         } = transfer.source
         {
-            let mut matching =
-                state
-                    .operations
-                    .iter()
-                    .filter_map(|operation| match operation {
-                        CheckedUnitEffectOperationPlan::StructuralCall {
+            let mut matching = state
+                .operations
+                .iter()
+                .filter_map(|operation| match operation {
+                    CheckedUnitEffectOperationPlan::StructuralCall {
+                        result,
+                        discard_result_on_return: false,
+                        ..
+                    }
+                    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                        result,
+                        discard_result_on_return: false,
+                        ..
+                    }
+                    | CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                        result,
+                        discard_result_on_return: false,
+                        ..
+                    }
+                    | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral {
+                        result, ..
+                    }
+                    | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
+                        if result.binding_ordinal == binding_ordinal =>
+                    {
+                        Some((
                             result,
-                            discard_result_on_return: false,
-                            ..
-                        }
-                        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                            result,
-                            discard_result_on_return: false,
-                            ..
-                        }
-                        | CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                            result,
-                            discard_result_on_return: false,
-                            ..
-                        }
-                        | CheckedUnitEffectOperationPlan::EstablishViewSubslice {
-                            result, ..
-                        } if result.binding_ordinal == binding_ordinal => Some(result),
-                        _ => None,
-                    });
-            let result = matching.next().ok_or(LoweringError::Unsupported(
+                            matches!(
+                                operation,
+                                CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { .. }
+                            ),
+                        ))
+                    }
+                    _ => None,
+                });
+            let (result, is_literal) = matching.next().ok_or(LoweringError::Unsupported(
                 "Unit graph transferred result missing",
             ))?;
             // An owned local moves into the target; a view local lends its
@@ -216,6 +226,10 @@ pub(super) fn validate_bindings(
                     Multiplicity::Affine | Multiplicity::Unrestricted
                 );
             if matching.next().is_some()
+                || (is_literal
+                    && (!shared_view
+                        || target.multiplicity != Multiplicity::Unrestricted
+                        || !target.projected_qualifications.is_empty()))
                 || result.statement_index >= edge.statement_ordinal
                 || transfer.target_parameter_index as usize != position
                 || target.is_self
@@ -734,6 +748,7 @@ fn view_local_result<'a>(
     let mut matching = state.operations.iter().filter_map(|operation| {
         let result = match operation {
             CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
+            | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => result,
             _ => return None,
         };

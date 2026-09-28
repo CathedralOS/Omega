@@ -422,3 +422,362 @@ fn a_copied_record_element_selects_a_successor() {
     terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default())
         .expect("a copied element guard verifies independently");
 }
+
+const LITERAL_LOCALS: &str = r#"
+    boundary trait Output { machine observe(value: u64) reaches Output; }
+    data Helper {}
+    machine Helper::measure(bytes: &[u8]) reaches Output { Output::observe(bytes.len); }
+    data Root {}
+    machine Root::enter() reaches Output {
+        let mut count: u64 = 1;
+        let bytes: &[u8] = "abc";
+        count = bytes.len;
+        Output::observe(count);
+        Helper::measure(bytes);
+        let window: &[u8] = bytes[..];
+        Helper::measure(window);
+        let other: &[u8] = "z";
+        Helper::measure(other);
+        Helper::measure("more");
+    }
+"#;
+
+#[test]
+fn byte_literal_locals_compose_with_primitive_storage_calls_and_subslices() {
+    let lowered = lower(LITERAL_LOCALS).expect("ordinary literal locals lower");
+    assert_eq!(execute(LITERAL_LOCALS), vec![3, 3, 3, 1, 4]);
+    let mut found = 0;
+    for machine in &lowered.semantic_module.machines {
+        let mut ordinals = Vec::new();
+        for declaration in &machine.structural_places {
+            let semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral {
+                declaration_ordinal,
+                ..
+            } = declaration.kind
+            else {
+                continue;
+            };
+            ordinals.push(declaration_ordinal);
+            let producers = machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .filter(|operation| {
+                    matches!(operation.kind,
+                    terminal_psi::OperationKind::EstablishByteSequenceLiteral { destination, .. }
+                        if destination == declaration.id)
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(producers.len(), 1);
+            assert_eq!(producers[0].result, terminal_psi::OperationResult::Unit);
+            found += 1;
+        }
+        ordinals.sort_unstable();
+        assert_eq!(
+            ordinals,
+            (0..u32::try_from(ordinals.len()).unwrap()).collect::<Vec<_>>()
+        );
+    }
+    assert_eq!(
+        found, 3,
+        "two named literals and the call's literal share one ordinal space"
+    );
+}
+
+#[test]
+fn a_byte_literal_local_flows_through_a_state_edge() {
+    let source = r#"
+        boundary trait Output { machine observe(value: u64) reaches Output; }
+        data Helper {}
+        machine Helper::measure(bytes: &[u8]) reaches Output { Output::observe(bytes.len); }
+        data Root {}
+        machine Root::enter() reaches Output {
+            let bytes: &[u8] = "abc";
+            Helper::measure(bytes);
+            transition { _ -> next(bytes) }
+            state next(bytes: &[u8]) { Output::observe(bytes.len); }
+        }
+    "#;
+    assert_eq!(execute(source), vec![3, 3]);
+}
+
+#[test]
+fn byte_literal_local_replay_rejects_changed_payload_source_type_and_ordinal() {
+    use checked_trees::CheckedUnitEffectOperationPlan;
+    let original = crate::front_end::checked_program(LITERAL_LOCALS);
+    checked_trees_to_lowered_psi::lower_machine(
+        &original,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("the untampered source lowers");
+    for fault in 0..6 {
+        let mut changed = original.clone();
+        let plan = changed
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter_mut()
+            .find(|plan| {
+                plan.operations.iter().any(|operation| {
+                    matches!(
+                        operation,
+                        CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { .. }
+                    )
+                })
+            })
+            .expect("literal locals use the ordinary operation route");
+        let index = plan
+            .operations
+            .iter()
+            .position(|operation| {
+                matches!(
+                    operation,
+                    CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { .. }
+                )
+            })
+            .unwrap();
+        if fault == 5 {
+            plan.operations
+                .insert(index + 1, plan.operations[index].clone());
+        } else {
+            let CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, bytes } =
+                &mut plan.operations[index]
+            else {
+                unreachable!()
+            };
+            match fault {
+                0 => bytes[0] = b'X',
+                1 => result.statement_index = 0,
+                2 => result.type_identity = "u64".to_owned(),
+                3 => result.binding_ordinal += 1,
+                4 => result.multiplicity = language_semantics::Multiplicity::Linear,
+                _ => unreachable!(),
+            }
+        }
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Root::enter")
+            )
+            .is_err(),
+            "literal source replay must reject fault {fault}"
+        );
+    }
+}
+
+#[test]
+fn a_multistate_byte_literal_local_is_observed_by_a_boundary() {
+    #[derive(Default)]
+    struct ObservedBytes(Vec<Vec<Option<Vec<u8>>>>);
+    impl TerminalEffectHandler for ObservedBytes {
+        fn handle_effect(
+            &mut self,
+            effect: &TerminalEffect,
+        ) -> Result<(), TerminalEffectRejection> {
+            let TerminalEffect::BoundaryCall {
+                arguments,
+                byte_sequence_arguments,
+                ..
+            } = effect
+            else {
+                panic!("expected a byte observation boundary");
+            };
+            assert!(arguments.is_empty());
+            self.0.push(byte_sequence_arguments.clone());
+            Ok(())
+        }
+    }
+    let source = r#"
+        boundary trait Output { machine write(bytes: &[u8]) reaches Output; }
+        data Root {}
+        machine Root::enter() reaches Output {
+            transition { _ -> establish() }
+            state establish() {
+                let bytes: &[u8] = "\x00\x80\xFF";
+                Output::write(bytes);
+                transition { _ -> forwarded(bytes) }
+            }
+            state forwarded(bytes: &[u8]) { Output::write(bytes); }
+        }
+    "#;
+    let lowered = lower(source).expect("a graph boundary borrows a named literal local");
+    assert_literal_successor_custody(&lowered.semantic_module);
+    let mut observed = ObservedBytes::default();
+    let result = interpret_terminal_artifact_measured(
+        &encode_module(&lowered.semantic_module).unwrap(),
+        &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs::default(),
+        &mut observed,
+    )
+    .unwrap();
+    assert_eq!(result.value(), TerminalExecutionResult::Unit);
+    assert_eq!(
+        observed.0,
+        vec![vec![Some(vec![0, 128, 255])]; 2],
+        "the boundary observes the same literal bytes before and after the state edge"
+    );
+}
+
+#[test]
+fn byte_literal_call_operands_reject_owned_access_and_sibling_bindings() {
+    use checked_trees::{
+        CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
+        CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
+    };
+    let original = crate::front_end::checked_program(LITERAL_LOCALS);
+    checked_trees_to_lowered_psi::lower_machine(
+        &original,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("the named literal's ordinary call is valid");
+    for fault in 0..5 {
+        let mut changed = original.clone();
+        let argument = changed
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.operations)
+            .find_map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::CallUnit {
+                    structural_arguments,
+                    ..
+                } => structural_arguments.iter_mut().find(|argument| {
+                    argument.source
+                        == (CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                            binding_ordinal: 0,
+                        })
+                }),
+                _ => None,
+            })
+            .expect("the helper call retains its named literal binding");
+        match fault {
+            0 => argument.access = CheckedStructuralAccess::Owned,
+            1 => argument.access = CheckedStructuralAccess::MutableBorrow,
+            2 => {
+                argument.source =
+                    CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal: 1 }
+            }
+            3 => argument.path.push(CheckedUnitStructuralPathSegment::Field(
+                "missing".to_owned(),
+            )),
+            4 => argument.type_identity = "u64".to_owned(),
+            _ => unreachable!(),
+        }
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Root::enter")
+            )
+            .is_err(),
+            "literal call operand fault {fault} must not gain ownership or name another producer"
+        );
+    }
+}
+
+/// Check the semantic artifact directly so rejection cannot come merely from
+/// an unchanged proof digest. The dominance controls remove the earlier
+/// boundary observation, leaving the edge itself as the first literal use.
+fn assert_literal_successor_custody(module: &terminal_psi::TerminalModule) {
+    use terminal_psi::{OperationKind, StructuralAccess, StructuralPathSegment, Terminator};
+    use terminal_verifier::ModuleError;
+    terminal_verifier::validate_module(module).expect("the baseline literal successor is valid");
+    let (machine_index, source_index, literal, edge, target) = module
+        .machines
+        .iter()
+        .enumerate()
+        .find_map(|(machine_index, machine)| {
+            machine
+                .blocks
+                .iter()
+                .enumerate()
+                .find_map(|(source_index, block)| {
+                    let Terminator::Jump {
+                        edge,
+                        target,
+                        structural_arguments,
+                        ..
+                    } = &block.terminator
+                    else {
+                        return None;
+                    };
+                    let literal = structural_arguments.iter().find_map(|argument| {
+                        machine
+                            .structural_places
+                            .iter()
+                            .find(|place| {
+                                place.id == argument.place
+                                    && matches!(place.kind,
+                    semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral { .. })
+                            })
+                            .map(|place| place.id)
+                    })?;
+                    Some((machine_index, source_index, literal, *edge, *target))
+                })
+        })
+        .expect("the artifact lends a literal on an explicit state edge");
+    for fault in 0..5 {
+        let mut changed = module.clone();
+        let machine = &mut changed.machines[machine_index];
+        if fault < 3 {
+            let Terminator::Jump {
+                structural_arguments,
+                ..
+            } = &mut machine.blocks[source_index].terminator
+            else {
+                unreachable!()
+            };
+            let argument = structural_arguments
+                .iter_mut()
+                .find(|argument| argument.place == literal)
+                .unwrap();
+            match fault {
+                0 => argument.access = StructuralAccess::Owned,
+                1 => argument.access = StructuralAccess::MutableBorrow,
+                2 => argument.path.push(StructuralPathSegment::FixedIndex(0)),
+                _ => unreachable!(),
+            }
+        } else {
+            let source = &mut machine.blocks[source_index];
+            source
+                .operations
+                .retain(|operation| !matches!(operation.kind, OperationKind::BoundaryCall { .. }));
+            let producer_index = source.operations.iter().position(|operation| matches!(operation.kind,
+                OperationKind::EstablishByteSequenceLiteral { destination, .. } if destination == literal)).unwrap();
+            let producer = source.operations.remove(producer_index);
+            if fault == 4 {
+                machine
+                    .blocks
+                    .iter_mut()
+                    .find(|block| block.id == target)
+                    .unwrap()
+                    .operations
+                    .insert(0, producer);
+            }
+        }
+        let error = terminal_verifier::validate_module(&changed)
+            .expect_err("forged literal successor must reject");
+        if fault == 3 {
+            assert_eq!(
+                error,
+                ModuleError::ByteSequenceLiteralEstablishmentMismatch(
+                    changed.machines[machine_index].id
+                ),
+                "the literal declaration requires its unique establishment"
+            );
+        } else {
+            assert_eq!(
+                error,
+                ModuleError::InvalidStructuralSuccessorArgument {
+                    edge,
+                    place: literal
+                },
+                "fault {fault} must fail the edge's whole shared dominating literal custody"
+            );
+        }
+    }
+}

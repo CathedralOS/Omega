@@ -513,7 +513,7 @@ pub(super) fn emit_structural(
     if register_binding {
         operations
             .structural_values
-            .push((result.binding_ordinal, returned));
+            .push((result.binding_ordinal, returned.into()));
     }
     Ok(StructuralPlaceDeclaration {
         id: place,

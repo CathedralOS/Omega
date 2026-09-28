@@ -578,7 +578,7 @@ impl StateGraphEmission<'_, '_> {
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                         binding_ordinal,
                     } => case_emission::result(state, binding_ordinal, &operations)?
-                        .claims
+                        .claims()
                         .iter()
                         .map(|binding| binding.claim)
                         .collect::<Vec<_>>(),
@@ -609,7 +609,7 @@ impl StateGraphEmission<'_, '_> {
                 let source = match result.source {
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                         binding_ordinal,
-                    } => case_emission::result(state, binding_ordinal, &operations)?.place,
+                    } => case_emission::result(state, binding_ordinal, &operations)?.place(),
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                         parameter_index,
                     } => {
@@ -1044,7 +1044,7 @@ pub(super) fn return_root_discards(
             .into_iter()
             .map(|ordinal| {
                 let result = case_emission::result(state, ordinal, operations)?;
-                Ok(evaluation.current_structural_place(result.place))
+                Ok(evaluation.current_structural_place(result.place()))
             })
             .collect::<Result<Vec<_>, LoweringError>>()?;
     local_discards.extend(

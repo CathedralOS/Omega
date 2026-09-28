@@ -52,15 +52,8 @@ pub(super) fn return_unit_affine_discards(
         .iter()
         .flat_map(|operation| operation.with_value_calls())
     {
-        let result = match operation {
-            CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
-            | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
-            | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
-            | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
-            | CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
-            | CheckedUnitEffectOperationPlan::MoveStructuralField { result, .. } => result,
-            _ => continue,
+        let Some(result) = operation.structural_result_binding() else {
+            continue;
         };
         structural_result_statements.insert(result.binding_ordinal, result.statement_index);
         if matches!(

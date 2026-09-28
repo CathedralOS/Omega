@@ -102,7 +102,7 @@ impl StateGraphEmission<'_, '_> {
                         {
                             local_discards.push((
                                 case_emission::result(state, result.binding_ordinal, &operations)?
-                                    .place,
+                                    .place(),
                                 *discard_result_on_return,
                             ));
                         }

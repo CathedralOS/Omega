@@ -1,7 +1,8 @@
 //! Planning one `let` statement of a single-state body.
 //!
 //! Each initializer kind has its own producer, tried in order: an erased or
-//! record-pattern marker plans nothing; an atomic placeholder or load binds
+//! record-pattern marker plans nothing; a byte literal establishes its immutable
+//! storage; an atomic placeholder or load binds
 //! the atomic event; a selected boundary operator or IEEE FMA binds its
 //! realization; a move out of borrowed storage opens a window; a view
 //! subslice narrows an established view; a constructed structural value, a
@@ -108,6 +109,39 @@ pub(super) fn plan(
         return None;
     }
     if erased_locals.contains(&local.symbol) || is_record_pattern_marker(local) {
+        return Some(LocalPlan::Planned);
+    }
+    if !local.is_mutable
+        && let Some(argument) =
+            crate::execution::terminal_unit::calls::byte_sequence_literal_argument(
+                program,
+                local.type_reference,
+                local.initial_value,
+            )
+    {
+        local_phase("statement sequence: local data: byte literal");
+        let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { bytes } =
+            argument.source
+        else {
+            return None;
+        };
+        let type_identity = shapes.add_type(local.type_reference, binders, &[])?;
+        if type_identity != argument.type_identity
+            || program.type_multiplicity(local.type_reference) != Multiplicity::Unrestricted
+        {
+            return None;
+        }
+        let result = CheckedUnitStructuralResultBindingPlan {
+            statement_index,
+            binding_ordinal: u32::try_from(*structural_count).ok()?,
+            type_identity,
+            multiplicity: Multiplicity::Unrestricted,
+        };
+        *structural_count = structural_count.checked_add(1)?;
+        structural_results.push((result.clone(), facts::PlaceRoot::Symbol(local.symbol)));
+        structural_local_symbols.push(local.symbol);
+        operations
+            .push(CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, bytes });
         return Some(LocalPlan::Planned);
     }
     // An atomic carrier's result placeholder plans nothing: it

@@ -837,6 +837,7 @@ pass/storage/runtime_local_slice_forward_exit rejected 748ms
 pass/storage/runtime_machine_owned_indexed_integer_write_exit checked 508ms
 pass/storage/runtime_machine_owned_indexed_struct_copy_exit rejected 741ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: record literal source` (state 0, statement 2)
+pass/storage/runtime_primitive_local_literal_composition_exit checked 579ms @e75f61cc4333+wt
 pass/structs/affine_record_state_clone checked 1864ms
 pass/structs/affine_result_constructor checked 1042ms
 pass/structs/copied_array_field_shared_record checked 1559ms

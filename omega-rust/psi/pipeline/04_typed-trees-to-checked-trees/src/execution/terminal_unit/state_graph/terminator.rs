@@ -170,6 +170,10 @@ pub(super) fn build(
                                     result,
                                     ..
                                 }
+                                | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral {
+                                    result,
+                                    ..
+                                }
                                 | CheckedUnitEffectOperationPlan::EstablishViewSubslice {
                                     result,
                                     ..

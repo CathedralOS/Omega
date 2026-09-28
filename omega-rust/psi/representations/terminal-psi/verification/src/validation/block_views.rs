@@ -351,6 +351,50 @@ fn shared_loan_root(
     {
         return Some(result.structural_type);
     }
+    // A literal establishes immutable borrowed-view storage with a Unit
+    // result. Its declaration and dominating establishment supply the same
+    // whole shared successor view without inventing owned-result custody.
+    if argument.path.is_empty()
+        && available.contains(&argument.place)
+        && let Some(structural_type) =
+            machine
+                .structural_places
+                .iter()
+                .find_map(|place| match place.kind {
+                    StructuralPlaceKind::ByteSequenceLiteral {
+                        structural_type, ..
+                    } if place.id == argument.place => Some(structural_type),
+                    _ => None,
+                })
+    {
+        let mut establishments = machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .filter(|operation| {
+                matches!(operation.kind,
+                OperationKind::EstablishByteSequenceLiteral { destination, .. }
+                    if destination == argument.place)
+            });
+        let establishment = establishments.next()?;
+        if establishments.next().is_some()
+            || establishment.result != terminal_psi::OperationResult::Unit
+            || !matches!(&establishment.kind,
+                OperationKind::EstablishByteSequenceLiteral { qualifications, .. }
+                    if qualifications.is_empty())
+        {
+            return None;
+        }
+        return module
+            .structural_types
+            .iter()
+            .any(|declaration| {
+                declaration.id == structural_type
+                    && matches!(declaration.shape,
+                StructuralTypeShape::ByteSequence(carrier) if carrier.is_borrowed())
+            })
+            .then_some(structural_type);
+    }
     if argument.path.is_empty() {
         return super::byte_sequence::subslice::borrowed_result(machine, argument.place)
             .or_else(|| super::element_view::subslice::borrowed_result(machine, argument.place))

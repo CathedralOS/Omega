@@ -262,6 +262,7 @@ pub(super) fn lower_unit_structural_types_including(
                 // its view type: a range over a fixed-array field narrows a
                 // view no earlier binding or parameter declared.
                 CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
+                | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
                 | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => {
                     roots.push(result.type_identity.clone());
                 }
@@ -1111,6 +1112,7 @@ pub(super) fn lower_unit_services_including(
                 | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
                 | CheckedUnitEffectOperationPlan::EstablishReference { .. }
                 | CheckedUnitEffectOperationPlan::ReleaseReference { .. }
+                | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { .. }
                 | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
                 | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                 | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }

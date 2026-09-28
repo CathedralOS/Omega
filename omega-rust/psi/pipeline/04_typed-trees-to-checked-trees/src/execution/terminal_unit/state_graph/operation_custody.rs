@@ -6,8 +6,7 @@
 //! state can replay; one that does not names its kind in the trace.
 use super::{
     CheckedStructuralAccess, CheckedUnitEffectOperationPlan, Multiplicity, StatementNode,
-    TypedTrees, call_consumes_result_argument, call_custody_refusal, control,
-    whole_shared_argument,
+    TypedTrees, call_argument_admitted, call_custody_refusal, control,
 };
 
 pub(super) fn admit(
@@ -64,83 +63,20 @@ pub(super) fn admit(
                 structural_arguments,
                 ..
             } if structural_arguments.iter().all(|argument| {
-                    whole_shared_argument(argument)
-                        // A borrowed view may project from a parameter,
-                        // including the persistent receiver, without
-                        // changing custody across the selected edges.
-                        || (argument.source_parameter_index().is_some()
-                            && matches!(
-                                argument.access,
-                                CheckedStructuralAccess::SharedBorrow
-                                    | CheckedStructuralAccess::MutableBorrow
-                            ))
-                        // The ordinary call sequencer has already joined
-                        // owned arguments to their exact Consume events
-                        // and completion receipts. Graph topology does not
-                        // change that operation's custody.
-                        || (argument.source_parameter_index().is_some()
-                            && argument.path.is_empty()
-                            && argument.access == CheckedStructuralAccess::Owned)
-                        || call_consumes_result_argument(
-                            argument,
-                            &operations[..operation_index],
-                        )
-                }) => {}
+                call_argument_admitted(argument, &operations[..operation_index])
+            }) => {}
             CheckedUnitEffectOperationPlan::CallUnit {
                 structural_arguments,
                 claim_transfers,
                 ..
-            } if claim_transfers.is_empty()
-                && structural_arguments.iter().all(|argument| {
-                    whole_shared_argument(argument)
-                        || ((argument.source_parameter_index().is_some()
-                            || argument
-                                .source_structural_result_binding_ordinal()
-                                .is_some())
-                            && matches!(argument.access,
-                                CheckedStructuralAccess::SharedBorrow
-                                    | CheckedStructuralAccess::MutableBorrow))
-                        // The ordinary call sequencer has already joined
-                        // owned arguments to their exact Consume events and
-                        // completion receipts, exactly as it does for a
-                        // boundary call. Graph topology does not change that
-                        // operation's custody, so the same whole-parameter
-                        // owned argument is admitted here.
-                        || (argument.source_parameter_index().is_some()
-                            && argument.path.is_empty()
-                            && argument.access == CheckedStructuralAccess::Owned)
-                        || call_consumes_result_argument(
-                            argument,
-                            &operations[..operation_index],
-                        )
-                }) => {}
-            CheckedUnitEffectOperationPlan::ScalarCall {
+            }
+            | CheckedUnitEffectOperationPlan::ScalarCall {
                 structural_arguments,
                 claim_transfers,
                 ..
             } if claim_transfers.is_empty()
                 && structural_arguments.iter().all(|argument| {
-                    whole_shared_argument(argument)
-                        || ((argument.source_parameter_index().is_some()
-                            || argument
-                                .source_structural_result_binding_ordinal()
-                                .is_some())
-                            && matches!(argument.access,
-                                CheckedStructuralAccess::SharedBorrow
-                                    | CheckedStructuralAccess::MutableBorrow))
-                        // The ordinary call sequencer has already joined
-                        // owned arguments to their exact Consume events and
-                        // completion receipts, exactly as it does for a
-                        // boundary call. Graph topology does not change that
-                        // operation's custody, so the same whole-parameter
-                        // owned argument is admitted here.
-                        || (argument.source_parameter_index().is_some()
-                            && argument.path.is_empty()
-                            && argument.access == CheckedStructuralAccess::Owned)
-                        || call_consumes_result_argument(
-                            argument,
-                            &operations[..operation_index],
-                        )
+                    call_argument_admitted(argument, &operations[..operation_index])
                 }) => {}
             CheckedUnitEffectOperationPlan::StructuralCall {
                 discard_result_on_return: false,
@@ -156,6 +92,7 @@ pub(super) fn admit(
             }
             // A view-subslice local owns nothing: its shared view ends
             // with the loan, on every selected edge alike.
+            | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { .. }
             | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
             // Fixed-array, mutable-primitive, and trivial-affine locals mint

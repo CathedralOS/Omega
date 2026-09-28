@@ -13,13 +13,74 @@ pub(crate) struct SourceCallCoordinate {
     pub(crate) call_ordinal: usize,
 }
 
+/// One authored structural binding. Literal storage is established by a Unit
+/// operation; it does not acquire a structural operation result or its claims.
+#[derive(Debug, Clone)]
+pub(crate) enum StructuralBinding {
+    OperationResult(terminal_psi::StructuralOperationResult),
+    ByteSequenceLiteral {
+        place: PlaceId,
+        structural_type: semantic_vocabulary::StructuralTypeId,
+        declaration_ordinal: u32,
+    },
+}
+
+impl StructuralBinding {
+    pub(crate) fn place(&self) -> PlaceId {
+        match self {
+            Self::OperationResult(result) => result.place,
+            Self::ByteSequenceLiteral { place, .. } => *place,
+        }
+    }
+
+    pub(crate) fn structural_type(&self) -> semantic_vocabulary::StructuralTypeId {
+        match self {
+            Self::OperationResult(result) => result.structural_type,
+            Self::ByteSequenceLiteral {
+                structural_type, ..
+            } => *structural_type,
+        }
+    }
+
+    pub(crate) fn multiplicity(&self) -> terminal_psi::StructuralMultiplicity {
+        match self {
+            Self::OperationResult(result) => result.multiplicity,
+            Self::ByteSequenceLiteral { .. } => terminal_psi::StructuralMultiplicity::Unrestricted,
+        }
+    }
+
+    pub(crate) fn claims(&self) -> &[terminal_psi::StructuralResultClaimBinding] {
+        match self {
+            Self::OperationResult(result) => &result.claims,
+            Self::ByteSequenceLiteral { .. } => &[],
+        }
+    }
+
+    pub(crate) fn operation_result(
+        &self,
+    ) -> Result<&terminal_psi::StructuralOperationResult, LoweringError> {
+        match self {
+            Self::OperationResult(result) => Ok(result),
+            Self::ByteSequenceLiteral { .. } => Err(LoweringError::Unsupported(
+                "literal binding has no structural operation result",
+            )),
+        }
+    }
+}
+
+impl From<terminal_psi::StructuralOperationResult> for StructuralBinding {
+    fn from(result: terminal_psi::StructuralOperationResult) -> Self {
+        Self::OperationResult(result)
+    }
+}
+
 /// Module-wide operation identities for one machine namespace. Machine zero
 /// uses the historical one-based range; additional machines receive disjoint
 /// ranges when source call-closure production composes them.
 pub(crate) struct OperationBuffer {
     /// Authored structural bindings may complete at a control join rather than
     /// a call operation. Keep those places in the same state-local namespace.
-    pub(crate) structural_values: Vec<(u32, terminal_psi::StructuralOperationResult)>,
+    pub(crate) structural_values: Vec<(u32, StructuralBinding)>,
     pub(crate) selected_ieee_float_comparisons:
         Vec<lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence>,
     pub(crate) selected_integer_comparisons:

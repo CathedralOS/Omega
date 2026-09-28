@@ -575,6 +575,21 @@ fn producer(
                     construction_source: Some(*source),
                 })
             }
+            CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
+            | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
+                if result.binding_ordinal == binding_ordinal =>
+            {
+                Some(Producer {
+                    operation_index,
+                    coordinate: checked_trees::CheckedUnitCallCoordinate {
+                        statement_index: result.statement_index,
+                        call_ordinal: 0,
+                    },
+                    result,
+                    discard: false,
+                    construction_source: None,
+                })
+            }
             CheckedUnitEffectOperationPlan::StructuralCall {
                 coordinate,
                 result,
@@ -604,6 +619,36 @@ fn producer(
     Ok(result)
 }
 
+/// An immutable local's shared view type supplies its access; naming it does
+/// not move an owned result. The initializer's producer replays separately.
+fn shared_view_binding(
+    checked: &CheckedTrees,
+    state: symbols::SymbolHandle,
+    result: &CheckedUnitStructuralResultBindingPlan,
+) -> Result<bool, LoweringError> {
+    let (_, authored) =
+        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let Some(StatementNode::LocalData(local)) = checked
+        .statement_table
+        .statements(authored.statement_nodes)
+        .get(result.statement_index as usize)
+    else {
+        return Ok(false);
+    };
+    let Some(carrier) =
+        crate::expression_preparation::source_custody::structural::shared_slice_view_referent(
+            checked,
+            local.type_reference,
+        )
+    else {
+        return Ok(false);
+    };
+    Ok(!local.is_mutable
+        && local.symbol.is_valid()
+        && result.multiplicity == Multiplicity::Unrestricted
+        && checked.normalized_type_identity(carrier).as_str() == result.type_identity)
+}
+
 pub(crate) fn validate_usage(
     checked: &CheckedTrees,
     caller: &CheckedUnitEffectMachinePlan,
@@ -613,6 +658,7 @@ pub(crate) fn validate_usage(
     if producer.result != result {
         return unsupported("Unit structural result binding disagrees with its producer");
     }
+    let shared_view = shared_view_binding(checked, caller.state, result)?;
     let mut consumed = false;
     let mut disposed = false;
     let mut projected_paths = Vec::<&[checked_trees::CheckedUnitStructuralPathSegment]>::new();
@@ -965,12 +1011,20 @@ pub(crate) fn validate_usage(
                 checked_trees::CheckedStructuralAccess::SharedBorrow
                     | checked_trees::CheckedStructuralAccess::MutableBorrow
                     | checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
-            ) && matches!(
+            ) && (matches!(
                 operation,
                 CheckedUnitEffectOperationPlan::CallUnit { .. }
                     | CheckedUnitEffectOperationPlan::ScalarCall { .. }
                     | CheckedUnitEffectOperationPlan::StructuralCall { .. }
-            ) && producer.coordinate.call_ordinal == 0
+            ) || (shared_view
+                && argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow
+                && matches!(
+                    operation,
+                    CheckedUnitEffectOperationPlan::BoundaryCall { .. }
+                        | CheckedUnitEffectOperationPlan::BoundaryScalarCall { .. }
+                        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
+                )))
+                && producer.coordinate.call_ordinal == 0
             {
                 if projected_paths.iter().any(|earlier| {
                     earlier.starts_with(&argument.path) || argument.path.starts_with(earlier)
@@ -1378,6 +1432,9 @@ pub(crate) fn validate_consumer(
         let producer = producer(caller.operations, binding_ordinal)?;
         let result = producer.result;
         let source_order = producer.precedes_consumer(*coordinate);
+        let shared_view_argument = shared_view_binding(checked, caller.state, result)?
+            && argument.path.is_empty()
+            && argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow;
         // A whole linear result moved into this call transfers its producer's
         // live claim: the call's completion receipts publish that claim at
         // this argument rather than leaving the operand claim-free. Target
@@ -1499,6 +1556,7 @@ pub(crate) fn validate_consumer(
                         | CheckedUnitEffectOperationPlan::ScalarCall { .. }
                         | CheckedUnitEffectOperationPlan::StructuralCall { .. }
                 ) && !boundary_array_argument
+                    && !shared_view_argument
                     || !argument.path.is_empty()
                     || !matches!(
                         argument.access,
@@ -1687,6 +1745,15 @@ fn validate_operand_producers(
             }
             continue;
         }
+        match candidate {
+            CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { .. } => {
+                super::super::literal_locals::validate(checked, caller.state, candidate)?;
+            }
+            CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. } => {
+                super::super::view_ranges::binding_local(checked, caller.state, candidate)?;
+            }
+            _ => {}
+        }
         let (producer_coordinate, source_site, result) = match candidate {
             CheckedUnitEffectOperationPlan::StructuralCall {
                 coordinate: producer_coordinate,
@@ -1701,6 +1768,8 @@ fn validate_operand_producers(
                 ..
             } => (*producer_coordinate, *source_site, result),
             CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
+            | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
+            | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => (
                 checked_trees::CheckedUnitCallCoordinate {
                     statement_index: result.statement_index,
@@ -1765,7 +1834,7 @@ fn validate_operand_producers(
             // A `&T` producer keeps the authored reference on its local but
             // joins the referent's carrier: compare the slice/record the
             // view names, not the borrow shell.
-            let view_carrier = crate::expression_preparation::source_custody::structural::borrowed_slice_view_referent(
+            let view_carrier = crate::expression_preparation::source_custody::structural::shared_slice_view_referent(
                 checked,
                 local.type_reference,
             );
@@ -1911,7 +1980,7 @@ fn validate_operand_producers(
                         && matches!(
                             statements.get(result.statement_index as usize),
                             Some(StatementNode::LocalData(local))
-                                if crate::expression_preparation::source_custody::structural::borrowed_slice_view_referent(
+                                if crate::expression_preparation::source_custody::structural::shared_slice_view_referent(
                                     checked,
                                     local.type_reference,
                                 )

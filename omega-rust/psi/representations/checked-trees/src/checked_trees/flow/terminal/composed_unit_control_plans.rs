@@ -459,6 +459,7 @@ impl CheckedGuardedJumpFallbackPlan {
             )) => match operation {
                 CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
                 | CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
+                | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
                 | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => {
                     result.statement_index
                 }
@@ -501,6 +502,7 @@ impl CheckedClosedSumCasePlan {
             )) => match operation {
                 CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
                 | CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
+                | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
                 | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => {
                     result.statement_index
                 }

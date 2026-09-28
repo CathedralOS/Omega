@@ -668,7 +668,7 @@ fn statement_phase(statement: &StatementNode) -> &'static str {
 
 /// The first statement after the prefix whose kind the sequence cannot plan
 /// at all: a transition mid-body, an expression that neither calls nor
-/// completes, a local of a type family with no binding route. Statements the
+/// completes, or a statement with no sequencing route. Statements the
 /// sequence admits by kind can still decline while planning; this names
 /// only the kind refusal, with its index for the construction trace.
 pub(super) fn first_unsupported_statement(
@@ -683,10 +683,6 @@ pub(super) fn first_unsupported_statement(
         .as_ref()
         .map(|(_, count)| *count)
         .unwrap_or(usize::MAX);
-    // An erased borrow carrier is a checked alias, not a storage binding: its
-    // declaration composes through the sequence while each use's planner joins
-    // the captured referent's evidence.
-    let erased_locals = erased_alias_locals(program, facts, machine, state);
     program
         .statement_table
         .statements(state.statement_nodes)
@@ -745,53 +741,10 @@ pub(super) fn first_unsupported_statement(
                                 .primitive_type_reference(state.return_type)
                                 .is_some()))
             }
-            StatementNode::LocalData(local) => {
-                program
-                    .primitive_type_reference(local.type_reference)
-                    .is_some()
-                    || has_structural_result(program, facts, machine, statement)
-                    // A structural local initialized by a call is admitted by
-                    // kind; whether its result type has a Unit shape is the
-                    // sequence's own decision at that statement.
-                    || matches!(
-                        program.expression_table.expression(local.initial_value),
-                        ExpressionNode::Call(_)
-                    )
-                    // A whole read of an existing place into an owning local
-                    // has the borrowed-window route by kind; the sequence
-                    // decides whether that place can be moved out of.
-                    || super::super::borrowed_windows::move_out_candidate(
-                        program, state, *index, local,
-                    )
-                    .is_some()
-                    || u32::try_from(*index).ok().is_some_and(|ordinal| {
-                        facts
-                            .values
-                            .structural_values
-                            .root_at(state.symbol, ordinal)
-                            .is_some()
-                    })
-                    || erased_locals.contains(&local.symbol)
-                    || is_record_pattern_marker(local)
-                    || is_arm_destructure_marker(local)
-                    // A view local narrowing an established view has the
-                    // view-subslice route by kind; the sequence decides
-                    // whether its range and source are admissible.
-                    || (!local.is_mutable
-                        && crate::execution::terminal_unit::calls::view_subslice::view_kind(
-                            program,
-                            local.type_reference,
-                        )
-                        .is_some()
-                        && matches!(
-                            program.expression_table.expression(local.initial_value),
-                            ExpressionNode::Indexed(indexed)
-                                if matches!(
-                                    program.expression_table.expression(indexed.index),
-                                    ExpressionNode::Range(_)
-                                )
-                        ))
-            }
+            // The local planner owns initializer/type admission. Repeating its
+            // producers here creates a second vocabulary that can reject a
+            // supported declaration before its own planner sees it.
+            StatementNode::LocalData(_) => true,
             // Each transition arm lowers to its own statement, so a dispatch
             // is a trailing RUN of transitions ending the state body. The
             // sequence plans the statements before it and the terminator
@@ -837,14 +790,6 @@ fn erased_alias_locals(
 /// the same place, so the marker declares no storage and plans no operation.
 fn is_record_pattern_marker(local: &typed_trees::statement::TableLocalData) -> bool {
     local.name.as_str().starts_with("__destructure#")
-}
-
-/// A union-match arm's marker (`let __arm_destructure#V=... = self;`) carries
-/// only the match's provenance: the case-pattern bindings are resolved by the
-/// dispatch machinery, so the marker declares no storage and plans no
-/// operation — the sequence already skips it by name when iterating.
-fn is_arm_destructure_marker(local: &typed_trees::statement::TableLocalData) -> bool {
-    local.name.as_str().starts_with("__arm_destructure#")
 }
 
 /// The statement position a prebuilt assignment store belongs to.
@@ -1672,6 +1617,7 @@ fn consume_result(
                 | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
                 | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
                 | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
+                | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
                 | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
                     if result.binding_ordinal == binding_ordinal)
     });
@@ -1689,6 +1635,7 @@ fn consume_result(
     if matches!(producer,
                 CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
                 | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
+                | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
                 | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
                 | CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
                     if result.multiplicity == Multiplicity::Unrestricted)

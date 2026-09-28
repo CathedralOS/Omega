@@ -885,11 +885,31 @@ fn call_consumes_result_argument(
             .is_some_and(call_owns_result)
 }
 
-/// Name the first requirement a unit or scalar call's custody does not meet,
-/// so a body the selected edges decline reports the argument shape rather
-/// than the whole operation family. Diagnostic only: the admitting guards
-/// above decide what is carried, and this reproduces their conditions in the
-/// order they read.
+/// The call sequencer already joined each operand to its loan or consumption.
+/// A state edge does not change that call's argument custody. Boundary and
+/// ordinary calls share this rule; their receipts and claim transfers remain
+/// separate obligations at their respective consumers.
+fn call_argument_admitted(
+    argument: &CheckedUnitStructuralArgumentPlan,
+    earlier: &[CheckedUnitEffectOperationPlan],
+) -> bool {
+    whole_shared_argument(argument)
+        || ((argument.source_parameter_index().is_some()
+            || argument
+                .source_structural_result_binding_ordinal()
+                .is_some())
+            && matches!(
+                argument.access,
+                CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
+            ))
+        || (argument.source_parameter_index().is_some()
+            && argument.path.is_empty()
+            && argument.access == CheckedStructuralAccess::Owned)
+        || call_consumes_result_argument(argument, earlier)
+}
+
+/// Name the first unmet call requirement using the same argument admission
+/// as the operation guard, then distinguish its unsupported custody.
 fn call_custody_refusal(
     structural_arguments: &[CheckedUnitStructuralArgumentPlan],
     claim_transfers: &[checked_trees::CheckedUnitClaimTransferPlan],
@@ -899,28 +919,7 @@ fn call_custody_refusal(
         return "state graph: operation custody: call claim transfers";
     }
     for argument in structural_arguments {
-        if whole_shared_argument(argument) {
-            continue;
-        }
-        let borrowed = matches!(
-            argument.access,
-            CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
-        );
-        if borrowed
-            && (argument.source_parameter_index().is_some()
-                || argument
-                    .source_structural_result_binding_ordinal()
-                    .is_some())
-        {
-            continue;
-        }
-        if argument.source_parameter_index().is_some()
-            && argument.path.is_empty()
-            && argument.access == CheckedStructuralAccess::Owned
-        {
-            continue;
-        }
-        if call_consumes_result_argument(argument, earlier) {
+        if call_argument_admitted(argument, earlier) {
             continue;
         }
         if argument.access == CheckedStructuralAccess::Owned {
@@ -1305,6 +1304,7 @@ fn successor_bindings(
                         CheckedUnitEffectOperationPlan::StructuralCall { result, discard_result_on_return: false, .. }
                         | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, discard_result_on_return: false, .. }
                         | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, discard_result_on_return: false, .. }
+                        | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
                         | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => Some(result),
                         _ => None,
                     }).filter(|result| result.statement_index < ordinal && matches!(program.statement_table.statements(source.statement_nodes).get(result.statement_index as usize), Some(StatementNode::LocalData(local)) if place.root == facts::PlaceRoot::Symbol(local.symbol)));

@@ -69,6 +69,7 @@ mod provider_attachments;
 // The operations a body lowers, each with its exact source custody.
 mod byte_subslices;
 mod field_replacement;
+pub(crate) mod literal_locals;
 mod ordinary_calls;
 mod parameters;
 pub(crate) mod primitive_locals;

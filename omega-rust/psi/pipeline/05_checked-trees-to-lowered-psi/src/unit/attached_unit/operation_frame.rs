@@ -59,7 +59,7 @@ use super::view_ranges::{ViewRangeSite, ViewRangeSource};
 use crate::emission::borrowed_window::{
     BorrowedWindowLedger, BorrowedWindowRepairValue, WindowEvaluation,
 };
-use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::emission::operation_emission::buffer::{OperationBuffer, StructuralBinding};
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::view_subslice::ViewFamily;
 use crate::expression_preparation::bindings::ScalarBindings;
@@ -288,11 +288,18 @@ impl StructuralResults<'_> {
                 if *discard_on_return {
                     return unsupported("call continuation cleanup has conflicting custody");
                 }
+                if !matches!(place.kind, StructuralPlaceKind::OperationResult { .. }) {
+                    return unsupported("call continuation cleanup has no operation result");
+                }
                 Ok(place.id)
             }
             Self::StateGraph { state, .. } => {
-                super::composed_control::state_graph_result(state, binding_ordinal, operations)
-                    .map(|produced| produced.place)
+                let binding = super::composed_control::state_graph_result(
+                    state,
+                    binding_ordinal,
+                    operations,
+                )?;
+                Ok(binding.operation_result()?.place)
             }
         }
     }
@@ -325,12 +332,16 @@ impl StructuralResults<'_> {
                 })
             }
             Self::StateGraph { state, .. } => {
-                super::composed_control::state_graph_result(state, binding_ordinal, operations).map(
-                    |produced| BorrowedWindowRepairValue {
-                        place: produced.place,
-                        structural_type: produced.structural_type,
-                    },
-                )
+                let binding = super::composed_control::state_graph_result(
+                    state,
+                    binding_ordinal,
+                    operations,
+                )?;
+                let produced = binding.operation_result()?;
+                Ok(BorrowedWindowRepairValue {
+                    place: produced.place,
+                    structural_type: produced.structural_type,
+                })
             }
         }
     }
@@ -388,24 +399,36 @@ impl StructuralResults<'_> {
                         "composed call result binding namespace is stale or duplicated",
                     );
                 }
-                let mut declarations = places.iter().filter(|place| place.id == result.place);
-                let declaration = declarations.next().ok_or(LoweringError::Unsupported(
-                    "composed call completed result has no place declaration",
-                ))?;
-                if declarations.next().is_some()
-                    || !matches!(declaration.kind,
-                    StructuralPlaceKind::OperationResult { structural_type, producer }
-                        if structural_type == result.structural_type
-                            && operations.operations.iter().any(|candidate| {
-                                candidate.id == producer
-                                    && candidate.result.structural() == Some(result)
-                            }))
-                {
-                    return unsupported(
-                        "composed call result declaration differs from its operation",
-                    );
+                match result {
+                    StructuralBinding::ByteSequenceLiteral { place, structural_type, declaration_ordinal } => {
+                        let declaration = StructuralPlaceDeclaration { id: *place, kind: StructuralPlaceKind::ByteSequenceLiteral { structural_type: *structural_type, declaration_ordinal: *declaration_ordinal } };
+                        let mut producers = operations.iter().filter(|operation| matches!(operation.kind,
+                            OperationKind::EstablishByteSequenceLiteral { destination, .. } if destination == declaration.id));
+                        let producer = producers.next().ok_or(LoweringError::Unsupported("literal binding has no establishment"))?;
+                        if producers.next().is_some() || producer.result != OperationResult::Unit {
+                            return unsupported("literal binding repeats or changes its establishment");
+                        }
+                        Ok((declaration, false))
+                    }
+                    StructuralBinding::OperationResult(result) => {
+                        let mut declarations = places.iter().filter(|place| place.id == result.place);
+                        let declaration = declarations.next().ok_or(LoweringError::Unsupported(
+                            "composed call completed result has no place declaration",
+                        ))?;
+                        if declarations.next().is_some()
+                            || !matches!(declaration.kind,
+                            StructuralPlaceKind::OperationResult { structural_type, producer }
+                                if structural_type == result.structural_type
+                                    && operations.operations.iter().any(|candidate| {
+                                        candidate.id == producer
+                                            && candidate.result.structural() == Some(result)
+                                    }))
+                        {
+                            return unsupported("composed call result declaration differs from its operation");
+                        }
+                        Ok((*declaration, false))
+                    }
                 }
-                Ok((*declaration, false))
             })
             .collect::<Result<Vec<_>, _>>()
             .map(Cow::Owned)
@@ -441,6 +464,7 @@ impl OperationFrame<'_, '_> {
                 | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
+                | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { .. }
                 | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
                 | CheckedUnitEffectOperationPlan::AtomicAccess(_)
         )
@@ -496,6 +520,9 @@ impl OperationFrame<'_, '_> {
             CheckedUnitEffectOperationPlan::CallContinuationCleanup {
                 affine_discards, ..
             } => self.call_continuation_cleanup(affine_discards),
+            CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { .. } => {
+                self.establish_byte_sequence_literal(operation)
+            }
             CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. } => {
                 self.establish_view_subslice(operation)
             }
@@ -1313,6 +1340,81 @@ impl OperationFrame<'_, '_> {
             }
         }
         Ok(())
+    }
+
+    /// Establish the literal's own immutable storage at its declaration, then
+    /// bind that place in the ordinary local and view namespaces. Its Terminal
+    /// producer remains Unit; it mints no owned-result or claim custody.
+    fn establish_byte_sequence_literal(
+        &mut self,
+        operation: &CheckedUnitEffectOperationPlan,
+    ) -> Result<(), LoweringError> {
+        let CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, bytes } =
+            operation
+        else {
+            return unsupported("literal local has no producer");
+        };
+        self.results
+            .require_next(result, "literal local binding is not dense")?;
+        super::literal_locals::validate(self.checked, self.state, operation)?;
+        let structural_type = lookup_type_id(self.type_ids, &result.type_identity)?;
+        if !self
+            .structural_types
+            .declarations()
+            .iter()
+            .any(|declaration| {
+                declaration.id == structural_type
+                    && matches!(
+                        declaration.shape,
+                        terminal_psi::StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                        )
+                    )
+            })
+        {
+            return unsupported("literal local carrier is not a borrowed byte view");
+        }
+        let destination = place_id(allocate_dense(self.next_place)?);
+        let declaration_ordinal =
+            crate::emission::next_byte_sequence_literal_ordinal(self.private_places.literals())?;
+        let declaration = StructuralPlaceDeclaration {
+            id: destination,
+            kind: StructuralPlaceKind::ByteSequenceLiteral {
+                declaration_ordinal,
+                structural_type,
+            },
+        };
+        self.private_places.literals().push(declaration);
+        let id = self.operations.allocate();
+        self.operations.push(Operation {
+            id,
+            static_reach_binding: None,
+            suspension_crossing: None,
+            result: OperationResult::Unit,
+            kind: OperationKind::EstablishByteSequenceLiteral {
+                destination,
+                bytes: bytes.clone(),
+                qualifications: Vec::new(),
+            },
+        });
+        // The literal roster owns its declaration. Dense bindings index that
+        // same place; a graph's registry retains its explicit literal kind.
+        if let StructuralResults::Dense(roster) = &mut self.results {
+            roster.push((declaration, false));
+        }
+        self.evaluation.establish_structural_binding(
+            self.checked,
+            self.state,
+            result,
+            true,
+            StructuralBinding::ByteSequenceLiteral {
+                place: destination,
+                structural_type,
+                declaration_ordinal,
+            },
+            self.structural_types.declarations(),
+            self.operations,
+        )
     }
 
     /// Bind one immutable view local to an exclusive range of an established

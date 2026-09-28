@@ -239,26 +239,52 @@ pub(super) fn argument(
                     .as_str()))
         && let facts::PlaceRoot::Symbol(view_symbol) = place.root
     {
-        let borrow_state = facts
-            .borrow
-            .states
-            .iter()
-            .map(|(_, borrow_state)| borrow_state)
-            .find(|borrow_state| {
-                borrow_state.machine_symbol == machine && borrow_state.state_symbol == state
-            })?;
-        let mut loans = facts
-            .borrow
-            .loans
-            .span_or_empty(borrow_state.loans)
-            .iter()
-            .filter(|loan| loan.owner_symbol == view_symbol);
-        let loan = loans.next()?;
-        if loans.next().is_some()
-            || loan.kind != checked_trees::BorrowAccessKind::Read
-            || call.statement_index > loan.last_use_statement_index
+        // Literal storage is established here and borrows no caller-owned
+        // place. Other view bindings still need the captured source loan.
+        // Join the exact authored declaration rather than treating a missing
+        // loan as permission to forward arbitrary views.
+        let literal_storage = match program
+            .statement_table
+            .statements(source_state.statement_nodes)
+            .get(result.statement_index as usize)
         {
-            return None;
+            Some(StatementNode::LocalData(local))
+                if local.symbol == view_symbol
+                    && !local.is_mutable
+                    && result.multiplicity == Multiplicity::Unrestricted
+                    && (result.statement_index as usize) < call.statement_index =>
+            {
+                super::byte_sequence_literal_argument(
+                    program,
+                    local.type_reference,
+                    local.initial_value,
+                )
+                .is_some_and(|literal| literal.type_identity == result.type_identity)
+            }
+            _ => false,
+        };
+        if !literal_storage {
+            let borrow_state = facts
+                .borrow
+                .states
+                .iter()
+                .map(|(_, borrow_state)| borrow_state)
+                .find(|borrow_state| {
+                    borrow_state.machine_symbol == machine && borrow_state.state_symbol == state
+                })?;
+            let mut loans = facts
+                .borrow
+                .loans
+                .span_or_empty(borrow_state.loans)
+                .iter()
+                .filter(|loan| loan.owner_symbol == view_symbol);
+            let loan = loans.next()?;
+            if loans.next().is_some()
+                || loan.kind != checked_trees::BorrowAccessKind::Read
+                || call.statement_index > loan.last_use_statement_index
+            {
+                return None;
+            }
         }
         return Some(CheckedUnitStructuralArgumentPlan {
             source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {

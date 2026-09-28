@@ -10,7 +10,7 @@ use super::super::super::{
 };
 use super::super::{CheckedTrees, LoweringError, catalogs};
 use super::{CheckedComposedUnitControlStatePlan, scalars};
-use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::emission::operation_emission::buffer::{OperationBuffer, StructuralBinding};
 
 pub(super) struct PreparedCase<'a> {
     pub outcome: &'a checked_trees::CheckedClosedSumCaseOutcomePlan,
@@ -72,7 +72,7 @@ pub(super) fn prepare<'a>(
             binding_ordinal,
         } => {
             let produced = result(state, binding_ordinal, operations)?;
-            (produced.place, produced.structural_type)
+            (produced.place(), produced.structural_type())
         }
         _ => return unsupported("Unit graph case subject source unsupported"),
     };
@@ -205,13 +205,13 @@ pub(in crate::unit::attached_unit) fn result<'a>(
     state: &CheckedComposedUnitControlStatePlan,
     binding_ordinal: u32,
     operations: &'a OperationBuffer,
-) -> Result<&'a terminal_psi::StructuralOperationResult, LoweringError> {
+) -> Result<std::borrow::Cow<'a, StructuralBinding>, LoweringError> {
     if let Some((_, produced)) = operations
         .structural_values
         .iter()
         .find(|(ordinal, _)| *ordinal == binding_ordinal)
     {
-        return Ok(produced);
+        return Ok(std::borrow::Cow::Borrowed(produced));
     }
     let mut bindings = state
         .operations
@@ -264,5 +264,5 @@ pub(in crate::unit::attached_unit) fn result<'a>(
     {
         return unsupported("Unit graph result ownership drifted");
     }
-    Ok(produced)
+    Ok(std::borrow::Cow::Owned(produced.clone().into()))
 }
