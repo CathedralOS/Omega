@@ -2553,6 +2553,42 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
 
 ## P3 - Terminal Psi, PCC, and observation
 
+- **WRITE-ONLY-BORROW.** Complete caller-visible `&write T` mutation under
+  [write-only authority](wiki/spec/terminal-psi/structural_access.md#write-only-authority).
+  Owners: checked execution, checked-to-lowered publication and native reference
+  preparation.
+
+  First carry write-only calls through composed control in
+  `execution/terminal_unit/state_graph/`:
+  `operation_custody.rs` excludes write-only arguments, and `mod.rs` excludes
+  write-only state parameters. A caller invoking
+  `forward(&write self.value, 42)` loses its plan at `unit call arguments`;
+  an otherwise identical mutable-borrow program executes with correct caller
+  writeback. The same comparison holds for `values[position + 1] = value`.
+  Preserve loan/restoration evidence through composition, not just admission.
+
+  Remaining: general aggregate and `[copy]` sum replacement beyond scalar-field
+  record literals; runtime domain-qualified byte-field replacement with encoding
+  evidence. Verify computed IEEE store/readback through FLOAT-PROVIDERS; the
+  mutable controls stop in caller guard planning. Checking already admits
+  closed copy sums; computed integer selectors and
+  scalar-computation store sources already have plans. Reuse them. The
+  `write_only` corpus's two passing fixtures only check source.
+
+  Coordinate sequencing with STATE-LOCAL-VALUE-FRONTIER, reference identity with
+  STRUCTURAL-BORROW-IDENTITY, mutable dynamic dispatch with FINITE-GENERIC-DISPATCH,
+  and broader indexed realization with PLACED-ACCESS-NATIVE-OPS. Use
+  CANONICALIZE-SCALAR-RANGE-CONTRACTS' contract/domain bounds.
+
+  Acceptance: runnable `write_only` corpus cases preserve exact widths,
+  untouched neighbors, runtime signed/Boolean/floating sources, restoration,
+  return custody and independently replayed non-observation. Reject reads,
+  bare forwarding, readable widening and overlapping exclusive arguments.
+  General replacement preserves displaced custody and whole-value validity.
+  Observe original caller storage, including guarded/computed indices, rather
+  than copied homes. Run `python3 tools/corpus_gate.py --native --filter write_only`
+  on Windows, macOS and both Linux targets; cross-publication is not execution.
+
 - **NORMALIZED-ABI-LOWERING.** Execute owned aggregate and descriptor foreign
   arguments/results under the [calling-plan contract](wiki/spec/build/calling_plans.md).
   Owners: Omega stages 02 and 03, backend call-frame emission.
@@ -2835,36 +2871,6 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   `erased_parameter_named_transition_forward`
   and `composed_unit_internal_calls`' exact erased ordinals, plus runtime-read,
   receiver, layout-dependent-erasure and invalid-qualifier refusals.
-
-- **WRITE-ONLY-BORROW.** Finish `&write T` under
-  [write-only authority](wiki/spec/terminal-psi/structural_access.md#write-only-authority),
-  preserving original referents and exact place/loan custody. Owners:
-  `04_typed-trees-to-checked-trees/src/execution/`, `checked-trees-to-lowered-psi`
-  and native reference preparation in instruction legalization.
-
-  Remaining source-to-native work: general aggregate and `[copy]` sum
-  replacement beyond scalar-field record literals; runtime domain-qualified
-  byte-field replacement with encoding evidence; guarded/computed runtime-index
-  production; and computed IEEE store transport through FLOAT-PROVIDERS.
-  PLACED-ACCESS-NATIVE-OPS owns native realization of the retained indexed-store
-  operation. Its source fixture still needs the bracketed-range
-  migration owned by CANONICALIZE-SCALAR-RANGE-CONTRACTS. Route mutable dynamic
-  dispatch through FINITE-GENERIC-DISPATCH, common reference identity through
-  STRUCTURAL-BORROW-IDENTITY, and sequencing through STATE-LOCAL-VALUE-FRONTIER.
-  Consult the [parked IEEE recovery record](wiki/drafts/designs/write_only_borrow_ieee_store_branch.md)
-  before duplicating work; its unpublished tip is not available in this checkout.
-
-  Acceptance: express repaired limitations as runnable `write_only` corpus
-  cases (the `run` tier or `*_exit`) executing against caller storage. Cover
-  exact width, untouched neighbors, runtime signed/Boolean/floating sources,
-  restoration/return custody, non-observation and independent replay. Reject
-  reads, bare write-only forwarding, readable widening and overlapping
-  exclusive arguments. General replacement must preserve displaced custody and
-  whole-value validity, not merely decompose more source patterns. Observe
-  computed stores in the original caller, not a copied frame home. Run
-  `python3 tools/corpus_gate.py --native --filter write_only` on matching hosts,
-  including both Linux targets and Windows/macOS. Cross-publication is not
-  execution.
 
 - **STRUCTURAL-BORROW-IDENTITY.** Complete source-owner/projection routes under
   [structural access](wiki/spec/terminal-psi/structural_access.md), retaining
