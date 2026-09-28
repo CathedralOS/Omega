@@ -177,29 +177,10 @@ pub fn realize_retained_native_artifact(
         )?;
         let native_settlements = prepared_imports.settlements();
 
-        let selected_plans = proposal.selected_provider_plans().plans();
-        let compiler_builtins = proposal
-            .compiler_builtins()
-            .iter()
-            .map(|builtin| {
-                let provider_plan = selected_plans
-                    .get(builtin.provider_plan_index())
-                    .ok_or_else(|| {
-                        diagnostic(
-                            "Terminal native proposal",
-                            format!(
-                                "compiler builtin `{}` names an absent selected provider plan",
-                                builtin.requirement_identity()
-                            ),
-                        )
-                    })?;
-                Ok(crate::native::NativeCompilerBuiltinSettlement {
-                    requirement_identity: builtin.requirement_identity(),
-                    provider_plan,
-                    execution: builtin.execution(),
-                })
-            })
-            .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+        let compiler_builtins = abstract_operations_to_target_operations::provider_admission::prepare_retained_compiler_builtins(
+            proposal.compiler_builtins(),
+            proposal.selected_provider_plans().plans(),
+        )?;
         let calling_plans = proposal.program_entry().calling_plans().map(|plans| {
             (
                 &plans.semantic_calling_application,

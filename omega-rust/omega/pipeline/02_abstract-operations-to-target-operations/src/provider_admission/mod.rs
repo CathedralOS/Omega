@@ -7,6 +7,8 @@
 //! closure retained by the plan.
 //! `admit_native_callback_arguments` projects exact retained callback
 //! destinations for the lowerer's independent target/application replay.
+//! Retained builtin proposals keep their plan-index custody here as well;
+//! preparation never replaces independent native admission.
 
 mod adapters;
 mod callback_arguments;
@@ -22,6 +24,10 @@ mod terminal_authority_policy;
 mod terminal_authority_review;
 
 pub use callback_arguments::admit_native_callback_arguments;
+pub use compiler_builtins::{
+    TerminalCompilerBuiltinProposal, prepare_retained_compiler_builtins,
+    validate_retained_compiler_builtins,
+};
 
 pub use source_evaluated_imports::{
     PreparedSourceEvaluatedImports, SourceEvaluatedImportSettlement,
