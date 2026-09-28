@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("cyclic_projected_borrow_call");
+    builder.application("cyclic_projected_borrow_call_exit");
     builder.depend(Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }
