@@ -14,7 +14,16 @@ machine ping_leaf() satisfies Host::ping via ForeignBinding::Syscall(60);
 }
 "#;
     let granted = Fixture::local(source, granted_build, TargetProfile::WindowsX64);
-    assert_eq!(granted.checked.custody.selected_provider_grants().len(), 1);
+    assert_eq!(
+        granted
+            .checked
+            .custody
+            .execution()
+            .selected_provider_grants
+            .as_slice()
+            .len(),
+        1
+    );
     let policy = project(&granted);
     let [plan] = policy.plans() else {
         panic!("one unused selected plan")

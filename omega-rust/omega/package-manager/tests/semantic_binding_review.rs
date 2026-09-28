@@ -85,8 +85,8 @@ fn assert_accepted_native_report_custody(
     let rollback =
         compiler::OptimizationRollback::new([optimization_core::Optimization::ControlFlowCleanup])
             .expect("one exact subtractive rollback request");
-    assert!(checked.optimization_selections().is_empty());
-    let expected_rollback = rollback.reconcile(checked.optimization_selections());
+    assert!(checked.build().config.settings.optimizations.is_empty());
+    let expected_rollback = rollback.reconcile(&checked.build().config.settings.optimizations);
     let native_report = realize_accepted_native_report(
         AcceptedNativeInput::Reviewed {
             candidate: Box::new(candidate),
@@ -916,10 +916,13 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
             .expect("exact checked build-machine identity")
             .to_owned(),
         exact_checked
-            .build_evaluation_usage()
+            .build()
+            .evaluation_usage
             .expect("exact checked invocation usage"),
         observation_probe_checked
-            .build_observation_summary()
+            .build()
+            .observation_summary
+            .as_ref()
             .expect("probe retains a distinct observation"),
         target::TargetProfile::LinuxX64,
         target::TargetProfile::LinuxX64.native_target(),
@@ -1035,10 +1038,13 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
             .expect("exact checked build-machine identity")
             .to_owned(),
         exact_checked
-            .build_evaluation_usage()
+            .build()
+            .evaluation_usage
             .expect("exact checked invocation usage"),
         exact_checked
-            .build_observation_summary()
+            .build()
+            .observation_summary
+            .as_ref()
             .expect("exact checked build observation"),
         target::TargetProfile::LinuxX64,
         target::TargetProfile::LinuxX64.native_target(),

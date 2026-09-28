@@ -40,7 +40,14 @@ pub boundary trait FilesystemHost: FilesystemBase + Calling<FsCallingPolicy> {}
 fn inherited_permission_keeps_calling_meaning_but_not_policy_implementation_identity() {
     let fixture = fixtures::Fixture::filesystem(SOURCE, false, "FilesystemHost", "read");
     let checked = fixture.check(Some(read_permission()));
-    assert!(checked.custody.selected_provider_plans().plans().is_empty());
+    assert!(
+        checked
+            .custody
+            .execution()
+            .selected_provider_plan_facts
+            .plans()
+            .is_empty()
+    );
     let policy = project(&checked, fixture.target);
     let [service] = policy.services() else {
         panic!("one inherited permission service")

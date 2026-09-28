@@ -99,10 +99,11 @@ pub fn required_dangerous_services(
     let mut services = RequiredDangerousServices::default();
     let mut console = ConsoleUse::default();
     for (plan, provenance) in checked
-        .selected_provider_plans()
+        .execution()
+        .selected_provider_plan_facts
         .plans()
         .iter()
-        .zip(checked.selected_provider_provenance())
+        .zip(checked.execution().selected_provider_provenance.as_slice())
     {
         let schema = provenance.provider.schema.symbol();
         match plan.schema.trait_name.as_str() {

@@ -56,7 +56,12 @@ pub machine Scale::place(value: u64) -> u64
     })
     .expect("guarded table reads and every ladder return satisfy their bounds");
     assert!(
-        checked.custody.contract_entailment_stand_downs().is_empty(),
+        checked
+            .custody
+            .execution()
+            .contract_entailment_stand_downs
+            .as_slice()
+            .is_empty(),
         "source checking must judge both complete bodies, not defer their proofs"
     );
     let projection = project_checked_package_review(&checked)
@@ -131,7 +136,14 @@ pub machine Region::contains(&self, address: u64) -> u64
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
     .expect("ordinary return bounds survive indexed widening and unrelated calls");
-    assert!(checked.custody.contract_entailment_stand_downs().is_empty());
+    assert!(
+        checked
+            .custody
+            .execution()
+            .contract_entailment_stand_downs
+            .as_slice()
+            .is_empty()
+    );
     let projection = project_checked_package_review(&checked)
         .expect("fresh capture independently checks the ordinary return bodies");
     assert!(projection.contract_entailment_open_obligations().is_empty());

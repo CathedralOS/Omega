@@ -90,7 +90,9 @@ machine Main::main(&mut self) reaches Console { self.console.exit_process(70); }
     );
     assert_eq!(checked.selected_target_profile(), Some(TARGET));
     let inventory = checked
-        .build_observation_summary()
+        .build()
+        .observation_summary
+        .as_ref()
         .unwrap()
         .captured_source_inventory()
         .unwrap();

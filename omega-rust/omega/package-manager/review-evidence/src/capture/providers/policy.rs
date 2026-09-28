@@ -39,10 +39,11 @@ pub(super) fn project_with_indices(
     target: TargetProfile,
     package: PackageKeyIdentity,
 ) -> Result<(PackagePolicySelectedProviders, Vec<usize>), Vec<Diagnostic>> {
+    let selected_execution = compilation.custody.execution();
     replay::validate(compilation, target, package)?;
-    let mut plans = compilation
-        .custody
-        .selected_provider_provenance()
+    let mut plans = selected_execution
+        .selected_provider_provenance
+        .as_slice()
         .iter()
         .enumerate()
         .map(|(index, retained)| {
@@ -57,9 +58,8 @@ pub(super) fn project_with_indices(
         .filter(|row| row.installation_reach.is_some())
         .count();
     if projected_installation_reaches
-        != compilation
-            .custody
-            .selected_provider_plans()
+        != selected_execution
+            .selected_provider_plan_facts
             .installation_reach_resolutions()
             .len()
     {
@@ -68,7 +68,7 @@ pub(super) fn project_with_indices(
         ));
     }
     let projected_grants: usize = plans.iter().map(|(_, plan)| plan.grants.len()).sum();
-    if projected_grants != compilation.custody.selected_provider_grants().len() {
+    if projected_grants != selected_execution.selected_provider_grants.as_slice().len() {
         return Err(rejected(
             "an authored provider grant has no unique selected plan",
         ));
@@ -89,14 +89,14 @@ fn project_plan(
     target: TargetProfile,
     retained: &SelectedProviderReviewProvenance,
 ) -> Result<PackagePolicyProviderPlan, Vec<Diagnostic>> {
+    let selected_execution = compilation.custody.execution();
     let plan = &retained.plan;
     // A toolchain-settled plan (e.g. the canonical `FilesystemHost` mint)
     // names no authored provider type and deliberately covers only the
     // leaves the toolchain can bind honestly; its settled identity was
     // already validated by the replay above.
-    let toolchain_settled = compilation
-        .custody
-        .selected_provider_plans()
+    let toolchain_settled = selected_execution
+        .selected_provider_plan_facts
         .is_toolchain_settled(plan);
     let schema_declaration = nominal_identity(compilation, retained.provider.schema.symbol())?;
     validate_selected_provider_declaration_owner(
@@ -148,9 +148,9 @@ fn project_plan(
     }
     let mut rows = rows::project(compilation, target, retained, toolchain_settled)?;
     rows.sort_by(|left, right| left.requirement.cmp(&right.requirement));
-    let mut grants = compilation
-        .custody
-        .selected_provider_grants()
+    let mut grants = selected_execution
+        .selected_provider_grants
+        .as_slice()
         .iter()
         .filter(|grant| grant.grant.replays_selected_plan(plan))
         .map(|grant| match grant.grant.selector_kind {

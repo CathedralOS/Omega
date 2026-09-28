@@ -161,7 +161,8 @@ machine build(builder: &mut Build) {
         let accepted = if console {
             let plan = candidate
                 .custody
-                .selected_provider_plans()
+                .execution()
+                .selected_provider_plan_facts
                 .plans()
                 .iter()
                 .find(|plan| plan.schema.trait_name == service)

@@ -151,7 +151,12 @@ ensures
     })
     .expect("ordinary checking should retain the out-of-language stand-down");
     assert_eq!(contract_exit_count(&checked, "unchecked_claim"), 1);
-    let [stand_down] = checked.custody.contract_entailment_stand_downs() else {
+    let [stand_down] = checked
+        .custody
+        .execution()
+        .contract_entailment_stand_downs
+        .as_slice()
+    else {
         panic!("one exact contract-entailment stand-down")
     };
     assert_eq!(stand_down.contract_index, 1);

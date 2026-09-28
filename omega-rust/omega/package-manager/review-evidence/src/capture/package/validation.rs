@@ -6,6 +6,7 @@ use target::TargetProfile;
 pub(super) fn validate_review_compilation(
     compilation: &PackageReviewInput<'_>,
 ) -> Result<(PackageKeyIdentity, TargetProfile), Vec<Diagnostic>> {
+    let selected_execution = compilation.custody.execution();
     let package = compilation.custody.package_identity().ok_or_else(|| {
         vec![Diagnostic::error(
             "package review requires package-aware checked compilation",
@@ -45,10 +46,17 @@ pub(super) fn validate_review_compilation(
     }
     let derived_stand_downs =
         validation::collect_contract_entailment_stand_downs(&compilation.typed);
-    if derived_stand_downs != compilation.custody.contract_entailment_stand_downs() {
+    if derived_stand_downs
+        != selected_execution
+            .contract_entailment_stand_downs
+            .as_slice()
+    {
         return Err(vec![Diagnostic::error(format!(
             "retained contract-entailment stand-downs do not equal fresh compiler rederivation (retained {} rows, derived {} rows)",
-            compilation.custody.contract_entailment_stand_downs().len(),
+            selected_execution
+                .contract_entailment_stand_downs
+                .as_slice()
+                .len(),
             derived_stand_downs.len(),
         ))]);
     }

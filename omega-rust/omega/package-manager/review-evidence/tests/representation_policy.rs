@@ -47,7 +47,10 @@ fn producer_availability_does_not_fabricate_selection_or_demand() {
         fixture
             .checked
             .custody
-            .opaque_representation_selections()
+            .build()
+            .config
+            .opaque_representation_selections
+            .as_slice()
             .is_empty()
     );
     let policy = project(&fixture.checked, package_identity());
@@ -77,7 +80,10 @@ fn unused_placement_and_semantic_copy_selections_both_remain_visible() {
         fixture
             .checked
             .custody
-            .opaque_representation_selections()
+            .build()
+            .config
+            .opaque_representation_selections
+            .as_slice()
             .len(),
         2
     );

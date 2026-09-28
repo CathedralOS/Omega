@@ -14,9 +14,9 @@ pub fn produce_native_report(
     let production_subject = checked.production_subject()?;
     let rollback = request
         .optimization_rollback
-        .settle(checked.optimization_selections());
+        .settle(&checked.build().config.settings.optimizations);
     provider_planning::component_progress::reject_undischarged_build_bound_progress(
-        checked.component_progress(),
+        checked.execution().component_progress.as_ref(),
     )?;
 
     // Capture package acceptance from the checked source, independently of the
@@ -39,7 +39,7 @@ pub fn produce_native_report(
             accepted_package_terminal_authority_permission_policy,
             terminal_authority_permission_policy: request.terminal_authority_permission_policy,
             image_request: crate::native::ExecutableImageEmissionRequest::direct(
-                checked.subsystem(),
+                checked.build().config.settings.subsystem,
             ),
             imports: &[],
         },

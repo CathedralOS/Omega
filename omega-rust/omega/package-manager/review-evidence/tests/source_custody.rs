@@ -437,10 +437,17 @@ linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i
     .expect("candidate Console dependency should check before consumer acceptance");
     let (plan, retained) = candidate
         .custody
-        .selected_provider_plans()
+        .execution()
+        .selected_provider_plan_facts
         .plans()
         .iter()
-        .zip(candidate.custody.selected_provider_provenance())
+        .zip(
+            candidate
+                .custody
+                .execution()
+                .selected_provider_provenance
+                .as_slice(),
+        )
         .find(|(plan, _)| plan.schema.trait_name == "Console")
         .expect("candidate retains its exact Console plan");
     let accepted = package_compilation::AcceptedSemanticBinding::new(

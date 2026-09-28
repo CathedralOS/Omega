@@ -41,7 +41,7 @@ pub(super) fn project_package_callables(
     compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
 ) -> Result<ProjectedPackageCallables, Vec<Diagnostic>> {
-    let build_machine = compilation.custody.selected_build_machine_symbol();
+    let build_machine = compilation.custody.build().selected_build_machine_symbol;
     let mut callables = Vec::new();
     let mut external_executable_supply = Vec::new();
     let mut projected_build_machine = false;

@@ -11,8 +11,8 @@ fn trust_report(checked: &CheckedCompilation) -> trust_model::TrustReport {
         checked.terminal_production_trees(),
         checked.root_grants(),
         checked.provider_plans(),
-        checked.selected_provider_plans(),
-        checked.accepted_template_classifications(),
+        &checked.execution().selected_provider_plan_facts,
+        &checked.execution().accepted_template_classifications,
     )
     .expect("the trust report reconstructs from the checked program")
 }

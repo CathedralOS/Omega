@@ -47,7 +47,8 @@ fn explicit_empty_permission_is_distinct_from_absence_for_unused_requirement_onl
         fixture
             .candidate
             .custody
-            .selected_provider_plans()
+            .execution()
+            .selected_provider_plan_facts
             .plans()
             .is_empty()
     );
@@ -56,7 +57,8 @@ fn explicit_empty_permission_is_distinct_from_absence_for_unused_requirement_onl
     assert!(
         explicit_checked
             .custody
-            .selected_provider_plans()
+            .execution()
+            .selected_provider_plan_facts
             .plans()
             .is_empty()
     );

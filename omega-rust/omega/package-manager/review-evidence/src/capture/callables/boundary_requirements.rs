@@ -184,8 +184,9 @@ pub(super) fn validate_selected_top_level_requirement_external_supply(
     requirement: &typed_trees::machine::Machine,
     binding: &PackageReviewExternalBinding,
 ) -> Result<(), Vec<Diagnostic>> {
-    let plans = compilation.custody.selected_provider_plans().plans();
-    let provenance = compilation.custody.selected_provider_provenance();
+    let selected_execution = compilation.custody.execution();
+    let plans = selected_execution.selected_provider_plan_facts.plans();
+    let provenance = selected_execution.selected_provider_provenance.as_slice();
     if plans.len() != provenance.len() {
         return Err(vec![Diagnostic::error(
             "selected top-level-requirement provider plans are not aligned with retained declaration provenance",

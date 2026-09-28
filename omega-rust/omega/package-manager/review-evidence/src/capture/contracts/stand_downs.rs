@@ -23,7 +23,9 @@ pub(in crate::capture) fn project_package_contract_entailment_open_obligations(
     let mut projected = Vec::new();
     for stand_down in compilation
         .custody
-        .contract_entailment_stand_downs()
+        .execution()
+        .contract_entailment_stand_downs
+        .as_slice()
         .iter()
         .filter(|stand_down| {
             compilation

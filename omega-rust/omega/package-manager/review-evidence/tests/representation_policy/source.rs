@@ -160,14 +160,20 @@ machine build(builder: &mut Build) {{
         let selection = self
             .checked
             .custody
-            .opaque_representation_selections()
+            .build()
+            .config
+            .opaque_representation_selections
+            .as_slice()
             .iter()
             .find(|selection| self.checked.symbols.name(selection.opaque()) == "Token")
             .unwrap();
         let other_carrier = self
             .checked
             .custody
-            .opaque_representation_selections()
+            .build()
+            .config
+            .opaque_representation_selections
+            .as_slice()
             .iter()
             .find(|selection| self.checked.symbols.name(selection.opaque()) == "CopyToken")
             .unwrap()

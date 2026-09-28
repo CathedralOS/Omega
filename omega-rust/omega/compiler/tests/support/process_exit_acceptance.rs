@@ -16,10 +16,11 @@ pub fn candidate_process_exit_binding(
     standard_library: semantic_vocabulary::PackageKeyIdentity,
 ) -> Result<AcceptedSemanticBinding, Vec<Diagnostic>> {
     let candidates = checked
-        .selected_provider_plans()
+        .execution()
+        .selected_provider_plan_facts
         .plans()
         .iter()
-        .zip(checked.selected_provider_provenance())
+        .zip(checked.execution().selected_provider_provenance.as_slice())
         .filter(|(plan, provenance)| {
             plan.schema.trait_name == "ProcessExit"
                 && plan.rows.iter().any(|row| row.method == "exit_process")

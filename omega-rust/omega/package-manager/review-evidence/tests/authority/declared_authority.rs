@@ -54,7 +54,9 @@ crashes Abort
     .expect("package fixture should check");
     let observations = checked
         .custody
-        .build_observation_summary()
+        .build()
+        .observation_summary
+        .as_ref()
         .expect("selected build machine publishes build observation evidence");
     assert!(!observations.filesystem_host_observed());
     let review = project_checked_package_review(&checked).expect("review projection should close");
@@ -303,7 +305,11 @@ crashes Abort
     );
     assert_eq!(
         grant.selected_plan_digest(),
-        checked.custody.selected_provider_plans().plans()[0]
+        checked
+            .custody
+            .execution()
+            .selected_provider_plan_facts
+            .plans()[0]
             .identity_digest()
             .as_bytes()
     );
@@ -486,7 +492,11 @@ machine ping_leaf() satisfies Host::ping via ForeignBinding::Syscall(60);
     );
     assert_eq!(
         grant.selected_plan_digest(),
-        checked.custody.selected_provider_plans().plans()[0]
+        checked
+            .custody
+            .execution()
+            .selected_provider_plan_facts
+            .plans()[0]
             .identity_digest()
             .as_bytes()
     );

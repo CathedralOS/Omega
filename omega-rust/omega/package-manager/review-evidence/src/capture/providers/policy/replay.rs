@@ -14,6 +14,7 @@ pub(super) fn validate(
     target: TargetProfile,
     package: PackageKeyIdentity,
 ) -> Result<(), Vec<Diagnostic>> {
+    let selected_execution = compilation.custody.execution();
     if compilation.custody.package_identity() != Some(package)
         || compilation.custody.selected_target_profile() != Some(target)
         || compilation.custody.selected_native_target() != Some(target.native_target())
@@ -23,8 +24,8 @@ pub(super) fn validate(
             "package or target differs from the checked root activation",
         ));
     }
-    let plans = compilation.custody.selected_provider_plans();
-    let provenance = compilation.custody.selected_provider_provenance();
+    let plans = &selected_execution.selected_provider_plan_facts;
+    let provenance = selected_execution.selected_provider_provenance.as_slice();
     if plans.plans().len() != provenance.len()
         || plans
             .plans()
@@ -95,9 +96,13 @@ pub(super) fn validate(
 fn validate_authored_activation(
     compilation: &PackageReviewInput<'_>,
 ) -> Result<(), Vec<Diagnostic>> {
-    let provenance = compilation.custody.selected_provider_provenance();
-    let Some(build_symbol) = compilation.custody.selected_build_machine_symbol() else {
-        if !compilation.custody.selected_provider_grants().is_empty()
+    let selected_execution = compilation.custody.execution();
+    let provenance = selected_execution.selected_provider_provenance.as_slice();
+    let Some(build_symbol) = compilation.custody.build().selected_build_machine_symbol else {
+        if !selected_execution
+            .selected_provider_grants
+            .as_slice()
+            .is_empty()
             || provenance.iter().any(|retained| {
                 matches!(
                     retained.selected_by,
@@ -140,11 +145,11 @@ fn validate_authored_activation(
         .map_err(|diagnostic| vec![diagnostic])?;
     let grants = trust_model::resolve_authored_selected_provider_grants(
         compilation.custody.provider_plans(),
-        compilation.custody.selected_provider_plans(),
+        &selected_execution.selected_provider_plan_facts,
         &authored,
     )
     .map_err(|diagnostic| vec![diagnostic])?;
-    if grants != compilation.custody.selected_provider_grants() {
+    if grants != selected_execution.selected_provider_grants.as_slice() {
         return Err(rejected(
             "provider grants differ from exact authored selected-plan replay",
         ));
@@ -166,7 +171,12 @@ fn validate_authored_activation(
 }
 
 fn validate_target_defaults(compilation: &PackageReviewInput<'_>) -> Result<(), Vec<Diagnostic>> {
-    for retained in compilation.custody.selected_provider_provenance() {
+    for retained in compilation
+        .custody
+        .execution()
+        .selected_provider_provenance
+        .as_slice()
+    {
         let ProviderSelectionProvenance::TargetDefault(declarations) = &retained.selected_by else {
             continue;
         };
