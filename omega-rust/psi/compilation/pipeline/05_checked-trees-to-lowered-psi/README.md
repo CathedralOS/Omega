@@ -5,6 +5,12 @@ machine, lowers its source closure, retains source custody and evidence, checks
 the completed module, and attaches debug companions. Its result is unsealed Psi;
 optimization and portable publication belong to the following stages.
 
+The public entrance first [validates the checked permission ledger](src/machine_lowering/checked_ledger.rs).
+Forged owner/state handles, duplicate events and malformed live transfers reject
+before lowering consumes their evidence. This is the stage's input obligation,
+including for direct callers and callback lowering, not a check a coordinating
+caller must remember to run.
+
 [Machine selection](src/machine_lowering/machine_dispatch.rs) owns plan precedence. Each selected
 producer supplies its source closure and a shared
 [result contract](src/producer_result.rs): conformance publication, operand

@@ -1,12 +1,12 @@
-//! Production-side re-verification of the checked ownership ledger.
+//! Lowering-input validation of the checked ownership ledger.
 //!
 //! Lowering consumes `facts.flow.ownership.permissions` as replay evidence, so
 //! an event detached from its machine, a forged duplicate, or a return-site
 //! transfer carrying a substituted obligation must be refused before an
 //! artifact can be published from it.
 
+use crate::LoweringError;
 use checked_trees::CheckedTrees;
-use checked_trees_to_lowered_psi::LoweringError;
 use language_semantics::{
     Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
 };
@@ -82,32 +82,38 @@ pub(crate) fn verify(checked: &CheckedTrees) -> Result<(), LoweringError> {
 #[cfg(test)]
 mod tests {
     use super::{CheckedTrees, LoweringError, verify};
+    use crate::front_end::checked_program as checked;
     use checked_trees::flow::FlowPermissionEventFact;
     use language_semantics::{
         Multiplicity, PermissionAccess, PermissionEventKind, PermissionEventSource,
     };
     use symbols::SymbolHandle;
 
-    fn checked(source: &str) -> CheckedTrees {
-        let tokens = source_files_to_tokens::Lexer::new(source)
-            .tokenize()
-            .unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .unwrap();
-        let typed =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-        typed_trees_to_checked_trees::lower_typed_trees(
-            typed,
-            &typed_trees_to_checked_trees::CheckingRequest::settled(),
-        )
-        .unwrap()
-    }
-
     const SOURCE: &str = "data Record { first: u64; second: u64; }
          machine retain(record: Record) -> Record { record }";
+
+    #[test]
+    fn direct_lowering_rejects_forged_permission_owners() {
+        use crate::{TerminalMachineSelection, lower_machine};
+
+        let mut checked = checked("machine run() -> u64 { 17 }");
+        lower_machine(&checked, TerminalMachineSelection::Name("run"))
+            .expect("the unmodified scalar program lowers");
+        checked
+            .facts
+            .flow
+            .ownership
+            .permissions
+            .insert(FlowPermissionEventFact {
+                machine_symbol: SymbolHandle::invalid(),
+                ..FlowPermissionEventFact::default()
+            });
+
+        assert_eq!(
+            lower_machine(&checked, TerminalMachineSelection::Name("run")).unwrap_err(),
+            LoweringError::Unsupported("checked permission event names no declared machine"),
+        );
+    }
 
     // A well-formed owned move at a declared machine/state: each test swaps a
     // single field to isolate the rejection it exercises.

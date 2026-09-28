@@ -8,7 +8,6 @@
 //! publishes the canonical artifact (07_lowered-psi-to-terminal-psi).
 //! Checked-source receipts stay beside the portable artifact, not inside it.
 
-mod checked_ledger;
 mod stage_timings;
 mod terminal_production;
 pub use checked_trees_to_lowered_psi::TerminalMachineSelection;

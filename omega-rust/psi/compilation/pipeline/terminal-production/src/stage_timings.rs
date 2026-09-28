@@ -13,7 +13,6 @@ use std::time::Instant;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalProductionStage {
     MachineSelection,
-    LedgerCheck,
     Lowering,
     Optimization,
     EntryReceipt,
@@ -32,11 +31,6 @@ impl TerminalProductionStage {
                 "terminal-production/machine-selection",
                 "CheckedTrees",
                 "TerminalMachine",
-            ),
-            Self::LedgerCheck => (
-                "terminal-production/ledger-check",
-                "CheckedTrees",
-                "CheckedLedger",
             ),
             Self::Lowering => ("terminal-production/lowering", "CheckedTrees", "LoweredPsi"),
             Self::Optimization => (

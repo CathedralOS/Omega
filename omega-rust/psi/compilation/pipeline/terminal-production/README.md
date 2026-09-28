@@ -18,12 +18,16 @@ separates canonical sealing from checked boundary-operator occurrence replay.
 `TerminalMachineSelection` naming the machine, and the exact Psi optimization
 selection. Its one `produce` entry takes a `TerminalProductionCustody`: an
 optional ProgramEntry source-signature identity, the caller's opaque callback
-sidecar, and the stage-timing carrier. Every product runs the same ledger,
+sidecar, and the stage-timing carrier. Every product runs the same
 lowering, optimization, publication, and boundary-scope legs; an entry identity
 adds the ProgramEntry receipt legs, which check the unique Unit entry before
 publication and rejoin the published semantic identity afterward. The
 `ProducedTerminalArtifact` returns the artifact beside that retained custody,
 and rejection returns the original opaque sidecar without cloning it.
+
+Permission-ledger validation belongs to the stage-05 lowering entrance, not
+this coordinator. Its work is included in the lowering timing row; there is
+no separate caller-owned ledger-check leg.
 
 Terminal production owns its observation labels and failure classification.
 `TerminalProductionStage::observation_labels` supplies stable report names and
