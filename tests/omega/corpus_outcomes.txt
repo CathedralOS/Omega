@@ -910,6 +910,7 @@ pass/structural/sum_attachment_receiver_compile checked 319ms
 pass/targets/aarch64_hfa_entry_argument checked 1392ms
 pass/targets/efi_vtable_call checked 367ms
 pass/targets/single_target_internal_machine_skipped checked 1679ms
+pass/targets/single_target_internal_package_same_target_caller checked 931ms
 pass/targets/single_target_internal_same_target_caller checked 577ms
 pass/targets/sysv_mixed_aggregate_entry checked 1434ms
 pass/targets/target_machine_gating_exit checked 1843ms
@@ -1944,6 +1945,10 @@ fail/targets/sibling_body_type_error_rejected rejected 473ms expected
 	machine `Helper::paradigm_internal` state `paradigm_internal` local `wrong` stores a boolean into a `i32` local, which holds a numeric value
 fail/targets/single_target_internal_caller_rejected rejected 386ms expected
 	machine `Main::main` state `main` calls `Helper::paradigm_internal`, which is declared only for target `uefi_x86_64`. This build realizes `<selected target>`, so that body is an inert sibling and the call has no implementation; scope the caller to `uefi_x86_64` as well, or declare `Helper::paradigm_internal` for the target being built.
+fail/targets/single_target_internal_package_caller_rejected rejected 251ms expected
+	machine `Main::main` state `main` calls `Helper::paradigm_internal`, which is declared only for target `uefi_x86_64`. This build realizes `<selected target>`, so that body is an inert sibling and the call has no implementation; scope the caller to `uefi_x86_64` as well, or declare `Helper::paradigm_internal` for the target being built.
+fail/targets/single_target_internal_package_statement_caller_rejected rejected 243ms expected
+	machine `Main::main` state `main` calls `Helper::record_paradigm_event`, which is declared only for target `uefi_x86_64`. This build realizes `<selected target>`, so that body is an inert sibling and the call has no implementation; scope the caller to `uefi_x86_64` as well, or declare `Helper::record_paradigm_event` for the target being built.
 fail/targets/target_machine_duplicate_rejected rejected 6ms expected
 	machine `Helper::pick` is implemented twice for the selected target -- a target supplies exactly one implementation of a contract machine
 fail/targets/target_machine_missing_rejected rejected 6ms expected

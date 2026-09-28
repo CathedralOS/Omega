@@ -889,6 +889,12 @@ fn reject_inert_sibling_callers(
                 else {
                     continue;
                 };
+                // The caller is exempt only when it carries the sibling's own
+                // unrealized target and so went inert alongside it. Two
+                // non-obvious callers land here: a dependency package's own
+                // paradigm callers (tests/omega/packages/paradigm-internals),
+                // and an inert machine's named-state transitions, which index
+                // as calls to that machine's states.
                 if caller_target == Some(*callee_target) {
                     continue;
                 }

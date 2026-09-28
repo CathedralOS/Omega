@@ -1,0 +1,26 @@
+// The DEPENDENCY-PACKAGE half of the inert-sibling rule's value-call
+// coverage: same shape as the root-local
+// `single_target_internal_caller_rejected`, but `Helper` and its
+// `uefi_x86_64`-scoped `paradigm_internal` are exported by the
+// `paradigm_internals` dependency package. A target-scoped machine
+// implemented by exactly ONE non-selected target is that target's paradigm
+// internal, dropped silently "with its callers" -- a caller in a SURVIVING
+// portable package is not filtered, so its call names a body this build
+// never realizes and must reject loudly rather than compile around the
+// hole, whether the callee was declared in this root or in a dependency.
+//
+// The package also ships `Helper::paradigm_caller`, a `uefi_x86_64` caller of
+// the same callee: it goes inert alongside it, so the golden records exactly
+// ONE diagnostic -- the exemption holds inside the dependency.
+use omega_language_std::console;
+use omega::language::core::binding;
+use paradigm_internals::paradigm;
+
+data Main { console: Binding<Console>; helper: Helper; }
+
+machine Main::main(&mut self) reaches Console {
+    let a: i32 = self.helper.paradigm_internal();
+    transition a == 63 { true -> good() _ -> bad(71) }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code2: i32) { self.console.exit_process(code2); }
+}
