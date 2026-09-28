@@ -61,6 +61,7 @@ pub(super) fn lower_operation(
     // suspended referent, and a live carrier is never owned data. Call-shaped
     // operations route through the custody-aware argument lowering below.
     let accessed_root = match operation {
+        AbstractOperation::AtomicEvent { event, .. } => event.place(),
         AbstractOperation::PrimitiveScalarRead { source, .. }
         | AbstractOperation::StructuralCaseMembership { source, .. }
         | AbstractOperation::StructuralLeafCopy { source, .. }
@@ -111,6 +112,19 @@ pub(super) fn lower_operation(
     }
     let first_output = operations.len();
     match operation {
+        AbstractOperation::AtomicEvent {
+            psi_operation,
+            event,
+            ..
+        } => super::atomic_access::lower(
+            *psi_operation,
+            event,
+            function,
+            structural_types,
+            live,
+            operations,
+            provenance,
+        ),
         AbstractOperation::StoreDynamicDescriptor { psi_operation, .. } => {
             crate::lowering::unit::dynamic::lower_stored_descriptor(
                 operation,

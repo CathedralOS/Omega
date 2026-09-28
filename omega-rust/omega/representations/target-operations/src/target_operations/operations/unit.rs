@@ -39,6 +39,19 @@ pub enum NativeCallOrigin {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetUnitOperation {
+    /// One indivisible access at an aligned scalar field. Scalar inputs are
+    /// resolved in the event's operand order; an observing result is defined
+    /// by this event, never by an independent load of the same location.
+    AtomicAccess {
+        psi_operation: OperationId,
+        location: StructuralArgument,
+        field: StructuralFieldId,
+        scalar_type: IntegerType,
+        field_byte_offset: u32,
+        event: terminal_psi::AtomicAccessEvent,
+        operands: Vec<TargetUnitScalarArgumentSource>,
+        result_home: Option<TargetUnitScalarHomeRequirement>,
+    },
     IeeeFloatCompare {
         result_home: TargetUnitScalarHomeRequirement,
         comparison: semantic_vocabulary::IeeeFloatComparisonOperation,
