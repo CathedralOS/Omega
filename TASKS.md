@@ -5277,20 +5277,27 @@ their existing owners.
   comment, while the corpus records its rejection. Correct unsigned byte
   assembly and cross-emission cannot substitute for the Windows runtime leg.
 
-- **MACOS-X64-HOST-PROFILE.** Execute the compiler/runtime route on an Intel
-  macOS host. Target/provider recognition, exact physical-entry reconstruction,
-  accepted package binding, hosted receiver and x86-64 Mach-O import pairing
-  have implementations; cross-target checks do not establish host execution.
-  Exercise emitted Mach-O entry/exit, receiver and provider/import behavior,
-  recording exact commands, commit, observations and justified skips. Attribute
-  failures to their capability owners. This additional platform task is separate
-  from the completion contract's four required release hosts and does not depend
-  on an Alpha bootstrap seed.
+- **MACOS-X64-HOST-PROFILE.** Run an ordinary terminating program through
+  the compiler and runtime on Intel macOS, then cover Mach-O entry/exit,
+  hosted receiver and provider/import pairing. Target recognition, exact
+  physical-entry reconstruction and receiver machinery exist; reuse them.
 
-  Reproduce the [host record](wiki/drafts/measurements/macos_x64_host_profile.md)'s
-  two admission gaps: unselected `ConsoleNativeProvider::exit_process` and an
-  unbound `macos_x86_64::ProgramEntry` root. Complete provider settlement and
-  root binding before claiming emitted entry/exit, receiver, or import execution.
+  Current `omega --check --target macos_x86_64` on
+  `samples/cli/basics/standalone/main.omg` rejects its missing entry binding;
+  its build declares only the four main targets and deliberately has no
+  terminating provider. `cli_mvp` also lacks the Intel binding and rejects
+  four unavailable Console provider machines: `std/console.omg` imports only those
+  four targets despite `targets/macos_x86_64/console_impl.omg` existing.
+  Complete the ordinary authored root/provider closure before assigning a
+  compiler-selection defect. Recheck the
+  [older host observations](wiki/drafts/measurements/macos_x64_host_profile.md)
+  against that closure.
+
+  The Python corpus gate also lacks Intel macOS in `HOST_TARGETS`; extend
+  matching-host coverage and explicit behavioral oracles. Record commands,
+  commit, actual observations and justified skips; target checks cannot prove
+  Intel execution. This additional platform remains separate from the four-host
+  Rust completion matrix and has no Alpha bootstrap dependency.
 
 ## Omega-written compiler (after Rust completion)
 
