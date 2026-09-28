@@ -386,9 +386,7 @@ fn callback_address_custody(
                 machine_code::CallbackAddressDestination::Register(register)
             }
             machine_code::CallbackAddressDestination::OutgoingStack { byte_offset } => {
-                machine_code::CallbackAddressDestination::OutgoingStack {
-                    byte_offset: u32::try_from(byte_offset).map_err(|_| invalid())?,
-                }
+                machine_code::CallbackAddressDestination::OutgoingStack { byte_offset }
             }
             machine_code::CallbackAddressDestination::RecordField {
                 root_register,
@@ -401,7 +399,7 @@ fn callback_address_custody(
                 }
                 machine_code::CallbackAddressDestination::RecordField {
                     root_register,
-                    byte_offset: u32::try_from(byte_offset).map_err(|_| invalid())?,
+                    byte_offset,
                 }
             }
         };
@@ -861,8 +859,7 @@ where
             if source_value != argument.source.source_value() {
                 return None;
             }
-            let r = instruction_span(fragment, materialization);
-            r
+            instruction_span(fragment, materialization)
         }
         [
             ValueLocation::Stack {
