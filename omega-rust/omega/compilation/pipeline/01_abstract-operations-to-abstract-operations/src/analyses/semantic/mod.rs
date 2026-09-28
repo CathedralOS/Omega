@@ -7,6 +7,7 @@
 
 mod effect_summaries;
 mod ownership_frontiers;
+mod place_access_summaries;
 mod place_aliases;
 mod sparse_conditional_constants;
 mod use_definitions;
@@ -16,6 +17,12 @@ mod value_ranges;
 pub use effect_summaries::{EffectClass, EffectKnowledge, EffectSummaryAnalysis};
 
 pub use ownership_frontiers::OwnershipFrontierAnalysis;
+
+pub use place_access_summaries::PlaceAccessSummaryAnalysis;
+#[cfg(test)]
+pub(crate) use place_access_summaries::{
+    CallResultOrigin, PlaceAccessStep, PlaceAccessView, ResultSourceResolution, declared_access,
+};
 
 pub use place_aliases::PlaceAliasesAnalysis;
 #[cfg(test)]
@@ -33,17 +40,20 @@ pub use value_ranges::ValueRangeAnalysis;
 
 pub(super) use effect_summaries::effect_summaries;
 pub(super) use ownership_frontiers::ownership_frontiers;
+pub(super) use place_access_summaries::place_access_summaries;
 pub(super) use place_aliases::place_aliases;
 pub(super) use sparse_conditional_constants::{executable_edges, scalar_constants};
 pub(super) use use_definitions::use_definitions;
 pub(super) use value_liveness::value_liveness;
 pub(super) use value_ranges::value_ranges;
 
+use std::collections::{BTreeMap, BTreeSet};
+
 use abstract_operations::AbstractOperation as O;
 use optimization_unit::{
     FuelSettlement, OptimizationEdge, PsiOptimizationFunction, PsiProvenance, ValueDefinition,
 };
-use semantic_vocabulary::ValueId;
+use semantic_vocabulary::{BlockId, ValueId};
 
 pub(super) fn scalar_value_definition(
     function: &PsiOptimizationFunction,
@@ -124,6 +134,40 @@ pub(super) fn scalar_operation_successors(operation: &O) -> Vec<OptimizationEdge
             .collect(),
         _ => Vec::new(),
     }
+}
+
+/// Blocks reachable from the entry along carried scalar-successor edges.
+/// Every semantic analysis shares this reachability floor: an operation in
+/// an unreachable block cannot execute, so its effects and accesses must
+/// not pollute the function summary.
+pub(super) fn semantically_reachable_blocks(
+    function: &PsiOptimizationFunction,
+) -> BTreeSet<BlockId> {
+    let successors = function
+        .blocks
+        .iter()
+        .map(|block| {
+            (
+                block.id,
+                block
+                    .nodes
+                    .last()
+                    .map(|node| scalar_operation_successors(&node.operation))
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|edge| edge.target)
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    let mut reachable = BTreeSet::new();
+    let mut pending = vec![function.entry];
+    while let Some(block) = pending.pop() {
+        if reachable.insert(block) {
+            pending.extend(successors.get(&block).into_iter().flatten().copied());
+        }
+    }
+    reachable
 }
 
 #[cfg(test)]

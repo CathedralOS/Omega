@@ -11,8 +11,9 @@ use super::{
     },
     semantic::{
         EffectSummaryAnalysis, ExecutableEdgeAnalysis, OwnershipFrontierAnalysis,
-        PlaceAliasesAnalysis, ScalarConstantAnalysis, UseDefinitionAnalysis, ValueLivenessAnalysis,
-        ValueRangeAnalysis, effect_summaries, executable_edges, ownership_frontiers, place_aliases,
+        PlaceAccessSummaryAnalysis, PlaceAliasesAnalysis, ScalarConstantAnalysis,
+        UseDefinitionAnalysis, ValueLivenessAnalysis, ValueRangeAnalysis, effect_summaries,
+        executable_edges, ownership_frontiers, place_access_summaries, place_aliases,
         scalar_constants, use_definitions, value_liveness, value_ranges,
     },
 };
@@ -33,6 +34,7 @@ pub enum AnalysisProduct {
     EffectSummaries(EffectSummaryAnalysis),
     OwnershipFrontiers(OwnershipFrontierAnalysis),
     ValueLiveness(ValueLivenessAnalysis),
+    PlaceAccessSummaries(PlaceAccessSummaryAnalysis),
 }
 
 impl AnalysisProduct {
@@ -53,6 +55,7 @@ impl AnalysisProduct {
             Self::EffectSummaries(_) => AnalysisKind::EffectSummaries,
             Self::OwnershipFrontiers(_) => AnalysisKind::OwnershipFrontiers,
             Self::ValueLiveness(_) => AnalysisKind::ValueLiveness,
+            Self::PlaceAccessSummaries(_) => AnalysisKind::PlaceAccessSummaries,
         }
     }
 }
@@ -63,7 +66,8 @@ pub(crate) fn analysis_dependencies(kind: AnalysisKind) -> Option<AnalysisSet> {
         | AnalysisKind::CallGraph
         | AnalysisKind::UseDefinition
         | AnalysisKind::EffectSummaries
-        | AnalysisKind::OwnershipFrontiers => Some(AnalysisSet::default()),
+        | AnalysisKind::OwnershipFrontiers
+        | AnalysisKind::PlaceAccessSummaries => Some(AnalysisSet::default()),
         AnalysisKind::Dominators
         | AnalysisKind::PostDominators
         | AnalysisKind::StronglyConnectedComponents => {
@@ -127,6 +131,9 @@ pub fn compute_analysis(unit: &PsiOptimizationUnit, kind: AnalysisKind) -> Optio
             ownership_frontiers(unit),
         )),
         AnalysisKind::ValueLiveness => Some(AnalysisProduct::ValueLiveness(value_liveness(unit))),
+        AnalysisKind::PlaceAccessSummaries => Some(AnalysisProduct::PlaceAccessSummaries(
+            place_access_summaries(unit),
+        )),
         _ => None,
     }
 }

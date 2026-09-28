@@ -24,10 +24,11 @@ pub enum AnalysisKind {
     PlaceLiveness = 18,
     TargetCosts = 19,
     RegisterLiveness = 20,
+    PlaceAccessSummaries = 21,
 }
 
 impl AnalysisKind {
-    pub const ALL: [Self; 20] = [
+    pub const ALL: [Self; 21] = [
         Self::ControlFlowGraph,
         Self::Dominators,
         Self::PostDominators,
@@ -48,6 +49,7 @@ impl AnalysisKind {
         Self::PlaceLiveness,
         Self::TargetCosts,
         Self::RegisterLiveness,
+        Self::PlaceAccessSummaries,
     ];
 
     const fn bit(self) -> u64 {

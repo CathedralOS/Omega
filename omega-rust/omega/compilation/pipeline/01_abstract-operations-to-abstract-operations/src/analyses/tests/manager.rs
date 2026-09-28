@@ -144,3 +144,35 @@ fn analysis_manager_rejects_stale_content_on_require_cold_and_commit_paths() {
             .unwrap_err()
     ));
 }
+
+#[test]
+fn place_access_rows_never_retain_across_a_revision_commit() {
+    let original = unit(
+        vec![function(100, 1, vec![(1, Terminator::Return)])],
+        b"place-access-revision-a",
+    );
+    let changed = unit(
+        vec![function(
+            100,
+            1,
+            vec![(1, Terminator::Jump(2)), (2, Terminator::Return)],
+        )],
+        b"place-access-revision-b",
+    );
+    let mut manager = AnalysisManager::new(&original);
+    manager
+        .require(&original, AnalysisKind::PlaceAccessSummaries)
+        .unwrap();
+    // Place-access rows carry the unit revision as their freshness bound, so
+    // a commit must drop them outright — never retain-and-audit. Validation
+    // of retained rows stays enabled to prove the audit never sees them.
+    let committed = manager
+        .commit_revision(&changed, AnalysisInvalidationSet::default(), true)
+        .unwrap();
+    assert!(
+        committed
+            .invalidated
+            .contains(&AnalysisKind::PlaceAccessSummaries)
+    );
+    assert!(manager.cached_kinds().next().is_none());
+}
