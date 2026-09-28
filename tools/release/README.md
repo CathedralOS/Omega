@@ -238,34 +238,52 @@ when installed and through Cargo otherwise, per AGENTS.md.
 
 Host prerequisites:
 
-- macOS: the pinned nightly's linker (Apple clang 17) cannot parse
-  `tbd-version: 4` stubs that list `arm64e.x1-*` architectures — a
-  CommandLineTools `MacOSX27.0.sdk` promoted to the default
-  `MacOSX.sdk` symlink makes every build-script and binary link fail with
-  `tapi error: malformed file ... unknown architecture`.
+- macOS: the Apple linker must be at least as new as the SDK it links
+  against. Rust's link step runs `cc`, which uses the linker of the active
+  developer directory (`xcode-select -p`) and the SDK that
+  `xcrun --show-sdk-path` names. The macOS 27.0 SDK's `libSystem.B.tbd`
+  and sibling stubs list an `arm64e.x1-macos` architecture; a linker from
+  before that SDK (Xcode 26.3 ships `ld-1230.1`) rejects the whole file, so
+  every build-script and binary link fails with
+  `ld: tapi error: malformed file ... unknown architecture`. The 27.0 SDK
+  itself is fine: `ld-27037.1`, shipped by both Xcode 27.0 and
+  CommandLineTools 27.0, links against it.
 
-  Check what the default actually is before changing anything:
-
-  ```sh
-  readlink "$(xcode-select -p)/SDKs/MacOSX.sdk"
-  ```
-
-  Only the 27.0 stub needs avoiding. Measured 2026-09-27 on a
-  CommandLineTools-only host where it resolves to `MacOSX15.5.sdk`: the full
-  native corpus leg emits and EXECUTES Mach-O products with `SDKROOT` unset,
-  under the pinned `nightly-2026-09-04` / `rustc 1.100.0-nightly (a69a63265)`.
-  No override is needed there.
-
-  When the default IS the 27.0 stub, point `SDKROOT` at an SDK that is not:
+  The mismatch arises on hosts with Xcode and CommandLineTools of different
+  generations. Measured 2026-09-28 with Xcode 26.3 selected and
+  CommandLineTools 27.0 installed: `xcrun --sdk macosx --show-sdk-path`
+  named Xcode's 26.2 SDK, but plain `xcrun --show-sdk-path` named the
+  CommandLineTools 27.0 SDK, so the default link paired `ld-1230.1` with the
+  27.0 stubs. Compare the two before changing anything:
 
   ```sh
-  export SDKROOT="$(xcode-select -p)/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"   # Xcode
-  export SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX15.5.sdk                     # no Xcode
+  ld -v 2>&1 | head -1           # linker of the active developer directory
+  xcrun --show-sdk-path          # SDK the default link uses
   ```
 
-  The first path exists only with Xcode installed; a CommandLineTools-only
-  host has no `Platforms/` directory at all, so the second form is the one
-  that applies there.
+  Fix the mismatch at its source: install the Xcode (or select the
+  CommandLineTools, `sudo xcode-select -s /Library/Developer/CommandLineTools`)
+  whose release matches the newest installed SDK. After installing Xcode 27.0
+  on the host above, `mbx build -p omega` and
+  `python3 tools/corpus_gate.py --native --filter
+  runtime_named_state_remainder_endpoint_exit` built and executed Mach-O
+  with `SDKROOT` unset. A CommandLineTools-only host is always matched; one
+  measured 2026-09-27 at `MacOSX15.5.sdk` ran the full native corpus leg with
+  `SDKROOT` unset under the pinned `nightly-2026-09-04` /
+  `rustc 1.100.0-nightly (a69a63265)`.
+
+  When the toolchain cannot be updated, point `SDKROOT` at an SDK no newer
+  than the linker. Resolve the path through `xcrun` rather than hard-coding a
+  version: a hard-coded SDK directory disappears when Xcode updates, and a
+  stale `SDKROOT` then breaks every link.
+
+  ```sh
+  export SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
+  ```
+
+  On the measured mismatched host this resolved to the selected Xcode's 26.2
+  SDK, the one matching `ld-1230.1`. Confirm with the two commands above
+  that the pair agrees before relying on it.
 
   Deep parser/checker threads also need `RUST_MIN_STACK=67108864` — the
   measured suites on this host (corpus legs, native differential) ran under

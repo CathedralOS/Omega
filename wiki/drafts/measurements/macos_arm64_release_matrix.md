@@ -36,6 +36,10 @@ Run 1 found the matrix's first divergence is not a test verdict at all:
   (the Xcode 26.2 SDK, whose stubs use the classic `arm64-macos`/
   `arm64e-macos` spellings clang 17 parses), plus the established
   `RUST_MIN_STACK=67108864`. Now documented in `tools/release/README.md`.
+  Superseded 2026-09-28: the rejecting component is the Xcode 26.x linker
+  (`ld-1230.1`), which predates the 27.0 stubs; `ld-27037.1` from Xcode 27.0
+  or CommandLineTools 27.0 links against them. Xcode 27.0 removed the 26.2
+  SDK this pin names, so the pin itself now breaks every link on this host.
 - **fmt drift on main.** `python tools/fmt.py --check` exits 1: 48 rustfmt
   diff sites across 31 files — import ordering and chain-wrap moves
   introduced by the 09-26 landings `d1286f778a`, `491bd4498c`,
