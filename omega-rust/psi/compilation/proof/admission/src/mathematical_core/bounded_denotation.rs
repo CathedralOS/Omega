@@ -4582,12 +4582,14 @@ mod tests {
         assert_eq!(denoted.arena.get(first), Term::TwoOne);
     }
 
-    /// A `PredicateDenotation` whose normalized expansion still has no
-    /// checked derivation — here the Boolean-equality expansion over
-    /// open atoms — keeps the explicit rule-instance axiom rather than
-    /// assuming a conversion it cannot prove.
+    /// The open Boolean-equality expansion — `Equal(¬a, b)` denoting
+    /// `Id Two (not a) b` into its normalized valuation disjunction —
+    /// derives by `caseTwo` case analysis on the two atoms: each literal
+    /// valuation either inhabits the expanded conjunction or refutes the
+    /// premise through the `J` discriminant, so no rule-instance axiom
+    /// enters the signature.
     #[test]
-    fn an_undecided_crossing_keeps_the_explicit_rule_instance() {
+    fn an_open_boolean_expansion_denotes_by_case_analysis() {
         let (a_id, a) = boolean_value(1);
         let (b_id, b) = boolean_value(2);
         let context = PropositionContext::from_value_types([
@@ -4629,14 +4631,23 @@ mod tests {
         .expect("the Boolean expansion licenses the conversion");
         let term = elaboration
             .node(&proof)
-            .expect("the undecided crossing denotes through the rule instance");
-        assert_eq!(
-            elaboration.denotation.rule_axioms.len(),
-            1,
-            "an open Boolean expansion still names its rule-instance axiom",
+            .expect("the open Boolean expansion denotes a case analysis");
+        assert!(
+            elaboration.denotation.rule_axioms.is_empty(),
+            "the crossing derives without naming a rule-instance axiom",
         );
         let mut denoted = elaboration.finish(term);
+        // The transport applies a `caseTwo` case-analysis function to the
+        // cited premise; the atoms `a`/`b` are the whole signature.
+        let Term::Apply { function, .. } = denoted.arena.get(denoted.certificate.term) else {
+            panic!("the expansion denotes an applied case-analysis function");
+        };
+        assert!(
+            matches!(denoted.arena.get(function), Term::CaseTwo { .. }),
+            "the transport function eliminates a Boolean atom",
+        );
+        assert_eq!(denoted.certificate.signature.len(), 2);
         verify_mathematical_certificate(&mut denoted.arena, &denoted.certificate, &mut budget())
-            .expect("the rule-instance judgment still re-decides");
+            .expect("the derived judgment re-decides in the kernel");
     }
 }
