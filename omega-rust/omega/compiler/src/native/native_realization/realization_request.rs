@@ -9,20 +9,7 @@ pub use native_artifact::RequestedNativeArtifact;
 use terminal_psi_to_abstract_operations::NativeProgramEntrySettlement;
 pub(crate) use terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput as NativeRealizationInput;
 
-/// Borrowed source-free body and placement join for one compiler-private
-/// callback thunk. The ordinary callback-argument carrier remains separate so
-/// target lowering cannot confuse executable body custody with a semantic
-/// registrar argument.
-#[derive(Debug, Clone, Copy)]
-pub struct NativeCallbackThunkSettlement<'artifact> {
-    pub terminal_operation: semantic_vocabulary::OperationId,
-    pub placement_index: usize,
-    pub callback_function: function_identity::MachineFunctionIdentity,
-    pub private_symbol: &'artifact str,
-    pub artifact: &'artifact terminal_codec::CanonicalTerminalArtifact,
-    pub lowering_receipt: lowered_psi::CallbackTerminalLoweringReceipt,
-    pub boundary_entry_plan: &'artifact calling_conventions::BoundaryEntryPlan,
-}
+pub use backend_plan::NativeCallbackThunkSettlement;
 
 /// Complete build-owned inputs for one target-native realization. Keeping
 /// these coupled prevents callers from accidentally carrying entry, target,

@@ -13,7 +13,7 @@ use calling_conventions::{
     StaticMachineBinderId, ValueShape,
 };
 
-fn materialized_placement(destination: NativePlace) -> BoundNominalCallbackPlacement {
+pub(crate) fn materialized_placement(destination: NativePlace) -> BoundNominalCallbackPlacement {
     let binder = StaticMachineBinderId::new(101).unwrap();
     let requirement = CallbackRequirementId::new(103).unwrap();
     let parameter = match &destination {
@@ -180,7 +180,7 @@ fn resource_receipt_with_commitment(
     .expect("canonical checked callback resource receipt")
 }
 
-fn placement() -> BoundNominalCallbackPlacement {
+pub(crate) fn placement() -> BoundNominalCallbackPlacement {
     let validated = calling_conventions::evaluate_ordinary_boundary_entry_plan(
         CallingPolicy::MicrosoftX64,
         &CallSignature::default(),

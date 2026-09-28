@@ -2,8 +2,10 @@
 //! code inside the same realization as the semantic program.
 //!
 //! `produce_callback_thunk_artifact` deliberately stops at
-//! `finalize_terminal_artifact`: the settlement carries the artifact, its
-//! lowering receipt, and its boundary entry plan, never bytes. This stage is
+//! `finalize_terminal_artifact`: the settlement carries the artifact, private
+//! function identity and boundary entry plan, never machine bytes or the
+//! producer's source-to-Terminal lowering receipt. Backend callback admission
+//! rechecks that receipt before projecting these native inputs. This stage is
 //! the consumer half of that contract — every thunk replays the ordinary
 //! native pipeline (decode, abstract optimization, target lowering,
 //! instruction selection, register homes, fragment emission, frame
