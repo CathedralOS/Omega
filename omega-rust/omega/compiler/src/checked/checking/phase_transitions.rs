@@ -196,24 +196,16 @@ pub(crate) fn typed_trees_to_checked_trees(
         let request = typed_trees_to_checked_trees::CheckingRequest::settled()
             .with_selected_generic_operator_providers(&selected_generic_operator_providers)
             .with_selected_boundary_families(&selected_boundary_families)
-            .with_opaque_property_receipts(&opaque_property_receipts);
+            .with_opaque_property_receipts(&opaque_property_receipts)
+            .with_declaration_authority(settlement.package_inputs.map(|inputs| {
+                inputs as &dyn validation::DeclarationSelectionAuthority
+            }));
         // The elapsed accounting wraps the fallible call rather than its
         // `?`: a rejected program still paid the check's cost.
         let check_started = std::time::Instant::now();
         let check_result = typed_trees_to_checked_trees::lower_typed_trees(typed, &request);
         super::record_settled_check(check_started.elapsed());
         let mut program = check_result?;
-        if let Some(package_inputs) = settlement.package_inputs {
-            // Sibling bodies were checked under their own target; their
-            // selections are excluded from this realization's authority gate.
-            let sibling_occurrences =
-                typed_trees_to_checked_trees::target_sibling_selection_occurrences(&program);
-            validation::validate_authored_declaration_selections(
-                &program,
-                package_inputs,
-                &sibling_occurrences,
-            )?;
-        }
         if let Some(native_target) = settlement.native_target {
             provider_planning::calling_policy_plans::close_outbound_callback_materializations(
                 &mut program,
@@ -430,12 +422,14 @@ pub(crate) fn settle_selected_execution(
 pub(crate) fn typed_trees_to_preliminary_checked_trees(
     typed: TypedTrees,
     timings: &mut CompileTimings,
+    authority: &dyn validation::DeclarationSelectionAuthority,
 ) -> Result<Arc<CheckedProgram>, Vec<Diagnostic>> {
     timings.record(TYPED_TREES_TO_PRELIMINARY_CHECKED_TREES, || {
         let check_started = std::time::Instant::now();
         let check_result = typed_trees_to_checked_trees::lower_typed_trees(
             typed,
-            &typed_trees_to_checked_trees::CheckingRequest::preliminary(),
+            &typed_trees_to_checked_trees::CheckingRequest::preliminary()
+                .with_declaration_authority(Some(authority)),
         );
         super::record_preliminary_check(check_started.elapsed());
         let program = check_result?;

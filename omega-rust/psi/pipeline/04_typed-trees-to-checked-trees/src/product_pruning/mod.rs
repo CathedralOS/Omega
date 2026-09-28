@@ -358,9 +358,7 @@ pub fn prune_target_siblings(mut checked: CheckedTrees) -> Result<CheckedTrees, 
 /// provisionally (the preliminary pass before build evaluation): their bodies
 /// are checked once, in the settled pass. Transitional like
 /// `prune_target_siblings`.
-pub fn prune_target_siblings_typed(
-    typed: &mut TypedTrees,
-) -> HashSet<AuthoredDeclarationSelectionOccurrenceId> {
+pub fn prune_target_siblings_typed(typed: &mut TypedTrees) {
     let pruned: HashSet<SymbolHandle> = typed
         .machines()
         .iter()
@@ -368,11 +366,11 @@ pub fn prune_target_siblings_typed(
         .map(|machine| machine.symbol)
         .collect();
     if pruned.is_empty() {
-        return HashSet::new();
+        return;
     }
-    // The selections recorded inside the pruned bodies stay late-bound in a
-    // provisional check; the caller skips them instead of reporting them.
-    let dead_occurrences = target_sibling_selection_occurrences(typed);
+    // Declaration admission derives its own occurrence scope from the retained
+    // source/symbol custody, including these pruned bodies. Pruning neither
+    // computes nor returns a second authority scope for the coordinator.
     let retained: HashSet<SymbolHandle> = typed
         .machines()
         .iter()
@@ -381,7 +379,6 @@ pub fn prune_target_siblings_typed(
         .collect();
     apply_typed_pruning(typed, &retained, &pruned);
     retain_live_family_members(typed);
-    dead_occurrences
 }
 
 /// Keep the target-machine family roster consistent with the pruned machine

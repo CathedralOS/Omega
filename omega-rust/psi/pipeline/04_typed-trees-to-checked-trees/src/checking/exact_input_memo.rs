@@ -3,9 +3,11 @@
 //! A package review checks every package of one closure in its discovery
 //! pass, again in its bound pass and again for production, and each of those
 //! compiles checks the same typed program at the pre-build gate and again at
-//! settlement; the inputs are usually identical. `lower_typed_trees` is a pure
-//! function of the typed program and the request, so an input equal to a
-//! retained one returns that check's result. A program is retained once its
+//! settlement; the inputs are usually identical. The language judgment is a
+//! pure function of the typed program and the retained request fields, so an
+//! equal input returns that judgment's result. Invocation-owned package authority
+//! is never cached here: `lower_typed_trees` admits it after every lookup.
+//! A program is retained once its
 //! size fingerprint repeats, so a compile that checks each program once pays
 //! only for computing that fingerprint; a caller that knows it will check
 //! the same programs again holds [`retain_repeated_checks`] to retain them on

@@ -21,23 +21,24 @@ use checked_trees::CheckedTrees;
 /// checkpoint: every selection the orchestration owner settled is supplied
 /// through the `with_*` builders. Standalone programs and package builds
 /// share it: ordinary package selections stay strict while unresolved
-/// compiler-owned toolchain selections remain TCB input, so a package build
-/// must run its declaration authority gate over the result before issuing
-/// package evidence. `preliminary()` is the pre-settlement checkpoint: unresolved
+/// compiler-owned toolchain selections remain TCB input. A package build supplies
+/// its declaration authority, which this stage checks before returning either
+/// a fresh or memoized result. `preliminary()` is the pre-settlement checkpoint: unresolved
 /// selections are retained only for compiler-owned toolchain source, pending
 /// opaque-copy evidence and deferred const array lengths/range endpoints are
-/// tolerated, and the caller must reject unresolved ordinary-package
-/// selections before granting build authority.
+/// tolerated; supplied package authority still rejects unresolved ordinary-package
+/// selections before the caller can grant build authority.
 ///
 /// Psi derives applications from authored uses and uses ordinary
 /// authoritative specialization; the request carries no application strings,
 /// capability assertions, or provider-selection policy.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct CheckingRequest<'a> {
     mode: CheckingMode,
     selected_generic_operator_providers: &'a [SelectedGenericOperatorProviderSpecialization],
     selected_boundary_families: &'a [SelectedBoundaryFamilySpecialization],
     opaque_property_receipts: &'a [validation::OpaqueDataPropertyReceipt],
+    declaration_authority: Option<&'a dyn validation::DeclarationSelectionAuthority>,
 }
 
 impl<'a> CheckingRequest<'a> {
@@ -47,6 +48,7 @@ impl<'a> CheckingRequest<'a> {
             selected_generic_operator_providers: &[],
             selected_boundary_families: &[],
             opaque_property_receipts: &[],
+            declaration_authority: None,
         }
     }
 
@@ -97,6 +99,17 @@ impl<'a> CheckingRequest<'a> {
         self.opaque_property_receipts = receipts;
         self
     }
+
+    /// Reconciled package authority for this invocation. Psi checks authored
+    /// selections before returning the program; loading a declaration does not
+    /// authorize its use. Standalone source has no package admission request.
+    pub const fn with_declaration_authority(
+        mut self,
+        authority: Option<&'a dyn validation::DeclarationSelectionAuthority>,
+    ) -> Self {
+        self.declaration_authority = authority;
+        self
+    }
 }
 
 /// Check typed trees under one explicit request: the checkpoint mode plus
@@ -123,9 +136,21 @@ pub fn lower_typed_trees(
         selected_boundary_families: request.selected_boundary_families.to_vec(),
         opaque_property_receipts: request.opaque_property_receipts.to_vec(),
     };
-    exact_input_memo::checked(program, key, |program| {
+    let checked = exact_input_memo::checked(program, key, |program| {
         lower_typed_trees_uncached(program, &request)
-    })
+    })?;
+    // Package authority is invocation-owned, not part of the cached language
+    // judgment. Always admit the returned selections under the current caller's
+    // authority, including when an identical typed program hits the memo.
+    if let Some(authority) = request.declaration_authority {
+        let sibling_occurrences = crate::target_sibling_selection_occurrences(&checked);
+        validation::validate_authored_declaration_selections(
+            &checked,
+            authority,
+            &sibling_occurrences,
+        )?;
+    }
+    Ok(checked)
 }
 
 fn lower_typed_trees_uncached(
@@ -137,6 +162,7 @@ fn lower_typed_trees_uncached(
         selected_generic_operator_providers,
         selected_boundary_families,
         opaque_property_receipts,
+        declaration_authority: _,
     } = *request;
     // Mathematical `let`/`boundary let` declarations elaborate into
     // `CheckedMathematicalDeclaration` records and then into a kernel
