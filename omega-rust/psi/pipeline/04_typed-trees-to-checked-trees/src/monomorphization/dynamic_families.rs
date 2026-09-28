@@ -3,7 +3,7 @@
 //! A local `dyn` selection whose closed conformance realizes a finite generic
 //! requirement must own one checked specialization of the row's realization
 //! template per declared roster tuple. Boundary adapter rows settle against
-//! the same commitment: a selected provider's complete family is generated
+//! the same commitment: every checked candidate's complete family is generated
 //! here — before ordinary specialization and checked-fact construction — from
 //! the one roster authority, rather than the settle boundary discovering a
 //! tuple only when a static call site happened to demand it. Either way the
@@ -33,7 +33,7 @@ use typed_trees::finite_family::{FamilyProbe, FamilyTuple};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// Generate every missing tuple specialization demanded by the program's
-/// dynamic conformance selections and by each selected boundary adapter row
+/// dynamic conformance selections and by each authored boundary conformance
 /// whose requirement declares a finite family. Returns the number of
 /// specialization instances materialized this pass; callers re-run the
 /// ordinary specialization round when it is nonzero because a generated body
@@ -44,7 +44,6 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 /// collection here simply defers generation rather than double-reporting.
 pub(crate) fn generate_dynamic_family_specializations(
     program: &mut TypedTrees,
-    boundary_families: &[crate::SelectedBoundaryFamilySpecialization],
 ) -> Result<usize, Vec<Diagnostic>> {
     // Collect the complete demand set before mutating the graph: (realization
     // template symbol, roster tuples). One selected conformance covers the
@@ -54,65 +53,61 @@ pub(crate) fn generate_dynamic_family_specializations(
     let mut diagnostics = Vec::new();
     let mut demands: Vec<(SymbolHandle, Vec<FamilyTuple>)> = Vec::new();
 
-    // A selected boundary adapter row commits its provider to the complete
-    // roster before any call resolves. Demand collection upstream already
-    // keeps only finite rosters on conforming, coverable providers, so a
-    // `NotFinite` probe, an unresolvable signature, or an unresolvable
-    // template here is orchestration drift and rejects.
-    for family in boundary_families {
-        let Some(requirement) = program
-            .traits()
-            .iter()
-            .flat_map(|definition| program.trait_machine_signatures(definition).iter())
-            .find(|signature| signature.symbol == family.requirement_signature)
-        else {
-            diagnostics.push(Diagnostic::error(
-                "selected boundary family demand names no requirement signature",
-            ));
+    // Source owns the candidate set. Follow exact authored satisfies edges,
+    // not Build selections or similarly-shaped machines. A finite boundary
+    // requirement commits every checked candidate to the whole roster.
+    for realization in program.machines() {
+        if !realization.supply_mode.is_checked_body()
+            || !realization.body_is_present
+            || program.machine_type_parameters(realization).is_empty()
+        {
             continue;
-        };
-        let (arity, tuples) = match program.finite_signature_family(requirement) {
-            FamilyProbe::Finite { arity, tuples } => (arity, tuples),
-            FamilyProbe::NotFinite(reason) => {
-                // Demand collection only ever emits demands for `Finite`
-                // rosters, so an open roster here is orchestration drift —
-                // same contract as an unresolvable signature or template
-                // below, and it must reject rather than silently generate no
-                // tuples and let settlement pass an unchecked requirement.
+        }
+        for conformance in program.machine_trait_conformances(realization) {
+            if conformance.external_binding.is_some() || conformance.via_expression.is_valid() {
+                continue;
+            }
+            let Some(typed_trees::machine::SatisfiedDeclaration::Trait {
+                definition,
+                requirement,
+            }) = typed_trees::machine::resolve_satisfied_declaration(
+                program,
+                realization,
+                conformance,
+            )
+            else {
+                continue;
+            };
+            if !definition.is_boundary {
+                continue;
+            }
+            let FamilyProbe::Finite { arity, tuples } =
+                program.finite_signature_family(requirement)
+            else {
+                // Open generic requirements remain ordinary static contracts;
+                // no closed finite roster is invented for them.
+                continue;
+            };
+            let binders = program.machine_type_parameters(realization);
+            let value_binders = binders
+                .iter()
+                .filter(|parameter| {
+                    matches!(
+                        parameter.kind,
+                        typed_trees::data::TypeParameterKind::Const { .. }
+                            | typed_trees::data::TypeParameterKind::Value { .. }
+                    )
+                })
+                .count();
+            if binders.len() != value_binders || value_binders != arity {
                 diagnostics.push(Diagnostic::error(format!(
-                    "selected boundary family demand for requirement `{}` names an open roster that cannot settle complete provider coverage: {reason}",
-                    requirement.name
+                    "boundary provider candidate `{}` cannot cover the declared finite family of `{}`: a family provider must be generic over exactly the requirement's {arity} const/value binders",
+                    realization.name, requirement.name
                 )));
                 continue;
             }
-        };
-        let Some(realization) =
-            crate::lookup::machine_by_symbol(program, family.realization_machine)
-        else {
-            diagnostics.push(Diagnostic::error(
-                "selected boundary family demand names no realization machine template",
-            ));
-            continue;
-        };
-        let realization_binders = program.machine_type_parameters(realization);
-        let value_binders = realization_binders
-            .iter()
-            .filter(|parameter| {
-                matches!(
-                    parameter.kind,
-                    typed_trees::data::TypeParameterKind::Const { .. }
-                        | typed_trees::data::TypeParameterKind::Value { .. }
-                )
-            })
-            .count();
-        if realization_binders.len() != value_binders || value_binders != arity {
-            diagnostics.push(Diagnostic::error(format!(
-                "selected boundary provider `{}` cannot cover the declared finite family of `{}`: a family provider must be generic over exactly the requirement's {arity} const/value binders",
-                realization.name, requirement.name
-            )));
-            continue;
+            queue_family_demand(&mut demands, realization.symbol, tuples);
         }
-        queue_family_demand(&mut demands, realization.symbol, tuples);
     }
 
     // A failed dynamic-selection collection defers that generation to

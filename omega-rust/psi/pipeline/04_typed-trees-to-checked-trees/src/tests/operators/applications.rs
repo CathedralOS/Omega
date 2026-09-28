@@ -323,7 +323,7 @@ fn specialized_generic_operator_provider_retains_exact_closed_realization() {
 
 #[test]
 fn selected_generic_operator_provider_discovers_nested_expression_application() {
-    let checked = checked_program_with_selected_generic_providers(
+    let checked = checked_program_with_expected_generic_providers(
         r#"
         pub data GenericMath {}
         pub boundary operator == GenericMath::equal<Element>(left: Element, right: Element) -> bool;
@@ -355,7 +355,7 @@ fn selected_generic_operator_provider_discovers_nested_expression_application() 
     );
 }
 
-fn checked_program_with_selected_generic_providers(
+fn checked_program_with_expected_generic_providers(
     source: &str,
     providers: &[(&str, &str, &str)],
 ) -> checked_trees::CheckedTrees {
@@ -381,15 +381,18 @@ fn checked_program_with_selected_generic_providers(
                 .find(|machine| machine.name.as_str() == *provider)
                 .expect("selected provider exists")
                 .symbol;
-            crate::SelectedGenericOperatorProviderSpecialization {
-                requirement_operator,
-                realization_machine,
-            }
+            (requirement_operator, realization_machine)
         })
         .collect::<Vec<_>>();
-    crate::lower_typed_trees(
-        typed,
-        &crate::CheckingRequest::settled().with_selected_generic_operator_providers(&selected),
-    )
-    .expect("selected generic providers reach final-substitution closure")
+    let checked = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+        .expect("authored generic candidates reach final-substitution closure");
+    for (_, provider) in selected {
+        assert!(
+            checked
+                .machine_specializations
+                .iter()
+                .any(|row| row.template == provider)
+        );
+    }
+    checked
 }

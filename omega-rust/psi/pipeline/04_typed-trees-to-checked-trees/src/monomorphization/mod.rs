@@ -506,14 +506,12 @@ fn materialize_static_argument_types(program: &mut TypedTrees) {
 /// by Omega's boundary-operator ProviderPlans. The authored generic machine is
 /// never rewritten: it remains the package API and every closed application
 /// is cloned from that stable template.
-mod selected_operator_providers;
+mod operator_candidates;
 use crate::monomorphization::selection::{
     approved_type_bounds, contract_expression_handles, unique_complete_selections,
     validate_candidate_conformance_bounds,
 };
-pub(crate) use selected_operator_providers::{
-    SelectedProviderTemplates, specialize_selected_generic_operator_providers,
-};
+pub(crate) use operator_candidates::{OperatorCandidateTemplates, specialize_operator_candidates};
 
 fn apply_call_specializations(
     program: &mut TypedTrees,

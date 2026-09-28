@@ -36,13 +36,9 @@ pub struct ProviderCheckingRequest<'a> {
     pub authored_root_grants: &'a [trust_model::AuthoredRootGrant],
 }
 
-/// Owned specialization and representation inputs for one Psi check, plus the
+/// Owned representation inputs for one Psi check, plus the
 /// authored review records captured before specialization changes the trees.
 pub struct ProviderCheckingInputs {
-    selected_generic_operator_providers:
-        Vec<typed_trees_to_checked_trees::SelectedGenericOperatorProviderSpecialization>,
-    selected_boundary_families:
-        Vec<typed_trees_to_checked_trees::SelectedBoundaryFamilySpecialization>,
     opaque_property_receipts: Vec<validation::OpaqueDataPropertyReceipt>,
     accepted_template_classifications: trust_model::AcceptedTemplateClassifications,
     contract_entailment_stand_downs: Vec<validation::ContractEntailmentStandDown>,
@@ -57,18 +53,6 @@ impl ProviderCheckingInputs {
             trust_model::AcceptedTemplateClassifications::capture(typed);
         let contract_entailment_stand_downs =
             validation::collect_contract_entailment_stand_downs(typed);
-        let selected_generic_operator_providers =
-            selected_generic_operator_provider_specializations(
-                typed,
-                &settlement.selected_provider_plan_facts,
-            )?;
-        // A selected boundary family row commits its provider to the complete
-        // roster now, before checking: the generated tuple bodies are what
-        // settle-time row resolution looks up.
-        let selected_boundary_families = crate::selected_boundary_family_specializations(
-            typed,
-            &settlement.selected_provider_plan_facts,
-        );
         let rederived_opaque_representation_selections =
             representation_planning::rederive_opaque_representation_selections(
                 typed,
@@ -83,20 +67,16 @@ impl ProviderCheckingInputs {
             .collect::<Vec<_>>();
 
         Ok(Self {
-            selected_generic_operator_providers,
-            selected_boundary_families,
             opaque_property_receipts,
             accepted_template_classifications,
             contract_entailment_stand_downs,
         })
     }
 
-    /// Psi consumes the prepared specialization roster; it still checks every
-    /// generated body and representation receipt itself.
+    /// Psi derives all candidate specializations from authored source. This
+    /// request carries only independently checked representation evidence.
     pub fn checking_request(&self) -> typed_trees_to_checked_trees::CheckingRequest<'_> {
         typed_trees_to_checked_trees::CheckingRequest::settled()
-            .with_selected_generic_operator_providers(&self.selected_generic_operator_providers)
-            .with_selected_boundary_families(&self.selected_boundary_families)
             .with_opaque_property_receipts(&self.opaque_property_receipts)
     }
 
@@ -140,69 +120,5 @@ impl ProviderCheckingInputs {
             accepted_template_classifications: self.accepted_template_classifications,
             contract_entailment_stand_downs: self.contract_entailment_stand_downs,
         })
-    }
-}
-
-fn selected_generic_operator_provider_specializations(
-    typed: &typed_trees::TypedTrees,
-    selected: &effects::SelectedProviderPlanFacts,
-) -> Result<
-    Vec<typed_trees_to_checked_trees::SelectedGenericOperatorProviderSpecialization>,
-    Vec<Diagnostic>,
-> {
-    let mut requests = Vec::new();
-    let mut diagnostics = Vec::new();
-    for plan in selected.plans() {
-        let operators = typed
-            .operators()
-            .iter()
-            .filter(|operator| {
-                operator.is_boundary
-                    && typed_trees::operator::boundary_operator_requirement_identity(
-                        typed, operator,
-                    ) == plan.schema.trait_name
-            })
-            .collect::<Vec<_>>();
-        let [operator] = operators.as_slice() else {
-            continue;
-        };
-        if typed.operator_type_parameters(operator).is_empty() {
-            continue;
-        }
-        let [row] = plan.rows.as_slice() else {
-            diagnostics.push(Diagnostic::error(format!(
-                "selected generic boundary-operator ProviderPlan `{}` must retain exactly one row",
-                plan.name,
-            )));
-            continue;
-        };
-        if !matches!(
-            row.binding,
-            effects::provider_plan::ProviderBinding::CheckedAdapter { .. }
-        ) {
-            continue;
-        }
-        let provider = match provider_planning::exact_checked_adapter(typed, plan, row) {
-            Ok(provider) => provider,
-            Err(diagnostic) => {
-                diagnostics.push(diagnostic);
-                continue;
-            }
-        };
-        if typed.machine_type_parameters(provider).is_empty() {
-            continue;
-        }
-        let request = typed_trees_to_checked_trees::SelectedGenericOperatorProviderSpecialization {
-            requirement_operator: operator.symbol,
-            realization_machine: provider.symbol,
-        };
-        if !requests.contains(&request) {
-            requests.push(request);
-        }
-    }
-    if diagnostics.is_empty() {
-        Ok(requests)
-    } else {
-        Err(diagnostics)
     }
 }

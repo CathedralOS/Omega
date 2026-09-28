@@ -16,20 +16,25 @@ use crate::monomorphization::{
 };
 use typed_trees::operator::ClosedOperatorApplicationArgument;
 
-pub(crate) struct SelectedProviderTemplates {
+/// One exact authored conformance edge. This is internal elaboration data,
+/// never a provider choice supplied by Omega or the compiler coordinator.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct GenericOperatorCandidate {
+    pub requirement_operator: SymbolHandle,
+    pub realization_machine: SymbolHandle,
+}
+
+pub(crate) struct OperatorCandidateTemplates {
     authored: TypedTrees,
     service_reaches: flow_effects::ServiceReachInferencePlan,
 }
 
-impl SelectedProviderTemplates {
-    /// Token requirements publish all explicitly conforming checked candidates.
+impl OperatorCandidateTemplates {
+    /// Boundary operators publish all explicitly conforming checked candidates.
     /// Build chooses among them only after Terminal publication. Discover the
     /// authored edges before ordinary specialization can mutate their binders;
     /// the existing fixed point materializes only actual closed demands.
-    pub(crate) fn candidate_requests(
-        program: &TypedTrees,
-        selected: &[crate::SelectedGenericOperatorProviderSpecialization],
-    ) -> Vec<crate::SelectedGenericOperatorProviderSpecialization> {
+    pub(crate) fn candidate_requests(program: &TypedTrees) -> Vec<GenericOperatorCandidate> {
         let mut requests = Vec::new();
         for machine in program.machines() {
             if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
@@ -51,15 +56,10 @@ impl SelectedProviderTemplates {
                 else {
                     continue;
                 };
-                if !operator.is_boundary
-                    || !program
-                        .machine_token_bindings()
-                        .iter()
-                        .any(|binding| binding.symbol == operator.symbol)
-                {
+                if !operator.is_boundary {
                     continue;
                 }
-                let request = crate::SelectedGenericOperatorProviderSpecialization {
+                let request = GenericOperatorCandidate {
                     requirement_operator: operator.symbol,
                     realization_machine: machine.symbol,
                 };
@@ -68,20 +68,12 @@ impl SelectedProviderTemplates {
                 }
             }
         }
-        // Legacy operator requests still use the same elaborator. Append only
-        // missing edges: selecting a token candidate must not reorder or prune
-        // its selection-neutral roster, including candidates of other providers.
-        for request in selected {
-            if !requests.contains(request) {
-                requests.push(*request);
-            }
-        }
         requests
     }
 
     pub(crate) fn prepare(
         program: &TypedTrees,
-        selected: &[crate::SelectedGenericOperatorProviderSpecialization],
+        selected: &[GenericOperatorCandidate],
     ) -> Option<Self> {
         if selected.is_empty() {
             return None;
@@ -101,10 +93,10 @@ impl SelectedProviderTemplates {
     }
 }
 
-pub(crate) fn specialize_selected_generic_operator_providers(
-    templates: &SelectedProviderTemplates,
+pub(crate) fn specialize_operator_candidates(
+    templates: &OperatorCandidateTemplates,
     program: &mut TypedTrees,
-    selected: &[crate::SelectedGenericOperatorProviderSpecialization],
+    selected: &[GenericOperatorCandidate],
 ) -> Result<usize, Vec<Diagnostic>> {
     if selected.is_empty() {
         return Ok(0);
@@ -122,7 +114,7 @@ pub(crate) fn specialize_selected_generic_operator_providers(
             .position(|machine| machine.symbol == request.realization_machine)
         else {
             diagnostics.push(Diagnostic::error(
-                "selected generic operator provider names no realization machine",
+                "generic operator candidate names no realization machine",
             ));
             continue;
         };
@@ -132,7 +124,7 @@ pub(crate) fn specialize_selected_generic_operator_providers(
                 .cloned()
         else {
             diagnostics.push(Diagnostic::error(
-                "selected generic operator provider names no operator requirement",
+                "generic operator candidate names no operator requirement",
             ));
             continue;
         };
@@ -149,7 +141,7 @@ pub(crate) fn specialize_selected_generic_operator_providers(
             })
         {
             diagnostics.push(Diagnostic::error(format!(
-                "selected generic operator provider `{}` does not realize its exact requirement",
+                "generic operator candidate `{}` does not realize its exact requirement",
                 template_machine.name,
             )));
             continue;
@@ -157,7 +149,7 @@ pub(crate) fn specialize_selected_generic_operator_providers(
 
         let current_operator =
             typed_trees::operator::declaration_by_symbol(program, request.requirement_operator)
-                .expect("selected provider requirement survives specialization");
+                .expect("candidate requirement survives specialization");
         let applications = match selected_operator_applications(program, current_operator) {
             Ok(applications) => applications,
             Err(mut errors) => {
@@ -252,7 +244,7 @@ pub(crate) fn specialize_selected_generic_operator_providers(
             .any(|approved| !approved)
         {
             diagnostics.push(Diagnostic::error(format!(
-                "selected generic operator provider `{}` has an application that violates its type-property bounds",
+                "generic operator candidate `{}` has an application that violates its type-property bounds",
                 template_machine.name,
             )));
             continue;
@@ -436,7 +428,7 @@ fn selected_operator_candidate_for_application<'template>(
         || !template.template.evidence_parameters.is_empty()
     {
         return Err(Diagnostic::error(format!(
-            "selected generic operator provider `{}` has no supported exact type/const specialization tuple",
+            "generic operator candidate `{}` has no supported exact type/const specialization tuple",
             machine.name,
         )));
     }
@@ -464,7 +456,7 @@ fn selected_operator_candidate_for_application<'template>(
             ) => {
                 let Some(binding) = const_identity_type_reference(program, value) else {
                     return Err(Diagnostic::error(format!(
-                        "selected generic operator provider `{}` has a const application without a supported canonical integer carrier",
+                        "generic operator candidate `{}` has a const application without a supported canonical integer carrier",
                         machine.name,
                     )));
                 };
@@ -478,7 +470,7 @@ fn selected_operator_candidate_for_application<'template>(
             }
             _ => {
                 return Err(Diagnostic::error(format!(
-                    "selected generic operator provider `{}` changes its requirement telescope category",
+                    "generic operator candidate `{}` changes its requirement telescope category",
                     machine.name,
                 )));
             }

@@ -82,121 +82,90 @@ fn closed_token_candidates_are_independent_of_provider_selection() {
         }
     "#,
     );
-    let mut baseline = None;
-    for selected_name in [
-        None,
-        Some("FirstProvider::index"),
-        Some("SecondProvider::index"),
-    ] {
-        let selections = selected_name
-            .into_iter()
-            .map(|name| {
-                typed_trees_to_checked_trees::SelectedGenericOperatorProviderSpecialization {
-                    requirement_operator: typed.machine_token_bindings()[0].symbol,
-                    realization_machine: typed
-                        .machines()
-                        .iter()
-                        .find(|machine| machine.name.as_str() == name)
-                        .unwrap()
-                        .symbol,
-                }
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("all checked candidates materialize from the same closed demands");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("selection-neutral artifact")
+    .into_artifact();
+    drop(checked);
+    let module = decode_module(artifact.semantic_bytes()).unwrap();
+    assert_eq!(
+        module.provider_candidates.len(),
+        4,
+        "two providers for each tuple"
+    );
+    assert!(module.provider_candidates.iter().all(|candidate| {
+        ["FirstProvider", "SecondProvider"].contains(&candidate.provider_identity.as_str())
+    }));
+    for provider in ["FirstProvider", "SecondProvider"] {
+        let selections = module
+            .provider_candidates
+            .iter()
+            .filter(|candidate| candidate.provider_identity == provider)
+            .map(|candidate| ProviderInstallationSelection {
+                boundary: candidate.boundary,
+                provider_identity: candidate.provider_identity.clone(),
+                candidate: candidate.candidate,
             })
             .collect::<Vec<_>>();
-        let checked = typed_trees_to_checked_trees::lower_typed_trees(
-            typed.clone(),
-            &typed_trees_to_checked_trees::CheckingRequest::settled()
-                .with_selected_generic_operator_providers(&selections),
+        assert_eq!(selections.len(), 2);
+        let installation = admit_provider_installation_from_artifact(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &proof_admission::AdmissionProfile::default(),
+            &selections,
         )
-        .expect("all checked candidates materialize from the same closed demands");
-        let artifact = terminal_production::TerminalProductionRequest::new(
-            &checked,
-            TerminalMachineSelection::Name("run"),
+        .expect("either complete provider installs from the identical source-free artifact");
+        let entry = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == module.entry)
+            .unwrap();
+        let arguments = entry
+            .structural_parameters
+            .iter()
+            .enumerate()
+            .map(|(position, parameter)| TerminalStructuralValue {
+                opaque_identity: position as u64 + 1,
+                structural_type: parameter.structural_type,
+                qualifications: parameter.qualifications.clone(),
+                path: Vec::new(),
+            })
+            .collect::<Vec<_>>();
+        let mut execution = TerminalExecution::start_installed_artifact(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &proof_admission::AdmissionProfile::default(),
+            &[],
+            TerminalStructuralInputs {
+                arguments: &arguments,
+                ..Default::default()
+            },
+            &installation,
         )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("selection-neutral artifact")
-        .into_artifact();
-        drop(checked);
-        let module = decode_module(artifact.semantic_bytes()).unwrap();
+        .expect("execute both closed applications after source custody is dropped");
         assert_eq!(
-            module.provider_candidates.len(),
-            4,
-            "two providers for each tuple"
+            execution
+                .resume(
+                    &mut TerminalFuelMeter::default(),
+                    &mut AcceptTerminalEffects
+                )
+                .unwrap(),
+            TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
         );
-        assert!(module.provider_candidates.iter().all(|candidate| {
-            ["FirstProvider", "SecondProvider"].contains(&candidate.provider_identity.as_str())
-        }));
-        for provider in ["FirstProvider", "SecondProvider"] {
-            let selections = module
-                .provider_candidates
-                .iter()
-                .filter(|candidate| candidate.provider_identity == provider)
-                .map(|candidate| ProviderInstallationSelection {
-                    boundary: candidate.boundary,
-                    provider_identity: candidate.provider_identity.clone(),
-                    candidate: candidate.candidate,
-                })
-                .collect::<Vec<_>>();
-            assert_eq!(selections.len(), 2);
-            let installation = admit_provider_installation_from_artifact(
-                artifact.semantic_bytes(),
-                artifact.proof_bytes(),
-                &proof_admission::AdmissionProfile::default(),
-                &selections,
-            )
-            .expect("either complete provider installs from the identical source-free artifact");
-            let entry = module
-                .machines
-                .iter()
-                .find(|machine| machine.id == module.entry)
-                .unwrap();
-            let arguments = entry
-                .structural_parameters
-                .iter()
-                .enumerate()
-                .map(|(position, parameter)| TerminalStructuralValue {
-                    opaque_identity: position as u64 + 1,
-                    structural_type: parameter.structural_type,
-                    qualifications: parameter.qualifications.clone(),
-                    path: Vec::new(),
-                })
-                .collect::<Vec<_>>();
-            let mut execution = TerminalExecution::start_installed_artifact(
-                artifact.semantic_bytes(),
-                artifact.proof_bytes(),
-                &proof_admission::AdmissionProfile::default(),
-                &[],
-                TerminalStructuralInputs {
-                    arguments: &arguments,
-                    ..Default::default()
-                },
-                &installation,
-            )
-            .expect("execute both closed applications after source custody is dropped");
-            assert_eq!(
-                execution
-                    .resume(
-                        &mut TerminalFuelMeter::default(),
-                        &mut AcceptTerminalEffects
-                    )
-                    .unwrap(),
-                TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
-            );
-            assert!(
-                execution.effects().is_empty(),
-                "both calls execute installed checked bodies"
-            );
-        }
-        let bytes = (
-            artifact.semantic_bytes().to_vec(),
-            artifact.proof_bytes().to_vec(),
+        assert!(
+            execution.effects().is_empty(),
+            "both calls execute installed checked bodies"
         );
-        if let Some(expected) = &baseline {
-            assert_eq!(&bytes, expected, "selection must not change Psi output");
-        } else {
-            baseline = Some(bytes);
-        }
     }
 }
 

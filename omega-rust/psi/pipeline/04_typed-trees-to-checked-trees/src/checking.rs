@@ -2,8 +2,8 @@
 //! assemble execution plans, then publish checked trees.
 //!
 //! `lower_typed_trees` is the one entrance; a `CheckingRequest` names the
-//! package checkpoint (preliminary or settled) and carries the settled
-//! selections. Only the test-only crash-inspection mode omits crash admission.
+//! package checkpoint (preliminary or settled) and carries source admission
+//! evidence. Only the test-only crash-inspection mode omits crash admission.
 
 pub(crate) mod call_acknowledgements;
 mod deferred_constants;
@@ -18,8 +18,8 @@ use crate::facts::build_check_facts;
 use checked_trees::CheckedTrees;
 
 /// One typed->checked lowering request. `settled()` is the final package
-/// checkpoint: every selection the orchestration owner settled is supplied
-/// through the `with_*` builders. Standalone programs and package builds
+/// checkpoint. Candidate specializations derive from the source itself.
+/// Standalone programs and package builds
 /// share it: ordinary package selections stay strict while unresolved
 /// compiler-owned toolchain selections remain TCB input. A package build supplies
 /// its declaration authority, which this stage checks before returning either
@@ -36,8 +36,6 @@ use checked_trees::CheckedTrees;
 pub struct CheckingRequest<'a> {
     mode: CheckingMode,
     asm_authority: Option<validation::AsmAuthorityAdmission>,
-    selected_generic_operator_providers: &'a [SelectedGenericOperatorProviderSpecialization],
-    selected_boundary_families: &'a [SelectedBoundaryFamilySpecialization],
     opaque_property_receipts: &'a [validation::OpaqueDataPropertyReceipt],
     declaration_authority: Option<&'a dyn validation::DeclarationSelectionAuthority>,
 }
@@ -47,14 +45,12 @@ impl<'a> CheckingRequest<'a> {
         Self {
             mode,
             asm_authority: None,
-            selected_generic_operator_providers: &[],
-            selected_boundary_families: &[],
             opaque_property_receipts: &[],
             declaration_authority: None,
         }
     }
 
-    /// The final package checkpoint with no settled selections yet attached.
+    /// The final package checkpoint without invocation-owned admission evidence.
     pub const fn settled() -> Self {
         Self::with_mode(CheckingMode::Settled)
     }
@@ -84,26 +80,6 @@ impl<'a> CheckingRequest<'a> {
         self
     }
 
-    /// Omega-selected generic checked bodies to specialize for the exact
-    /// closed applications of their boundary-operator requirements.
-    pub const fn with_selected_generic_operator_providers(
-        mut self,
-        selected: &'a [SelectedGenericOperatorProviderSpecialization],
-    ) -> Self {
-        self.selected_generic_operator_providers = selected;
-        self
-    }
-
-    /// Selected boundary adapter rows whose requirements declare complete
-    /// finite families.
-    pub const fn with_selected_boundary_families(
-        mut self,
-        selected: &'a [SelectedBoundaryFamilySpecialization],
-    ) -> Self {
-        self.selected_boundary_families = selected;
-        self
-    }
-
     /// Independently rederived representation receipts. Input preparation
     /// rejoins the same authored declaration's dependency-scope instances;
     /// property validation still checks every exact resulting row.
@@ -128,7 +104,7 @@ impl<'a> CheckingRequest<'a> {
 }
 
 /// Check typed trees under one explicit request: the checkpoint mode plus
-/// the settled selections the orchestration owner supplies. Toolchain-owned
+/// the source admission evidence supplied by its caller. Toolchain-owned
 /// selections may remain late-bound until build-time evaluation; ordinary
 /// authored selections remain strict in both modes.
 pub fn lower_typed_trees(
@@ -150,8 +126,6 @@ pub fn lower_typed_trees(
     let request = request.with_opaque_property_receipts(&opaque_property_receipts);
     let key = exact_input_memo::RequestKey {
         mode: request.mode,
-        selected_generic_operator_providers: request.selected_generic_operator_providers.to_vec(),
-        selected_boundary_families: request.selected_boundary_families.to_vec(),
         opaque_property_receipts: request.opaque_property_receipts.to_vec(),
     };
     let checked = exact_input_memo::checked(program, key, |program| {
@@ -177,8 +151,6 @@ fn lower_typed_trees_uncached(
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
     let CheckingRequest {
         mode,
-        selected_generic_operator_providers,
-        selected_boundary_families,
         opaque_property_receipts,
         declaration_authority: _,
         asm_authority: _,
@@ -214,24 +186,17 @@ fn lower_typed_trees_uncached(
     crate::authored_selections::bind_pre_specialization_authored_selections(&mut program)
         .map_err(|diagnostic| vec![diagnostic])?;
     normalize_open_index_identities(&mut program)?;
-    // A local `dyn` selection generates the complete finite family of its
-    // selected conformance rows, and a selected boundary adapter row demands
-    // the same complete roster of its chosen provider: every roster tuple's
-    // provider body becomes checked evidence without requiring a static call
-    // site.
-    crate::monomorphization::generate_dynamic_family_specializations(
-        &mut program,
-        selected_boundary_families,
-    )?;
+    // Local dynamic selections and every authored boundary conformance own
+    // their complete finite roster. Runtime provider selection is not a
+    // checking input; every candidate is checked before Omega can choose it.
+    crate::monomorphization::generate_dynamic_family_specializations(&mut program)?;
     // Keep the authored generic provider templates immutable while ordinary
-    // machine specialization closes caller binders. Token candidates are
-    // derived without Build selection; legacy operators still supply explicit
-    // requests to this shared elaborator. Provider bodies may be
-    // demanded only by applications copied into those newly concrete bodies,
-    // and a newly selected provider may itself expose another ordinary or
-    // selected generic application. Alternate the existing elaborators to a
+    // machine specialization closes caller binders. All operator candidates
+    // derive from authored conformance edges without Build selection. Demands
+    // may appear only in newly concrete bodies, and a candidate may itself
+    // expose another ordinary or boundary application. Alternate elaborators to a
     // fixed point; neither open applications nor template mutation may be
-    // mistaken for final D29 coverage. A generated or provider-selected body
+    // mistaken for final D29 coverage. A generated candidate body
     // can itself contain a dynamic selection, so family generation repeats
     // inside the same fixed point.
     // Token syntax must expose its ordinary call before specialization sees
@@ -239,30 +204,25 @@ fn lower_typed_trees_uncached(
     // merely because it wrote `items[index]` rather than the named call.
     crate::operators::bind_token_bound_machine_calls(&mut program)?;
     let provider_candidates =
-        crate::monomorphization::SelectedProviderTemplates::candidate_requests(
-            &program,
-            selected_generic_operator_providers,
-        );
-    let selected_provider_templates =
-        crate::monomorphization::SelectedProviderTemplates::prepare(&program, &provider_candidates);
+        crate::monomorphization::OperatorCandidateTemplates::candidate_requests(&program);
+    let provider_templates = crate::monomorphization::OperatorCandidateTemplates::prepare(
+        &program,
+        &provider_candidates,
+    );
     let mut static_machine_selections =
         specialize_static_machine_calls_with_selections(&mut program, true)?;
     normalize_open_index_identities(&mut program)?;
     loop {
-        let mut materialized = match &selected_provider_templates {
-            Some(templates) => {
-                crate::monomorphization::specialize_selected_generic_operator_providers(
-                    templates,
-                    &mut program,
-                    &provider_candidates,
-                )?
-            }
+        let mut materialized = match &provider_templates {
+            Some(templates) => crate::monomorphization::specialize_operator_candidates(
+                templates,
+                &mut program,
+                &provider_candidates,
+            )?,
             None => 0,
         };
-        materialized += crate::monomorphization::generate_dynamic_family_specializations(
-            &mut program,
-            selected_boundary_families,
-        )?;
+        materialized +=
+            crate::monomorphization::generate_dynamic_family_specializations(&mut program)?;
         // Generated bodies can introduce new token uses. Feed them back into
         // the same specialization loop, with unchanged call/contract checks.
         materialized += crate::operators::bind_token_bound_machine_calls(&mut program)?;
@@ -402,27 +362,6 @@ fn lower_typed_trees_uncached(
     let checked = CheckedTrees::with_roots(program, facts);
     validation::validate_boundary_calls(&checked)?;
     Ok(checked)
-}
-
-/// One Omega-selected generic checked body that must be specialized for the
-/// exact closed applications of its boundary-operator requirement.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SelectedGenericOperatorProviderSpecialization {
-    pub requirement_operator: symbols::SymbolHandle,
-    pub realization_machine: symbols::SymbolHandle,
-}
-
-/// One selected boundary adapter row whose requirement declares a complete
-/// finite family: the chosen provider template must own a checked
-/// specialization per declared roster tuple, the same commitment a `dyn`
-/// selection derives from its conformance row.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SelectedBoundaryFamilySpecialization {
-    /// The boundary requirement's exact signature symbol; its `where` clause
-    /// owns the roster through `TypedTrees::finite_signature_family`.
-    pub requirement_signature: symbols::SymbolHandle,
-    /// The selected provider's generic machine template.
-    pub realization_machine: symbols::SymbolHandle,
 }
 
 /// These are distinct checking checkpoints, not freely combinable permissions.
