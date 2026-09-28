@@ -61,6 +61,8 @@ def minimal_record():
             "os": "linux",
             "machine": "x86_64",
             "omega_binary": "target/debug/omega",
+            "omega_binary_sha256": "a" * 64,
+            "omega_version": "omega 0.1.0-dev (unrecorded; x86_64-unknown-linux)",
         },
         "metrics": {
             "compile_time_ms": {
@@ -127,6 +129,15 @@ class SchemaDocumentation(unittest.TestCase):
             self.assertIn(f"metrics.{name}", text)
 
 
+def legacy_record():
+    """A /1 row as committed before the compiler-build binding fields."""
+    record = minimal_record()
+    record["schema"] = benchmark.LEGACY_SCHEMA
+    for field in ("omega_version", "omega_binary_sha256"):
+        del record["host"][field]
+    return record
+
+
 class Validation(unittest.TestCase):
     def assert_invalid(self, record):
         problems = benchmark.validate_record(record, "<fixture>")
@@ -136,6 +147,74 @@ class Validation(unittest.TestCase):
         self.assertEqual(
             benchmark.validate_record(minimal_record(), "<fixture>"), []
         )
+
+    def test_legacy_schema_record_validates(self):
+        self.assertEqual(
+            benchmark.validate_record(legacy_record(), "<fixture>"), []
+        )
+
+    def test_current_schema_requires_binary_identity(self):
+        record = minimal_record()
+        del record["host"]["omega_binary_sha256"]
+        self.assert_invalid(record)
+
+    def test_failed_exit_observation_rejected(self):
+        record = minimal_record()
+        record["metrics"]["runtime_ms"]["exit_code_match"] = False
+        self.assert_invalid(record)
+
+    def test_disabled_selection_requires_receipt(self):
+        record = minimal_record()
+        record["key"]["selection"]["disabled"] = ["CopyPropagation"]
+        self.assert_invalid(record)
+
+    def test_consistent_receipt_validates(self):
+        record = minimal_record()
+        record["key"]["selection"]["enabled"] = [
+            "CopyPropagation",
+            "GlobalValueNumbering",
+        ]
+        record["key"]["selection"]["disabled"] = ["GlobalValueNumbering"]
+        record["key"]["probe_disable"] = "ControlFlowCleanup"
+        record["key"]["selection_receipt"] = {
+            "requested": ["ControlFlowCleanup", "GlobalValueNumbering"],
+            "applied": ["GlobalValueNumbering"],
+            "effective": ["CopyPropagation"],
+        }
+        self.assertEqual(
+            benchmark.validate_record(record, "<fixture>"), []
+        )
+
+    def test_receipt_must_cover_the_requested_disables(self):
+        record = minimal_record()
+        record["key"]["selection"]["disabled"] = ["GlobalValueNumbering"]
+        record["key"]["selection_receipt"] = {
+            "requested": ["CopyPropagation"],
+            "applied": [],
+            "effective": ["GlobalValueNumbering"],
+        }
+        self.assert_invalid(record)
+
+    def test_enabled_must_equal_the_receipt_selected_set(self):
+        record = minimal_record()
+        record["key"]["selection"]["enabled"] = ["CopyPropagation"]
+        record["key"]["selection_receipt"] = {
+            "requested": ["GlobalValueNumbering"],
+            "applied": [],
+            "effective": ["GlobalValueNumbering"],
+        }
+        self.assert_invalid(record)
+
+    def test_probe_in_applied_set_rejected(self):
+        record = minimal_record()
+        record["key"]["selection"]["enabled"] = ["CopyPropagation"]
+        record["key"]["probe_disable"] = "CopyPropagation"
+        record["key"]["selection_receipt"] = {
+            "requested": ["CopyPropagation"],
+            "applied": ["CopyPropagation"],
+            "effective": [],
+        }
+        self.assert_invalid(record)
 
     def test_wrong_schema_version_rejected(self):
         record = minimal_record()
@@ -279,6 +358,29 @@ class HostRowMatrix(unittest.TestCase):
         self.assertIn("measured", row)
         self.assertIn("default", row)
 
+    def test_skipped_runtime_keeps_the_pending_host_row(self):
+        # windows_x86_64 and linux_arm64 carry committed compile rows, but
+        # every runtime leg there was skipped: the named host environment is
+        # still unrun, so its projected pending row must not be suppressed.
+        output = self.matrix()
+        self.assertTrue(any(
+            "windows_x86_64" in line
+            and "pending Windows x86-64 host" in line
+            for line in output.splitlines()))
+        self.assertTrue(any(
+            "linux_arm64" in line
+            and "pending Linux ARM64 host" in line
+            for line in output.splitlines()))
+
+    def test_measured_runtime_retires_the_pending_host_row(self):
+        # linux_x86_64 and macos_arm64 have records with measured runtime
+        # legs: their projected rows are gone while measured rows remain.
+        pending = [
+            line for line in self.matrix().splitlines() if "— | —" in line
+        ]
+        self.assertFalse(any("linux_x86_64" in line for line in pending))
+        self.assertFalse(any("macos_arm64" in line for line in pending))
+
     def test_doc_embeds_the_current_matrix(self):
         lines = MATRIX_DOC.read_text(encoding="utf-8").splitlines()
         start = lines.index("<!-- benchmark-matrix:start -->")
@@ -355,6 +457,64 @@ class ReviewSettlement(unittest.TestCase):
         settled, count = benchmark.accept_pending_decisions(document)
         self.assertEqual(count, 0)
         self.assertEqual(settled, document)
+
+    def test_review_document_prefers_the_requested_target(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory)
+            reviews = project / "build" / "package-manager"
+            reviews.mkdir(parents=True)
+            for target in ("linux_x86_64", "macos_arm64"):
+                (reviews / f"review-{target}.txt").write_text(
+                    "decision x pending\n")
+            output = (
+                f"review: {reviews}/review-linux_x86_64.txt\n"
+                f"review: {reviews}/review-macos_arm64.txt\n"
+            )
+            chosen = benchmark.select_review_document(
+                output, project, "macos_arm64")
+            self.assertEqual(chosen.name, "review-macos_arm64.txt")
+
+    def test_review_document_falls_back_to_the_conventional_path(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory)
+            reviews = project / "build" / "package-manager"
+            reviews.mkdir(parents=True)
+            (reviews / "review-linux_arm64.txt").write_text(
+                "decision x pending\n")
+            chosen = benchmark.select_review_document(
+                "no review lines\n", project, "linux_arm64")
+            self.assertEqual(chosen.name, "review-linux_arm64.txt")
+
+
+class ProbeSelection(unittest.TestCase):
+    def test_probe_prefers_psi_phase_rules(self):
+        catalog = [
+            ("PostAllocationRule", "PostAllocationMachine"),
+            ("PsiRule", "Psi"),
+            ("SelectedRule", "SelectedLowering"),
+        ]
+        self.assertEqual(
+            benchmark.probe_disable_candidates(catalog, [], []),
+            ["PsiRule", "SelectedRule", "PostAllocationRule"],
+        )
+
+    def test_probe_skips_spoken_names(self):
+        catalog = [("PsiRule", "Psi"), ("OtherPsi", "Psi")]
+        self.assertEqual(
+            benchmark.probe_disable_candidates(catalog, ["PsiRule"], []),
+            ["OtherPsi"],
+        )
+
+    def test_catalog_parse_finds_known_rules(self):
+        rules = benchmark.catalog_rules(ROOT)
+        names = {name for name, _phase in rules}
+        self.assertIn("CopyPropagation", names)
+        self.assertIn("ControlFlowCleanup", names)
+        self.assertIn("Psi", {phase for _name, phase in rules})
 
 
 if __name__ == "__main__":
