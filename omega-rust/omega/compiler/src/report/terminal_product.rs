@@ -4,7 +4,7 @@
 
 pub use backend_plan::{TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact};
 
-pub use abstract_operations_to_target_operations::provider_admission::TerminalCompilerBuiltinProposal;
+pub use terminal_psi_to_abstract_operations::provider_admission::TerminalCompilerBuiltinProposal;
 
 pub use boundary_applications::{
     TerminalIeeeFloatComparisonOccurrenceProposal, TerminalIntegerComparisonOccurrenceProposal,
@@ -217,13 +217,13 @@ impl TerminalNativeRealizationProposal {
                 "Terminal native proposal checked ProgramEntry receipt drifts from the canonical Terminal identity",
             );
         }
-        abstract_operations_to_target_operations::provider_admission::validate_evaluated_import_rows(
+        terminal_psi_to_abstract_operations::provider_admission::validate_evaluated_import_rows(
             self.target_profile,
             self.selected_provider_plans.plans(),
             &self.external_binding_rows,
         )?;
         self.validate_package_terminal_authority_permissions()?;
-        abstract_operations_to_target_operations::provider_admission::validate_retained_compiler_builtins(
+        terminal_psi_to_abstract_operations::provider_admission::validate_retained_compiler_builtins(
             &self.compiler_builtins,
             self.selected_provider_plans.plans(),
         )?;

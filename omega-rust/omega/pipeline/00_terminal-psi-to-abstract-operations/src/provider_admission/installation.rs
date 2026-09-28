@@ -1,7 +1,7 @@
+use crate::AdmittedProviderInstallation;
 use crate::provider_admission::diagnostics::realization_error;
 use crate::provider_admission::{NativeRealizationInput, ProviderAdmissionRequest};
 use diagnostics::Diagnostic;
-use terminal_psi_to_abstract_operations::AdmittedProviderInstallation;
 
 use super::adapters::project_selected_provider_adapters;
 
@@ -20,7 +20,7 @@ pub fn admit_checked_provider_installation(
     if selected.is_empty() {
         return Ok(None);
     }
-    let installation = terminal_psi_to_abstract_operations::admit_provider_installation(
+    let installation = crate::admit_provider_installation(
         plan,
         semantic_bytes,
         proof_bytes,

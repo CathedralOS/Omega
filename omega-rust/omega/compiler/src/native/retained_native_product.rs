@@ -4,9 +4,9 @@
 //! admitted execution and same-stack evidence; they cannot select a provider
 //! plan, locator, target, compiler builtin, or checked-scope receipt.
 
-pub use abstract_operations_to_target_operations::provider_admission::SourceEvaluatedImportSettlement;
-use abstract_operations_to_target_operations::provider_admission::prepare_source_evaluated_imports;
 use diagnostics::Diagnostic;
+pub use terminal_psi_to_abstract_operations::provider_admission::SourceEvaluatedImportSettlement;
+use terminal_psi_to_abstract_operations::provider_admission::prepare_source_evaluated_imports;
 
 /// Explicit policy, image custody, and admitted imports for native re-entry.
 ///
@@ -123,7 +123,7 @@ pub fn realize_retained_native_artifact(
             )?;
         }
         let native_callbacks =
-            abstract_operations_to_target_operations::provider_admission::admit_native_callback_arguments(
+            terminal_psi_to_abstract_operations::provider_admission::admit_native_callback_arguments(
                 &callback_placements,
                 proposal.callback_occurrences(),
             )?;
@@ -142,7 +142,9 @@ pub fn realize_retained_native_artifact(
             )
         })?;
         let demanded =
-            abstract_operations_to_target_operations::provider_admission::demanded_boundary_identities(&module)?;
+            terminal_psi_to_abstract_operations::provider_admission::demanded_boundary_identities(
+                &module,
+            )?;
         let prepared_imports = prepare_source_evaluated_imports(
             proposal.selected_provider_plans().plans(),
             &demanded,
@@ -150,7 +152,7 @@ pub fn realize_retained_native_artifact(
         )?;
         let native_settlements = prepared_imports.settlements();
 
-        let compiler_builtins = abstract_operations_to_target_operations::provider_admission::prepare_retained_compiler_builtins(
+        let compiler_builtins = terminal_psi_to_abstract_operations::provider_admission::prepare_retained_compiler_builtins(
             proposal.compiler_builtins(),
             proposal.selected_provider_plans().plans(),
         )?;

@@ -9,9 +9,14 @@ mod object_emission;
 mod optimization_stage;
 pub(crate) mod realization_diagnostics;
 mod realization_request;
-pub use abstract_operations_to_target_operations::provider_admission::terminal_authority_permissions;
+pub use terminal_psi_to_abstract_operations::provider_admission::terminal_authority_permissions;
 
-pub use abstract_operations_to_target_operations::provider_admission::{
+pub use realization_request::{
+    NativeBoundaryRealization, NativeCallbackThunkSettlement, NativeCompilerBuiltinSettlement,
+    NativeProviderSettlement, NativeRealizationRequest, RequestedNativeArtifact,
+    RequestedNativeArtifactError,
+};
+pub use terminal_psi_to_abstract_operations::provider_admission::{
     COMPILER_INTRINSIC_TERMINAL_AUTHORITY_POLICY_VERSION, CompilerIntrinsicTerminalAuthorityPolicy,
     FilesystemCohortDisposition, FilesystemOrdinaryReleaseContract,
     TERMINAL_AUTHORITY_POLICY_VERSION, TerminalAuthorityPolicy, TerminalAuthorityPolicyBuildError,
@@ -26,16 +31,11 @@ pub use abstract_operations_to_target_operations::provider_admission::{
     settled_filesystem_cohort, settled_time_host_cohort, terminal_authority_policy_with_rows,
     time_host_mechanism_row, time_host_permission_row, time_host_permission_rows,
 };
-pub use abstract_operations_to_target_operations::provider_admission::{
+pub use terminal_psi_to_abstract_operations::provider_admission::{
     MissingTerminalAuthorityPermission, TERMINAL_AUTHORITY_PERMISSION_POLICY_VERSION,
     TerminalAuthorityPermissionPolicy, TerminalAuthorityPermissionPolicyBuildError,
     TerminalAuthorityPermissionPolicyRow, current_terminal_authority_permission_policy,
     terminal_authority_permission_policy_with_rows,
-};
-pub use realization_request::{
-    NativeBoundaryRealization, NativeCallbackThunkSettlement, NativeCompilerBuiltinSettlement,
-    NativeProviderSettlement, NativeRealizationRequest, RequestedNativeArtifact,
-    RequestedNativeArtifactError,
 };
 pub use terminal_psi_to_abstract_operations::{
     PreparedNativeRealizationInput, prepare_native_realization_input,
@@ -43,21 +43,20 @@ pub use terminal_psi_to_abstract_operations::{
 
 use diagnostics::Diagnostic;
 
-use self::{
-    object_emission::emit_realization_object,
-    realization_diagnostics::{artifact_lowering_error, realization_error},
-};
-use abstract_operations_to_target_operations::provider_admission::{
-    AdmittedNativeProviders, ProviderAdmissionRequest, admit_native_providers,
-};
+use self::object_emission::emit_realization_object;
 use native_artifact::{
     NativeArtifactEmissionParts, NativeSelectedProviderClosureDigest, NativeSelectedProviderPlan,
 };
-use terminal_psi_to_abstract_operations::retain_terminal_boundary_application_coverage;
+use terminal_psi_to_abstract_operations::provider_admission::{
+    AdmittedNativeProviders, ProviderAdmissionRequest,
+};
+use terminal_psi_to_abstract_operations::{
+    AdmittedNativeRealization, NativeAdmissionRequest, admit_native_realization,
+};
 
 /// Realize one Terminal artifact using explicit image, custody, reuse, and
 /// behavior-exclusion inputs. The request's retained behavior-exclusion union
-/// is adjudicated against the mechanism-closure review inside `realize_image`,
+/// is adjudicated against the mechanism-closure review by stage 00,
 /// so a requested absence holds whether or not the request carries a receiver
 /// permission policy, and a violated exclusion publishes no product. Failure
 /// returns the exact image request; no product is silently substituted.
@@ -75,44 +74,31 @@ fn realize_image(
     artifact: terminal_codec::CanonicalTerminalArtifact,
     request: &NativeRealizationRequest<'_>,
 ) -> Result<RequestedNativeArtifact, Vec<Diagnostic>> {
-    if let Some(scope) = request.checked_scope {
-        scope
-            .validate_for_artifact(&artifact)
-            .map_err(|error| realization_error("checked boundary-operator scope", error))?;
-    }
-    request
-        .program_entry
-        .validate_for_target(request.target)
-        .map_err(|error| realization_error("ProgramEntry custody", error))?;
-    artifact
-        .validate()
-        .map_err(|error| realization_error("canonical artifact replay", error))?;
-    terminal_psi_to_abstract_operations::validate_fused_program_entry_establishments(
+    let AdmittedNativeRealization {
+        input,
+        providers,
+        boundary_application_coverage,
+    } = admit_native_realization(
         &artifact,
-        request.program_entry,
-        request.selected_provider_plans,
-    )
-    .map_err(|error| realization_error("Fused ProgramEntry establishment", error))?;
-    let boundary_application_coverage = retain_terminal_boundary_application_coverage(
-        &artifact,
-        request.checked_scope,
-        request.boundary_application_coverage,
-    )
-    .map_err(|error| realization_error("boundary-application custody", error))?;
-    let semantic_bytes = artifact.semantic_bytes();
-    let proof_bytes = artifact.proof_bytes();
-    let terminal_artifact_identity = *artifact.manifest().identity().as_bytes();
-    let input = match request.prepared_input {
-        Some(prepared) => prepared
-            .reopen(&artifact, request.profile)
-            .map_err(|error| realization_error("prepared native input", error))?,
-        None => terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput::prepare(
-            &artifact,
-            request.profile,
-            &[],
-        )
-        .map_err(artifact_lowering_error)?,
-    };
+        NativeAdmissionRequest {
+            checked_scope: request.checked_scope,
+            prepared_input: request.prepared_input,
+            boundary_application_coverage: request.boundary_application_coverage,
+            behavior_exclusions: request.behavior_exclusions,
+            providers: ProviderAdmissionRequest {
+                target: request.target,
+                profile: request.profile,
+                program_entry: request.program_entry,
+                selected_provider_plans: request.selected_provider_plans,
+                external_binding_rows: request.external_binding_rows,
+                settlements: request.settlements,
+                compiler_builtins: request.compiler_builtins,
+                native_callbacks: request.native_callbacks,
+                terminal_authority_policy: &request.terminal_authority_policy,
+                terminal_authority_permission_policy: &request.terminal_authority_permission_policy,
+            },
+        },
+    )?;
     let receiver_settlement = native_artifact::admit_executable_entry_receiver(
         &input,
         &artifact,
@@ -126,35 +112,11 @@ fn realize_image(
         terminal_authority_permission_policy_identity,
         terminal_authority_closure_review,
         installation,
-    } = admit_native_providers(
-        &input,
-        semantic_bytes,
-        proof_bytes,
-        terminal_artifact_identity,
-        &ProviderAdmissionRequest {
-            target: request.target,
-            profile: request.profile,
-            program_entry: request.program_entry,
-            selected_provider_plans: request.selected_provider_plans,
-            external_binding_rows: request.external_binding_rows,
-            settlements: request.settlements,
-            compiler_builtins: request.compiler_builtins,
-            native_callbacks: request.native_callbacks,
-            terminal_authority_policy: &request.terminal_authority_policy,
-            terminal_authority_permission_policy: &request.terminal_authority_permission_policy,
-        },
-    )?;
+    } = providers;
     let executions = executions
         .into_iter()
         .map(native_artifact::NativeProviderExecution::from_evidence)
         .collect();
-    // A requested physical-authority exclusion is a demand on the admitted
-    // mechanism closure, not a receiver permission: it is adjudicated against
-    // the review's exercised dispositions whether or not the request carries
-    // a permission policy, and a violation publishes no product.
-    request
-        .behavior_exclusions
-        .validate_physical_authority_closure(&terminal_authority_closure_review)?;
     let emitted = emit_realization_object(
         input,
         installation,

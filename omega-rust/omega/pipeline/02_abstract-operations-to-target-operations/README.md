@@ -5,6 +5,11 @@ Start at [lib.rs](src/lib.rs), then [function routing](src/lowering/function/mod
 The target representation owns the resulting control, values, storage, calls,
 and boundary data; this stage does not assign registers or frame offsets.
 
+Provider, callback and authority admission belongs to
+[stage 00](../00_terminal-psi-to-abstract-operations/src/native_admission.rs).
+This stage consumes admitted settlements and independently checks their lowering;
+it does not select providers or authorize execution.
+
 ## Functions have one route
 
 Every function enters

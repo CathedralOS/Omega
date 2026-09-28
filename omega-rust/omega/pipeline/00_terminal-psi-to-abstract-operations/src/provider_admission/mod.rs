@@ -62,11 +62,14 @@ pub use terminal_authority_policy::{
     time_host_mechanism_row, time_host_permission_row, time_host_permission_rows,
 };
 
-use crate::AdmittedBoundarySettlement;
+mod model;
+use crate::AdmittedProviderInstallation;
+use crate::VerifiedNativeArtifactInput as NativeRealizationInput;
 use ::diagnostics::Diagnostic;
 use installation_evidence::ProviderExecutionEvidence;
-use terminal_psi_to_abstract_operations::AdmittedProviderInstallation;
-use terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput as NativeRealizationInput;
+pub use model::{
+    AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedNativeCallbackArgument,
+};
 
 pub struct AdmittedNativeProviders<'execution> {
     pub settlements: Vec<AdmittedBoundarySettlement<'execution>>,

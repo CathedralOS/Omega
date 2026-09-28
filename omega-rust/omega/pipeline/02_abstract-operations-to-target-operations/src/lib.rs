@@ -10,12 +10,11 @@
 //! `lower_to_target_operations` (`lowering.rs`) is the unvalidated lowering
 //! core that entrance calls; tests use it directly. Beneath it,
 //! `lowering/coordination.rs` binds settlements and lowers each function by
-//! result family, and `model` carries the admitted settlements. The
+//! result family. Stage 00 owns the admitted settlement facts. The
 //! `placed_view_inputs` route is the in-progress direct-entry placed-view
 //! slice (TASKS.md PLAN-LAID-VIEWS).
 
 mod lowering;
-pub mod provider_admission;
 mod validation;
 
 pub use lowering::model::{

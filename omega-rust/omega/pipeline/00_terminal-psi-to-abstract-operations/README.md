@@ -5,6 +5,12 @@ and [boundary realization](../../../../wiki/spec/terminal-psi/boundary_calls.md)
 
 The entry map is [lib.rs](src/lib.rs). Responsibilities are separate modules:
 
+- [native_admission.rs](src/native_admission.rs): the complete native entrance.
+  Canonical replay, entry and boundary custody, provider installation, and
+  mechanism/exclusion review produce one admitted input before stage 01.
+  [Provider admission](src/provider_admission/mod.rs) owns exact selected-plan,
+  callback, import, builtin and authority joins. Stage 02 consumes these facts;
+  neither it nor the compiler reconstructs the admission sequence.
 - [artifact_admission.rs](src/artifact_admission.rs): canonical preparation,
   optional obligation-ledger replay, and distinct ordinary/optimizer/native
   admission. Every admitted result retains the exact placed-view input roster.
