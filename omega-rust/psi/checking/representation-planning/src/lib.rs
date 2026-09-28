@@ -1,10 +1,11 @@
 #![forbid(unsafe_code)]
 
-//! Compiler-owned closure of provider-backed opaque value representations.
+//! Psi admission of source-level opaque representation relationships.
 //!
 //! Packages may publish ordinary named conformances, but only the exact
 //! authoritative build machine can activate one as an opaque representation.
-//! This crate validates that relationship and retains its closed conformance
+//! Given that caller-selected machine, Psi validates the source relationship
+//! and retains its closed conformance
 //! identity. Physical shape is derived by downstream target consumers from
 //! the selected concrete carrier; source never supplies ABI numbers.
 //!

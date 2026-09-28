@@ -24,7 +24,7 @@ build-output = { path = "build-output" }
 component-description = { path = "../backend/artifacts/component-description" }
 package-compilation = { path = "package-compilation" }
 provider-planning = { path = "provider-planning" }
-representation-planning = { path = "representation-planning" }
+representation-planning = { path = "../../psi/checking/representation-planning" }
 trust-model = { path = "trust-model" }
 boundary-applications = { path = "../backend/artifacts/boundary-applications" }
 optimization-core = { path = "../foundation/optimization-core" }

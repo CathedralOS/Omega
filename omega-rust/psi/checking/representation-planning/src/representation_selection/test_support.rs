@@ -28,7 +28,7 @@ use crate::{
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use language_semantics::{DataSupplyMode, Multiplicity};
-use optimization_core::MutationOutcome;
+use mutation_matrix::MutationOutcome;
 use source::{SourceMap, SourceOrigin, SourceSpan, Span};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -49,7 +49,7 @@ use typed_trees::typed_trees::{
 };
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-optimization_core::custody_field_inventory! {
+mutation_matrix::custody_field_inventory! {
     /// One substitutable field of a retained
     /// [`OpaqueRepresentationSelection`]. The custody matrix substitutes
     /// exactly one field per leg so a rejection attributes to that claim

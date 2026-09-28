@@ -1635,7 +1635,7 @@ dependencies = [
  "arena",
  "diagnostics",
  "language-semantics",
- "optimization-core",
+ "mutation-matrix",
  "representation-selections",
  "source",
  "symbols",

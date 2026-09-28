@@ -1,7 +1,10 @@
-# Omega representation planning
+# Psi opaque representation admission
 
-This crate is the compiler-owned entrance for provider-backed opaque value
-representations.
+This crate checks source-level opaque representation relationships. The caller
+supplies the authoritative build machine; this service does not select build
+authority or derive target layout. It validates the named conformance and the
+complete carrier's cleanup and copy properties, then replays retained selections
+against the final typed graph.
 
 Start at [representation_selection.rs](src/representation_selection.rs). It
 harvests `Build::select_representation<Opaque, Conformance>()`

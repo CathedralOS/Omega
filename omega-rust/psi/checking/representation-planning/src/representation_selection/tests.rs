@@ -40,7 +40,7 @@ use crate::{
     OpaqueRepresentationCopyDisposition, OpaqueRepresentationLifecycleDisposition,
 };
 use arena::HandleSpan;
-use optimization_core::OneFieldSubstitutionMatrix;
+use mutation_matrix::OneFieldSubstitutionMatrix;
 use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
 use typed_trees::typed_trees::ClosedConformanceApplicationCommitment;
@@ -87,7 +87,7 @@ fn honest_fixture_replays_retained_custody() {
 
 #[test]
 fn retained_row_rejects_every_one_field_substitution() {
-    optimization_core::run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+    mutation_matrix::run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
         family: "retained opaque representation selection",
         fields: OpaqueRepresentationSelectionFieldForTest::INVENTORY,
         honest: &honest_retained_selection_custody_case,

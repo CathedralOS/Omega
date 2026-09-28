@@ -29,7 +29,7 @@ layout = { path = "../../backend/layout" }
 package-compilation = { path = "../package-compilation" }
 post-handoff-writer-plan = { path = "../../backend/plans/post-handoff-writer-plan", optional = true }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan", optional = true }
-representation-planning = { path = "../representation-planning" }
+representation-planning = { path = "../../../psi/checking/representation-planning" }
 target = { path = "../../backend/target" }
 task-plans = { path = "../../backend/runtime/task-plans" }
 trust-model = { path = "../trust-model" }

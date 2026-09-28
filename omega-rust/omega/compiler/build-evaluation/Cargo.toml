@@ -22,7 +22,7 @@ optimization-core = { path = "../../foundation/optimization-core" }
 package-compilation = { path = "../package-compilation" }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
 provider-planning = { path = "../provider-planning" }
-representation-planning = { path = "../representation-planning" }
+representation-planning = { path = "../../../psi/checking/representation-planning" }
 target = { path = "../../backend/target" }
 trust-model = { path = "../trust-model" }
 build-time-evaluation = { path = "../../../psi/interpreter/build-time-evaluation" }
