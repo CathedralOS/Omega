@@ -1,7 +1,7 @@
 //! The selected provider plan binding and its program updates.
 
+use effects::provider_grants::ResolvedAuthoredSelectedProviderGrant;
 use std::sync::Arc;
-use trust_model::ResolvedAuthoredSelectedProviderGrant;
 
 /// Exact checked-program and selected-plan candidate after every provider
 /// grant, receipt, operator-use, and installation-reach decision has replayed.

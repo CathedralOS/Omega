@@ -23,7 +23,8 @@ The other owners are meaningful siblings:
   subject digests, and identity comparison. Compact report identities are not
   admission authority.
 - [trust_report.rs](src/trust_report/mod.rs) reconstructs diagnostic report evidence.
-- [provider_grants.rs](src/provider_grants/mod.rs) resolves selected-provider grants;
+- Backend [provider_grants.rs](../../backend/plans/provider-evidence/src/provider_grants.rs)
+  resolves selected-provider grants independently of report reconstruction;
   [accepted_machine_grants.rs](src/accepted_machine_grants.rs) resolves the separate
   accepted-machine selectors.
 - [accepted_templates.rs](src/accepted_templates/mod.rs) holds exact accepted-template

@@ -10,9 +10,9 @@ use crate::{
 };
 #[cfg(feature = "installed-writer")]
 use crate::{selected_external_root_provider_plan, selected_external_root_provider_plan_id};
+use effects::provider_grants::{ProviderGrantSelectorKind, resolve_selected_provider_grants};
 use effects::provider_plan::ProviderBinding;
 use std::sync::Arc;
-use trust_model::{ProviderGrantSelectorKind, resolve_selected_provider_grants};
 use typed_trees::TypedTrees;
 
 #[test]

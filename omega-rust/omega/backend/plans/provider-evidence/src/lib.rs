@@ -13,6 +13,7 @@
 //! These are realization records, not the source language's effect analysis.
 
 mod provider_evidence;
+pub mod provider_grants;
 
 pub use provider_evidence::executable_scopes::behavior_exclusions::{
     BehaviorExclusion, BehaviorExclusionReport, BehaviorExclusionVerdict, BehaviorExclusions,

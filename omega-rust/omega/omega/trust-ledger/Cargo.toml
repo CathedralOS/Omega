@@ -14,7 +14,7 @@ diagnostics = { path = "../../../psi/foundation/diagnostics" }
 
 [dev-dependencies]
 artifacts = { path = "../../compiler/artifacts" }
-provider-planning = { path = "../../compiler/provider-planning" }
+provider-planning = { path = "../../realization/provider-planning" }
 compiler = { path = "../../compiler" }
 effects = { path = "../../backend/plans/provider-evidence" }
 target = { path = "../../backend/target" }

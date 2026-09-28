@@ -3,7 +3,7 @@
 pub(super) fn plan_admitted_receipt_updates(
     checked: &checked_trees::CheckedTrees,
     facts: &effects::SelectedProviderPlanFacts,
-    provider_grants: &[trust_model::ResolvedSelectedProviderGrant],
+    provider_grants: &[effects::provider_grants::ResolvedSelectedProviderGrant],
 ) -> Result<Vec<(facts::FactHandle, u64)>, Vec<diagnostics::Diagnostic>> {
     let mut granted_plans = Vec::new();
     for grant in provider_grants {
@@ -18,13 +18,12 @@ pub(super) fn plan_admitted_receipt_updates(
                 grant.selector,
             ))]);
         }
-        if !granted_plans
-            .iter()
-            .any(|retained: &&trust_model::ResolvedSelectedProviderGrant| {
+        if !granted_plans.iter().any(
+            |retained: &&effects::provider_grants::ResolvedSelectedProviderGrant| {
                 retained.selected_plan == grant.selected_plan
                     && retained.selected_plan_digest == grant.selected_plan_digest
-            })
-        {
+            },
+        ) {
             granted_plans.push(grant);
         }
     }

@@ -1,8 +1,8 @@
 //! Provider trust grants: resolving selected and authored root grants by
 //! their selector kind.
 
+use crate::provider_plan::{ProviderPlan, ProviderPlanDigest};
 use diagnostics::Diagnostic;
-use effects::provider_plan::{ProviderPlan, ProviderPlanDigest};
 
 /// One statically harvested root grant and its exact authored custody.
 ///
@@ -69,7 +69,7 @@ impl ResolvedSelectedProviderGrant {
 /// already-selected provider closure.
 pub fn resolve_selected_provider_grants(
     candidates: &[ProviderPlan],
-    selected: &effects::SelectedProviderPlanFacts,
+    selected: &crate::SelectedProviderPlanFacts,
     root_grants: &[String],
 ) -> Result<Vec<ResolvedSelectedProviderGrant>, Diagnostic> {
     let mut resolved = Vec::new();
@@ -167,7 +167,7 @@ pub fn resolve_selected_provider_grants(
 /// exact selected-plan replay performed by [`resolve_selected_provider_grants`].
 pub fn resolve_authored_selected_provider_grants(
     candidates: &[ProviderPlan],
-    selected: &effects::SelectedProviderPlanFacts,
+    selected: &crate::SelectedProviderPlanFacts,
     authored_grants: &[AuthoredRootGrant],
 ) -> Result<Vec<ResolvedAuthoredSelectedProviderGrant>, Diagnostic> {
     let mut resolved_authored = Vec::new();
@@ -198,7 +198,7 @@ mod tests {
         let mut plan = ProviderPlan::default();
         plan.schema
             .methods
-            .push(effects::provider_plan::ServiceMethod {
+            .push(crate::provider_plan::ServiceMethod {
                 requirement_owner: "Pair".to_owned(),
                 ..Default::default()
             });

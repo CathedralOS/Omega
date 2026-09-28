@@ -1,5 +1,14 @@
 # Provider planning
 
+Omega realization owns provider selection and its calling, component and task
+plans here, beside selected execution settlement. Exact provider-grant resolution
+belongs to [backend provider evidence](../../backend/plans/provider-evidence/src/provider_grants.rs),
+not compiler trust-report reconstruction.
+
+This still consumes checked trees and package-input custody for compile-time
+evaluation. Those dependencies remain an unfinished bridge to the Terminal-only
+handoff; relocating the owner does not complete that boundary.
+
 [Provider selection](../../../../wiki/spec/build/provider_selection.md) and
 [opaque representation selection](../../../../wiki/spec/build/opaque_representations.md)
 own the public contract. Start at [provider_planning.rs](src/provider_planning.rs):
