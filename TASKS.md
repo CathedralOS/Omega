@@ -1744,75 +1744,6 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   and compare the spec's separate-tool route. No new executor, live-host grant
   extension or persistent writable cache.
 
-## Build-level behavior exclusions
-
-Implement [the accepted exclusion contract](wiki/spec/build/behavior_exclusions.md)
-for one source library whose checking/no-op assertion selection changes product
-crash behavior without edits to public ceilings. Assertions remain ordinary calls;
-there is no special Assert cause or global permission to violate callable contracts.
-These tasks use existing build selection, portable semantics, provider and
-artifact-verification owners, not an assertion-specific interpreter or duplicate IR.
-
-- **BUILD-SEMANTIC-EXCLUSIONS.** Complete absence evidence for the full admitted
-  entry/call closure, including generated entries and remaining dynamic-target
-  forms. Reuse exact conformance-application joins and nominal-cleanup traversal.
-  Missing target coverage must reject as insufficient evidence. Sound guard
-  facts may establish unreachable behavior; optional optimization and broad
-  public ceilings are not absence proofs.
-
-  Owners: `omega-rust/omega/compiler/build-evaluation/src/admission/behavior_exclusions.rs`,
-  `omega-rust/omega/compiler/src/terminal/terminal_artifact/behavior_exclusions.rs`,
-  and Psi operation/guard evidence. BUILD-EXCLUSION-REALIZATION owns physical
-  classes and installation, not a duplicate semantic checker.
-
-  Acceptance: unchanged checking/no-op assertion implementations with public
-  Trap ceilings differ correctly under exclusion, through native publication
-  with optimizations on/off. Eager argument traps and unrelated crashes reject.
-  An ordinary silent logger may pass a service exclusion; an actual boundary
-  invocation cannot pass merely because its provider is silent.
-  Exercise conditional/helper selections and independent replay, rejecting
-  changed entries/providers/targets/scopes/policies and omitted coverage.
-  Distinguish prohibited behavior from insufficient evidence without
-  weakening contracts.
-
-  Both named compiler tests went with the deleted `compiler --test` targets:
-  no `build_behavior_exclusions` exists anywhere, and the only surviving
-  `behavior_exclusions.rs` files are the two source owners above.
-  `package-manager`'s `behavior_exclusion_verdicts` replaces the part of that
-  acceptance the fixtures can still witness: `sink-app` refuses at
-  realization naming the reachable service, machine and call, and
-  `no-op-app` realizes, so the verdict distinction is pinned again. The
-  remaining four projects in `tests/omega/packages/behavior-exclusions/` are
-  still unexercised, and nothing yet covers optimization on/off, native
-  publication or host execution -- compiling is not a verdict, and realizing
-  is not publishing.
-
-- **BUILD-EXCLUSION-REALIZATION.** Finish physical exclusions through native
-  custody, installation, and replacement. Executed Build selections, canonical
-  unions, mechanism classification, and direct/retained replay exist. Owners:
-  `build-evaluation/src/admission/{declarations,behavior_exclusions}.rs` and
-  `native-realization/src/{native_product/realization,native_realization/behavior_exclusions,retained_native_product}.rs`.
-  TWO-AXIS-TERMINAL-AUTHORITY-REVIEW separately owns receiving permission.
-
-  Carry exclusion envelopes through ordinary custody in
-  `03_target-operations-to-selected-instructions/src/legalization`, image emission,
-  COMPONENT-SUBSTRATE replacement, and WIRE-RUNTIME-AND-INSTALLATION.
-  `compiler --test build_behavior_exclusions -E 'test(sink_composition)'` is
-  named here as covering retained native artifacts, host execution,
-  source-free replay and loud-sink rejection, but that target no longer
-  exists; see BUILD-SEMANTIC-EXCLUSIONS for what survives. Those controls have
-  to be rebuilt before they can be preserved, and they would not close
-  installation/replacement even then.
-
-  Acceptance: silent and output-producing providers receive distinct physical
-  verdicts, with/without receiving permission policy and optional optimization.
-  Unknown classifications cannot prove absence; substituted providers/evidence
-  reject and failed final checks publish no successful product. Preserve the
-  existing foreign-boundary and source-free replay controls. Exercise actual
-  Windows/macOS runtime and installation legs; passing sentinel or cross-target
-  tests do not establish them. Reuse mechanism-closure review, not a second
-  classifier or synthesized receiver approval.
-
 ## Checked boundary topology
 
 Implement the [reference-package contract](wiki/spec/packages/topology.md) as
@@ -2469,6 +2400,68 @@ syntax and other terminal services are not prerequisites.
   Assumptions cannot discharge either body's checking or non-assumable compatibility.
   Ordinary refutable grants, invalid `satisfies`, stale approval and build-time
   reliance still reject. No unchecked body, override flag or parallel approval.
+
+## Build-level behavior exclusions
+
+Deliver the [exclusion contract](wiki/spec/build/behavior_exclusions.md) after the
+existing compiler customers above. Checking/no-op assertions and optional logging
+remain ordinary calls with unchanged public ceilings; exclusions add product
+admission requirements, never permission to violate callable contracts.
+Compiler paths below are relative to `omega-rust/omega/compiler/`. Reuse the
+shared checker in `omega-rust/omega/backend/plans/provider-evidence/src/provider_evidence/executable_scopes/behavior_exclusions.rs`.
+
+- **BUILD-SEMANTIC-EXCLUSIONS.** Finish source-to-publication acceptance for the
+  full admitted entry/call closure. Executed selections in
+  `build-evaluation/src/admission/behavior_exclusions.rs`, unoptimized entry and
+  callback gates in `src/terminal/`, and retained-proposal replay in
+  `src/report/terminal_product.rs` already exist. The shared checker/tests cover
+  selected adapters, bounded dynamic dispatch, forwarded/rebound descriptor
+  parameters and nominal cleanup. Complete source-produced coverage of generated
+  entries and remaining dispatch forms. Conservative retained contracts may bound
+  opaque targets; otherwise missing coverage rejects.
+  Only independently justified guard facts can exclude paths; optional optimization
+  and broad public ceilings cannot prove absence.
+
+  Acceptance: unchanged checking/no-op implementations under public Trap ceilings
+  yield the correct exclusion verdict with optimizations on/off through native
+  publication. Reject eager argument traps and unrelated crashes. A silent ordinary
+  logger can pass a service exclusion; a silent provider cannot erase an actual
+  boundary invocation. Cover conditional/helper selections and independent replay;
+  reject changed entries/providers/targets/scopes/policies and omitted coverage.
+  Distinguish prohibited possible behavior from insufficient evidence.
+
+  [The package verdict harness](omega-rust/omega/package-manager/tests/behavior_exclusion_verdicts.rs)
+  asserts Linux realization of `no-op-app` and attributed service/machine refusal
+  for `sink-app`. Add verdict coverage for `checking-app`, `quiet-logger-app` and
+  `direct-unit.omg` under `tests/omega/packages/behavior-exclusions/`; the two
+  kits are their dependencies. Exercise native publication/execution and both
+  optimization settings; declaration-only checks do not establish them.
+  Physical custody belongs to **BUILD-EXCLUSION-REALIZATION**.
+
+- **BUILD-EXCLUSION-REALIZATION.** Carry exclusion policies through native
+  artifact custody, installation and replacement. Canonical unions, mechanism
+  classification and direct/retained realization checks already exist:
+  `src/native/native_realization.rs` checks exercised classes before emission,
+  independently of receiving permissions. `src/native/retained_native_product.rs`
+  carries the proposal's union into that check, but
+  `omega-rust/omega/backend/artifacts/native-artifact/src/native_artifact.rs`
+  retains the mechanism review without the exclusion union.
+  Join the policy to exact semantic/target/provider evidence through legalization,
+  image emission, **COMPONENT-SUBSTRATE** replacement and
+  **WIRE-RUNTIME-AND-INSTALLATION**. **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW** owns
+  receiving permission; reuse its mechanism classification without another
+  classifier or synthesized approval.
+
+  Acceptance: silent and output-producing providers receive distinct physical
+  verdicts with/without receiving policy and optional optimization. Unknown
+  classifications cannot prove absence; substituted providers/evidence reject,
+  stricter receiving exclusions require a fresh join, and failed final checks
+  publish no successful product. Retain foreign-boundary controls and supply
+  exclusion-specific retained-artifact/source-free replay, publication and loud-sink
+  controls through current harnesses. Exercise actual Windows/macOS runtime,
+  installation and replacement; sentinel or cross-target realization is insufficient.
+  Reuse `physical_exclusions_use_exercised_authority_not_receiver_permission`
+  as a receipt-level control; it does not establish those product legs.
 
 ## Requirement-based tests
 
