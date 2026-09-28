@@ -1,0 +1,23 @@
+// Imported float operators cannot select a carrier for wholly anonymous
+// arithmetic. The bitmap-height store matches window_demo; the rational
+// intermediate must finish as seven before its i32 destination is checked.
+use omega::language::core::float_operations;
+use omega::language::core::binding;
+use omega_language_std::console;
+
+data Main {
+    console: Binding<Console>;
+    cells: [i32; 3];
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.cells[0] = 0 - 64;
+    self.cells[1] = (7 / 2) * 2;
+    self.cells[2] = 1 + 2 * 3;
+    transition self.cells[0] == -64 && self.cells[1] == 7 && self.cells[2] == 7 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

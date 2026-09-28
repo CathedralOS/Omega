@@ -27,9 +27,10 @@ every `named_uses` row. In `window_app`:
 `named_uses_total = 6`, and for every failing application `same_symbol` is 4
 or 2 — **every use matches by symbol** — while `same_expression` is **0**.
 
-So the two sides agree exactly on which operators are applied and how many
-times, in the same order, and disagree only on the expression handles. These
-are the same six logical calls under two numberings, not a missing fact.
+Equal operator symbols and counts do not establish that the two sets name the
+same authored calls. Each GUI sample defines six conversions in its own provider
+bodies and also imports `std::macos_gui`, which defines another six. The original
+inference that these were copies of the same calls was incorrect.
 
 The `named_uses` side is the authored code: each row's origin is a real
 `StateStatement`, machine `291` statements 0-3 and machine `292` statements
@@ -39,19 +40,24 @@ resolves through `expression_table` to an `ExpressionNode::Call` whose
 selected symbol equals the requirement. Two distinct call expressions in the
 arena therefore resolve to the same operator.
 
-## Reading
+## Current diagnosis
 
-This is a cross-stage identity mismatch, not a missing checked use: the
-validated application and the checked use are recorded against different
-copies of the same call. `ValidatedBoundaryOperatorApplication`'s own doc
-says the rows are "retained by one concrete machine specialization", which is
-the obvious suspect for the second copy, but nothing here establishes which
-snapshot is canonical.
+At `5e729e14dc4`, unchanged `window_demo` reproduces all six refusals. Adding
+its direct `core::float_operations` import clears them and reaches a later indexed-store omission. Validation resolves
+named operators without the source-visibility predicate applied by checked
+named-use collection. `std::macos_gui` already imports the operations; the
+sample did not. Imports are nontransitive under
+[import exposure](../../spec/language/modules.md#import-scope-and-exposure).
 
-**Do not relax the comparison to make these samples check.** It is a
-rejoin check over retained evidence; matching on symbol alone would let an
-application rejoin a use it does not name. The repair belongs wherever the
-two handle sets diverge, and that was not isolated here.
+Application rows are freshly produced after specialization on the same frozen
+program used to collect checked uses. No lost remapping was established.
+Keep both the exact expression-identity comparison and the source-visibility
+check; matching by symbol alone would wrongly borrow another call's evidence.
+The diagnostic should eventually identify the inaccessible authored selection.
+The sample's next barrier concerns anonymous arithmetic in the presence of
+visible float overloads. The numeric-values specification gives wholly anonymous
+arithmetic exact meaning; wildcard float candidates are not selected meanings.
+**SAMPLE-CORPUS** retains the full native program acceptance.
 
 ## Not what the board currently says
 
