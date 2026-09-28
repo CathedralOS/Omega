@@ -309,6 +309,12 @@ pub(super) fn operands(
     Ok(())
 }
 
+/// A completed plain value is available at its producing operation, not a
+/// disposal obligation merely because it came from a storage window. Extracting
+/// a field still opens independently tracked restoration debt on the borrowed
+/// owner. Once repaired, an unused unrestricted displaced value cannot prevent
+/// a join; affine results still remain in the ownership frontier. Reads of
+/// either result must retain this producer's dominance and operation order.
 pub(super) fn completed_source<'a>(
     module: &TerminalModule,
     machine: &'a TerminalMachine,
@@ -323,6 +329,7 @@ pub(super) fn completed_source<'a>(
                 operation.kind,
                 OperationKind::EstablishRecord { .. }
                     | OperationKind::EstablishZeroedStructural { .. }
+                    | OperationKind::MoveStructuralField { .. }
                     | OperationKind::EstablishStructuralCase { .. }
                     | OperationKind::CallStructural { .. }
                     | OperationKind::CallStructuralWithScalarArguments { .. }

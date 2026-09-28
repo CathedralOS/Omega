@@ -617,8 +617,7 @@ fn the_window_cannot_cross_an_edge() {
     }
 }
 
-#[test]
-fn a_join_must_carry_the_window_through_both_arms() {
+fn branch_local_window_module() -> TerminalModule {
     let mut module = window_module();
     let machine = &mut module.machines[0];
     // The true arm opens the window; the false arm does not. The merge cannot
@@ -709,10 +708,98 @@ fn a_join_must_carry_the_window_through_both_arms() {
         },
     });
     machine.blocks.append(&mut vec![open_arm, quiet_arm, merge]);
+    module
+}
+
+#[test]
+fn a_join_must_carry_the_window_through_both_arms() {
+    let module = branch_local_window_module();
     assert_eq!(
         validate_module(&module).unwrap_err(),
         ModuleError::OwnedStructuralFrontierJoinMismatch(id(4, BlockId::new)),
     );
+}
+
+#[test]
+fn a_repaired_branch_local_window_has_no_unrestricted_disposal_debt() {
+    let mut module = branch_local_window_module();
+    module.machines[0].blocks[1].operations.push(repair(2));
+    validate_module(&module).expect("repaired copyable storage can rejoin a quiet branch");
+    let frontiers = terminal_verifier::reconstruct_structural_ownership_frontiers(&module)
+        .expect("exact ownership replay");
+    let joined = frontiers.machines()[0]
+        .block_entry(id(4, BlockId::new))
+        .expect("merge frontier");
+    assert!(joined.owned_places().is_empty());
+    assert!(joined.restoration_debt().is_empty());
+}
+
+#[test]
+fn a_branch_local_displaced_value_does_not_dominate_the_join() {
+    let mut module = branch_local_window_module();
+    module.machines[0].blocks[1].operations.push(repair(2));
+    module.machines[0].blocks[3].operations.push(boolean_read(
+        id(7, OperationId::new),
+        id(2, ValueId::new),
+        2,
+        Vec::new(),
+        flag(),
+    ));
+    assert_eq!(
+        validate_module(&module).map(|_| ()),
+        Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
+            operation: id(7, OperationId::new),
+            place: id(2, PlaceId::new),
+        }),
+        "copyability is not availability",
+    );
+}
+
+#[test]
+fn a_fresh_replacement_leaves_only_affine_displaced_values_in_the_frontier() {
+    for multiplicity in [
+        StructuralMultiplicity::Unrestricted,
+        StructuralMultiplicity::Affine,
+    ] {
+        let mut module = branch_local_window_module();
+        let machine = &mut module.machines[0];
+        machine.structural_places.push(StructuralPlaceDeclaration {
+            id: id(3, PlaceId::new),
+            kind: StructuralPlaceKind::OperationResult {
+                producer: id(7, OperationId::new),
+                structural_type: cell(),
+            },
+        });
+        let operations = &mut machine.blocks[1].operations;
+        let OperationResult::Structural(result) = &mut operations[0].result else {
+            unreachable!()
+        };
+        result.multiplicity = multiplicity;
+        operations.push(fresh_cell(id(7, OperationId::new), 3, id(1, ValueId::new)));
+        operations.push(repair(3));
+        // The extracted value remains readable after replacement on its own
+        // branch. Only an affine value leaves a disposal obligation at the join.
+        operations.push(boolean_read(
+            id(8, OperationId::new),
+            id(2, ValueId::new),
+            2,
+            Vec::new(),
+            flag(),
+        ));
+        let expected = if multiplicity == StructuralMultiplicity::Unrestricted {
+            Ok(())
+        } else {
+            Err(ModuleError::OwnedStructuralFrontierJoinMismatch(id(
+                4,
+                BlockId::new,
+            )))
+        };
+        assert_eq!(
+            validate_module(&module).map(|_| ()),
+            expected,
+            "{multiplicity:?}"
+        );
+    }
 }
 
 #[test]
@@ -860,11 +947,35 @@ fn successor_arity_reports_before_window_debt() {
 
 #[test]
 fn overlapping_successor_arguments_report_in_edge_order() {
-    for (first, second, reported) in [(2_u64, 1_u64, 2_u64), (1_u64, 2_u64, 1_u64)] {
+    for (first, second, reported) in [(3_u64, 1_u64, 3_u64), (1_u64, 3_u64, 1_u64)] {
         let mut module = window_module();
         let machine = &mut module.machines[0];
         machine.blocks[0].operations.pop();
+        let mut second_parameter = machine.structural_parameters[0].clone();
+        second_parameter.place = id(3, PlaceId::new);
+        second_parameter.position = 1;
+        machine.structural_parameters.push(second_parameter);
+        let mut second_extraction = extract(id(3, OperationId::new), 4);
+        let OperationKind::MoveStructuralField { source, .. } = &mut second_extraction.kind else {
+            unreachable!()
+        };
+        *source = id(3, PlaceId::new);
+        machine.blocks[0].operations.push(second_extraction);
         machine.structural_places.extend([
+            StructuralPlaceDeclaration {
+                id: id(3, PlaceId::new),
+                kind: StructuralPlaceKind::Parameter {
+                    position: 1,
+                    is_self: false,
+                },
+            },
+            StructuralPlaceDeclaration {
+                id: id(4, PlaceId::new),
+                kind: StructuralPlaceKind::OperationResult {
+                    producer: id(3, OperationId::new),
+                    structural_type: cell(),
+                },
+            },
             StructuralPlaceDeclaration {
                 id: id(5, PlaceId::new),
                 kind: StructuralPlaceKind::BlockParameter {
@@ -880,10 +991,9 @@ fn overlapping_successor_arguments_report_in_edge_order() {
                 },
             },
         ]);
-        // Both arguments overlap the open `left` window at distinct places —
-        // the borrowed envelope covers the hole and the moved Cell still
-        // aliases it. The earlier argument in the edge is the one that
-        // reports, so diagnostic order is authored order.
+        // Each borrowed envelope has its own open hole. The extracted values
+        // are fresh owned storage, not aliases of those holes; only the two
+        // incomplete borrowed roots are invalid successor arguments here.
         let argument = |place: u64| StructuralArgument {
             place: id(place, PlaceId::new),
             path: Vec::new(),
@@ -907,7 +1017,7 @@ fn overlapping_successor_arguments_report_in_edge_order() {
                     place: id(5, PlaceId::new),
                     position: 0,
                     is_self: false,
-                    structural_type: cell(),
+                    structural_type: envelope(),
                     multiplicity: StructuralMultiplicity::Unrestricted,
                     access: StructuralAccess::SharedBorrow,
                     qualifications: Vec::new(),
