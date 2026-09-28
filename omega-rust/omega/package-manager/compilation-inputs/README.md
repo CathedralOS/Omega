@@ -1,5 +1,10 @@
 # Package compilation inputs
 
+This independent package is shared by compilation, build evaluation, realization,
+and package commands. It owns their input/custody contract, not install/update
+or compiler orchestration. Neither its sibling input packages nor this package
+depend on the `package-manager` application or the `compiler` crate.
+
 Start at [package_compilation.rs](src/package_compilation.rs): it constructs the
 package graph, validates source roots and dependency bindings, and separates the
 shared source projection from target-specific attachments.

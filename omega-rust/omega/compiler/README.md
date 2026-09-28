@@ -80,14 +80,14 @@ custody owns staging and installation mechanics.
 
 ## Supporting packages
 
-This directory contains the coordinator crate and independent supporting crates.
-Each child has its own `Cargo.toml`; `src/` belongs only to the coordinator.
-Consumers depend directly on the package whose contract they need.
-
-| Packages | Responsibility |
-| --- | --- |
-| `build-declarations`, `build-evaluation`, `build-output` | Build inputs, evaluation and retained outputs |
-| `package-compilation` | Source package compilation inputs and results |
+This directory contains the coordinator and the remaining independent
+`build-evaluation` package. `src/` belongs only to the coordinator.
+Project declaration grammar, retained build outputs and compilation-input custody
+belong to the package system's independent
+[declarations](../package-manager/build-declarations/README.md),
+[outputs](../package-manager/build-output/README.md) and
+[inputs](../package-manager/compilation-inputs/README.md) packages. Consumers
+depend on those contracts directly, not on the package-command application.
 
 Target-neutral build evaluation remains in
 [Psi's compiler support](../../psi/interpreter/build-time-evaluation/README.md).
