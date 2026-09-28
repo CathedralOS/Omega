@@ -21,7 +21,6 @@ pub use batch_manifest::{
     BatchChildCommitment, BatchChildOutcome, BatchChildRow, BatchCompilationManifest,
     BatchCompilationManifestIdentity,
 };
-pub use package_compilation::RetainedBuildOutputs;
 pub use compile_report::{CompileOutputKind, CompileReport};
 pub use native_artifact::{
     ExecutableContainerDigest, ExecutableInstallationEvidenceDigest, ExecutablePublicationReceipt,
@@ -30,10 +29,11 @@ pub use native_artifact::{
 };
 pub use native_artifact::{NativePackagePublicationReceipt, PackagePublicationComponent};
 pub use optimization_core::OptimizationRollbackReceipt;
+pub use package_compilation::{ProductionCompilationSubject, RetainedBuildOutputs};
 pub use pcc::{PccPublicationReceipt, verify_published_proof_pair};
 pub use production_manifest::{
     FinalRealizationEvidenceError, ProductionArtifactIdentity, ProductionCompilationManifest,
-    ProductionCompilationManifestIdentity, ProductionCompilationSubject,
+    ProductionCompilationManifestIdentity,
 };
 pub use terminal_product::{
     RetainedTerminalArtifact, TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact,

@@ -2,11 +2,10 @@
 //! package, build machine, target and artifact, hashed under a versioned domain
 //! so adding a field is a new domain rather than a silent reinterpretation.
 
-use build_evaluation::{BuildEvaluationUsage, BuildObservationIdentity, BuildObservationSummary};
 use native_artifact::{
     NativeArtifact, NativeArtifactIdentity, NativePhysicalEvidence, NativePhysicalEvidenceGap,
 };
-use package_compilation::PackageCompilationSubject;
+use package_compilation::ProductionCompilationSubject;
 use sha2::{Digest, Sha256};
 use terminal_codec::{CanonicalTerminalArtifact, TerminalArtifactIdentity};
 
@@ -81,74 +80,6 @@ impl std::fmt::Display for FinalRealizationEvidenceError {
 
 impl std::error::Error for FinalRealizationEvidenceError {}
 
-/// Exact artifact-free compilation custody captured before checked state is
-/// consumed by Terminal/native production.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProductionCompilationSubject {
-    package: PackageCompilationSubject,
-    selected_build_machine_identity: String,
-    build_evaluation_usage: BuildEvaluationUsage,
-    build_observation_identity: BuildObservationIdentity,
-    target_profile: target::TargetProfile,
-    native_target: target::NativeTarget,
-}
-
-impl ProductionCompilationSubject {
-    #[doc(hidden)]
-    pub fn from_checked(
-        package: PackageCompilationSubject,
-        selected_build_machine_identity: String,
-        build_evaluation_usage: BuildEvaluationUsage,
-        build_observation: &BuildObservationSummary,
-        target_profile: target::TargetProfile,
-        native_target: target::NativeTarget,
-    ) -> Result<Self, &'static str> {
-        if selected_build_machine_identity.is_empty() {
-            return Err("production compilation subject has an empty build-machine identity");
-        }
-        if target_profile.native_target() != native_target {
-            return Err(
-                "production compilation subject target profile disagrees with native target",
-            );
-        }
-        build_evaluation_usage
-            .validate()
-            .map_err(build_usage_diagnostic)?;
-        Ok(Self {
-            package,
-            selected_build_machine_identity,
-            build_evaluation_usage,
-            build_observation_identity: build_observation.identity(),
-            target_profile,
-            native_target,
-        })
-    }
-
-    pub const fn package(&self) -> &PackageCompilationSubject {
-        &self.package
-    }
-
-    pub fn selected_build_machine_identity(&self) -> &str {
-        &self.selected_build_machine_identity
-    }
-
-    pub const fn build_evaluation_usage(&self) -> BuildEvaluationUsage {
-        self.build_evaluation_usage
-    }
-
-    pub const fn build_observation_identity(&self) -> BuildObservationIdentity {
-        self.build_observation_identity
-    }
-
-    pub const fn target_profile(&self) -> target::TargetProfile {
-        self.target_profile
-    }
-
-    pub const fn native_target(&self) -> target::NativeTarget {
-        self.native_target
-    }
-}
-
 /// One canonical package-source/build/target/artifact join retained by the
 /// real production report. Human views may decode this authority; they cannot
 /// define a parallel schema.
@@ -194,7 +125,7 @@ impl ProductionCompilationManifest {
         artifact
             .validate()
             .map_err(|_| "production manifest received invalid native artifact")?;
-        if subject.native_target != artifact.target() {
+        if subject.native_target() != artifact.target() {
             return Err("production manifest subject target disagrees with native artifact");
         }
         Ok(Self::new(
@@ -253,7 +184,7 @@ impl ProductionCompilationManifest {
         matches!(
             self.artifact,
             ProductionArtifactIdentity::Native(identity) if identity == artifact.identity()
-        ) && self.subject.native_target == artifact.target()
+        ) && self.subject.native_target() == artifact.target()
     }
 
     /// Borrow the exact physical evidence already owned by this manifest's
@@ -269,7 +200,7 @@ impl ProductionCompilationManifest {
         artifact
             .validate()
             .map_err(|_| FinalRealizationEvidenceError::InvalidNativeArtifact)?;
-        if self.subject.native_target != artifact.target() {
+        if self.subject.native_target() != artifact.target() {
             return Err(FinalRealizationEvidenceError::NativeTargetMismatch);
         }
         if !matches!(
@@ -287,167 +218,12 @@ impl ProductionCompilationManifest {
     }
 }
 
-// The interpreter owns accounting consistency; this report keeps its existing
-// production-specific diagnostic contract.
-fn build_usage_diagnostic(error: checked_interpreter::BuildEvaluationUsageError) -> &'static str {
-    use checked_interpreter::BuildEvaluationUsageError;
-    match error {
-        BuildEvaluationUsageError::ZeroInvocationFuelCeiling => {
-            "production compilation subject has a zero invocation fuel ceiling"
-        }
-        BuildEvaluationUsageError::InvocationFuelExceeded => {
-            "production compilation subject exceeded its invocation fuel ceiling"
-        }
-        BuildEvaluationUsageError::UnsponsoredSessionUsage => {
-            "production compilation subject has unsponsored session-live usage"
-        }
-        BuildEvaluationUsageError::ZeroSessionFuelCeiling => {
-            "production compilation subject has a zero session fuel ceiling"
-        }
-        BuildEvaluationUsageError::ZeroSessionBuildLogCeiling => {
-            "production compilation subject has a zero session BuildLog ceiling"
-        }
-        BuildEvaluationUsageError::ZeroSessionFilesystemAttemptCeiling => {
-            "production compilation subject has a zero session filesystem-attempt ceiling"
-        }
-        BuildEvaluationUsageError::ZeroLiveFilesystemHandleCeiling => {
-            "production compilation subject has a zero live-filesystem-handle ceiling"
-        }
-        BuildEvaluationUsageError::ZeroLiveCellCeiling => {
-            "production compilation subject has a zero live-cell ceiling"
-        }
-        BuildEvaluationUsageError::ZeroLiveTextByteCeiling => {
-            "production compilation subject has a zero live-Text-byte ceiling"
-        }
-        BuildEvaluationUsageError::ZeroResultCellCeiling => {
-            "production compilation subject has a zero result-cell ceiling"
-        }
-        BuildEvaluationUsageError::ZeroResultTextByteCeiling => {
-            "production compilation subject has a zero result-Text-byte ceiling"
-        }
-        BuildEvaluationUsageError::SessionFuelExceeded => {
-            "production compilation subject exceeded its session fuel ceiling"
-        }
-        BuildEvaluationUsageError::SessionBuildLogExceeded => {
-            "production compilation subject exceeded its session BuildLog ceiling"
-        }
-        BuildEvaluationUsageError::SessionFilesystemAttemptsExceeded => {
-            "production compilation subject exceeded its session filesystem-attempt ceiling"
-        }
-        BuildEvaluationUsageError::LiveFilesystemHandlesExceeded => {
-            "production compilation subject exceeded its live-filesystem-handle ceiling"
-        }
-        BuildEvaluationUsageError::LiveCellsExceeded => {
-            "production compilation subject exceeded its live-cell ceiling"
-        }
-        BuildEvaluationUsageError::InvocationCellPeakExceedsSession => {
-            "production compilation subject live-cell peak exceeds its session peak"
-        }
-        BuildEvaluationUsageError::LiveTextBytesExceeded => {
-            "production compilation subject exceeded its live-Text-byte ceiling"
-        }
-        BuildEvaluationUsageError::InvocationTextPeakExceedsSession => {
-            "production compilation subject live-Text-byte peak exceeds its session peak"
-        }
-        BuildEvaluationUsageError::ResultCellsExceeded => {
-            "production compilation subject exceeded its result-cell ceiling"
-        }
-        BuildEvaluationUsageError::ResultTextBytesExceeded => {
-            "production compilation subject exceeded its result-Text-byte ceiling"
-        }
-        BuildEvaluationUsageError::IncompleteSponsorIdentity => {
-            "production compilation subject has incomplete evaluation sponsor identity"
-        }
-    }
-}
-
 fn canonical_manifest_bytes(
     subject: &ProductionCompilationSubject,
     artifact: ProductionArtifactIdentity,
 ) -> Vec<u8> {
     let mut bytes = MANIFEST_DOMAIN.to_vec();
-    let package = &subject.package;
-    append_field(&mut bytes, &package.root().digest());
-    let closure = package.dependency_closure();
-    bytes.push(match closure.root_role() {
-        package_compilation::BuildDeclarationKind::Package => 0,
-        package_compilation::BuildDeclarationKind::Application => 1,
-        package_compilation::BuildDeclarationKind::Workspace => {
-            unreachable!("workspace roots cannot enter a package compilation subject")
-        }
-    });
-    append_count(&mut bytes, closure.packages().len());
-    for identity in closure.packages() {
-        append_field(&mut bytes, &identity.digest());
-    }
-    append_count(&mut bytes, closure.dependencies().len());
-    for dependency in closure.dependencies() {
-        append_field(&mut bytes, &dependency.requester().digest());
-        append_field(&mut bytes, dependency.alias().as_bytes());
-        append_field(&mut bytes, &dependency.target().digest());
-    }
-    append_field(
-        &mut bytes,
-        &package.source_consumption_commitment().digest(),
-    );
-    package.append_canonical_consumed_units(&mut bytes);
-    append_field(
-        &mut bytes,
-        subject.selected_build_machine_identity.as_bytes(),
-    );
-    let usage = subject.build_evaluation_usage;
-    bytes.extend_from_slice(&usage.usage_schema_version.to_le_bytes());
-    bytes.extend_from_slice(&usage.step_schedule_marker.to_le_bytes());
-    bytes.extend_from_slice(&usage.invocation_fuel_ceiling.to_le_bytes());
-    match (
-        usage.sponsor_schema_version,
-        usage.session_fuel_ceiling,
-        usage.session_build_log_byte_ceiling,
-        usage.session_filesystem_attempt_ceiling,
-        usage.session_live_filesystem_handle_ceiling,
-        usage.session_live_cell_ceiling,
-        usage.session_live_text_byte_ceiling,
-        usage.session_result_cell_ceiling,
-        usage.session_result_text_byte_ceiling,
-    ) {
-        (
-            Some(schema),
-            Some(fuel_ceiling),
-            Some(build_log_ceiling),
-            Some(filesystem_attempt_ceiling),
-            Some(live_filesystem_handle_ceiling),
-            Some(live_cell_ceiling),
-            Some(live_text_byte_ceiling),
-            Some(result_cell_ceiling),
-            Some(result_text_byte_ceiling),
-        ) => {
-            bytes.push(1);
-            bytes.extend_from_slice(&schema.to_le_bytes());
-            bytes.extend_from_slice(&fuel_ceiling.to_le_bytes());
-            bytes.extend_from_slice(&build_log_ceiling.to_le_bytes());
-            bytes.extend_from_slice(&filesystem_attempt_ceiling.to_le_bytes());
-            bytes.extend_from_slice(&live_filesystem_handle_ceiling.to_le_bytes());
-            bytes.extend_from_slice(&live_cell_ceiling.to_le_bytes());
-            bytes.extend_from_slice(&live_text_byte_ceiling.to_le_bytes());
-            bytes.extend_from_slice(&result_cell_ceiling.to_le_bytes());
-            bytes.extend_from_slice(&result_text_byte_ceiling.to_le_bytes());
-        }
-        (None, None, None, None, None, None, None, None, None) => bytes.push(0),
-        _ => unreachable!("validated production subject has paired sponsor identity"),
-    }
-    bytes.extend_from_slice(&usage.fuel_units.to_le_bytes());
-    bytes.extend_from_slice(&usage.build_log_bytes.to_le_bytes());
-    bytes.extend_from_slice(&usage.filesystem_operation_attempts.to_le_bytes());
-    bytes.extend_from_slice(&usage.session_peak_live_filesystem_handles.to_le_bytes());
-    bytes.extend_from_slice(&usage.session_peak_live_cells.to_le_bytes());
-    bytes.extend_from_slice(&usage.peak_live_cells.to_le_bytes());
-    bytes.extend_from_slice(&usage.session_peak_live_text_bytes.to_le_bytes());
-    bytes.extend_from_slice(&usage.peak_live_text_bytes.to_le_bytes());
-    bytes.extend_from_slice(&usage.result_cells.to_le_bytes());
-    bytes.extend_from_slice(&usage.result_text_bytes.to_le_bytes());
-    bytes.extend_from_slice(subject.build_observation_identity.as_bytes());
-    bytes.push(target_profile_tag(subject.target_profile));
-    append_native_target(&mut bytes, subject.native_target);
+    subject.append_canonical_bytes(&mut bytes);
     match artifact {
         ProductionArtifactIdentity::Terminal(identity) => {
             bytes.push(1);
@@ -463,53 +239,4 @@ fn canonical_manifest_bytes(
         }
     }
     bytes
-}
-
-fn append_count(bytes: &mut Vec<u8>, count: usize) {
-    bytes.extend_from_slice(
-        &u64::try_from(count)
-            .expect("production manifest collection length fits u64")
-            .to_le_bytes(),
-    );
-}
-
-fn append_field(bytes: &mut Vec<u8>, field: &[u8]) {
-    append_count(bytes, field.len());
-    bytes.extend_from_slice(field);
-}
-
-fn target_profile_tag(profile: target::TargetProfile) -> u8 {
-    match profile {
-        target::TargetProfile::LinuxArm64 => 1,
-        target::TargetProfile::LinuxX64 => 2,
-        target::TargetProfile::MacosArm64 => 3,
-        target::TargetProfile::WindowsX64 => 4,
-        target::TargetProfile::UefiX64 => 5,
-        target::TargetProfile::CrossPlatformCli => 6,
-        target::TargetProfile::LocalUnchecked => 7,
-        target::TargetProfile::AlphaBootstrap => 8,
-        target::TargetProfile::MacosX64 => 9,
-    }
-}
-
-fn append_native_target(bytes: &mut Vec<u8>, target: target::NativeTarget) {
-    bytes.push(match target.architecture {
-        target::Architecture::Aarch64 => 1,
-        target::Architecture::X86_64 => 2,
-    });
-    bytes.push(match target.object_format {
-        target::ObjectFormat::Elf => 1,
-        target::ObjectFormat::MachO => 2,
-        target::ObjectFormat::Coff => 3,
-    });
-    bytes.extend_from_slice(
-        &u64::try_from(target.pointer_size)
-            .expect("native pointer size fits u64")
-            .to_le_bytes(),
-    );
-    bytes.extend_from_slice(
-        &u64::try_from(target.pointer_alignment)
-            .expect("native pointer alignment fits u64")
-            .to_le_bytes(),
-    );
 }
