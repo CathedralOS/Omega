@@ -2598,6 +2598,36 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   than copied homes. Run `python3 tools/corpus_gate.py --native --filter write_only`
   on Windows, macOS and both Linux targets; cross-publication is not execution.
 
+- **STRUCTURAL-BORROW-IDENTITY.** Preserve original caller storage through
+  projections, call preparation, native placement and independent receiving
+  replay under [structural access](wiki/spec/terminal-psi/structural_access.md).
+  Owners: checked `terminal_scalar` signatures, `receiver_calls` and
+  `calls/computation_arguments`; lowered scalar-callee selection; target
+  `structural_call_arguments` and image `argument_custody`.
+
+  First repair unread **multi-state** scalar receivers: `Cell::get(&self) ->
+  i32 { transition { _ -> done() } state done(&self) { 70 } }` fails native
+  Terminal production with `computed borrow disagrees with its selected
+  callee signature`. Reading `self.value` instead executes correctly on
+  macOS ARM64. Graph erases the multi-state receiver and wins over Operations;
+  preserve declared custody without a dummy read. Single-state unread/observed
+  shared and mutable receivers already execute, as do dynamic indexed shared
+  receivers and explicit shared arguments; retain these and duplicate-overload
+  rejection as controls.
+
+  Complete local-rooted indexed receivers, owned-root/construction-local
+  admission and runtime-indexed write-only receivers. Reuse `Field`,
+  `FixedIndex`, `RuntimeIndex { index, obligation }` and
+  `terminal-semantics::static_path`; coordinate range spelling with
+  CANONICALIZE-SCALAR-RANGE-CONTRACTS.
+
+  Acceptance: execute caller-visible projected/forwarded writes, owned-field
+  mutable/write-only subloans, legal synchronized shared observations and
+  register/stack reference passing on matching hosts, including Linux AArch64
+  and Windows. A callee observing staged bytes does not prove caller writeback.
+  Reject copied borrowed homes and substituted access/type/projection/placement
+  evidence; shape equality grants neither authority nor a standalone field type.
+
 - **NORMALIZED-ABI-LOWERING.** Execute owned aggregate and descriptor foreign
   arguments/results under the [calling-plan contract](wiki/spec/build/calling_plans.md).
   Owners: Omega stages 02 and 03, backend call-frame emission.
@@ -2880,40 +2910,6 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   `erased_parameter_named_transition_forward`
   and `composed_unit_internal_calls`' exact erased ordinals, plus runtime-read,
   receiver, layout-dependent-erasure and invalid-qualifier refusals.
-
-- **STRUCTURAL-BORROW-IDENTITY.** Complete source-owner/projection routes under
-  [structural access](wiki/spec/terminal-psi/structural_access.md), retaining
-  original caller storage through call preparation, native placement and
-  independent receiving replay. Owners: checked execution's `receiver_calls`
-  and `calls/computation_arguments`, lowered structural calls, target
-  `structural_call_arguments` and image `argument_custody`.
-
-  Reuse static `Field`/`FixedIndex` and `RuntimeIndex { index, obligation }`
-  path transport.
-  Remaining `src/tests/borrow/receiver_access.rs` pins cover local-rooted
-  indexed receivers and runtime-indexed parameter receivers/explicit shared
-  arguments. An unverified candidate for explicit shared dynamic-indexed arguments
-  is `ecfdedb34b (revision absent from the repository)` on `swarm/linw4-structural-borrow-identity`; rebase and run
-  focused borrow checks before adopting it. Coordinate bracketed-range migration with
-  CANONICALIZE-SCALAR-RANGE-CONTRACTS. Owned-root and construction-local admission
-  remain separate obligations; reuse `terminal-semantics::static_path`.
-
-  Acceptance: repair the omission pins and execute caller-visible
-  projected/forwarded writes, owned-field mutable/write-only subloans, legal
-  synchronized shared observations and register/stack reference passing.
-  Reject copied borrowed homes and substituted access/type/projection/placement
-  evidence; shape equality does not create authority or a standalone field
-  type. Complete matching-host coverage, especially the unrecorded Linux
-  AArch64 and Windows legs; another callee observing a staged copy is not
-  caller writeback.
-
-  Preserve declared borrowed-receiver custody when an attached scalar-returning
-  callee does not read `self`: the scalar Graph signature still omits it, while
-  call selection prefers Graph over Operations. The Operations receiver fix
-  therefore does not close this route. Caller operands and selected callee
-  signatures must agree without a dummy field read. Exercise unread and observed
-  receiver bodies through Terminal production and native execution, retaining
-  duplicate-overload rejection.
 
 - **BORROW-PROOF-CONVERGENCE.** Carry ordinary borrow compatibility from
   checked certificates to independent portable replay under
