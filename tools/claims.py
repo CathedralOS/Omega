@@ -100,36 +100,40 @@ def normalize_path(value):
     normalized = candidate.as_posix()
     if normalized == ".":
         raise ClaimsError(f"Claim path must name a file or directory: {value!r}")
-    # A comma means the value was a joined list that escaped split_path_values;
-    # storing it literally would void the path fence below.
-    if "," in normalized:
-        raise ClaimsError(f"Claim path must not contain a comma: {value!r}")
+    # A comma or whitespace means the value was a joined list that escaped
+    # split_path_values; storing it literally would void the path fence below.
+    if "," in normalized or any(character.isspace() for character in normalized):
+        raise ClaimsError(
+            f"Claim path must not contain a comma or whitespace: {value!r}")
     return normalized
 
 
 def split_path_values(values):
-    """Flatten repeated or comma-joined --path values into individual paths.
+    """Flatten repeated, comma-joined or whitespace-joined --path values into
+    individual paths.
 
-    Intake is strict about empty segments: a doubled or trailing comma usually
-    means a mistyped list, and silently dropping it would under-fence the
-    claim."""
+    Intake is strict about empty comma segments: a doubled or trailing comma
+    usually means a mistyped list, and silently dropping it would under-fence
+    the claim. Whitespace separates paths too — repository paths carry none,
+    and a quoted space-separated list would otherwise be stored as one name
+    that fences nothing."""
     pieces = [piece for value in values for piece in value.split(",")]
     if any(not piece.strip() for piece in pieces):
         raise ClaimsError("--path entries must not be empty; check for a "
                           "leading, trailing, or doubled comma.")
-    return pieces
+    return [path for piece in pieces for path in piece.split()]
 
 
 def path_atoms(value):
     """Explode one stored path field into the individual paths it carries.
 
-    A field holding comma-joined paths is the malformed form recorded before
-    intake learned to split them; reading each segment independently keeps
-    those existing claims fencing until they are renewed or expire. Empty
-    segments are skipped here rather than rejected — reading a record must
-    tolerate the malformed entries it repairs."""
-    return [PurePosixPath(piece.strip().replace("\\", "/"))
-            for piece in value.split(",") if piece.strip()]
+    A field holding comma- or whitespace-joined paths is the malformed form
+    recorded before intake learned to split them; reading each segment
+    independently keeps those existing claims fencing until they are renewed
+    or expire. Empty segments are skipped here rather than rejected — reading
+    a record must tolerate the malformed entries it repairs."""
+    return [PurePosixPath(piece.replace("\\", "/"))
+            for segment in value.split(",") for piece in segment.split()]
 
 
 def paths_overlap(first, second):
@@ -141,10 +145,16 @@ def is_directory_fence(repository, path):
     """A claimed path that fences a whole directory: an existing directory,
     or — when nothing exists there — a name carrying no extension."""
     target = Path(repository) / path
-    if target.is_dir():
-        return True
-    if target.exists():
-        return False
+    # A name the filesystem cannot even probe (longer than the OS limit, as a
+    # joined list recorded literally can be) exists nowhere; the name rule
+    # below still classifies it instead of crashing every status reader.
+    try:
+        if target.is_dir():
+            return True
+        if target.exists():
+            return False
+    except OSError:
+        pass
     return "." not in PurePosixPath(path).name
 
 
