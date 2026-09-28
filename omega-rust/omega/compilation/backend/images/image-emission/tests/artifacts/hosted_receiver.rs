@@ -33,7 +33,7 @@ const RECEIVER_STORE: &str = r#"
 
 /// The exact admitted physical contract for each bridge target, mirroring the
 /// sealed package plans the production settlement carries.
-fn physical_contract(
+pub(super) fn physical_contract(
     profile: TargetProfile,
 ) -> program_entry_plan::ProgramEntryPhysicalContractPlan {
     let (slot, package, digest, requirement, plan, parameters, result) = match profile {
@@ -90,7 +90,7 @@ fn physical_contract(
 /// Bind the exact bridge the admitted settlement selects: same source
 /// signature, same target-slot physical contract, empty Fused roster, and the
 /// derived entry stack demand.
-fn bind_receiver(
+pub(super) fn bind_receiver(
     artifact: &mut image_emission::ObjectArtifact,
     signature: &program_entry_plan::SelectedProgramEntrySourceSignature,
     profile: TargetProfile,
