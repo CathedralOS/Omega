@@ -316,7 +316,7 @@ fn whole_value_fixture(target: NativeTarget, byte_size: u16) -> ValidatedRuntime
         SelectedStructuralTransport::WholeValue {
             argument: VirtualRegisterId(1),
             destination: slot,
-            byte_size,
+            byte_size: u32::from(byte_size),
             alignment: 8,
         },
     );
