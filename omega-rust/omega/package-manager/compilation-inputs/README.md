@@ -69,6 +69,11 @@ by recapturing the root. A matching file length is not a matching snapshot.
 [source_consumption.rs](src/source_consumption.rs) owns the exact source units
 actually consumed by compilation and their package commitment, including generated
 source custody. This is distinct from the complete root visible to build evaluation.
+[BuildSourceCustody](src/source_consumption/checked_sources.rs) admits the current
+activation's generated extension: package context, exact root and source coordinates,
+checked source counts, and retained generated-output custody. Empty output needs no
+package context; rejection leaves prior custody unchanged. The compiler then schedules
+parsing, resolution and typing and returns the completed program for source sealing.
 [production_subject.rs](src/production_subject.rs) joins that source subject to the
 selected Build identity, validated execution accounting, exact observation, and
 target. It owns their canonical byte order; compiler reports bind the result to

@@ -36,8 +36,8 @@ pub(crate) fn evaluate_build_and_continue(
         mut selected_target_machine_declarations,
         build_source_id,
         mut pending_pre_checks,
-        mut source_file_count,
-        mut generated_source_custody,
+        source_file_count,
+        generated_source_custody,
         base_sources,
         application,
     } = frontier;
@@ -65,31 +65,17 @@ pub(crate) fn evaluate_build_and_continue(
         },
         timings,
     )?;
-    let typed = if computed_build_config.generated_sources.is_empty() {
-        typing.into_typed()
-    } else {
-        let package_inputs = package_inputs.ok_or_else(|| {
-            vec![Diagnostic::error(
-                "generated-source final compilation requires package-aware source custody",
-            )]
-        })?;
-        let package_root = package_inputs
-            .package_root(package_inputs.root())
-            .expect("validated package inputs retain their root package");
-        let extension = package_compilation::source_imports::admit_generated_extension(
-            &base_sources,
-            package_root,
-            Some(package_inputs.root()),
-            &computed_build_config.generated_sources,
-        )?;
-        source_file_count = source_file_count
-            .checked_add(extension.custody().len())
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "generated package source count exceeds the compiler range",
-                )]
-            })?;
-        generated_source_custody.extend(extension.custody().iter().cloned());
+    let mut sources = BuildSourceCustody {
+        source_file_count,
+        build_execution_profile,
+        generated_source_custody,
+        base_source_consumption_commitment,
+    };
+    let typed = if let Some((extension, package_inputs)) = sources.admit_generated_extension(
+        &base_sources,
+        package_inputs,
+        &computed_build_config.generated_sources,
+    )? {
         let (typed, declarations, extension_pre_checks) = continue_generated_sources(
             typing,
             &base_sources,
@@ -102,6 +88,8 @@ pub(crate) fn evaluate_build_and_continue(
         selected_target_machine_declarations = declarations;
         pending_pre_checks.extend(extension_pre_checks);
         typed
+    } else {
+        typing.into_typed()
     };
     let selected_build_machine_identity =
         computed_build_config.selected_machine_identity(&typed)?;
@@ -115,12 +103,7 @@ pub(crate) fn evaluate_build_and_continue(
             application,
             selected_build_machine_identity,
         },
-        BuildSourceCustody {
-            source_file_count,
-            build_execution_profile,
-            generated_source_custody,
-            base_source_consumption_commitment,
-        },
+        sources,
     ))
 }
 

@@ -30,6 +30,53 @@ pub struct CheckedSourceCustody {
 }
 
 impl BuildSourceCustody {
+    /// Admit this activation's generated sources and retain their exact source
+    /// coordinates before parsing. Empty output needs no package context.
+    /// Rejection leaves the prior count and custody unchanged; admission alone
+    /// does not seal a checked source closure.
+    pub fn admit_generated_extension<'inputs>(
+        &mut self,
+        base_sources: &std::sync::Arc<source::SourceMap>,
+        package_inputs: Option<&'inputs PackageCompilationInputs>,
+        generated_sources: &[build_output::PackageGeneratedSource],
+    ) -> Result<
+        Option<(
+            crate::source_imports::GeneratedSourceExtension,
+            &'inputs PackageCompilationInputs,
+        )>,
+        Vec<Diagnostic>,
+    > {
+        if generated_sources.is_empty() {
+            return Ok(None);
+        }
+        let package_inputs = package_inputs.ok_or_else(|| {
+            vec![Diagnostic::error(
+                "generated-source final compilation requires package-aware source custody",
+            )]
+        })?;
+        let package_root = package_inputs
+            .package_root(package_inputs.root())
+            .expect("validated package inputs retain their root package");
+        let extension = crate::source_imports::admit_generated_extension(
+            base_sources,
+            package_root,
+            Some(package_inputs.root()),
+            generated_sources,
+        )?;
+        let source_file_count = self
+            .source_file_count
+            .checked_add(extension.custody().len())
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "generated package source count exceeds the compiler range",
+                )]
+            })?;
+        self.generated_source_custody
+            .extend(extension.custody().iter().cloned());
+        self.source_file_count = source_file_count;
+        Ok(Some((extension, package_inputs)))
+    }
+
     /// Preserve the source-admission order: derive the final package subject,
     /// identify toolchain sources, re-read package files, then revalidate the
     /// captured root metadata. Standalone checking retains toolchain identities
