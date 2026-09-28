@@ -24,6 +24,10 @@ const MAXIMUM_NORMALIZATION_ENDPOINTS: usize = 64;
 /// one missing edge into an unbounded search.
 const MAXIMUM_NORMALIZATION_PAIRS: usize = 96;
 
+/// Bound discovery before the denotation checker bounds expanded terms.
+/// Shared definition DAGs are visited once; exhaustion declines transport.
+const MAXIMUM_DEFINITION_WORK: usize = 4096;
+
 /// Indexed rosters kept per worker thread. The bound/order producers re-enter
 /// `prove` hundreds of times against one unchanged cited roster within a
 /// single obligation; indexing that roster once — citation map, equality
@@ -96,15 +100,41 @@ impl Session {
     /// an observation into its field identity. A later read and an earlier
     /// guarded read can share that identity without sharing an SSA value.
     pub(super) fn literal_equality(&self, endpoint: &ScalarTerm) -> Option<ProofNode> {
-        let component = self.roster.components.get(endpoint)?;
-        let literal = self.roster.base_endpoints.iter().find(|candidate| {
-            matches!(
-                candidate,
-                ScalarTerm::Integer { .. } | ScalarTerm::Boolean(_)
-            ) && candidate.scalar_type() == endpoint.scalar_type()
-                && self.roster.components.get(*candidate) == Some(component)
-        })?;
-        self.prove(&Proposition::Equal(endpoint.clone(), literal.clone()))
+        if let Some(component) = self.roster.components.get(endpoint)
+            && let Some(literal) = self.roster.base_endpoints.iter().find(|candidate| {
+                matches!(
+                    candidate,
+                    ScalarTerm::Integer { .. } | ScalarTerm::Boolean(_)
+                ) && candidate.scalar_type() == endpoint.scalar_type()
+                    && self.roster.components.get(*candidate) == Some(component)
+            })
+        {
+            return self.prove(&Proposition::Equal(endpoint.clone(), literal.clone()));
+        }
+        // A cited definition can compute a literal no premise names yet.
+        // Evaluate only its checked, closed scalar denotation: an open
+        // wrapping operation never becomes mathematical multiplication.
+        let (expanded, closure) = self.roster.transport(endpoint)?;
+        let (integer_type, value) = expanded.integer_value()?;
+        let literal = ScalarTerm::integer(integer_type, value).ok()?;
+        if endpoint.scalar_type() != literal.scalar_type()
+            || !decide(self.roster.token, &self.roster.context, &expanded, &literal)
+        {
+            return None;
+        }
+        Some(ProofNode {
+            conclusion: Proposition::Equal(endpoint.clone(), literal.clone()),
+            rule: ProofRule::ValueEqualityTransport {
+                premise: Box::new(ProofNode {
+                    conclusion: Proposition::Equal(expanded, literal),
+                    rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
+                }),
+                equalities: closure
+                    .iter()
+                    .map(|&index| self.roster.equal_facts[index].clone())
+                    .collect(),
+            },
+        })
     }
 
     /// Same contract as `prove` under the session's fixed scope.
@@ -617,7 +647,7 @@ impl Roster {
         if let Some(result) = self.transports.borrow().get(endpoint) {
             return result.clone();
         }
-        let closure = self.closure_definitions(endpoint);
+        let closure = self.closure_definitions(endpoint)?;
         let mut equations = closure
             .iter()
             .map(|&index| self.equal_facts[index].conclusion.clone())
@@ -639,41 +669,40 @@ impl Roster {
     /// of every value id the endpoint reaches transitively through those
     /// definitions. Ids with no cited definition substitute to themselves
     /// and contribute nothing.
-    fn closure_definitions(&self, endpoint: &ScalarTerm) -> Vec<usize> {
-        let mut active = BTreeSet::new();
-        let mut collected = BTreeSet::new();
-        self.collect_definitions(endpoint, &mut active, &mut collected);
-        collected.into_iter().collect()
-    }
-
-    fn collect_definitions(
-        &self,
-        term: &ScalarTerm,
-        active: &mut BTreeSet<ValueId>,
-        collected: &mut BTreeSet<usize>,
-    ) {
-        let mut members = Vec::new();
-        term.visit_value_ids(|id| {
-            members.push(id);
+    fn closure_definitions(&self, endpoint: &ScalarTerm) -> Option<Vec<usize>> {
+        let mut remaining = MAXIMUM_DEFINITION_WORK;
+        let mut pending = Vec::new();
+        if !endpoint.visit_value_ids(|id| {
+            let Some(rest) = remaining.checked_sub(1) else {
+                return false;
+            };
+            remaining = rest;
+            pending.push(id);
             true
-        });
-        for id in members {
+        }) {
+            return None;
+        }
+        let mut collected = BTreeSet::new();
+        while let Some(id) = pending.pop() {
+            remaining = remaining.checked_sub(1)?;
             let Some(&definition) = self.first_definitions.get(&id) else {
                 continue;
             };
-            collected.insert(definition);
-            // `active` mirrors the kernel's substitution stack: an id already
-            // on the path means a cyclic definition, and the denotation call
-            // rejects the same expansion the kernel would.
-            if !active.insert(id) {
+            if !collected.insert(definition) {
                 continue;
             }
-            let Proposition::Equal(_, defined) = &self.equal_facts[definition].conclusion else {
-                unreachable!("definition indices name Equal(Value, _) facts")
-            };
-            self.collect_definitions(defined, active, collected);
-            active.remove(&id);
+            // Keep every selected equation, including cycles: collection is
+            // only a finite dependency slice. The kernel still refuses cyclic
+            // substitution. Shared DAG predecessors need traversal only once.
+            self.equal_facts[definition]
+                .conclusion
+                .visit_value_ids_bounded(&mut remaining, |dependency| {
+                    if dependency != id {
+                        pending.push(dependency);
+                    }
+                })?;
         }
+        Some(collected.into_iter().collect())
     }
 
     /// Edges `PrimitiveJudgment::ClosedIntegerRelation` itself decides between
@@ -906,6 +935,116 @@ mod tests {
             super::session(&context(), &[], &conditional)
                 .literal_equality(&term(3))
                 .is_none()
+        );
+    }
+
+    #[test]
+    fn closed_wrapping_literal_keeps_its_carrier_and_defining_evidence() {
+        let ty = IntegerType::new(IntegerSign::Signed, 8).unwrap();
+        let context = PropositionContext::from_value_types(
+            (1..=4).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(ty))),
+        )
+        .unwrap();
+        let value = |id| ScalarTerm::value(ValueId::new(id).unwrap(), ScalarType::Integer(ty));
+        let literal = |n| ScalarTerm::integer(ty, IntegerValue::Signed(n)).unwrap();
+        let facts = vec![
+            Proposition::Equal(value(1), value(2)),
+            Proposition::Equal(
+                value(2),
+                ScalarTerm::wrapping_integer_multiply(ty, value(3), literal(2)).unwrap(),
+            ),
+            Proposition::Equal(value(3), literal(100)),
+        ];
+        let proof = super::session(&context, &[], &facts)
+            .literal_equality(&value(1))
+            .expect("closed wrapping result is evaluated at i8");
+        let goal = Proposition::Equal(value(1), literal(-56));
+        assert_eq!(proof.conclusion, goal);
+        proof_admission::accept_certificate(&context, &goal, &[], &facts, &proof).unwrap();
+        let wrong = Proposition::Equal(value(1), literal(56));
+        let mut forged = proof.clone();
+        forged.conclusion = wrong.clone();
+        assert!(
+            proof_admission::accept_certificate(&context, &wrong, &[], &facts, &forged).is_err()
+        );
+        for absent in 0..facts.len() {
+            let mut missing = facts.clone();
+            missing[absent] = Proposition::Truth;
+            assert!(
+                super::session(&context, &[], &missing)
+                    .literal_equality(&value(1))
+                    .is_none()
+            );
+            assert!(
+                proof_admission::accept_certificate(&context, &goal, &[], &missing, &proof)
+                    .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn definition_closure_visits_shared_dag_nodes_once_before_transport() {
+        let context = PropositionContext::from_value_types((1..=65).map(|id| {
+            (
+                ValueId::new(id).unwrap(),
+                ScalarType::Integer(integer_type()),
+            )
+        }))
+        .unwrap();
+        let mut facts = vec![Proposition::Equal(term(1), one())];
+        for id in 2..=65 {
+            facts.push(Proposition::Equal(
+                term(id),
+                add(term(id - 1), term(id - 1)),
+            ));
+        }
+        let roster = super::roster(&context, &[], &facts);
+        let closure = roster
+            .closure_definitions(&term(65))
+            .expect("a shared DAG has only 65 distinct definitions");
+        assert_eq!(closure.len(), 65);
+        assert!(closure.windows(2).all(|pair| pair[0] < pair[1]));
+        assert!(
+            roster.transport(&term(65)).is_none(),
+            "the kernel declines expansion beyond its own depth/output budget"
+        );
+    }
+
+    #[test]
+    fn definition_closure_bounds_deep_chains_without_truncating_equations() {
+        for count in [512, 1200] {
+            let context = PropositionContext::from_value_types((1..=count).map(|id| {
+                (
+                    ValueId::new(id).unwrap(),
+                    ScalarType::Integer(integer_type()),
+                )
+            }))
+            .unwrap();
+            let mut facts = vec![Proposition::Equal(term(1), one())];
+            for id in 2..=count {
+                facts.push(Proposition::Equal(term(id), term(id - 1)));
+            }
+            let roster = super::roster(&context, &[], &facts);
+            let closure = roster.closure_definitions(&term(count));
+            if count == 512 {
+                assert_eq!(closure.unwrap().len(), count as usize);
+            } else {
+                assert!(
+                    closure.is_none(),
+                    "exhaustion never publishes a partial closure"
+                );
+            }
+            assert!(roster.transport(&term(count)).is_none());
+        }
+        let facts = vec![
+            Proposition::Equal(term(1), term(2)),
+            Proposition::Equal(term(2), term(1)),
+        ];
+        let roster = super::roster(&context(), &[], &facts);
+        assert_eq!(roster.closure_definitions(&term(1)).unwrap().len(), 2);
+        assert!(
+            roster.transport(&term(1)).is_none(),
+            "cycle equations still reach kernel rejection"
         );
     }
 

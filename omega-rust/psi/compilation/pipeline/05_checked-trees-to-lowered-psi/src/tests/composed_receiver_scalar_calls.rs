@@ -45,7 +45,7 @@ fn a_receiver_operand_that_drifts_from_its_authored_place_rejects() {
             checked_trees::CheckedScalarComputationKind::Call {
                 structural_arguments,
                 ..
-            } => Some(structural_arguments.clone()),
+            } => Some(*structural_arguments),
             _ => None,
         })
         .expect("the receiver call computation");

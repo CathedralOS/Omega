@@ -39,8 +39,11 @@ fn finalize_operation_proofs_inner(
 ) -> Result<(), LoweringError> {
     let _retain_scope =
         crate::proofs::proof_timing::Scope::enter("finalize_operation_proofs:retain_provable");
-    let declines =
-        crate::proofs::scalar_block_invariants::retain_provable_bounded(lowered, roster_rounds)?;
+    let mut declines = super::ProofSearchDeclines::default();
+    super::scalar_result_guarantees::retain_provable(lowered, &mut declines)?;
+    declines.extend(
+        crate::proofs::scalar_block_invariants::retain_provable_bounded(lowered, roster_rounds)?,
+    );
     drop(_retain_scope);
     let started = std::time::Instant::now();
     let validated = terminal_verifier::validate_module(&lowered.semantic_module)

@@ -29,6 +29,9 @@ pub enum ProofSearchCapacity {
     /// The separate transport pool of the cyclic-guarantee strengthening
     /// pass (`proof_search_cyclic_guarantee_work`).
     CyclicGuaranteeCandidateWork,
+    /// Candidate discovery and equation transport for optional scalar result
+    /// relations (`proof_search_result_guarantee_work`).
+    ScalarResultGuaranteeWork,
     /// The obligation-identity space the passes mint fresh arrival
     /// obligations from (`proof_obligation_identities`): the whole `u64`
     /// nonzero identity provision, larger than any scalar-resource limit
@@ -44,6 +47,7 @@ impl ProofSearchCapacity {
             Self::ScalarInvariantRosterRounds => "proof_search_roster_rounds",
             Self::ScalarInvariantCandidateWork => "proof_search_candidate_work",
             Self::CyclicGuaranteeCandidateWork => "proof_search_cyclic_guarantee_work",
+            Self::ScalarResultGuaranteeWork => "proof_search_result_guarantee_work",
             Self::TerminalObligationIdentities => "proof_obligation_identities",
         }
     }
@@ -55,6 +59,7 @@ impl ProofSearchCapacity {
             Self::ScalarInvariantRosterRounds => 128,
             Self::ScalarInvariantCandidateWork => 4096,
             Self::CyclicGuaranteeCandidateWork => 4096,
+            Self::ScalarResultGuaranteeWork => 4096,
             Self::TerminalObligationIdentities => u64::MAX,
         }
     }

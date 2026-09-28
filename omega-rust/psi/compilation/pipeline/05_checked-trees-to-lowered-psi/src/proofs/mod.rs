@@ -84,7 +84,9 @@ pub(crate) mod nonzero_divisor_certificate;
 pub(crate) mod operation_proofs;
 pub(crate) mod proof_recursion;
 pub(crate) mod quotient_correspondence;
+mod retained_evidence;
 pub(crate) mod scalar_block_invariants;
+mod scalar_result_guarantees;
 
 /// The named proof-search capacities that declined a request during one
 /// finalization's optional inference. A decline is accounted, not silent:
@@ -98,6 +100,14 @@ pub(crate) struct ProofSearchDeclines {
 }
 
 impl ProofSearchDeclines {
+    fn extend(&mut self, later: Self) {
+        for capacity in later.capacities {
+            if !self.capacities.contains(&capacity) {
+                self.capacities.push(capacity);
+            }
+        }
+    }
+
     /// Account one refusal of `capacity`: the process-wide exhaustion
     /// aggregate ticks once per refusal, and the ledger retains the first
     /// mention of each named capacity.
