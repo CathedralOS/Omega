@@ -4,41 +4,28 @@ Unfinished product and language work for the Rust reference compiler. The
 [completion plan](wiki/drafts/reference/rust_compiler_completion.md) defines acceptance;
 this board identifies remaining work, not a passing baseline.
 
-| Start here | Purpose |
+Implementation priority is a complete program's authored exit/output. Pick the
+nearest failing program, repair its shared operation, and rerun the unchanged
+customer through publication and execution. All accepted language scope remains
+required; the order below guides implementation, not release exemptions.
+
+| Priority | Work and acceptance |
 | --- | --- |
-| [Pipeline route](#pipeline-route) | One Psi pass over every target's bodies, Build once, providers behind Terminal Psi, one driver. |
-| [Immediate product closure](#immediate-product-closure) | Application, sample and canary outcomes and their native-execution blockers. |
-| [Reflection](#semantic-reflection) / [embedding](#embedding-and-interpreted-components) / [tests](#requirement-based-tests) | Accepted language and library capabilities awaiting connected implementation. |
-| [P1–P5](#p1---authority-roots-and-entry) | Entry/storage, materialization, portable evidence, ABI and Cathedral customers. |
-| [Parallel language work](#parallel-language-and-compiler-lanes) | Other accepted language capabilities and their concrete dependencies. |
-| [Rust release closure](#rust-compiler-release-closure) | Full-gate evidence and matching-host runs, separate from feature implementation. |
-| [Optimizer board](TASKS_OPTIMIZER.md) / [bootstrap board](TASKS_BOOTSTRAP.md) | Separate execution owners; link rather than duplicate their work. |
+| 1. Run existing customers | [Immediate product closure](#immediate-product-closure): use SAMPLE-CORPUS, CANARY-CORPUS and SQUALR-HEADLESS to choose a concrete failure. Start with programs that check but cannot realize; follow the failing operation to its capability owner. |
+| 2. Remove source and pipeline blockers | [Pipeline route](#pipeline-route): ordinary storage/call/transition repairs, then shared source/Build/Terminal convergence where needed. Independent customer repairs need not wait for the whole structural campaign. |
+| 3. Connect the remaining accepted capabilities | [Entry and authority](#p1---authority-roots-and-entry), [materialization](#p2---materialization-and-placed-access), [service reach](#automatic-service-reach), [reflection](#semantic-reflection), [embedding](#embedding-and-interpreted-components), [tests](#requirement-based-tests), and [parallel language work](#parallel-language-and-compiler-lanes). Advance an item earlier when the chosen program needs it. |
+| 4. Close the full product matrix | [Rust release closure](#rust-compiler-release-closure): all accepted features and required matching-host runs. Focused successes do not satisfy full gates. |
+| Separate owners | [Optimizer](TASKS_OPTIMIZER.md), [bootstrap](TASKS_BOOTSTRAP.md), and [Cathedral](#p5---cathedral-over-general-omega-primitives) retain their full scope; native correctness dependencies move with the exercising program. |
 
-Keep missing behavior, owning code, necessary dependencies and acceptance.
-Current evidence replaces stale diagnoses; a rerun confirming the same result
-does not earn another paragraph. Delete completed work and duplicate aliases;
-Git preserves history. Keep a revision-bound failure only when it changes
-where to resume, and prefer stable symbols/tests over line numbers.
-
-Compiler behavior is exercised through `tests/omega` fixtures and
-`tools/corpus_gate.py`. The old `canary_suite`, `samples_compile` and most
-per-feature compiler targets were deleted; the current Cargo manifest still
-registers `callback_terminal_custody`. Check the manifest and test body before
-using a Rust test name as acceptance. When replacing a deleted target, retain
-its source customer and required corpus/native outcome; a similarly named
-fixture or a checked-only result does not establish native execution.
-
-Run `python3 tools/board_paths.py` to identify stale source citations;
-`--hints` suggests matching basenames and `--apply-moves` handles recognized
-moves. The checker understands relative and brace-alternative citations and
-exits nonzero while dead paths remain. A missing anchor needs its surrounding
-claim audited against current code, not merely a path substitution.
-
-[AGENTS.md](AGENTS.md) governs task provenance, scoped checks, claims,
-strategy pauses and publication. Live assignments belong in the
-[claims registry](tools/claims.md), not the board. A paused strategy is not a
-blocked language feature. Genuine owner decisions belong in
-[OWNER_QUESTIONS.md](OWNER_QUESTIONS.md); implementation difficulty alone does not.
+Use the registered harness and its actual coverage: `tools/corpus_gate.py`
+checks source, its `--native` leg realizes and executes eligible fixtures, and
+`tools/sample_native_gate.py` checks documented sample exit/output on the host.
+Check manifests before naming Rust test targets; preserve deleted tests' source
+customers and their required outcomes. Run `tools/board_paths.py --board TASKS.md`
+for citation consistency and audit the claim behind each moved path.
+[AGENTS.md](AGENTS.md) owns workflow; live assignments belong in the
+[claims registry](tools/claims.md), and semantic decisions in
+[OWNER_QUESTIONS.md](OWNER_QUESTIONS.md).
 
 ## Ownership firewall
 
@@ -50,611 +37,6 @@ and transfers on the common graph, not another source-shape recognizer.
 Compiler verification does not require an accepted package lock, and unfinished
 native realization does not block source-package installation. Package acceptance,
 build authority, and artifact verification remain separate obligations.
-
-## Pipeline route
-
-The compiler is one driver feeding each stage into the next
-([pipeline.md](omega-rust/pipeline.md#one-driver-one-pass-per-target-realization),
-[multi-target compilation](wiki/spec/build/configuration.md#multi-target-compilation)).
-Owner decision 2026-09-24: targets are data; Psi checks every target's bodies
-once per compilation; the Build evaluates once; `--target` narrows realization
-only. Owner direction 2026-09-25: reach the right architecture first; a
-structural move may regress fixtures under the AGENTS.md `unimplemented:` rule
-(corpus goldens re-recorded in the same commit, never an unsound fail-fixture
-acceptance, crash or changed native exit). The items below land in the listed
-order, one commit or a few per item, each through `tools/landing.py`; each
-deletes the side doors it replaces. Validate with `tools/corpus_gate.py
---filter` over the affected groups plus `--native --filter` for anything
-backend-visible; full corpus runs only at the end of an item.
-
-- **MEMBER-POLICY-REMOVES-COMPOSITE-ROWS.** Complete whole-array and indexed-row
-  assignment for arithmetic-policy elements and structural elements. Customers:
-  `samples/cli/collections/matrix_multiply` assigns nested Wrapping arrays;
-  `samples/cli/rendering/dungeon_render` assigns an array of payload-free
-  `Cell` cases. Preserve plain-record arrays too. The reduced fixture,
-  `tests/omega/pending/collections/element_policy_array_literal_store`, contains
-  only the flat Wrapping case; its other policy, record and row controls are
-  comments, not executable coverage.
-
-  In stage 04 `execution/terminal_unit/structural_scalar_store/primitive.rs`,
-  `array_literal_stores` uses `closed_array_store_type` and requires a field
-  destination, excluding indexed rows separately. The shared
-  `checking/src/value_custody/literals/constant_arrays.rs` predicate accepts
-  bare primitive leaves; `closed_array_store_type` peels whole-array policies
-  only. Keep that shared contract. The statement sequence already has constructed
-  structural-value replacement through `borrowed_windows.rs`, and the shape
-  collector admits policy-bearing array storage. Trace the failing assignment
-  through those owners; neither globally widening the primitive predicate nor
-  adding another aggregate representation is the repair.
-  `types/arithmetic_policy_array_tests.rs` checks shape, not assignment execution.
-
-  Acceptance: executable controls for bare/whole-array-policy/element-policy
-  arrays, Wrapping and Saturating, nested arrays, records and cases, whole and
-  indexed-row stores, alongside working element stores. Retain exact source
-  types, bounds, qualifications, custody and RHS evaluation before replacement.
-  Promote the reduced fixture into the ordinary corpus with its Build entry and
-  exit-0 oracle. Both unchanged samples must execute: matrix exit 189; dungeon
-  renders `######`, `#.+..#`, `#.~..#`, `######` and exits 0 after input.
-  `tools/sample_gate.py --filter matrix_multiply,dungeon_render` checks only;
-  native execution and the rendered rows are the acceptance.
-
-- **REFERENCE-LOCAL-BINDING-ROUTES.** (new-scope) Establish reference-valued
-  locals from every admitted producer, then preserve their loan identity,
-  backing and access through reads, calls and explicit state transfers.
-  Governed by [ownership](wiki/spec/language/ownership.md#borrows-and-aliases)
-  and [loan formation/replay](wiki/spec/terminal-psi/loans.md). Owners:
-  `execution/terminal_unit/control/statement_sequence/local_data.rs`,
-  `terminal_unit/receiver_aliases/`, and stage 05 argument evaluation and
-  `expression_preparation/bindings`.
-
-  The existing direct-place exclusive-loan route supplies a control:
-  `borrow/runtime_exclusive_loan_local_write_exit` writes through `&mut self.raw`,
-  reads the original storage afterwards and has recorded native exit 70.
-  Remaining producer cases are shared borrows, runtime-indexed places, reference
-  recasts, plain-local borrows, and reference-returning calls. The pending
-  fixtures `borrows/reference_local_binding_routes` and
-  `borrows/reference_result_call_binding` exercise shared binding and a returned
-  reference; their comments record the wider reduction matrix, not executable
-  coverage of every row. Preserve ordinary scalar-result and reference-argument
-  calls as controls. `dependent/runtime_sibling_len_index_exit` exercises the
-  library returned-view form `let view: &[u8] = self.buf.as_slice()`.
-
-  `samples/cli/systems/descriptor_walk` combines three independent triggers in
-  `let d: &Desc = &self.buf[off] as &Desc`: shared access, runtime selection and
-  recast. Test each separately and the unchanged sample together; coordinate
-  **RECAST-SOURCE-POSITIONS** rather than declaring success after one trigger.
-  Omissions vary with surrounding control flow; phase labels do not define
-  separate capabilities.
-
-  `receiver_aliases` admits Mutable/WriteOnly access and checks exclusive parent
-  lineage; shared loans cannot gain mutation authority by widening that match.
-  Establish their exact local carrier and projection in stage 05's
-  `structural_locals` relation. `shared_structural_place` currently requires an
-  empty stored path, so projected backing also needs path composition at use.
-  Retain the local symbol as the loan subject: rewriting it to the root place
-  loses borrow/write-frame/release identity and disagrees with independent
-  local-field replay. A known-place loan need not become a fresh affine
-  `EstablishReference` result. Preserve the supported exclusive marker/store
-  route while extending observations and successor forwarding.
-
-  Acceptance: every producer form, reads through scalar/record loan names,
-  borrowed calls and state forwarding reach verified Terminal and matching-host
-  execution with exact backing and no implicit copies. Both pending fixtures
-  and the full sample must advance. Reject conflicting loans, source/path
-  substitution and invalid escapes. Verify constrained referents such as
-  `u8 [0..=1]` borrowed as `&mut u8` against the actual loan/store contract;
-  normalized type equality must not erase the original storage's obligations.
-  **STATE-LOCAL-VALUE-FRONTIER** owns integration with the composed caller.
-
-- **DEFERRED-LOCAL-INITIALIZATION.** Carry storage declared without an
-  initializer through later establishment and observation. Complete non-`mut`
-  record member-fill and mutable scalar assignment; retain mutable-record and
-  initialized controls, and the diagnostic for non-`mut` whole-scalar assignment.
-  `checking/src/value_custody/places.rs` deliberately distinguishes whole-local
-  rebinding from member/index fill; removing the mutability diagnostic is not
-  the missing capability. The pending fixture
-  `tests/omega/pending/control_flow/deferred_local_initialization` contains only
-  `let mut total: i32; total = 1;` (exit 1); materialize the other controls.
-
-  Stage 04 `control/statement_sequence/local_data.rs` and
-  `values/scalar/computations.rs` admit initializer-free storage only through
-  mutable zero-constructible declarations. Store destination discovery carries
-  the same restriction. The primitive-local branch additionally demands an
-  actual `StorageInitializer`, and `structural_scalar_store/primitive.rs`
-  requires a valid initializer to rediscover the local. Repair establishment,
-  its exact declaration identity and subsequent reads/writes together; preserve
-  existing source-custody and borrow-event rejection checks.
-
-  The real customer `pass/wire/runtime_wire_utf8_edge_verdicts_exit` fills
-  `LabelSample { count, label: &[u8] in Utf8 }` before borrowing it for decode.
-  Its reference field cannot be fabricated by zeroing: support partial storage
-  and exact field establishment, including stored-loan custody. Follow
-  [default-domain gating](wiki/spec/language/dependent_values.md#default-domains-and-zero-initialization)
-  and [ownership establishment](wiki/spec/language/ownership.md#establishment-and-erasure);
-  reject premature observation and do not mint linear obligations from zero.
-  Acceptance uses the actual Build entries and ordinary corpus execution:
-  promote the pending fixture with exit 1, retain `uninit_record_member_store`
-  exit 77, and execute the wire customer with interpreter/native exit 70.
-  Euro must decode successfully; overlong, surrogate, out-of-range and truncated
-  UTF-8 must fail. Clearing an omission phase alone does not close the task.
-
-- **TRANSITION-TAIL-CALL-TO-MACHINE.** Complete terminal machine calls in
-  attached Unit transition arms, including `transition { _ -> self.finish() }`.
-  [State contracts](wiki/spec/language/state_contracts.md#terminal-calls-in-transition-arms)
-  define an ordinary invocation whose normal result completes the caller;
-  an internal state target remains a jump. Preserve selected-arm-only execution,
-  once-only operands, result/return contracts, cleanup, crash and suspension
-  behavior, live backing and loans, and recursive calls without accumulated frames.
-
-  Stage 04 `execution/terminal_unit/state_graph/mod.rs` excludes transition
-  calls from the ordinary operation window; its successor builder resolves
-  internal states. `state_graph/terminator.rs` already handles non-Unit value
-  arms, and `tests/flow/terminal_unit/outer_calls.rs` checks nested structural
-  calls in those arms. Extend the missing call-and-completion route with exact
-  occurrence accounting; do not bypass call-count or write-frame checks.
-  `structural_scalar_store/frame.rs` now replays the complete state frame, so
-  the old alternating omission labels are reproduction clues, not the cause.
-
-  Acceptance: promote `pending/calls/transition_tail_call_to_machine` with its
-  Build entry and exit-0 oracle. Materialize its comment-only controls: with
-  and without a preceding store, no arguments and ordinary arguments, an
-  internal-state jump, and an ordinary call followed by a jump. Run the three
-  actual customers through checked, interpreted and native corpus legs:
-  `collections/runtime_frame_indexed_param_read_exit` exits 1;
-  `slices/domained_runtime_end_subslice_exit` exits 70 with its Path-qualified
-  runtime-end slice; `termination/runtime_shrinking_slice_recursion_exit` exits
-  70 from 10+20+15+25. The recursive case must snapshot the subslice and head
-  read before overwriting argument slots. Preserve the fixed-array argument;
-  a no-array control separates this gap from boundary ABI transport.
-  `wire/runtime_wire_decode_byte_slice_exit` stays with
-  **RECORD-LITERAL-ARRAY-FIELD** and **REFERENCE-LOCAL-BINDING-ROUTES**;
-  `wire/runtime_wire_utf8_edge_verdicts_exit` stays with
-  **DEFERRED-LOCAL-INITIALIZATION**.
-  `filesystem/dir_walk_wrappers_exit` and `systems/note_vault` retain their
-  `Filesystem::create_dir_all` dependency. Shared phase labels do not merge them.
-
-- **CASE-FIELD-TYPE-STORE-SHAPES.** Complete three independent construction
-  cases: predicate-qualified members (case payloads and plain records, directly
-  or through locals), erased payloads, and common fields beside case payloads.
-  Follow [data construction](wiki/spec/language/data_and_literals.md#construction-and-case-identity)
-  and [erased bindings](wiki/spec/proofs/contracts.md#explicit-erased-bindings):
-  evaluate runtime fields once in authored order; retain erased semantic evidence
-  without runtime slots; establish domains before observation. Arithmetic-policy
-  payloads and direct scalar-domain stores remain controls, not this omission.
-
-  `checking/src/value_custody/scalar_case_constructor.rs` requires numeric-owned
-  contents, rejects common fields, requires the full authored payload roster,
-  and rejects erased operands in its structural constructor. Predicate domains
-  are outside that contents classifier. Stage 04
-  `values/scalar/computations/structural_values.rs` shares the classifier and
-  also gates record construction. Stage 05
-  `attached_unit/structural_values/structural_case.rs` requires a sum shape and
-  rejects erased initializers. Repair retained establishment through lowering;
-  merely removing an admission guard cannot supply the missing evidence.
-
-  The pending `structs/case_field_type_store_shapes` actually contains only the
-  common-field case; materialize its comment-only domain/erased controls and
-  retain payload-free, scalar/multiple/record payloads and local-mediated stores.
-  Acceptance: promote it with its Build entry and exit-0 oracle. Execute the
-  `pass/` customers to exit 70: `ranges/sum_payload_range_arith_narrowed_exit`,
-  `relevance/erased_case_payload_field_exit`, `data/runtime_mixed_shape_exit`,
-  `calls/runtime_enum_self_method_exit`, `generics/runtime_mixed_generic_erased_sum_exit`
-  and `traits/equatable_mixed_shape_equality_exit`. Preserve domain rejection
-  and wrong-case negatives, erased ABI positions, common-field reads/writes,
-  valid zero omission on case replacement, all-tag dispatch and unequal-common-field
-  equality. Each cause needs its own checked and interpreter/native outcome.
-
-- **RECORD-LITERAL-ARRAY-FIELD.** Compose supplied fixed-array and borrowed-slice
-  fields into record literals at local, nested, return and field-store sites.
-  Stage 04 `values/scalar/computations/structural_values.rs` sends non-scalar
-  record members through structural values, but `fixed_array_value` declines
-  closed primitive arrays; their ordinary scalar-array producer is separate.
-  Omitted zero-valid array fields already compose (`tests/flow/terminal_unit/returns.rs`).
-  Stage 05 `attached_unit/structural_values/emission.rs` still refuses general
-  `FixedArray` establishment. Reuse existing array/record producers and carry
-  exact element types, evaluation order and ownership through the full route.
-
-  Borrowed views are another field producer, not owned array storage:
-  `borrowed_slice_view_place` currently requires the expression to be the
-  entire immutable local initializer. Compose constructor operands with exact
-  stored-loan origins and lifetimes; **REFERENCE-LOCAL-BINDING-ROUTES** owns
-  reference locals. Existing record emission already accepts borrowed-view fields.
-
-  The pending `structs/record_literal_array_field` contains only a flat
-  `[i32; 4]` literal. Materialize its controls: inline/variable arrays,
-  scalar/nested-record fields, bare array locals, element-filled fields,
-  lengths/types, negative operands, nested and generic/const-generic records,
-  and later by-reference use. Promote it with its Build entry and exit-0 oracle.
-  Acceptance includes unchanged `samples/cli/systems/wire_protocol` and
-  `pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit`: exit 70 with
-  13-byte encode/decode, room 300, samples [150, -2], depth -64. The borrowed
-  customer `pass/wire/runtime_wire_decode_byte_slice_exit` must exit 70 after
-  re-encoding the decoded view to five bytes with payload [72, 105]. Run checked
-  and interpreter/native legs; leaving an omission cluster is not execution.
-
-- **PASS-TIER-GUARDS-OWED.** Recheck and promote
-  `tests/omega/pending/calls/copy_projection_from_borrowed_receiver` into
-  `pass/calls/` with scoped checked and native golden updates. Preserve its
-  nested `[copy]` field read through `&mut self`, by-value argument, named state,
-  terminal effect and authored ProgramEntry bindings. Make the exit observe a
-  nonzero copied value at the callee and the unchanged source; add
-  `expected_native_exit.txt` so the corpus gate executes this fixture.
-  Copy establishment exists in `values/scalar/computations/call_arguments.rs`;
-  `calls/structural_arguments.rs` selects its fresh result instead of moving
-  borrowed backing. Repair any remaining omission before promotion. Recheck
-  product roots under **OMEGA-PRODUCT-COMPILER-SOURCE** separately; the fixture
-  does not establish their later operations.
-
-- **FLOAT-RANGE-ATTACHED-FIELD.** (new-scope) Carry float invariants and
-  constrained const applications through attached/nested data execution.
-  First migrate the customers under **CANONICALIZE-SCALAR-RANGE-CONTRACTS**:
-  [domains](wiki/spec/language/domains.md) require ordinary field `where`
-  facts and contracts, not scalar range suffixes or replacement nominal domains.
-  `terminal_unit/types/scalar_fields.rs` retains bounded integers but refuses
-  float bounds; `data_where_field_intervals` in
-  `proof_contracts/default_domains/where_fact_intervals.rs` reads integer
-  literals only. Preserve IEEE storage and float facts without treating them
-  as integer bounds. Separately, `terminal_unit/types/mod.rs` requires an exact
-  attached generic application; the old shared phase label does not establish
-  that float predicates and const constraints need the same repair.
-  Migrate `tests/omega/pending/float/float_range_attached_field` and
-  `tests/omega/pending/generics/ranged_const_parameter_attached_shape`, then
-  exercise their currently unused fields. Keep bare integer/float, integer
-  `where`, `Finite`, unconstrained const, and plain/`Wrapping` element controls.
-  Required customers under `tests/omega/pass/`:
-
-  - `float/finite_core_domain_range_discharge`: restore finite/range facts
-    before the transition, pass the value to a `Finite` parameter, exit **77**.
-    Its transient NaN and out-of-range assignments exercise the
-    [invariant window](wiki/spec/language/numeric_values.md), not permission
-    to expose invalid values at a boundary.
-  - `recast/{runtime_float_range_representation_recast_exit,
-    runtime_shared_record_float_range_weakening_exit,
-    runtime_mutable_equivalent_record_recast_exit}`: exit **70**, preserving
-    shared weakening and bit views, equivalent mutable representation sets,
-    and original-storage reads after the exclusive loan's last use. Follow
-    [recast compatibility](wiki/spec/layouts/recasts.md); equal sizes alone
-    cannot admit strengthening or mutable widening.
-  - `generics/runtime_const_container_methods_exit`: distinct capacities
-    **2/4**, generic method witnesses of those lengths, stored values **30/40**,
-    exit **70**. Retain exact specialization identity/layout and reject const
-    tuples violating their declared constraints.
-
-  Acceptance: canonical source checks, published Terminal reloads/verifies,
-  and all five customers execute with those oracles. A migrated unused field
-  or disappearance of the old phase label alone does not close this task.
-
-- **VALUE-CALL-SUBEXPRESSION.** (new-scope) Finish composing scalar machine
-  results under surrounding expressions at each execution site. The builder
-  in `values/scalar/computations.rs` and `computations/integers.rs` already
-  handles calls, arithmetic, casts and comparisons; stage 05's
-  `scalar_return_calls_source/integer_computations.rs` lowers a call under
-  addition, comparison and short-circuiting. Do not rebuild this as a new
-  left-operand special case. The recorded rejections for
-  `tests/omega/pass/calls/{value_call_embedded_in_binary_exit,
-  transition_arg_local_from_embedded_call_exit}` report a pure initializer;
-  `control/statement_sequence.rs::scalar_computation_local_at` takes that
-  fallback when the exact computation root is absent. Reproduce each remaining
-  site and retain its state, statement, binding and call occurrence through
-  construction/emission rather than substituting a pure expression.
-  `tests/omega/pending/calls/value_call_subexpression` currently discards
-  `twelve() + 0`; make its value observable. Exercise arithmetic on either
-  side, casts and both comparison operands in locals, field stores and guards,
-  with bare/parenthesized-call and call-free controls, ordinary/field receivers,
-  and Exact/`Wrapping` policies. Preserve result-owned carrier/policy and the
-  [evaluation schedule](wiki/spec/language/expressions.md): ordered, single
-  invocation, selective short-circuiting, no reevaluation at state arrival.
-  Acceptance: both corpus rows verify **46** and exit **70** after Terminal
-  reload and native execution; the second must carry the local across a state
-  edge. `samples/cli/probes/value_call_in_expr` must preserve **46, 40, 64, 70**
-  through its nested calls and transitions and exit **70**. Its historical
-  slot-collision comment is not a diagnosis of the current compiler.
-
-- **COMPOSITE-TRANSITION-ARGUMENT.** (new-scope) Finish legal record literals,
-  field projections and composite call results supplied directly to internal
-  states. `successor_bindings` in `terminal_unit/state_graph/mod.rs` already
-  forwards whole parameters, retained local results, admitted subslices and
-  selected case payloads; ordinary projected roots and new argument values
-  need their own construction/transfer. Preserve exact type, access, copy/move
-  semantics and residual cleanup under [state arrivals](wiki/spec/language/state_contracts.md).
-  `tests/omega/pending/control_flow/composite_state_parameter` discards its
-  `Pair { a: 1 }`; observe the payload. Compare distinct literal, field, call
-  and local sources on unconditional and guarded edges. Retain scalar-policy
-  controls and exercise legal reference and fixed-array arguments separately.
-  Existing `tests/omega/pass/structs/{mutable_record_state_transfer,
-  mutable_array_record_state_transfer,affine_record_state_clone}` record native
-  **70** for carried borrows/local backing; they do not cover direct composite
-  arguments. Acceptance: selected operands execute once, retain their values
-  through Terminal reload and native execution, and unselected operands have
-  no effects. With **VALUE-CALL-TRANSITION-ARGUMENT**, preserve
-  `samples/cli/systems/vending_machine`'s `Change` delivery and exit **70**.
-
-- **VALUE-CALL-TRANSITION-ARGUMENT.** (new-scope) Complete calls in internal
-  state arguments using the existing scalar computation route. Psi stage 04
-  already records `TransitionArgument` roots; stage 05's
-  `composed_control/state_graph/scalars.rs` rejoins them and
-  `state_graph/emission/successor_edge.rs` emits calls after edge selection.
-  Reproduce the remaining admission/emission gap, not a blanket absence of
-  call vocabulary. `tests/omega/pending/calls/value_call_transition_argument`
-  currently ignores the delivered `amount`; make it observable and compare
-  direct calls against local-binding and arithmetic controls.
-  The recorded rejection for
-  `tests/omega/pass/calls/runtime_guarded_effectful_transition_argument_exit`
-  is at conditional successor scalar arguments. Acceptance: its skipped arm
-  leaves **0** hits; selected/local calls produce **7/20** with **1** hit;
-  paired calls produce **10/11** with **2** hits; nested calls produce **21**
-  with **2** hits; native and reloaded Terminal exit **70**. Add an effect
-  sensitive to call order: the existing identical increments only count calls.
-  Preserve [arrival snapshots](wiki/spec/language/state_contracts.md) when later
-  arguments mutate storage. Share expression construction with
-  **VALUE-CALL-SUBEXPRESSION**; composite delivery remains the preceding task.
-  `samples/cli/systems/vending_machine` must retain **3** sales, the delivered
-  extra remainder **20**, and checksum/exit **70**.
-
-- **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER.** (new-scope) Finish authored by-value
-  fixed primitive arrays through boundary arguments and results under
-  [boundary calls](wiki/spec/terminal-psi/boundary_calls.md). At `635cf2c9ebc`
-  on macOS ARM64, `omega run --target macos_arm64
-  tests/omega/pass/providers/runtime_boundary_primitive_array_argument_exit/main.omg`
-  compiles and runs; native corpus execution exits **70**. Its selected checked
-  provider reads all four bytes between two scalar arguments, and the caller
-  observes its result and unchanged source field. Borrowed field projections
-  use `StructuralLeafCopy`; whole array locals keep their existing payload
-  identity. Source replay, codec reload and verification retain exact authored
-  positions, type/extent, readable custody and dominance.
-
-  Remaining: execute whole local/parameter and literal sources, nested arrays,
-  scalar/reference controls, and array results across trait and direct boundary
-  calls. Psi05 `structural_calls/result_uses.rs` still refuses whole array
-  parameters at boundaries. Psi04 `values/scalar/array_constructions.rs` and
-  Psi05 `source_custody/array_sources.rs` exclude boundary literal construction;
-  direct calls also retain array gates in `calls/structural_arguments.rs`.
-  Result guards remain in `calls/{trait_boundary_call,call_operations}.rs`, and
-  Stage 05's `scalar_array_source/call_results.rs` still deliberately rejects
-  boundary array results, including empty/discarded ones. Native result
-  forwarding must rejoin boundary producers; the Terminal interpreter still
-  needs concrete array payload transfer through installed-provider calls.
-  Harden/promote `tests/omega/pending/providers/boundary_primitive_array_argument`
-  with element-reading provider and observable caller result, preserving its
-  valid Build identity, selected provider and demanded entry. Acceptance must
-  cover exact payload and scalar/structural interleave through Terminal
-  reload/verification and native execution; ordinary-array support alone is
-  insufficient.
-
-  Customers `samples/gui/{window_app,window_demo,image_viewer}` retain their
-  by-value class/title signatures. The complete `window_demo` now reaches the
-  selected `F64::from_i32` realization dependency under **OPERATOR-BOUNDARY-CALLS**;
-  **SAMPLE-CORPUS** retains full GUI execution. Domain/reference rewrites or a
-  changed omission label do not satisfy this task.
-
-- **OPERATOR-BOUNDARY-CALLS.** (split-of:PROVIDER-SELECTION-AFTER-TERMINAL)
-  Finish requirement-level calls and Omega stage 00 installation for legacy
-  named operators and compiler-known float realizations under
-  [boundary applications](wiki/spec/terminal-psi/boundary_calls.md#operator-applications-and-physical-children).
-  Token-bearing machines already enter the ordinary call route.
-  `05_checked-trees-to-lowered-psi/tests/provider_candidates.rs` checks one
-  artifact across two providers and two const tuples, drops checked custody,
-  then installs and executes both applications in the Terminal interpreter.
-  That is not native execution or coverage of the legacy operator path.
-
-  Remaining work:
-
-  - Replace the early named-operator return in
-    `checking/src/machine_calls/calls/expression_scanning.rs` with ordinary
-    requirement-call facts and boundary plans. Legacy `boundary operator`
-    declarations still miss that route; the selected-dispatch
-    `uninstalled.rs` machinery reports the omission. After replacement,
-    remove `UninstalledOperator` and its retired operator-adapter /
-    float-intrinsic resolution machinery rather than extend those rewrites.
-  - Finish native specialization custody: retain the exact closed requirement,
-    provider instance, static tuple and artifact-bound application occurrence
-    through selected-plan settlement and physical-child replay. Reuse stage
-    00's `boundary_application_settlement.rs`; `ClosedReachApplication`,
-    a template alias or equal runtime signatures cannot authenticate the
-    specialization. Re-drive
-    `providers/specialized_mixed_structural_result_operator_hosted_native`:
-    its recorded stop is now native physical replay's exact selected-plan
-    rejoin, not the old zero-row authority review. The native replay owner is
-    `native-artifact/src/physical/derivation/evidence.rs`. The new
-    `boundary_internal_call_evidence` test covers a nongeneric requirement's
-    internal physical child, not this whole generic matrix.
-  - Install named float execution as Omega builtins, preserving each exact
-    selected meaning: negate, min/max, square root, directed arithmetic,
-    conversions, multiply-then-add and distinct FMA. Native
-    `provider_admission/compiler_builtins.rs` currently handles hosted
-    exit/read/write only. Re-drive `pending/arithmetic/float_computation_no_route`
-    both with and without the ordinary float-operations import across
-    arithmetic/comparison, field/local/guard positions and f32/f64.
-    Preserve declared operator selection rather than use a spelling-based
-    fallback. **FLOAT-PROVIDERS** owns the semantic contracts and
-    **X86-FMA-PROVIDER-TRANSPORT** the admitted FMA transport.
-  - Complete a receiver-bearing requirement's member-call witness through
-    borrowed-field argument planning, provider signature refinement and native
-    execution. The verifier compares receiver flags as part of the structural
-    signature; preserve exact receiver/argument correspondence, not a blanket
-    `is_self` exemption. Reproduce the old parameter-source/refinement stops
-    before assigning their repairs.
-  - Keep ordinary call borrow rules when spelling operators as calls.
-    [Exclusive loans](wiki/spec/language/ownership.md#borrows-and-aliases) forbid a
-    second alias reading the old contents. Preserve
-    `recast/runtime_mutable_equivalent_record_recast_exit`'s read-through-view
-    then last-use release. With **BORROW-PROOF-CONVERGENCE**, recheck plain-read,
-    call-argument and float-comparison forms of the same live-loan conflict;
-    retain their rejection parity without weakening the call check.
-
-  Reuse the repaired const path: pre-resolution `has_no_authored_spelling`
-  recognizes token-bearing machines, and `selected_provider_bodies` in
-  `compiler/src/checked/checking/const_evaluation.rs` handles non-float
-  checked bodies. `comptime/provider_boundary_range_endpoint_exit` now uses
-  `boundary machine %`, distinguishes provider result 7 from builtin result 1,
-  and has a recorded native exit 70. Retain that control; the alternate-provider
-  const-generic fixture still records a selection failure, so finish its
-  distinct-result and unselected-refusal acceptance with
-  **TARGET-SEMANTIC-APPLICATIONS**. Do not claim every const application works
-  from the endpoint case alone.
-
-  Acceptance: preserve the native exit-70 controls
-  `providers/checked_fixed_operator_dispatch_exit` and
-  `providers/token_machine_family_override_exit`; close legacy named and
-  generic physical-custody cases, plus structural-input/scalar-result,
-  mixed-input/scalar-result and mixed-input/structural-result hosted cases,
-  retaining the owned affine operand/result and its disposition.
-  Recover deleted customers from `089bd3290c` where necessary:
-  `specialized_{boundary,fixed}_operator_physical_custody` and
-  `specialized_{structural_fixed,mixed_structural_fixed,mixed_structural_result}_operator_hosted_native`.
-  Retain `checked_{boundary,fixed}_operator_physical_custody` build/replay
-  checks and each runtime customer's original oracle; an unused helper beside
-  an empty entry is not execution coverage. Restore the named-provider
-  `pass/float` native matrix and remove `applies boundary operator` omissions
-  by completing the route. Run unchanged `sensor_min_max`, `vector_distance`
-  and `fibonacci_golden` under **SAMPLE-CORPUS**; the last exercises conversion,
-  independently of binary arithmetic. Float field/index store admission is
-  already present in `structural_scalar_store/value.rs`; reattribute later
-  failures instead of repeating that repair.
-
-- **SOURCE-SET-UNION.** (split-of:PSI-TARGET-FAMILIES) The assembled source set
-  must contain physical sources, every target's entry contracts, package
-  imports and dependency-generated sources once per checked context.
-  `ImmutableSourceParseCheckpoint::assemble` already takes no target and seeds
-  every entry contract; `compiler.rs` shares assembly through `SharedBuilds`
-  for equal package inputs. The CLI's `compile_project_for_targets` and package
-  operations still launch separate compilations with target-specific bundles.
-  Feed their union into one request with **BUILD-EVALUATES-ONCE**; generated
-  target variation belongs in tagged declarations.
-
-  Preserve [dependency handoff](wiki/spec/build/execution.md#dependency-handoff)
-  custody and separate Build/Product checked instances, even for identical
-  bytes. A consumer incorporates producer bundles without rerunning the
-  producer; its own generated-source extension cannot rebind earlier source.
-  Acceptance: a two-target CLI compile assembles the union once, including
-  nested and dual-purpose generated dependencies. Count actual invocations;
-  shared timing records can be copied into several target reports.
-
-- **PSI-TARGET-FAMILIES.** (new-scope) Target-scoped machine declarations
-  survive every Psi stage as one family with bodies keyed by target, including
-  unrealized and unreachable bodies, per
-  [multi-target compilation](wiki/spec/build/configuration.md#multi-target-compilation).
-  `TypedTrees::target_machine_families` already records stable member handles;
-  `symbols/target_siblings.rs` binds same-target calls. The gap is
-  `select_product_target` swapping bodies before checking and
-  `prune_target_siblings` dropping siblings before Terminal. Carry every body's
-  checked semantics, supply mode and conformances through lowering, codec and
-  independent verification; `omega inspect-terminal` must expose each target
-  tag. Complete missing lowering under its existing owners; entry-reached
-  bodies alone do not satisfy retention. **PROVIDER-SELECTION-AFTER-TERMINAL**
-  owns Omega's selection from that same artifact; independent ownership moves
-  can land before the complete route.
-
-  Acceptance: retain `targets/sibling_body_type_error_rejected` and the native
-  exit-70 `targets/target_machine_gating_exit` control. Its target bodies return
-  equal values, so add distinct-result bodies realized from one Terminal,
-  including same-target sibling calls. Check invalid unrealized bodies and
-  duplicate family members; a missing called body fails only the affected
-  realization. The existing `family_roster_keys_every_body_and_the_swap_consumes_it`
-  unit test proves typed roster/swap behavior, not portable retention or execution.
-
-- **BUILD-EVALUATES-ONCE.** (new-scope) `build.omg` evaluates once per
-  compilation, observes no realized target, and produces checked rows for every
-  target: providers, entry, subsystem, application intent, opaque representation,
-  x86 scalar FMA provider, grants, behavior exclusions and wire demands.
-  `BuildConfig` remains largely global; target-qualified root bindings and
-  `SharedBuilds` reuse for equal package inputs do not complete this contract.
-  Finish authored rows, retain/check unrequested rows, and join CLI/package
-  execution through **SOURCE-SET-UNION**.
-
-  Eliminate the duplicate preliminary whole-program check by moving its
-  obligations into the owning stages. Preserve
-  [admission before execution](wiki/spec/build/execution.md#admission-before-execution):
-  freeze authored selections and admit the exact Build entry before effects;
-  then incorporate generated source and finish product checks. The current
-  gate is `declaration_admission::validate_authored_declaration_selections_before_build`.
-  Reconcile snapshot inputs, required outputs and authority before sharing;
-  `SharedBuilds` currently keys package/generated inputs without the per-target
-  `build_snapshot`. Preserve separate package-purpose execution contexts.
-
-  Acceptance: count one Build activation and one final product check for a
-  two-target request; std's six rows come from one evaluation. Reject malformed
-  unrequested rows and preserve per-target missing-row outcomes. Retain nested
-  generated-dependency and dual-purpose custody (`package_commands/build_purposes.rs`),
-  pre-effect rejection, and snapshot/required-output settlement
-  (`package_commands/snapshot_outputs.rs`). Timing rows alone are insufficient.
-
-- **PROVIDER-SELECTION-AFTER-TERMINAL.** (new-scope) Finish one target-neutral
-  Psi product, with per-target provider installation consuming Terminal Psi
-  plus that target's Build rows in Omega stage 00. Follow
-  [multi-target compilation](wiki/spec/build/configuration.md#multi-target-compilation)
-  and the [pipeline](omega-rust/pipeline.md#one-driver-one-pass-per-target-realization).
-
-  Boundary-application and integer/IEEE-comparison settlement now live in
-  stage 00's `boundary_application_settlement.rs` and
-  `comparison_settlement.rs`. They still borrow checked trees, source
-  identities and frontend-derived selected evidence; moving files did not
-  complete the portable boundary. Finish their inputs and replay through the
-  existing artifact-bound occurrence scope, without another parallel registry.
-
-  Remaining frontend decisions are in compiler checking's
-  `execution_settlement.rs` and `phase_transitions.rs`: target-family body
-  substitution, calling plans, program-entry selection, fused-provider
-  settlement, selected legacy generic-operator and boundary-family requests,
-  selected-dispatch execution, callback materialization, task activation,
-  component progress, x86 FMA associations and fused entry establishments.
-  Move their per-target realization to Omega while preserving source-semantic
-  contracts and all authored candidates in Psi. Token-provider candidates
-  already derive from authored conformance edges without Build selection;
-  extend that independence to the remaining paths. Checking only the realized
-  targets' union is insufficient: every family's bodies and every Build row
-  must be checked and retained even when `--target` excludes realization.
-  Remove provider-planning's `typed-trees` / `validation` dependencies and
-  enforce the layering boundary.
-
-  Preserve the spec's const exception: provider-dependent constants belong to
-  the one checked program. Every realized target must select the same provider
-  for that application; evaluate it once through that checked body in Psi,
-  rejecting disagreement with the diverging targets named. Do not move a
-  layout-determining fold into per-target native realization. Carry exact
-  selection/replay evidence through the existing const evaluator.
-
-  Retain each requirement's complete portable contract. Scalar `requires`,
-  crash routes and content guarantees exist; general scalar `ensures` still
-  have no declaration field in `BoundaryMachineDeclaration`. Complete their
-  transport and independent provider/call validation without narrowing the
-  public contract to the selected body's behavior.
-
-  Acceptance, together with **BUILD-EVALUATES-ONCE** and
-  **OPERATOR-BOUNDARY-CALLS**: one two-target request runs Psi 00–07 once and
-  produces one Terminal artifact identity; each target's native output equals
-  its single-target output byte-for-byte across the native corpus and passes
-  the same execution oracles. Preserve the target-comparison customers
-  `arithmetic/const_fold_unsigned_landed_ops_exit`,
-  `expressions/match_float_patterns` and
-  `providers/checked_boundary_requirement_dispatch_exit`, but do not treat
-  their equal Terminal bytes as proof that checking ran once. Cover differing
-  runtime providers, agreeing/disagreeing const selections, errors in an
-  unrealized body, and a missing required realization row without suppressing
-  the other target's outcome. Independent moves need not wait for full closure.
-
-- **ONE-DRIVER-PER-STAGE.** (new-scope) Close the remainder after the items
-  above: `compiler.rs` runs Psi 00–07 once, then Omega 00–09 and emission per
-  realization, following the [pipeline](omega-rust/pipeline.md). Keep each
-  stage's independent representation and transformation crate. Package review
-  calls the same 00–03 prefix directly; remove alternate compile modes.
-  Source preparation supplies stage 00; build-time evaluation, dynamic binding,
-  const evaluation and semantic pruning belong inside stages 02–04. Carry
-  discovery, grants, sponsors and snapshots in their owning stage inputs/outputs.
-
-  `CompileRequest` and `ExplicitTargetSet` already exist: connect CLI/package
-  callers to them and normalize CLI targets once. Acceptance: the compiler owns
-  only composition, reports and publication; a two-target native compile proves
-  one Psi stage chain and one Terminal identity, then one Omega chain per target,
-  preserving native results and isolated realization failures as specified in
-  **PROVIDER-SELECTION-AFTER-TERMINAL**. Prefix consumers stop at their actual
-  checkpoint; stage counters must distinguish execution from reused reports.
-
-  Retire the per-target source clones and reuse structures that merely mask
-  repeated compilation (`NativeInputReuse`, `CandidateSourcePreparation`)
-  as their work moves into the shared stages. Preserve single-target command
-  behavior, Build-effect custody and per-target admission/publication checks.
-  **PCC-PRODUCT-PUBLICATION** owns the separate Terminal-only command product.
 
 ## Immediate product closure
 
@@ -1137,13 +519,13 @@ the complete product bar; focused successes below do not establish that baseline
   projects with `build.omg` and `main.omg`, excludes `samples/apps/squalr`, builds
   the current CLI unless `--cli` is supplied, and checks in scratch directories.
   `--filter` narrows investigation; `--write-results` retains the actual results.
-  The deleted `compiler --test samples_compile` cohort is no longer acceptance.
-  `mbx run -p omega -- refresh-samples` follows ordinary package review and native
-  publication on the host, but does not execute documented runtime oracles.
-  Connect those oracles to maintained coverage; a successful refresh is only
-  the build half. Preserve exact output, stderr, input consumption and timing
-  requirements where the sample documents them. Review each checkout/target's
-  package inputs rather than borrowing another checkout's accepted lock.
+  `tools/sample_native_gate.py --cli <current-binary> --target <host> --jobs 1`
+  completes local review, builds and checks documented exit/output; it accepts
+  pending review decisions for measurement, not as evidence of a dependency audit.
+  Samples without an oracle remain unscored, and freestanding samples need their
+  own runner. Add the remaining exact stderr, input-consumption and timing oracles
+  where documented. `omega refresh-samples` publishes but does not run them.
+  Retain each checkout/target's own package review and complete host coverage.
 
   Prioritize shared operations that unblock full programs. Reproduce with the
   current CLI and the sample's package/entry inputs: a stale binary, an earlier
@@ -1162,7 +544,8 @@ the complete product bar; focused successes below do not establish that baseline
   | `gui/{image_viewer,window_app,window_demo}` | At `635cf2c9ebc` on macOS ARM64, reviewed `omega run --target macos_arm64 samples/gui/window_demo/main.omg` passes the former by-value array argument failure and rejects native production because `DemoGuiProvider::window_create` applies `F64::from_i32` without a requirement-level selected-provider route. **OPERATOR-BOUNDARY-CALLS** owns that next producer/realization dependency. **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER** retains the full argument/result matrix; its copied-field provider fixture executes with exit **70**. Acceptance remains the complete native GUI run with authored class/title signatures and exact provider selection. |
   | `systems/file_journal`, `systems/note_vault`, `interpreters/calculator_rpn` | **STATE-LOCAL-VALUE-FRONTIER**: result custody, library callee composition, and indexed nested-field initialization. Follow `Filesystem::create_dir_all` in `note_vault`; for `calculator_rpn`, retain the Console-bearing receiver and `let a: i32 in Saturating = self.stack.slots[0]`. Its std-free reduction does not reproduce the full program. |
   | Integer type/policy migration verification | **IMPLICIT-STORE-CONVERSION**: the rejection rule and many explicit casts are implemented. Recheck the previously affected cohort without changing arithmetic policy or algorithms: `longest_run`, `maze_flood`, `collatz_sequence`, `prime_sieve`, `multiplication_table`, `heat_grid`, `dice_histogram`, `dungeon_crawler_cli`, `rpn_calculator`, `stack_calculator`, `self_mutation_between_calls`, `histogram`, `game_of_life`, `rule_30`, `luhn_checksum`, `substring_search`, and `windowed_calculator`. Re-measure the current set instead of treating an old refusal count as a baseline. |
-  | Clock-bearing samples | Complete declared-host provider wiring for `binary_search_viz`, `sort_visualizer`, `bouncing_console`, `ripple_field`, `tick_marquee`, `cellular_automaton`, `game_of_life_glider`, `langtons_ant`, and `random_walk`. Existing macOS wiring is in `samples/gui/window_app` and `source/library/std/macos_gui.omg`: exact Clock selection and sleep through `darwin_poll`. Missing host selection is distinct from a lowering failure. |
+  | Clock-bearing samples | macOS Clock selection and `darwin_poll` calls already exist in `binary_search_viz`, `sort_visualizer`, `bouncing_console`, `ripple_field`, `tick_marquee`, `cellular_automaton`, `game_of_life_glider`, `langtons_ant`, and `random_walk`. **STATE-LOCAL-VALUE-FRONTIER** owns their [recorded native refusal](wiki/drafts/measurements/sample_native_oracle_macos_arm64.md#darwin_poll-has-no-checked-executable-body): stage 05's `scalar_graph/scalar_call_closure/callee.rs` demands a checked body for the foreign-bound `darwin_poll`/`darwin_clock_ns` scalar call. Preserve exact external binding/ABI evidence and realize the calls; more sample wiring or a fabricated Omega body is not the repair. Verify complete pacing/output and the other declared hosts. |
+  | Qualified byte-buffer stores | **STATE-LOCAL-VALUE-FRONTIER** owns the ten [recorded domain-bearing byte customers](wiki/drafts/measurements/predicate_byte_carrier_native_gap.md#how-much-rides-on-it), including `dice_histogram`, `caesar_cipher` and `print_number`. Stage 05's `emission/structural_byte_sequence_index_store.rs` accepts plain `ByteSequence` and excludes `PredicateByteSequence`. Carry the checked store's predicate-preservation evidence through ordinary lowering and replay; matching physical carriers alone cannot preserve `Utf8`. **NOMINAL-FIELD-FLOW** owns source facts. Execute every complete program's oracle after the repair. |
   | `basics/print_number`, `rendering/dungeon_render` and other text/index/match programs | **NOMINAL-FIELD-FLOW**, **WRITE-ONLY-BORROW**, **STATE-LOCAL-VALUE-FRONTIER**, **MATCH-SELECTIVE-LOWERING**, **CML4** and **OPERATOR-MACHINE-SUPPLY** own their missing operations/facts. Retain `Utf8` and ordinary domain evidence; recognized function names or weakened invariants cannot replace it. |
 
   Sample paths in the table are relative to `samples/cli` unless prefixed `gui/`;
@@ -1258,7 +641,7 @@ the complete product bar; focused successes below do not establish that baseline
     operator invocation rather than only statement/call coordinates.
   - `build/uefi_program_entry_wrong_calling_policy` must reach the physical
     MicrosoftX64 policy mismatch. Admission currently selects boundary schemas
-    by bare name in `compiler/build-evaluation/src/admission/selection.rs`, so
+    by bare name in `provider-planning/src/program_entry.rs`, so
     the local `UefiApplication` collides with the bundled schema first. Resolve
     exact schema identity under **UEFI-PHYSICAL-SEMANTIC-ENTRY** and retain the
     intended negative; repinning it onto the duplicate-schema error would
@@ -1420,43 +803,45 @@ the complete product bar; focused successes below do not establish that baseline
   authority receipts, keep live runs to a verdict, and record timeout separately
   from source rejection.
 
-- **VEC-NATIVE-GROWTH.** (split-of:BUMP-ALLOCATOR-CANARY) Implement ordinary
-  library `Vec<T>` for Squalr's growable scan results under the
-  [allocation contract](wiki/spec/resources/allocation.md). Owners are
-  `source/library/core/vec.omg`, `source/library/alloc/vec.omg`, and the ordinary
-  compiler operations exercised by that source.
+- **VEC-NATIVE-GROWTH.** (split-of:BUMP-ALLOCATOR-CANARY) Complete ordinary
+  library `Vec<T>` for Squalr's scan results under the
+  [allocation contract](wiki/spec/resources/allocation.md). Owners:
+  `source/library/core/vec.omg`, `source/library/alloc/vec.omg`, and their
+  ordinary compiler operations. Core's generic construction/storage remains empty.
 
-  Core's generic storage/construction surface remains empty. The alloc package
-  now has a nongeneric `Vec` containing inline `u32` arrays of length 4, 8 and 16:
-  growth copies between those fixed fields, rejection returns zero without
-  requesting storage, and close clears tag/length without consuming custody.
-  This is a bounded copying witness, not allocator-backed growth or indirection.
-  `pass/collections/runtime_vec_u32_growth_exit` records macOS native exit 70,
-  but manually copies backing fields and accepts repeated close. Its weighted
-  failure exit also needs a verdict that cannot lose high bits at process exit.
-  The duplicate-cleanup and invalidated-loan fail fixtures use separate local
-  types; preserve their controls and exercise the actual library implementation.
+  Alloc now has a linear nongeneric handle, caller-owned `Backing4/8/16`,
+  fallible Pool requests and fixed growth/drain machines. Preserve this control
+  while binding the vector to actual owned backing: `Request::Granted(rung)` is
+  publicly constructible, Pool supply/releases are numbers, and growth accepts
+  caller-selected old/fresh stores without joining their identity to the handle
+  or request. `held` flags and rung numbers do not establish an allocation claim.
+  Growth copies each entire fixed rung, not an exact generic live-element extent.
 
-  Acceptance: native `Vec<u32>` takes explicit backing, appends through two
-  growths through allocation, verifies the preserved prefix and new elements, cleans up
-  exactly once and returns backing under the allocator contract. Cover empty
-  cleanup, real allocation failure preserving contents/custody, invalidated
-  loans and duplicate cleanup. Transfer exact element custody and explicitly
-  return or retain old backing; variable retained storage requires indirection,
-  not an infinitely recursive inline record or compiler-owned vector/Arena.
+  `runtime_vec_u32_growth_exit` now exercises requests, two growths, denial,
+  drain and counter reconciliation with a bounded first-failure exit code.
+  Its receiver-held handle never calls the consuming `Vec::close` requirement;
+  drain/counter checks do not prove executable cleanup or exact extent return.
+  The duplicate-cleanup and invalidated-loan fail fixtures now use the shipped
+  library. Retain them and add wrong backing, forged/replayed grant, wrong rung,
+  duplicate return and partially occupied growth controls.
 
-  **BUMP-ALLOCATOR-CANARY** owns allocation/returned extents;
-  **PLAN-LAID-VIEWS** owns establishment/access/retirement;
-  **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS** owns content-preserving
-  transfer; **BORROWED-STORAGE-RESTORATION** owns move-out/replace when needed.
-  Keep the source program through checking, interpretation and native execution,
-  then use that same implementation in Squalr.
+  Acceptance: native `Vec<u32>` appends through two allocations, preserves the
+  exact live prefix and new elements, and cleans up once with exact backing
+  return or explicit retention. Cover empty cleanup, real request failure with
+  unchanged contents/custody, invalidated loans and duplicate cleanup. Complete
+  generic element custody and storage indirection through the same source route,
+  then use it in Squalr; no compiler-owned vector/Arena or recursive inline storage.
+  **BUMP-ALLOCATOR-CANARY** owns allocation/returned extents; **PLAN-LAID-VIEWS**
+  owns access/retirement; **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS** owns
+  content transfer; **BORROWED-STORAGE-RESTORATION** owns needed move-out/replace.
+  Preserve checking, source-free interpretation and matching-host native oracles.
 
 - **MACOS-APPLICATION-PUBLICATION.** Publish and run `window_app`,
   `window_demo` and `windowed_calculator` under the
   [macOS application contract](wiki/spec/build/macos_application.md).
-  Reuse `compiler/src/report/{package,compile_report}.rs`: assembly, retained
-  signing identity and checked package/inner-executable accessors already exist.
+  Reuse `native-artifact/src/package_publication.rs` for package assembly and
+  signing custody, and `compiler/src/report/compile_report.rs` for checked
+  package/inner-executable accessors.
 
   The samples now declare nominal GUI/clock/input providers, macOS
   `provider_defaults` selections and identifiers. Preserve those implementations,
@@ -1567,64 +952,6 @@ the complete product bar; focused successes below do not establish that baseline
   identity, subordinate-call obligations and descent on every complete mutual
   call cycle. Use `python3 tools/corpus_gate.py --filter termination/` and its interpreter
   and matching-host native legs; checked-only records do not close this task.
-
-- **CHECKED-SETTLEMENT-UNITS.** (new-scope) Group the remaining settlement
-  fields in [execution_settlement.rs](omega-rust/omega/compiler/src/checked/checking/execution_settlement.rs)
-  by producing owner and expose those units through
-  [checked_compilation.rs](omega-rust/omega/compiler/src/checked/checking/checked_compilation.rs).
-  Consumers in product dispatch, Terminal proposal construction, reports, trust
-  and package admission should take the unit they need. Follow the
-  [coordinator boundary](omega-rust/pipeline.md): this is removal of forwarding
-  and duplicate assembly, not another IR or consolidation of independent owners.
-
-  The immutable Build configuration already groups evaluated settings; preserve
-  its package-owned normalization and shared evaluation. Group the remaining
-  target/entry, provider-plan, settled-surface, optimization and product
-  selections without duplicating that record. Preserve source/generated-source
-  sealing, target-profile versus native-ABI distinctions, authority boundaries,
-  and genuine checked-program queries. Source-custody joins and entry traversal
-  are queries, not field forwarding.
-
-  Acceptance: retain the façade reduction target of ≤12 public methods;
-  consumers use owner units rather than nested-field pass-throughs, and
-  `CheckedExecution` has no loose settlement fields outside those units.
-  Preserve genuine query operations at their owning boundaries.
-  `mbx check -p compiler` and `mbx nextest run -p compiler` pass, including
-  retained callback and installed-provider replay. Run
-  `python3 tools/corpus_gate.py --filter providers/` and its `--native`
-  counterpart; checked goldens and matching-host execution must both hold.
-
-- **COMPILE-REPORT-PRODUCTS.** (new-scope) Make product admission part of
-  report construction in
-  [compile_report.rs](omega-rust/omega/compiler/src/report/compile_report.rs),
-  then use one report-settlement call in
-  [compiler.rs](omega-rust/omega/compiler/src/compiler.rs).
-  Variant-owned artifact/rollback/application payloads already exist.
-  Remaining eligibility checks live in `admit_requested_product` and package
-  admission, while `with_pcc_context` can attach incompatible requests directly.
-
-  Centralize the [proof-product](wiki/spec/proofs/publication.md#product-selection)
-  and [rollback](wiki/spec/build/optimizations.md#release-rollback-and-promotion)
-  refusals at product-owned construction boundaries: artifact-only builds cannot
-  satisfy rollback or proof requests, check stops cannot satisfy proof requests,
-  and Terminal stops cannot satisfy native proof requests. Preserve early refusal
-  before unsupported production or publication; a late constructor check alone
-  is insufficient. Route package-manager's `admission/terminal_authority.rs`
-  and `operations/check_project.rs` through the same admission. Preserve payload
-  custody, application metadata, build outputs, trust settlement and timings;
-  proof requests confer no receiver authority.
-
-  Acceptance: remove the route's duplicate admission helper and scattered
-  decoration. Direct construction/context attachment and compiler/package routes
-  must reject every incompatible request without publishing partial outputs.
-  Exercise check, Terminal, retained native and
-  [artifact-only](wiki/spec/build/scoped_execution.md) products, retained-to-published
-  conversion, and the existing ObjectContainer compatibility contract if retained.
-  Run compiler check/nextest, package-manager's `suite` filters
-  `semantic_binding_review` and `build_named_inputs`, and check/native corpus
-  slices. The corpus runner has no Terminal-request mode: cover Terminal and
-  artifact-only admission directly, including valid optional-proof combinations,
-  instead of treating a check/native corpus pass as their acceptance.
 
 - **CANONICALIZE-SCALAR-RANGE-CONTRACTS.** Complete the settled
   [proposition-based scalar range contract](wiki/spec/language/domains.md#declaration-and-membership)
@@ -1947,6 +1274,665 @@ the complete product bar; focused successes below do not establish that baseline
   supplies no nonnegativity proof. Coordinate library range-suffix migration
   with **CANONICALIZE-SCALAR-RANGE-CONTRACTS** without weakening these obligations.
 
+## Pipeline route
+
+Follow one connected stage chain under the
+[pipeline](omega-rust/pipeline.md#one-driver-one-pass-per-target-realization)
+and [multi-target contract](wiki/spec/build/configuration.md#multi-target-compilation):
+Psi checks every target's bodies once, Build evaluates once, and `--target`
+narrows realization only. Complete ordinary operation repairs against their
+named customers while the shared-source/provider work converges. Remove each
+replaced route as its common operation takes over; preserve negative checking,
+crash and native exit behavior. Use affected check/native corpus slices under
+[the validation policy](tools/testing.md), with full gates at release closure.
+
+- **MEMBER-POLICY-REMOVES-COMPOSITE-ROWS.** Complete whole-array and indexed-row
+  assignment for arithmetic-policy elements and structural elements. Customers:
+  `samples/cli/collections/matrix_multiply` assigns nested Wrapping arrays;
+  `samples/cli/rendering/dungeon_render` assigns an array of payload-free
+  `Cell` cases. Preserve plain-record arrays too. The reduced fixture,
+  `tests/omega/pending/collections/element_policy_array_literal_store`, contains
+  only the flat Wrapping case; its other policy, record and row controls are
+  comments, not executable coverage.
+
+  In stage 04 `execution/terminal_unit/structural_scalar_store/primitive.rs`,
+  `array_literal_stores` uses `closed_array_store_type` and requires a field
+  destination, excluding indexed rows separately. The shared
+  `checking/src/value_custody/literals/constant_arrays.rs` predicate accepts
+  bare primitive leaves; `closed_array_store_type` peels whole-array policies
+  only. Keep that shared contract. The statement sequence already has constructed
+  structural-value replacement through `borrowed_windows.rs`, and the shape
+  collector admits policy-bearing array storage. Trace the failing assignment
+  through those owners; neither globally widening the primitive predicate nor
+  adding another aggregate representation is the repair.
+  `types/arithmetic_policy_array_tests.rs` checks shape, not assignment execution.
+
+  Acceptance: executable controls for bare/whole-array-policy/element-policy
+  arrays, Wrapping and Saturating, nested arrays, records and cases, whole and
+  indexed-row stores, alongside working element stores. Retain exact source
+  types, bounds, qualifications, custody and RHS evaluation before replacement.
+  Promote the reduced fixture into the ordinary corpus with its Build entry and
+  exit-0 oracle. Both unchanged samples must execute: matrix exit 189; dungeon
+  renders `######`, `#.+..#`, `#.~..#`, `######` and exits 0 after input.
+  `tools/sample_gate.py --filter matrix_multiply,dungeon_render` checks only;
+  native execution and the rendered rows are the acceptance.
+
+- **REFERENCE-LOCAL-BINDING-ROUTES.** (new-scope) Establish reference-valued
+  locals from every admitted producer, then preserve their loan identity,
+  backing and access through reads, calls and explicit state transfers.
+  Governed by [ownership](wiki/spec/language/ownership.md#borrows-and-aliases)
+  and [loan formation/replay](wiki/spec/terminal-psi/loans.md). Owners:
+  `execution/terminal_unit/control/statement_sequence/local_data.rs`,
+  `terminal_unit/receiver_aliases/`, and stage 05 argument evaluation and
+  `expression_preparation/bindings`.
+
+  The existing direct-place exclusive-loan route supplies a control:
+  `borrow/runtime_exclusive_loan_local_write_exit` writes through `&mut self.raw`,
+  reads the original storage afterwards and has recorded native exit 70.
+  Remaining producer cases are shared borrows, runtime-indexed places, reference
+  recasts, plain-local borrows, and reference-returning calls. The pending
+  fixtures `borrows/reference_local_binding_routes` and
+  `borrows/reference_result_call_binding` exercise shared binding and a returned
+  reference; their comments record the wider reduction matrix, not executable
+  coverage of every row. Preserve ordinary scalar-result and reference-argument
+  calls as controls. `dependent/runtime_sibling_len_index_exit` exercises the
+  library returned-view form `let view: &[u8] = self.buf.as_slice()`.
+
+  `samples/cli/systems/descriptor_walk` combines three independent triggers in
+  `let d: &Desc = &self.buf[off] as &Desc`: shared access, runtime selection and
+  recast. Test each separately and the unchanged sample together; coordinate
+  **RECAST-SOURCE-POSITIONS** rather than declaring success after one trigger.
+  Omissions vary with surrounding control flow; phase labels do not define
+  separate capabilities.
+
+  `receiver_aliases` admits Mutable/WriteOnly access and checks exclusive parent
+  lineage; shared loans cannot gain mutation authority by widening that match.
+  Establish their exact local carrier and projection in stage 05's
+  `structural_locals` relation. `shared_structural_place` currently requires an
+  empty stored path, so projected backing also needs path composition at use.
+  Retain the local symbol as the loan subject: rewriting it to the root place
+  loses borrow/write-frame/release identity and disagrees with independent
+  local-field replay. A known-place loan need not become a fresh affine
+  `EstablishReference` result. Preserve the supported exclusive marker/store
+  route while extending observations and successor forwarding.
+
+  Acceptance: every producer form, reads through scalar/record loan names,
+  borrowed calls and state forwarding reach verified Terminal and matching-host
+  execution with exact backing and no implicit copies. Both pending fixtures
+  and the full sample must advance. Reject conflicting loans, source/path
+  substitution and invalid escapes. Verify constrained referents such as
+  `u8 [0..=1]` borrowed as `&mut u8` against the actual loan/store contract;
+  normalized type equality must not erase the original storage's obligations.
+  **STATE-LOCAL-VALUE-FRONTIER** owns integration with the composed caller.
+
+- **DEFERRED-LOCAL-INITIALIZATION.** Carry storage declared without an
+  initializer through later establishment and observation. Complete non-`mut`
+  record member-fill and mutable scalar assignment; retain mutable-record and
+  initialized controls, and the diagnostic for non-`mut` whole-scalar assignment.
+  `checking/src/value_custody/places.rs` deliberately distinguishes whole-local
+  rebinding from member/index fill; removing the mutability diagnostic is not
+  the missing capability. The pending fixture
+  `tests/omega/pending/control_flow/deferred_local_initialization` contains only
+  `let mut total: i32; total = 1;` (exit 1); materialize the other controls.
+
+  Stage 04 `control/statement_sequence/local_data.rs` and
+  `values/scalar/computations.rs` admit initializer-free storage only through
+  mutable zero-constructible declarations. Store destination discovery carries
+  the same restriction. The primitive-local branch additionally demands an
+  actual `StorageInitializer`, and `structural_scalar_store/primitive.rs`
+  requires a valid initializer to rediscover the local. Repair establishment,
+  its exact declaration identity and subsequent reads/writes together; preserve
+  existing source-custody and borrow-event rejection checks.
+
+  The real customer `pass/wire/runtime_wire_utf8_edge_verdicts_exit` fills
+  `LabelSample { count, label: &[u8] in Utf8 }` before borrowing it for decode.
+  Its reference field cannot be fabricated by zeroing: support partial storage
+  and exact field establishment, including stored-loan custody. Follow
+  [default-domain gating](wiki/spec/language/dependent_values.md#default-domains-and-zero-initialization)
+  and [ownership establishment](wiki/spec/language/ownership.md#establishment-and-erasure);
+  reject premature observation and do not mint linear obligations from zero.
+  Acceptance uses the actual Build entries and ordinary corpus execution:
+  promote the pending fixture with exit 1, retain `uninit_record_member_store`
+  exit 77, and execute the wire customer with interpreter/native exit 70.
+  Euro must decode successfully; overlong, surrogate, out-of-range and truncated
+  UTF-8 must fail. Clearing an omission phase alone does not close the task.
+
+- **TRANSITION-TAIL-CALL-TO-MACHINE.** Complete terminal machine calls in
+  attached Unit transition arms, including `transition { _ -> self.finish() }`.
+  [State contracts](wiki/spec/language/state_contracts.md#terminal-calls-in-transition-arms)
+  define an ordinary invocation whose normal result completes the caller;
+  an internal state target remains a jump. Preserve selected-arm-only execution,
+  once-only operands, result/return contracts, cleanup, crash and suspension
+  behavior, live backing and loans, and recursive calls without accumulated frames.
+
+  Stage 04 `execution/terminal_unit/state_graph/mod.rs` excludes transition
+  calls from the ordinary operation window; its successor builder resolves
+  internal states. `state_graph/terminator.rs` already handles non-Unit value
+  arms, and `tests/flow/terminal_unit/outer_calls.rs` checks nested structural
+  calls in those arms. Extend the missing call-and-completion route with exact
+  occurrence accounting; do not bypass call-count or write-frame checks.
+  `structural_scalar_store/frame.rs` now replays the complete state frame, so
+  the old alternating omission labels are reproduction clues, not the cause.
+
+  Acceptance: promote `pending/calls/transition_tail_call_to_machine` with its
+  Build entry and exit-0 oracle. Materialize its comment-only controls: with
+  and without a preceding store, no arguments and ordinary arguments, an
+  internal-state jump, and an ordinary call followed by a jump. Run the three
+  actual customers through checked, interpreted and native corpus legs:
+  `collections/runtime_frame_indexed_param_read_exit` exits 1;
+  `slices/domained_runtime_end_subslice_exit` exits 70 with its Path-qualified
+  runtime-end slice; `termination/runtime_shrinking_slice_recursion_exit` exits
+  70 from 10+20+15+25. The recursive case must snapshot the subslice and head
+  read before overwriting argument slots. Preserve the fixed-array argument;
+  a no-array control separates this gap from boundary ABI transport.
+  `wire/runtime_wire_decode_byte_slice_exit` stays with
+  **RECORD-LITERAL-ARRAY-FIELD** and **REFERENCE-LOCAL-BINDING-ROUTES**;
+  `wire/runtime_wire_utf8_edge_verdicts_exit` stays with
+  **DEFERRED-LOCAL-INITIALIZATION**.
+  `filesystem/dir_walk_wrappers_exit` and `systems/note_vault` retain their
+  `Filesystem::create_dir_all` dependency. Shared phase labels do not merge them.
+
+- **CASE-FIELD-TYPE-STORE-SHAPES.** Complete three independent construction
+  cases: predicate-qualified members (case payloads and plain records, directly
+  or through locals), erased payloads, and common fields beside case payloads.
+  Follow [data construction](wiki/spec/language/data_and_literals.md#construction-and-case-identity)
+  and [erased bindings](wiki/spec/proofs/contracts.md#explicit-erased-bindings):
+  evaluate runtime fields once in authored order; retain erased semantic evidence
+  without runtime slots; establish domains before observation. Arithmetic-policy
+  payloads and direct scalar-domain stores remain controls, not this omission.
+
+  `checking/src/value_custody/scalar_case_constructor.rs` requires numeric-owned
+  contents, rejects common fields, requires the full authored payload roster,
+  and rejects erased operands in its structural constructor. Predicate domains
+  are outside that contents classifier. Stage 04
+  `values/scalar/computations/structural_values.rs` shares the classifier and
+  also gates record construction. Stage 05
+  `attached_unit/structural_values/structural_case.rs` requires a sum shape and
+  rejects erased initializers. Repair retained establishment through lowering;
+  merely removing an admission guard cannot supply the missing evidence.
+
+  The pending `structs/case_field_type_store_shapes` actually contains only the
+  common-field case; materialize its comment-only domain/erased controls and
+  retain payload-free, scalar/multiple/record payloads and local-mediated stores.
+  Acceptance: promote it with its Build entry and exit-0 oracle. Execute the
+  `pass/` customers to exit 70: `ranges/sum_payload_range_arith_narrowed_exit`,
+  `relevance/erased_case_payload_field_exit`, `data/runtime_mixed_shape_exit`,
+  `calls/runtime_enum_self_method_exit`, `generics/runtime_mixed_generic_erased_sum_exit`
+  and `traits/equatable_mixed_shape_equality_exit`. Preserve domain rejection
+  and wrong-case negatives, erased ABI positions, common-field reads/writes,
+  valid zero omission on case replacement, all-tag dispatch and unequal-common-field
+  equality. Each cause needs its own checked and interpreter/native outcome.
+
+- **RECORD-LITERAL-ARRAY-FIELD.** Compose supplied fixed-array and borrowed-slice
+  fields into record literals at local, nested, return and field-store sites.
+  Stage 04 `values/scalar/computations/structural_values.rs` sends non-scalar
+  record members through structural values, but `fixed_array_value` declines
+  closed primitive arrays; their ordinary scalar-array producer is separate.
+  Omitted zero-valid array fields already compose (`tests/flow/terminal_unit/returns.rs`).
+  Stage 05 `attached_unit/structural_values/emission.rs` still refuses general
+  `FixedArray` establishment. Reuse existing array/record producers and carry
+  exact element types, evaluation order and ownership through the full route.
+
+  Borrowed views are another field producer, not owned array storage:
+  `borrowed_slice_view_place` currently requires the expression to be the
+  entire immutable local initializer. Compose constructor operands with exact
+  stored-loan origins and lifetimes; **REFERENCE-LOCAL-BINDING-ROUTES** owns
+  reference locals. Existing record emission already accepts borrowed-view fields.
+
+  The pending `structs/record_literal_array_field` contains only a flat
+  `[i32; 4]` literal. Materialize its controls: inline/variable arrays,
+  scalar/nested-record fields, bare array locals, element-filled fields,
+  lengths/types, negative operands, nested and generic/const-generic records,
+  and later by-reference use. Promote it with its Build entry and exit-0 oracle.
+  Acceptance includes unchanged `samples/cli/systems/wire_protocol` and
+  `pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit`: exit 70 with
+  13-byte encode/decode, room 300, samples [150, -2], depth -64. The borrowed
+  customer `pass/wire/runtime_wire_decode_byte_slice_exit` must exit 70 after
+  re-encoding the decoded view to five bytes with payload [72, 105]. Run checked
+  and interpreter/native legs; leaving an omission cluster is not execution.
+
+- **PASS-TIER-GUARDS-OWED.** Recheck and promote
+  `tests/omega/pending/calls/copy_projection_from_borrowed_receiver` into
+  `pass/calls/` with scoped checked and native golden updates. Preserve its
+  nested `[copy]` field read through `&mut self`, by-value argument, named state,
+  terminal effect and authored ProgramEntry bindings. Make the exit observe a
+  nonzero copied value at the callee and the unchanged source; add
+  `expected_native_exit.txt` so the corpus gate executes this fixture.
+  Copy establishment exists in `values/scalar/computations/call_arguments.rs`;
+  `calls/structural_arguments.rs` selects its fresh result instead of moving
+  borrowed backing. Repair any remaining omission before promotion. Recheck
+  product roots under **OMEGA-PRODUCT-COMPILER-SOURCE** separately; the fixture
+  does not establish their later operations.
+
+- **FLOAT-RANGE-ATTACHED-FIELD.** (new-scope) Carry float invariants and
+  constrained const applications through attached/nested data execution.
+  First migrate the customers under **CANONICALIZE-SCALAR-RANGE-CONTRACTS**:
+  [domains](wiki/spec/language/domains.md) require ordinary field `where`
+  facts and contracts, not scalar range suffixes or replacement nominal domains.
+  `terminal_unit/types/scalar_fields.rs` retains bounded integers but refuses
+  float bounds; `data_where_field_intervals` in
+  `proof_contracts/default_domains/where_fact_intervals.rs` reads integer
+  literals only. Preserve IEEE storage and float facts without treating them
+  as integer bounds. Separately, `terminal_unit/types/mod.rs` requires an exact
+  attached generic application; the old shared phase label does not establish
+  that float predicates and const constraints need the same repair.
+  Migrate `tests/omega/pending/float/float_range_attached_field` and
+  `tests/omega/pending/generics/ranged_const_parameter_attached_shape`, then
+  exercise their currently unused fields. Keep bare integer/float, integer
+  `where`, `Finite`, unconstrained const, and plain/`Wrapping` element controls.
+  Required customers under `tests/omega/pass/`:
+
+  - `float/finite_core_domain_range_discharge`: restore finite/range facts
+    before the transition, pass the value to a `Finite` parameter, exit **77**.
+    Its transient NaN and out-of-range assignments exercise the
+    [invariant window](wiki/spec/language/numeric_values.md), not permission
+    to expose invalid values at a boundary.
+  - `recast/{runtime_float_range_representation_recast_exit,
+    runtime_shared_record_float_range_weakening_exit,
+    runtime_mutable_equivalent_record_recast_exit}`: exit **70**, preserving
+    shared weakening and bit views, equivalent mutable representation sets,
+    and original-storage reads after the exclusive loan's last use. Follow
+    [recast compatibility](wiki/spec/layouts/recasts.md); equal sizes alone
+    cannot admit strengthening or mutable widening.
+  - `generics/runtime_const_container_methods_exit`: distinct capacities
+    **2/4**, generic method witnesses of those lengths, stored values **30/40**,
+    exit **70**. Retain exact specialization identity/layout and reject const
+    tuples violating their declared constraints.
+
+  Acceptance: canonical source checks, published Terminal reloads/verifies,
+  and all five customers execute with those oracles. A migrated unused field
+  or disappearance of the old phase label alone does not close this task.
+
+- **VALUE-CALL-SUBEXPRESSION.** (new-scope) Finish composing scalar machine
+  results under surrounding expressions at each execution site. The builder
+  in `values/scalar/computations.rs` and `computations/integers.rs` already
+  handles calls, arithmetic, casts and comparisons; stage 05's
+  `scalar_return_calls_source/integer_computations.rs` lowers a call under
+  addition, comparison and short-circuiting. Do not rebuild this as a new
+  left-operand special case. The recorded rejections for
+  `tests/omega/pass/calls/{value_call_embedded_in_binary_exit,
+  transition_arg_local_from_embedded_call_exit}` report a pure initializer;
+  `control/statement_sequence.rs::scalar_computation_local_at` takes that
+  fallback when the exact computation root is absent. Reproduce each remaining
+  site and retain its state, statement, binding and call occurrence through
+  construction/emission rather than substituting a pure expression.
+  `tests/omega/pending/calls/value_call_subexpression` currently discards
+  `twelve() + 0`; make its value observable. Exercise arithmetic on either
+  side, casts and both comparison operands in locals, field stores and guards,
+  with bare/parenthesized-call and call-free controls, ordinary/field receivers,
+  and Exact/`Wrapping` policies. Preserve result-owned carrier/policy and the
+  [evaluation schedule](wiki/spec/language/expressions.md): ordered, single
+  invocation, selective short-circuiting, no reevaluation at state arrival.
+  Acceptance: both corpus rows verify **46** and exit **70** after Terminal
+  reload and native execution; the second must carry the local across a state
+  edge. `samples/cli/probes/value_call_in_expr` must preserve **46, 40, 64, 70**
+  through its nested calls and transitions and exit **70**. Its historical
+  slot-collision comment is not a diagnosis of the current compiler.
+
+- **COMPOSITE-TRANSITION-ARGUMENT.** (new-scope) Finish legal record literals,
+  field projections and composite call results supplied directly to internal
+  states. `successor_bindings` in `terminal_unit/state_graph/mod.rs` already
+  forwards whole parameters, retained local results, admitted subslices and
+  selected case payloads; ordinary projected roots and new argument values
+  need their own construction/transfer. Preserve exact type, access, copy/move
+  semantics and residual cleanup under [state arrivals](wiki/spec/language/state_contracts.md).
+  `tests/omega/pending/control_flow/composite_state_parameter` discards its
+  `Pair { a: 1 }`; observe the payload. Compare distinct literal, field, call
+  and local sources on unconditional and guarded edges. Retain scalar-policy
+  controls and exercise legal reference and fixed-array arguments separately.
+  Existing `tests/omega/pass/structs/{mutable_record_state_transfer,
+  mutable_array_record_state_transfer,affine_record_state_clone}` record native
+  **70** for carried borrows/local backing; they do not cover direct composite
+  arguments. Acceptance: selected operands execute once, retain their values
+  through Terminal reload and native execution, and unselected operands have
+  no effects. With **VALUE-CALL-TRANSITION-ARGUMENT**, preserve
+  `samples/cli/systems/vending_machine`'s `Change` delivery and exit **70**.
+
+- **VALUE-CALL-TRANSITION-ARGUMENT.** (new-scope) Complete calls in internal
+  state arguments using the existing scalar computation route. Psi stage 04
+  already records `TransitionArgument` roots; stage 05's
+  `composed_control/state_graph/scalars.rs` rejoins them and
+  `state_graph/emission/successor_edge.rs` emits calls after edge selection.
+  Reproduce the remaining admission/emission gap, not a blanket absence of
+  call vocabulary. `tests/omega/pending/calls/value_call_transition_argument`
+  currently ignores the delivered `amount`; make it observable and compare
+  direct calls against local-binding and arithmetic controls.
+  The recorded rejection for
+  `tests/omega/pass/calls/runtime_guarded_effectful_transition_argument_exit`
+  is at conditional successor scalar arguments. Acceptance: its skipped arm
+  leaves **0** hits; selected/local calls produce **7/20** with **1** hit;
+  paired calls produce **10/11** with **2** hits; nested calls produce **21**
+  with **2** hits; native and reloaded Terminal exit **70**. Add an effect
+  sensitive to call order: the existing identical increments only count calls.
+  Preserve [arrival snapshots](wiki/spec/language/state_contracts.md) when later
+  arguments mutate storage. Share expression construction with
+  **VALUE-CALL-SUBEXPRESSION**; composite delivery remains the preceding task.
+  `samples/cli/systems/vending_machine` must retain **3** sales, the delivered
+  extra remainder **20**, and checksum/exit **70**.
+
+- **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER.** (new-scope) Finish authored by-value
+  fixed primitive arrays through boundary arguments and results under
+  [boundary calls](wiki/spec/terminal-psi/boundary_calls.md). At `635cf2c9ebc`
+  on macOS ARM64, `omega run --target macos_arm64
+  tests/omega/pass/providers/runtime_boundary_primitive_array_argument_exit/main.omg`
+  compiles and runs; native corpus execution exits **70**. Its selected checked
+  provider reads all four bytes between two scalar arguments, and the caller
+  observes its result and unchanged source field. Borrowed field projections
+  use `StructuralLeafCopy`; whole array locals keep their existing payload
+  identity. Source replay, codec reload and verification retain exact authored
+  positions, type/extent, readable custody and dominance.
+
+  Remaining: execute whole local/parameter and literal sources, nested arrays,
+  scalar/reference controls, and array results across trait and direct boundary
+  calls. Psi05 `structural_calls/result_uses.rs` still refuses whole array
+  parameters at boundaries. Psi04 `values/scalar/array_constructions.rs` and
+  Psi05 `source_custody/array_sources.rs` exclude boundary literal construction;
+  direct calls also retain array gates in `calls/structural_arguments.rs`.
+  Result guards remain in `calls/{trait_boundary_call,call_operations}.rs`, and
+  Stage 05's `scalar_array_source/call_results.rs` still deliberately rejects
+  boundary array results, including empty/discarded ones. Native result
+  forwarding must rejoin boundary producers; the Terminal interpreter still
+  needs concrete array payload transfer through installed-provider calls.
+  Harden/promote `tests/omega/pending/providers/boundary_primitive_array_argument`
+  with element-reading provider and observable caller result, preserving its
+  valid Build identity, selected provider and demanded entry. Acceptance must
+  cover exact payload and scalar/structural interleave through Terminal
+  reload/verification and native execution; ordinary-array support alone is
+  insufficient.
+
+  Customers `samples/gui/{window_app,window_demo,image_viewer}` retain their
+  by-value class/title signatures. The complete `window_demo` now reaches the
+  selected `F64::from_i32` realization dependency under **OPERATOR-BOUNDARY-CALLS**;
+  **SAMPLE-CORPUS** retains full GUI execution. Domain/reference rewrites or a
+  changed omission label do not satisfy this task.
+
+- **OPERATOR-BOUNDARY-CALLS.** (split-of:PROVIDER-SELECTION-AFTER-TERMINAL)
+  Finish requirement-level calls and Omega stage 00 installation for legacy
+  named operators and compiler-known float realizations under
+  [boundary applications](wiki/spec/terminal-psi/boundary_calls.md#operator-applications-and-physical-children).
+  Token-bearing machines already enter the ordinary call route.
+  `05_checked-trees-to-lowered-psi/tests/provider_candidates.rs` checks one
+  artifact across two providers and two const tuples, drops checked custody,
+  then installs and executes both applications in the Terminal interpreter.
+  That is not native execution or coverage of the legacy operator path.
+
+  Remaining work:
+
+  - Replace the early named-operator return in
+    `checking/src/machine_calls/calls/expression_scanning.rs` with ordinary
+    requirement-call facts and boundary plans. Legacy `boundary operator`
+    declarations still miss that route; the selected-dispatch
+    `uninstalled.rs` machinery reports the omission. After replacement,
+    remove `UninstalledOperator` and its retired operator-adapter /
+    float-intrinsic resolution machinery rather than extend those rewrites.
+  - Finish native specialization custody: retain the exact closed requirement,
+    provider instance, static tuple and artifact-bound application occurrence
+    through selected-plan settlement and physical-child replay. Reuse stage
+    00's `boundary_application_settlement.rs`; `ClosedReachApplication`,
+    a template alias or equal runtime signatures cannot authenticate the
+    specialization. Re-drive
+    `providers/specialized_mixed_structural_result_operator_hosted_native`:
+    its recorded stop is now native physical replay's exact selected-plan
+    rejoin, not the old zero-row authority review. The native replay owner is
+    `native-artifact/src/physical/derivation/evidence.rs`. The new
+    `boundary_internal_call_evidence` test covers a nongeneric requirement's
+    internal physical child, not this whole generic matrix.
+  - Install named float execution as Omega builtins, preserving each exact
+    selected meaning: negate, min/max, square root, directed arithmetic,
+    conversions, multiply-then-add and distinct FMA. Native
+    `provider_admission/compiler_builtins.rs` currently handles hosted
+    exit/read/write only. Re-drive `pending/arithmetic/float_computation_no_route`
+    both with and without the ordinary float-operations import across
+    arithmetic/comparison, field/local/guard positions and f32/f64.
+    Preserve declared operator selection rather than use a spelling-based
+    fallback. **FLOAT-PROVIDERS** owns the semantic contracts and
+    **X86-FMA-PROVIDER-TRANSPORT** the admitted FMA transport.
+  - Complete a receiver-bearing requirement's member-call witness through
+    borrowed-field argument planning, provider signature refinement and native
+    execution. The verifier compares receiver flags as part of the structural
+    signature; preserve exact receiver/argument correspondence, not a blanket
+    `is_self` exemption. Reproduce the old parameter-source/refinement stops
+    before assigning their repairs.
+  - Keep ordinary call borrow rules when spelling operators as calls.
+    [Exclusive loans](wiki/spec/language/ownership.md#borrows-and-aliases) forbid a
+    second alias reading the old contents. Preserve
+    `recast/runtime_mutable_equivalent_record_recast_exit`'s read-through-view
+    then last-use release. With **BORROW-PROOF-CONVERGENCE**, recheck plain-read,
+    call-argument and float-comparison forms of the same live-loan conflict;
+    retain their rejection parity without weakening the call check.
+
+  Reuse the repaired const path: pre-resolution `has_no_authored_spelling`
+  recognizes token-bearing machines; `SelectedConstantEvaluation` in
+  `realization/selected-dispatch/src/constant_evaluation.rs` prepares selected
+  checked provider bodies for Psi evaluation and replay. `comptime/provider_boundary_range_endpoint_exit` now uses
+  `boundary machine %`, distinguishes provider result 7 from builtin result 1,
+  and has a recorded native exit 70. Retain that control; the alternate-provider
+  const-generic fixture still records a selection failure, so finish its
+  distinct-result and unselected-refusal acceptance with
+  **TARGET-SEMANTIC-APPLICATIONS**. Do not claim every const application works
+  from the endpoint case alone.
+
+  Acceptance: preserve the native exit-70 controls
+  `providers/checked_fixed_operator_dispatch_exit` and
+  `providers/token_machine_family_override_exit`; close legacy named and
+  generic physical-custody cases, plus structural-input/scalar-result,
+  mixed-input/scalar-result and mixed-input/structural-result hosted cases,
+  retaining the owned affine operand/result and its disposition.
+  Recover deleted customers from `089bd3290c` where necessary:
+  `specialized_{boundary,fixed}_operator_physical_custody` and
+  `specialized_{structural_fixed,mixed_structural_fixed,mixed_structural_result}_operator_hosted_native`.
+  Retain `checked_{boundary,fixed}_operator_physical_custody` build/replay
+  checks and each runtime customer's original oracle; an unused helper beside
+  an empty entry is not execution coverage. Restore the named-provider
+  `pass/float` native matrix and remove `applies boundary operator` omissions
+  by completing the route. Run unchanged `sensor_min_max`, `vector_distance`
+  and `fibonacci_golden` under **SAMPLE-CORPUS**; the last exercises conversion,
+  independently of binary arithmetic. Float field/index store admission is
+  already present in `structural_scalar_store/value.rs`; reattribute later
+  failures instead of repeating that repair.
+
+- **SOURCE-SET-UNION.** (split-of:PSI-TARGET-FAMILIES) The assembled source set
+  must contain physical sources, every target's entry contracts, package
+  imports and dependency-generated sources once per checked context.
+  `ImmutableSourceParseCheckpoint::assemble` already takes no target and seeds
+  every entry contract; `compiler.rs` shares assembly through `SharedBuilds`
+  for equal package inputs. The CLI's `compile_project_for_targets` and package
+  operations still launch separate compilations with target-specific bundles.
+  Feed their union into one request with **BUILD-EVALUATES-ONCE**; generated
+  target variation belongs in tagged declarations.
+
+  Preserve [dependency handoff](wiki/spec/build/execution.md#dependency-handoff)
+  custody and separate Build/Product checked instances, even for identical
+  bytes. A consumer incorporates producer bundles without rerunning the
+  producer; its own generated-source extension cannot rebind earlier source.
+  Acceptance: a two-target CLI compile assembles the union once, including
+  nested and dual-purpose generated dependencies. Count actual invocations;
+  shared timing records can be copied into several target reports.
+
+- **PSI-TARGET-FAMILIES.** (new-scope) Target-scoped machine declarations
+  survive every Psi stage as one family with bodies keyed by target, including
+  unrealized and unreachable bodies, per
+  [multi-target compilation](wiki/spec/build/configuration.md#multi-target-compilation).
+  `TypedTrees::target_machine_families` already records stable member handles;
+  `symbols/target_siblings.rs` binds same-target calls. The gap is
+  `select_product_target` swapping bodies before checking and
+  `prune_target_siblings` dropping siblings before Terminal. Carry every body's
+  checked semantics, supply mode and conformances through lowering, codec and
+  independent verification; `omega inspect-terminal` must expose each target
+  tag. Complete missing lowering under its existing owners; entry-reached
+  bodies alone do not satisfy retention. **PROVIDER-SELECTION-AFTER-TERMINAL**
+  owns Omega's selection from that same artifact; independent ownership moves
+  can land before the complete route.
+
+  Acceptance: retain `targets/sibling_body_type_error_rejected` and the native
+  exit-70 `targets/target_machine_gating_exit` control. Its target bodies return
+  equal values, so add distinct-result bodies realized from one Terminal,
+  including same-target sibling calls. Check invalid unrealized bodies and
+  duplicate family members; a missing called body fails only the affected
+  realization. The existing `family_roster_keys_every_body_and_the_swap_consumes_it`
+  unit test proves typed roster/swap behavior, not portable retention or execution.
+
+- **BUILD-EVALUATES-ONCE.** (new-scope) `build.omg` evaluates once per
+  compilation, observes no realized target, and produces checked rows for every
+  target: providers, entry, subsystem, application intent, opaque representation,
+  x86 scalar FMA provider, grants, behavior exclusions and wire demands.
+  `BuildConfig` remains largely global; target-qualified root bindings and
+  `SharedBuilds` reuse for equal package inputs do not complete this contract.
+  Finish authored rows, retain/check unrequested rows, and join CLI/package
+  execution through **SOURCE-SET-UNION**.
+
+  Eliminate the duplicate preliminary whole-program check by moving its
+  obligations into the owning stages. Preserve
+  [admission before execution](wiki/spec/build/execution.md#admission-before-execution):
+  freeze authored selections and admit the exact Build entry before effects;
+  then incorporate generated source and finish product checks. The current
+  gate is `declaration_admission::validate_authored_declaration_selections_before_build`.
+  Reconcile snapshot inputs, required outputs and authority before sharing;
+  `SharedBuilds` currently keys package/generated inputs without the per-target
+  `build_snapshot`. Preserve separate package-purpose execution contexts.
+
+  Acceptance: count one Build activation and one final product check for a
+  two-target request; std's six rows come from one evaluation. Reject malformed
+  unrequested rows and preserve per-target missing-row outcomes. Retain nested
+  generated-dependency and dual-purpose custody (`package_commands/build_purposes.rs`),
+  pre-effect rejection, and snapshot/required-output settlement
+  (`package_commands/snapshot_outputs.rs`). Timing rows alone are insufficient.
+
+- **PROVIDER-SELECTION-AFTER-TERMINAL.** (new-scope) Finish one target-neutral
+  Psi product, with per-target provider installation consuming Terminal Psi
+  plus that target's Build rows in Omega stage 00. Follow
+  [multi-target compilation](wiki/spec/build/configuration.md#multi-target-compilation)
+  and the [pipeline](omega-rust/pipeline.md#one-driver-one-pass-per-target-realization).
+
+  Boundary-application and integer/IEEE-comparison settlement now live in
+  stage 00's `boundary_application_settlement.rs` and
+  `comparison_settlement.rs`. They still borrow checked trees, source
+  identities and frontend-derived selected evidence; moving files did not
+  complete the portable boundary. Finish their inputs and replay through the
+  existing artifact-bound occurrence scope, without another parallel registry.
+
+  Compiler checking's `execution_settlement.rs` still joins frontend-dependent
+  `provider-planning` and `selected-dispatch` decisions: target-family body
+  substitution, calling plans, program-entry selection, fused-provider
+  settlement, selected legacy generic-operator and boundary-family requests,
+  selected-dispatch execution, callback materialization, task activation,
+  component progress, x86 FMA associations and fused entry establishments.
+  Move their per-target realization to Omega while preserving source-semantic
+  contracts and all authored candidates in Psi. Token-provider candidates
+  already derive from authored conformance edges without Build selection;
+  extend that independence to the remaining paths. Checking only the realized
+  targets' union is insufficient: every family's bodies and every Build row
+  must be checked and retained even when `--target` excludes realization.
+  Remove provider-planning's `typed-trees` / `validation` dependencies and
+  enforce the layering boundary.
+
+  Preserve the spec's const exception: provider-dependent constants belong to
+  the one checked program. Every realized target must select the same provider
+  for that application; evaluate it once through that checked body in Psi,
+  rejecting disagreement with the diverging targets named. Do not move a
+  layout-determining fold into per-target native realization. Carry exact
+  selection/replay evidence through the existing const evaluator.
+
+  Retain each requirement's complete portable contract. Scalar `requires`,
+  crash routes and content guarantees exist; general scalar `ensures` still
+  have no declaration field in `BoundaryMachineDeclaration`. Complete their
+  transport and independent provider/call validation without narrowing the
+  public contract to the selected body's behavior.
+
+  Acceptance, together with **BUILD-EVALUATES-ONCE** and
+  **OPERATOR-BOUNDARY-CALLS**: one two-target request runs Psi 00–07 once and
+  produces one Terminal artifact identity; each target's native output equals
+  its single-target output byte-for-byte across the native corpus and passes
+  the same execution oracles. Preserve the target-comparison customers
+  `arithmetic/const_fold_unsigned_landed_ops_exit`,
+  `expressions/match_float_patterns` and
+  `providers/checked_boundary_requirement_dispatch_exit`, but do not treat
+  their equal Terminal bytes as proof that checking ran once. Cover differing
+  runtime providers, agreeing/disagreeing const selections, errors in an
+  unrealized body, and a missing required realization row without suppressing
+  the other target's outcome. Independent moves need not wait for full closure.
+
+- **ONE-DRIVER-PER-STAGE.** (new-scope) Close the remainder after the items
+  above: `compiler.rs` runs Psi 00–07 once, then Omega 00–09 and emission per
+  realization, following the [pipeline](omega-rust/pipeline.md). Keep each
+  stage's independent representation and transformation crate. Package review
+  calls the same 00–03 prefix directly; remove alternate compile modes.
+  Source preparation supplies stage 00; build-time evaluation, dynamic binding,
+  const evaluation and semantic pruning belong inside stages 02–04. Carry
+  discovery, grants, sponsors and snapshots in their owning stage inputs/outputs.
+
+  `CompileRequest` and `ExplicitTargetSet` already exist: connect CLI/package
+  callers to them and normalize CLI targets once. Acceptance: the compiler owns
+  only composition, reports and publication; a two-target native compile proves
+  one Psi stage chain and one Terminal identity, then one Omega chain per target,
+  preserving native results and isolated realization failures as specified in
+  **PROVIDER-SELECTION-AFTER-TERMINAL**. Prefix consumers stop at their actual
+  checkpoint; stage counters must distinguish execution from reused reports.
+
+  Retire the per-target source clones and reuse structures that merely mask
+  repeated compilation (`NativeInputReuse`, `CandidateSourcePreparation`)
+  as their work moves into the shared stages. Preserve single-target command
+  behavior, Build-effect custody and per-target admission/publication checks.
+  **PCC-PRODUCT-PUBLICATION** owns the separate Terminal-only command product.
+
+- **CHECKED-SETTLEMENT-UNITS.** (new-scope) Group the remaining settlement
+  fields in [execution_settlement.rs](omega-rust/omega/compiler/src/checked/checking/execution_settlement.rs)
+  by producing owner and expose those units through
+  [checked_compilation.rs](omega-rust/omega/compiler/src/checked/checking/checked_compilation.rs).
+  Consumers in product dispatch, Terminal proposal construction, reports, trust
+  and package admission should take the unit they need. Follow the
+  [coordinator boundary](omega-rust/pipeline.md): this is removal of forwarding
+  and duplicate assembly, not another IR or consolidation of independent owners.
+
+  The immutable Build configuration already groups evaluated settings; preserve
+  its package-owned normalization and shared evaluation. Group the remaining
+  target/entry, provider-plan, settled-surface, optimization and product
+  selections without duplicating that record. Preserve source/generated-source
+  sealing, target-profile versus native-ABI distinctions, authority boundaries,
+  and genuine checked-program queries. Source-custody joins and entry traversal
+  are queries, not field forwarding.
+
+  Acceptance: retain the façade reduction target of ≤12 public methods;
+  consumers use owner units rather than nested-field pass-throughs, and
+  `CheckedExecution` has no loose settlement fields outside those units.
+  Preserve genuine query operations at their owning boundaries.
+  `mbx check -p compiler` and `mbx nextest run -p compiler` pass, including
+  retained callback and installed-provider replay. Run
+  `python3 tools/corpus_gate.py --filter providers/` and its `--native`
+  counterpart; checked goldens and matching-host execution must both hold.
+
+- **COMPILE-REPORT-PRODUCTS.** (new-scope) Make product admission part of
+  report construction in
+  [compile_report.rs](omega-rust/omega/compiler/src/report/compile_report.rs),
+  then use one report-settlement call in
+  [compiler.rs](omega-rust/omega/compiler/src/compiler.rs).
+  Variant-owned artifact/rollback/application payloads already exist.
+  Remaining eligibility checks live in `admit_requested_product` and package
+  admission, while `with_pcc_context` can attach incompatible requests directly.
+
+  Centralize the [proof-product](wiki/spec/proofs/publication.md#product-selection)
+  and [rollback](wiki/spec/build/optimizations.md#release-rollback-and-promotion)
+  refusals at product-owned construction boundaries: artifact-only builds cannot
+  satisfy rollback or proof requests, check stops cannot satisfy proof requests,
+  and Terminal stops cannot satisfy native proof requests. Preserve early refusal
+  before unsupported production or publication; a late constructor check alone
+  is insufficient. Route package-manager's `admission/terminal_authority.rs`
+  and `operations/check_project.rs` through the same admission. Preserve payload
+  custody, application metadata, build outputs, trust settlement and timings;
+  proof requests confer no receiver authority.
+
+  Acceptance: remove the route's duplicate admission helper and scattered
+  decoration. Direct construction/context attachment and compiler/package routes
+  must reject every incompatible request without publishing partial outputs.
+  Exercise check, Terminal, retained native and
+  [artifact-only](wiki/spec/build/scoped_execution.md) products, retained-to-published
+  conversion, and the existing ObjectContainer compatibility contract if retained.
+  Run compiler check/nextest, package-manager's `suite` filters
+  `semantic_binding_review` and `build_named_inputs`, and check/native corpus
+  slices. The corpus runner has no Terminal-request mode: cover Terminal and
+  artifact-only admission directly, including valid optional-proof combinations,
+  instead of treating a check/native corpus pass as their acceptance.
+
 ## Automatic service reach
 
 Finish portable coverage of
@@ -1954,11 +1940,11 @@ Finish portable coverage of
 The source-side finite-union inference, closed application retention, selected
 contract bounds, and two-sided emitted-call replay already exist. Remaining:
 
-- Retain the original dependency and full binder telescope when callees are
-  inlined or absent from the emitted machine set. The current
-  `prune_incomplete_closed_reach_applications` drops incomplete annotations
-  and their dependents; preserving ordinary executable semantics this way is
-  not completion of dependency coverage or proof of source correspondence.
+- Complete original dependency and telescope retention, including inlined or
+  absent emitted callees. `retain_closed_reach_applications` skips proposition
+  and requirement-identity binders; `prune_incomplete_closed_reach_applications`
+  removes incomplete annotations and their dependents. Its fixed-point test
+  injects a missing projection: it checks pruning, not complete source coverage.
 - Replace frontend-local template identities with independently checkable
   original-contract projection evidence. Producer-side replay against the
   retained source graph is not source-free verification, and commitment hashes
@@ -1968,7 +1954,7 @@ contract bounds, and two-sided emitted-call replay already exist. Remaining:
 
 Owners: `05_checked-trees-to-lowered-psi/src/retention/closed_reach_applications.rs`,
 `omega-rust/psi/checking/src/machine_calls/static_machine_call_contracts.rs`, and
-`terminal-verifier/src/validation/reach_applications.rs`. Keep ordinary semantic
+`terminal-psi/verification/src/validation/reach_applications.rs`. Keep ordinary semantic
 replay distinct from optional producer-correspondence certification; neither
 test coverage nor matching hashes justify a full generic-PCC claim.
 
@@ -1995,10 +1981,11 @@ see its specialized empty row without consuming the original generic definition.
 Connect [semantic reflection](wiki/spec/language/reflection.md) to authored Omega
 and ordinary checked calls through Terminal replay. The schema, scoped-selection,
 and visitation-plan helpers in
-`build-time-evaluation/src/machine_execution/reflection/` exist, but their
-construction/composition callers are Rust tests rather than a source-driven
-reflection route. Reuse them where their contracts fit; helper-only tests do not
-complete this task.
+`build-time-evaluation/src/reflection/` exist, but their
+construction/composition callers are Rust tests. Their replay takes typed trees;
+`RuntimeVisitationPlan` records operation identities without field loans or
+active-case execution. Connect these helpers to source elaboration and portable
+evidence rather than treating their checks as a working reflection route.
 
 First deliver an inspector and serializer through the same source-level query,
 policy evaluation, and per-member call mechanism. Psi owns elaboration and
@@ -2046,14 +2033,13 @@ Implement [scoped build execution](wiki/spec/build/scoped_execution.md) for
 ordinary code generators and the topology composition customer. These are
 accepted contracts, not claims of implementation. Existing
 `BUILD-ADMISSION-CHECKPOINT` owns retained frontend/generated-source replay;
-extend that route, not a second build language or plugin executor. Any semantic
-or trust amendment found here or later goes through [owner questions](OWNER_QUESTIONS.md).
+extend that route through ordinary checked Build execution and retained outputs.
 
 - **BUILD-PRODUCT-REFERENCES.** Finish executable follow-through for
   [non-executing product selection](wiki/spec/build/scoped_execution.md#selecting-product-declarations-without-executing-them).
   `checked-interpreter`'s `build_machine/product_entries.rs` already enforces
-  lexical product visibility and slot compatibility; `build-evaluation`'s
-  `admission/selection/root_bindings.rs` retains the selected symbol and slot.
+  lexical product visibility and slot compatibility; `provider-planning`'s
+  `program_entry/root_bindings.rs` retains the selected symbol and slot.
   Preserve [separate checked contexts](wiki/spec/build/scoped_execution.md#two-checked-contexts)
   and **BUILD-ADMISSION-CHECKPOINT** source custody, never durable authority from
   names or evaluator indices.
@@ -2076,7 +2062,7 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
 
 - **BUILD-SNAPSHOT-OUTPUTS.** Finish coherent capture and host acceptance under the
   [captured-input and committed-output contract](wiki/spec/build/scoped_execution.md#inputs-and-default-filesystem)
-  across ordinary compilation. `package-compilation/src/source_snapshot.rs`'s
+  across ordinary compilation. `compilation-inputs/src/source_snapshot.rs`'s
   `require_stable_recapture` and `source-acquisition/src/tree/capture/` recheck
   observed trees; matching observations do not make a mutable tree atomic. Establish
   the exact capture/staging/cleanup isolation premise or refuse. Cover directory
@@ -2463,8 +2449,8 @@ completion syntax or other terminal service is a prerequisite.
 - **SYMBOLIC-MATERIALIZATION.** Restore repeatable native acceptance for the
   existing recursive [derived consumer](wiki/spec/layouts/plans.md#derived-consumers),
   including the outstanding Linux AArch64 execution leg. The cited compiler
-  `layout_plans` test target and `writer_lowering.rs` were removed; that command
-  cannot supply the missing evidence.
+  layout-plan and writer-lowering compiler tests were removed; restore the
+  exercising source customers through the current harness.
 
   Reuse `backend/layout/src/sum_materialization/tests/recursive.rs` for checked
   layout projection and closed generic substitution, and
@@ -2598,9 +2584,9 @@ shared checker in `omega-rust/omega/backend/plans/provider-evidence/src/provider
 
 - **BUILD-SEMANTIC-EXCLUSIONS.** Finish source-to-publication acceptance for the
   full admitted entry/call closure. Executed selections in
-  `build-evaluation/src/admission/behavior_exclusions.rs`, unoptimized entry and
-  callback gates in `src/terminal/`, and retained-proposal replay in
-  `src/report/terminal_product.rs` already exist. The shared checker/tests cover
+  `realization/trust-model/src/behavior_exclusions/selections.rs`, unoptimized
+  entry/callback gates in compiler `src/terminal/`, and stage 00's
+  `retained_terminal.rs` proposal replay already exist. The shared checker/tests cover
   selected adapters, bounded dynamic dispatch, forwarded/rebound descriptor
   parameters and nominal cleanup. Complete source-produced coverage of generated
   entries and remaining dispatch forms. Conservative retained contracts may bound
@@ -2659,9 +2645,10 @@ name, calling permission or parallel compiler. Compiler paths below are under
 `omega-rust/omega/compiler/`.
 
 - **BUILD-TEST-GROUPS.** (new-scope) Build registration is missing:
-  `build-evaluation/src/sources/source_assembly/build_prelude.rs`'s `Build` has
-  no `tests` facet, and `build-evaluation/src/admission/configuration.rs`'s
-  `BuildConfig` retains no groups. Build evaluation owns
+  `build-declarations/src/prelude.rs`'s `Build` has no `tests` facet, and
+  `compilation-inputs/src/build_execution/build_value/configuration.rs`'s
+  `EvaluatedBuildSettings` retains no groups. Build evaluation and its
+  package-owned value protocol must carry
   `builder.tests.group<ExactRequirement>()` registration and normalized enablement;
   compiler orchestration owns package-local concrete satisfaction discovery,
   separate runner roots, outcomes and publication.
@@ -3089,7 +3076,7 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   cycle certificate still answers the same termination question; missing arrival
   evidence and unestablished guarantees reject. Retain the native/wrong-step
   corpus pair, `ranked_value_guarantees` and
-  `terminal-verifier/tests/ranked_scc/scalar_block_invariants.rs` controls.
+  `terminal-psi/verification/tests/ranked_scc/scalar_block_invariants.rs` controls.
 
 - **PCC-CANONICAL-SEMANTIC-LEDGER.** Define and justify the total generator
   from canonical Terminal bytes to the semantic ledger under the
@@ -3124,7 +3111,7 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   state under accepting/rejecting assumption policies. Wrong goals, profiles,
   scopes, premises, missing obligations and omitted transitive assumptions
   reject, including after normalization and erasure. Combine the connected
-  certificate case with `terminal-verifier/tests/trusted_surface.rs` and codec
+  certificate case with `terminal-psi/verification/tests/trusted_surface.rs` and codec
   trust-graph controls. Native refinement is separate; bootstrap proof discharge
   remains with GAMMA-DERIVATION-CHECKER in `TASKS_BOOTSTRAP.md`.
 
@@ -3473,7 +3460,7 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   `std/targets/uefi_x86_64/handoff.omg`. The acquire/grow/adopt and bounded
   stale-key cycle exists. Native selection still lacks closed execution
   identities for `UefiOsHandoffTermination::{transfer,firmware_return}` in
-  `compiler/selected-dispatch/src/compiler_intrinsic.rs`.
+  `realization/selected-dispatch/src/compiler_intrinsic.rs`.
   **UEFI-PHYSICAL-SEMANTIC-ENTRY** owns these mechanics, layouts and scoped
   firmware leaves.
 
@@ -3664,9 +3651,9 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   without treating checked admission or a later lowering refusal as native success.
 
 - **FILTERED-CALLEE-CALL-SITES.** Finish command-level acceptance for calls
-  whose target-scoped callee is unavailable to a realization. Current code has
-  `reject_inert_sibling_callers` in compiler build-evaluation's
-  `admission/target_machines.rs` indexes machine and entry-state symbols,
+  whose target-scoped callee is unavailable to a realization.
+  `reject_inert_sibling_callers` in `provider-planning/src/target_machines.rs`
+  indexes machine and entry-state symbols,
   walks statement and expression calls, and reports the caller, callee and
   realized target. A caller scoped to the callee's own unrealized target is
   exempt. Do not add a blanket invalid-symbol rejection or receiver-type lookup;
@@ -3820,8 +3807,9 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   [module/name contract](wiki/spec/language/modules.md).
 
   - Implement [default builds and anonymous owners](wiki/spec/build/declarations.md#default-builds-and-anonymous-owner-identity)
-    in `build-evaluation/src/sources/` and compiler handoff. Its
-    `source/source_storage.rs` still leaves loose roots without package identity;
+    in package source preparation and compiler handoff.
+    `compilation-inputs/src/source_imports/frontier.rs` still leaves loose roots
+    without package identity;
     preserve supplied package/core owners and derive the versioned anonymous
     content record before build execution. Deduplicate dependency nodes while
     retaining separate host/target build instances. Missing builds use ordinary
@@ -4079,7 +4067,7 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   repair the failing owner, and require the authored console line and exit 70.
 
   - Connect the Linux x86-64 filesystem plan to native settlement and syscall
-    execution. `compiler/build-evaluation/src/provider_settlement/canonical_filesystem_host.rs`
+    execution. `provider-planning/src/provider_settlement/canonical_filesystem_host.rs`
     already mints supported positional syscall rows; its integration test
     inspects plans/provenance only. Linux x86-64/AArch64 calling plans exist,
     but `DirectSyscallRealization` and an admitted `ToolchainSettled` execution
@@ -4379,7 +4367,7 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
     Replace incidental source-shape gates with the normalized judgments.
   - Complete package projection for the broader applications and private
     dependencies under visibility rules. Private source operations already check;
-    `package-evidence/src/capture/quotients.rs` rejects private operation rows.
+    `review-evidence/src/capture/quotients.rs` rejects private operation rows.
     Extractor/codec tests with supplied termination facts are not ordinary
     package-check acceptance.
   - Preserve checked termination, purity, crash freedom and hermetic identities;
@@ -4611,7 +4599,7 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
 
 - **OPTIONAL-STDLIB-SEMANTIC-BINDINGS.** Remove broad standalone std/alloc
   `Toolchain` provenance from
-  `build-evaluation/src/sources/source/source_storage.rs` under the
+  `compilation-inputs/src/source_imports/frontier.rs` under the
   [toolchain/library contract](wiki/spec/packages/toolchain.md).
   Package-aware compilation already retains ordinary std ownership and limits
   the magic mount to core. Finish migrating fallback consumers to ordinary
@@ -4728,7 +4716,7 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   invocation under [executable installation](wiki/spec/build/executable_installation.md).
   Reuse `executable-installation`'s linear transitions, required-fact gates,
   sealed entries, replacement/quarantine joins and
-  `image-emission/installed_artifact.rs`'s exact byte/custody binding.
+  `image-emission/src/installed_artifact.rs`'s exact byte/custody binding.
 
   The `OwnedImageProvider` drivers install, patch, seal and retire resident
   buffers. `call_code` hands back borrowed resident bytes; its entry/replacement
@@ -4848,8 +4836,8 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   typed-place `ldr`/`str` already build. Preserve catalog target restrictions
   through that desugaring.
 
-  Replace the deleted `canary_suite/inline_asm.rs` and value-intrinsic watcher
-  with source-to-byte acceptance for x86 fences, interrupt control, flags,
+  Restore the deleted inline-assembly and value-intrinsic coverage through
+  source-to-byte acceptance for x86 fences, interrupt control, flags,
   MSR/control registers, then pipeline directives/cache and AArch64 system
   registers. Fixtures without entry bindings only check; emitted bytes do not
   prove privileged execution. Retain exact widths, reach, authority, clobbers,
@@ -5109,7 +5097,7 @@ but report the missing runtime leg explicitly; it does not close that host row.
   - **Host-provider execution:** **SAMPLE-CORPUS** / **CANARY-CORPUS** own
     application and fixture outcomes; provider settlement and native
     realization own exact selected providers. Current
-    `build-evaluation/src/provider_settlement/canonical_filesystem_host.rs`
+    `provider-planning/src/provider_settlement/canonical_filesystem_host.rs`
     and `canonical_time_host.rs` supply limited Linux x86-64 syscall rows;
     they do not establish Darwin coverage or every host boundary. Darwin
     imports/adapters must retain locator receipts, argument choreography
