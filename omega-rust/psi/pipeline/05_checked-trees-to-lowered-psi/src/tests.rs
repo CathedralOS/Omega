@@ -29,6 +29,7 @@ mod content_conservation;
 mod cyclic_byte_literal_calls;
 mod discarded_boundary_results;
 mod dynamic_composed_unit;
+mod element_view_computed_arguments;
 mod exclusive_loan_locals;
 mod fixed_array_boundary_providers;
 mod fixed_byte_array_views;

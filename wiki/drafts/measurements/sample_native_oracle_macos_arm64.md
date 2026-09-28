@@ -52,6 +52,14 @@ cannot be built.**
 | 1 | `UnsupportedControlFlow` (`atomics_cross`) |
 | 1 | `terminal-artifact production requires one exact selected program entry` (`trapping_probe`) |
 
+**Closed since this measurement:** the three `record operand` refusals. The
+refusal came from non-byte `&[T]` view arguments to computed calls. Once those
+views passed through, `clamp_sum` built and exited 4 instead of 200. The
+element-view read left a signed `i32` element zero-extended, so `min(-5, 60)`
+compared 2^32 - 5 against 60. With both repaired, `slice_maximum` (exit 9),
+`clamp_sum` (exit 200) and `fletcher_checksum` meet their oracles. The table
+above keeps the 2026-09-27 counts.
+
 ### The whole corpus reconciles
 
 | | count |
