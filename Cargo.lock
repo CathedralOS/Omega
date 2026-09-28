@@ -449,7 +449,6 @@ dependencies = [
  "numerics",
  "object-file",
  "optimization-core",
- "optimization-unit",
  "package-compilation",
  "platform-custody",
  "program-entry-plan",

@@ -11,9 +11,9 @@
 //! `realize_retained_native_artifact`, exactly as package re-entry does.
 //! Native realization never reads the checked source or selects providers again.
 
-mod native_pipeline;
 mod native_product;
 mod native_realization;
+mod physical_pipeline;
 mod retained_native_product;
 
 pub use image_emission::ExecutableImageEmissionRequest;
@@ -36,12 +36,6 @@ pub use native_artifact::{
     NativeSelectedProviderPlanDigest, NormalizedForeignCallRelocation,
     NormalizedForeignCallbackRelocation, NormalizedForeignCallbackRelocations, PhysicalChildParent,
     PhysicalRelocationDisposition,
-};
-pub use native_pipeline::{
-    OptimizationPipelineReport, OptimizedVerifiedPhysicalPipelineError,
-    optimization_pipeline_report, optimization_pipeline_report_from_object_artifact,
-    optimization_pipeline_report_from_ordinary_callable_entry,
-    stage_optimized_verified_physical_pipeline,
 };
 pub use native_product::{NativeProductRequest, produce_native_report};
 pub use native_realization::terminal_authority_permissions::{
@@ -71,6 +65,9 @@ pub use native_realization::{
     settled_time_host_cohort, terminal_authority_permission_policy_with_rows,
     terminal_authority_policy_with_rows, time_host_mechanism_row, time_host_permission_row,
     time_host_permission_rows,
+};
+pub use physical_pipeline::{
+    OptimizedVerifiedPhysicalPipelineError, stage_optimized_verified_physical_pipeline,
 };
 pub use retained_native_product::{
     RetainedNativeRealizationRequest, SourceEvaluatedImportSettlement,
