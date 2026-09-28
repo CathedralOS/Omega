@@ -58,7 +58,7 @@ pub struct CandidateSourcePreparation {
 /// count but differently resolved closure cannot consume a misplaced slot.
 struct PreparedPackageSource {
     entry_root: std::path::PathBuf,
-    prepared: compiler::PreparedCheckedSource,
+    prepared: compilation_products::PreparedCheckedSource,
 }
 
 impl CandidateSourcePreparation {

@@ -332,7 +332,7 @@ fn retained_source_review_matches_independent_and_no_binding_candidates() {
     );
     request.prepared_source = Some(prepared);
     request.retain_prepared_source = true;
-    let rejected = request.compile();
+    let rejected = compiler::compile_checked(request);
     assert!(rejected.result.unwrap_err().iter().any(|diagnostic| {
         diagnostic
             .message

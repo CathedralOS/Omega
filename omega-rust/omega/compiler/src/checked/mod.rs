@@ -20,10 +20,11 @@ pub(crate) use checking::execution_settlement::check_selected_execution;
 pub use checking::{
     CheckedCompilation, CheckedCompileOutcome, CheckedCompileRequest,
     IndependentComponentDiscovery, IndependentComponentSelection, PreparedCheckedSource,
-    RestrictedBuildGrants, checked_compilation_call_count, compile_to_checked,
+    RestrictedBuildGrants, checked_compilation_call_count, compile_checked, compile_to_checked,
     executed_preliminary_check_count, executed_settled_check_count, preliminary_check_totals,
     settled_check_totals, source_assembly_invocation_count, typed_frontier_reuse_count,
 };
+pub(crate) use checking::{prepare_checked_source, prepare_typed_frontier};
 pub use optimization_core::{
     OptimizationRollback, OptimizationRollbackInputError, OptimizationRollbackSettlement,
 };

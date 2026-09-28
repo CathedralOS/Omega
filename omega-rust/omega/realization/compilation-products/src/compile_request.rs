@@ -16,7 +16,7 @@ use terminal_psi_to_abstract_operations::provider_admission::{
 
 mod checked;
 mod native;
-pub use checked::CheckedExecutionRequest;
+pub use checked::{CheckedCompileRequest, CheckedExecutionRequest};
 pub mod options;
 pub use native::{
     NativeProductRequest, NativeRealizationRequest, RequestedNativeArtifactError,

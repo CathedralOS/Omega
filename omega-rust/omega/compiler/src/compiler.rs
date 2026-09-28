@@ -7,7 +7,8 @@
 
 use crate::checked::{
     BuiltCheckedProgram, CheckedCompilation, PreparedCheckedSource, check_selected_execution,
-    evaluate_build_and_continue, run_on_compile_thread,
+    evaluate_build_and_continue, prepare_checked_source, prepare_typed_frontier,
+    run_on_compile_thread,
 };
 use crate::native::produce_native_report;
 use crate::terminal::produce_terminal_report;
@@ -29,7 +30,7 @@ pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnosti
     run_on_compile_thread(move || {
         let (shared, targets) = request.validate_for_execution()?.into_parts();
         // Psi 00-01: read, tokenize and parse the root's source set once.
-        let source = PreparedCheckedSource::prepare(
+        let source = prepare_checked_source(
             &shared.root_path,
             shared.package_sources.clone(),
             shared.timings,
@@ -156,7 +157,7 @@ impl SharedBuilds {
         if let Some((_, shared)) = self.builds.iter().find(|(existing, _)| *existing == inputs) {
             return Ok(shared.clone());
         }
-        let (frontier, mut timings) = source.prepare_frontier(&child)?;
+        let (frontier, mut timings) = prepare_typed_frontier(source, &child)?;
         let (built, build_sources) =
             timed(&mut timings, BUILD_AND_CHECKED_CONTINUATION, |timings| {
                 evaluate_build_and_continue(root_path, child, frontier, timings)

@@ -429,6 +429,7 @@ dependencies = [
  "semantic-vocabulary",
  "sha2",
  "source",
+ "symbol-resolved-trees-to-typed-trees",
  "symbols",
  "target",
  "task-plans",

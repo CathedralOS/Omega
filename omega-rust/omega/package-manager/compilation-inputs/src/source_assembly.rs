@@ -69,6 +69,29 @@ pub struct ImmutableSourceParseCheckpoint {
 }
 
 impl ImmutableSourceParseCheckpoint {
+    pub fn root_path(&self) -> &Path {
+        &self.root_path
+    }
+
+    /// Prepare shared physical sources without admitting a child's target
+    /// attachments. Target-local generated bundles join later during assembly.
+    pub fn prepare_from_sources(
+        root_path: &Path,
+        package_sources: Option<Arc<crate::PackageCompilationSourceInputs>>,
+        timings: &mut CompileTimings,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let package_inputs = package_sources
+            .map(|sources| PackageCompilationInputs::from_parts(sources, Default::default()))
+            .transpose()
+            .map_err(|errors| {
+                errors
+                    .into_iter()
+                    .map(|error| Diagnostic::error(error.to_string()))
+                    .collect::<Vec<_>>()
+            })?;
+        Self::prepare(root_path, package_inputs.as_ref(), timings)
+    }
+
     pub fn prepare(
         root_path: &Path,
         package_inputs: Option<&PackageCompilationInputs>,

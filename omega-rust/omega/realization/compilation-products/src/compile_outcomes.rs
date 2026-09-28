@@ -8,6 +8,15 @@ use crate::{
 use diagnostics::Diagnostic;
 use target::TargetProfile;
 
+/// One checked attempt retains observations even when later settlement rejects.
+/// Rejected attempts publish no reusable preparation or output artifact.
+#[must_use]
+pub struct CheckedCompileOutcome {
+    pub result: Result<crate::CheckedCompilation, Vec<Diagnostic>>,
+    pub prepared_source: Option<crate::PreparedCheckedSource>,
+    pub independent_components: crate::IndependentComponentDiscovery,
+}
+
 /// An ordinary target product or its diagnostics. None identifies target-neutral
 /// checking/Terminal production, never an implicit native target.
 #[derive(Debug)]
