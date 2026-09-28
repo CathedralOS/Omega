@@ -5,6 +5,7 @@ use crate::package_compilation::{
     BTreeMap, BuildDeclarationKind, PackageCompilationInputError, PackageCompilationInputs,
     PackageDependencyBinding, PackageDependencyClosure, PackageGeneratedSourceBundle,
     PackageSourceBinding, PackageSourceConsumptionCommitment, PathBuf,
+    append_overlapping_source_roots,
 };
 use std::fs;
 

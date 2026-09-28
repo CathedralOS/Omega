@@ -24,7 +24,7 @@ pub(crate) fn admit_authored_declarations(
     // request.
     let mut provisional = typed.clone();
     typed_trees_to_checked_trees::prune_target_siblings_typed(&mut provisional);
-    let checked = timings.record(
+    timings.record(
         artifacts::compile_timings::TYPED_TREES_TO_PRELIMINARY_CHECKED_TREES,
         || {
             let started = std::time::Instant::now();
@@ -34,11 +34,15 @@ pub(crate) fn admit_authored_declarations(
                     .with_declaration_authority(Some(packages)),
             );
             artifacts::compile_timings::counters::record_preliminary_check(started.elapsed());
-            typed_trees_to_checked_trees::prune_target_siblings(result?)
+            result.map(|_| ())
         },
     )?;
+    // Source identity comes from the frontend snapshot, not execution facts.
+    // No checked product is published here, so there is no product to prune.
+    // The authority check above remains until its selection obligations can
+    // be admitted without repeating whole-program checking.
     let base = package_compilation::derive_package_compilation_subject(
-        &checked,
+        typed.symbols.source_files(),
         packages,
         generated_source_custody,
     )?;
