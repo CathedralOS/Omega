@@ -20,7 +20,7 @@ use super::{
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use std::hash::{Hash, Hasher};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Mutex, PoisonError};
 use typed_trees::TypedTrees;
 
@@ -60,10 +60,43 @@ static MEMO: Mutex<Memo> = Mutex::new(Memo {
 });
 
 static RETENTION_REQUESTS: AtomicUsize = AtomicUsize::new(0);
+static EXECUTED_PRELIMINARY_CHECKS: AtomicU64 = AtomicU64::new(0);
+static EXECUTED_SETTLED_CHECKS: AtomicU64 = AtomicU64::new(0);
 
 /// Retains every check on first sight while held; see
 /// [`retain_repeated_checks`].
 pub struct RepeatedCheckRetention(());
+
+impl RepeatedCheckRetention {
+    /// Monotonic count of pre-build declaration-authority checks that
+    /// actually executed. A request this memo serves from a retained result
+    /// is still a request — the caller's `lower_typed_trees` accounting counts
+    /// those — but is not an execution, so the delta between a caller's
+    /// request total and this count names the memo-served repeats.
+    pub fn executed_preliminary_check_count() -> u64 {
+        EXECUTED_PRELIMINARY_CHECKS.load(Ordering::Relaxed)
+    }
+
+    /// Monotonic count of settled whole-program checks that actually
+    /// executed, excluding requests served from a retained result.
+    pub fn executed_settled_check_count() -> u64 {
+        EXECUTED_SETTLED_CHECKS.load(Ordering::Relaxed)
+    }
+}
+
+/// Record that `lower_typed_trees` is about to run a real check rather than
+/// serve a retained result. Modes other than the two package checkpoints only
+/// exist for this crate's own tests, which take the fresh-check return below
+/// before reaching here.
+fn account_executed_check(mode: CheckingMode) {
+    let counter = match mode {
+        CheckingMode::Preliminary => &EXECUTED_PRELIMINARY_CHECKS,
+        CheckingMode::Settled => &EXECUTED_SETTLED_CHECKS,
+        #[cfg(test)]
+        CheckingMode::CrashFactInspection => &EXECUTED_SETTLED_CHECKS,
+    };
+    counter.fetch_add(1, Ordering::Relaxed);
+}
 
 impl Drop for RepeatedCheckRetention {
     fn drop(&mut self) {
@@ -155,12 +188,14 @@ pub(super) fn checked(
                 && request.mode != CheckingMode::Preliminary
             {
                 drop(memo);
+                account_executed_check(request.mode);
                 return check(program);
             }
         }
     }
     let retained = program.clone();
     let started = std::time::Instant::now();
+    account_executed_check(request.mode);
     let result = check(program);
     if probe {
         eprintln!(
