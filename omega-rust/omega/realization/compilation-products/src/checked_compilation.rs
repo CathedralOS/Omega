@@ -103,6 +103,24 @@ impl CheckedCompilation {
 }
 
 impl CheckedCompilation {
+    /// Reconstruct this product's trust obligations against explicit owner
+    /// admissions, independently of report output. This grants neither package
+    /// review authority nor native publication authority.
+    pub fn admit_trust(
+        &self,
+        accepted: &[trust_model::TrustAdmission],
+    ) -> Result<trust_model::TrustAdmissionSettlement, Vec<Diagnostic>> {
+        trust_model::reconstruct_trust_settlement(
+            self,
+            self.root_grants(),
+            self.provider_plans(),
+            self.selected_provider_plans(),
+            self.accepted_template_classifications(),
+            self.package_identity().is_some(),
+            accepted,
+        )
+    }
+
     /// Canonical boundary calls already live in this checked program.
     pub fn terminal_production_trees(&self) -> &CheckedTrees {
         &self.execution.settled.program

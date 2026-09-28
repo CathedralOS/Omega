@@ -3,7 +3,7 @@ use compiler::{CheckedCompilation, CheckedCompileRequest, CompileOptions, compil
 
 /// `65dc530cef` stopped ordinary compilation from writing the trust Markdown,
 /// so these tests reconstruct the same report from the checked program the way
-/// `admit_checked_compilation` does. Each fact is unchanged; only its carrier
+/// `CheckedCompilation::admit_trust` does. Each fact is unchanged; only its carrier
 /// is, and the rows are the structure the renderer used to print.
 /// A derived provider plan is named for the target it was derived for.
 /// These fixtures request no target, so derivation falls back to the compiler

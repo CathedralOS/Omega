@@ -178,33 +178,12 @@ pub(crate) fn check_selected_execution(
         &checked.selected_provider_plan_facts,
         package_inputs,
     )?;
-    // The CheckedTrees optimization phase runs only after all authored code
-    // has been checked and before selected-execution sidecars derive from the
-    // product. Its exact roots come from this compilation's own product
-    // selection: the validated program-entry binding for a selected target,
-    // or every authored root binding for a targetless shared product. The
-    // release rollback settles before the phase so the effective selection is
-    // what executes.
-    let effective_optimizations =
-        optimization_rollback.settle(&build_config.settings.optimizations);
-    let product_root_machines = effective_optimizations
-        .effective()
-        .contains(optimization_core::Optimization::CheckedTreeProductPruning)
-        .then(|| {
-            let roots: std::collections::HashSet<symbols::SymbolHandle> =
-                match selected_target_profile {
-                    Some(_) => selected_program_entry
-                        .iter()
-                        .map(|entry| entry.source_signature().machine_symbol())
-                        .collect(),
-                    None => build_config
-                        .root_bindings
-                        .iter()
-                        .map(|binding| binding.implementation_symbol)
-                        .collect(),
-                };
-            roots.into_iter().collect()
-        });
+    // Check all authored code before product pruning and sidecar derivation.
+    let product_root_machines = build_config.checked_tree_product_roots(
+        selected_target_profile,
+        selected_program_entry.as_ref(),
+        optimization_rollback,
+    );
     let (program, product_selection) = typed_trees_to_checked_trees::select_checked_tree_product(
         checked.program,
         product_root_machines,

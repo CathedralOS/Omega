@@ -3,7 +3,7 @@ use compiler::{CheckedCompilation, CheckedCompileRequest, CompileOptions, compil
 
 /// `65dc530cef` stopped ordinary compilation from writing the trust Markdown,
 /// so these tests reconstruct the same report from the checked program the way
-/// `admit_checked_compilation` does. The fact each one is about is unchanged;
+/// `CheckedCompilation::admit_trust` does. The fact each one is about is unchanged;
 /// only its carrier is, and the rows are the structure the renderer used to
 /// print.
 fn trust_report(checked: &CheckedCompilation) -> trust_model::TrustReport {

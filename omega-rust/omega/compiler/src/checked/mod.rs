@@ -7,17 +7,14 @@
 //! result with its source custody. The `checking` folder holds the build
 //! continuation, direct calls into the Psi stages, execution
 //! settlement; `compilation_products` owns the sealed carrier and its projections.
-//! `admission` settles the checked
-//! program's trust obligations against the owner's admissions and writes the
-//! optional observations; `package` owns declaration admission.
+//! The checked product settles trust through the realization trust owner;
+//! `package` owns declaration admission.
 //! Checked-product selection executes in Psi stage 04. Exact-rule rollback
 //! settlement is owned by `optimization_core`.
 
-mod admission;
 mod checking;
 mod package;
 
-pub use admission::{CheckedAdmission, admit_checked_compilation};
 pub(crate) use checking::CheckedChildExecution;
 pub(crate) use checking::build_continuation::{BuiltCheckedProgram, evaluate_build_and_continue};
 pub use checking::compile_thread::run_on_compile_thread;

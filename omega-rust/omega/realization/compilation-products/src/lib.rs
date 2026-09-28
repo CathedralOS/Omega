@@ -7,7 +7,8 @@
 //! and binds its batch commitment; the compiler owns the target execution loop.
 //! `evaluated_build` retains Build settings and observation results without
 //! depending on their evaluator. `checked_compilation` seals whole checked
-//! stage products against package source custody and supplies their projections;
+//! stage products against package source custody, supplies their projections and
+//! requests explicit trust settlement from `trust_model`;
 //! it does not execute stages or confer package/native admission.
 //!
 //! `CompileReport` records which payload a compilation produced and validates
