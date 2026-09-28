@@ -575,6 +575,21 @@ class Claims:
             notes = (record.get("notes", []) if options.all
                      else pending_notes(record))
             if options.ticket:
+                # A prefix must name one ticket among every ticket the
+                # ledger knows (claims and all notes), not just the notes
+                # this view happens to show; silently merging inboxes is
+                # the failure this refuses.
+                known = ({claim["ticket"] for claim in record["claims"]}
+                         | {note["ticket"]
+                            for note in record.get("notes", [])})
+                matches = sorted(ticket for ticket in known
+                                 if ticket.startswith(options.ticket))
+                if len(matches) > 1:
+                    raise ClaimsError(
+                        f"Ticket prefix {options.ticket!r} matches "
+                        f"{len(matches)} tickets ({', '.join(m[:12] for m in matches[:5])}"
+                        f"{', ...' if len(matches) > 5 else ''}); "
+                        "supply more characters.")
                 notes = [note for note in notes
                          if note["ticket"].startswith(options.ticket)]
             if options.owner:
@@ -627,8 +642,10 @@ def main(argv=None):
     notes = subparsers.add_parser("notes")
     notes.add_argument(
         "--ticket",
-        help="only notes attached to this ticket; unambiguous prefixes work "
-             "(e.g. 686326 for 68632641d3634d468d3a6b0e30fffef7)")
+        help="only notes attached to this ticket; a prefix works when it "
+             "names exactly one known ticket (e.g. 686326 for "
+             "68632641d3634d468d3a6b0e30fffef7), and an ambiguous prefix "
+             "is refused")
     notes.add_argument(
         "--owner",
         help="only notes whose claim owner contains this substring, like "
