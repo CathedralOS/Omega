@@ -7,6 +7,8 @@
 //! and binds its batch commitment; the compiler owns the target execution loop.
 //! `prepared_source` retains exact parsed/typed work and selects reuse without
 //! invoking assembly, resolution, typing or Build execution.
+//! `prepared_build` retains completed typed Build continuations by exact inputs;
+//! the coordinator runs cache misses and each target's subsequent checking.
 //! `evaluated_build` retains Build settings and observation results without
 //! depending on their evaluator. `checked_compilation` seals whole checked
 //! stage products against package source custody, supplies their projections and
@@ -31,6 +33,7 @@ mod compile_outcomes;
 pub mod compile_request;
 mod evaluated_build;
 mod pcc;
+mod prepared_build;
 mod prepared_source;
 mod production_manifest;
 pub mod publication;
@@ -62,6 +65,7 @@ pub use native_artifact::{NativePackagePublicationReceipt, PackagePublicationCom
 pub use optimization_core::OptimizationRollbackReceipt;
 pub use package_compilation::{ProductionCompilationSubject, RetainedBuildOutputs};
 pub use pcc::{PccPublicationReceipt, verify_published_proof_pair};
+pub use prepared_build::{BuiltTypedProgram, PreparedBuild, PreparedBuilds};
 pub use prepared_source::{
     PreparedCheckedSource, PreparedSourceFrontier, TypedCompilationFrontier, TypedFrontierRetention,
 };

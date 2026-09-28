@@ -39,6 +39,8 @@ fn multi_target_build_reuse_preserves_each_snapshot_output_obligation() {
         Vec::new(),
     )
     .unwrap();
+    let assemblies_before = compiler::source_assembly_invocation_count();
+    let frontier_reuses_before = compiler::typed_frontier_reuse_count();
     let outcomes = compiler::compile(
         compiler::CompileRequest::new(compiler::CompileOptions {
             root_path: source_root.join("main.omg"),
@@ -48,6 +50,9 @@ fn multi_target_build_reuse_preserves_each_snapshot_output_obligation() {
         .with_target_configurations(vec![
             compiler::TargetCompileConfiguration::new(target::TargetProfile::LinuxX64)
                 .with_build_dir(fixture.0.join("linux"))
+                .with_build_snapshot(build_evaluation::BuildSnapshotRequest::new(Vec::new())),
+            compiler::TargetCompileConfiguration::new(target::TargetProfile::MacosArm64)
+                .with_build_dir(fixture.0.join("macos"))
                 .with_build_snapshot(build_evaluation::BuildSnapshotRequest::new(Vec::new())),
             compiler::TargetCompileConfiguration::new(target::TargetProfile::WindowsX64)
                 .with_build_dir(fixture.0.join("windows"))
@@ -59,9 +64,22 @@ fn multi_target_build_reuse_preserves_each_snapshot_output_obligation() {
     )
     .expect("one outcome per target");
     let outcomes = outcomes.outcomes();
-    assert_eq!(outcomes.len(), 2);
+    assert_eq!(outcomes.len(), 3);
     assert!(outcomes[0].succeeded(), "{:?}", outcomes[0].diagnostics());
-    let diagnostics = outcomes[1]
+    assert!(outcomes[1].succeeded(), "{:?}", outcomes[1].diagnostics());
+    // Equal captured inputs bypass the frontend entirely for the second target.
+    // The different output obligation misses Build reuse, but shares the typed
+    // frontend before its own Build rejects. Disabling Build reuse would give
+    // two frontier reuses; wrongly sharing the third Build would give none.
+    assert_eq!(
+        compiler::source_assembly_invocation_count() - assemblies_before,
+        1
+    );
+    assert_eq!(
+        compiler::typed_frontier_reuse_count() - frontier_reuses_before,
+        1
+    );
+    let diagnostics = outcomes[2]
         .diagnostics()
         .expect("a sibling's successful build cannot discharge this output obligation");
     assert!(

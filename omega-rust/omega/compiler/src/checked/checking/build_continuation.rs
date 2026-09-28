@@ -1,31 +1,12 @@
 //! Admit and execute the build machine, then type its generated-source continuation.
 
 use artifacts::compile_timings::CompileTimings;
-use compilation_products::{CheckedExecutionRequest, TypedCompilationFrontier};
+use compilation_products::{BuiltTypedProgram, CheckedExecutionRequest, TypedCompilationFrontier};
 use diagnostics::Diagnostic;
 use package_compilation::BuildSourceCustody;
 use package_compilation::PackageCompilationInputs;
 use std::path::Path;
 use std::sync::Arc;
-
-/// One coherent final typed frontend and its evaluated build selection.
-#[derive(Clone)]
-pub(crate) struct BuiltCheckedProgram {
-    pub(super) typed: typed_trees::TypedTrees,
-    pub(super) selected_target_machine_declarations:
-        provider_planning::target_machines::SelectedTargetMachineDeclarations,
-    pub(super) pending_pre_checks: Vec<build_time_evaluation::PreCheckEvaluation>,
-    pub(super) computed_build_config: Arc<build_evaluation::ComputedBuildConfig>,
-    /// The normalized restricted build-host requests the admitted activation
-    /// asked of the host before it executed.
-    pub(super) restricted_build_requests:
-        Vec<package_compilation::build_execution::RestrictedBuildRequest>,
-    /// The validated `builder.application` declaration retained from source
-    /// assembly. Its name supplies the publication `.app` basename and inner
-    /// executable leaf; its artifact-only intent narrows the admitted route.
-    pub(super) application: Option<build_declarations::ApplicationDeclaration>,
-    pub(super) selected_build_machine_identity: Option<String>,
-}
 
 /// Consume a prepared typed program. Source preparation owns any reuse;
 /// declaration authority and Build effects are admitted for this activation.
@@ -34,7 +15,7 @@ pub(crate) fn evaluate_build_and_continue(
     child: CheckedExecutionRequest<'_>,
     frontier: TypedCompilationFrontier,
     timings: &mut CompileTimings,
-) -> Result<(BuiltCheckedProgram, BuildSourceCustody), Vec<Diagnostic>> {
+) -> Result<(BuiltTypedProgram, BuildSourceCustody), Vec<Diagnostic>> {
     let CheckedExecutionRequest {
         selected_target_profile,
         build_execution_profile,
@@ -125,7 +106,7 @@ pub(crate) fn evaluate_build_and_continue(
     let selected_build_machine_identity =
         computed_build_config.selected_machine_identity(&typed)?;
     Ok((
-        BuiltCheckedProgram {
+        BuiltTypedProgram {
             typed,
             selected_target_machine_declarations,
             pending_pre_checks,

@@ -6,7 +6,7 @@
 //! this file own what each call does.
 
 use crate::checked::{
-    BuiltCheckedProgram, CheckedCompilation, PreparedCheckedSource, check_selected_execution,
+    CheckedCompilation, PreparedCheckedSource, check_selected_execution,
     evaluate_build_and_continue, prepare_checked_source, prepare_typed_frontier,
     run_on_compile_thread,
 };
@@ -17,9 +17,8 @@ use artifacts::compile_timings::{
     BUILD_AND_CHECKED_CONTINUATION, CompileTimings, EXECUTION_SETTLEMENT, StageMeta,
 };
 use compilation_products::compile_request::{SharedCompileInputs, ValidatedTargetCompilation};
-use compilation_products::{CheckedExecutionRequest, CheckedProductReport};
+use compilation_products::{CheckedProductReport, PreparedBuild, PreparedBuilds};
 use diagnostics::Diagnostic;
-use package_compilation::BuildSourceCustody;
 
 pub(crate) mod package;
 
@@ -36,7 +35,7 @@ pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnosti
             shared.timings,
         );
         let target_count = targets.len();
-        let mut builds = SharedBuilds::for_targets(target_count);
+        let mut builds = PreparedBuilds::for_targets(target_count);
         let mut outcomes = Vec::with_capacity(target_count);
         // Checkpoint clones share immutable parsing. repeat_n moves the final
         // copy, so the last (and the only) target consumes the original arenas.
@@ -58,7 +57,7 @@ fn compile_target(
     shared: &SharedCompileInputs,
     target: ValidatedTargetCompilation,
     source: PreparedCheckedSource,
-    builds: &mut SharedBuilds,
+    builds: &mut PreparedBuilds,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
     let root_path = target.options().root_path.clone();
     let build_dir = target.options().build_dir();
@@ -74,11 +73,34 @@ fn compile_target(
     // it generated resolved and typed. None of it observes the target, so
     // targets with equal build inputs share one result.
     child.admit_package_inputs()?;
-    let SharedBuild {
+    let inputs = child.build_execution_inputs();
+    let prepared = match builds.begin_target(&inputs) {
+        Some(prepared) => {
+            // A hit consumes this target's unused inputs before checking begins.
+            drop(source);
+            drop(child);
+            prepared
+        }
+        None => {
+            let (frontier, mut timings) = prepare_typed_frontier(source, &child)?;
+            let (built, build_sources) =
+                timed(&mut timings, BUILD_AND_CHECKED_CONTINUATION, |timings| {
+                    evaluate_build_and_continue(&root_path, child, frontier, timings)
+                })?;
+            let prepared = PreparedBuild {
+                built,
+                build_sources,
+                timings,
+            };
+            builds.retain_completed(inputs, &prepared);
+            prepared
+        }
+    };
+    let PreparedBuild {
         built,
         build_sources,
         mut timings,
-    } = builds.build(source, child, &root_path)?;
+    } = prepared;
     // Provider selection, const folding, Psi 04 checking and selected dispatch.
     let execution = timed(&mut timings, EXECUTION_SETTLEMENT, |timings| {
         check_selected_execution(
@@ -115,62 +137,6 @@ fn compile_target(
             target.into_native_product_request(),
             checked,
         )?),
-    }
-}
-
-/// The assembled, built and typed program of one invocation, keyed by the
-/// package owner's complete build inputs. Captured builds with equal inputs
-/// share one result and each target continues from its own copy; live output
-/// directories remain distinct. Per-child custody admission precedes reuse.
-struct SharedBuilds {
-    builds: Vec<(package_compilation::BuildExecutionInputs, SharedBuild)>,
-    /// Targets still to be served after the current one; the last target
-    /// keeps nothing for reuse.
-    remaining_targets: usize,
-}
-
-/// One shared build: the typed program with its evaluated Build, the source
-/// custody spanning it, and the timing ladder its steps recorded.
-#[derive(Clone)]
-struct SharedBuild {
-    built: BuiltCheckedProgram,
-    build_sources: BuildSourceCustody,
-    timings: CompileTimings,
-}
-
-impl SharedBuilds {
-    fn for_targets(target_count: usize) -> Self {
-        Self {
-            builds: Vec::new(),
-            remaining_targets: target_count,
-        }
-    }
-
-    fn build(
-        &mut self,
-        source: PreparedCheckedSource,
-        child: CheckedExecutionRequest<'_>,
-        root_path: &std::path::Path,
-    ) -> Result<SharedBuild, Vec<Diagnostic>> {
-        let inputs = child.build_execution_inputs();
-        self.remaining_targets = self.remaining_targets.saturating_sub(1);
-        if let Some((_, shared)) = self.builds.iter().find(|(existing, _)| *existing == inputs) {
-            return Ok(shared.clone());
-        }
-        let (frontier, mut timings) = prepare_typed_frontier(source, &child)?;
-        let (built, build_sources) =
-            timed(&mut timings, BUILD_AND_CHECKED_CONTINUATION, |timings| {
-                evaluate_build_and_continue(root_path, child, frontier, timings)
-            })?;
-        let shared = SharedBuild {
-            built,
-            build_sources,
-            timings,
-        };
-        if self.remaining_targets > 0 {
-            self.builds.push((inputs, shared.clone()));
-        }
-        Ok(shared)
     }
 }
 

@@ -31,6 +31,13 @@ the completed result. The immutable parse checkpoint remains package-owned;
 its root is the sole root identity. Checked requests and outcomes use this same
 product rather than depending on compiler-owned cache types.
 
+[prepared_build.rs](src/prepared_build.rs) owns completed typed Build continuations
+and invocation-local reuse under the package owner's exact Build-input key. The
+compiler admits each target before lookup and visibly runs the frontend and Build
+on a miss. Retention never performs stage work; each target independently checks
+and seals the reused program. Failed continuations are not retained, and the last
+target creates no unused retained copy.
+
 [compile_outcomes.rs](src/compile_outcomes.rs) retains successful reports and
 rejections together, derives their batch commitments, and refuses single-report
 extraction when siblings exist. Neither a request nor an outcome grants trust,
