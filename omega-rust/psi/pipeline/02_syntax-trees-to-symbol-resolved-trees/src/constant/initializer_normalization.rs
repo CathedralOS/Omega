@@ -311,11 +311,12 @@ fn append_retained_custody(
             (Kind::Call, Target::Resolved(selected))
                 if matches!(
                     program.symbols.get(selected.selected_symbol()).kind,
-                    SymbolKind::Machine | SymbolKind::State
+                    SymbolKind::Machine | SymbolKind::State | SymbolKind::Operator
                 ) =>
             {
                 // The detached original rederives call custody. A copied call
-                // selection is neither a constant origin nor a builtin premise.
+                // selection is neither a constant origin nor a builtin premise;
+                // a named boundary operator keeps that same custody-only role.
             }
             (Kind::Operator, Target::Intrinsic(Intrinsic::BuiltinOperator)) => {
                 if !operators.contains(&reference) {

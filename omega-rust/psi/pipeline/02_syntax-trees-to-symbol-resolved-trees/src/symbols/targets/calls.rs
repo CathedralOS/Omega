@@ -125,6 +125,29 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
             if target_symbol.is_valid() {
                 return target_symbol;
             }
+            // The same qualified spelling may name a boundary operator homed
+            // on the carrier (`F32::square_root`), which is a root operator
+            // declaration rather than an attached machine. As with a module
+            // receiver the call keeps the operator's own declaration identity
+            // for typed named-call validation — but only when the qualified
+            // name is one exact declaration. A family spelled by several
+            // overloads stays unresolved so path-and-arity selection decides
+            // it rather than this name-level lookup minting one member.
+            if let Some(operator) = symbols
+                .lookup_signature_free_top_level_from_source_matching(
+                    &format!(
+                        "{}::{}",
+                        symbols.display_path(receiver_symbol, "::"),
+                        target.as_str()
+                    ),
+                    &[SymbolKind::Operator],
+                    target.source_span(),
+                    |_| true,
+                )
+                .unique()
+            {
+                return operator;
+            }
         }
         // A domain-owned proof machine is called by its exact authored home
         // in contracts (`Granted::content(&value)`). Domains are not runtime
