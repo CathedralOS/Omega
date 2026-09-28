@@ -51,9 +51,9 @@ implies deletion.
 - [Package management](omega/package-manager/README.md): package operations,
   with independent source acquisition, resolver execution, and review evidence
   packages beneath the subsystem owner.
-- [Build evaluation](omega/compiler/build-evaluation/README.md): one of the
-  independent supporting packages beneath compiler coordination, alongside
-  declarations, output custody, package inputs, selection, and trust policy.
+- [Build evaluation](omega/realization/build-evaluation/README.md): Build
+  activation, declaration admission, restricted-request consent and execution,
+  independent of compiler coordination.
 - [Psi interpreters](psi/interpreter): separate checked-tree and Terminal Psi
   engines. [Build-time evaluation](psi/interpreter/build-time-evaluation) uses
   target-neutral execution without depending on the Omega compiler coordinator.

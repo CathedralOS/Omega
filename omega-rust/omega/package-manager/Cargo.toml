@@ -12,7 +12,7 @@ path = "src/lib.rs"
 [dependencies]
 provider-planning = { path = "../realization/provider-planning" }
 build-declarations = { path = "build-declarations" }
-build-evaluation = { path = "../compiler/build-evaluation" }
+build-evaluation = { path = "../realization/build-evaluation" }
 boundary-applications = { path = "../backend/artifacts/boundary-applications" }
 compiler = { path = "../compiler" }
 compilation-products = { path = "../realization/compilation-products" }
@@ -40,7 +40,7 @@ cap-fs-ext = "4.0.3"
 sha2 = "0.10.9"
 
 [dev-dependencies]
-build-evaluation = { path = "../compiler/build-evaluation" }
+build-evaluation = { path = "../realization/build-evaluation" }
 mimalloc = { version = "0.1", default-features = false }
 package-source = { path = "source-acquisition", features = ["test-fixtures"] }
 
