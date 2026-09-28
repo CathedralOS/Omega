@@ -71,9 +71,6 @@ pub fn realize_retained_native_artifact(
                 "source-evaluated import realization requires one native proposal",
             )
         })?;
-        proposal
-            .validate_for_artifact(&artifact)
-            .map_err(|message| diagnostic("Terminal native proposal", message))?;
         let mut image_request = image_request;
         image_request
             .settle_application_metadata(
@@ -156,30 +153,7 @@ pub fn realize_retained_native_artifact(
             proposal.compiler_builtins(),
             proposal.selected_provider_plans().plans(),
         )?;
-        let calling_plans = proposal.program_entry().calling_plans().map(|plans| {
-            (
-                &plans.semantic_calling_application,
-                &plans.physical_calling_application,
-                &plans.storage_entry,
-            )
-        });
-        // The retained proposal carries the checked ProgramEntry receipt its
-        // own production derived; attaching it here supplies the independently
-        // admitted checked initialization/cleanup authority the entry
-        // settlement requires once the checked frontend is gone.
-        let program_entry = crate::native::NativeProgramEntrySettlement::new(
-            proposal.program_entry().source_signature(),
-            calling_plans,
-            proposal.program_entry().fused_service_establishments(),
-        )
-        .with_checked_entry(proposal.checked_program_entry());
-        crate::native::validate_native_program_entry_settlement(
-            &artifact,
-            proposal.checked_program_entry(),
-            program_entry,
-            proposal.native_target(),
-        )
-        .map_err(|error| diagnostic("native checked ProgramEntry settlement", error))?;
+        let program_entry = proposal.program_entry().as_settlement();
         crate::native::realize_native_artifact(
             artifact,
             crate::native::NativeRealizationRequest {

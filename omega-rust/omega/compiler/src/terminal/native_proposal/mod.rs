@@ -28,11 +28,38 @@ pub(crate) fn project_terminal_native_realization_proposal(
             "Terminal native proposal requires one selected native target",
         )]
     })?;
-    let program_entry = checked.selected_program_entry().cloned().ok_or_else(|| {
+    let program_entry = checked.selected_program_entry().ok_or_else(|| {
         vec![Diagnostic::error(
             "Terminal native proposal requires one exact selected ProgramEntry",
         )]
     })?;
+    // Close the build-owned entry selection into the existing independently
+    // replayed native settlement. Retention carries this pipeline product,
+    // never the Build evaluator's selection object or a second entry receipt.
+    let calling_plans = program_entry.calling_plans().map(|plans| {
+        (
+            &plans.semantic_calling_application,
+            &plans.physical_calling_application,
+            &plans.storage_entry,
+        )
+    });
+    let program_entry =
+        terminal_psi_to_abstract_operations::validate_native_program_entry_settlement(
+            artifact,
+            &checked_program_entry,
+            terminal_psi_to_abstract_operations::NativeProgramEntrySettlement::new(
+                program_entry.source_signature(),
+                calling_plans,
+                program_entry.fused_service_establishments(),
+            )
+            .with_checked_entry(&checked_program_entry),
+            native_target,
+        )
+        .map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "Terminal native proposal ProgramEntry settlement failed: {error}"
+            ))]
+        })?;
     let terminal_module =
         terminal_codec::decode_module(artifact.semantic_bytes()).map_err(|error| {
             vec![Diagnostic::error(format!(
@@ -139,7 +166,6 @@ pub(crate) fn project_terminal_native_realization_proposal(
                 .map(|name| name.as_str().to_owned()),
             post_terminal_optimizations: selections.project_post_terminal(),
             program_entry,
-            checked_program_entry,
             selected_provider_plans: checked.selected_provider_plans().clone(),
             external_binding_rows,
             // The proposal retains the exact selected-application commitment
