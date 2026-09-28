@@ -73,3 +73,79 @@ pub fn validate_selected_build_role(
             ))]
         })
 }
+
+/// Exact project-root scopes and the selected canonical Build source.
+/// Loading and parsing consume the scoped paths; only this selection rejoins
+/// the resulting source id, so a Product instance cannot impersonate Build.
+pub struct ProjectSourceSelection {
+    sources: Vec<(std::path::PathBuf, source::DependencyScope)>,
+    build_path: Option<std::path::PathBuf>,
+}
+
+impl ProjectSourceSelection {
+    pub fn prepare(root_path: &std::path::Path) -> Result<Self, Vec<Diagnostic>> {
+        let roots = project_roots(root_path);
+        let build_path = roots
+            .build
+            .as_deref()
+            .map(|path| {
+                path.canonicalize().map_err(|error| {
+                    vec![Diagnostic::error(format!(
+                        "failed to establish exact build source {}: {error}",
+                        path.display()
+                    ))]
+                })
+            })
+            .transpose()?;
+        let sources = roots
+            .sources
+            .into_iter()
+            .map(|path| {
+                let canonical = path.canonicalize().ok();
+                let scope = if canonical.is_some() && canonical == build_path {
+                    source::DependencyScope::Build
+                } else {
+                    source::DependencyScope::Product
+                };
+                (path, scope)
+            })
+            .collect();
+        Ok(Self {
+            sources,
+            build_path,
+        })
+    }
+
+    pub fn sources(&self) -> &[(std::path::PathBuf, source::DependencyScope)] {
+        &self.sources
+    }
+
+    pub fn build_source_id(
+        &self,
+        storage: &SourceStorage,
+    ) -> Result<Option<source::SourceId>, Vec<Diagnostic>> {
+        self.build_path
+            .as_deref()
+            .map(|selected| {
+                storage
+                    .files
+                    .iter()
+                    .find(|(_, file)| {
+                        file.path
+                            .canonicalize()
+                            .is_ok_and(|loaded| loaded == selected)
+                            && storage.sources.get(file.source_id).is_some_and(|source| {
+                                source.dependency_scope == source::DependencyScope::Build
+                            })
+                    })
+                    .map(|(_, file)| file.source_id)
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(format!(
+                            "selected build source {} disappeared from the loaded frontier",
+                            selected.display()
+                        ))]
+                    })
+            })
+            .transpose()
+    }
+}

@@ -20,13 +20,18 @@ pub use entry_contract_seed::{EntryContractSeed, entry_contract_seeds};
 pub use frontier::{
     SourceFile, SourceStorage, ToolchainContractCustody, validate_package_source_frontier,
 };
-pub use generated::{GeneratedSourceExtension, admit_generated_extension};
+pub use generated::{
+    DependencyGeneratedSource, GeneratedSourceExtension, admit_dependency_generated_sources,
+    admit_generated_extension,
+};
 pub use package_selection::{
     MissingDependencyEdge, ReconciledPackageImport, ReconciledPackageImportRequest,
     reconciled_package_import, source_import_scope,
 };
 pub use paths::{bundled_core_root, bundled_omega_root};
-pub use project::{ProjectRoots, project_roots, validate_selected_build_role};
+pub use project::{
+    ProjectRoots, ProjectSourceSelection, project_roots, validate_selected_build_role,
+};
 
 use crate::PackageCompilationInputs;
 use bindings::{ImportOccurrence, direct_source_import};

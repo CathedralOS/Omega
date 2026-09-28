@@ -7,7 +7,7 @@ use package_compilation::source_imports::{discover_imports, discover_imports_wit
 use source_files_to_tokens::ImportQueue;
 use source_files_to_tokens::{lex_sources, load_package_generated_source, load_sources};
 use std::collections::HashSet;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 use syntax_trees::SyntaxTrees;
 use tokens_to_syntax_trees::parse_sources;
@@ -48,55 +48,22 @@ fn append_dependency_generated_sources_to_storage(
     package_inputs: &PackageCompilationInputs,
     timings: &mut CompileTimings,
 ) -> Result<Vec<(source::SourceId, build_output::PackageGeneratedSource)>, Vec<Diagnostic>> {
-    // A virtual path can name different bytes in the two checked scopes.
-    // Route from the source graph to its exact activation bundle, not from a
-    // package-wide 'build-only' classification. The acquisition remains shared.
-    let mut entries = Vec::new();
-    for (purpose, bundle) in package_inputs.dependency_generated_source_instances() {
-        let scope = match purpose {
-            build_declarations::DependencyPurpose::Product => source::DependencyScope::Product,
-            build_declarations::DependencyPurpose::Build => source::DependencyScope::Build,
-        };
-        let package_root = package_inputs
-            .package_root(bundle.package())
-            .expect("validated generated-source bundle retains its package root");
-        for source in bundle.sources() {
-            // Keep path errors in authored order with physical collisions.
-            entries.push((
-                generated_source_logical_path(package_root, source),
-                source,
-                bundle.package(),
-                scope,
-            ));
-        }
-    }
-    {
-        let mut loaded_paths = HashSet::with_capacity(entries.len());
-        for (logical_path, _, _, scope) in &entries {
-            let logical_path = logical_path.as_ref().map_err(Clone::clone)?;
-            if logical_path.exists() || !loaded_paths.insert((logical_path.as_path(), *scope)) {
-                return Err(vec![Diagnostic::error(format!(
-                    "generated dependency source logical path `{}` collides with another source",
-                    logical_path.display(),
-                ))]);
-            }
-        }
-    }
+    let entries =
+        package_compilation::source_imports::admit_dependency_generated_sources(package_inputs)?;
 
-    for (logical_path, _, _, scope) in &entries {
-        let logical_path = logical_path.as_ref().map_err(Clone::clone)?;
-        imports.mark_loaded(logical_path, *scope);
+    for entry in &entries {
+        imports.mark_loaded(&entry.logical_path, entry.scope);
     }
 
     let mut retained = Vec::with_capacity(entries.len());
-    for (logical_path, source, package, scope) in entries {
-        let logical_path = logical_path?;
-        let text = std::str::from_utf8(source.bytes()).map_err(|_| {
-            vec![Diagnostic::error(format!(
-                "included generated source `{}` is not UTF-8 Omega source",
-                logical_path.display(),
-            ))]
-        })?;
+    for entry in entries {
+        let text = entry.source_text()?;
+        let package_compilation::source_imports::DependencyGeneratedSource {
+            logical_path,
+            source,
+            package,
+            scope,
+        } = entry;
         let source_id = source::SourceId(source_storage.next_source_id());
         let lexed = timings.record(SOURCE_FILES_TO_TOKENS, || {
             lex_sources(load_package_generated_source(
@@ -123,21 +90,6 @@ fn append_dependency_generated_sources_to_storage(
         retained.push((source_id, source.clone()));
     }
     Ok(retained)
-}
-
-fn generated_source_logical_path(
-    package_root: &Path,
-    source: &build_output::PackageGeneratedSource,
-) -> Result<PathBuf, Vec<Diagnostic>> {
-    let mut logical_path = package_root.join(".omega/generated");
-    for component in source.relative_path().split(|byte| *byte == b'/') {
-        logical_path.push(std::str::from_utf8(component).map_err(|_| {
-            vec![Diagnostic::error(
-                "generated dependency source path is not canonical UTF-8",
-            )]
-        })?);
-    }
-    Ok(logical_path)
 }
 
 fn load_pending_imports(

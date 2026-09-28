@@ -49,7 +49,11 @@ through those operations unchanged. The shared
 [Build declarations](../../package-manager/build-declarations/src/prelude.rs)
 own prelude content; package source preparation selects its injection and scoped
 aliases. This coordinator loads and parses the result. Entry-contract seed
-selection remains here; neither lexical nor grammar rules depend on build evaluation.
+selection belongs to the package source owner; neither lexical nor grammar rules
+depend on build evaluation. `ProjectSourceSelection` retains exact Build/Product
+root scopes and rejoins the selected Build source after parsing. `SourceStorage`
+admits the package-root roster, while `admit_dependency_generated_sources` checks
+scope-qualified paths before this coordinator loads any generated unit.
 
 ## Root-binding implementation boundary
 

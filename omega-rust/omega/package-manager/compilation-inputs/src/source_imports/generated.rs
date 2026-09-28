@@ -3,7 +3,7 @@
 //! belong here; no syntax or semantic work is performed during admission.
 
 use diagnostics::Diagnostic;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::Arc;
 
@@ -131,6 +131,96 @@ pub fn admit_generated_extension(
         custody: retained,
         base_sources: base_sources.clone(),
     })
+}
+
+/// One admitted dependency source instance. The same logical path may appear
+/// in both scopes; package identity and bytes stay borrowed from its bundle.
+pub struct DependencyGeneratedSource<'source> {
+    pub logical_path: std::path::PathBuf,
+    pub source: &'source build_output::PackageGeneratedSource,
+    pub package: semantic_vocabulary::PackageKeyIdentity,
+    pub scope: source::DependencyScope,
+}
+
+impl<'source> DependencyGeneratedSource<'source> {
+    /// Decode when this source reaches the load frontier, preserving authored
+    /// diagnostic order relative to earlier source parsing and import errors.
+    pub fn source_text(&self) -> Result<&'source str, Vec<Diagnostic>> {
+        std::str::from_utf8(self.source.bytes()).map_err(|_| {
+            vec![Diagnostic::error(format!(
+                "included generated source `{}` is not UTF-8 Omega source",
+                self.logical_path.display(),
+            ))]
+        })
+    }
+}
+
+/// Admit the dependency bundle's ordered, scope-qualified paths before loading
+/// any generated unit. Physical collisions and same-scope duplicates reject.
+pub fn admit_dependency_generated_sources(
+    package_inputs: &crate::PackageCompilationInputs,
+) -> Result<Vec<DependencyGeneratedSource<'_>>, Vec<Diagnostic>> {
+    // A virtual path can name different bytes in the two checked scopes.
+    // Route from the source graph to its exact activation bundle, not from a
+    // package-wide 'build-only' classification. The acquisition remains shared.
+    let mut entries = Vec::new();
+    for (purpose, bundle) in package_inputs.dependency_generated_source_instances() {
+        let scope = match purpose {
+            build_declarations::DependencyPurpose::Product => source::DependencyScope::Product,
+            build_declarations::DependencyPurpose::Build => source::DependencyScope::Build,
+        };
+        let package_root = package_inputs
+            .package_root(bundle.package())
+            .expect("validated generated-source bundle retains its package root");
+        for source in bundle.sources() {
+            // Keep path errors in authored order with physical collisions.
+            entries.push((
+                dependency_generated_source_logical_path(package_root, source),
+                source,
+                bundle.package(),
+                scope,
+            ));
+        }
+    }
+    {
+        let mut loaded_paths = HashSet::with_capacity(entries.len());
+        for (logical_path, _, _, scope) in &entries {
+            let logical_path = logical_path.as_ref().map_err(Clone::clone)?;
+            if logical_path.exists() || !loaded_paths.insert((logical_path.as_path(), *scope)) {
+                return Err(vec![Diagnostic::error(format!(
+                    "generated dependency source logical path `{}` collides with another source",
+                    logical_path.display(),
+                ))]);
+            }
+        }
+    }
+
+    entries
+        .into_iter()
+        .map(|(logical_path, source, package, scope)| {
+            Ok(DependencyGeneratedSource {
+                logical_path: logical_path?,
+                source,
+                package,
+                scope,
+            })
+        })
+        .collect()
+}
+
+fn dependency_generated_source_logical_path(
+    package_root: &Path,
+    source: &build_output::PackageGeneratedSource,
+) -> Result<std::path::PathBuf, Vec<Diagnostic>> {
+    let mut logical_path = package_root.join(".omega/generated");
+    for component in source.relative_path().split(|byte| *byte == b'/') {
+        logical_path.push(std::str::from_utf8(component).map_err(|_| {
+            vec![Diagnostic::error(
+                "generated dependency source path is not canonical UTF-8",
+            )]
+        })?);
+    }
+    Ok(logical_path)
 }
 
 #[cfg(test)]
