@@ -4,6 +4,71 @@ use super::{
     LoweringError, prepare, source_custody, validate_rank,
 };
 use crate::scalar_graph::PrimitiveType;
+
+#[test]
+fn mutable_receiver_keeps_its_invocation_place_across_a_scalar_backedge() {
+    let checked = crate::front_end::checked_program(
+        r#"
+        data Counter {}
+        machine Counter::walk(&mut self, remaining: u64)
+        requires remaining <= 5
+        terminates by remaining -> Nat::Descending in 0..6;
+        -> u64 {
+            transition remaining > 0 {
+                true -> walk(remaining - 1)
+                false -> 42
+            }
+        }
+    "#,
+    );
+    let lowered = crate::lower_machine(
+        &checked,
+        crate::TerminalMachineSelection::Name("Counter::walk"),
+    )
+    .expect("a borrowed receiver is retained, not rebound, by the loop");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("the original exclusive receiver and rank independently verify");
+    let machine = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .unwrap();
+    let receiver = &machine.structural_parameters[0];
+    assert_eq!(
+        receiver.access,
+        terminal_psi::StructuralAccess::MutableBorrow
+    );
+    assert!(
+        machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.structural_parameters)
+            .all(|parameter| parameter.place != receiver.place),
+        "the receiver remains invocation-scoped, never a loop-carried formal"
+    );
+    for access in [
+        checked_trees::CheckedStructuralAccess::SharedBorrow,
+        checked_trees::CheckedStructuralAccess::Owned,
+    ] {
+        let mut changed = checked.clone();
+        changed.facts.flow.terminal_scalar_graphs.machines[0].states[0].structural_parameters[0]
+            .access = access;
+        assert!(
+            crate::lower_machine(
+                &changed,
+                crate::TerminalMachineSelection::Name("Counter::walk"),
+            )
+            .is_err(),
+            "a retained {access:?} cannot replace the authored exclusive loan"
+        );
+    }
+}
+
 fn fixture(
     predicate: &str,
     recursive_truth: bool,

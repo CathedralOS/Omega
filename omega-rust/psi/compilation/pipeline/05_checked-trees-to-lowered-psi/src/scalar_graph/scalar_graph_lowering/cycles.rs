@@ -59,11 +59,16 @@ pub(super) fn prepare(
         return unsupported("scalar loop has a foreign source state");
     }
     if parameters.iter().any(|parameter| {
-        // The independently replayed shared receiver is machine-scoped. It
-        // remains the same loan throughout recursion and never binds on a
-        // backedge; only explicit formals need loop-carrier admission here.
+        // Signature replay preserves the receiver's exact shared or mutable
+        // access. It remains the same invocation-scoped loan throughout the
+        // loop and never binds on a backedge; only explicit formals need
+        // loop-carrier admission. Requiring a shared receiver here would
+        // reject an already admitted exclusive loan without improving custody.
         if parameter.is_self {
-            return parameter.access != StructuralAccess::SharedBorrow;
+            return !matches!(
+                parameter.access,
+                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+            );
         }
         // A borrowed runtime-length view rebinds as a shared loan on the
         // backedge: it carries no owned disposal, so the plain-owned loop
