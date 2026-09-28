@@ -59,6 +59,20 @@ class PathTests(unittest.TestCase):
     def test_normalize_path_rejects_comma_joined_field(self):
         module = load_claims()
         self.assertRaises(module.ClaimsError, module.normalize_path, "a/b,a/c")
+        self.assertRaises(module.ClaimsError, module.normalize_path, "a/b a/c")
+
+    def test_paths_overlap_explodes_whitespace_joined_fields(self):
+        module = load_claims()
+        self.assertTrue(module.paths_overlap("a/b a/c", "a/c/deep"))
+        self.assertTrue(module.paths_overlap("a/b\ta/c,a/d", "a/d"))
+        self.assertFalse(module.paths_overlap("a/b a/c", "a/bc"))
+
+    def test_directory_fence_tolerates_unprobeable_names(self):
+        """A joined list recorded literally can exceed the OS name limit."""
+        module = load_claims()
+        name = " ".join(["segment/" + "x" * 200 + ".rs"] * 4)
+        with tempfile.TemporaryDirectory() as repository:
+            self.assertFalse(module.is_directory_fence(repository, name))
 
 
 class ClaimsTests(unittest.TestCase):
@@ -177,6 +191,22 @@ class ClaimsTests(unittest.TestCase):
                                    expected=2)
         self.assertEqual(conflict["conflicts"][0]["reason"], "overlapping paths")
         self.assertEqual(conflict["conflicts"][0]["shared_paths"], ["src/y/deep"])
+
+    def test_claim_splits_whitespace_joined_path_values(self):
+        self.claim(self.a, "ALPHA-ITEM", "A", "--path", "src/x src/y")
+        entry = self.run_claims(self.b, "status")["claims"][0]
+        self.assertEqual(entry["paths"], ["src/x", "src/y"])
+
+    def test_status_survives_an_unprobeable_legacy_path(self):
+        """A space-joined path recorded literally must not crash status."""
+        self.claim(self.a, "ALPHA-ITEM", "A", "--path", "src/x")
+        record = self.remote_record()
+        joined = " ".join(["src/" + "x" * 200 + ".rs"] * 4)
+        record["claims"][0]["paths"] = [joined]
+        record["claims"][0]["board"] = None
+        self.rewrite_record(record)
+        status = self.run_claims(self.b, "status")
+        self.assertEqual(status["state"], "claimed")
 
     def test_claim_rejects_empty_path_segments(self):
         for bad in ("src/x,,src/y", "src/x,", ",src/x"):
