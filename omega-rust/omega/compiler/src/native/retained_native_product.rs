@@ -5,8 +5,9 @@
 //! plan, locator, target, compiler builtin, or checked-scope receipt.
 
 use diagnostics::Diagnostic;
+use terminal_psi_to_abstract_operations::provider_admission::ProviderAdmissionRequest;
 pub use terminal_psi_to_abstract_operations::provider_admission::SourceEvaluatedImportSettlement;
-use terminal_psi_to_abstract_operations::provider_admission::prepare_source_evaluated_imports;
+use terminal_psi_to_abstract_operations::{NativeAdmissionRequest, RetainedNativeProviderInputs};
 
 /// Explicit policy, image custody, and admitted imports for native re-entry.
 ///
@@ -93,87 +94,42 @@ pub fn realize_retained_native_artifact(
                     },
                 )
             })?;
-        // Proposal validation rejoins each IEEE comparison to its exact selected
-        // intrinsic and checked arm/expression occurrence. The ordinary graph
-        // lowering preserves that operation identity into the D29 physical child;
-        // bitwise IEEE ordering needs no independent foreign-provider settlement.
-        if proposal.post_terminal_optimizations().selections() != optimization_selections {
-            return Err(diagnostic(
-                "Terminal native proposal",
-                "receiving lowerer selections differ from the exact post-Terminal build proposal",
-            ));
-        }
-        crate::native::validate_retained_package_terminal_authority_permissions(
-            proposal.package_terminal_authority_permissions(),
-            &accepted_package_terminal_authority_permission_policy,
-        )?;
-        // The receiver-admission join runs only under an explicitly supplied
-        // receiving policy. `None` leaves the accepted package rows as package
-        // evidence only; they are never silently projected into receiver
-        // permissions.
-        if let Some(receiving_policy) = &terminal_authority_permission_policy {
-            crate::native::validate_package_terminal_authority_permissions(
-                accepted_package_terminal_authority_permission_policy
-                    .rows()
-                    .iter(),
-                receiving_policy,
-            )?;
-        }
-        let native_callbacks =
-            terminal_psi_to_abstract_operations::provider_admission::admit_native_callback_arguments(
-                &callback_placements,
-                proposal.callback_occurrences(),
-            )?;
-        let callback_thunks = backend_plan::admitted_native_callback_thunks(
+        let prepared = proposal.prepare_native_providers(
+            &artifact,
             &callback_placements,
-            proposal.callback_occurrences(),
-        )
-        .map_err(|error| diagnostic("Terminal callback thunk custody", error))?;
-        debug_assert_eq!(callback_placements.len(), native_callbacks.len());
-        debug_assert_eq!(callback_placements.len(), callback_thunks.len());
-
-        let module = terminal_codec::decode_module(artifact.semantic_bytes()).map_err(|error| {
-            diagnostic(
-                "Terminal native proposal",
-                format!("canonical semantics could not be decoded: {error}"),
-            )
-        })?;
-        let demanded =
-            terminal_psi_to_abstract_operations::provider_admission::demanded_boundary_identities(
-                &module,
-            )?;
-        let prepared_imports = prepare_source_evaluated_imports(
-            proposal.selected_provider_plans().plans(),
-            &demanded,
-            imports,
+            RetainedNativeProviderInputs {
+                optimization_selections,
+                accepted_package_permissions:
+                    &accepted_package_terminal_authority_permission_policy,
+                receiving_permissions: terminal_authority_permission_policy.as_ref(),
+                imports,
+            },
         )?;
-        let native_settlements = prepared_imports.settlements();
-
-        let compiler_builtins = terminal_psi_to_abstract_operations::provider_admission::prepare_retained_compiler_builtins(
-            proposal.compiler_builtins(),
-            proposal.selected_provider_plans().plans(),
-        )?;
-        let program_entry = proposal.program_entry().as_settlement();
+        let native_settlements = prepared.imports.settlements();
         crate::native::realize_native_artifact(
             artifact,
             crate::native::NativeRealizationRequest {
-                checked_scope: Some(proposal.checked_boundary_operator_scope()),
-                prepared_input: None,
-                target: proposal.native_target(),
+                admission: NativeAdmissionRequest {
+                    checked_scope: Some(proposal.checked_boundary_operator_scope()),
+                    prepared_input: None,
+                    boundary_application_coverage: Some(proposal.boundary_application_coverage()),
+                    behavior_exclusions: proposal.behavior_exclusions(),
+                    providers: ProviderAdmissionRequest {
+                        target: proposal.native_target(),
+                        profile,
+                        program_entry: proposal.program_entry().as_settlement(),
+                        selected_provider_plans: proposal.selected_provider_plans(),
+                        external_binding_rows: proposal.external_binding_rows(),
+                        settlements: &native_settlements,
+                        compiler_builtins: &prepared.compiler_builtins,
+                        native_callbacks: &prepared.callbacks,
+                        terminal_authority_policy: &terminal_authority_policy,
+                        terminal_authority_permission_policy: &terminal_authority_permission_policy,
+                    },
+                },
                 image_request,
-                profile,
-                terminal_authority_policy,
-                terminal_authority_permission_policy,
-                program_entry,
                 optimization_selections,
-                selected_provider_plans: proposal.selected_provider_plans(),
-                external_binding_rows: proposal.external_binding_rows(),
-                settlements: &native_settlements,
-                compiler_builtins: &compiler_builtins,
-                boundary_application_coverage: Some(proposal.boundary_application_coverage()),
-                native_callbacks: &native_callbacks,
-                callback_thunks: &callback_thunks,
-                behavior_exclusions: proposal.behavior_exclusions(),
+                callback_thunks: &prepared.callback_thunks,
             },
         )
         .map_err(|error| error.into_parts().1)

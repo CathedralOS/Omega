@@ -47,12 +47,8 @@ use self::object_emission::emit_realization_object;
 use native_artifact::{
     NativeArtifactEmissionParts, NativeSelectedProviderClosureDigest, NativeSelectedProviderPlan,
 };
-use terminal_psi_to_abstract_operations::provider_admission::{
-    AdmittedNativeProviders, ProviderAdmissionRequest,
-};
-use terminal_psi_to_abstract_operations::{
-    AdmittedNativeRealization, NativeAdmissionRequest, admit_native_realization,
-};
+use terminal_psi_to_abstract_operations::provider_admission::AdmittedNativeProviders;
+use terminal_psi_to_abstract_operations::{AdmittedNativeRealization, admit_native_realization};
 
 /// Realize one Terminal artifact using explicit image, custody, reuse, and
 /// behavior-exclusion inputs. The request's retained behavior-exclusion union
@@ -78,32 +74,12 @@ fn realize_image(
         input,
         providers,
         boundary_application_coverage,
-    } = admit_native_realization(
-        &artifact,
-        NativeAdmissionRequest {
-            checked_scope: request.checked_scope,
-            prepared_input: request.prepared_input,
-            boundary_application_coverage: request.boundary_application_coverage,
-            behavior_exclusions: request.behavior_exclusions,
-            providers: ProviderAdmissionRequest {
-                target: request.target,
-                profile: request.profile,
-                program_entry: request.program_entry,
-                selected_provider_plans: request.selected_provider_plans,
-                external_binding_rows: request.external_binding_rows,
-                settlements: request.settlements,
-                compiler_builtins: request.compiler_builtins,
-                native_callbacks: request.native_callbacks,
-                terminal_authority_policy: &request.terminal_authority_policy,
-                terminal_authority_permission_policy: &request.terminal_authority_permission_policy,
-            },
-        },
-    )?;
+    } = admit_native_realization(&artifact, &request.admission)?;
     let receiver_settlement = native_artifact::admit_executable_entry_receiver(
         &input,
         &artifact,
-        request.program_entry,
-        request.target,
+        request.admission.providers.program_entry,
+        request.admission.providers.target,
     )?;
     let AdmittedNativeProviders {
         settlements,
@@ -127,18 +103,25 @@ fn realize_image(
         request,
     )?;
     RequestedNativeArtifact::emit(NativeArtifactEmissionParts {
-        target: request.target,
+        target: request.admission.providers.target,
         psi_artifact: artifact,
         object: emitted.object,
         image: request.image_request.clone(),
         selected_provider_closure_report_identity: request
+            .admission
+            .providers
             .selected_provider_plans
             .compatibility_report_identity(),
         selected_provider_closure_digest: NativeSelectedProviderClosureDigest::from_digest(
-            *request.selected_provider_plans.identity_digest().as_bytes(),
+            *request
+                .admission
+                .providers
+                .selected_provider_plans
+                .identity_digest()
+                .as_bytes(),
         ),
         selected_provider_plans: NativeSelectedProviderPlan::project_selection(
-            request.selected_provider_plans,
+            request.admission.providers.selected_provider_plans,
         ),
         provider_executions: executions,
         terminal_authority_policy_identity,

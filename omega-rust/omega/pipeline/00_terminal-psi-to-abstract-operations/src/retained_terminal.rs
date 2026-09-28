@@ -2,7 +2,10 @@
 //! match it occurrence for occurrence - every boundary demand, callback and
 //! nearest-FMA site - before native realization is allowed to begin.
 
+mod native_providers;
+
 pub use backend_plan::{TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact};
+pub use native_providers::{PreparedRetainedNativeProviders, RetainedNativeProviderInputs};
 
 pub use crate::provider_admission::TerminalCompilerBuiltinProposal;
 

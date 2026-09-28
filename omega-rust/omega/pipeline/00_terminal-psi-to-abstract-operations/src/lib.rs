@@ -34,7 +34,8 @@ mod provider_installation;
 mod retained_terminal;
 
 pub use retained_terminal::{
-    RetainedTerminalArtifact, TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact,
+    PreparedRetainedNativeProviders, RetainedNativeProviderInputs, RetainedTerminalArtifact,
+    TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact,
     TerminalCompilerBuiltinProposal, TerminalIeeeFloatComparisonOccurrenceProposal,
     TerminalIntegerComparisonOccurrenceProposal, TerminalNativeRealizationInputs,
     TerminalNativeRealizationProposal,
