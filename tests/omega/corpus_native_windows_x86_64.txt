@@ -1,8 +1,12 @@
 # Omega corpus outcomes, written by `python tools/corpus_gate.py --record`.
 # One fixture per line: <tier/group/name> <status> <milliseconds>ms, then
 # `expected` or `unexpected` when its expected.txt fragments were weighed,
-# then any execution facts such as exit:70 or stdout:match.
+# then any execution facts such as exit:70 or stdout:match, then
+# `@<revision>` recording which commit measured the row (`+wt` = dirty
+# tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
+# A `# context: {...}` line records the conditions of the --record run.
+# context: {"cpus": 32, "jobs": null, "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments rejected 1478ms
 	native-artifact production requires one exact selected program entry
 pass/arithmetic/anonymous_rational_integer_landing rejected 1669ms
@@ -682,6 +686,7 @@ pass/layouts/runtime_plan_laid_record_array_mutable_write_exit rejected 4853ms
 pass/layouts/runtime_plan_laid_tiled_record_nested_array_view_exit rejected 4192ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: destination parameter` (state 0, statement 2)
 pass/layouts/runtime_plan_laid_value_field_exit built 20681ms exit:70
+pass/layouts/runtime_size_of_align_of_exit built 1326ms exit:70 @df0288f59fdd
 pass/memory/address_translation_canary rejected 1967ms
 	native-artifact production requires one exact selected program entry
 pass/memory/bump_allocator_canary built 7327ms
