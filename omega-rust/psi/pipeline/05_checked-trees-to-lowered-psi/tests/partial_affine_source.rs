@@ -756,7 +756,16 @@ fn direct_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpr
         fields
             .iter()
             .filter_map(|field| match field.field_type {
-                StructuralFieldType::ByteSequence(carrier) => {
+                StructuralFieldType::PredicateByteSequence {
+                    carrier,
+                    predicates,
+                } => {
+                    let mut expected = terminal_psi::ByteSequencePredicateSet::EMPTY;
+                    expected.insert(terminal_psi::ByteSequencePredicate::ValidUtf8);
+                    assert_eq!(
+                        predicates, expected,
+                        "field retains its exact UTF-8 predicate"
+                    );
                     Some((field.identity.as_str(), carrier))
                 }
                 _ => None,

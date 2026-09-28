@@ -26,6 +26,77 @@ use terminal_verifier::{
 };
 
 #[test]
+fn predicate_byte_siblings_do_not_change_the_partial_affine_complement() {
+    let mut module = multiple_move_partial_affine_field_module();
+    let mut predicates = terminal_psi::ByteSequencePredicateSet::EMPTY;
+    predicates.insert(terminal_psi::ByteSequencePredicate::ValidUtf8);
+    let terminal_psi::StructuralTypeShape::Record { fields } =
+        &mut module.structural_types[1].shape
+    else {
+        panic!("fixture root is a record")
+    };
+    fields.insert(
+        1,
+        terminal_psi::StructuralFieldDeclaration {
+            id: semantic_vocabulary::StructuralFieldId::new(4).unwrap(),
+            identity: "label".into(),
+            relevance: terminal_psi::BindingRelevance::Relevant,
+            field_type: terminal_psi::StructuralFieldType::PredicateByteSequence {
+                carrier: terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity: 3 },
+                predicates,
+            },
+        },
+    );
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("bounded byte predicates add no cleanup obligation");
+
+    let mut borrowed = module.clone();
+    let terminal_psi::StructuralTypeShape::Record { fields } =
+        &mut borrowed.structural_types[1].shape
+    else {
+        unreachable!()
+    };
+    fields[1].field_type = terminal_psi::StructuralFieldType::PredicateByteSequence {
+        carrier: terminal_psi::ByteSequenceCarrier::BorrowedView {
+            access: Some(StructuralAccess::SharedBorrow),
+        },
+        predicates,
+    };
+    assert!(
+        verify_module(
+            &borrowed,
+            &ProofBundle::default(),
+            &AdmissionProfile::default()
+        )
+        .is_err(),
+        "a predicate must not let borrowed storage masquerade as a bounded owner"
+    );
+
+    let mut missing_residual = module.clone();
+    let Terminator::ReturnUnitPartialAffine {
+        residual_affine_discards,
+        ..
+    } = &mut missing_residual.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    residual_affine_discards.clear();
+    assert!(
+        verify_module(
+            &missing_residual,
+            &ProofBundle::default(),
+            &AdmissionProfile::default()
+        )
+        .is_err(),
+        "cleanup-free bytes do not erase a structural sibling's residual obligation"
+    );
+}
+
+#[test]
 fn multiple_direct_field_partial_affine_moves_validate_and_verify() {
     let module = multiple_move_partial_affine_field_module();
     let caller = &module.machines[0];

@@ -129,6 +129,9 @@ fn visit(
         .find(|declaration| declaration.id == current)?;
     match &declaration.shape {
         StructuralTypeShape::Record { fields } => {
+            // Byte predicates constrain the payload, not its disposal. An
+            // inline bounded owner remains cleanup-free; a borrowed view does
+            // not gain that status merely by carrying the same predicate.
             if fields.is_empty()
                 || fields.iter().any(|field| {
                     field.relevance.is_erased()
@@ -140,6 +143,10 @@ fn visit(
                                 | StructuralFieldType::ByteSequence(
                                     terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
                                 )
+                                | StructuralFieldType::PredicateByteSequence {
+                                    carrier: terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+                                    ..
+                                }
                         )
                 })
             {
