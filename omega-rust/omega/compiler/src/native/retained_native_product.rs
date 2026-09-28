@@ -5,9 +5,8 @@
 //! plan, locator, target, compiler builtin, or checked-scope receipt.
 
 use diagnostics::Diagnostic;
-use terminal_psi_to_abstract_operations::provider_admission::ProviderAdmissionRequest;
+use terminal_psi_to_abstract_operations::RetainedNativeProviderInputs;
 pub use terminal_psi_to_abstract_operations::provider_admission::SourceEvaluatedImportSettlement;
-use terminal_psi_to_abstract_operations::{NativeAdmissionRequest, RetainedNativeProviderInputs};
 
 /// Explicit policy, image custody, and admitted imports for native re-entry.
 ///
@@ -109,24 +108,12 @@ pub fn realize_retained_native_artifact(
         crate::native::realize_native_artifact(
             artifact,
             crate::native::NativeRealizationRequest {
-                admission: NativeAdmissionRequest {
-                    checked_scope: Some(&proposal.boundary_applications().scope),
-                    prepared_input: None,
-                    boundary_application_coverage: Some(&proposal.boundary_applications().coverage),
-                    behavior_exclusions: proposal.behavior_exclusions(),
-                    providers: ProviderAdmissionRequest {
-                        target: proposal.native_target(),
-                        profile,
-                        program_entry: proposal.program_entry().as_settlement(),
-                        selected_provider_plans: &proposal.providers().selection,
-                        external_binding_rows: proposal.providers().external_bindings.as_slice(),
-                        settlements: &native_settlements,
-                        compiler_builtins: &prepared.compiler_builtins,
-                        native_callbacks: &prepared.callbacks,
-                        terminal_authority_policy: &terminal_authority_policy,
-                        terminal_authority_permission_policy: &terminal_authority_permission_policy,
-                    },
-                },
+                admission: prepared.admission_request(
+                    profile,
+                    &native_settlements,
+                    &terminal_authority_policy,
+                    &terminal_authority_permission_policy,
+                ),
                 image_request,
                 optimization_selections,
                 callback_thunks: &prepared.callback_thunks,

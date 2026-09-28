@@ -260,6 +260,40 @@ impl CheckedCompilation {
             .map(selected_dispatch::ResolvedAcceptedSemanticBinding::accepted)
     }
 
+    /// Retain permission rows from the exact semantic bindings this checked
+    /// product consumed. Proposal construction and accepted-policy admission
+    /// project from the checked source independently, never from each other.
+    pub fn package_terminal_authority_permissions(
+        &self,
+    ) -> Vec<effects::ServiceTerminalAuthorityPermission> {
+        self.resolved_semantic_bindings()
+            .flat_map(|binding| binding.terminal_authority_permissions())
+            .cloned()
+            .collect()
+    }
+
+    /// Project and validate this checked package's accepted Terminal permission
+    /// rows before native proposal production. These are package evidence, not
+    /// the independently supplied receiver-admission policy.
+    pub fn accepted_terminal_authority_permission_policy(
+        &self,
+    ) -> Result<
+        terminal_psi_to_abstract_operations::provider_admission::TerminalAuthorityPermissionPolicy,
+        Vec<Diagnostic>,
+    > {
+        use terminal_psi_to_abstract_operations::provider_admission::{
+            terminal_authority_permission_policy_with_rows,
+            terminal_authority_permissions::validate_package_terminal_authority_permission_custody,
+        };
+        let permissions = self.package_terminal_authority_permissions();
+        validate_package_terminal_authority_permission_custody(permissions.iter())?;
+        terminal_authority_permission_policy_with_rows(permissions).map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "checked package terminal-authority permissions are invalid: {error:?}"
+            ))]
+        })
+    }
+
     /// Construct a non-authoritative review candidate for one exact package-
     /// owned requirement-only boundary. Readable role nomination happens
     /// outside the compiler; this contributes only checked owner, nominal, and

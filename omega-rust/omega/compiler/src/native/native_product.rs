@@ -24,20 +24,8 @@ pub fn produce_native_report(
     // Capture package acceptance from the checked source, independently of the
     // proposal being produced. These are NOT receiver permission rows: the
     // separately supplied receiver policy remains optional and unchanged.
-    let permissions = checked
-        .resolved_semantic_bindings()
-        .flat_map(|binding| binding.terminal_authority_permissions())
-        .cloned()
-        .collect::<Vec<_>>();
-    crate::native::validate_package_terminal_authority_permission_custody(permissions.iter())?;
     let accepted_package_terminal_authority_permission_policy =
-        crate::native::terminal_authority_permission_policy_with_rows(permissions).map_err(
-            |error| {
-                vec![Diagnostic::error(format!(
-                    "checked package terminal-authority permissions are invalid: {error:?}"
-                ))]
-            },
-        )?;
+        checked.accepted_terminal_authority_permission_policy()?;
     let terminal = crate::terminal::produce_retained_terminal_artifact(
         &mut checked,
         &request.terminal_admission_profile,
