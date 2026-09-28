@@ -1,11 +1,12 @@
 //! Source consumption tests.
 
 use super::{
-    CheckedTrees, ConsumedSourceUnit, ConsumedSourceUnitKind, PackageCompilationSubject,
+    ConsumedSourceUnit, ConsumedSourceUnitKind, PackageCompilationSubject,
     PackageSourceConsumptionCommitment, Sha256, SourceFile, SourceOrigin, append_field,
     canonical_consumed_unit_bytes, canonical_source_entry, derive_consumed_source_units,
     derive_source_consumption_commitment, toolchain_source_identity_digest, verify_current_files,
 };
+use checked_trees::CheckedTrees;
 use semantic_vocabulary::PackageKeyIdentity;
 use sha2::Digest;
 use source::SourceId;
@@ -64,7 +65,7 @@ fn generated_files(
 #[test]
 fn build_source_custody_admits_generated_continuation_without_partial_updates() {
     let package = PackageKeyIdentity::from_digest([7; 32]).unwrap();
-    let root = std::env::current_dir().unwrap();
+    let root = std::env::current_dir().unwrap().canonicalize().unwrap();
     let inputs = crate::PackageCompilationInputs::new_package(
         package,
         vec![crate::PackageSourceBinding::new(
@@ -212,7 +213,7 @@ fn checked_source_custody_seals_the_closure_and_exports_only_own_outputs() {
     assert_eq!(sealed.base_source_consumption_commitment(), Some(base));
     assert_eq!(
         sealed.package_subject().unwrap(),
-        &super::derive_package_compilation_subject(&program, &inputs, &custody).unwrap(),
+        &super::derive_package_compilation_subject(files.iter(), &inputs, &custody).unwrap(),
     );
     sealed.verify_current_source_consumption(&program).unwrap();
     let own_outputs = vec![custody[1].1.clone()];
@@ -305,7 +306,7 @@ fn checked_source_custody_preserves_standalone_and_physical_drift_boundaries() {
     let sealed = continuation.clone().seal(&program, Some(&inputs)).unwrap();
     assert_eq!(
         sealed.exact_toolchain_sources(),
-        super::toolchain_source_identities(&program).unwrap()
+        super::toolchain_source_identities(program.symbols.source_files()).unwrap()
     );
     std::fs::write(&path, "changed").unwrap();
     assert!(
@@ -349,25 +350,25 @@ fn checked_source_custody_preserves_standalone_and_physical_drift_boundaries() {
 fn generated_projection_preserves_order_independence_and_custody_errors() {
     let custody = generated_fixture();
     let files = generated_files(&custody);
-    let baseline = derive_consumed_source_units(&checked_sources(files.clone()), &custody).unwrap();
+    let baseline = derive_consumed_source_units(files.iter(), &custody).unwrap();
     let mut reversed_files = files.clone();
     reversed_files.reverse();
     let reversed_custody = vec![custody[1].clone(), custody[0].clone()];
     assert_eq!(
         baseline,
-        derive_consumed_source_units(&checked_sources(reversed_files), &reversed_custody).unwrap()
+        derive_consumed_source_units(reversed_files.iter(), &reversed_custody).unwrap()
     );
     let mut duplicate = custody.clone();
     duplicate.push(custody[0].clone());
     assert!(
-        derive_consumed_source_units(&CheckedTrees::default(), &duplicate).unwrap_err()[0]
+        derive_consumed_source_units(std::iter::empty(), &duplicate).unwrap_err()[0]
             .message
             .contains("duplicate frontend source IDs")
     );
     let mut missing = custody.clone();
     missing.push((SourceId(usize::MAX), custody[0].1.clone()));
     assert!(
-        derive_consumed_source_units(&checked_sources(files.clone()), &missing).unwrap_err()[0]
+        derive_consumed_source_units(files.iter(), &missing).unwrap_err()[0]
             .message
             .contains("absent from the final checked closure")
     );
@@ -383,7 +384,7 @@ fn generated_projection_preserves_order_independence_and_custody_errors() {
         (changed_root, "outside its reconciled package root"),
     ] {
         assert!(
-            derive_consumed_source_units(&checked_sources(changed), &custody).unwrap_err()[0]
+            derive_consumed_source_units(changed.iter(), &custody).unwrap_err()[0]
                 .message
                 .contains(expected)
         );
@@ -395,7 +396,7 @@ fn generated_projection_preserves_order_independence_and_custody_errors() {
     repeated.push(files[0].clone());
     assert_eq!(
         baseline,
-        derive_consumed_source_units(&checked_sources(repeated.clone()), &custody).unwrap()
+        derive_consumed_source_units(repeated.iter(), &custody).unwrap()
     );
     let package = PackageKeyIdentity::from_digest([9; 32]).expect("package identity");
     let authored = |text: &str, id| {
@@ -411,12 +412,12 @@ fn generated_projection_preserves_order_independence_and_custody_errors() {
     };
     let colliding = vec![authored("data A {}", 40), authored("data B {}", 41)];
     assert!(
-        derive_consumed_source_units(&checked_sources(colliding), &[]).unwrap_err()[0]
+        derive_consumed_source_units(colliding.iter(), &[]).unwrap_err()[0]
             .message
             .contains("distinct sources at duplicate canonical coordinates")
     );
     assert!(
-        derive_consumed_source_units(&checked_sources(repeated), &missing).unwrap_err()[0]
+        derive_consumed_source_units(repeated.iter(), &missing).unwrap_err()[0]
             .message
             .contains("absent from the final checked closure"),
         "repeated source IDs must not hide missing custody"
@@ -424,7 +425,7 @@ fn generated_projection_preserves_order_independence_and_custody_errors() {
     let mut wrong_origin = files;
     wrong_origin[0].origin = SourceOrigin::Toolchain;
     assert!(
-        derive_consumed_source_units(&checked_sources(wrong_origin), &custody).unwrap_err()[0]
+        derive_consumed_source_units(wrong_origin.iter(), &custody).unwrap_err()[0]
             .message
             .contains("does not match final checked source")
     );
@@ -452,7 +453,7 @@ fn generated_coordinates_distinguish_scopes_but_preserve_collision_rejection() {
     let mut files = generated_files(&custody);
     files[0].dependency_scope = Product;
     files[1].dependency_scope = Build;
-    let units = derive_consumed_source_units(&checked_sources(files.clone()), &custody).unwrap();
+    let units = derive_consumed_source_units(files.iter(), &custody).unwrap();
     assert_eq!(units.len(), 2);
     assert_eq!(
         units[0].kind(),
@@ -464,9 +465,9 @@ fn generated_coordinates_distinguish_scopes_but_preserve_collision_rejection() {
     );
     assert_eq!(canonical_consumed_unit_bytes(&units[0])[0], 1);
     assert_eq!(canonical_consumed_unit_bytes(&units[1])[0], 4);
-    verify_current_files(&checked_sources(files.clone()), &custody).unwrap();
+    verify_current_files(files.iter(), &custody).unwrap();
     files[1].dependency_scope = Product;
-    let diagnostics = derive_consumed_source_units(&checked_sources(files), &custody).unwrap_err();
+    let diagnostics = derive_consumed_source_units(files.iter(), &custody).unwrap_err();
     assert!(
         diagnostics[0]
             .message
@@ -484,11 +485,10 @@ fn generated_coordinates_distinguish_scopes_but_preserve_collision_rejection() {
     let mut other_scope = authored.clone();
     other_scope.source_id = SourceId(4);
     other_scope.dependency_scope = Build;
-    let baseline =
-        derive_consumed_source_units(&checked_sources(vec![authored.clone()]), &[]).unwrap();
+    let baseline = derive_consumed_source_units([&authored], &[]).unwrap();
     assert_eq!(
         baseline,
-        derive_consumed_source_units(&checked_sources(vec![authored, other_scope]), &[]).unwrap()
+        derive_consumed_source_units([&authored, &other_scope], &[]).unwrap()
     );
 }
 
@@ -501,10 +501,10 @@ fn generated_verification_preserves_physical_rereads_and_custody_only_behavior()
     let mut unchecked = vec![custody[1].clone(), custody[0].clone()];
     unchecked.push((custody[0].0, custody[1].1.clone()));
     unchecked.push((SourceId(usize::MAX), custody[0].1.clone()));
-    verify_current_files(&checked_sources(files.clone()), &unchecked).unwrap();
+    verify_current_files(files.iter(), &unchecked).unwrap();
     files[0].source = Arc::from("drifted");
     assert!(
-        verify_current_files(&checked_sources(files.clone()), &unchecked).unwrap_err()[0]
+        verify_current_files(files.iter(), &unchecked).unwrap_err()[0]
             .message
             .contains("drifted from staged-output custody")
     );
@@ -518,17 +518,16 @@ fn generated_verification_preserves_physical_rereads_and_custody_only_behavior()
     physical.path = path.clone();
     physical.source_id = SourceId(0);
     files.insert(1, physical);
-    let program = checked_sources(files);
-    verify_current_files(&program, &unchecked).unwrap();
+    verify_current_files(files.iter(), &unchecked).unwrap();
     std::fs::write(&path, "changed").expect("change physical source");
     assert!(
-        verify_current_files(&program, &unchecked).unwrap_err()[0]
+        verify_current_files(files.iter(), &unchecked).unwrap_err()[0]
             .message
             .contains("changed after frontend loading")
     );
     std::fs::remove_file(&path).expect("remove physical source");
     assert!(
-        verify_current_files(&program, &unchecked).unwrap_err()[0]
+        verify_current_files(files.iter(), &unchecked).unwrap_err()[0]
             .message
             .contains("cannot be re-read")
     );

@@ -1,4 +1,3 @@
-use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use sha2::{Digest, Sha256};
 use source::{SourceFile, SourceOrigin};
@@ -304,12 +303,14 @@ fn canonical_root_role(role: super::BuildDeclarationKind) -> u8 {
     }
 }
 
-/// Derive the one canonical source projection from the final checked closure.
+/// Derive the canonical projection of the frontend's exact retained sources.
 /// Generated-source custody is joined by private `SourceId` only while this
 /// projection is constructed; IDs never enter the retained rows.
+/// This establishes source identity, not semantic validity. Both pre-build
+/// admission and final checked publication use the same projection.
 #[doc(hidden)]
-pub fn derive_consumed_source_units(
-    program: &CheckedTrees,
+pub fn derive_consumed_source_units<'source>(
+    sources: impl IntoIterator<Item = &'source SourceFile>,
     generated_sources: &[(source::SourceId, build_output::PackageGeneratedSource)],
 ) -> Result<Vec<ConsumedSourceUnit>, Vec<Diagnostic>> {
     let generated_by_id = GeneratedSourceOrder::new(generated_sources);
@@ -322,10 +323,8 @@ pub fn derive_consumed_source_units(
     }
 
     let mut observed_generated = vec![false; generated_sources.len()];
-    let mut units = program
-        .typed
-        .symbols
-        .source_files()
+    let mut units = sources
+        .into_iter()
         .map(|source| {
             let generated = generated_by_id.find(source.source_id);
             if let Some((position, generated)) = generated {
@@ -443,14 +442,15 @@ fn validate_generated_source_join(
     Ok(())
 }
 
-/// Derive the one package/source subject from the final checked closure.
+/// Bind retained source identity to the reconciled package/dependency closure.
+/// Semantic checking and authority admission remain the caller's obligations.
 #[doc(hidden)]
-pub fn derive_package_compilation_subject(
-    program: &CheckedTrees,
+pub fn derive_package_compilation_subject<'source>(
+    sources: impl IntoIterator<Item = &'source SourceFile>,
     inputs: &super::PackageCompilationInputs,
     generated_sources: &[(source::SourceId, build_output::PackageGeneratedSource)],
 ) -> Result<PackageCompilationSubject, Vec<Diagnostic>> {
-    let consumed_units = derive_consumed_source_units(program, generated_sources)?;
+    let consumed_units = derive_consumed_source_units(sources, generated_sources)?;
     let source_consumption_commitment =
         derive_source_consumption_commitment(&consumed_units, inputs)?;
     Ok(PackageCompilationSubject {
@@ -633,13 +633,13 @@ fn canonical_path_components(
 }
 
 #[doc(hidden)]
-pub fn verify_current_files(
-    program: &CheckedTrees,
+pub fn verify_current_files<'source>(
+    sources: impl IntoIterator<Item = &'source SourceFile>,
     generated_sources: &[(source::SourceId, build_output::PackageGeneratedSource)],
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let generated_by_id = GeneratedSourceOrder::new(generated_sources);
-    for source in program.typed.symbols.source_files() {
+    for source in sources {
         if source.origin == SourceOrigin::Toolchain && is_virtual_toolchain_path(&source.path) {
             continue;
         }
@@ -675,13 +675,11 @@ pub fn verify_current_files(
 /// nominal and type identity. `SourceId` is only the compiler-internal join
 /// coordinate; canonical identity contains the collision-resistant digest.
 #[doc(hidden)]
-pub fn toolchain_source_identities(
-    program: &CheckedTrees,
+pub fn toolchain_source_identities<'source>(
+    sources: impl IntoIterator<Item = &'source SourceFile>,
 ) -> Result<Vec<(source::SourceId, [u8; 32])>, Vec<Diagnostic>> {
-    let mut identities = program
-        .typed
-        .symbols
-        .source_files()
+    let mut identities = sources
+        .into_iter()
         .filter(|source| source.origin == SourceOrigin::Toolchain)
         .map(|source| Ok((source.source_id, toolchain_source_identity_digest(source)?)))
         .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;

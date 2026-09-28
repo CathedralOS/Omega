@@ -88,12 +88,19 @@ impl BuildSourceCustody {
     ) -> Result<CheckedSourceCustody, Vec<Diagnostic>> {
         let package_subject = package_inputs
             .map(|inputs| {
-                derive_package_compilation_subject(program, inputs, &self.generated_source_custody)
+                derive_package_compilation_subject(
+                    program.symbols.source_files(),
+                    inputs,
+                    &self.generated_source_custody,
+                )
             })
             .transpose()?;
-        let exact_toolchain_sources = toolchain_source_identities(program)?;
+        let exact_toolchain_sources = toolchain_source_identities(program.symbols.source_files())?;
         if package_subject.is_some() {
-            verify_current_files(program, &self.generated_source_custody)?;
+            verify_current_files(
+                program.symbols.source_files(),
+                &self.generated_source_custody,
+            )?;
         }
         if let Some(inputs) = package_inputs {
             inputs.validate_canonical_source_metadata()?;
@@ -132,7 +139,10 @@ impl CheckedSourceCustody {
         &self,
         program: &CheckedTrees,
     ) -> Result<(), Vec<Diagnostic>> {
-        verify_current_files(program, &self.build.generated_source_custody)
+        verify_current_files(
+            program.symbols.source_files(),
+            &self.build.generated_source_custody,
+        )
     }
 
     /// Export only the activation's own included sources. The final checked
