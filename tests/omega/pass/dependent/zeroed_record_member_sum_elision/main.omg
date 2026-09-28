@@ -10,6 +10,7 @@ data RegionAlignment {
 }
 
 data Snapshot {
+    region_count: u32;
     padding: [u8; 8];
     alignment: RegionAlignment;
 }
