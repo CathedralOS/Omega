@@ -318,28 +318,7 @@ fn continue_generated_sources(
     ),
     Vec<Diagnostic>,
 > {
-    let (sources, custody) = extension.into_source_inputs(base_sources)?;
-    let mut units = Vec::with_capacity(custody.len());
-    for (source_id, _) in &custody {
-        let source = sources
-            .get(*source_id)
-            .expect("admitted generated source retains its exact source instance");
-        let lexed = timings.record(artifacts::compile_timings::SOURCE_FILES_TO_TOKENS, || {
-            source_files_to_tokens::lex_sources(
-                source_files_to_tokens::load_package_generated_source(
-                    source.path.clone(),
-                    &source.source,
-                    source_id.0,
-                    source::DependencyScope::Product,
-                ),
-            )
-        })?;
-        let mut syntax = syntax_trees::SyntaxTrees::new(*source_id);
-        timings.record(artifacts::compile_timings::TOKENS_TO_SYNTAX_TREES, || {
-            tokens_to_syntax_trees::parse_sources(lexed, &mut syntax)
-        })?;
-        units.push(syntax);
-    }
+    let (sources, units) = extension.parse(base_sources, timings)?;
     let retained_prefix = base.typed().clone();
     let resolved_base = base.resolved_base_for_extension();
     let (mut extension_syntax, pre_checks) =

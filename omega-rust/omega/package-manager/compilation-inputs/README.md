@@ -16,6 +16,10 @@ imports, and loads entry contracts and the Build prelude through Psi 00/01.
 Physical discovery and exact-input continuation share one ordered loading loop.
 This preparation never executes a Build machine or checks a program. Compiler
 and prefix consumers use it directly, without depending on Build evaluation.
+An activation's `GeneratedSourceExtension::parse` uses the same loading and
+parsing stages after source admission. It rejoins the exact base before parsing
+and preserves one forest per generated unit; the compiler never reopens bytes
+or chooses source-instance coordinates between Build execution and resolution.
 
 [build_execution/build_admission.rs](src/build_execution/build_admission.rs) selects
 the exact source-owned Build machine, rejects runtime-service reach, and admits

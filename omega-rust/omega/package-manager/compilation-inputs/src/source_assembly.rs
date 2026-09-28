@@ -4,12 +4,14 @@
 //! physical sources. `assemble` admits a child's inputs, appends dependency
 //! outputs, resolves deferred imports, and injects entry contracts and the Build
 //! prelude. Both use one ordered loading loop and the ordinary Psi 00/01 stages.
+//! `GeneratedSourceExtension::parse` consumes the activation's admitted output
+//! through those same stages, preserving separate generated-unit forests.
 //! No Build machine executes here; resolution and typing consume the result.
 
 use crate::PackageCompilationInputs;
 use crate::source_imports::{
-    PackageImportPhase, PendingPackageImport, ProjectSourceSelection, SourceStorage,
-    discover_imports, discover_imports_with_packages, discover_package_imports,
+    GeneratedSourceExtension, PackageImportPhase, PendingPackageImport, ProjectSourceSelection,
+    SourceStorage, discover_imports, discover_imports_with_packages, discover_package_imports,
     validate_package_source_frontier, validate_selected_build_role,
 };
 use artifacts::compile_timings::{CompileTimings, SOURCE_FILES_TO_TOKENS, TOKENS_TO_SYNTAX_TREES};
@@ -225,6 +227,40 @@ impl ImmutableSourceParseCheckpoint {
             )?;
         }
         Ok(())
+    }
+}
+
+impl GeneratedSourceExtension {
+    /// Parse an admitted generated extension against its exact immutable base.
+    /// Each custody row keeps a separate syntax forest: pre-resolution
+    /// normalization must not synthesize across generated-unit boundaries.
+    /// Base substitution rejects before any loading or parsing.
+    pub fn parse(
+        self,
+        base_sources: &Arc<source::SourceMap>,
+        timings: &mut CompileTimings,
+    ) -> Result<(Arc<source::SourceMap>, Vec<SyntaxTrees>), Vec<Diagnostic>> {
+        let (sources, custody) = self.into_source_inputs(base_sources)?;
+        let mut units = Vec::with_capacity(custody.len());
+        for (source_id, _) in &custody {
+            let source = sources.get(*source_id).ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "admitted generated source has no retained source instance",
+                )]
+            })?;
+            let lexed = timings.record(SOURCE_FILES_TO_TOKENS, || {
+                lex_sources(load_package_generated_source(
+                    source.path.clone(),
+                    &source.source,
+                    source_id.0,
+                    source::DependencyScope::Product,
+                ))
+            })?;
+            let mut syntax = SyntaxTrees::new(*source_id);
+            timings.record(TOKENS_TO_SYNTAX_TREES, || parse_sources(lexed, &mut syntax))?;
+            units.push(syntax);
+        }
+        Ok((sources, units))
     }
 }
 

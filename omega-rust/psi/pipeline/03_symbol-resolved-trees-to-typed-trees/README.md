@@ -19,6 +19,8 @@ limits, not a different generated-source language.
   Evaluation and replay consume the admitted route.
 - [source assembly](../../../omega/package-manager/compilation-inputs/src/source_assembly.rs): generated units and
   dependency bundles retain source bytes, logical paths, and producer custody.
+  `GeneratedSourceExtension::parse` joins the exact base and produces separate
+  syntax forests through Psi 00/01 before this continuation resolves them.
 - [seeded resolution](../02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs)
   appends the later stratum and rebases only extension-owned selections.
 - [typed continuation](src/lowerer/seeded_continuation.rs)
