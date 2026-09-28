@@ -42,14 +42,13 @@ pub(crate) fn validate_authored_declaration_selections_before_build(
     // later pass that arrives at this same frozen graph under this same
     // request.
     let mut provisional = typed.clone();
-    let pruned_occurrences =
-        typed_trees_to_checked_trees::prune_target_siblings_typed(&mut provisional);
+    typed_trees_to_checked_trees::prune_target_siblings_typed(&mut provisional);
     let checked =
         crate::checked::checking::phase_transitions::typed_trees_to_preliminary_checked_trees(
             provisional,
             timings,
+            packages,
         )?;
-    validation::validate_authored_declaration_selections(&checked, packages, &pruned_occurrences)?;
     let base = package_compilation::derive_package_compilation_subject(
         &checked,
         packages,
