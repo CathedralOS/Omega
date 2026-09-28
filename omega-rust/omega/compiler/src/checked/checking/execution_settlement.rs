@@ -2,20 +2,18 @@
 //! The resulting checked program and its sidecars remain one owned handoff.
 
 use super::build_continuation::BuiltCheckedProgram;
-use super::const_evaluation;
 use artifacts::compile_timings::CompileTimings;
-use build_time_evaluation::SelectedBuildTimeOperators;
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
 use selected_dispatch::{
-    ProviderCheckingInputs, ProviderCheckingRequest, SelectedExecution, SelectedExecutionRequest,
-    settle_selected_execution,
+    ProviderCheckingInputs, ProviderCheckingRequest, SelectedConstantEvaluation, SelectedExecution,
+    SelectedExecutionRequest, settle_selected_execution,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CheckedExecution {
     pub(super) settled: SelectedExecution,
-    pub(super) const_evaluation: const_evaluation::SelectedConstEvaluation,
+    pub(super) const_evaluation: SelectedConstantEvaluation,
     pub(super) subsystem: u16,
     pub(super) application_intent: Option<build_evaluation::HostedApplicationIntent>,
     pub(super) application_identifier: Option<build_evaluation::ApplicationIdentifier>,
@@ -166,25 +164,11 @@ pub(crate) fn check_selected_execution(
     let selected_native_target = selected_target_profile.map(target::TargetProfile::native_target);
     let provider_selection_target =
         selected_native_target.unwrap_or_else(target::NativeTarget::host);
-    let mut const_evaluation = const_evaluation::SelectedConstEvaluation::default();
-    if !pending_pre_checks.is_empty() {
-        validation::land_float_literal_destinations(&mut typed);
-        const_evaluation = const_evaluation::SelectedConstEvaluation::prepare(
-            &typed,
-            &selected_provider_plan_facts,
-        )?;
-        for pre_check in pending_pre_checks {
-            const_evaluation
-                .folds
-                .extend(pre_check.evaluate_selected_operators(
-                    &mut typed,
-                    SelectedBuildTimeOperators {
-                        operators: &const_evaluation.operators,
-                        provider_bodies: &const_evaluation.provider_bodies,
-                    },
-                )?);
-        }
-    }
+    let const_evaluation = SelectedConstantEvaluation::evaluate_pending(
+        &mut typed,
+        &selected_provider_plan_facts,
+        pending_pre_checks,
+    )?;
     let root_grants = build_config
         .grants
         .iter()

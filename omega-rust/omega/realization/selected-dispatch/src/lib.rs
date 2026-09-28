@@ -9,6 +9,7 @@
 
 mod boundary_dispatch;
 mod compiler_intrinsic;
+mod constant_evaluation;
 #[cfg(test)]
 mod core_service_fixture;
 mod execution_settlement;
@@ -18,6 +19,7 @@ mod selected_dispatch;
 mod service_custody;
 
 pub use boundary_dispatch::settle_selected_boundary_adapter_dispatch;
+pub use constant_evaluation::SelectedConstantEvaluation;
 
 pub use compiler_intrinsic::{
     derive_selected_compiler_intrinsic_execution_identity_for_row,

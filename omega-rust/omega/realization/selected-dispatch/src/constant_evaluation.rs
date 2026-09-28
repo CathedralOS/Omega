@@ -3,7 +3,8 @@
 //! retains its receiving type and source invocation, then final checking
 //! independently rejoins operator facts and reexecutes that invocation.
 use build_time_evaluation::{
-    FoldedArrayLength, SelectedBuildTimeBinaryOperator, SelectedBuildTimeProviderBody,
+    FoldedArrayLength, PreCheckEvaluation, SelectedBuildTimeBinaryOperator,
+    SelectedBuildTimeOperators, SelectedBuildTimeProviderBody,
 };
 use checked_trees::{CheckedProviderPlanCommitment, CheckedTrees};
 use diagnostics::Diagnostic;
@@ -11,20 +12,49 @@ use effects::SelectedProviderPlanFacts;
 use typed_trees::TypedTrees;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub(super) struct SelectedConstEvaluation {
-    pub(super) operators: Vec<SelectedBuildTimeBinaryOperator>,
+pub struct SelectedConstantEvaluation {
+    operators: Vec<SelectedBuildTimeBinaryOperator>,
     /// Selected uses whose meaning is the selected provider's ordinary checked
     /// machine body. Each row carries the exact provider entry the semantic
     /// evaluation owner rebinds to on its private evaluation copy.
-    pub(super) provider_bodies: Vec<SelectedBuildTimeProviderBody>,
-    pub(super) folds: Vec<FoldedArrayLength>,
+    provider_bodies: Vec<SelectedBuildTimeProviderBody>,
+    folds: Vec<FoldedArrayLength>,
 }
 
-impl SelectedConstEvaluation {
+impl SelectedConstantEvaluation {
+    /// Resume pending Psi evaluation under the exact selected providers.
+    /// Empty input leaves the typed program untouched. Otherwise, settle literal
+    /// destinations, join provider execution once, and consume continuations in
+    /// their original order. Retained folds stay with the selections used to
+    /// produce them until final checked-program replay.
+    pub fn evaluate_pending(
+        typed: &mut TypedTrees,
+        plans: &SelectedProviderPlanFacts,
+        pending: Vec<PreCheckEvaluation>,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        if pending.is_empty() {
+            return Ok(Self::default());
+        }
+        validation::land_float_literal_destinations(typed);
+        let mut selected = Self::prepare(typed, plans)?;
+        for continuation in pending {
+            selected
+                .folds
+                .extend(continuation.evaluate_selected_operators(
+                    typed,
+                    SelectedBuildTimeOperators {
+                        operators: &selected.operators,
+                        provider_bodies: &selected.provider_bodies,
+                    },
+                )?);
+        }
+        Ok(selected)
+    }
+
     /// Join provider authority once for every retained source use. Psi prepares
     /// semantic operands and independently admits both intrinsic and checked-body
     /// execution; the coordinator supplies only the selected realization.
-    pub(super) fn prepare(
+    fn prepare(
         typed: &TypedTrees,
         plans: &SelectedProviderPlanFacts,
     ) -> Result<Self, Vec<Diagnostic>> {
@@ -43,13 +73,9 @@ impl SelectedConstEvaluation {
                     effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
                 )
             }) {
-                if selected_dispatch::derive_selected_primitive_float_binary_execution(
-                    typed,
-                    plan,
-                    requirement,
-                )
-                .map_err(|error| vec![error])?
-                .is_some()
+                if crate::derive_selected_primitive_float_binary_execution(typed, plan, requirement)
+                    .map_err(|error| vec![error])?
+                    .is_some()
                 {
                     selected.operators.push(
                         SelectedBuildTimeBinaryOperator::prepare(
@@ -97,8 +123,10 @@ impl SelectedConstEvaluation {
     }
 }
 
-impl SelectedConstEvaluation {
-    pub(super) fn validate(
+impl SelectedConstantEvaluation {
+    /// Rejoin the final checked provider occurrences and ask Psi to replay the
+    /// retained folds. Report coordinates never substitute for exact custody.
+    pub fn validate(
         &self,
         checked: &CheckedTrees,
         plans: &SelectedProviderPlanFacts,

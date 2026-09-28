@@ -1705,6 +1705,7 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "backend-plan",
+ "build-time-evaluation",
  "checked-trees",
  "diagnostics",
  "effects",
