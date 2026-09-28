@@ -114,7 +114,9 @@ fn component_candidate(
 /// argument names a root already visible at the preheader, resolved through
 /// an invariant member structural parameter, or produced by a node earlier
 /// in the same run — while a mutable or write-only borrow argument names
-/// only a member-produced root the same run already covers — and each of
+/// only a member-produced root the same run already covers — with every
+/// call form keeping its discharged requirement obligations byte-exact
+/// inside the moved operation — and each of
 /// the three may carry crash-route custody through the same re-derived
 /// roster the scalar call's crash lane spells, provided the callee's
 /// published crash predicates stay scalar-only so the optimizer-side
@@ -644,7 +646,9 @@ fn admit_member_node(
         // place simply reads the same value every traversal. Each scalar
         // argument obeys the shared member-parameter substitution and each
         // borrowed or copyable-owned root rebinds like a
-        // `CallStructuralScalar`'s. The declared place joins
+        // `CallStructuralScalar`'s, while discharged requirement obligations
+        // move byte-exact inside the moved operation exactly like every
+        // other call variant's. The declared place joins
         // `relocating_roots`, so a member node anchored on the persistent
         // result relocates behind it in the same run.
         if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {

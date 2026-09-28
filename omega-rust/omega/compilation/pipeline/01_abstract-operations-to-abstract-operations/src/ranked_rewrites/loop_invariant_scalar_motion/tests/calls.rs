@@ -3118,3 +3118,326 @@ fn bypassed_crash_unit_call_is_speculation_and_stays_inside() {
         "the speculated crash-custody unit call is not a planned relocation"
     );
 }
+
+/// A `CallStructural` carrying a discharged requirement obligation:
+/// `pick(s)` inside `step` invokes a callee whose contract requires
+/// `seed <= 5`, so the member call spells one `requirement_obligations`
+/// row the checker discharged against `s`. `s` is carried through the
+/// member as a parameter bound to `scale` on every edge, so the
+/// substitution rebinds it to that representative while the unrestricted
+/// `picked` copy-payload result and the obligation roster itself stay
+/// byte-exact inside the moved operation — the same obligation treatment
+/// every other call variant already receives.
+const OBLIGATED_STRUCTURAL_CALL_SOURCE: &str = r#"
+    data Root {}
+    data Pair [copy] { a: u64; b: u64; }
+
+    machine pick(seed: u64) -> Pair
+    requires
+        seed <= 5
+    { Pair { a: seed, b: seed } }
+
+    machine Root::scan(scale: u64 [0..=5], remaining: u64 [0..=5])
+    {
+        transition { _ -> step(scale, remaining) }
+        state step(s: u64 [0..=5], pending: u64 [0..=5]) {
+            let picked: Pair = pick(s);
+            let v: u64 = picked.a;
+            transition pending > 0 {
+                true -> step(s, pending - 1)
+                _ -> finish(v)
+            }
+        }
+        state finish(r: u64) {}
+    }
+"#;
+
+/// The same obligated `pick` call spelling the loop-carried countdown:
+/// `pending` never resolves to a preheader representative, so the call
+/// stays inside even though its callee is pure and the obligation would
+/// discharge at any actuals.
+const CARRIED_ARGUMENT_OBLIGATED_STRUCTURAL_CALL_SOURCE: &str = r#"
+    data Root {}
+    data Pair [copy] { a: u64; b: u64; }
+
+    machine pick(seed: u64) -> Pair
+    requires
+        seed <= 5
+    { Pair { a: seed, b: seed } }
+
+    machine Root::scan(remaining: u64 [0..=5])
+    {
+        transition { _ -> step(remaining) }
+        state step(pending: u64 [0..=5]) {
+            let picked: Pair = pick(pending);
+            let v: u64 = picked.a;
+            transition pending > 0 {
+                true -> step(pending - 1)
+                _ -> finish(v)
+            }
+        }
+        state finish(r: u64) {}
+    }
+"#;
+
+#[test]
+fn obligated_structural_call_relocates_carrying_its_discharged_obligation() {
+    let session = lowered_session_entry(
+        OBLIGATED_STRUCTURAL_CALL_SOURCE,
+        "obligated structural-call loop",
+        "Root::scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let machine = component.id.machine;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let calls = member_structural_calls(function, component);
+    let [(call_block, call)] = calls.as_slice() else {
+        panic!("one member structural call")
+    };
+    let member = call_block.id;
+    let (call_operation, picked, argument, obligations) = match &call.operation {
+        AbstractOperation::CallStructural {
+            psi_operation,
+            result,
+            arguments,
+            requirement_obligations,
+            structural_arguments,
+            crash_continuations,
+            ..
+        } => {
+            assert_eq!(
+                result.multiplicity,
+                terminal_psi::StructuralMultiplicity::Unrestricted,
+                "the result is the copy payload the fence admits"
+            );
+            assert!(
+                structural_arguments.is_empty() && crash_continuations.is_empty(),
+                "the member call is the plain obligated lane"
+            );
+            assert_eq!(
+                requirement_obligations.len(),
+                1,
+                "the member call carries one discharged requirement obligation"
+            );
+            (
+                *psi_operation,
+                result.place,
+                arguments[0],
+                requirement_obligations.clone(),
+            )
+        }
+        operation => panic!("the member node is a structural call: {operation:?}"),
+    };
+    let anchor = crate::validation::member_blocks::invariant_member_parameters(function, component)
+        [&argument];
+
+    let effects = crate::validation::invariant_calls::unit_effect_summaries(session.unit());
+    let (substitution, rewrites) =
+        crate::validation::invariant_calls::invariant_structural_call_admission(
+            function,
+            component,
+            call,
+            &std::collections::BTreeSet::new(),
+            &std::collections::BTreeSet::new(),
+            &effects,
+        )
+        .expect("the obligated structural call admits");
+    assert_eq!(substitution.get(&argument), Some(&anchor));
+    assert!(
+        rewrites.is_empty(),
+        "the scalar-argument call rebinds no structural root"
+    );
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one component yields one atomic candidate")
+    };
+    let relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == call_operation)
+        .expect("the obligated structural call is a planned relocation");
+    let LoopInvariantNodeResult::Structural(result) = relocation.node().result() else {
+        panic!("the structural call relocates its structural result")
+    };
+    assert_eq!(result.place, picked, "the declared place is byte-exact");
+    assert_eq!(
+        relocation.node().operand_rewrites(),
+        &[(argument, anchor)],
+        "the call's member-parameter argument rebinds to its preheader anchor"
+    );
+    assert_eq!(relocation.node().location().block, member);
+    assert_eq!(relocation.destination().block, entry.source);
+
+    let validated = validate_loop_invariant_scalar_motion(&session, candidate)
+        .expect("independent relocation validation");
+    let applied = apply_loop_invariant_scalar_motion(session, validated)
+        .expect("atomic relocation application");
+    let destination = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .find(|block| block.id == relocation.destination().block)
+        .expect("destination block exists");
+    let moved = &destination.nodes[usize::try_from(relocation.destination().node).unwrap()];
+    match &moved.operation {
+        AbstractOperation::CallStructural {
+            result,
+            arguments,
+            requirement_obligations,
+            ..
+        } => {
+            assert_eq!(result.place, picked, "the declared place is byte-exact");
+            assert_eq!(arguments.as_slice(), &[anchor]);
+            assert_eq!(
+                requirement_obligations, &obligations,
+                "the discharged obligation roster relocates byte-exact"
+            );
+        }
+        operation => panic!("relocated node keeps its structural call operation: {operation:?}"),
+    }
+    assert!(
+        propose_loop_invariant_scalar_motion(applied.session(), 1)
+            .expect("relocated session is an exact fixed point")
+            .is_empty()
+    );
+}
+
+#[test]
+fn forged_obligation_roster_is_rejected_by_the_freeze_fence() {
+    let session = lowered_session_entry(
+        OBLIGATED_STRUCTURAL_CALL_SOURCE,
+        "obligated structural-call loop",
+        "Root::scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let machine = component.id.machine;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let calls = member_structural_calls(function, component);
+    let [(_, call)] = calls.as_slice() else {
+        panic!("one member structural call")
+    };
+    let call_operation = operation_of(call);
+    let candidate = propose_loop_invariant_scalar_motion(&session, 8)
+        .expect("exact candidate")
+        .pop()
+        .expect("one candidate");
+    let relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == call_operation)
+        .expect("the obligated structural call is a planned relocation");
+    let member = relocation.node().location().block;
+    let validated = validate_loop_invariant_scalar_motion(&session, &candidate)
+        .expect("validated exact candidate");
+    let applied =
+        apply_loop_invariant_scalar_motion(session, validated).expect("applied exact candidate");
+    let (input, mut unit) = applied.into_session().into_parts();
+    // Forging the moved call's obligation roster invents evidence the
+    // relocation never re-expressed — the replayed operation comparison
+    // retains every source-owned field, so the drifted spelling rejects
+    // byte-exact.
+    let forged = find_operation_mut(&mut unit, call_operation);
+    if let AbstractOperation::CallStructural {
+        requirement_obligations,
+        ..
+    } = &mut forged.operation
+    {
+        requirement_obligations.clear();
+    }
+    unit.identity = recompute_psi_optimization_unit_identity(&unit);
+    assert!(matches!(
+        crate::validation::validate_transformed_psi_optimization_unit(&input, &unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                block
+            }
+        ) if rejected_machine == machine && block == member
+    ));
+}
+
+#[test]
+fn carried_argument_obligated_structural_call_stays_inside() {
+    let session = lowered_session_entry(
+        CARRIED_ARGUMENT_OBLIGATED_STRUCTURAL_CALL_SOURCE,
+        "carried obligated structural-call loop",
+        "Root::scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let calls = member_structural_calls(function, component);
+    let [(_, call)] = calls.as_slice() else {
+        panic!("one member structural call")
+    };
+    let (call_operation, argument) = match &call.operation {
+        AbstractOperation::CallStructural {
+            psi_operation,
+            arguments,
+            requirement_obligations,
+            ..
+        } => {
+            assert_eq!(
+                requirement_obligations.len(),
+                1,
+                "the member call carries one discharged requirement obligation"
+            );
+            (*psi_operation, arguments[0])
+        }
+        operation => panic!("the member node is a structural call: {operation:?}"),
+    };
+    assert!(
+        !crate::validation::member_blocks::invariant_member_parameters(function, component)
+            .contains_key(&argument),
+        "the back edge advances the call's argument, so it stays loop-carried"
+    );
+    let effects = crate::validation::invariant_calls::unit_effect_summaries(session.unit());
+    assert!(
+        crate::validation::invariant_calls::invariant_structural_call_admission(
+            function,
+            component,
+            call,
+            &std::collections::BTreeSet::new(),
+            &std::collections::BTreeSet::new(),
+            &effects,
+        )
+        .is_none(),
+        "the carried-argument obligated call fails admission at the substitution half"
+    );
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    assert!(
+        candidates
+            .iter()
+            .flat_map(|candidate| candidate.relocations().iter())
+            .all(|relocation| relocation.node().psi_operation() != call_operation),
+        "the carried-argument obligated structural call is not a planned relocation"
+    );
+}
