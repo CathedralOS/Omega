@@ -28,10 +28,10 @@ fn runtime_array_read_retains_its_exact_selector_binding() {
     let CheckedScalarExpression::StructuralParameterIndexedRead { index, .. } = &mut changed else {
         panic!("runtime indexed read");
     };
-    *index = Box::new(CheckedScalarExpression::Parameter {
+    **index = CheckedScalarExpression::Parameter {
         position: 1,
         primitive_type: PrimitiveType::U64,
-    });
+    };
     assert!(
         validate_expression(&checked, state, 0, expression, &changed).is_err(),
         "a same-typed different selector cannot replace the authored index"
