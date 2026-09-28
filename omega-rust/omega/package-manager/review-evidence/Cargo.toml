@@ -10,8 +10,7 @@ name = "package_evidence"
 path = "src/lib.rs"
 
 [dependencies]
-build-evaluation = { path = "../../compiler/build-evaluation" }
-compiler = { path = "../../compiler" }
+compilation-products = { path = "../../realization/compilation-products" }
 package-compilation = { path = "../compilation-inputs" }
 provider-planning = { path = "../../realization/provider-planning" }
 calling-conventions = { path = "../../backend/calling-conventions" }
@@ -38,6 +37,7 @@ validation = { path = "../../../psi/checking" }
 sha2 = "0.10.9"
 
 [dev-dependencies]
+compiler = { path = "../../compiler" }
 build-declarations = { path = "../build-declarations" }
 mimalloc = { version = "0.1", default-features = false }
 optimization-core = { path = "../../foundation/optimization-core", features = ["test-support"] }

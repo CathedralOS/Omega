@@ -140,6 +140,12 @@ an independent package beside their Psi admission owner at
 [`omega/realization/compilation-products/`](omega/realization/compilation-products/README.md)
 owns invocation configuration and product eligibility, finished report payloads,
 production/batch manifests and publication of exact artifact/proof pairs.
+It also owns the retained evaluated-Build records and checked compilation product:
+source-custody sealing, immutable stage results and their metadata/subject
+projections. The Build evaluator produces this shared data contract; product
+consumers do not depend on evaluator orchestration. Sealing grants neither
+package admission nor native publication authority, and consumer reconstruction
+remains mandatory. The checked product is a compilation result, not another IR.
 The coordinator consumes validated requests and retains the target execution
 loop; exact target-name set normalization belongs to the backend target catalog.
 This product owner consumes artifact and custody owners without depending

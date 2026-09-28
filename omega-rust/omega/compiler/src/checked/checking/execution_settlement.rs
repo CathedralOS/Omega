@@ -3,52 +3,13 @@
 
 use super::build_continuation::BuiltCheckedProgram;
 use artifacts::compile_timings::CompileTimings;
+use compilation_products::CheckedCompilationInputs;
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
 use selected_dispatch::{
-    ProviderCheckingInputs, ProviderCheckingRequest, SelectedConstantEvaluation, SelectedExecution,
+    ProviderCheckingInputs, ProviderCheckingRequest, SelectedConstantEvaluation,
     SelectedExecutionRequest, settle_selected_execution,
 };
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct CheckedExecution {
-    pub(super) settled: SelectedExecution,
-    pub(super) const_evaluation: SelectedConstantEvaluation,
-    /// One immutable evaluated Build shared by target products and review clones.
-    /// Authored choices stay distinct from the realized settlements below.
-    pub(super) build: std::sync::Arc<build_evaluation::ComputedBuildConfig>,
-    /// The validated authored `builder.application` declaration; its name
-    /// supplies the `.app` basename and inner executable leaf at publication
-    /// and its artifact-only intent narrows the admitted route.
-    pub(super) application: Option<build_declarations::ApplicationDeclaration>,
-    pub(super) selected_build_machine_identity: Option<String>,
-    pub(super) boundary_calling_plan_realizations:
-        Vec<provider_planning::calling_policy_plans::BoundaryCallingPlanRealization>,
-    pub(super) optimization_selection_identity: optimization_core::OptimizationSelectionIdentity,
-    /// Identity-bearing checked-tree product selection evidence, present only
-    /// when the effective build selection named `CheckedTreeProductPruning`.
-    pub(super) product_selection: Option<typed_trees_to_checked_trees::CheckedTreeProductSelection>,
-    pub(super) provider_plans: Vec<effects::provider_plan::ProviderPlan>,
-    pub(super) evaluated_via_bindings:
-        provider_planning::evaluated_via_bindings::EvaluatedViaBindingTable,
-    pub(super) external_binding_rows: Vec<calling_conventions::ExternalBindingRow>,
-    pub(super) root_grants: Vec<String>,
-    /// The normalized restricted build-host requests the admitted build
-    /// activation asked of the host before it executed.
-    pub(super) restricted_build_requests:
-        Vec<package_compilation::build_execution::RestrictedBuildRequest>,
-    /// The component descriptions this package compilation attached and
-    /// provider settlement verified, in package-identity order. Retained as
-    /// custody so consumers replaying the selected-provider join can re-verify
-    /// the same admission instead of rediscovering unattached inputs.
-    pub(super) independent_component_descriptions:
-        Vec<package_compilation::IndependentComponentDescription>,
-    /// The component-assumption digests the authoritative build machine
-    /// accepted through `builder.accept_component_assumption`. Retained
-    /// beside the admitted descriptions so a replay re-verifies them under
-    /// the same acceptance set the original settlement applied.
-    pub(super) accepted_component_assumptions: std::collections::BTreeSet<[u8; 32]>,
-}
 
 pub(crate) fn check_selected_execution(
     built: BuiltCheckedProgram,
@@ -57,7 +18,7 @@ pub(crate) fn check_selected_execution(
     optimization_rollback: &crate::checked::OptimizationRollback,
     timings: &mut CompileTimings,
     permit_unsettled_fused_service_fields: bool,
-) -> Result<CheckedExecution, Vec<Diagnostic>> {
+) -> Result<CheckedCompilationInputs, Vec<Diagnostic>> {
     let BuiltCheckedProgram {
         mut typed,
         mut selected_target_machine_declarations,
@@ -262,7 +223,7 @@ pub(crate) fn check_selected_execution(
         },
     )?;
 
-    Ok(CheckedExecution {
+    Ok(CheckedCompilationInputs {
         settled: selected_execution_settlement,
         build: computed_build_config,
         optimization_selection_identity,

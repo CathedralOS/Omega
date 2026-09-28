@@ -1,8 +1,11 @@
 # Build evaluation
 
-`src/lib.rs` admits and executes one selected companion build machine. Its
-result and root-selection modules retain the separately checked products.
-The admitted machine executes once against its selected filesystem.
+`admitted_build_program.rs` admits one selected companion build machine;
+`execution` consumes that activation against its selected filesystem.
+[Compilation products](../../realization/compilation-products/src/evaluated_build.rs)
+owns the retained `BuildConfig` and `ComputedBuildConfig` data contracts, re-exported
+here for callers. Evaluation produces those records; consumers need not import
+the evaluator merely to retain its result.
 
 The [Build-value protocol](../../package-manager/compilation-inputs/src/build_execution/build_value.rs)
 owns exact vocabulary admission, initial Build facets and normalized settings,

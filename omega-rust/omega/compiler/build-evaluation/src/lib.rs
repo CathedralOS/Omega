@@ -47,8 +47,9 @@
 //!
 //! Start at `admitted_build_program.rs`: the admission request, the
 //! admitted program and `admit_build_program`. `execution` runs an admitted
-//! program and assembles its checked result. `admission/` owns what the build
-//! program selects and retains its independently checked results.
+//! program and assembles its checked result. `compilation_products` owns the
+//! retained Build records; admission and execution produce them without making
+//! downstream product custody depend on this evaluator.
 //! Trust grants, component assumptions and executed exclusions are checked by
 //! realization trust; Psi owns wire-demand decoding and compatibility.
 //! Package compilation's `build_execution` owner retains filesystem scope,
@@ -70,13 +71,13 @@ pub mod sources;
 #[cfg(test)]
 mod tests;
 
-pub use admission::configuration::BuildConfig;
 pub use admitted_build_program::{
     AdmittedBuildAuthorityVerdict, AdmittedBuildProgram, AdmittedBuildProgramDisposition,
-    ComputedBuildConfig, admit_build_program,
+    admit_build_program,
 };
 pub use build_output::BuildStagedOutputEntryKind;
 pub use build_time_evaluation::wire_compatibility::WireCompatibilityDemand;
+pub use compilation_products::{BuildConfig, ComputedBuildConfig};
 pub use effects::AuthoredBehaviorExclusion;
 pub use execution::execute_admitted_build_program;
 pub use package_compilation::build_execution::{

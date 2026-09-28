@@ -51,7 +51,12 @@ Scratch never publishes, and a failed compilation returns no successful set. See
 The [checked entrance](src/checked/checking.rs) shows the lifecycle:
 [admit and execute the build, then continue generated source](src/checked/checking/build_continuation.rs),
 [check selected execution](src/checked/checking/execution_settlement.rs),
-then [seal the result against current source custody](src/checked/checking/checked_compilation.rs).
+then [seal the result against current source custody](../realization/compilation-products/src/checked_compilation.rs).
+The product owner retains the complete checked result, its evaluated Build and
+source custody, and owns metadata and production-subject projections. Its shared
+Build records are data contracts consumed by evaluation and product assembly;
+they do not import the evaluator or coordinator. Compilation still visibly
+schedules the stages and supplies their complete results to sealing.
 The continuation calls resolution and typing directly, including generated-source
 extension, with timing around those actual calls rather than another transition
 module. The package gate likewise shows its preliminary check and sibling pruning.

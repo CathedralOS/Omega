@@ -6,7 +6,8 @@
 //! task activations, admits package declarations, checks, and seals the
 //! result with its source custody. The `checking` folder holds the build
 //! continuation, direct calls into the Psi stages, execution
-//! settlement, and the sealed carrier; `admission` settles the checked
+//! settlement; `compilation_products` owns the sealed carrier and its projections.
+//! `admission` settles the checked
 //! program's trust obligations against the owner's admissions and writes the
 //! optional observations; `package` owns declaration admission.
 //! Checked-product selection executes in Psi stage 04. Exact-rule rollback

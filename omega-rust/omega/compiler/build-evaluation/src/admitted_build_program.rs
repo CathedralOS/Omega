@@ -2,9 +2,8 @@
 //! build occurrence into an opaque `AdmittedBuildProgram` before anything
 //! runs.
 
-use crate::admission::configuration::BuildConfig;
+use crate::ComputedBuildConfig;
 use crate::execute_admitted_build_program;
-use build_output::PackageGeneratedSource;
 use build_time_evaluation::{
     BuildEvaluationSponsor, BuildMachineExecutionMode, BuildTimeValue, PreparedBuildMachineProgram,
 };
@@ -12,19 +11,8 @@ use diagnostics::Diagnostic;
 use package_compilation::BuildMachineFilesystemScope;
 use package_compilation::build_execution::RestrictedBuildRequest;
 use package_compilation::build_execution::{SelectedBuildMachine, admit_build_machine};
-use package_compilation::{BuildEvaluationUsage, BuildObservationSummary};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ComputedBuildConfig {
-    pub config: BuildConfig,
-    pub optimization_report_request: optimization_core::OptimizationReportRequest,
-    pub evaluation_usage: Option<BuildEvaluationUsage>,
-    pub observation_summary: Option<BuildObservationSummary>,
-    pub selected_build_machine_symbol: Option<symbols::SymbolHandle>,
-    pub generated_sources: Vec<PackageGeneratedSource>,
-}
 
 /// Whether one admitted build activation has an executable build machine.
 ///

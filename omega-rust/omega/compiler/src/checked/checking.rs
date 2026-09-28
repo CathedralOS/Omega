@@ -1,11 +1,10 @@
 //! Prepare checked source, execute its build continuation, and seal selected execution.
 
 pub(crate) mod build_continuation;
-pub(crate) mod checked_compilation;
 pub(crate) mod compile_thread;
 pub(crate) mod execution_settlement;
 
-pub use checked_compilation::CheckedCompilation;
+pub use compilation_products::CheckedCompilation;
 
 use artifacts::compile_timings::CompileTimings;
 use build_evaluation::sources::ImmutableSourceParseCheckpoint;

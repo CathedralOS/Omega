@@ -2,8 +2,15 @@
 
 This crate records checked compiler facts for package review. Its output is
 inert evidence: it is not package admission, an accepted lock, or proof that an
-audit occurred. Start at [`src/lib.rs`](src/lib.rs), then follow the question
-you are asking:
+audit occurred.
+
+Capture consumes the immutable `CheckedCompilation` product directly from
+`compilation-products`. Production review has no dependency on the compiler
+coordinator or Build evaluator; compiler execution is a test-only dependency for
+constructing fixtures. Source and selection custody still undergo independent
+reconstruction before review rows are issued.
+
+Start at [`src/lib.rs`](src/lib.rs), then follow the question you are asking:
 
 ```text
 src/
