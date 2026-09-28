@@ -1567,123 +1567,64 @@ the complete product bar; focused successes below do not establish that baseline
   identity, subordinate-call obligations and descent on every complete mutual
   call cycle. Use `python3 tools/corpus_gate.py --filter termination/` and its interpreter
   and matching-host native legs; checked-only records do not close this task.
-- **TERMINAL-NATIVE-PROPOSAL-UNITS.** (new-scope) Collapse the double carrier
-  between checked compilation and native realization: the Terminal→native
-  proposal is built from producer-owned units, not from a field bag exploded
-  and re-packed verbatim. Owners:
-  [terminal_product.rs](omega-rust/omega/compiler/src/report/terminal_product.rs)
-  (`TerminalNativeRealizationInputs` and `TerminalNativeRealizationProposal`),
-  [native_proposal](omega-rust/omega/compiler/src/terminal/native_proposal/)
-  (the construction site), and
-  [checked_compilation.rs](omega-rust/omega/compiler/src/checked/checking/checked_compilation.rs)
-  (the façade it explodes).
 
-  `native_proposal/mod.rs` calls ~15 `CheckedCompilation` accessors to fill
-  `TerminalNativeRealizationInputs`' 21 fields; `Proposal::new` destructures
-  all 21 and re-flattens them 1:1, adding only permission sorting and the
-  boundary-coverage rejoin. `CheckedCompilation` is itself a ~58-accessor
-  façade over `CheckedExecution`, and the authored application declaration is
-  carried three ways: `application` plus exploded `application_intent`,
-  `application_identifier` and `application_name`. The flat shape is not
-  accidental: the proposal is retained into the Terminal product and
-  `realize_retained_native_artifact` re-enters native from it after
-  `retained.into_parts()`. Keep the retained proposal field-complete — replay
-  must reconstruct identical evidence — but group its construction by
-  producing owner: target selection, `build_declarations::ApplicationDeclaration`
-  as one unit, the program-entry pair, `effects::SelectedProviderPlanFacts`,
-  boundary-coverage inputs, the occurrence proposal sets, optimization
-  selections, `effects::BehaviorExclusions`, package authority permissions.
-  Delete `TerminalNativeRealizationInputs` or reduce it to the
-  replay-canonical remainder; `Proposal` fields become the owner units and
-  the sorting/coverage validation stays at construction.
+- **CHECKED-SETTLEMENT-UNITS.** (new-scope) Group the remaining settlement
+  fields in [execution_settlement.rs](omega-rust/omega/compiler/src/checked/checking/execution_settlement.rs)
+  by producing owner and expose those units through
+  [checked_compilation.rs](omega-rust/omega/compiler/src/checked/checking/checked_compilation.rs).
+  Consumers in product dispatch, Terminal proposal construction, reports, trust
+  and package admission should take the unit they need. Follow the
+  [coordinator boundary](omega-rust/pipeline.md): this is removal of forwarding
+  and duplicate assembly, not another IR or consolidation of independent owners.
 
-  The native-pipeline-cut campaign's `aa9dec6041c` already unified the fresh
-  and retained native entrances and deleted the `native_product/`
-  submodules; TERMINAL-NATIVE-ADMISSION-STAGE still holds `src/native`,
-  `src/terminal/native_proposal` and `report/terminal_product.rs`. Whoever
-  picks this item up diffs the seam after that lease releases and keeps
-  whatever acceptance remains; the consumer-side conversion (native readers
-  taking units instead of ~20 proposal accessors) is the named follow-up.
+  The immutable Build configuration already groups evaluated settings; preserve
+  its package-owned normalization and shared evaluation. Group the remaining
+  target/entry, provider-plan, settled-surface, optimization and product
+  selections without duplicating that record. Preserve source/generated-source
+  sealing, target-profile versus native-ABI distinctions, authority boundaries,
+  and genuine checked-program queries. Source-custody joins and entry traversal
+  are queries, not field forwarding.
 
-  Acceptance: `TerminalNativeRealizationInputs` is deleted or carries only
-  the replay-canonical fields; `Proposal::new` destructures ≤8 owner units;
-  the application triple-carry is one field. `mbx check -p compiler` and
-  `mbx nextest run -p compiler` pass. The replay entrances in
-  `tests/boundary_internal_call_evidence.rs` and
-  `tests/callback_terminal_custody.rs` exercise
-  `realize_retained_native_artifact` unchanged, and package-manager's
-  `admission/terminal_authority.rs` route and review tests hold.
+  Acceptance: retain the façade reduction target of ≤12 public methods;
+  consumers use owner units rather than nested-field pass-throughs, and
+  `CheckedExecution` has no loose settlement fields outside those units.
+  Preserve genuine query operations at their owning boundaries.
+  `mbx check -p compiler` and `mbx nextest run -p compiler` pass, including
+  retained callback and installed-provider replay. Run
+  `python3 tools/corpus_gate.py --filter providers/` and its `--native`
+  counterpart; checked goldens and matching-host execution must both hold.
 
-- **CHECKED-SETTLEMENT-UNITS.** (new-scope) Group `CheckedExecution`'s
-  settlement bag into the named units its consumers read, and collapse the
-  `CheckedCompilation` façade that re-exports each field one hop up. Owners:
-  [checked_compilation.rs](omega-rust/omega/compiler/src/checked/checking/checked_compilation.rs)
-  and [execution_settlement.rs](omega-rust/omega/compiler/src/checked/checking/execution_settlement.rs).
-
-  `CheckedExecution` is ~20 flat fields spanning at least five producer
-  families: the settled execution surface, build selection (`subsystem`,
-  `application`, `pcc_requests`, entry symbol/identity), provider plans
-  (`x86_scalar_fma_*`, `boundary_calling_plan_realizations`,
-  `opaque_representation_selections`), the optimization handoff, and product
-  selection. `CheckedCompilation` wraps it with ~58 public methods that are
-  almost all `self.execution.<field>` pass-throughs, so every consumer — the
-  route, terminal proposal construction, report assembly, trust admission,
-  package declaration admission — reads its slice through the same sealed
-  god-façade. Group the fields into named units keyed to their producing
-  family (the build selection record, the provider-plan set, the settled
-  surface, the optimization handoff), let `CheckedCompilation` expose those
-  units, and change consumers to take the unit they read rather than calling
-  through the façade. Accessors that name a genuine checked-program query
-  (source file count, entry receipt) stay; pass-throughs to a unit's
-  interior do not.
-
-  Claim adjacency is heavy: `execution_settlement.rs` and
-  `phase_transitions.rs` sit under REALIZATION-OUT-OF-COMPILER,
-  `checked/optimization/checked_trees.rs` under REALIZATION-CONSUMERS,
-  `checked/checking.rs`/`checked/mod.rs`/`lib.rs` under CHECK-CLOSURE-ONCE,
-  and `compiler.rs` under NATIVE-PIPELINE-CALLSITE. The grouping edit lands
-  in `execution_settlement.rs`/`checked_compilation.rs`, so this item waits
-  for or coordinates with those leases; consumer call-site edits inside
-  claimed paths stop at the fence and report.
-
-  Acceptance: `CheckedCompilation` exposes ≤12 methods and no
-  `self.execution.<unit>.<field>` pass-through remains — consumers name the
-  unit; `CheckedExecution` has no loose fields outside a named unit.
-  `mbx check -p compiler` and `mbx nextest run -p compiler` pass, and a
-  corpus slice through check and native products
-  (`python3 tools/corpus_gate.py --filter providers/`) matches its golden.
-
-- **COMPILE-REPORT-PRODUCTS.** (new-scope) Give each requested compile
-  product its own report payload and its own admission fence, so
-  `CompileReport` joins four product kinds instead of carrying them as
-  `Option` fields on one type. Owners:
-  [compile_report.rs](omega-rust/omega/compiler/src/report/compile_report.rs)
-  and the fence/decoration sites in
+- **COMPILE-REPORT-PRODUCTS.** (new-scope) Make product admission part of
+  report construction in
+  [compile_report.rs](omega-rust/omega/compiler/src/report/compile_report.rs),
+  then use one report-settlement call in
   [compiler.rs](omega-rust/omega/compiler/src/compiler.rs).
+  Variant-owned artifact/rollback/application payloads already exist.
+  Remaining eligibility checks live in `admit_requested_product` and package
+  admission, while `with_pcc_context` can attach incompatible requests directly.
 
-  The payload split landed: `CompileReport` is a common shell around
-  `CompileProduct`, whose variants own the Terminal artifact/rollback pair,
-  the retained native artifact/rollback/application metadata, and the
-  published-executable receipts; per-variant `has_consistent_custody` joins
-  replaced the negative-space `Option` assertions, and the application
-  metadata moves retained→published with the payload.
+  Centralize the [proof-product](wiki/spec/proofs/publication.md#product-selection)
+  and [rollback](wiki/spec/build/optimizations.md#release-rollback-and-promotion)
+  refusals at product-owned construction boundaries: artifact-only builds cannot
+  satisfy rollback or proof requests, check stops cannot satisfy proof requests,
+  and Terminal stops cannot satisfy native proof requests. Preserve early refusal
+  before unsupported production or publication; a late constructor check alone
+  is insufficient. Route package-manager's `admission/terminal_authority.rs`
+  and `operations/check_project.rs` through the same admission. Preserve payload
+  custody, application metadata, build outputs, trust settlement and timings;
+  proof requests confer no receiver authority.
 
-  Remaining: product eligibility is still enforced in the route's
-  `admit_requested_product`, which knows artifact-only/pcc/product-kind
-  rules, and the route decorates reports at three sites
-  (`with_trust_admission_settlement`, `with_timings`, `with_build_outputs`).
-  Move each refusal to the owning variant's constructor (an artifact-only
-  build cannot satisfy a rollback or proof request, a check stop cannot
-  satisfy a proof request, a Terminal stop cannot satisfy a native proof
-  request) and end the route in one settlement call instead of scattered
-  decoration. `compiler.rs` edits wait for whatever claim holds it; the
-  report interior is free.
-
-  Acceptance: `admit_requested_product` is deleted and its three refusals
-  live at the owning variant constructors; the route decorates once. All
-  four product kinds still build: `mbx check -p compiler`,
-  `mbx nextest run -p compiler`, and corpus slices through check, terminal
-  and native requests match their goldens.
+  Acceptance: remove the route's duplicate admission helper and scattered
+  decoration. Direct construction/context attachment and compiler/package routes
+  must reject every incompatible request without publishing partial outputs.
+  Exercise check, Terminal, retained native and
+  [artifact-only](wiki/spec/build/scoped_execution.md) products, retained-to-published
+  conversion, and the existing ObjectContainer compatibility contract if retained.
+  Run compiler check/nextest, package-manager's `suite` filters
+  `semantic_binding_review` and `build_named_inputs`, and check/native corpus
+  slices. The corpus runner has no Terminal-request mode: cover Terminal and
+  artifact-only admission directly, including valid optional-proof combinations,
+  instead of treating a check/native corpus pass as their acceptance.
 
 - **CANONICALIZE-SCALAR-RANGE-CONTRACTS.** Complete the settled
   [proposition-based scalar range contract](wiki/spec/language/domains.md#declaration-and-membership)
