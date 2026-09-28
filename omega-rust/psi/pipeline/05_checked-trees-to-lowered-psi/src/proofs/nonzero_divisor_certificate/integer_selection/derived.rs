@@ -130,6 +130,46 @@ fn closure(
     let facts = projected_facts(assumptions, semantic_axioms);
     let mut equalities: Vec<ProofNode> = Vec::new();
     let mut proofs = seeds(context, integer_type, &facts, &mut equalities);
+    // A dependent bound may end at live storage rather than a literal:
+    // `coordinate <= limit`, with a separately proved `limit == 2`.
+    // Normalize that endpoint through its cited equality chain before the
+    // literal-bound closure runs. The order substitution carries both proofs;
+    // it does not rewrite the caller's assumptions or invent a field bound.
+    let exact = super::exact::session(context, assumptions, semantic_axioms);
+    for fact in &facts {
+        let Proposition::LessOrEqual(left, right) = fact.proposition else {
+            continue;
+        };
+        for (endpoint, term) in [left, right].into_iter().enumerate() {
+            if term.integer_value().is_some()
+                || term.scalar_type() != ScalarType::Integer(integer_type)
+            {
+                continue;
+            }
+            let Some(equality) = exact.literal_equality(term) else {
+                continue;
+            };
+            let Proposition::Equal(_, literal) = &equality.conclusion else {
+                continue;
+            };
+            let conclusion = if endpoint == 0 {
+                Proposition::LessOrEqual(literal.clone(), right.clone())
+            } else {
+                Proposition::LessOrEqual(left.clone(), literal.clone())
+            };
+            push_new(
+                &mut proofs,
+                ProofNode {
+                    conclusion,
+                    rule: ProofRule::IntegerOrderSubstitution {
+                        relation: Box::new(fact.proof()),
+                        equality: Box::new(equality),
+                        endpoint,
+                    },
+                },
+            );
+        }
+    }
     let mut definitions: Vec<(usize, ScalarTerm, ScalarTerm)> = Vec::new();
     for (index, axiom) in semantic_axioms.iter().enumerate() {
         let Proposition::Equal(left, right) = axiom else {

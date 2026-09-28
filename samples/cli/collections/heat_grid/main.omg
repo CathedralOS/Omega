@@ -1,7 +1,7 @@
 // HEAT GRID -- dependent-typed row-major indexing (chapter 12, rungs
 // R0+R1a): a flat `cells: [u8; 12]` viewed as a 3x4 grid, walked with the
 // DIRECT `cells[y * 4 + x]` spelling. The walkers' coordinates are
-// DEPENDENT-RANGED STATE PARAMS (`y: u32 [0..=self.max_y]`) -- the bound
+// DEPENDENT STATE CONTRACTS (`requires 0 <= y && y <= self.max_y`) -- the bound
 // names a field, the caller PROVES each hop on its arm (the back-edge
 // guard `y + 1 <= self.max_y` is the whole proof), and the index's bound
 // discharges by interval product through the fields' declared ranges
@@ -18,11 +18,11 @@
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 use omega::language::core::binding;
-data Main {
+data Main where 0 <= max_y, max_y <= 2, 0 <= max_x, max_x <= 3 {
     console: Binding<Console>;
     cells: [u8; 12];
-    max_y: u32 [0..=2];
-    max_x: u32 [0..=3];
+    max_y: u32;
+    max_x: u32;
     hottest: u32;
 }
 machine Main::main(&mut self) reaches Console {
@@ -33,10 +33,14 @@ machine Main::main(&mut self) reaches Console {
 
     // Walk rows; each row walks its cells. Every hop's proof is the arm's
     // own guard relating the next coordinate to the bound field.
-    state row(&mut self, y: u32 [0..=self.max_y]) {
+    state row(&mut self, y: u32)
+        requires 0 <= y && y <= self.max_y
+    {
         transition { _ -> cell(y, 0) }
     }
-    state cell(&mut self, y: u32 [0..=self.max_y], x: u32 [0..=self.max_x]) {
+    state cell(&mut self, y: u32, x: u32)
+        requires 0 <= y && y <= self.max_y && 0 <= x && x <= self.max_x
+    {
         let bump: u8 =
             ((narrow_u32_to_u8_trapping(y) as u8 in Wrapping)
             + (narrow_u32_to_u8_trapping(x) as u8 in Wrapping)) as u8;
@@ -49,17 +53,23 @@ machine Main::main(&mut self) reaches Console {
             _ -> step(y, x)
         }
     }
-    state hotter(&mut self, y: u32 [0..=self.max_y], x: u32 [0..=self.max_x], heat: u32) {
+    state hotter(&mut self, y: u32, x: u32, heat: u32)
+        requires 0 <= y && y <= self.max_y && 0 <= x && x <= self.max_x
+    {
         self.hottest = heat;
         transition { _ -> step(y, x) }
     }
-    state step(&mut self, y: u32 [0..=self.max_y], x: u32 [0..=self.max_x]) {
+    state step(&mut self, y: u32, x: u32)
+        requires 0 <= y && y <= self.max_y && 0 <= x && x <= self.max_x
+    {
         transition x + 1 <= self.max_x {
             true -> cell(y, x + 1)
             _ -> next_row(y)
         }
     }
-    state next_row(&mut self, y: u32 [0..=self.max_y]) {
+    state next_row(&mut self, y: u32)
+        requires 0 <= y && y <= self.max_y
+    {
         transition y + 1 <= self.max_y {
             true -> row(y + 1)
             _ -> done()
