@@ -30,6 +30,23 @@ impl<'program> Evaluator<'program> {
             .find(|state| state.name.as_str() == name)
     }
 
+    /// Resolved-identity counterpart of `find_state`: the check stage records
+    /// each named transition target's state symbol, so execution matches on it
+    /// instead of a debug spelling that may collide with a sibling's.
+    pub(in crate::interpreter::evaluator) fn find_state_by_symbol(
+        &self,
+        machine: &Machine,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<&'program State> {
+        if symbol == symbols::SymbolHandle::invalid() {
+            return None;
+        }
+        self.program
+            .machine_states(machine)
+            .iter()
+            .find(|state| state.symbol == symbol)
+    }
+
     pub(in crate::interpreter::evaluator) fn find_data_by_name(
         &self,
         name: &str,
