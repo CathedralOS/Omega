@@ -52,6 +52,11 @@ Packages:
 - `capability-vault`: capability acquisition/return flow fixture.
 - `graph-workbench`: root graph fixture depending on pure and capability-bearing
   packages.
+- `paradigm-internals`: target-filter fixture shipping `uefi_x86_64`-only
+  paradigm internals beside a portable `Helper::shared`, including a
+  same-target caller of one internal, so the
+  `tests/omega/{fail,pass}/targets` inert-sibling canaries exercise the rule
+  across a dependency-package boundary.
 
 The production-path lineage-spoofing canary constructs two byte-identical
 `shared-provider` packages with the same declaration and symbols but distinct

@@ -870,6 +870,8 @@ pass/structural/sum_attachment_receiver_compile checked 184ms
 pass/targets/aarch64_hfa_entry_argument checked 898ms
 pass/targets/efi_vtable_call checked 224ms
 pass/targets/single_target_internal_machine_skipped built 545ms
+pass/targets/single_target_internal_package_same_target_caller built 923ms exit:70
+pass/targets/single_target_internal_same_target_caller built 903ms exit:70
 pass/targets/sysv_mixed_aggregate_entry checked 885ms
 pass/targets/target_machine_gating_exit built 685ms exit:70
 pass/tasks/task_runtime_machine_selection_compile checked 214ms

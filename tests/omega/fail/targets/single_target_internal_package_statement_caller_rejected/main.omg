@@ -1,0 +1,22 @@
+// The DEPENDENCY-PACKAGE half of the inert-sibling rule's statement-call
+// coverage: same shape as the root-local
+// `single_target_internal_statement_caller_rejected`, but `Helper` and its
+// `uefi_x86_64`-scoped `record_paradigm_event` are exported by the
+// `paradigm_internals` dependency package. A surviving portable caller is
+// not filtered, so its statement-position call names a body this build never
+// realizes and must reject loudly, whether the callee was declared in this
+// root or in a dependency.
+//
+// The package also ships `Helper::paradigm_caller`, a `uefi_x86_64` caller of
+// a `uefi_x86_64` callee: it goes inert alongside it, so the golden records
+// exactly ONE diagnostic -- the exemption holds inside the dependency.
+use omega_language_std::console;
+use omega::language::core::binding;
+use paradigm_internals::paradigm;
+
+data Main { console: Binding<Console>; helper: Helper; }
+
+machine Main::main(&mut self) reaches Console {
+    self.helper.record_paradigm_event();
+    self.console.exit_process(70);
+}
