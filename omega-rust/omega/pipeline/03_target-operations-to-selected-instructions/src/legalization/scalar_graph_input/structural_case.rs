@@ -271,13 +271,6 @@ pub(in crate::legalization) fn leaf_copy_layout(
     ),
     LegalizationError,
 > {
-    if result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
-        || !result.claims.is_empty()
-        || !result.qualifications.is_empty()
-        || !result.projected_qualifications.is_empty()
-    {
-        return Err(LegalizationError::custody());
-    }
     let identity = source_identity(function, source)?;
     let (endpoint, byte_offset, indices) = match path {
         abstract_operations::StructuralCopyPath::Case(path) => {
@@ -302,6 +295,19 @@ pub(in crate::legalization) fn leaf_copy_layout(
             .ok_or(LegalizationError::custody())?
         }
     };
+    // A case-qualified path also carries the verifier's owned-copy shape: an
+    // `Affine` non-reference leaf is copied out of the proven-active payload
+    // into fresh storage the successor takes custody of.
+    let owned_case_copy = matches!(path, abstract_operations::StructuralCopyPath::Case(_))
+        && result.multiplicity == terminal_psi::StructuralMultiplicity::Affine;
+    if (result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+        && !owned_case_copy)
+        || !result.claims.is_empty()
+        || !result.qualifications.is_empty()
+        || !result.projected_qualifications.is_empty()
+    {
+        return Err(LegalizationError::custody());
+    }
     if endpoint != result.structural_type
         || super::reference_custody::contains_reference(&plan.structural_types, endpoint)
     {

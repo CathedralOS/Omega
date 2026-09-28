@@ -563,7 +563,21 @@ pub(crate) fn validate_structural_root_operations(
                     // Replay the verified static shape: a readable source
                     // root, the spelled path resolving to exactly the result
                     // type, and a fresh operation-result place under clean
-                    // unrestricted custody.
+                    // custody. The case path also carries the verifier's
+                    // owned-copy shape: an `Affine` non-reference leaf minted
+                    // out of a proven-active case payload transfers custody
+                    // to the successor — no stored value moves.
+                    let owned_case_copy =
+                        matches!(path, abstract_operations::StructuralCopyPath::Case(_))
+                            && result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+                            && structural_types.get(&result.structural_type).is_some_and(
+                                |declaration| {
+                                    !matches!(
+                                        declaration.shape,
+                                        terminal_psi::StructuralTypeShape::Reference { .. }
+                                    )
+                                },
+                            );
                     let valid =
                         crate::unit_validation::operation_contracts::structural_source_contract(
                             function, *source, false,
@@ -574,8 +588,9 @@ pub(crate) fn validate_structural_root_operations(
                                 abstract_operations::StructuralCopyPath::Ordinary(path) => crate::unit_validation::structural_catalog::resolve_structural_path(structural_types, signature.structural_type, path),
                                 abstract_operations::StructuralCopyPath::Case(path) => terminal_semantics::canonical_case_leaf_type(structural_types.values().copied(), signature.structural_type, path),
                             } == Some(result.structural_type)
-                        }) && result.multiplicity
+                        }) && (result.multiplicity
                             == terminal_psi::StructuralMultiplicity::Unrestricted
+                            || owned_case_copy)
                             && result.qualifications.is_empty()
                             && result.projected_qualifications.is_empty()
                             && result.claims.is_empty()

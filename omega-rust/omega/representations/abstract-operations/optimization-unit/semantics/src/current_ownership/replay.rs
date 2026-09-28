@@ -438,6 +438,9 @@ pub(super) fn validate_current_ownership_cfg(
                 // The moved subtree enters frame custody as an owned
                 // structural result; a later repair may consume it.
                 | O::MoveStructuralField { result, .. }
+                // An owned case-payload copy mints a fresh affine place the
+                // successor takes custody of — the same live-result slot.
+                | O::StructuralLeafCopy { result, .. }
                 | O::CallStructural { result, .. }
                 | O::BoundaryCall {
                     result: abstract_operations::AbstractBoundaryResult::Structural(result),
