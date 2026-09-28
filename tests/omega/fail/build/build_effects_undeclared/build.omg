@@ -1,17 +1,21 @@
 // FAIL CANARY -- a build helper reaches an ordinary runtime boundary. The
 // transitive reach remains visible at the root and cannot become build
-// authority merely by hiding behind a helper.
-use omega::language::std::console;
-use omega::language::core::binding;
+// authority merely by hiding behind a helper. The standard library enters
+// through ordinary edges: `depend` feeds the product source and
+// `build_depend` feeds this build-scope source; an ordinary package edge
+// still grants no build authority over a runtime boundary service.
+use omega_language_std::console;
 
 machine write_build_log(builder: &mut Build)
 reaches Console
 {
-    let mut console: Binding<Console>;
+    let mut console: Console;
     console.write_line("ordinary runtime boundary");
 }
 
 machine build(builder: &mut Build) {
     builder.application("build_effects_undeclared");
+    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    builder.build_depend(Source::Path { location: "../../../../../source/library/std" });
     write_build_log(builder);
 }

@@ -15,7 +15,7 @@
 // loaded `UefiApplication` boundary schema, but found 2".
 //
 // Measured: the duplicate does not come from this file's imports. Dropping
-// `use omega::language::std::calling;` leaves the count at 2, because the
+// `use omega_language_std::calling;` leaves the count at 2, because the
 // library's target entry loads with the target rather than with the import.
 // Nor can the policy be varied from the library surface, which is the other
 // half of the trap: `CallingPolicy` lives only in `std/calling.omg`, and the
@@ -34,7 +34,7 @@
 // `exact_boundary_entry_plan` and `materialized_signature` to
 // `provider-planning`, so a `build-evaluation` unit test cannot build one.
 use omega::language::core::extent;
-use omega::language::std::calling;
+use omega_language_std::calling;
 
 data EfiImageHandle { raw: addr; }
 
