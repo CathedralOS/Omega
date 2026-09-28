@@ -34,7 +34,7 @@
         "omega-rust/psi/foundation/layout-plans/src",
         "omega-rust/psi/interpreter/build-time-evaluation/src/layout_plans",
         "omega-rust/psi/interpreter/build-time-evaluation/src/placed_views",
-        "omega-rust/omega/compiler/compiler/tests/layout_plans.rs"
+        "omega-rust/omega/compilation/driver/compiler/tests/layout_plans.rs"
       ],
       "suggested_first_slice": "Complete one nested-record field path (a.b) inner-placement carrier in the flat LayoutPlanReport; this Linux x86-64 host can run the Linux canary legs the previous session could not."
     },
@@ -44,9 +44,9 @@
       "item": "OPAQUE-BY-VALUE-BOUNDARY-ABI",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/compiler/provider-planning/src/calling_policy_plans/opaque_representations.rs",
-        "omega-rust/omega/backend/artifacts/boundary-applications/src/realization.rs",
-        "omega-rust/omega/backend/runtime/installation-evidence/src/lib.rs"
+        "omega-rust/omega/compilation/driver/provider-planning/src/calling_policy_plans/opaque_representations.rs",
+        "omega-rust/omega/compilation/backend/artifacts/boundary-applications/src/realization.rs",
+        "omega-rust/omega/compilation/backend/runtime/installation-evidence/src/lib.rs"
       ],
       "suggested_first_slice": "Complete one independently compiled opaque by-value representation agreement and rejoin its consumer demands to the producer declarations."
     },
@@ -69,8 +69,8 @@
       "item": "FOREIGN-RETAINED-ARGUMENT-BACKING",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/backend/runtime/external-roots/src/epoch_stack_demand.rs",
-        "omega-rust/omega/backend/runtime/runtime-abi/src/lib.rs"
+        "omega-rust/omega/compilation/backend/runtime/external-roots/src/epoch_stack_demand.rs",
+        "omega-rust/omega/compilation/backend/runtime/runtime-abi/src/lib.rs"
       ],
       "suggested_first_slice": "Generalize one retained outbound argument beyond callbacks with explicit backing, range, access, lifetime, and revision provenance."
     },
@@ -80,8 +80,8 @@
       "item": "EXACT-SELECTION-FAMILIES",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/selection",
-        "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/optimized"
+        "omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/selection",
+        "omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/optimized"
       ],
       "suggested_first_slice": "Add one exact address-mode, compare/branch, extension, or constant-materialization selection family with independent validation."
     },
@@ -91,8 +91,8 @@
       "item": "ALLOCATION-REFINEMENT",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/src/assignment",
-        "omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/src/preservation"
+        "omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/assignment",
+        "omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/preservation"
       ],
       "suggested_first_slice": "Complete one coalescing, live-range-splitting, fixed-interval, or rematerialization decision while preserving aliases, liveness, and target custody."
     },
@@ -102,8 +102,8 @@
       "item": "FRAME-LAYOUT",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/09_resolved-layout-to-resolved-layout/src/phase",
-        "omega-rust/omega/backend/layout/src/sum_materialization"
+        "omega-rust/omega/compilation/pipeline/09_resolved-layout-to-resolved-layout/src/phase",
+        "omega-rust/omega/compilation/backend/layout/src/sum_materialization"
       ],
       "suggested_first_slice": "Extend one exact nonzero-frame realization case beyond the current bounded ordinary CFG family with replayed accesses."
     }

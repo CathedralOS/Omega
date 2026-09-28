@@ -46,7 +46,7 @@ downstream consumers replay it.
 The bounded Unit lane makes each FMA a real stream member, so leg (b)'s
 first edit is a `SelectedInstructionKind` variant (format + settlement
 custody, three XMM-class operand uses, one XMM result def) in
-`omega-rust/omega/representations/selected-instructions`, plus the
+`omega-rust/omega/compilation/representations/selected-instructions`, plus the
 `InstructionMachineEffects`/alternative rows it joins against. Downstream
 surfaces: `legalized-operations` (a legalized FMA kind so `nodes.rs` admits
 the abstract node instead of falling to `_ => NodeRejection::
@@ -63,13 +63,13 @@ record fields that `image-emission` already validates.
 
 The w9-era fences on this row have all expired; current live claims:
 
-- `omega-rust/omega/representations/selected-instructions` (whole crate) +
+- `omega-rust/omega/compilation/representations/selected-instructions` (whole crate) +
   `s2s/src/lib.rs` + `s2s/src/rewrites/{fixed_view,allocation_recovery,
   selected_lowering/literal_fold,literal_folds}` +
   `s2rh/src/{assignment/post_allocation_manifest,rewrites/
   rematerialization}` + `tests/architecture/optimizer_source_organization`:
   DURABLE-CODEC-RELOCATION (Devin / w10-w10-14), expires 21:02Z.
-  `claims.py claim --path omega-rust/omega/representations/
+  `claims.py claim --path omega-rust/omega/compilation/representations/
   selected-instructions` returned exit 2 naming that owner — leg (b)'s
   first edit is fenced in-wave.
 - `s2s/src/rewrites/confluence_run_relocation/{admission,validation}.rs`
@@ -85,7 +85,7 @@ The w9-era fences on this row have all expired; current live claims:
 - No live X86-FMA-PROVIDER-TRANSPORT claim; Jarod's `legalization/` fence
   (exp 09:07Z) lapsed.
 
-Conclusion: leg (b) is blocked on `omega-rust/omega/representations/
+Conclusion: leg (b) is blocked on `omega-rust/omega/compilation/representations/
 selected-instructions`, held in-wave by DURABLE-CODEC-RELOCATION until
 ~21:02Z — handoff candidate when that claim drains. The remaining stages
 (t2si selection, s2rh XMM allocation, machine plan, machine-emission

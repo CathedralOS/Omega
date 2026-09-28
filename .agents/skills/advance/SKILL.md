@@ -111,8 +111,8 @@ provider route. A single bounded change needs one agent.
 For an explicitly assigned discoverability/architecture change, apply
 [Discoverability architecture](../../../omega-rust/pipeline.md#discoverability-architecture):
 the outcome is a clearer route from crate entry to a named operation. Compare
-the route with [main.rs](../../../omega-rust/omega/omega/src/main.rs) and
-[compiler.rs](../../../omega-rust/omega/compiler/src/compiler.rs), keep
+the route with [main.rs](../../../omega-rust/omega/application/cli/src/main.rs) and
+[compiler.rs](../../../omega-rust/omega/compilation/driver/src/compiler.rs), keep
 orchestration visible at the crate entry and at subordinate multi-step owners,
 and verify affected test selectors and source readers. Stop when the named
 navigation problem is resolved.

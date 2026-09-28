@@ -1,0 +1,38 @@
+[package]
+name = "target-operations-to-selected-instructions"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "target_operations_to_selected_instructions"
+path = "src/lib.rs"
+
+[dependencies]
+calling-conventions = { path = "../../backend/calling-conventions" }
+optimization-core = { path = "../../../foundation/optimization-core" }
+optimization-unit-semantics = { path = "../../representations/abstract-operations/optimization-unit/semantics" }
+optimization-unit = { path = "../../representations/abstract-operations/optimization-unit" }
+register-model = { path = "../../backend/register-model" }
+target = { path = "../../backend/target" }
+abstract-operations = { path = "../../representations/abstract-operations" }
+abstract-operations-to-target-operations = { path = "../02_abstract-operations-to-target-operations" }
+abstract-operations-to-abstract-operations = { path = "../01_abstract-operations-to-abstract-operations" }
+terminal-psi-to-abstract-operations = { path = "../00_terminal-psi-to-abstract-operations" }
+register-environment = { path = "../../backend/register-environment" }
+legalized-operations = { path = "../../representations/target-operations/legalized-operations" }
+selected-instructions = { path = "../../representations/selected-instructions" }
+target-operations = { path = "../../representations/target-operations" }
+semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
+terminal-psi = { path = "../../../../psi/representations/terminal-psi" }
+terminal-semantics = { path = "../../../../psi/representations/terminal-psi/semantics" }
+
+terminal-codec = { path = "../../../../psi/representations/terminal-psi/codec" }
+terminal-verifier = { path = "../../../../psi/representations/terminal-psi/verification" }
+proof-admission = { path = "../../../../psi/proof/admission" }
+
+[dev-dependencies]
+mimalloc = { version = "0.1", default-features = false }
+installation-evidence = { path = "../../backend/runtime/installation-evidence" }
+isa-x86_64 = { path = "../../backend/instruction-set-architectures/isa-x86_64" }
+task-plans = { path = "../../backend/runtime/task-plans" }

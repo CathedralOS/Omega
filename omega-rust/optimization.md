@@ -11,11 +11,11 @@ records current experimental status, applicability, and composition limits.
 
 ## Selection and portable publication
 
-[Build-value admission](omega/package-manager/compilation-inputs/src/build_execution/build_value/optimization.rs) admits
+[Build-value admission](omega/packages/compilation-inputs/src/build_execution/build_value/optimization.rs) admits
 the exact vocabulary. Shared Build declarations project the
-[optimization vocabulary](omega/package-manager/build-declarations/src/prelude/optimizations.rs)
+[optimization vocabulary](omega/packages/build-declarations/src/prelude/optimizations.rs)
 into the toolchain prelude from one mapping. The
-[checked result](omega/compiler/src/checked/checking/checked_compilation.rs)
+[checked result](omega/compilation/products/src/checked_compilation.rs)
 retains the complete evaluated Build, including selection and report requests.
 [Rollback settlement](omega/foundation/optimization-core/src/optimization_core/rollback.rs)
 owns exact-name validation, subtractive selection and the resulting receipt.
@@ -59,7 +59,7 @@ form, certificate-reserved obligations, and non-scalar-leaf proof bearers
 keep their checks. The
 execution record survives canonical Terminal encoding and independent decoding.
 
-The [post-Terminal abstract phase](omega/pipeline/01_abstract-operations-to-abstract-operations/src/abstract_optimization.rs)
+The [post-Terminal abstract phase](omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/abstract_optimization.rs)
 joins verified input construction, bounded execution, and independent projection
 publication. Its result exposes the current abstract program and replay evidence,
 not the executing session or analysis cache. Legacy `Psi` names still occur in
@@ -83,7 +83,7 @@ decision log cannot supply missing transformation authority.
 
 ## One physical sequence
 
-The [native physical entrance](omega/compiler/src/native/physical_pipeline.rs)
+The [native physical entrance](omega/compilation/driver/src/native/physical_pipeline.rs)
 checks the retained selection, then performs instruction selection, selected
 X-to-X execution, allocation, machine construction, and canonical frame
 realization once. Mandatory lowering is not an optional optimization.
@@ -92,9 +92,9 @@ The entrance rejects selections without an implemented current-data stage
 before execution; it does not duplicate stage-owned rule admission.
 In particular, retained selected-lowering catalog entries do not imply native
 publication support, and retired post-allocation rewrite names cannot select an
-alternate emitter. [Selected optimization](omega/pipeline/04_selected-instructions-to-selected-instructions/src/selected_optimization.rs),
-[allocation](omega/pipeline/05_selected-instructions-to-register-homes/src/register_allocation.rs),
-and [layout optimization](omega/pipeline/09_resolved-layout-to-resolved-layout/src/phase.rs)
+alternate emitter. [Selected optimization](omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/selected_optimization.rs),
+[allocation](omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/register_allocation.rs),
+and [layout optimization](omega/compilation/pipeline/09_resolved-layout-to-resolved-layout/src/phase.rs)
 admit their own exact catalog selections when executing their phase. Their errors
 return through the stage result. The exact executable catalogs, not historical
 matrices, determine applicability and composition.
@@ -105,9 +105,9 @@ replay alone inspects retained transformation history. Do not add a program
 representation or a complete emission route for each rule, fixture shape, or
 optimization-history combination.
 
-[Allocation](omega/pipeline/05_selected-instructions-to-register-homes/README.md)
+[Allocation](omega/compilation/pipeline/05_selected-instructions-to-register-homes/README.md)
 owns homes and pressure recovery.
-[Machine emission](omega/backend/machine-emission/README.md) owns frame
+[Machine emission](omega/compilation/backend/machine-emission/README.md) owns frame
 realization, fragment emission, and text placement. Target ISA crates own
 instruction alternatives, effects, encoders, and decoders. Object construction
 and callable/image admission remain later owners; an encoding receipt does not
@@ -134,7 +134,7 @@ sibling rule merely because it was implemented first.
 
 The bounded countdown machinery illustrates a private restriction, not a
 language limit. Its
-[ranked-cycle validation](omega/pipeline/01_abstract-operations-to-abstract-operations/src/validation/context/mod.rs)
+[ranked-cycle validation](omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/validation/context/mod.rs)
 reconstructs component/ranking evidence. Only authenticated guard-zero and
 decrement-one relocation to the canonical preheader suffix may normalize the
 otherwise frozen component; provenance and fuel settlements remain unchanged.

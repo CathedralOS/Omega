@@ -42,10 +42,10 @@ or dropped.
 
 - **F3 — representation vocabulary lives in `lib.rs`.** Three representation
   roots carry their defining types at the root instead of a named domain file:
-  `omega/representations/target` (1013 lines — `Architecture`, `ObjectFormat`,
+  `omega/compilation/representations/target` (1013 lines — `Architecture`, `ObjectFormat`,
   `TargetProfile`, `TargetProfileIdentity`, `ProgramEntrySchema`, the UEFI/x86
-  re-export surface), `omega/backend/layout` (430 — `TypeLayout`,
-  `TypeLayoutDescriptor`, `ENUM_TAG_BYTES`), `omega/backend/runtime/runtime-abi`
+  re-export surface), `omega/compilation/backend/layout` (430 — `TypeLayout`,
+  `TypeLayoutDescriptor`, `ENUM_TAG_BYTES`), `omega/compilation/backend/runtime/runtime-abi`
   (341 — `RuntimeAbiPlan`, `FatDescriptorAbi`, descriptor layouts). The
   `LIB_RS_OWNED` exemption exists for *small* leaf vocabulary crates
   (function-identity, installation-evidence); these three are the largest

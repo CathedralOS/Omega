@@ -17,5 +17,5 @@ evidence, or atomic snapshots. Psi's repeated-check owner separately counts actu
 check executions rather than requests served by its memo.
 
 The only package dependency is Psi's diagnostic vocabulary. Trust report
-records and validation live with [realization admission](../../realization/trust-model/README.md).
+records and validation live with [realization admission](../../compilation/realization/trust-model/README.md).
 The writer tests cover byte replacement and failure cleanup directly.

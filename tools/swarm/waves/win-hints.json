@@ -51,9 +51,9 @@
       "item": "BUILD-SNAPSHOT-OUTPUTS",
       "host": "local",
       "owning_paths": [
-        "omega-rust/omega/compiler/build-evaluation",
-        "omega-rust/omega/compiler/build-output",
-        "omega-rust/omega/compiler/compiler/src"
+        "omega-rust/omega/compilation/driver/build-evaluation",
+        "omega-rust/omega/compilation/driver/build-output",
+        "omega-rust/omega/compilation/driver/compiler/src"
       ],
       "suggested_first_slice": "Extend the landed build_snapshot inventory binding one step — e.g. narrowed inputs or deterministic snapshot reads with a tamper/substitution rejection witness. The board's progress notes mark the current seam; land one bounded piece, not the whole item."
     },
@@ -63,7 +63,7 @@
       "item": "FILESYSTEM-RELEASE-CONTRACT",
       "host": "local",
       "owning_paths": [
-        "omega-rust/omega/compiler/native-realization/src/native_realization/terminal_authority_policy"
+        "omega-rust/omega/compilation/driver/native-realization/src/native_realization/terminal_authority_policy"
       ],
       "suggested_first_slice": "The checked-interpreter leg already landed (FilesystemSourceNativeHandleQueryChainReplayRecord). Realize the retained occurrence record through native realization replay in terminal_authority_policy: one occurrence-specific close evidence row; stale or substituted proof rejects. Extend your claim if the real seam sits elsewhere under native_realization/ or psi validation."
     },

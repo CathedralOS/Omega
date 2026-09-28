@@ -72,22 +72,22 @@ test-only channels are cataloged, not flagged.
 | `CheckedTrees` | psi/representations/checked-trees | 2 | 1 | 1 | 0 |
 | `LoweredPsi` | psi/representations/lowered-psi | 0 | — | — | — |
 | `PsiOptimizationStageResult` | psi/pipeline/06_lowered-psi-to-lowered-psi | 4 | 4 | 0 | 0 |
-| `CheckedCompilation` | omega/compiler/checked-compilation | 57 | 49 | 8 | 0 |
-| `AdmittedArtifactPlan` | omega/pipeline/00_terminal-psi-to-abstract-operations | 4 | 4 | 0 | 0 |
-| `AdmittedOptimizationArtifact` | omega/pipeline/00_terminal-psi-to-abstract-operations | 5 | 5 | 0 | 0 |
-| `AdmittedNativeArtifact` | omega/pipeline/00_terminal-psi-to-abstract-operations | 6 | 4 | 2 | 0 |
-| `AbstractOperationPlan` | omega/representations/abstract-operations | 0 | — | — | — |
-| `AbstractOperationPlanWithPlacedViewInputs` | omega/representations/abstract-operations | 0 | — | — | — |
-| `ValidatedOptimizedAbstractPlan` | omega/pipeline/01_abstract-operations-to-abstract-operations | 18 | 16 | 2 | 0 |
-| `TargetOperationPlan` | omega/representations/target-operations | 0 | — | — | — |
-| `StagedOptimizedSelectedInstructions` | omega/pipeline/target-operations-to-selected-instructions | 9 | 8 | 0 | 0 |
-| `SelectedInstructionOptimizationOutput` | omega/pipeline/04_selected-instructions-to-selected-instructions | 3 | 2 | 0 | 1 |
-| `RetainedAllocation` | omega/pipeline/05_selected-instructions-to-register-homes | 8 | 8 | 0 | 0 |
-| `StagedOptimizedPostAllocationMachinePlan` | omega/pipeline/06_register-homes-to-post-allocation-machine | 0 | — | — | — |
+| `CheckedCompilation` | omega/compilation/driver/checked-compilation | 57 | 49 | 8 | 0 |
+| `AdmittedArtifactPlan` | omega/compilation/pipeline/00_terminal-psi-to-abstract-operations | 4 | 4 | 0 | 0 |
+| `AdmittedOptimizationArtifact` | omega/compilation/pipeline/00_terminal-psi-to-abstract-operations | 5 | 5 | 0 | 0 |
+| `AdmittedNativeArtifact` | omega/compilation/pipeline/00_terminal-psi-to-abstract-operations | 6 | 4 | 2 | 0 |
+| `AbstractOperationPlan` | omega/compilation/representations/abstract-operations | 0 | — | — | — |
+| `AbstractOperationPlanWithPlacedViewInputs` | omega/compilation/representations/abstract-operations | 0 | — | — | — |
+| `ValidatedOptimizedAbstractPlan` | omega/compilation/pipeline/01_abstract-operations-to-abstract-operations | 18 | 16 | 2 | 0 |
+| `TargetOperationPlan` | omega/compilation/representations/target-operations | 0 | — | — | — |
+| `StagedOptimizedSelectedInstructions` | omega/compilation/pipeline/target-operations-to-selected-instructions | 9 | 8 | 0 | 0 |
+| `SelectedInstructionOptimizationOutput` | omega/compilation/pipeline/04_selected-instructions-to-selected-instructions | 3 | 2 | 0 | 1 |
+| `RetainedAllocation` | omega/compilation/pipeline/05_selected-instructions-to-register-homes | 8 | 8 | 0 | 0 |
+| `StagedOptimizedPostAllocationMachinePlan` | omega/compilation/pipeline/06_register-homes-to-post-allocation-machine | 0 | — | — | — |
 | `CanonicalTerminalArtifact` | psi/semantics/terminal-codec | 8 | 8 | 0 | 0 |
-| `ProgramEntryTerminalArtifact` | omega/compiler/terminal-artifact | 3 | 3 | 0 | 0 |
-| `CompileReport` | omega/compiler/compilation-report | 37 | 30 | 4 | 2 |
-| `RetainedGeneratedSyntaxExtension` | omega/compiler/source-assembly | 3 | 3 | 0 | 0 |
+| `ProgramEntryTerminalArtifact` | omega/compilation/driver/terminal-artifact | 3 | 3 | 0 | 0 |
+| `CompileReport` | omega/compilation/driver/compilation-report | 37 | 30 | 4 | 2 |
+| `RetainedGeneratedSyntaxExtension` | omega/compilation/driver/source-assembly | 3 | 3 | 0 | 0 |
 
 Four outputs (`LoweredPsi`, `AbstractOperationPlan`,
 `AbstractOperationPlanWithPlacedViewInputs`, `TargetOperationPlan`) are

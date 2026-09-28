@@ -584,7 +584,7 @@ the complete product bar; focused successes below do not establish that baseline
   Use `python3 tools/corpus_gate.py`, `--filter fail/` for diagnostic attribution,
   and `--native` on each required matching host. `--both` adds the checked
   interpreter where supported. The maintained harness is
-  `omega-rust/omega/compiler/tests/corpus_runner.rs`; `canary_suite` was deleted.
+  `omega-rust/omega/compilation/driver/tests/corpus_runner.rs`; `canary_suite` was deleted.
   **SAMPLE-CORPUS** owns full sample integration; non-corpus/package gates remain
   in [release closure](#rust-compiler-release-closure).
 
@@ -883,7 +883,7 @@ the complete product bar; focused successes below do not establish that baseline
 - **CHECK-CLOSURE-ONCE.** (new-scope) Make a std-importing `omega --check`
   invocation check the library once across package discovery, binding and
   production. Owners: package-manager's
-  [candidate compilation](omega-rust/omega/package-manager/src/review/candidate/compilation.rs)
+  [candidate compilation](omega-rust/omega/packages/package-manager/src/review/candidate/compilation.rs)
   and compiler's `checked/checking/`.
 
   Exact-input check memoization, typed-frontier reuse and carrying unchanged
@@ -1275,6 +1275,7 @@ the complete product bar; focused successes below do not establish that baseline
   with **CANONICALIZE-SCALAR-RANGE-CONTRACTS** without weakening these obligations.
 
 ## Pipeline route
+
 
 Follow one connected stage chain under the
 [pipeline](omega-rust/pipeline.md#one-driver-one-pass-per-target-realization)
@@ -1876,9 +1877,9 @@ crash and native exit behavior. Use affected check/native corpus slices under
   **PCC-PRODUCT-PUBLICATION** owns the separate Terminal-only command product.
 
 - **CHECKED-SETTLEMENT-UNITS.** (new-scope) Group the remaining settlement
-  fields in [execution_settlement.rs](omega-rust/omega/compiler/src/checked/checking/execution_settlement.rs)
+  fields in [execution_settlement.rs](omega-rust/omega/compilation/driver/src/checked/checking/execution_settlement.rs)
   by producing owner and expose those units through
-  [checked_compilation.rs](omega-rust/omega/compiler/src/checked/checking/checked_compilation.rs).
+  [checked_compilation.rs](omega-rust/omega/compilation/products/src/checked_compilation.rs).
   Consumers in product dispatch, Terminal proposal construction, reports, trust
   and package admission should take the unit they need. Follow the
   [coordinator boundary](omega-rust/pipeline.md): this is removal of forwarding
@@ -1903,9 +1904,9 @@ crash and native exit behavior. Use affected check/native corpus slices under
 
 - **COMPILE-REPORT-PRODUCTS.** (new-scope) Make product admission part of
   report construction in
-  [compile_report.rs](omega-rust/omega/compiler/src/report/compile_report.rs),
+  [compile_report.rs](omega-rust/omega/compilation/products/src/compilation_products.rs),
   then use one report-settlement call in
-  [compiler.rs](omega-rust/omega/compiler/src/compiler.rs).
+  [compiler.rs](omega-rust/omega/compilation/driver/src/compiler.rs).
   Variant-owned artifact/rollback/application payloads already exist.
   Remaining eligibility checks live in `admit_requested_product` and package
   admission, while `with_pcc_context` can attach incompatible requests directly.
@@ -2099,14 +2100,14 @@ has no external-completion variant; the
 rejects a nonempty roster. A native nonreturning operation does not fill this gap.
 
 - Close native customer gaps using existing `SelectedProcessExit` custody.
-  [Normalized foreign-call custody](omega-rust/omega/backend/images/image-emission/src/object_artifact/normalized_foreign_calls.rs) still accepts
+  [Normalized foreign-call custody](omega-rust/omega/compilation/backend/images/image-emission/src/object_artifact/normalized_foreign_calls.rs) still accepts
   scalar homes only from call-result producers; finish general computed-status
   argument transport and independently replay its selected source. Windows
   `ProcessExit` already selects kernel32 `ExitProcess` through `DllImport`.
   Complete the Console byte leaves through `WriteFile`/`ReadFile`; their current
   `CompilerIntrinsic` declarations have no Windows hosted bundle. Replace the
   fixed 256 KiB foreign-call reserve with per-callee stack evidence in Omega
-  stage 00's [source-evaluated imports](omega-rust/omega/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/source_evaluated_imports.rs). These native
+  stage 00's [source-evaluated imports](omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/source_evaluated_imports.rs). These native
   repairs need not wait for portable external-completion representation.
 - Retain exact canonical requirement, domain-bound authority, status and a closed
   terminal invocation without a normal result/successor through checking,
@@ -2162,7 +2163,7 @@ completion syntax or other terminal service is a prerequisite.
     cleanup marker and `ProgramLocalRootInstallationLedger` already exist.
     Marker propagation and Rust-ledger retirement tests do not execute an
     authored destructor. Preserve image-emission's
-    [hosted receiver tests](omega-rust/omega/backend/images/image-emission/tests/artifacts/hosted_receiver.rs)
+    [hosted receiver tests](omega-rust/omega/compilation/backend/images/image-emission/tests/artifacts/hosted_receiver.rs)
     replay controls; installation owns live occurrence custody. Compose
     application, bridge, provider and callback stack demand, not loader stack-size
     metadata or another storage profile.
@@ -2579,8 +2580,8 @@ Deliver the [exclusion contract](wiki/spec/build/behavior_exclusions.md) after t
 existing compiler customers above. Checking/no-op assertions and optional logging
 remain ordinary calls with unchanged public ceilings; exclusions add product
 admission requirements, never permission to violate callable contracts.
-Compiler paths below are relative to `omega-rust/omega/compiler/`. Reuse the
-shared checker in `omega-rust/omega/backend/plans/provider-evidence/src/provider_evidence/executable_scopes/behavior_exclusions.rs`.
+Compiler paths below are relative to `omega-rust/omega/compilation/driver/`. Reuse the
+shared checker in `omega-rust/omega/compilation/backend/plans/provider-evidence/src/provider_evidence/executable_scopes/behavior_exclusions.rs`.
 
 - **BUILD-SEMANTIC-EXCLUSIONS.** Finish source-to-publication acceptance for the
   full admitted entry/call closure. Executed selections in
@@ -2602,7 +2603,7 @@ shared checker in `omega-rust/omega/backend/plans/provider-evidence/src/provider
   reject changed entries/providers/targets/scopes/policies and omitted coverage.
   Distinguish prohibited possible behavior from insufficient evidence.
 
-  [The package verdict harness](omega-rust/omega/package-manager/tests/behavior_exclusion_verdicts.rs)
+  [The package verdict harness](omega-rust/omega/packages/package-manager/tests/behavior_exclusion_verdicts.rs)
   asserts Linux realization of `no-op-app` and attributed service/machine refusal
   for `sink-app`. Add verdict coverage for `checking-app`, `quiet-logger-app` and
   `direct-unit.omg` under `tests/omega/packages/behavior-exclusions/`; the two
@@ -2616,7 +2617,7 @@ shared checker in `omega-rust/omega/backend/plans/provider-evidence/src/provider
   `src/native/native_realization.rs` checks exercised classes before emission,
   independently of receiving permissions. `src/native/retained_native_product.rs`
   carries the proposal's union into that check, but
-  `omega-rust/omega/backend/artifacts/native-artifact/src/native_artifact.rs`
+  `omega-rust/omega/compilation/backend/artifacts/native-artifact/src/native_artifact.rs`
   retains the mechanism review without the exclusion union.
   Join the policy to exact semantic/target/provider evidence through legalization,
   image emission, **COMPONENT-SUBSTRATE** replacement and
@@ -2642,7 +2643,7 @@ Implement the [testing contract](wiki/spec/build/testing.md) and
 compiler customers above. Reuse ordinary satisfaction/entry checking, verified
 Terminal Psi execution and embedding custody; no test attribute, special machine
 name, calling permission or parallel compiler. Compiler paths below are under
-`omega-rust/omega/compiler/`.
+`omega-rust/omega/compilation/driver/`.
 
 - **BUILD-TEST-GROUPS.** (new-scope) Build registration is missing:
   `build-declarations/src/prelude.rs`'s `Build` has no `tests` facet, and
@@ -2669,10 +2670,10 @@ name, calling permission or parallel compiler. Compiler paths below are under
   with group-scoped providers, provisioned receivers and fresh mock state.
   Reuse Build/provider admission, entry establishment and interpreter custody.
   Existing `build-evaluation/src/admitted_build_program.rs` restricted requests
-  and `omega-rust/omega/package-manager/src/review/restricted_build_grants.rs`
+  and `omega-rust/omega/packages/package-manager/src/review/restricted_build_grants.rs`
   join normalized build-host requests to lock acceptance; extend them to retain
   test/group, fixture and provider attribution before execution. Existing
-  [restricted-request tests](omega-rust/omega/package-manager/src/review/candidate/compilation/tests/restricted_build_grants.rs)
+  [restricted-request tests](omega-rust/omega/packages/package-manager/src/review/candidate/compilation/tests/restricted_build_grants.rs)
   cover missing, widened and wrong-purpose consent; group execution remains unwired.
   Acceptance: two tests receive fresh virtual filesystems and established
   `Binding` fields; missing bindings reject. Child filesystem/network/process
@@ -2719,7 +2720,7 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   `src/results.rs` has no waiting/completion protocol; the
   `raw_effect_sinks_do_not_pin_host_provider_identity` lifetime test permits handler
   substitution on resume. Pin admitted bindings and retain custody across pauses.
-  Reuse the [source-driven registration control](omega-rust/omega/backend/runtime/component-publication/src/tests.rs):
+  Reuse the [source-driven registration control](omega-rust/omega/compilation/backend/runtime/component-publication/src/tests.rs):
   `interpreted_register_and_unregister_drive_the_registration_ledger` already
   exercises component ledger entry/teardown; runtime lifecycle integration remains.
   Pause within an invariant window: reject conflicting inspection/mutation,
@@ -2736,10 +2737,10 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   installation/publication so a running guest replaces an independent subcomponent
   without returning from main. Depends on **COMPONENT-SUBSTRATE** and
   **EMBEDDING-RESOURCE-LIFETIMES**. Current
-  `omega-rust/omega/compiler/src/terminal/terminal_artifact/composition_modes.rs`
+  `omega-rust/omega/compilation/driver/src/terminal/terminal_artifact/composition_modes.rs`
   rejects independent products; checked descriptions alone do not unblock this.
   Reuse the closed import/export and era/custody contracts in
-  `omega-rust/omega/backend/runtime/component-publication/`; its
+  `omega-rust/omega/compilation/backend/runtime/component-publication/`; its
   `RunnableComponentEraLedger` retains native installed artifacts. Connect Psi
   instances/entries to that publication contract, without a second module manager.
   Root/nested build composition must produce replacement Psi; the guest stages
@@ -3010,7 +3011,7 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
     and core/test consumers, with ordinary contracts/bundles. Preserve exact
     substitutions, witness identity, path/result availability, validity and
     assumption closure; remove retired parser/carrier/codec paths. Include
-    `omega-rust/omega/package-manager/review-evidence/EVIDENCE_SCHEMA.md`'s
+    `omega-rust/omega/packages/review-evidence/EVIDENCE_SCHEMA.md`'s
     replacement proof rows and QUOTIENT-THEOREM-LIFT's congruence-only lift payload.
   - Complete arbitrary mathematical application and theorem-only logical
     hypotheses under the binding spec's delivery controls. `TraitRequirement`
@@ -3363,7 +3364,7 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
     to the specified optional sidecar distribution without weakening ordinary
     consumption or silently changing existing format markers.
   - Complete native behavioral evidence in
-    [native-artifact's proof owner](omega-rust/omega/backend/artifacts/native-artifact/src/proof.rs).
+    [native-artifact's proof owner](omega-rust/omega/compilation/backend/artifacts/native-artifact/src/proof.rs).
     Placed image/data inventories, entry/load-map custody and import-thunk
     replay exist; even valid evidence returns `Incomplete(UnsupportedEvidence)`.
     Decode instructions against closed target semantics, reconstruct all
@@ -3436,7 +3437,7 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   bootstrap bodies; the compiler supplies the physical shell and generic
   ABI/entry primitives. Reuse `std/targets/uefi_x86_64/tables.omg` layout replay,
   `program-entry-plan` physical/semantic plans and
-  [native-artifact's receiver wrapper](omega-rust/omega/backend/artifacts/native-artifact/src/fragment_object_publication.rs).
+  [native-artifact's receiver wrapper](omega-rust/omega/compilation/backend/artifacts/native-artifact/src/fragment_object_publication.rs).
   Connect them to actual arrival and scoped providers through
   `external-roots/src/platform_bringup/uefi_bootstrap/`.
   Supply a source customer and firmware/controlled-provider execution harness.
@@ -3585,7 +3586,7 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   consumes the real linear receiver. **TOP-LEVEL-BOUNDARY-REQUIREMENTS** owns
   selected dispatch/discharge; reuse its owned-receiver route.
 
-  Reuse `omega-rust/omega/realization/provider-planning/src/provider_planning/installation_reach.rs`
+  Reuse `omega-rust/omega/compilation/realization/provider-planning/src/provider_planning/installation_reach.rs`
   and external-roots' `root_entry/root_validation.rs`. Provider-planning's
   `tests/{provider_derivation,independent_components}.rs` already cover selected
   reach and unresolved provider/component rejection. Full component deployment
@@ -3627,7 +3628,7 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   including dungeon return/transition arguments, are already present; old
   refusal counts and masked downstream failures are not a remaining-work list.
   Use focused `tools/corpus_gate.py` / `tools/sample_gate.py` runs and the
-  product/parser-gate CLI coverage in `omega-rust/omega/omega/tests/command_line.rs`.
+  product/parser-gate CLI coverage in `omega-rust/omega/application/cli/tests/command_line.rs`.
   Preserve the algorithms and the policy of each operation when inserting casts.
   **SAMPLE-CORPUS** and **RC-BUILD-AND-PACKAGES** retain complete program acceptance.
 
@@ -4244,7 +4245,7 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   under [task activation](wiki/spec/build/task_runtime.md) and
   [suspension](wiki/spec/terminal-psi/calls_and_outcomes.md#suspension).
   Reuse `provider-planning/src/task_plans/` and
-  [task-plans](omega-rust/omega/backend/runtime/task-plans/README.md): sealed
+  [task-plans](omega-rust/omega/compilation/backend/runtime/task-plans/README.md): sealed
   call graphs, argument images, lease accounting and routed `Task<T>` claims
   exist. Ledger park/resume tests change accounting state; they execute no
   worker or native stack switch. `tasks/task_runtime_machine_selection_compile`
@@ -4567,7 +4568,7 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   `checking/build_continuation.rs::evaluate_frontier_and_continue` already
   joins requests before executing the admitted build; `check_project`,
   `check_locked_sources` and `compile_project` wire retained consent.
-  [Existing pass tests](omega-rust/omega/package-manager/src/review/candidate/compilation/tests/restricted_build_grants.rs)
+  [Existing pass tests](omega-rust/omega/packages/package-manager/src/review/candidate/compilation/tests/restricted_build_grants.rs)
   cover matching, missing, widened and wrong-purpose consent. They do not
   assert a refused-effect filesystem sentinel.
 
@@ -4605,7 +4606,7 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   the magic mount to core. Finish migrating fallback consumers to ordinary
   dependency edges and exact source-byte catalog roles or accepted semantic
   bindings; directory relabeling grants no authority. Reuse the
-  [existing roles](omega-rust/omega/package-manager/compilation-inputs/semantic_bindings.md)
+  [existing roles](omega-rust/omega/packages/compilation-inputs/semantic_bindings.md)
   for Console, host services and target-correct physical entries.
 
   Prioritize executable host/objc and
@@ -5052,7 +5053,7 @@ but report the missing runtime leg explicitly; it does not close that host row.
     receipt or build-bound provider boundary.
 
   - **Demanded imports and callback custody:** provider planning and
-    `omega-rust/omega/compiler/src/native/retained_native_product.rs` must
+    `omega-rust/omega/compilation/driver/src/native/retained_native_product.rs` must
     refuse an actually called import without supplied execution/stack custody,
     including retained native reentry that returns the exact dynamic
     interpreter on refusal. The guard exists, but

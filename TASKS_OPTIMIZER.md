@@ -106,7 +106,7 @@ rewrites and promotion are not prerequisites for the first useful compiler.
 
 - **SPILL-REALIZATION.** Finish executable register-pressure recovery and
   prove that its emitted frames participate in stack provisioning. Owners:
-  [register allocation](omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/README.md)'s
+  [register allocation](omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/README.md)'s
   `assignment/runtime_spill/` and selected-instruction
   `rewrites/runtime_spill/`; the latter independently replays stores, reloads,
   physical geometry and value lineage.
@@ -158,7 +158,7 @@ rewrites and promotion are not prerequisites for the first useful compiler.
   free a home. Stage 04 owns
   `analyses/fixed_precolored_split_requirements/{compute,replay}/` and
   `rewrites/allocation_recovery/fixed_view_copy/`; stage 05's
-  [allocation recovery](omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/src/assignment/runtime_spill/recovery.rs)
+  [allocation recovery](omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/assignment/runtime_spill/recovery.rs)
   owns the pressure decision and subsequent assignment.
 
   Existing cuts authenticate fixed uses; fixed-view copies already cover
@@ -185,7 +185,7 @@ rewrites and promotion are not prerequisites for the first useful compiler.
 
   No claim roster reaches `PostAllocationMachineFunction`. Coordinate its
   durable transport with the upstream producer, then join claim sites to
-  [native frame realization](omega-rust/omega/backend/machine-emission/src/function_realization/frame.rs).
+  [native frame realization](omega-rust/omega/compilation/backend/machine-emission/src/function_realization/frame.rs).
   `extents::activation_claims::compose_claim_bounds` computes aligned sums and
   branch maxima over supplied rows; its ledger tests do not establish compiler
   transport, physical coordinates or probe coverage. Implement placement and
@@ -212,7 +212,7 @@ rewrites and promotion are not prerequisites for the first useful compiler.
 - **GENERAL-CYCLIC-EXECUTION.** Complete the receiving/native half of
   [ranked callees on projected receivers](wiki/spec/language/termination.md#ranked-callees-on-projected-receivers).
   The same-name TASKS.md item owns source production and verifier coverage.
-  Follow the ordinary [native admission route](omega-rust/omega/pipeline/00_terminal-psi-to-abstract-operations/README.md#ranked-native-admission):
+  Follow the ordinary [native admission route](omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/README.md#ranked-native-admission):
   natural-ranked and unranked graphs retain their custody, and authenticated
   cyclic components remain frozen under optimization. No countdown-only fallback.
 
@@ -311,7 +311,7 @@ rewrites and promotion are not prerequisites for the first useful compiler.
 
 - **EXACT-MACHINE-SIMPLIFICATIONS.** Finish source-produced execution of
   retained copy, extension, address, compare/test and scheduling rewrites in
-  [selected-stage optimization](omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/selected_optimization.rs).
+  [selected-stage optimization](omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/selected_optimization.rs).
   `PRE_ALLOCATION_RULE_CATALOG` already executes eight exact rules through
   `optimize_selected_instructions`: same-block copy, redundant extension,
   address offset, constant boolean/branch, and dead/redundant/equivalent compare.
@@ -333,7 +333,7 @@ rewrites and promotion are not prerequisites for the first useful compiler.
   then replay the published artifact. Building a selected program alone proves
   neither application nor execution.
 
-  [Staged rewrites](omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/unexecuted/mod.rs)
+  [Staged rewrites](omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/unexecuted/mod.rs)
   still have no catalog/execution join for boundary boolean/branch folds or
   scheduling. Reuse the existing `relocation` member-run/destination mechanism
   and `scheduled_relocation` dominance/dead-path admission; geometry-specific
@@ -367,7 +367,7 @@ rewrites and promotion are not prerequisites for the first useful compiler.
   register units, effects, traps, memory, stack and control flow through the
   selected-stage catalog, and nominate ordinary literal folds beyond pressure
   recovery. Owners: `rewrites/selected_lowering/literal_fold/` and
-  [staged peepholes](omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/unexecuted/peepholes/mod.rs).
+  [staged peepholes](omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/unexecuted/peepholes/mod.rs).
 
   The literal route still takes one incoming
   `ImmediateU64RematerializationCandidate` per function/iteration under
@@ -424,7 +424,7 @@ rewrites and promotion are not prerequisites for the first useful compiler.
 - **ALIAS-AWARE-MEMORY.** Connect load forwarding, dead-store elimination
   and store motion to exact selected-stage execution, allocation and publication.
   The existing implementations and tests live under
-  [rewrites/unexecuted/](omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/unexecuted/mod.rs),
+  [rewrites/unexecuted/](omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/unexecuted/mod.rs),
   not the executable catalog. Reuse their proposers and independent legality
   validators; EXACT-MACHINE-SIMPLIFICATIONS owns the common stage-execution
   join, not a second memory-specific pipeline.
@@ -609,7 +609,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     host row after any applicable record, even when every runtime leg is a
     cross-compile skip. Repair that accounting, the stale Intel macOS
     `HOST_LEGS` label, and `tools/tests/test_benchmark.py`'s target-catalog path
-    (the owner is now the [backend target catalog](omega-rust/omega/backend/target/src/target_profile.rs)).
+    (the owner is now the [backend target catalog](omega-rust/omega/compilation/backend/target/src/target_profile.rs)).
 
   Remaining runtime legs: Linux ARM64, Windows x64, Intel macOS and an applicable
   UEFI subject on QEMU/hardware. Exercise Windows job-object peak-memory

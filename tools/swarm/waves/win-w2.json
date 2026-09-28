@@ -28,7 +28,7 @@
       "owning_paths": [
         "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts",
         "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/authored_selections",
-        "omega-rust/omega/compiler/compiler/tests/canary_suite/providers_float_and_console",
+        "omega-rust/omega/compilation/driver/compiler/tests/canary_suite/providers_float_and_console",
         "tests/omega/pass/float"
       ],
       "suggested_first_slice": "Continuation: the win-w1 worker left substantial uncommitted contract-checking edits in the win-w1-float worktree; finish the in-flight FloatMeaning slice from that state."
@@ -39,8 +39,8 @@
       "item": "OPTIONAL-STDLIB-SEMANTIC-BINDINGS",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/compiler/package-compilation/src/semantic_bindings.rs",
-        "omega-rust/omega/compiler/compiler/src/pipeline/package",
+        "omega-rust/omega/compilation/driver/package-compilation/src/semantic_bindings.rs",
+        "omega-rust/omega/compilation/driver/compiler/src/pipeline/package",
         "tests/omega/pass/arithmetic/narrowing_flow_and_widen_permitted"
       ],
       "suggested_first_slice": "Continuation: the win-w1 worker left an uncommitted narrowing fixture change in the win-w1-stdlib worktree; finish the in-flight stdlib-binding slice from that state."
@@ -51,7 +51,7 @@
       "item": "PLAN-LAID-VIEWS",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/00_terminal-psi-to-abstract-operations/src/artifact",
+        "omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/artifact",
         "omega-rust/psi/interpreter/build-time-evaluation/src/plan_laid.rs"
       ],
       "suggested_first_slice": "Rejoin one plan-laid view's layout identity, backing, range, access, or lifetime at a use site so a stale substitution rejects with a checked witness."
@@ -85,7 +85,7 @@
       "item": "PACKAGE-PREPARATION-REUSE",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/package-manager/src/review/candidate",
+        "omega-rust/omega/packages/package-manager/src/review/candidate",
         "tests/omega/pass/effects"
       ],
       "suggested_first_slice": "Reuse one already-verified package preparation result instead of recompiling, with the effects canaries witnessing the route."
@@ -160,7 +160,7 @@
       "item": "FINITE-GENERIC-DISPATCH",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/compiler/selected-dispatch"
+        "omega-rust/omega/compilation/driver/selected-dispatch"
       ],
       "suggested_first_slice": "Extend finite generic dispatch selection for one enumerated case set while keeping dispatch evidence explicit."
     },
@@ -170,7 +170,7 @@
       "item": "ATOMIC-MEMORY-MODEL",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/representations/abstract-operations",
+        "omega-rust/omega/compilation/representations/abstract-operations",
         "tests/omega/pass/atomics"
       ],
       "suggested_first_slice": "Add or tighten one atomic abstract-operation shape with its ordering evidence and a pass canary."
@@ -191,7 +191,7 @@
       "item": "SPILL-REALIZATION",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/05_selected-instructions-to-register-homes"
+        "omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes"
       ],
       "suggested_first_slice": "Realize one spill/reload decision in register-home assignment with explicit storage evidence."
     },
@@ -201,7 +201,7 @@
       "item": "GENERAL-LICM",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations"
+        "omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations"
       ],
       "suggested_first_slice": "Hoist one loop-invariant abstract operation class with its safety evidence rather than a pattern match."
     },
@@ -221,7 +221,7 @@
       "item": "SELECTED-ABI-VALIDATION",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/backend/calling-conventions"
+        "omega-rust/omega/compilation/backend/calling-conventions"
       ],
       "suggested_first_slice": "Validate one selected calling-convention decision against the declared ABI rather than trusting the selector."
     },
@@ -231,7 +231,7 @@
       "item": "TARGET-MATRICES",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/backend/instruction_set_architectures"
+        "omega-rust/omega/compilation/backend/instruction-set-architectures"
       ],
       "suggested_first_slice": "Extend one target capability matrix entry so selection consults declared ISA evidence instead of defaults."
     }

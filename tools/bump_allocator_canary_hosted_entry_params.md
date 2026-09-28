@@ -15,7 +15,7 @@ visible source of `Extent in Granted` exists on hosted targets at all.
 ## Where hosted parameter visibility is computed
 
 1. **Slot declaration** —
-   `omega-rust/omega/backend/target/src/target_profile.rs`,
+   `omega-rust/omega/compilation/backend/target/src/target_profile.rs`,
    `TargetProfile::program_entry_slot()` (~lines 487-592). Every hosted target
    (LinuxX64, LinuxArm64, MacosArm64, MacosX64, WindowsX64, and the catch-all
    covering `CrossPlatformCli`/`LocalUnchecked` — i.e. every schema `omega run`
@@ -25,7 +25,7 @@ visible source of `Extent in Granted` exists on hosted targets at all.
    arguments."
 
 2. **Slot/schema invariant** —
-   `omega-rust/omega/backend/plans/program-entry-plan/src/selected_entry.rs:32-47`.
+   `omega-rust/omega/compilation/backend/plans/program-entry-plan/src/selected_entry.rs:32-47`.
    `HostedApplication ⇒ VisibleParameters::None` is enforced as a checked
    invariant: "a hosted `HostedApplication` keeps them as internal bridge
    inputs and exposes no source-visible parameters. Any other shape pairing is
@@ -33,7 +33,7 @@ visible source of `Extent in Granted` exists on hosted targets at all.
    declaration is rejected here — there is no third pairing to select.
 
 3. **Entry admission** —
-   `omega-rust/omega/compiler/build-evaluation/src/admission/selection.rs:264-288`.
+   `omega-rust/omega/compilation/driver/build-evaluation/src/admission/selection.rs:264-288`.
    Non-`self` parameters become `visible`; under `None` any visible parameter
    produces
    `hosted ProgramEntry exposes no arrival parameters, but <machine> declares ...`.

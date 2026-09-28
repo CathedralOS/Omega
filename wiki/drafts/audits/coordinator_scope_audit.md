@@ -28,7 +28,7 @@ load/discover sequence; prelude construction lives in
 `source_assembly/entry_contract_seed.rs`. Original finding text retained
 below for the audit trail.
 
-`omega-rust/omega/compiler/build-evaluation/src/sources/source_assembly.rs`
+`omega-rust/omega/compilation/driver/build-evaluation/src/sources/source_assembly.rs`
 (1014 lines) sequences discovery → lex → parse → import queue, which is the
 crate's transform. But two constructor blocks are domain work inline in the
 entry file:
@@ -53,7 +53,7 @@ index → validate → per-function `lower_function` dispatch →
 post-validation. Original finding text retained below for the audit
 trail.
 
-`omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/src/lowering/coordination.rs`
+`omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lowering/coordination.rs`
 (166 lines) inlines ~100 lines of fail-closed roster validation over
 `settlements_by_boundary`, `installed_by_call`, and `boundary_calls`:
 Duplicate/Unknown/OverlapsInstalledProvider/PartialInstalledProvider/
@@ -70,7 +70,7 @@ but it is the clearest "coordinator absorbed a checker" case in the sweep.
 
 ### F3 — `compiler.rs` product fences sit in the route loop (minor)
 
-`omega-rust/omega/compiler/src/compiler.rs` is otherwise the gold
+`omega-rust/omega/compilation/driver/src/compiler.rs` is otherwise the gold
 standard, but the artifact-only/PCC/check-only refusal rules (three
 `Diagnostic::error` fences) are product-admission decisions evaluated inside
 the target loop rather than in `admit_checked_compilation` or request

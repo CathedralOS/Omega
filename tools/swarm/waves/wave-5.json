@@ -80,7 +80,7 @@
       "owning_paths": [
         "omega-rust/psi/representations/terminal-psi/verification/src/validation/control_flow.rs",
         "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/psi_lowering/attached_unit",
-        "omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/src/lowering/control_flow"
+        "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lowering/control_flow"
       ],
       "suggested_first_slice": "Complete one cyclic control-contract path with separate safety and progress validation for the existing Console-writer customer."
     },
@@ -101,9 +101,9 @@
       "item": "OPAQUE-BY-VALUE-BOUNDARY-ABI",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/compiler/provider-planning/src/calling_policy_plans/opaque_representations.rs",
-        "omega-rust/omega/backend/artifacts/boundary-applications/src/realization.rs",
-        "omega-rust/omega/backend/runtime/installation-evidence/src/lib.rs"
+        "omega-rust/omega/compilation/driver/provider-planning/src/calling_policy_plans/opaque_representations.rs",
+        "omega-rust/omega/compilation/backend/artifacts/boundary-applications/src/realization.rs",
+        "omega-rust/omega/compilation/backend/runtime/installation-evidence/src/lib.rs"
       ],
       "suggested_first_slice": "Complete one independently compiled opaque by-value representation agreement and rejoin its consumer demands to the producer declarations."
     },
@@ -124,8 +124,8 @@
       "item": "FOREIGN-RETAINED-ARGUMENT-BACKING",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/backend/runtime/external-roots/src/epoch_stack_demand.rs",
-        "omega-rust/omega/backend/runtime/runtime-abi/src/lib.rs"
+        "omega-rust/omega/compilation/backend/runtime/external-roots/src/epoch_stack_demand.rs",
+        "omega-rust/omega/compilation/backend/runtime/runtime-abi/src/lib.rs"
       ],
       "suggested_first_slice": "Generalize one retained outbound argument beyond callbacks with explicit backing, range, access, lifetime, and revision provenance."
     },
@@ -146,7 +146,7 @@
       "item": "FLOAT-PROVIDERS",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/compiler/compiler/tests/canary_suite/providers_float_and_console",
+        "omega-rust/omega/compilation/driver/compiler/tests/canary_suite/providers_float_and_console",
         "tests/omega/pass/float"
       ],
       "suggested_first_slice": "Complete one runtime Boolean or machine operation for exact FloatMeaning with an artifact-aware proof source and focused canary."
@@ -157,8 +157,8 @@
       "item": "OPTIONAL-STDLIB-SEMANTIC-BINDINGS",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/compiler/package-compilation/src/semantic_bindings.rs",
-        "omega-rust/omega/compiler/compiler/src/pipeline/package"
+        "omega-rust/omega/compilation/driver/package-compilation/src/semantic_bindings.rs",
+        "omega-rust/omega/compilation/driver/compiler/src/pipeline/package"
       ],
       "suggested_first_slice": "Finish one package-aware ordinary std dependency edge while preserving freestanding builds and explicit semantic bindings."
     },
@@ -168,9 +168,9 @@
       "item": "BUILD-ADMISSION-CHECKPOINT",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/compiler/build-output/src/replayed_tree.rs",
-        "omega-rust/omega/compiler/compilation-report/src/production_manifest.rs",
-        "omega-rust/omega/compiler/compiler/src/pipeline/source_assembly"
+        "omega-rust/omega/compilation/driver/build-output/src/replayed_tree.rs",
+        "omega-rust/omega/compilation/driver/compilation-report/src/production_manifest.rs",
+        "omega-rust/omega/compilation/driver/compiler/src/pipeline/source_assembly"
       ],
       "suggested_first_slice": "Execute one admitted build machine against a coherent frontend, source, and authority snapshot before appending generated source."
     },
@@ -180,8 +180,8 @@
       "item": "EXACT-SELECTION-FAMILIES",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/selection",
-        "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/optimized"
+        "omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/selection",
+        "omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/optimized"
       ],
       "suggested_first_slice": "Add one exact address-mode, compare/branch, extension, or constant-materialization selection family with independent validation."
     },
@@ -191,8 +191,8 @@
       "item": "ALLOCATION-REFINEMENT",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/src/assignment",
-        "omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/src/preservation"
+        "omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/assignment",
+        "omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/preservation"
       ],
       "suggested_first_slice": "Complete one coalescing, live-range-splitting, fixed-interval, or rematerialization decision while preserving aliases, liveness, and target custody."
     },
@@ -202,8 +202,8 @@
       "item": "FRAME-LAYOUT",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/09_resolved-layout-to-resolved-layout/src/phase",
-        "omega-rust/omega/backend/layout/src/sum_materialization"
+        "omega-rust/omega/compilation/pipeline/09_resolved-layout-to-resolved-layout/src/phase",
+        "omega-rust/omega/compilation/backend/layout/src/sum_materialization"
       ],
       "suggested_first_slice": "Extend one exact nonzero-frame realization case beyond the current bounded ordinary CFG family with replayed accesses."
     },

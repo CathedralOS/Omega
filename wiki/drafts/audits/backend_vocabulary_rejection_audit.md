@@ -1,6 +1,6 @@
 # Backend vocabulary rejection audit
 
-Sweep of every wire-decode point under `omega-rust/omega/backend/` at
+Sweep of every wire-decode point under `omega-rust/omega/compilation/backend/` at
 `22e6066e9f` where a byte-level marker, kind, tag, or schema field maps onto a
 closed vocabulary. Re-recorded at `2dbfecd98e4`: every audited path is
 byte-identical to `bc6c5788e0` (empty `git diff` per directory — decoders,

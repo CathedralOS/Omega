@@ -22,8 +22,8 @@
    "board": "TASKS_OPTIMIZER.md",
    "item": "SPILL-REALIZATION",
    "owning_paths": [
-    "omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/src/assignment/runtime_spill",
-    "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill"
+    "omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/assignment/runtime_spill",
+    "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill"
    ],
    "suggested_first_slice": "Victim/use admission leg: rewrites/runtime_spill/admission.rs still rejects a foreign-class victim without the frame-row transport pair (vector-class values, non-IEEE scalars), an early-clobber write tied to a victim use, an entry-bound victim on an edge targeting the entry block, and multi-chunk stored snapshots with pinned/separated chunk loads. Take ONE bounded step admitting or pinning one of those rejected shapes honestly - foreign-class IEEE scalar via the shared carrier class is the most worked example. Preserve: recovery tries the next roster candidate and fails when exhausted. Fenced: s2rh assignment/stack_slot_coloring, s2s rewrites/{mod.rs,module_catalog.rs,allocation_recovery,load_forwarding,dead_store,store_motion} (linw4-alias-aware-memory holds the memory three). ONE bounded leg. Never git stash. Land via tools/landing.py. No mbx on this host - use cargo; cap builds CARGO_BUILD_JOBS=4, nextest -j 4."
   },
@@ -44,9 +44,9 @@
    "board": "TASKS.md",
    "item": "TOP-LEVEL-BOUNDARY-REQUIREMENTS",
    "owning_paths": [
-    "omega-rust/omega/compiler/selected-dispatch/src/boundary_dispatch.rs",
-    "omega-rust/omega/compiler/selected-dispatch/src/boundary_dispatch",
-    "omega-rust/omega/compiler/selected-dispatch/src/selected_dispatch/requirement_adapter.rs",
+    "omega-rust/omega/compilation/driver/selected-dispatch/src/boundary_dispatch.rs",
+    "omega-rust/omega/compilation/driver/selected-dispatch/src/boundary_dispatch",
+    "omega-rust/omega/compilation/driver/selected-dispatch/src/selected_dispatch/requirement_adapter.rs",
     "omega-rust/psi/checking/src/machine_calls/calls/generic_bounds.rs"
    ],
    "suggested_first_slice": "Family-row or borrowed-receiver leg: lifetime-parameterized direct requirements landed (483fe3708a); selected_dispatch/requirement_adapter.rs still rejects family rows and boundary_dispatch.rs still restricts direct requirements to nongeneric, receiver-free signatures. Take ONE bounded step: admit one family-row or borrowed-receiver requirement shape, retaining package-qualified operation, static telescope, signature, contract, selected provider/adapter and era through ordinary lowering. tests/ is wholesale-fenced by another session's claim this wave - cover the leg with in-crate tests only (selected-dispatch/validation test modules), no corpus fixtures; if a fixture is genuinely required, note it as deferred instead of touching tests/. OPERATOR-MACHINE-SUPPLY owns source supply migration - do not touch it. ONE bounded leg. Never git stash. Land via tools/landing.py. No mbx on this host - use cargo; cap builds CARGO_BUILD_JOBS=4, nextest -j 4."
@@ -61,8 +61,8 @@
     "omega-rust/psi/proof/admission/src/mathematical_core.rs",
     "omega-rust/psi/proof/admission/src/lib.rs",
     "omega-rust/psi/proof/admission/tests",
-    "omega-rust/omega/compiler/compiler/tests/proof_kernel_canaries.rs",
-    "omega-rust/omega/compiler/compiler/tests/kernel_equality_transport.rs",
+    "omega-rust/omega/compilation/driver/compiler/tests/proof_kernel_canaries.rs",
+    "omega-rust/omega/compilation/driver/compiler/tests/kernel_equality_transport.rs",
     "omega-rust/psi/representations/terminal-psi/codec/src"
    ],
    "suggested_first_slice": "Next rule_axiom-fallback family: correlated multiply bounds (fb59ce436a) and correlated forbidden roots (73dcd8a00b) now denote compositionally. Take ONE remaining family - cast bounds, nested canonical identity reversal, or Boolean identities needing case analysis - and give it a checked derivation or an explicitly justified checked rule in proof-admission/src/mathematical_core/bounded_denotation/. Preserve numeric policy and exact operands; keep the Ok(None) fallback for unsupported shapes; a term that merely assumes its conclusion is not independently proved. Source integration belongs to PROOF-CONTRACT-MIGRATION - stay kernel-side. ONE bounded leg. Never git stash. Land via tools/landing.py. No mbx on this host - use cargo; cap builds CARGO_BUILD_JOBS=4, nextest -j 4."
@@ -73,9 +73,9 @@
    "board": "TASKS_OPTIMIZER.md",
    "item": "ALIAS-AWARE-MEMORY",
    "owning_paths": [
-    "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/load_forwarding",
-    "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/dead_store",
-    "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/store_motion"
+    "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/load_forwarding",
+    "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/dead_store",
+    "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/store_motion"
    ],
    "suggested_first_slice": "Non-aliasing premise leg (continued): byte-view payload rows now bind resolved storage roots at the access-roster producer (88f539e14b) and reconvergent single-join forks cross (3df7aeb6cd). Take ONE bounded step: extend premise binding to retained fact identities beyond storage roots, OR extend store motion across one non-reconvergent fork/join shape without adding or dropping writes, OR run the load-forwarding/dead-store receipt audit per board text and pin one found gap. Follow loan semantics (wiki/spec/terminal-psi/loans.md), not differing PlaceIds; exclusive ownership alone does not establish projection disjointness. Fenced: rewrites/{mod.rs,module_catalog.rs}, selected_optimization.rs, rewrites/{runtime_spill,address_fold,literal_minuend,allocation_recovery}. ONE bounded leg. Never git stash. Land via tools/landing.py. No mbx on this host - use cargo; cap builds CARGO_BUILD_JOBS=4, nextest -j 4."
   },
@@ -85,7 +85,7 @@
    "board": "TASKS_OPTIMIZER.md",
    "item": "TRANSLATION-VALIDATION",
    "owning_paths": [
-    "omega-rust/omega/backend/artifacts/native-artifact/src/physical",
+    "omega-rust/omega/compilation/backend/artifacts/native-artifact/src/physical",
     "omega-rust/psi/pipeline/07_lowered-psi-to-terminal-psi/src/boundary_operator_custody/replay_scope.rs"
    ],
    "suggested_first_slice": "Coordinator slot. Continue the operator-span investigation from parked WIP branch swarm/linw3-translation-validation (9b0bf63f90, tests/linw3_translation_probe.rs): derive_operator_physical_span returns Ok(None) -> UnsupportedOperatorSpan for non-FMA/non-comparison ExactCompilerIntrinsic realizations and non-static-callee operations under checked-body realizations. Witness an end-to-end gap on a fixture that currently compiles natively, or extend replay_scope/operator_applications for one bounded arm. Corpus fixtures currently omit unit plans upstream at ProgramEntry establishment (pre-existing on base) - attribute failures to their actual stage, do not repair upstream admission. ONE bounded leg. Never git stash. Land via tools/landing.py. No mbx on this host - use cargo; cap builds CARGO_BUILD_JOBS=4, nextest -j 4."

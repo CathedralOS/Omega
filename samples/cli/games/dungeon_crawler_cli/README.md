@@ -19,7 +19,7 @@ This is a language pressure test, not a working-native-support claim.
 [build.omg](build.omg) declares four hosted entry bindings; those declarations
 do not establish that the current compiler can produce or execute this sample
 on any of them. The verified Terminal/native route still has unsupported
-constructs; see [native realization](../../../../omega-rust/omega/compiler/native-realization/README.md)
+constructs; see [native realization](../../../../omega-rust/omega/compilation/driver/README.md#native-realization)
 and the [compiler completion plan](../../../../wiki/drafts/reference/rust_compiler_completion.md).
 
 The intended interactive path accepts commands at a live terminal. The closed-

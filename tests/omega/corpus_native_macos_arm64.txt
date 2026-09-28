@@ -40,9 +40,9 @@ pass/arithmetic/typed_integer_remainder checked 182ms
 pass/arithmetic/wrapping_signed_divide_min_by_neg_one built 609ms exit:70
 pass/atomics/atomic_global_order_operations checked 200ms
 pass/atomics/runtime_atomic_compare_exchange_exit rejected 528ms
-	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(1), site: Location { file: "omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/src/lowering/control_flow/operations.rs", line: 802, column: 18 } }
+	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(1), site: Location { file: "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lowering/control_flow/operations.rs", line: 802, column: 18 } }
 pass/atomics/runtime_atomic_fetch_add_exit rejected 527ms
-	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(1), site: Location { file: "omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/src/lowering/control_flow/operations.rs", line: 802, column: 18 } }
+	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(1), site: Location { file: "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lowering/control_flow/operations.rs", line: 802, column: 18 } }
 pass/atomics/shared_receiver_atomic_store rejected 442ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Cell::publish`), which was itself omitted at local construction at `atomic access: place: shared receiver without atomic cell identity`
 pass/blockexec/blocking_executor_custody_claims_compile built 335ms

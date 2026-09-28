@@ -41,7 +41,7 @@
       "owning_paths": [
         "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts",
         "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/authored_selections",
-        "omega-rust/omega/compiler/compiler/tests/canary_suite/providers_float_and_console",
+        "omega-rust/omega/compilation/driver/compiler/tests/canary_suite/providers_float_and_console",
         "tests/omega/pass/float"
       ],
       "suggested_first_slice": "Continuation: this worktree carries two WIP checkpoint commits (d3dc65ac0a, b18fea37be) of in-flight FloatMeaning reflexive-equality entailment work plus an untracked _lab/ scratch dir. Inspect `git log origin/main..HEAD` and `git status` first; finish the in-flight slice from that state rather than restarting. The dirty files also touched flow/terminal_unit and calls/write_frames outside the original owning paths: re-claim with a corrected path set that covers what you actually edit before landing."

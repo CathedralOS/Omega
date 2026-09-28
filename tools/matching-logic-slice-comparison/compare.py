@@ -73,9 +73,9 @@ SURFACES = {
         "omega-rust/psi/representations/terminal-psi/codec/src/sections/proof_bundle",
         "omega-rust/psi/representations/terminal-psi/codec/src/trust_graph",
         "omega-rust/psi/representations/terminal-psi/codec/src/trust_graph.rs",
-        "omega-rust/omega/realization/compilation-products/src/pcc.rs",
-        "omega-rust/omega/backend/artifacts/native-artifact/src/proof.rs",
-        "omega-rust/omega/backend/artifacts/native-artifact/src/proof",
+        "omega-rust/omega/compilation/products/src/pcc.rs",
+        "omega-rust/omega/compilation/backend/artifacts/native-artifact/src/proof.rs",
+        "omega-rust/omega/compilation/backend/artifacts/native-artifact/src/proof",
     ],
     # The admission kernel and the mathematical theory the kernel checks
     # against: sorts, terms, denotation, integer rule theory. On the

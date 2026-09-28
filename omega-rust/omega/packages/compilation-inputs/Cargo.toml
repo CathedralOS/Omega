@@ -1,0 +1,40 @@
+[package]
+name = "package-compilation"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "package_compilation"
+path = "src/lib.rs"
+
+[features]
+test-support = []
+
+[dependencies]
+artifacts = { path = "../../foundation/artifacts" }
+tokens-to-syntax-trees = { path = "../../../psi/pipeline/01_tokens-to-syntax-trees" }
+typed-trees = { path = "../../../psi/representations/typed-trees" }
+flow-effects = { path = "../../../psi/foundation/flow-effects" }
+optimization-core = { path = "../../foundation/optimization-core" }
+arena = { path = "../../../psi/foundation/arena" }
+symbols = { path = "../../../psi/foundation/symbols" }
+syntax-trees = { path = "../../../psi/representations/syntax-trees" }
+tokens = { path = "../../../psi/representations/tokens" }
+source-files-to-tokens = { path = "../../../psi/pipeline/00_source-files-to-tokens" }
+build-declarations = { path = "../build-declarations" }
+build-output = { path = "../build-output" }
+platform-custody = { path = "../../foundation/platform-custody" }
+effects = { path = "../../compilation/backend/plans/provider-evidence" }
+target = { path = "../../compilation/backend/target" }
+checked-trees = { path = "../../../psi/representations/checked-trees" }
+build-time-evaluation = { path = "../../../psi/interpreter/build-time-evaluation" }
+checked-interpreter = { path = "../../../psi/interpreter/checked-interpreter" }
+semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+terminal-psi = { path = "../../../psi/representations/terminal-psi" }
+diagnostics = { path = "../../../psi/foundation/diagnostics" }
+source = { path = "../../../psi/foundation/source" }
+sha2 = "0.10.9"
+
+[dev-dependencies]
+optimization-core = { path = "../../foundation/optimization-core", features = ["test-support"] }

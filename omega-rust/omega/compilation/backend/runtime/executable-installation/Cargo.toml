@@ -1,0 +1,20 @@
+[package]
+name = "executable-installation"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "executable_installation"
+path = "src/lib.rs"
+
+[dependencies]
+extents = { path = "../../../../../psi/foundation/extents" }
+layout-plans = { path = "../../../../../psi/foundation/layout-plans" }
+post-handoff-writer-plan = { path = "../../plans/post-handoff-writer-plan" }
+target = { path = "../../target" }
+installation-evidence = { path = "../installation-evidence" }
+sha2 = "0.10.9"
+
+[dev-dependencies]
+optimization-core = { path = "../../../../foundation/optimization-core", features = ["test-support"] }

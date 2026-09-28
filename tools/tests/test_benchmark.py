@@ -22,7 +22,7 @@ README = ROOT / "tools" / "benchmark" / "README.md"
 RECORDS = ROOT / "tools" / "benchmark" / "records"
 MATRIX_DOC = ROOT / "wiki" / "drafts" / "measurements" / "benchmarks.md"
 TARGET_SOURCE = (
-    ROOT / "omega-rust" / "omega" / "representations" / "target"
+    ROOT / "omega-rust" / "omega" / "compilation" / "backend" / "target"
     / "src" / "target_profile.rs"
 )
 

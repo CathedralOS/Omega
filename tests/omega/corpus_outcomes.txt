@@ -57,9 +57,9 @@ pass/arithmetic/typed_integer_remainder checked 293ms
 pass/arithmetic/wrapping_signed_divide_min_by_neg_one checked 1552ms
 pass/atomics/atomic_global_order_operations checked 283ms
 pass/atomics/runtime_atomic_compare_exchange_exit rejected 814ms
-	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(1), site: Location { file: "omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/src/lowering/control_flow/operations.rs", line: 806, column: 18 } }
+	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(1), site: Location { file: "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lowering/control_flow/operations.rs", line: 806, column: 18 } }
 pass/atomics/runtime_atomic_fetch_add_exit rejected 827ms
-	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(1), site: Location { file: "omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/src/lowering/control_flow/operations.rs", line: 806, column: 18 } }
+	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(1), site: Location { file: "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lowering/control_flow/operations.rs", line: 806, column: 18 } }
 pass/atomics/shared_receiver_atomic_store rejected 787ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Cell::publish`), which was itself omitted at local construction at `atomic access: place: shared receiver without atomic cell identity`
 pass/blockexec/blocking_executor_custody_claims_compile checked 428ms
@@ -86,7 +86,7 @@ pass/calls/by_value_case_param_self_write_exit checked 1683ms
 pass/calls/callback_private_materialization rejected 1645ms
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(WindowRegistrar::register),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\(Spread<ForeignRecord>\\)\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/calls/cyclic_projected_borrow_call_exit rejected 560ms
-	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(2), site: Location { file: "omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/src/lowering/control_flow/borrowed_calls.rs", line: 455, column: 20 } }
+	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(2), site: Location { file: "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lowering/control_flow/borrowed_calls.rs", line: 455, column: 20 } }
 pass/calls/cyclic_scalar_query_reborrow_exit checked 1574ms
 pass/calls/cyclic_affine_call_result_exit checked 1572ms
 pass/calls/case_arm_payload_receiver_arg rejected 1544ms
@@ -983,7 +983,7 @@ pass/time/runtime_time_host_native_darwin_exit rejected 768ms
 	selected ProgramEntry Binding field `Main::host` requires a selected Fused provider for boundary `TimeHost`
 pass/time/runtime_time_host_virtual_exit checked 796ms
 pass/traits/boundary_trait_effects_host_call rejected 359ms
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Legalization(SourceCustodyMismatch { site: Location { file: "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/byte_views.rs", line: 144, column: 20 } }))
+	native artifact identity physical pipeline failed: common physical staging failed: Selection(Legalization(SourceCustodyMismatch { site: Location { file: "omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/byte_views.rs", line: 144, column: 20 } }))
 pass/traits/dyn_finite_family_dispatch checked 297ms
 pass/traits/equatable_mixed_shape_equality_exit rejected 758ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: case field type` (state 0, statement 0)

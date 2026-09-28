@@ -20,4 +20,4 @@ numerics and target-neutral optimization selections remain in
 [Psi foundation](../../psi/foundation).
 
 Semantic trust records and their validation belong to
-[realization admission](../realization/trust-model/README.md).
+[realization admission](../compilation/realization/trust-model/README.md).

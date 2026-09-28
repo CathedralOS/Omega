@@ -5,8 +5,8 @@ language syntax. [Source selection](sources.md) owns graph identity and member
 selection; [acceptance](acceptance.md) owns project decisions.
 
 Implementation entrances and host mechanisms remain with
-[source acquisition](../../../omega-rust/omega/package-manager/source-acquisition/README.md)
-and [resolver execution](../../../omega-rust/omega/package-manager/resolver-execution/README.md).
+[source acquisition](../../../omega-rust/omega/packages/source-acquisition/README.md)
+and [resolver execution](../../../omega-rust/omega/packages/resolver-execution/README.md).
 
 ## Trust boundary
 

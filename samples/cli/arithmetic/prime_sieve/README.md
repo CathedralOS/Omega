@@ -14,4 +14,4 @@ print this prime sequence, in order:
 ```
 
 Output uses space-padded columns. For a fresh checkout, prepare and review the
-project with the ordinary [package commands](../../../../omega-rust/omega/omega/README.md#command-surface).
+project with the ordinary [package commands](../../../../omega-rust/omega/application/cli/README.md#command-surface).

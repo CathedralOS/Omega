@@ -174,7 +174,7 @@ present evidence: BOUNDARY-ISSUANCE says
 "`compiler/tests/secondary_processor_startup.rs` integration already exist",
 and INTERPRETED-ASSEMBLY says "the existing `canary_suite/inline_asm.rs` x86
 fence, interrupt, flags, MSR and control-register byte-emission customers".
-`omega-rust/omega/compiler/tests/` now holds five entries.
+`omega-rust/omega/compilation/driver/tests/` now holds five entries.
 
 These files were not lost to restructuring: `c60792d7bdd`, "repo: the
 compiler is tested through the corpus gate alone", deleted 185,937 lines of

@@ -217,7 +217,7 @@ or tests; do not investigate it as a test failure.
 ## Intel macOS host gap (x86_64-apple-darwin)
 
 Closed as recorded: `TargetProfile::host_if_supported`
-(`omega-rust/omega/backend/target/src/target_profile.rs:344`) now carries a
+(`omega-rust/omega/compilation/backend/target/src/target_profile.rs:344`) now carries a
 `macos + x86_64` arm returning `MacosX64`, so `host()` no longer panics with
 "unsupported host profile", and `canary_suite.rs` — the other recorded
 blocker — was deleted in `c60792d7bdd`. The ~20 `package-manager` and 2

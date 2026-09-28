@@ -13,13 +13,13 @@ row, so `case_field_local_store` declines at
 
 Claimed under OWNED-LOCAL-WINDOW-ROOTS (ticket `d3796c5904b0`):
 
-- `omega/pipeline/00_terminal-psi-to-abstract-operations/src/lowering/machine/operation/borrowed_windows.rs`
-- `omega/pipeline/02_abstract-operations-to-target-operations/src/lowering/control_flow/borrowed_windows.rs`
-- `omega/pipeline/03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/borrowed_windows.rs`
-- `omega/pipeline/03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/target/unit/borrowed_windows.rs`
-- `omega/pipeline/03_target-operations-to-selected-instructions/src/selection/construction/scalar_graph/structural/leaf_copy.rs`
-- `omega/pipeline/03_target-operations-to-selected-instructions/src/selection/validation/scalar_graph/structural/leaf_copy.rs`
-- `omega/pipeline/03_target-operations-to-selected-instructions/src/tests/legalization/borrowed_windows.rs`
+- `omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/lowering/machine/operation/borrowed_windows.rs`
+- `omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lowering/control_flow/borrowed_windows.rs`
+- `omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/borrowed_windows.rs`
+- `omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/target/unit/borrowed_windows.rs`
+- `omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/selection/construction/scalar_graph/structural/leaf_copy.rs`
+- `omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/selection/validation/scalar_graph/structural/leaf_copy.rs`
+- `omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/tests/legalization/borrowed_windows.rs`
 
 Blocked by live foreign claims — do NOT edit until they lapse or the
 coordinator grants `--allow-overlap`:
