@@ -26,7 +26,7 @@ fn resolve_declared_era(typed: &TypedTrees, requested: &str) -> Option<symbols::
 }
 
 /// The selected migration route: the bound machine names in peer-to-local
-/// order for the report, plus the era declarations the route traverses,
+/// order for diagnostics, plus the era declarations the route traverses,
 /// oldest first, so retirement obligations can be evaluated along the exact
 /// chain the policy selected.
 pub(super) struct MigrationRoute {
@@ -35,7 +35,7 @@ pub(super) struct MigrationRoute {
 }
 
 /// What the route search found between the selected eras. `Complete` carries
-/// the uniquely bound checked conversion chain the report certifies;
+/// the uniquely bound checked conversion chain;
 /// `Ambiguous` means a complete chain exists but every one traverses an edge
 /// bound by more than one machine, so no unique conversion is certified;
 /// `Missing` means no bound chain exists at all.

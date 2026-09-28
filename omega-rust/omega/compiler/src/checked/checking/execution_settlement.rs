@@ -50,13 +50,6 @@ pub(crate) fn check_selected_execution(
         .x86_deployment_claim
         .admit_for(selected_target_profile)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    // Compatibility demands are semantic checks, not report-mode behavior.
-    // Validate them on the canonical checked route even when no auxiliary
-    // artifact writer is requested by the outer compiler coordinator.
-    build_time_evaluation::wire_compatibility::validate_wire_protocol(
-        &typed,
-        &build_config.wire_compatibility_demands,
-    )?;
     let selected_program_entry = provider_planning::program_entry::select_compiler_program_entry(
         &typed,
         &build_config.root_bindings,
@@ -126,7 +119,9 @@ pub(crate) fn check_selected_execution(
         authored_root_grants: &build_config.grants,
     };
     let prepared = ProviderCheckingInputs::prepare(&typed, &provider_request)?;
-    let checking = prepared.checking_request(&provider_request);
+    let checking = prepared
+        .checking_request(&provider_request)
+        .with_wire_compatibility_demands(&build_config.wire_compatibility_demands);
     let program = timings.record(
         artifacts::compile_timings::TYPED_TREES_TO_CHECKED_TREES,
         || {

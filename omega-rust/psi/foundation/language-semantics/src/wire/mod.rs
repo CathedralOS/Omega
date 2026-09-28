@@ -1,3 +1,18 @@
+/// Directional facts requested for one channel/store edge and format lineage.
+/// Build supplies these declarations; Psi checking decides whether they hold.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WireCompatibilityDemand {
+    pub edge: String,
+    pub lineage: String,
+    pub local_schema: String,
+    pub peer_schema: String,
+    pub require_readable: bool,
+    pub require_writable: bool,
+    pub require_unknown_preservation: bool,
+    pub require_canonical: bool,
+    pub require_complete_migration: bool,
+}
+
 /// An inclusive scalar range established while decoding untrusted wire bytes.
 ///
 /// The bounds are normalized compile-time integers. `signed` selects the

@@ -11,8 +11,8 @@
 //! by subject: `const_evaluation/`, `layouts/`, and `machine_execution/`.
 //! `syntax_probes.rs` owns their temporary frontend work; `reflection/` owns
 //! semantic schema, selection, and visitation plans and their independent replay.
-//! `wire_compatibility.rs` evaluates directional schema and migration demands
-//! against those source facts and independently interpreted codec probes.
+//! `wire_demands.rs` decodes authored wire demands. Their compatibility
+//! judgment belongs to Psi's typed-to-checked stage, not Build execution.
 
 // The build-time-evaluation tests' front-end pipelines, one file shared with
 // the integration targets; see its module documentation.
@@ -26,7 +26,10 @@ mod layouts;
 mod machine_execution;
 mod reflection;
 mod syntax_probes;
-pub mod wire_compatibility;
+mod wire_demands;
+
+pub use language_semantics::wire::WireCompatibilityDemand;
+pub use wire_demands::harvest_wire_compatibility_demands;
 
 pub use checked_interpreter::{
     CURRENT_EVALUATION_SEMANTICS, EvaluationUsage, MeasuredEvaluation,

@@ -1,6 +1,6 @@
 //! Checked build result: normalized settings and independently checked selections.
 
-use build_time_evaluation::wire_compatibility::WireCompatibilityDemand;
+use build_time_evaluation::WireCompatibilityDemand;
 use effects::AuthoredBehaviorExclusion;
 use package_compilation::build_execution::build_value::EvaluatedBuildSettings;
 use provider_planning::ProviderSelection;

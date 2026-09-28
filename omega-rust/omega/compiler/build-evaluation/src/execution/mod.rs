@@ -3,7 +3,7 @@ mod machine_evaluation;
 
 use crate::admission::configuration::BuildConfig;
 use crate::{AdmittedBuildProgram, ComputedBuildConfig};
-use build_time_evaluation::wire_compatibility::harvest_wire_compatibility_demands;
+use build_time_evaluation::harvest_wire_compatibility_demands;
 use diagnostics::Diagnostic;
 use package_compilation::{CapturedBuildObservations, SelectedBuildMachine};
 use provider_planning::program_entry::collect_root_bindings;
