@@ -4632,42 +4632,41 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   lifecycle policy. **OPERATOR-MACHINE-SUPPLY** owns source supply migration
   and retirement of `MachineSupplyMode::Boundary`.
 
-- **BUILD-ADMISSION-CHECKPOINT.** Finish command-level
+- **BUILD-ADMISSION-CHECKPOINT.** Complete command-level
   [restricted-build acceptance](wiki/spec/packages/acceptance.md#restricted-build-acceptance)
-  and executor-grant integration across install/update/review/resume and
-  consuming compilation. The pre-effect checkpoint is implemented in
-  `checking/build_continuation.rs::AdmittedBuildCheckpoint::execute`;
-  `check_project`, `check_locked_sources` and `compile_project` supply it.
-  Reuse its refused/granted-effect sentinel controls rather than rebuild the
-  gate or move consent back after execution.
+  across install/update/review/resume and consuming compilation.
+  `checking/build_continuation.rs::evaluate_frontier_and_continue` already
+  joins requests before executing the admitted build; `check_project`,
+  `check_locked_sources` and `compile_project` wire retained consent.
+  [Existing pass tests](omega-rust/omega/package-manager/src/review/candidate/compilation/tests/restricted_build_grants.rs)
+  cover matching, missing, widened and wrong-purpose consent. They do not
+  assert a refused-effect filesystem sentinel.
 
-  Supply a real restricted-request command customer, including a dependency
-  used for both Build/Product purposes and its generated-source handoff.
-  Manager review sessions currently use compiler-owned private staging;
-  empty request sets do not demonstrate this acceptance. Bind requests and
-  grants to exact package occurrence, dependency path, checked purpose,
-  target/execution profile, operation, logical scope and bounds. Product
-  acceptance cannot authorize the same package's build effects.
+  Supply a restricted-request command customer with the same dependency in
+  Build/Product purposes and a generated-source handoff. Manager review uses
+  private staging; its empty request sets do not exercise restricted consent.
+  Bind requests and real executor grants to package occurrence, dependency
+  path, purpose, target/execution profile, operation, logical scope and bounds.
+  Product acceptance cannot grant Build effects. **BUILD-TEST-AUTHORITY** owns
+  test/group, fixture and selected-provider attribution through this gate.
 
-  Acceptance: initial installation and newly added, widened or transitive
-  requests stop before their restricted effects and expose those coordinates.
-  Acceptance plus a genuine executor grant resumes the exact candidate, then
-  reviews generated source; missing/refused/cross-purpose grants perform no
-  restricted action. Audit inspection acquires no host authority. Unchanged
-  request meaning needs no recurring approval; source changes remain visible.
-  Resolution-only updates preserve approval meaning. Exercise interrupted
-  review/publication and stale candidates without storing secrets or machine-
-  specific grant paths in the lock. Dependency locks confer no host authority;
-  already performed host
-  effects have no implicit rollback.
+  Acceptance: initial, added, widened and transitive requests stop before
+  effects, expose those coordinates and leave review incomplete. Resume only
+  the exact candidate with accepted request meaning and actual executor grants,
+  then review generated source. Observe filesystem effects across refusal and
+  resume: missing/refused/cross-purpose grants perform no restricted action;
+  inspection alone grants nothing. Unchanged requests need no reapproval;
+  source changes stay visible and resolution-only updates preserve meaning.
+  Interrupted review/publication and stale candidates preserve the prior lock.
+  Locks retain decisions, never secrets, host paths or execution authority;
+  performed host effects have no implicit rollback.
 
-  Preserve coherent source/authority snapshot replay, purpose-drift refusal
-  and authored-before-generated resolution. Captured immutable inputs and
-  bounded compiler-private staging remain benign, while supplied host
-  directories remain restricted. No recursive build API, own-build
-  final-component query or hidden post-compilation callback.
-  **BUILD-SNAPSHOT-OUTPUTS** owns committed output sets and required-output
-  settlement at publication.
+  Preserve coherent source/authority snapshot replay, purpose-drift rejection and
+  authored-before-generated resolution. Captured immutable inputs and bounded
+  private staging remain benign; supplied host directories remain restricted.
+  No recursive build API, own-build final-component query or hidden
+  post-compilation callback. **BUILD-SNAPSHOT-OUTPUTS** owns committed outputs
+  and required-output settlement at publication.
 
 - **OPTIONAL-STDLIB-SEMANTIC-BINDINGS.** Finish ordinary explicit std/alloc
   dependency migration under the [toolchain/library contract](wiki/spec/packages/toolchain.md).
