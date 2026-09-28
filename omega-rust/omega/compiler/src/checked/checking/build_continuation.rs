@@ -214,7 +214,7 @@ struct CheckedFrontend {
 
 pub(super) fn lower_typed_frontier(
     source_file_count: usize,
-    mut syntax: build_evaluation::sources::AssembledSyntax,
+    mut syntax: package_compilation::source_assembly::AssembledSyntax,
     target_name: Option<&str>,
     execution_profile_name: Option<&str>,
     package_inputs: Option<&PackageCompilationInputs>,

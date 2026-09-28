@@ -175,7 +175,6 @@ name = "build-evaluation"
 version = "0.1.0"
 dependencies = [
  "arena",
- "artifacts",
  "build-declarations",
  "build-output",
  "build-time-evaluation",
@@ -198,11 +197,9 @@ dependencies = [
  "source-files-to-tokens",
  "symbol-resolved-trees-to-typed-trees",
  "symbols",
- "syntax-trees",
  "syntax-trees-to-symbol-resolved-trees",
  "target",
  "terminal-psi",
- "tokens",
  "tokens-to-syntax-trees",
  "trust-model",
  "typed-trees",
@@ -1325,6 +1322,7 @@ name = "package-compilation"
 version = "0.1.0"
 dependencies = [
  "arena",
+ "artifacts",
  "build-declarations",
  "build-output",
  "build-time-evaluation",
@@ -1344,6 +1342,7 @@ dependencies = [
  "target",
  "terminal-psi",
  "tokens",
+ "tokens-to-syntax-trees",
  "typed-trees",
 ]
 

@@ -7,9 +7,9 @@ pub(crate) mod execution_settlement;
 pub use compilation_products::CheckedCompilation;
 
 use artifacts::compile_timings::CompileTimings;
-use build_evaluation::sources::ImmutableSourceParseCheckpoint;
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
+use package_compilation::source_assembly::ImmutableSourceParseCheckpoint;
 use std::path::Path;
 
 /// One `Independent` provider selection discovered while evaluating a checked

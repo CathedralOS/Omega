@@ -9,6 +9,14 @@ Start at [package_compilation.rs](src/package_compilation.rs): it constructs the
 package graph, validates source roots and dependency bindings, and separates the
 shared source projection from target-specific attachments.
 
+[source_assembly.rs](src/source_assembly.rs) prepares the immutable source/parse
+checkpoint and assembles one source forest for resolution. It admits a child's
+source projection before attaching generated dependencies, resolves deferred
+imports, and loads entry contracts and the Build prelude through Psi 00/01.
+Physical discovery and exact-input continuation share one ordered loading loop.
+This preparation never executes a Build machine or checks a program. Compiler
+and prefix consumers use it directly, without depending on Build evaluation.
+
 [build_execution/build_admission.rs](src/build_execution/build_admission.rs) selects
 the exact source-owned Build machine, rejects runtime-service reach, and admits
 its initial value and filesystem mode from the captured package scope. The compiler
@@ -29,20 +37,19 @@ and rejoins them to exact parsed source instances. Its `package_selection`
 module owns requester-local aliases, build/product dependency scopes and
 physical/generated collisions; `paths` owns candidate paths and containment;
 `bindings` joins loaded declarations; `frontier` retains package and toolchain
-ownership. It does not schedule parsing or checking. The compiler asks these
-owners for the next source frontier and passes it through Psi's loading,
-lexing and parsing stages.
+ownership. Source assembly asks these owners for the next frontier and passes
+it through Psi's loading, lexing and parsing stages.
 
 [Entry-contract seeds](src/source_imports/entry_contract_seed.rs) select every
 target profile's contract source from exact package suppliers or the bundled
-fallback. The compiler schedules loading and parsing; package provenance and
+fallback. Source assembly schedules loading and parsing; package provenance and
 accepted supplier selection stay here.
 
 [Build prelude preparation](src/source_imports/build_prelude.rs) selects the
 toolchain Build source and its scoped aliases. An authored Build in the selected
 build source suppresses injection; an unrelated product-local Build keeps its
-own identity. The declarations come from `build-declarations`, and loading and
-parsing remain explicit compiler stage calls.
+own identity. The declarations come from `build-declarations`; source assembly
+feeds them through the same loading and parsing stages.
 
 [toolchain_library.rs](src/toolchain_library.rs) selects the installed or
 development library and verifies release-library digests. This package's

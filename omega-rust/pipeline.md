@@ -55,23 +55,25 @@ prefix of the route, such as package review discovering bindings or a test
 checking a fixture, calls the same stage functions itself; there are no
 alternate entry points, mode flags, or preliminary passes.
 
-The current Rust implementation does not meet this yet. Three orchestration
-crates outside the pipeline drive the Psi stages, evaluate the Build per
-target, check twice (a preliminary pass before build evaluation and a settled
-pass after provider settlement), and settle providers on checked trees before
-Terminal Psi:
+The current Rust implementation does not meet this yet. Source preparation and
+checked/Terminal coordination still sit outside the numbered stages. Targets
+with equal Build inputs reuse an evaluation, but the route still checks twice
+(a preliminary pass before Build evaluation and a settled pass after provider
+settlement), and settles providers on checked trees before Terminal Psi:
 
 | Input → output | Owner |
 | --- | --- |
-| Source files → assembled syntax | [source-files-to-assembled-syntax](omega/compiler/build-evaluation/src/sources/source_assembly.rs) |
+| Source files → assembled syntax | [package source preparation](omega/package-manager/compilation-inputs/src/source_assembly.rs) |
 | Assembled syntax → checked compilation | [assembled-syntax-to-checked-compilation](omega/compiler/src/checked/checking.rs) |
 | Checked compilation → Terminal artifact | [checked-compilation-to-terminal-artifact](omega/compiler/src/terminal/terminal_artifact.rs) |
 
-The [pipeline route items](../TASKS.md#pipeline-route) dissolve them: source
-loading becomes stage 00 input preparation, the Psi-owned work between stages
+Package-owned source preparation now feeds the ordinary loading and parsing
+stages directly; Build evaluation no longer owns source discovery or assembly.
+The [pipeline route items](../TASKS.md#pipeline-route) finish convergence: source
+preparation supplies one source set, the Psi-owned work between stages
 moves inside stages 02 through 04, and provider settlement moves behind
-Terminal Psi. Until then the layering test ranks these crates with the
-compiler that schedules them.
+Terminal Psi. Source preparation remains package-owned input composition,
+not a new language stage.
 
 ## Placement and semantic ownership
 
@@ -182,7 +184,10 @@ boundary. Host file writing and timing have no dependency on these semantics.
 it. Its independent [build declarations](omega/package-manager/build-declarations/README.md),
 [build outputs](omega/package-manager/build-output/README.md) and
 [compilation inputs](omega/package-manager/compilation-inputs/README.md) packages
-own the shared project grammar and source/output custody contract.
+own the shared project grammar and source/output custody contract. Compilation
+inputs also own source assembly: one ordered Psi 00/01 loading loop, immutable
+parse checkpoints, and exact generated-source/import joins. That preparation
+does not execute Build machines or perform resolution, typing or checking.
 Compilation and realization consume these input packages directly; none depends
 on the package-command application or compiler coordinator. Package operations
 and review evidence consume compiler services, never the reverse.

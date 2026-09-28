@@ -134,6 +134,7 @@ pub fn discover_imports_with_packages(
     Ok(imports)
 }
 
+#[derive(Clone, Copy)]
 pub enum PackageImportPhase {
     TargetIndependent,
     ExactTarget(Option<semantic_vocabulary::PackageKeyIdentity>),
