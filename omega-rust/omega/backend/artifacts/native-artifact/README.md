@@ -8,7 +8,11 @@ Its [requested-image construction](src/native_artifact/emission.rs) consumes
 `NativeArtifactEmissionParts<ExecutableImageEmissionRequest>`, emits the image,
 and dispatches to the authority-distinct Direct or Dynamic-ELF constructor.
 `RequestedNativeArtifact::emit` accepts only source-free custody and writes no
-files. The compiler supplies selected-plan projections, not source plans.
+files. `NativeSelectedProviderPlan::project_selection` projects the retained
+selection evidence into those source-free records at this backend owner. It
+preserves each plan's strong digest and exact closed requirement roster;
+specialized requirements replace template identities as in provider admission.
+The compiler forwards selection evidence without assembling that roster itself.
 Both image products share the emission-parts shape without sharing their
 result type or independent replay.
 
