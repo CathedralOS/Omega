@@ -95,6 +95,9 @@ fn top_level_structural_carriers_are_exact_without_narrowing_field_carriers() {
     );
     assert_eq!(candidate.structural_types[2].id, record);
 
+    // Owned concatenation results use top-level bounded carriers, including
+    // the empty result. Catalog admission does not establish a value's length
+    // or grant read authority; the producing and consuming operations do that.
     for capacity in [0, 8] {
         let candidate = structural_catalog_unit(vec![structural_type(
             460,
@@ -102,10 +105,25 @@ fn top_level_structural_carriers_are_exact_without_narrowing_field_carriers() {
                 terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
             ),
         )]);
-        assert_eq!(
-            validate_psi_optimization_unit(&candidate),
-            Err(OptimizationUnitValidationError::InvalidStructuralTypeIdentity(borrowed))
+        validate_psi_optimization_unit(&candidate)
+            .expect("owned byte results are legal top-level structural carriers");
+
+        let mut changed = candidate.clone();
+        let mut declarations = candidate.structural_types.to_vec();
+        declarations[0].shape = terminal_psi::StructuralTypeShape::ByteSequence(
+            terminal_psi::ByteSequenceCarrier::BoundedOwned {
+                capacity: capacity + 1,
+            },
         );
+        changed.structural_types = declarations.into();
+        assert!(matches!(
+            validate_psi_optimization_unit(&changed),
+            Err(OptimizationUnitValidationError::ContentIdentityMismatch { .. })
+        ));
+        refresh_identity(&mut changed);
+        assert_ne!(changed.identity, candidate.identity);
+        validate_psi_optimization_unit(&changed)
+            .expect("capacity is part of the catalog identity, not an admission limit");
     }
 
     let candidate = structural_catalog_unit(vec![
