@@ -501,6 +501,7 @@ impl PreparedCheckedSource {
         self,
         package_inputs: Option<&PackageCompilationInputs>,
     ) -> Result<AssembledSource, Vec<Diagnostic>> {
+        SOURCE_ASSEMBLY_CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let mut timings = self.shared_timings;
         let assembly_started = std::time::Instant::now();
         let (source_file_count, syntax) = self
@@ -539,6 +540,17 @@ pub fn checked_compilation_call_count() -> u64 {
 }
 
 static TYPED_FRONTIER_REUSES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+static SOURCE_ASSEMBLY_CALLS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Monotonic count of source-set assemblies entered through a prepared checked
+/// source. A memoized typed frontier serves its child without another
+/// assembly, so the delta across one multi-target request counts how many
+/// times the unioned source set was actually assembled.
+#[doc(hidden)]
+pub fn source_assembly_invocation_count() -> u64 {
+    SOURCE_ASSEMBLY_CALLS.load(std::sync::atomic::Ordering::Relaxed)
+}
 
 /// Monotonic count of typed frontiers a checked child reused from an earlier
 /// child of its prepared source checkpoint, so a test can witness that a

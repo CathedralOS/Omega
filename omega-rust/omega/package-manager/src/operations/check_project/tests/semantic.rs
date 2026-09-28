@@ -54,7 +54,10 @@ machine Main::main(&mut self) reaches Console { self.console.exit_process(70); }
         })
         .into_iter()
         .sum::<u64>();
-    let (entry, closure, _) = project.prepare("application/entry.omg").into_review_parts();
+    let (entry, closure, _) = project
+        .prepare("application/entry.omg")
+        .into_review_parts(TARGET)
+        .expect("prepared project covers its requested target");
     let snapshot = build_evaluation::BuildSnapshotRequest::scoped(
         std::iter::empty(),
         package_compilation::BuildSourceCaptureRequest::new(["build.omg", "entry.omg"].map(

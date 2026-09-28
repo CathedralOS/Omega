@@ -28,12 +28,28 @@ pub struct LocalProjectPreparationOptions {
     pub offline: bool,
 }
 
-/// The compiler entry and exact package graph prepared from one local project.
+/// The compiler entry and exact package graph prepared from one local project,
+/// covering every requested target at once.
+///
+/// The source closure is shared: an accepted lock's target sections pin the
+/// same immutable source subject, and an unlocked graph resolves the same way
+/// for any product target. What stays per-target is only the accepted policy
+/// section that arms each target's own restricted-request checkpoint.
 pub struct PreparedLocalProject {
     entry_path: PathBuf,
     package_inputs: PackageCompilationInputs,
     source_closure: ResolvedPackageSourceClosure,
-    accepted_target: Option<PackageLockTarget>,
+    targets: Vec<PreparedProjectTarget>,
+}
+
+/// One requested target's view of the prepared project: its exact profile and
+/// the accepted lock section prepared for it, or the preparation error that
+/// target alone must report.
+pub(super) struct PreparedProjectTarget {
+    pub(super) profile: TargetProfile,
+    /// `Ok(None)` names an unlocked project; `Err` is this target's missing or
+    /// unreadable accepted section — sibling targets still compile.
+    pub(super) accepted: Result<Option<PackageLockTarget>, PrepareLocalProjectError>,
 }
 
 impl PreparedLocalProject {
@@ -58,14 +74,49 @@ impl PreparedLocalProject {
         Ok((self.entry_path, self.package_inputs))
     }
 
+    /// Split for one exact target's review route: the shared entry and source
+    /// closure plus that target's accepted policy section. A prepared project
+    /// that does not cover `profile`, or whose own section failed, rejects
+    /// here rather than silently substituting another target's consent.
     pub(super) fn into_review_parts(
+        self,
+        profile: TargetProfile,
+    ) -> Result<
+        (
+            PathBuf,
+            ResolvedPackageSourceClosure,
+            Option<PackageLockTarget>,
+        ),
+        PrepareLocalProjectError,
+    > {
+        let PreparedLocalProject {
+            entry_path,
+            source_closure,
+            targets,
+            ..
+        } = self;
+        let target = targets
+            .into_iter()
+            .find(|target| target.profile == profile)
+            .ok_or_else(|| {
+                PrepareLocalProjectError::Locked(format!(
+                    "prepared project covers no section for exact target {}",
+                    profile.target_name(),
+                ))
+            })?;
+        Ok((entry_path, source_closure, target.accepted?))
+    }
+
+    /// Split for a multi-target route: every requested target's section beside
+    /// the shared entry path and source closure.
+    pub(super) fn into_target_review_parts(
         self,
     ) -> (
         PathBuf,
         ResolvedPackageSourceClosure,
-        Option<PackageLockTarget>,
+        Vec<PreparedProjectTarget>,
     ) {
-        (self.entry_path, self.source_closure, self.accepted_target)
+        (self.entry_path, self.source_closure, self.targets)
     }
 }
 
@@ -164,7 +215,43 @@ fn prepare_local_project_in_storage(
     options: LocalProjectPreparationOptions,
     open_storage: impl FnOnce(&Path) -> Result<SourceResolver, SourceResolveError>,
 ) -> Result<Option<PreparedLocalProject>, PrepareLocalProjectError> {
-    let LocalProjectPreparationOptions { target, offline } = options;
+    prepare_local_project_for_targets_in_storage(
+        entry_path,
+        &[options.target],
+        options.offline,
+        open_storage,
+    )
+}
+
+/// The same preparation for several requested targets at once: source
+/// resolution, transaction recovery, and custody checks run once, and each
+/// target keeps only its own accepted lock section. A target with no accepted
+/// section carries its error in the returned project so sibling targets still
+/// compile. `targets` must not be empty.
+pub fn prepare_local_project_for_targets(
+    entry_path: &Path,
+    targets: &[TargetProfile],
+    offline: bool,
+) -> Result<Option<PreparedLocalProject>, PrepareLocalProjectError> {
+    prepare_local_project_for_targets_in_storage(entry_path, targets, offline, |root| {
+        SourceResolver::for_current_user(PrimaryGitChoices {
+            excluded_controlled_roots: std::slice::from_ref(&root.to_path_buf()),
+            ..PrimaryGitChoices::default()
+        })
+    })
+}
+
+fn prepare_local_project_for_targets_in_storage(
+    entry_path: &Path,
+    targets: &[TargetProfile],
+    offline: bool,
+    open_storage: impl FnOnce(&Path) -> Result<SourceResolver, SourceResolveError>,
+) -> Result<Option<PreparedLocalProject>, PrepareLocalProjectError> {
+    if targets.is_empty() {
+        return Err(PrepareLocalProjectError::Locked(
+            "local project preparation needs at least one requested target".to_owned(),
+        ));
+    }
     let project_root = entry_path
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty())
@@ -218,16 +305,35 @@ fn prepare_local_project_in_storage(
                 .map_err(|error| PrepareLocalProjectError::Locked(error.to_string()))
         })
         .transpose()?;
-    let accepted_target = accepted
-        .map(|lock| {
-            lock.into_target(target).ok_or_else(|| {
-                PrepareLocalProjectError::Locked(format!(
-                    "no accepted section for exact target {}",
-                    target.target_name(),
-                ))
-            })
+    // A lock's target sections pin the same immutable source subject, so the
+    // closure resolves once; each target then keeps only its own section.
+    let prepared_targets = targets
+        .iter()
+        .map(|profile| {
+            let section = match accepted.as_ref() {
+                Some(lock) => lock.target(*profile).cloned().map(Some).ok_or_else(|| {
+                    PrepareLocalProjectError::Locked(format!(
+                        "no accepted section for exact target {}",
+                        profile.target_name(),
+                    ))
+                }),
+                None => Ok(None),
+            };
+            PreparedProjectTarget {
+                profile: *profile,
+                accepted: section,
+            }
         })
-        .transpose()?;
+        .collect::<Vec<_>>();
+    // A single-target request keeps the historical failure surface: its one
+    // missing section rejects preparation itself, before storage opens or a
+    // missing local source acquires, rather than landing on the target row.
+    let mut prepared_targets = prepared_targets;
+    if let [single] = prepared_targets.as_mut_slice()
+        && single.accepted.is_err()
+    {
+        return Err(std::mem::replace(&mut single.accepted, Ok(None)).unwrap_err());
+    }
     let entry_relative = if entry_path.is_relative() && project_root == Path::new(".") {
         entry_path.to_path_buf()
     } else {
@@ -247,9 +353,13 @@ fn prepare_local_project_in_storage(
     })?;
     let storage =
         open_storage(&canonical_project_root).map_err(PrepareLocalProjectError::Storage)?;
-    let closure = if let Some(accepted) = accepted_target.as_ref() {
+    let closure = if let Some(accepted) = accepted.as_ref() {
         resolve_locked_local_project_closure(
-            accepted.source(),
+            accepted
+                .targets()
+                .first()
+                .expect("a recovered lock validates a nonempty target roster")
+                .source(),
             &PackageRootSourceRequest::ExternalLocal {
                 requested_root: canonical_project_root.clone(),
                 source_context: ExternalSourceContext::derive(LOCAL_PROJECT_CONTEXT),
@@ -304,7 +414,7 @@ fn prepare_local_project_in_storage(
         entry_path: prepared_entry,
         package_inputs,
         source_closure: closure,
-        accepted_target,
+        targets: prepared_targets,
     }))
 }
 

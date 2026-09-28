@@ -709,6 +709,105 @@ fn combined(output: &std::process::Output) -> String {
     )
 }
 
+/// SOURCE-SET-UNION acceptance: one unioned two-target check shares a single
+/// prepared source closure — each package's parse frontier is built once for
+/// the request — while every target still reports its own checked outcome.
+/// Nested (generator -> dependency -> root) and dual-purpose (the dependency
+/// also serves the product import) generated-source custody ride the union.
+#[test]
+fn two_target_check_assembles_the_source_union_once() {
+    use compiler::CompileOptions;
+    use omega::compilation::{
+        CompileProjectRequest, ProjectProduct, compile_project, compile_project_for_targets,
+    };
+    let Some(execution) = nested_build_target() else {
+        return;
+    };
+    let foreign = if execution == target::TargetProfile::LinuxX64 {
+        target::TargetProfile::MacosArm64
+    } else {
+        target::TargetProfile::LinuxX64
+    };
+    let fixture = nested_build_fixture();
+    let build = fixture.read("root/build.omg").replace(
+        "    transition value()",
+        "    builder.depend_as(\"product_kit\", Source::Path { location: \"../dependency\" });\n    transition value()",
+    );
+    fixture.write("root/build.omg", &build);
+    fixture.write(
+        "root/main.omg",
+        "use product_kit::main;\npub machine consume() -> u64 { value() }\n",
+    );
+    let target_names = [
+        execution.target_name().to_owned(),
+        foreign.target_name().to_owned(),
+    ];
+    let check_request = || {
+        let mut request = CompileProjectRequest::new(CompileOptions {
+            root_path: fixture.path("root/main.omg"),
+            build_dir: Some(fixture.path("union-check")),
+            target_name: None,
+        });
+        request.product = ProjectProduct::Check;
+        request.offline = true;
+        request.timings = true;
+        request
+    };
+
+    let assemblies_before = compiler::source_assembly_invocation_count();
+    let compilations_before = compiler::checked_compilation_call_count();
+    let reuses_before = compiler::typed_frontier_reuse_count();
+    let outcomes = compile_project_for_targets(check_request(), &target_names)
+        .expect("a two-target request returns one outcome per target");
+    let union_assemblies = compiler::source_assembly_invocation_count() - assemblies_before;
+    let union_compilations = compiler::checked_compilation_call_count() - compilations_before;
+    let union_reuses = compiler::typed_frontier_reuse_count() - reuses_before;
+
+    // Baseline: the same two targets as independent compilations.
+    let separate_assemblies_before = compiler::source_assembly_invocation_count();
+    for name in &target_names {
+        let mut single = check_request();
+        single.options.target_name = Some(name.clone());
+        compile_project(single)
+            .unwrap_or_else(|error| panic!("single-target check for {name}: {error}"));
+    }
+    let separate_assemblies =
+        compiler::source_assembly_invocation_count() - separate_assemblies_before;
+
+    assert_eq!(outcomes.len(), 2);
+    for outcome in &outcomes {
+        let checked = outcome.result.as_ref().unwrap_or_else(|error| {
+            panic!("target {} failed: {error}", outcome.target.target_name())
+        });
+        assert!(checked.report.source_file_count > 0);
+        // Shared work is measured once and copied into every target report.
+        assert!(
+            !checked.timings.phases().is_empty(),
+            "target {} report lost the shared timing ladder",
+            outcome.target.target_name()
+        );
+    }
+    // Actual invocations, not timing rows: each package's checked context —
+    // the generator's build activation, the dependency's dual-purpose pair and
+    // the root's product — assembles once for the union, and the second
+    // target reuses every typed frontier the first produced. Two independent
+    // requests assemble each of those contexts twice.
+    assert_eq!(
+        union_assemblies * 2,
+        separate_assemblies,
+        "unioned check assembled {union_assemblies} times vs {separate_assemblies} across two separate requests"
+    );
+    assert_eq!(
+        union_reuses, union_assemblies,
+        "the second target reused {union_reuses} of {union_assemblies} typed frontiers"
+    );
+    assert_eq!(union_compilations % 2, 0);
+    assert!(
+        !fixture.path("dependency/generated.omg").exists(),
+        "generated source stays in staged custody"
+    );
+}
+
 #[test]
 fn an_import_selects_only_its_own_scope_edges() {
     // A build-only edge cannot serve the product import.

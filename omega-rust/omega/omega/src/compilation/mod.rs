@@ -108,40 +108,46 @@ pub struct TargetProjectOutcome {
     pub result: Result<CompileProjectOutcome, CompileProjectError>,
 }
 
-/// Compile the project once per selected target, in canonical profile order.
-/// Each target is an independent realization: one failing never stops or
-/// hides another, and every target reports its own outcome
-/// (wiki/spec/build/configuration.md#multi-target-compilation). Each target
-/// publishes into `<build dir>/<target>/`, since several targets can share an
-/// output file name. Invalid target names reject before any compile runs.
-///
-/// This repeats the whole compile per target. Once Psi runs once for every
-/// target, this loop moves inside the compiler behind one checked program.
+/// Compile the project once for every selected target through one shared
+/// preparation, in canonical profile order. The package closure resolves
+/// once and every target's candidate pipeline shares one binding-independent
+/// source preparation, so identical source and typed-frontier inputs assemble
+/// once for the union; each target still keeps its own staging directory,
+/// accepted consent, trust settlement, and product realization. One failing
+/// target never stops or hides a sibling, and every target reports its own
+/// outcome (wiki/spec/build/configuration.md#multi-target-compilation). Each
+/// target publishes into `<build dir>/<target>/`, since several targets can
+/// share an output file name. Invalid target names reject before any compile
+/// runs.
 pub fn compile_project_for_targets(
     request: CompileProjectRequest,
     target_names: &[String],
 ) -> Result<Vec<TargetProjectOutcome>, CompileProjectError> {
     let targets = compiler::ExplicitTargetSet::from_caller_names(target_names)
         .map_err(CompileProjectError::Diagnostics)?;
-    let base_build_dir = request.options.build_dir();
-    Ok(targets
-        .profiles()
-        .iter()
-        .map(|profile| {
-            let mut target_request = request.clone();
-            target_request.options.target_name = Some(profile.target_name().to_owned());
-            target_request.options.build_dir = Some(base_build_dir.join(profile.target_name()));
-            TargetProjectOutcome {
-                target: *profile,
-                result: compile_project(target_request),
-            }
-        })
-        .collect())
+    compile_project_targets(request, targets.profiles(), true)
 }
 
 pub fn compile_project(
     request: CompileProjectRequest,
 ) -> Result<CompileProjectOutcome, CompileProjectError> {
+    let target = crate::invocation_target_profile(request.options.target_name.as_deref())
+        .map_err(|diagnostic| CompileProjectError::Diagnostics(vec![diagnostic]))?;
+    compile_project_targets(request, &[target], false)?
+        .pop()
+        .expect("a one-target request produces one outcome")
+        .result
+}
+
+/// The shared compilation body behind [`compile_project`] and
+/// [`compile_project_for_targets`]. `per_target_directories` is the
+/// multi-target shape: staging and publication live under `<base>/<target>`;
+/// a single target keeps the caller's spelled directory verbatim.
+fn compile_project_targets(
+    request: CompileProjectRequest,
+    profiles: &[target::TargetProfile],
+    per_target_directories: bool,
+) -> Result<Vec<TargetProjectOutcome>, CompileProjectError> {
     let CompileProjectRequest {
         mut options,
         product,
@@ -169,33 +175,49 @@ pub fn compile_project(
         ),
         ProjectProduct::NativeArtifact => None,
     };
-    let build_dir = match &check_workspace {
-        Some(workspace) => {
-            options.build_dir = Some(workspace.path().to_path_buf());
-            workspace.path().to_path_buf()
-        }
+    let base_build_dir = match &check_workspace {
+        Some(workspace) => workspace.path().to_path_buf(),
         None => options.retain_build_dir(),
     };
+    let mut target_directories = profiles
+        .iter()
+        .map(|profile| {
+            if per_target_directories {
+                base_build_dir.join(profile.target_name())
+            } else {
+                base_build_dir.clone()
+            }
+        })
+        .collect::<Vec<_>>();
     // A retained product directory must belong to this source root and to one
-    // live compile; a check owns a private workspace and needs no record.
-    let _occupancy = match check_workspace {
-        Some(_) => None,
-        None => Some(
-            build_directory::acquire(&build_dir, &options.root_path)
-                .map_err(|conflict| CompileProjectError::BuildDirectory(conflict.to_string()))?,
-        ),
+    // live compile; a check owns a private workspace and needs no record. The
+    // claim is per target, so a refused sibling is refused without blocking
+    // the rest. Artifact writes bind the admitted canonical directory rather
+    // than the spelled name, so an alias swapped in during admission cannot
+    // redirect the publish or retained product paths.
+    let mut refused = profiles
+        .iter()
+        .map(|_| None)
+        .collect::<Vec<Option<CompileProjectError>>>();
+    let _occupancies = if check_workspace.is_none() {
+        let mut occupancies = Vec::with_capacity(profiles.len());
+        for index in 0..target_directories.len() {
+            match build_directory::acquire(&target_directories[index], &options.root_path) {
+                Ok(occupancy) => {
+                    target_directories[index] = occupancy.directory().to_path_buf();
+                    occupancies.push(occupancy);
+                }
+                Err(conflict) => {
+                    refused[index] =
+                        Some(CompileProjectError::BuildDirectory(conflict.to_string()));
+                }
+            }
+        }
+        occupancies
+    } else {
+        Vec::new()
     };
-    // Artifact writes bind the admitted canonical directory rather than the
-    // spelled name, so an alias swapped in during admission cannot redirect
-    // the publish or retained product paths.
-    let build_dir = _occupancy
-        .as_ref()
-        .map(|occupancy| occupancy.directory().to_path_buf())
-        .unwrap_or(build_dir);
-    options.build_dir = Some(build_dir.clone());
     let policy_root_path = options.root_path.clone();
-    let target = crate::invocation_target_profile(options.target_name.as_deref())
-        .map_err(|diagnostic| CompileProjectError::Diagnostics(vec![diagnostic]))?;
     let prepared = timings
         .record_result(
             StageMeta::new(
@@ -204,12 +226,7 @@ pub fn compile_project(
                 "prepared sources",
                 TimingCategory::Pipeline,
             ),
-            || {
-                packages::prepare_local_project(
-                    &options.root_path,
-                    packages::LocalProjectPreparationOptions { target, offline },
-                )
-            },
+            || packages::prepare_local_project_for_targets(&options.root_path, profiles, offline),
         )
         .map_err(CompileProjectError::Preparation)?;
     // Preparation owns pending-transaction recovery and project discovery.
@@ -222,108 +239,236 @@ pub fn compile_project(
     }
     let admissions = trust_ledger::read_trust_admissions(&policy_root_path)
         .map_err(CompileProjectError::Diagnostics)?;
-    let report = timings.record_result(
-        StageMeta::new(
-            "compile",
-            "sources",
-            "requested product",
-            TimingCategory::Pipeline,
-        ),
-        || {
-            Ok(match (prepared, product) {
-                (Some(prepared), ProjectProduct::NativeArtifact) => {
-                    let request = packages::PreparedLocalProjectNativeRequest::new(
-                        prepared, &build_dir, target,
-                    )
-                    .with_accepted_trust_admissions(admissions)
-                    .with_optimization_rollback(optimization_rollback)
-                    .with_timings(collect_timings);
-                    let request = match build_snapshot {
-                        Some(snapshot) => request.with_build_snapshot(snapshot),
-                        None => request,
-                    };
-                    packages::compile_prepared_local_project_for_native(request, |_| ())
-                        .map(|(report, ())| report)
-                        .map_err(CompileProjectError::PackageNative)?
-                }
-                (Some(prepared), ProjectProduct::Check) => {
-                    if !optimization_rollback.is_empty() {
-                        let names = optimization_rollback
-                            .requested_disabled()
-                            .as_slice()
-                            .iter()
-                            .map(|optimization| format!("`{}`", optimization.build_case_name()))
-                            .collect::<Vec<_>>()
-                            .join(", ");
-                        return Err(CompileProjectError::Diagnostics(vec![Diagnostic::error(
-                            format!(
-                                "optimization rollback {names} names stages not executed by Check"
-                            ),
-                        )]));
-                    }
-                    let request = packages::PreparedLocalProjectCheckRequest::new(
-                        prepared, &build_dir, target,
-                    )
-                    .with_accepted_trust_admissions(admissions)
-                    .with_timings(collect_timings);
-                    let request = match build_snapshot {
-                        Some(snapshot) => request.with_build_snapshot(snapshot),
-                        None => request,
-                    };
-                    packages::check_prepared_local_project(request)
-                        .map_err(CompileProjectError::PackageCheck)?
-                }
-                (None, product) => {
-                    let product = match product {
-                        ProjectProduct::Check => RequestedCompileProduct::Check,
-                        ProjectProduct::NativeArtifact => RequestedCompileProduct::NativeArtifact,
-                    };
-                    let request = CompileRequest::new(options)
-                        .with_requested_product(product)
-                        .with_optimization_rollback(optimization_rollback)
-                        .with_accepted_trust_admissions(admissions)
+    // Targets whose output directory was refused take no part in the shared
+    // compile; their row is the refusal itself.
+    let active_profiles = profiles
+        .iter()
+        .copied()
+        .enumerate()
+        .filter(|(index, _)| refused[*index].is_none())
+        .map(|(_, profile)| profile)
+        .collect::<Vec<_>>();
+    let reports = if active_profiles.is_empty() {
+        Vec::new()
+    } else {
+        timings.record_result(
+            StageMeta::new(
+                "compile",
+                "sources",
+                "requested product",
+                TimingCategory::Pipeline,
+            ),
+            || -> Result<
+                Vec<(
+                    target::TargetProfile,
+                    Result<CompileReport, CompileProjectError>,
+                )>,
+                CompileProjectError,
+            > {
+                match (prepared, product) {
+                    (Some(prepared), ProjectProduct::NativeArtifact) => {
+                        let request = packages::PreparedLocalProjectNativeRequest::for_targets(
+                            prepared,
+                            &base_build_dir,
+                            active_profiles.clone(),
+                        )
+                        .with_accepted_trust_admissions(admissions.clone())
+                        .with_optimization_rollback(optimization_rollback.clone())
                         .with_timings(collect_timings);
-                    let request = match build_snapshot {
-                        Some(snapshot) => request.with_build_snapshot(snapshot),
-                        None => request,
-                    };
-                    compile(request)
-                        .and_then(compiler::CompileOutcomes::into_single_report)
-                        .map_err(CompileProjectError::Diagnostics)?
+                        let request = match &build_snapshot {
+                            Some(snapshot) => request.with_build_snapshot(snapshot.clone()),
+                            None => request,
+                        };
+                        Ok(
+                            packages::compile_prepared_local_project_for_native_targets(
+                                request,
+                                |_| (),
+                            )
+                            .into_iter()
+                            .map(|outcome| {
+                                (
+                                    outcome.target,
+                                    outcome
+                                        .result
+                                        .map(|(report, ())| report)
+                                        .map_err(CompileProjectError::PackageNative),
+                                )
+                            })
+                            .collect(),
+                        )
+                    }
+                    (Some(prepared), ProjectProduct::Check) => {
+                        if !optimization_rollback.is_empty() {
+                            let names = optimization_rollback
+                                .requested_disabled()
+                                .as_slice()
+                                .iter()
+                                .map(|optimization| {
+                                    format!("`{}`", optimization.build_case_name())
+                                })
+                                .collect::<Vec<_>>()
+                                .join(", ");
+                            return Err(CompileProjectError::Diagnostics(vec![
+                                Diagnostic::error(format!(
+                                    "optimization rollback {names} names stages not executed by Check"
+                                )),
+                            ]));
+                        }
+                        let request = packages::PreparedLocalProjectCheckRequest::for_targets(
+                            prepared,
+                            &base_build_dir,
+                            active_profiles.clone(),
+                        )
+                        .with_accepted_trust_admissions(admissions.clone())
+                        .with_timings(collect_timings);
+                        let request = match &build_snapshot {
+                            Some(snapshot) => request.with_build_snapshot(snapshot.clone()),
+                            None => request,
+                        };
+                        Ok(packages::check_prepared_local_project_for_targets(request)
+                            .into_iter()
+                            .map(|outcome| {
+                                (
+                                    outcome.target,
+                                    outcome.result.map_err(CompileProjectError::PackageCheck),
+                                )
+                            })
+                            .collect())
+                    }
+                    (None, product) => {
+                        let product = match product {
+                            ProjectProduct::Check => RequestedCompileProduct::Check,
+                            ProjectProduct::NativeArtifact => {
+                                RequestedCompileProduct::NativeArtifact
+                            }
+                        };
+                        // A lone target keeps the caller's verbatim options —
+                        // including a targetless check's absent name — while a
+                        // unioned request configures each exact target with its
+                        // own staging directory and shared policy.
+                        let mut request = if !per_target_directories {
+                            let mut single_options = options.clone();
+                            single_options.build_dir =
+                                Some(target_directories[0].clone());
+                            CompileRequest::new(single_options)
+                                .with_requested_product(product)
+                                .with_accepted_trust_admissions(admissions.clone())
+                                .with_optimization_rollback(optimization_rollback.clone())
+                                .with_timings(collect_timings)
+                        } else {
+                            let configurations = active_profiles
+                                .iter()
+                                .map(|profile| {
+                                    let index = profiles
+                                        .iter()
+                                        .position(|candidate| candidate == profile)
+                                        .expect(
+                                            "active profiles come from the requested roster",
+                                        );
+                                    let mut configuration =
+                                        compiler::TargetCompileConfiguration::new(*profile)
+                                            .with_build_dir(target_directories[index].clone())
+                                            .with_accepted_trust_admissions(admissions.clone())
+                                            .with_optimization_rollback(
+                                                optimization_rollback.clone(),
+                                            );
+                                    if let Some(snapshot) = &build_snapshot {
+                                        configuration = configuration
+                                            .with_build_snapshot(snapshot.clone());
+                                    }
+                                    configuration
+                                })
+                                .collect();
+                            CompileRequest::new(CompileOptions {
+                                root_path: options.root_path.clone(),
+                                build_dir: None,
+                                target_name: None,
+                            })
+                            .with_requested_product(product)
+                            .with_target_configurations(configurations)
+                            .with_timings(collect_timings)
+                        };
+                        if let Some(snapshot) = &build_snapshot {
+                            request = request.with_build_snapshot(snapshot.clone());
+                        }
+                        compile(request)
+                            .map(|outcomes| {
+                                outcomes
+                                    .into_outcomes()
+                                    .into_vec()
+                                    .into_iter()
+                                    .enumerate()
+                                    .map(|(index, outcome)| {
+                                        (
+                                            active_profiles[index],
+                                            outcome
+                                                .into_result()
+                                                .map_err(CompileProjectError::Diagnostics),
+                                        )
+                                    })
+                                    .collect()
+                            })
+                            .map_err(CompileProjectError::Diagnostics)
+                    }
                 }
-            })
-        },
-    )?;
-    let settlement = report.trust_admission_settlement();
-    if accept_admissions {
-        trust_ledger::accept_trust_admissions(&policy_root_path, settlement.required())
-            .map_err(CompileProjectError::Diagnostics)?;
-    } else if !settlement.is_exactly_admitted() {
-        return Err(CompileProjectError::UnsettledAdmissions(settlement.clone()));
-    }
-    match product {
-        ProjectProduct::Check => Ok(CompileProjectOutcome {
-            report,
-            timings,
-            executable_path: None,
-        }),
-        ProjectProduct::NativeArtifact => {
-            let (report, path) = timings
-                .record_result(
-                    StageMeta::new(
-                        "publish",
-                        "retained product",
-                        "published product",
-                        TimingCategory::Pipeline,
-                    ),
-                    || publication::publish_compilation(report, &build_dir),
-                )
-                .map_err(CompileProjectError::Publication)?;
-            Ok(CompileProjectOutcome {
-                report,
-                timings,
-                executable_path: path,
-            })
+            },
+        )?
+    };
+    // Settlement and publication stay per target after the shared compile.
+    // The ladder measures shared work once; every target's report copies it.
+    let mut reports = reports;
+    let mut outcomes = Vec::with_capacity(profiles.len());
+    for (index, profile) in profiles.iter().enumerate() {
+        if let Some(error) = refused[index].take() {
+            outcomes.push(TargetProjectOutcome {
+                target: *profile,
+                result: Err(error),
+            });
+            continue;
         }
+        let position = reports
+            .iter()
+            .position(|(reported, _)| reported == profile)
+            .expect("every active target produces a report row");
+        let (_, result) = reports.remove(position);
+        let result = result.and_then(|report| {
+            let settlement = report.trust_admission_settlement();
+            if accept_admissions {
+                trust_ledger::accept_trust_admissions(&policy_root_path, settlement.required())
+                    .map_err(CompileProjectError::Diagnostics)?;
+            } else if !settlement.is_exactly_admitted() {
+                return Err(CompileProjectError::UnsettledAdmissions(settlement.clone()));
+            }
+            match product {
+                ProjectProduct::Check => Ok(CompileProjectOutcome {
+                    report,
+                    timings: timings.clone(),
+                    executable_path: None,
+                }),
+                ProjectProduct::NativeArtifact => {
+                    let (report, path) = timings
+                        .record_result(
+                            StageMeta::new(
+                                "publish",
+                                "retained product",
+                                "published product",
+                                TimingCategory::Pipeline,
+                            ),
+                            || publication::publish_compilation(report, &target_directories[index]),
+                        )
+                        .map_err(CompileProjectError::Publication)?;
+                    Ok(CompileProjectOutcome {
+                        report,
+                        timings: timings.clone(),
+                        executable_path: path,
+                    })
+                }
+            }
+        });
+        outcomes.push(TargetProjectOutcome {
+            target: *profile,
+            result,
+        });
     }
+    Ok(outcomes)
 }

@@ -31,7 +31,11 @@ fn local_root_main_edits_preserve_locked_dependencies_and_lock_bytes() {
         fs::write(project.root().join("main.omg"), edited).unwrap();
         let prepared = project.prepare().unwrap().unwrap();
         assert_eq!(
-            prepared.accepted_target.as_ref(),
+            prepared.targets[0]
+                .accepted
+                .as_ref()
+                .expect("requested target's accepted section")
+                .as_ref(),
             lock.target(preparation_target())
         );
         assert_eq!(fs::read_to_string(&prepared.entry_path).unwrap(), edited);
@@ -146,11 +150,10 @@ fn missing_target_rejects_before_storage_or_missing_local_source_acquisition() {
 fn unlocked_project_keeps_legacy_preparation_without_coordination_state() {
     let project = Project::new("package");
     assert!(
-        project
-            .prepare()
-            .unwrap()
-            .unwrap()
-            .accepted_target
+        project.prepare().unwrap().unwrap().targets[0]
+            .accepted
+            .as_ref()
+            .expect("requested target's accepted section")
             .is_none()
     );
     assert!(!project.root().join("build/package-manager").exists());

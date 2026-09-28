@@ -39,7 +39,9 @@ fn prepare_snapshot(project: &Project, build: &[u8], name: &str) -> ResolvedSour
     )
     .expect("prepare a valid Omega package")
     .expect("build.omg selects package preparation");
-    let (entry, closure, _) = prepared.into_review_parts();
+    let (entry, closure, _) = prepared
+        .into_review_parts(preparation_target())
+        .expect("prepared project covers its requested target");
     let root = closure.graph().root();
     let snapshot = closure.source_root(root).unwrap();
     assert_ne!(snapshot, project.root);
@@ -65,7 +67,8 @@ fn proposed_lock(project: &Project) -> String {
     )
     .unwrap()
     .unwrap()
-    .into_review_parts();
+    .into_review_parts(preparation_target())
+    .unwrap();
     let review = review_package_change(
         closure,
         preparation_target(),
