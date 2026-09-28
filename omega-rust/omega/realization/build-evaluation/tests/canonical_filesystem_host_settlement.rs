@@ -17,7 +17,7 @@ use package_compilation::{
 };
 use provider_planning::settle_checked_providers;
 use provider_planning::target_machines::{
-    SelectedTargetMachineDeclarations, filter_target_machines,
+    SelectedTargetMachineDeclarations, prepare_target_machines,
 };
 use semantic_vocabulary::PackageKeyIdentity;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -86,7 +86,7 @@ impl Fixture {
             .expect("tokenize fixture");
         let mut syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens)
             .expect("parse fixture");
-        let target_machines = filter_target_machines(&mut syntax, None)
+        let target_machines = prepare_target_machines(&mut syntax, None)
             .expect("the fixture declares no target machine");
         let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
             syntax_trees_to_symbol_resolved_trees::ResolutionRequest {

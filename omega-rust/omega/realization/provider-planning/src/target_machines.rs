@@ -1,40 +1,18 @@
-//! Target-scoped machine selection (fs portable-contract settle 2026-07-18):
-//! `<target> machine Path(..) {..}` declares a PER-TARGET implementation of a
-//! portable contract signature, gated by the target filter. This stage runs BEFORE symbol resolution
-//! in both engines' pipelines (the differential contract: the interpreter
-//! sees the SAME selected program natives are built from):
+//! Prepare target families before resolution, then select a product body later.
 //!
-//! - the SELECTED target's machine has its marker cleared -- from resolution
-//!   onward it is an ordinary machine;
-//! - every other target's machine keeps its marker and resolution lowers it
-//!   as a sibling (symbol `<path>::<target>`): resolved, typed, and checked so a
-//!   compile on one host reports every target's errors, never selected by
-//!   name, conformance, or attachment lookups, and pruned once checking has
-//!   committed. This pre-resolution selection is transitional; realization-
-//!   time selection belongs to Omega (board item
-//!   PROVIDER-SELECTION-AFTER-TERMINAL).
+//! Product source uses the first recognized target in name order as each
+//! family's canonical body. Other bodies retain their markers and resolve as
+//! siblings. Authored and generated product source therefore prepare the same
+//! frontend regardless of the requested native product. Build-scope source is
+//! different: its helpers must run against the admitted build execution target.
 //!
-//! Loud edges (the settle's zero-or-two rule):
-//! - two selected-target machines with one name = implemented twice;
-//! - a name implemented ONLY by non-selected targets = the selected target is
-//!   missing its implementation -- an unconditional error naming who does
-//!   provide one (the contract is the cross-target name set; waiting for an
-//!   unresolved call site would bury the real cause).
+//! Provider-default declarations retain their markers until their calls can be
+//! admitted as provider-selection inputs. Unknown authored target names remain
+//! inert; duplicate family members reject across authored and generated units.
 //!
-//! An unknown target name on a machine is silently never-selected, matching
-//! the target-scoped declaration semantic (a hypothetical target is inert
-//! everywhere, which is also what makes fail-canaries host-portable).
-//!
-//! A selected `Owner::provider_defaults` declaration is the exception: it is
-//! provider-settlement input whose `select_provider` calls only the typed
-//! admission below can grant, so it keeps its marker through build-time
-//! evaluation and enters the program when the coordinator releases it.
-//!
-//! Selection is per dependency scope: product-scope sources select against
-//! the product target, and build-scope sources (the build entry and the
-//! root-local helpers it imports) select against the admitted build execution
-//! profile, so a build helper never carries the product target's row onto the
-//! host that executes it.
+//! `select_product_target` still swaps typed bodies before checking. Moving
+//! that selection behind Terminal Psi remains separate work; canonical source
+//! preparation alone does not establish the final pipeline boundary.
 
 use crate::SettledTargetMachineDeclarations;
 use diagnostics::Diagnostic;
@@ -81,22 +59,25 @@ struct TargetMachineOrigin {
 /// target's body replaces it before checking
 /// (`SelectedTargetMachineDeclarations::select_product_target`).
 struct ScopeTargets<'a> {
-    product: ProductSelection,
-    execution: NativeTarget,
-    build_scope_sources: &'a HashSet<source::SourceId>,
+    product: BTreeMap<String, String>,
+    build: Option<BuildTargetScope<'a>>,
 }
 
-enum ProductSelection {
-    Canonical(BTreeMap<String, String>),
+/// Sources executed by the build, paired with their admitted execution target.
+/// Product-only source preparation has no such scope and needs no target.
+pub struct BuildTargetScope<'a> {
+    pub execution: NativeTarget,
+    pub sources: &'a HashSet<source::SourceId>,
 }
 
 impl ScopeTargets<'_> {
     /// Which dependency scope a machine declaration belongs to.
     fn scope_of(&self, machine: &syntax_trees::item::Machine) -> source::DependencyScope {
-        if self
-            .build_scope_sources
-            .contains(&machine.name.source_span().source_id)
-        {
+        if self.build.as_ref().is_some_and(|build| {
+            build
+                .sources
+                .contains(&machine.name.source_span().source_id)
+        }) {
             source::DependencyScope::Build
         } else {
             source::DependencyScope::Product
@@ -104,14 +85,16 @@ impl ScopeTargets<'_> {
     }
 
     fn selects(&self, machine: &syntax_trees::item::Machine, target: &str) -> bool {
-        let scope_target = match (self.scope_of(machine), &self.product) {
-            (source::DependencyScope::Build, _) => self.execution,
-            (source::DependencyScope::Product, ProductSelection::Canonical(canonical)) => {
-                return canonical.get(machine.name.as_str()).map(String::as_str) == Some(target);
+        if let Some(build) = &self.build {
+            if build
+                .sources
+                .contains(&machine.name.source_span().source_id)
+            {
+                return NativeTarget::from_omega_target_name(Some(target))
+                    .is_ok_and(|resolved| resolved == build.execution);
             }
-        };
-        NativeTarget::from_omega_target_name(Some(target))
-            .is_ok_and(|resolved| resolved == scope_target)
+        }
+        self.product.get(machine.name.as_str()).map(String::as_str) == Some(target)
     }
 }
 
@@ -152,21 +135,13 @@ impl SelectedTargetMachineDeclarations {
     pub fn filter_generated_extension(
         mut self,
         syntax: &mut SyntaxTrees,
-        target_name: Option<&str>,
     ) -> Result<Self, Vec<Diagnostic>> {
         // Generated source is product source: like the base, it selects each
         // family's canonical body, and the realized target's body replaces it
-        // before checking. The target is only validated here.
-        let selected = NativeTarget::from_omega_target_name(target_name)
-            .map_err(|diagnostic| vec![diagnostic])?;
-        let no_build_scope = HashSet::new();
+        // before checking. No build execution target enters this preparation.
         let scopes = ScopeTargets {
-            product: ProductSelection::Canonical(canonical_product_targets(
-                syntax,
-                &no_build_scope,
-            )),
-            execution: selected,
-            build_scope_sources: &no_build_scope,
+            product: canonical_product_targets(syntax, None),
+            build: None,
         };
         let extension_origins = target_machine_origins(syntax, &scopes);
         let mut complete_origins = self.all_machine_origins.clone();
@@ -533,39 +508,15 @@ impl SelectedTargetMachineDeclarations {
     }
 }
 
-/// Only the retained selected-target producer roster admits these declarations.
-/// The intrinsic records an admitted provider declaration, not an executed
-/// root Build mutation; evaluation must still prove the activation's receiver.
-pub fn filter_target_machines(
+/// Prepare canonical product families and the build's executable declarations.
+/// Runtime product targets belong to later selection, not source preparation.
+pub fn prepare_target_machines(
     syntax: &mut SyntaxTrees,
-    target_name: Option<&str>,
+    build: Option<BuildTargetScope<'_>>,
 ) -> Result<SelectedTargetMachineDeclarations, Vec<Diagnostic>> {
-    filter_target_machines_by_scope(syntax, target_name, target_name, &HashSet::new())
-}
-
-/// Select target-scoped declarations per dependency scope: sources in
-/// `build_scope_sources` select against `execution_profile_name` (the
-/// admitted build execution profile), every other source against
-/// `product_target_name`. `None` for either names the compiler host.
-pub fn filter_target_machines_by_scope(
-    syntax: &mut SyntaxTrees,
-    product_target_name: Option<&str>,
-    execution_profile_name: Option<&str>,
-    build_scope_sources: &HashSet<source::SourceId>,
-) -> Result<SelectedTargetMachineDeclarations, Vec<Diagnostic>> {
-    // The product target no longer selects before resolution; it is still
-    // validated here so an unknown spelling rejects at admission.
-    NativeTarget::from_omega_target_name(product_target_name)
-        .map_err(|diagnostic| vec![diagnostic])?;
-    let execution = NativeTarget::from_omega_target_name(execution_profile_name)
-        .map_err(|diagnostic| vec![diagnostic])?;
     let scopes = ScopeTargets {
-        product: ProductSelection::Canonical(canonical_product_targets(
-            syntax,
-            build_scope_sources,
-        )),
-        execution,
-        build_scope_sources,
+        product: canonical_product_targets(syntax, build.as_ref()),
+        build,
     };
     let origins = target_machine_origins(syntax, &scopes);
     validate_target_machine_origins(&origins)?;
@@ -576,7 +527,7 @@ pub fn filter_target_machines_by_scope(
 /// in name order among its bodies.
 fn canonical_product_targets(
     syntax: &SyntaxTrees,
-    build_scope_sources: &HashSet<source::SourceId>,
+    build: Option<&BuildTargetScope<'_>>,
 ) -> BTreeMap<String, String> {
     let mut canonical: BTreeMap<String, String> = BTreeMap::new();
     for item in syntax.root_items() {
@@ -586,8 +537,11 @@ fn canonical_product_targets(
         let Some(target) = &machine.target else {
             continue;
         };
-        if build_scope_sources.contains(&machine.name.source_span().source_id)
-            || NativeTarget::from_omega_target_name(Some(target.as_str())).is_err()
+        if build.is_some_and(|build| {
+            build
+                .sources
+                .contains(&machine.name.source_span().source_id)
+        }) || NativeTarget::from_omega_target_name(Some(target.as_str())).is_err()
         {
             continue;
         }
@@ -850,7 +804,7 @@ fn reject_inert_sibling_callers(
 
 #[cfg(test)]
 mod tests {
-    use super::{SelectedTargetMachineDeclarations, filter_target_machines};
+    use super::{BuildTargetScope, SelectedTargetMachineDeclarations, prepare_target_machines};
 
     fn syntax(source_id: usize, source: &str) -> syntax_trees::SyntaxTrees {
         let tokens = source_files_to_tokens::Lexer::new(source)
@@ -858,6 +812,62 @@ mod tests {
             .expect("tokenize target-machine fixture");
         tokens_to_syntax_trees::parse_syntax_trees_with_id(source::SourceId(source_id), &tokens)
             .expect("parse target-machine fixture")
+    }
+
+    #[test]
+    fn build_target_changes_only_build_scope_not_product_or_generated_families() {
+        let build_sources = std::collections::HashSet::from([source::SourceId(1)]);
+        for execution in [
+            target::NativeTarget::linux_x64(),
+            target::NativeTarget::windows_x64(),
+        ] {
+            let mut authored = syntax(
+                0,
+                "windows_x86_64 machine Product::value() -> u64 { 2 }\nlinux_x86_64 machine Product::value() -> u64 { 1 }\n",
+            );
+            authored.extend_from(&syntax(
+                1,
+                "windows_x86_64 machine Build::value() -> u64 { 4 }\nlinux_x86_64 machine Build::value() -> u64 { 3 }\n",
+            ));
+            let retained = prepare_target_machines(
+                &mut authored,
+                Some(BuildTargetScope {
+                    execution,
+                    sources: &build_sources,
+                }),
+            )
+            .expect("each build target has a body");
+            let mut generated = syntax(
+                2,
+                "windows_x86_64 machine Generated::value() -> u64 { 6 }\nlinux_x86_64 machine Generated::value() -> u64 { 5 }\n",
+            );
+            let retained = retained
+                .filter_generated_extension(&mut generated)
+                .expect("generated product families have no execution target");
+            for origin in &retained.all_machine_origins {
+                let expected = if origin.scope == source::DependencyScope::Build {
+                    target::NativeTarget::from_omega_target_name(Some(&origin.target))
+                        .expect("known authored target")
+                        == execution
+                } else {
+                    origin.target == "linux_x86_64"
+                };
+                assert_eq!(origin.selected, expected, "{origin:?}");
+            }
+            assert_eq!(retained.all_machine_origins.len(), 6);
+            assert_eq!(retained.selected_machine_origins.len(), 3);
+        }
+    }
+
+    #[test]
+    fn generated_extension_rejects_duplicate_against_authored_product() {
+        let mut authored = syntax(0, "linux_x86_64 machine Product::value() -> u64 { 1 }\n");
+        let retained = prepare_target_machines(&mut authored, None).expect("single member");
+        let mut generated = syntax(1, "linux_x86_64 machine Product::value() -> u64 { 2 }\n");
+        let diagnostics = retained
+            .filter_generated_extension(&mut generated)
+            .expect_err("generated source cannot replace an authored member");
+        assert!(diagnostics[0].message.contains("implemented twice"));
     }
 
     #[test]
@@ -903,15 +913,15 @@ mod tests {
             0,
             "linux_x86_64 machine Base::value() -> u64 { 1 }\nwindows_x86_64 machine Base::value() -> u64 { 2 }\n",
         );
-        let retained = filter_target_machines(&mut base, Some("linux_x86_64"))
-            .expect("base target cohort selects exactly");
+        let retained =
+            prepare_target_machines(&mut base, None).expect("base target cohort selects exactly");
         let mut extension = syntax(
             1,
             "linux_x86_64 machine Generated::value() -> u64 { 3 }\nwindows_x86_64 machine Generated::value() -> u64 { 4 }\nlinux_x86_64 machine Generated::provider_defaults() { }\nwindows_x86_64 machine Generated::provider_defaults() { }\n",
         );
 
         let retained = retained
-            .filter_generated_extension(&mut extension, Some("linux_x86_64"))
+            .filter_generated_extension(&mut extension)
             .expect("generated target cohort selects against retained base");
 
         assert_eq!(
@@ -989,8 +999,7 @@ mod tests {
             .expect("tokenize target-machine fixture");
         let mut syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens)
             .expect("parse target-machine fixture");
-        let mut declarations =
-            filter_target_machines(&mut syntax, Some("linux_x86_64")).expect("cohort selects");
+        let mut declarations = prepare_target_machines(&mut syntax, None).expect("cohort selects");
         let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
             syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
                 syntax: &syntax,
@@ -1063,14 +1072,13 @@ mod tests {
     #[test]
     fn generated_units_reject_a_duplicate_selected_target_row() {
         let mut base = syntax(0, "const BASE: u64 = 1;\n");
-        let retained = filter_target_machines(&mut base, Some("linux_x86_64"))
-            .expect("base has no target rows");
+        let retained = prepare_target_machines(&mut base, None).expect("base has no target rows");
         let mut extension = syntax(1, "linux_x86_64 machine Duplicate::value() -> u64 { 2 }\n");
         let second = syntax(2, "linux_x86_64 machine Duplicate::value() -> u64 { 3 }\n");
         extension.extend_from(&second);
 
         let diagnostics = retained
-            .filter_generated_extension(&mut extension, Some("linux_x86_64"))
+            .filter_generated_extension(&mut extension)
             .expect_err("generated units must not split a duplicate selected row");
 
         assert_eq!(diagnostics.len(), 1);
