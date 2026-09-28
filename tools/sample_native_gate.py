@@ -115,7 +115,26 @@ def classify(message):
         return f"does not check: {phase.group(1) if phase else '?'}"
     if "package acceptance is missing" in message or "package review" in message:
         return "package review incomplete"
+    # A checked-compilation failure leads with a wrapper line and carries the
+    # real refusal on the following `error:` line; report that, not the wrapper.
+    errors = re.findall(r"error: (.+)", message)
+    if errors:
+        return errors[0].strip()[:110]
     return message.strip()[:110] or "unknown"
+
+
+def check_refusal(cli, sample, timeout):
+    """The real reason a sample never reached a review: it does not check.
+
+    `omega update` cannot produce a review for a package that fails checking,
+    so the review file never appears and `omega run` reports the missing
+    acceptance. Reporting that would blame the gate's own review step for a
+    sample the check gate already refuses, so ask the checker instead.
+    """
+    completed = run([cli, "--check", os.path.join(sample, "main.omg")], timeout)
+    if completed is None:
+        return "check-timeout"
+    return classify(completed.stdout + completed.stderr)
 
 
 def measure(cli, sample, target, timeout):
@@ -134,11 +153,10 @@ def measure(cli, sample, target, timeout):
         return {"sample": sample, "state": "timeout", "detail": f">{timeout}s"}
     combined = completed.stdout + completed.stderr
     if "native compile FAILED" in combined or "cannot realize" in combined:
-        return {
-            "sample": sample,
-            "state": "no-native-build",
-            "detail": classify(combined),
-        }
+        detail = classify(combined)
+        if detail == "package review incomplete":
+            detail = check_refusal(cli, sample, timeout)
+        return {"sample": sample, "state": "no-native-build", "detail": detail}
     if expected_exit is None and expected_output is None:
         return {"sample": sample, "state": "no-oracle", "detail": "header documents neither"}
     mismatches = []
