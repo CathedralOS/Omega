@@ -51,7 +51,7 @@ fn lower_callback_thunk(
         .map_err(|error| realization_error("callback thunk artifact replay", error))?;
     let input = terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput::prepare(
         artifact,
-        request.profile,
+        request.admission.providers.profile,
         &[],
     )
     .map_err(artifact_lowering_error)?;
@@ -67,7 +67,7 @@ fn lower_callback_thunk(
         abstract_operations_to_target_operations::lower_optimized_to_target_operations(
             optimized,
             abstract_operations_to_target_operations::OptimizedTargetLoweringRequest::new(
-                request.target,
+                request.admission.providers.target,
             ),
         )
         .map_err(|error| realization_error("callback thunk target lowering", error))?;

@@ -11,6 +11,11 @@ The entry map is [lib.rs](src/lib.rs). Responsibilities are separate modules:
   compiler reports only retain and expose its products. Build selection closes
   into the existing validated native entry settlement before retention, so no
   build-evaluator object or duplicate entry receipt crosses that boundary.
+  Its [native provider preparation](src/retained_terminal/native_providers.rs)
+  rejoins receiving policies and prepares callbacks, imports and builtins in
+  one operation. Derived import evidence remains invocation-owned through
+  admission and emission; the compiler forwards the stage's admission request
+  without defining a second copy of its custody fields.
 - [native_admission.rs](src/native_admission.rs): the complete native entrance.
   Canonical replay, entry and boundary custody, provider installation, and
   mechanism/exclusion review produce one admitted input before stage 01.

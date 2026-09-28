@@ -37,10 +37,10 @@ pub(crate) fn emit_realization_object(
     let target = lower_optimized_to_target_operations(
         abstract_stage,
         OptimizedTargetLoweringRequest {
-            target: request.target,
+            target: request.admission.providers.target,
             settlements,
             installation: provider_installation,
-            native_callbacks: request.native_callbacks,
+            native_callbacks: request.admission.providers.native_callbacks,
         },
     )
     .map_err(|error| realization_error("target lowering", error))?;

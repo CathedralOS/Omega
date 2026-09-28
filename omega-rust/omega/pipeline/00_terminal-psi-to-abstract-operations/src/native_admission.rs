@@ -15,10 +15,17 @@ use terminal_codec::CanonicalTerminalArtifact;
 
 /// Independent native custody beside one canonical Terminal product.
 pub struct NativeAdmissionRequest<'request> {
+    /// Exact provider and entry custody plus the receiving authority policies.
+    /// An absent permission policy makes no receiver-admission claim; it is
+    /// neither an empty policy nor permission inferred from accepted packages.
     pub providers: ProviderAdmissionRequest<'request>,
+    /// Same-artifact source custody. Nonempty scope requires exact coverage.
     pub checked_scope: Option<&'request CheckedBoundaryOperatorApplicationScope>,
+    /// Target-neutral reuse; reopening checks exact artifact/profile equality.
     pub prepared_input: Option<&'request PreparedNativeRealizationInput>,
     pub boundary_application_coverage: Option<&'request TerminalBoundaryApplicationCoverage>,
+    /// Retained exclusions also constrain physical authority when no receiving
+    /// permission policy is supplied.
     pub behavior_exclusions: &'request effects::BehaviorExclusions,
 }
 
@@ -31,7 +38,7 @@ pub struct AdmittedNativeRealization<'execution> {
 
 pub fn admit_native_realization<'request>(
     artifact: &CanonicalTerminalArtifact,
-    request: NativeAdmissionRequest<'request>,
+    request: &NativeAdmissionRequest<'request>,
 ) -> Result<AdmittedNativeRealization<'request>, Vec<Diagnostic>> {
     if let Some(scope) = request.checked_scope {
         scope

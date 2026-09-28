@@ -3,7 +3,6 @@
 //! requested or settled artifact results.
 
 pub use native_artifact::RequestedNativeArtifact;
-use terminal_psi_to_abstract_operations::NativeProgramEntrySettlement;
 pub(crate) use terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput as NativeRealizationInput;
 pub use terminal_psi_to_abstract_operations::provider_admission::{
     NativeBoundaryRealization, NativeCompilerBuiltinSettlement, NativeProviderSettlement,
@@ -11,60 +10,16 @@ pub use terminal_psi_to_abstract_operations::provider_admission::{
 
 pub use backend_plan::NativeCallbackThunkSettlement;
 
-/// Complete build-owned inputs for one target-native realization. Keeping
-/// these coupled prevents callers from accidentally carrying entry, target,
-/// optimization, and provider custody through separate positional channels.
+/// Native admission plus the product's physical selections and image destination.
+/// Admission vocabulary belongs to stage 00; the compiler forwards that request
+/// unchanged instead of maintaining a second flattened copy of its fields.
 pub struct NativeRealizationRequest<'request> {
-    pub target: target::NativeTarget,
+    pub admission: terminal_psi_to_abstract_operations::NativeAdmissionRequest<'request>,
     pub image_request: image_emission::ExecutableImageEmissionRequest,
-    /// Optional same-artifact source custody, validated before realization.
-    pub checked_scope:
-        Option<&'request lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope>,
-    /// Optional target-neutral reuse; exact artifact/profile equality is rechecked.
-    /// Later optimization selections do not change the admitted input.
-    pub prepared_input: Option<&'request super::PreparedNativeRealizationInput>,
-    pub profile: &'request proof_admission::AdmissionProfile,
-    /// Receiving target policy used to classify every demanded compiler
-    /// intrinsic before native settlement.
-    pub terminal_authority_policy:
-        terminal_psi_to_abstract_operations::provider_admission::TerminalAuthorityPolicy,
-    /// Independently accepted exact service-schema/requirement permissions.
-    /// Physical classification cannot manufacture or widen these rows.
-    ///
-    /// `None` means this realization makes no receiver-admission claim:
-    /// package permissions are not projected into receiver rows, closure
-    /// leaves record classification and exercised authority only, and the
-    /// emitted artifact can never satisfy an explicit admission replay. `None`
-    /// is not deny-all, allow-all, or a policy fabricated from accepted
-    /// package rows; `Some` with zero rows remains an explicit empty policy.
-    pub terminal_authority_permission_policy: Option<
-        terminal_psi_to_abstract_operations::provider_admission::TerminalAuthorityPermissionPolicy,
-    >,
-    pub program_entry: NativeProgramEntrySettlement<'request>,
     pub optimization_selections: &'request optimization_core::PostTerminalOptimizationSelections,
-    pub selected_provider_plans: &'request effects::SelectedProviderPlanFacts,
-    pub external_binding_rows: &'request [calling_conventions::ExternalBindingRow],
-    pub settlements: &'request [NativeProviderSettlement<'request>],
-    pub compiler_builtins: &'request [NativeCompilerBuiltinSettlement<'request>],
-    /// Exact source-free D29 demand and realization custody projected by the
-    /// compiler product owner. A nonempty checked scope requires this value;
-    /// `None` never means an exact empty demand set.
-    pub boundary_application_coverage:
-        Option<&'request boundary_applications::TerminalBoundaryApplicationCoverage>,
-    /// Exact target-owned callback arguments rejoined by Terminal operation.
-    /// This custody is consumed only by ordinary target lowering and physical
-    /// assignment; machine emission remains a later, explicitly fenced rung.
-    pub native_callbacks:
-        &'request [abstract_operations_to_target_operations::AdmittedNativeCallbackArgument],
-    /// Isolated executable bodies paired one-to-one with `native_callbacks`.
-    /// Their Terminal machine identities live in separate artifact namespaces.
+    /// Isolated bodies paired one-to-one with the admitted callback arguments.
+    /// Each body has its own Terminal artifact namespace.
     pub callback_thunks: &'request [NativeCallbackThunkSettlement<'request>],
-    /// The retained behavior-exclusion union the production carried, resolved
-    /// against this artifact's own module; `BehaviorExclusions::default()`
-    /// for a production that carried none. A requested physical-authority
-    /// absence is adjudicated against the admitted mechanism closure whether
-    /// or not the request carries a receiver permission policy.
-    pub behavior_exclusions: &'request effects::BehaviorExclusions,
 }
 
 /// Failed requested realization with the complete image input recoverable.

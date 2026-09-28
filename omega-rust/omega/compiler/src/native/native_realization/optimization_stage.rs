@@ -15,7 +15,8 @@ pub(crate) fn lower_realization_optimization_stage(
     request: &NativeRealizationRequest<'_>,
 ) -> Result<ValidatedOptimizedAbstractPlan, Vec<Diagnostic>> {
     if !request.optimization_selections.is_empty()
-        && (!request.native_callbacks.is_empty() || !request.callback_thunks.is_empty())
+        && (!request.admission.providers.native_callbacks.is_empty()
+            || !request.callback_thunks.is_empty())
     {
         return Err(realization_error(
             "optimized native callback custody",
