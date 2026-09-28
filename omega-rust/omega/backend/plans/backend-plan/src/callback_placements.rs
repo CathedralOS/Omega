@@ -622,4 +622,4 @@ pub fn canonical_callback_private_symbol(placement: &BoundNominalCallbackPlaceme
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

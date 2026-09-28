@@ -151,8 +151,11 @@ pub fn realize_retained_native_artifact(
         }
         let native_callbacks =
             admitted_native_callbacks(&callback_placements, proposal.callback_occurrences())?;
-        let callback_thunks =
-            admitted_native_callback_thunks(&callback_placements, proposal.callback_occurrences())?;
+        let callback_thunks = backend_plan::admitted_native_callback_thunks(
+            &callback_placements,
+            proposal.callback_occurrences(),
+        )
+        .map_err(|error| diagnostic("Terminal callback thunk custody", error))?;
         debug_assert_eq!(callback_placements.len(), native_callbacks.len());
         debug_assert_eq!(callback_placements.len(), callback_thunks.len());
 
@@ -236,50 +239,6 @@ pub fn realize_retained_native_artifact(
         .map_err(|error| error.into_parts().1)
     })();
     result.map_err(|diagnostics| (recoverable_image_request, diagnostics))
-}
-
-pub(crate) fn admitted_native_callback_thunks<'artifact>(
-    placements: &'artifact [backend_plan::BoundNominalCallbackPlacement],
-    occurrences: &'artifact [crate::report::TerminalCallbackOccurrenceProposal],
-) -> Result<Vec<crate::native::NativeCallbackThunkSettlement<'artifact>>, Vec<Diagnostic>> {
-    let mut admitted = Vec::with_capacity(occurrences.len());
-    for occurrence in occurrences {
-        let placement = placements
-            .get(occurrence.placement_index())
-            .ok_or_else(|| {
-                diagnostic(
-                    "Terminal callback thunk custody",
-                    "callback thunk occurrence names an absent retained placement",
-                )
-            })?;
-        let thunk = occurrence.callback_thunk_artifact();
-        let receipt = thunk.lowering_receipt();
-        let expected_symbol = backend_plan::canonical_callback_private_symbol(placement);
-        let expected_function = backend_plan::canonical_callback_thunk_identity(
-            occurrence.placement_index(),
-            placement,
-        );
-        if receipt.source_machine != placement.selected_machine
-            || receipt.source_entry != placement.selected_entry
-            || thunk.private_symbol() != &expected_symbol
-            || expected_function != Some(occurrence.callback_thunk_identity())
-        {
-            return Err(diagnostic(
-                "Terminal callback thunk custody",
-                "callback thunk body, symbol, or function identity drifted from its retained placement",
-            ));
-        }
-        admitted.push(crate::native::NativeCallbackThunkSettlement {
-            terminal_operation: occurrence.terminal_operation(),
-            placement_index: occurrence.placement_index(),
-            callback_function: occurrence.callback_thunk_identity(),
-            private_symbol: thunk.private_symbol(),
-            artifact: thunk.artifact(),
-            lowering_receipt: receipt,
-            boundary_entry_plan: &placement.boundary_entry_plan,
-        });
-    }
-    Ok(admitted)
 }
 
 pub(crate) fn admitted_native_callbacks(

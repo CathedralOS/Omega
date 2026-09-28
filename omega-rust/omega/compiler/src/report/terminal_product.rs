@@ -2,6 +2,8 @@
 //! match it occurrence for occurrence - every boundary demand, callback and
 //! nearest-FMA site - before native realization is allowed to begin.
 
+pub use backend_plan::{TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact};
+
 /// One compiler-owned builtin proposed beside a target-neutral Terminal
 /// artifact. The local lowerer still has to rejoin this row to the exact
 /// selected plan, Terminal demand, and its own target catalog.
@@ -10,121 +12,6 @@ pub struct TerminalCompilerBuiltinProposal {
     requirement_identity: String,
     provider_plan_index: usize,
     execution: target_operations::CompilerBuiltinExecution,
-}
-
-/// Source-free executable body retained for one compiler-private callback
-/// thunk. The canonical artifact is independently replayable and the symbol
-/// is derived from the exact checked placement rather than source spelling.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TerminalCallbackThunkArtifact {
-    private_symbol: std::sync::Arc<str>,
-    artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
-    lowering_receipt: lowered_psi::CallbackTerminalLoweringReceipt,
-}
-
-impl TerminalCallbackThunkArtifact {
-    pub fn new(
-        private_symbol: std::sync::Arc<str>,
-        artifact: terminal_codec::CanonicalTerminalArtifact,
-        lowering_receipt: lowered_psi::CallbackTerminalLoweringReceipt,
-    ) -> Result<Self, &'static str> {
-        if private_symbol.is_empty() {
-            return Err("Terminal callback thunk has an empty private symbol");
-        }
-        artifact
-            .validate()
-            .map_err(|_| "Terminal callback thunk contains an invalid canonical artifact")?;
-        let module = terminal_codec::decode_module(artifact.semantic_bytes())
-            .map_err(|_| "Terminal callback thunk semantics could not be decoded")?;
-        // The artifact is the isolated module of the placement's selected
-        // machine; its call closure may lower additional callee machines. The
-        // binding custody is the entry join, not a machine-count silhouette.
-        let Some(machine) = module
-            .machines
-            .iter()
-            .find(|machine| machine.id == module.entry)
-        else {
-            return Err("Terminal callback thunk artifact does not contain its entry machine");
-        };
-        if module.entry != lowering_receipt.terminal_machine
-            || machine.entry != lowering_receipt.terminal_entry
-        {
-            return Err("Terminal callback thunk lowering receipt drifted from its artifact");
-        }
-        Ok(Self {
-            private_symbol,
-            artifact: std::sync::Arc::new(artifact),
-            lowering_receipt,
-        })
-    }
-
-    pub fn private_symbol(&self) -> &std::sync::Arc<str> {
-        &self.private_symbol
-    }
-
-    pub fn artifact(&self) -> &terminal_codec::CanonicalTerminalArtifact {
-        &self.artifact
-    }
-
-    pub const fn lowering_receipt(&self) -> lowered_psi::CallbackTerminalLoweringReceipt {
-        self.lowering_receipt
-    }
-}
-
-/// Exact join from one retained callback placement to the canonical Terminal
-/// boundary-call operation produced from its authored registrar occurrence.
-/// The source handles used to establish this row do not cross the Psi/Omega
-/// boundary; the placement index rejoins the separately retained exact row.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TerminalCallbackOccurrenceProposal {
-    placement_index: usize,
-    terminal_operation: semantic_vocabulary::OperationId,
-    destination_parameter_application: Option<calling_conventions::NativeParameterApplication>,
-    callback_thunk_identity: function_identity::MachineFunctionIdentity,
-    callback_thunk_artifact: TerminalCallbackThunkArtifact,
-}
-
-impl TerminalCallbackOccurrenceProposal {
-    pub fn new(
-        placement_index: usize,
-        terminal_operation: semantic_vocabulary::OperationId,
-        destination_parameter_application: Option<calling_conventions::NativeParameterApplication>,
-        callback_thunk_identity: function_identity::MachineFunctionIdentity,
-        callback_thunk_artifact: TerminalCallbackThunkArtifact,
-    ) -> Self {
-        Self {
-            placement_index,
-            terminal_operation,
-            destination_parameter_application,
-            callback_thunk_identity,
-            callback_thunk_artifact,
-        }
-    }
-
-    pub const fn placement_index(&self) -> usize {
-        self.placement_index
-    }
-
-    pub const fn terminal_operation(&self) -> semantic_vocabulary::OperationId {
-        self.terminal_operation
-    }
-
-    /// The parameter application the callback's destination binds: the
-    /// callback's own telescope row for a direct parameter destination, or
-    /// the root record parameter for a field destination.
-    pub const fn destination_parameter_application(
-        &self,
-    ) -> Option<&calling_conventions::NativeParameterApplication> {
-        self.destination_parameter_application.as_ref()
-    }
-
-    pub const fn callback_thunk_identity(&self) -> function_identity::MachineFunctionIdentity {
-        self.callback_thunk_identity
-    }
-
-    pub const fn callback_thunk_artifact(&self) -> &TerminalCallbackThunkArtifact {
-        &self.callback_thunk_artifact
-    }
 }
 
 impl TerminalCompilerBuiltinProposal {
@@ -464,54 +351,10 @@ impl TerminalNativeRealizationProposal {
                 );
             }
         }
-        let mut placement_indices = std::collections::BTreeSet::new();
-        let mut callback_thunk_identities = std::collections::HashSet::new();
-        for occurrence in &self.callback_occurrences {
-            if !placement_indices.insert(occurrence.placement_index) {
-                return Err("Terminal native proposal repeats a callback placement occurrence");
-            }
-            if !occurrence.callback_thunk_identity.is_valid()
-                || occurrence
-                    .callback_thunk_identity
-                    .callback_thunk_placement_index()
-                    != Some(occurrence.placement_index)
-            {
-                return Err(
-                    "Terminal callback occurrence has an invalid callback-thunk role or placement index",
-                );
-            }
-            if !callback_thunk_identities.insert(occurrence.callback_thunk_identity) {
-                return Err("Terminal native proposal repeats a callback-thunk identity");
-            }
-            occurrence
-                .callback_thunk_artifact
-                .artifact()
-                .validate()
-                .map_err(|_| "Terminal callback occurrence contains an invalid thunk artifact")?;
-            // One authored registrar call can materialize several private
-            // callback slots at once (one nominal binder per slot), so
-            // distinct placements legitimately join to the same Terminal
-            // operation. The join itself is still replayed per occurrence:
-            // each row must name one exact canonical boundary call.
-            let matching = module
-                .machines
-                .iter()
-                .flat_map(|machine| &machine.blocks)
-                .flat_map(|block| &block.operations)
-                .filter(|operation| operation.id == occurrence.terminal_operation)
-                .collect::<Vec<_>>();
-            let [operation] = matching.as_slice() else {
-                return Err(
-                    "Terminal callback occurrence does not name one exact canonical operation",
-                );
-            };
-            if !matches!(
-                operation.kind,
-                terminal_psi::OperationKind::BoundaryCall { .. }
-            ) {
-                return Err("Terminal callback occurrence does not name a boundary call");
-            }
-        }
+        backend_plan::validate_callback_occurrences_for_module(
+            &module,
+            &self.callback_occurrences,
+        )?;
         terminal_psi_to_abstract_operations::validate_terminal_comparison_coverage(
             &module,
             self.selected_provider_plans.plans(),
@@ -772,194 +615,11 @@ impl RetainedTerminalArtifact {
         }
         if let Some(proposal) = &self.native_realization_proposal {
             proposal.validate_for_artifact(&self.artifact)?;
-            if proposal.callback_occurrences.len() != self.callback_placements.len() {
-                return Err(
-                    "Terminal native proposal does not cover every retained callback placement",
-                );
-            }
-            for (placement_index, placement) in self.callback_placements.iter().enumerate() {
-                let matching = proposal
-                    .callback_occurrences
-                    .iter()
-                    .filter(|occurrence| occurrence.placement_index == placement_index)
-                    .collect::<Vec<_>>();
-                let [occurrence] = matching.as_slice() else {
-                    return Err(
-                        "Terminal native proposal does not uniquely bind a retained callback placement",
-                    );
-                };
-                let expected_application = placement
-                    .private_materialization
-                    .as_ref()
-                    .map(|materialization| materialization.destination_parameter_application())
-                    .transpose()
-                    .map_err(
-                        |_| "retained Terminal product contains an invalid callback placement",
-                    )?;
-                if occurrence.destination_parameter_application() != expected_application {
-                    return Err(
-                        "Terminal callback occurrence native parameter application drifted from its retained placement",
-                    );
-                }
-                let expected_thunk = backend_plan::canonical_callback_thunk_identity(
-                    placement_index,
-                    placement,
-                )
-                .ok_or(
-                    "retained callback placement cannot derive one valid callback-thunk identity",
-                )?;
-                if occurrence.callback_thunk_identity() != expected_thunk {
-                    return Err(
-                        "Terminal callback occurrence thunk continuation drifted from its retained placement",
-                    );
-                }
-                let expected_symbol = backend_plan::canonical_callback_private_symbol(placement);
-                if occurrence.callback_thunk_artifact().private_symbol() != &expected_symbol {
-                    return Err(
-                        "Terminal callback occurrence private symbol drifted from its retained placement",
-                    );
-                }
-                let receipt = occurrence.callback_thunk_artifact().lowering_receipt();
-                if receipt.source_machine != placement.selected_machine
-                    || receipt.source_entry != placement.selected_entry
-                {
-                    return Err(
-                        "Terminal callback occurrence lowering receipt drifted from its retained placement",
-                    );
-                }
-            }
+            backend_plan::validate_callback_occurrence_placements(
+                &self.callback_placements,
+                &proposal.callback_occurrences,
+            )?;
         }
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::TerminalCallbackThunkArtifact;
-
-    fn block(id: u64) -> terminal_psi::Block {
-        terminal_psi::Block {
-            id: semantic_vocabulary::BlockId::new(id).expect("nonzero block id"),
-            parameters: Vec::new(),
-            erased_scalar_formals: Vec::new(),
-            erased_proof_formals: Vec::new(),
-            structural_parameters: Vec::new(),
-            operations: Vec::new(),
-            terminator: terminal_psi::Terminator::ReturnUnit {
-                edge: semantic_vocabulary::EdgeId::new(id).expect("nonzero edge id"),
-                trivial_affine_discards: Vec::new(),
-            },
-        }
-    }
-
-    fn machine(id: u64, entry_block: u64) -> terminal_psi::TerminalMachine {
-        terminal_psi::TerminalMachine {
-            id: semantic_vocabulary::MachineId::new(id).expect("nonzero machine id"),
-            attachment: None,
-            parameters: Vec::new(),
-            structural_parameters: Vec::new(),
-            ranked_scc: None,
-            result: terminal_psi::TerminalMachineResult::Unit,
-            structural_places: Vec::new(),
-            entry_claims: Vec::new(),
-            declared_service_reach: Vec::new(),
-            closed_reach_application: None,
-            published_service_ceiling: Vec::new(),
-            content_entry_claims: Vec::new(),
-            content_identity_reshuffles: Vec::new(),
-            content_partition_compositions: Vec::new(),
-            entry: semantic_vocabulary::BlockId::new(entry_block).expect("nonzero block id"),
-            blocks: vec![block(entry_block)],
-            contract: terminal_psi::MachineContract {
-                id: semantic_vocabulary::ContractId::new(id).expect("nonzero contract id"),
-                crash_routes: Vec::new(),
-                erased_scalar_formals: Vec::new(),
-                erased_proof_formals: Vec::new(),
-                requires: Vec::new(),
-                ensures: Vec::new(),
-                outcome_specific_ensures: Vec::new(),
-            },
-        }
-    }
-
-    fn thunk_artifact(
-        module: &terminal_psi::TerminalModule,
-    ) -> terminal_codec::CanonicalTerminalArtifact {
-        let proof = terminal_psi::ProofBundle::default();
-        let optimization =
-            terminal_codec::build_identity_optimization_execution_record(module, &proof)
-                .expect("identity optimization execution");
-        terminal_codec::CanonicalTerminalArtifact::from_parts(module, &proof, &optimization, None)
-            .expect("canonical Terminal artifact")
-    }
-
-    fn receipt(
-        module: &terminal_psi::TerminalModule,
-    ) -> lowered_psi::CallbackTerminalLoweringReceipt {
-        let entry = module
-            .machines
-            .iter()
-            .find(|machine| machine.id == module.entry)
-            .expect("test module contains its entry machine");
-        lowered_psi::CallbackTerminalLoweringReceipt {
-            source_machine: symbols::SymbolHandle::invalid(),
-            source_entry: symbols::SymbolHandle::invalid(),
-            terminal_machine: module.entry,
-            terminal_entry: entry.entry,
-        }
-    }
-
-    #[test]
-    fn thunk_artifact_binds_its_entry_machine_beside_lowered_callees() {
-        // A call-bearing callback body lowers its callees beside the entry
-        // machine; the artifact binds the entry join, not a machine count.
-        let entry = semantic_vocabulary::MachineId::new(1).expect("nonzero machine id");
-        let mut module = terminal_psi::TerminalModule::for_entry(entry);
-        module.machines.push(machine(1, 1));
-        module.machines.push(machine(2, 2));
-        let artifact = thunk_artifact(&module);
-        TerminalCallbackThunkArtifact::new(
-            std::sync::Arc::from("omega.callback.test"),
-            artifact,
-            receipt(&module),
-        )
-        .expect("entry-bound artifact with lowered callees");
-    }
-
-    #[test]
-    fn thunk_artifact_rejects_a_receipt_drifted_from_its_entry() {
-        let entry = semantic_vocabulary::MachineId::new(1).expect("nonzero machine id");
-        let mut module = terminal_psi::TerminalModule::for_entry(entry);
-        module.machines.push(machine(1, 1));
-        module.machines.push(machine(2, 2));
-        let artifact = thunk_artifact(&module);
-        let mut drifted = receipt(&module);
-        drifted.terminal_machine = semantic_vocabulary::MachineId::new(2).expect("nonzero");
-        assert!(
-            TerminalCallbackThunkArtifact::new(
-                std::sync::Arc::from("omega.callback.test"),
-                artifact,
-                drifted,
-            )
-            .is_err()
-        );
-    }
-
-    #[test]
-    fn thunk_artifact_rejects_a_receipt_drifted_from_its_entry_block() {
-        let entry = semantic_vocabulary::MachineId::new(1).expect("nonzero machine id");
-        let mut module = terminal_psi::TerminalModule::for_entry(entry);
-        module.machines.push(machine(1, 1));
-        let artifact = thunk_artifact(&module);
-        let mut drifted = receipt(&module);
-        drifted.terminal_entry = semantic_vocabulary::BlockId::new(9).expect("nonzero block id");
-        assert!(
-            TerminalCallbackThunkArtifact::new(
-                std::sync::Arc::from("omega.callback.test"),
-                artifact,
-                drifted,
-            )
-            .is_err()
-        );
     }
 }

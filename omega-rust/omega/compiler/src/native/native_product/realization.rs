@@ -76,10 +76,13 @@ pub(super) fn realize(
         &callback_placements,
         &callback_occurrences,
     )?;
-    let callback_thunks = crate::native::retained_native_product::admitted_native_callback_thunks(
-        &callback_placements,
-        &callback_occurrences,
-    )?;
+    let callback_thunks =
+        backend_plan::admitted_native_callback_thunks(&callback_placements, &callback_occurrences)
+            .map_err(|error| {
+                vec![Diagnostic::error(format!(
+                    "Terminal callback thunk custody: {error}"
+                ))]
+            })?;
     let external_binding_rows =
         terminal_psi_to_abstract_operations::settle_callback_registrar_imports(
             &terminal_module,

@@ -74,23 +74,21 @@
 //! replay checks, and it is the one design claim in this header that the code
 //! does not confirm on its own.
 
-//! Consumed by `compilation-report` (which retains the placements
-//! alongside its Terminal product) and by the machine-emission lane.
-//!
-//! @Note: `tests/architecture/layering.rs` reads this crate's source as TEXT and
-//! asserts on literal strings, so several refactors here break a test that does
-//! not break the build. It requires
-//! `pub boundary_calling_plan_report_fingerprint: u64` to be present and
-//! `pub boundary_calling_plan_fingerprint: u64` to be absent, which is what
-//! keeps the compact coordinate from drifting back into a name that reads like
-//! authority. More surprisingly it requires the literal line
-//! `boundary_entry_plan: placement.boundary_entry_plan.clone()` - the
-//! architecture test demands by name the clone that makes the binding identity a
-//! real copy rather than a borrow, so rewriting that expression, even into
-//! something equivalent, fails the gate.
+//! Start with `callback_placements` for checked selections and exact ABI plans,
+//! `callback_artifacts` for retained body/occurrence replay and native-input
+//! projection, or `callback_root_schedule` for activation schedules.
+//! The compiler retains these records and sequences their checks. Producer-side
+//! records deliberately retain source-to-Terminal receipts; the borrowed
+//! `NativeCallbackThunkSettlement` passed to native lowering does not.
 
+mod callback_artifacts;
 mod callback_placements;
 mod callback_root_schedule;
+pub use callback_artifacts::{
+    NativeCallbackThunkSettlement, TerminalCallbackOccurrenceProposal,
+    TerminalCallbackThunkArtifact, admitted_native_callback_thunks,
+    validate_callback_occurrence_placements, validate_callback_occurrences_for_module,
+};
 pub use callback_placements::{
     BoundCallbackPrivateMaterialization, BoundNominalCallbackPlacement,
     CallbackPlacementBindingIdentity, CallbackThunkPlan, callback_placement_binding_identity,
