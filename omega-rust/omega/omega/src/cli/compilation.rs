@@ -24,6 +24,7 @@ pub(crate) fn compile_project_command(arguments: CompileArguments) {
         },
         timings: arguments.timings,
         offline: arguments.offline,
+        verify: arguments.verify,
         accept_admissions: arguments.accept_admissions,
         require_package_project: false,
         optimization_rollback: arguments.optimization_rollback,
