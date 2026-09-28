@@ -114,14 +114,10 @@ pub(crate) fn byte_field_store_capacity(
         .iter()
         .find(|candidate| candidate.id == *field && !candidate.relevance.is_erased())?;
     // A byte index bound proves address safety, not preservation of a whole
-    // carrier predicate such as UTF-8. Qualified replacement has its own proof.
-    if matches!(
-        operation,
-        AbstractOperation::StructuralByteSequenceFieldByteStore { .. }
-    ) && !selected.field_type.byte_predicates().is_empty()
-    {
-        return None;
-    }
+    // carrier predicate such as UTF-8. A store into a predicate-bearing field
+    // is admitted here by its carrier alone; its accepted goal must carry the
+    // stored byte's class legs (the obligation catalog checks that) and a
+    // UTF-8 field must be all-ASCII on every path (`byte_predicates`).
     match selected.field_type.byte_sequence_carrier() {
         Some(ByteSequenceCarrier::BoundedOwned { capacity }) => Some(capacity),
         _ => None,

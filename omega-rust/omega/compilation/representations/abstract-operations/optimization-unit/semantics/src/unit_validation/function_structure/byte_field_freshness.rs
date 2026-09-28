@@ -105,7 +105,7 @@ pub(super) fn field_path(
     Some(exact)
 }
 
-fn overlaps(left: &[StructuralPathSegment], right: &[StructuralPathSegment]) -> bool {
+pub(super) fn overlaps(left: &[StructuralPathSegment], right: &[StructuralPathSegment]) -> bool {
     left.starts_with(right) || right.starts_with(left)
 }
 
@@ -237,9 +237,31 @@ pub(super) fn unchanged_since(
     use_site: (usize, usize),
     invalidates: impl Fn(&O) -> bool,
 ) -> bool {
+    established_on_every_path(
+        function,
+        predecessors,
+        use_site,
+        |position, _| position == producer,
+        invalidates,
+    )
+}
+
+/// Every finite path arriving at the use must pass a point that
+/// `establishes` the fact, with no `invalidates` operation after the nearest
+/// such point. Each path stops at its own nearest establishment, so different
+/// arrivals may rest on different establishments. Reaching the entry block's
+/// start, or a block without an arrival, fails: parameters arrive with no
+/// established fact.
+pub(super) fn established_on_every_path(
+    function: &PsiOptimizationFunction,
+    predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
+    use_site: (usize, usize),
+    establishes: impl Fn((usize, usize), &O) -> bool,
+    invalidates: impl Fn(&O) -> bool,
+) -> bool {
     let mut pending = vec![use_site];
     let mut visited = BTreeSet::new();
-    let mut reached_producer = false;
+    let mut established = false;
     while let Some((block_position, position)) = pending.pop() {
         if !visited.insert((block_position, position)) {
             continue;
@@ -247,10 +269,11 @@ pub(super) fn unchanged_since(
         let block = &function.blocks[block_position];
         if position != 0 {
             let previous = (block_position, position - 1);
-            if previous == producer {
-                reached_producer = true;
+            let operation = &block.nodes[position - 1].operation;
+            if establishes(previous, operation) {
+                established = true;
             } else {
-                if invalidates(&block.nodes[position - 1].operation) {
+                if invalidates(operation) {
                     return false;
                 }
                 pending.push(previous);
@@ -287,5 +310,5 @@ pub(super) fn unchanged_since(
             }
         }
     }
-    reached_producer
+    established
 }

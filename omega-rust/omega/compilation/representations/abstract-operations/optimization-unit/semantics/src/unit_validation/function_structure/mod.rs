@@ -12,7 +12,7 @@ use crate::unit_validation::structural_catalog::{
     validate_provider_attachment_specialization, validate_trivial_affine_local_witnesses,
 };
 use crate::{OptimizationUnitValidationError, current_ownership};
-use optimization_unit::PsiOptimizationFunction;
+use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit};
 use semantic_vocabulary::{
     BoundaryMachineId, MachineId, ServiceId, StructuralDomainId, StructuralTypeId,
 };
@@ -22,7 +22,7 @@ mod byte_concatenation;
 mod byte_field_freshness;
 mod byte_predicates;
 mod byte_views;
-pub(crate) use byte_predicates::replacement_preserves_predicates;
+pub(crate) use byte_predicates::{byte_field_predicates, replacement_preserves_predicates};
 pub(crate) use byte_views::byte_field_store_capacity;
 mod control_flow;
 mod fact_index;
@@ -38,6 +38,7 @@ pub(crate) use control_flow::ControlCyclePolicy;
 pub(crate) use fact_index::reconstruct_fact_index;
 
 pub(crate) fn validate_function(
+    unit: &PsiOptimizationUnit,
     function: &PsiOptimizationFunction,
     functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
     boundary_machines: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
@@ -81,6 +82,12 @@ pub(crate) fn validate_function(
     crate::unit_validation::references::validate_function_references(function, structural_types)?;
     byte_concatenation::validate(function, structural_types, &control_flow.predecessors)?;
     byte_field_freshness::validate(function, structural_types, &control_flow.predecessors)?;
+    byte_predicates::validate_indexed_byte_stores(
+        unit,
+        function,
+        structural_types,
+        &control_flow.predecessors,
+    )?;
     mutable_views::validate(function, structural_types)?;
     provenance::validate_provenance_fuel_effects(function)?;
     fact_index::validate_fact_index(function)?;

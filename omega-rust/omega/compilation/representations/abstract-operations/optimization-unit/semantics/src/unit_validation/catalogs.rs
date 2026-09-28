@@ -111,6 +111,7 @@ pub(super) fn index_and_validate_unit_catalogs<'unit>(
     validate_provider_service_refinements(unit, &machines, &boundary_machines)?;
     for function in &unit.functions {
         validate_function(
+            unit,
             function,
             &machines,
             &boundary_machines,
@@ -156,11 +157,34 @@ fn validate_structural_field_range_authority(
                 let invalid = OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch;
                 let integer =
                     IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid.clone())?;
-                let proposition =
-                    terminal_codec::canonical_proposition_order_key(&Proposition::LessThan(
-                        ScalarTerm::value(*index, ScalarType::Integer(integer)),
-                        ScalarTerm::value(*length, ScalarType::Integer(integer)),
-                    ))
+                let mut goal = Proposition::LessThan(
+                    ScalarTerm::value(*index, ScalarType::Integer(integer)),
+                    ScalarTerm::value(*length, ScalarType::Integer(integer)),
+                );
+                // A store into a predicate-bearing field was admitted only with
+                // the stored byte's class legs proved beside its bound. The
+                // accepted fact must be that exact strengthened goal, rebuilt
+                // from the current destination declaration.
+                if let O::StructuralByteSequenceFieldByteStore {
+                    destination,
+                    path,
+                    field,
+                    value,
+                    ..
+                } = &node.operation
+                {
+                    let predicates = function_structure::byte_field_predicates(
+                        unit,
+                        function,
+                        *destination,
+                        path,
+                        *field,
+                    )
+                    .ok_or(invalid.clone())?;
+                    goal = terminal_semantics::indexed_byte_store_goal(goal, *value, predicates)
+                        .map_err(|_| invalid.clone())?;
+                }
+                let proposition = terminal_codec::canonical_proposition_order_key(&goal)
                     .map_err(|_| invalid.clone())?;
                 if unit
                     .accepted_obligation_facts

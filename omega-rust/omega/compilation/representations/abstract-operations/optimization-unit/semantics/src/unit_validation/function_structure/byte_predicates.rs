@@ -1,12 +1,126 @@
 //! Replay declared byte invariants against the current optimized operands.
 //! A retained capacity fact cannot authorize replacing a qualified destination
 //! with a different source of equal length but incompatible byte content.
+//! An indexed store into a predicate-bearing field is admitted only with its
+//! accepted goal carrying the stored byte's class legs (checked beside the
+//! unit's obligation catalog) and, for `valid_utf8`, an all-ASCII carrier on
+//! every path of the current graph, checked here.
+use crate::OptimizationUnitValidationError;
 use abstract_operations::AbstractOperation as Operation;
 use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit};
-use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
+use semantic_vocabulary::{BlockId, PlaceId, StructuralPlaceKind, StructuralTypeId};
+use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
-    ByteSequencePredicate, ByteSequencePredicateSet, StructuralAccess, StructuralTypeShape,
+    ByteSequencePredicate, ByteSequencePredicateSet, StructuralAccess, StructuralTypeDeclaration,
+    StructuralTypeShape,
 };
+
+/// Every indexed store into a field declaring `valid_utf8` without
+/// `ascii_only` needs the field all-ASCII on every path of the current graph:
+/// an ASCII byte written over part of a multi-byte scalar would break it. The
+/// Terminal verifier admitted the store under the same rule; rewrites since
+/// then (reordering, removed replacements, merged blocks) must not have
+/// weakened it, so the rule is replayed here rather than trusted.
+///
+/// Each path must reach a whole replacement of the identical field whose
+/// source replays to `ascii_only`. Stores into the identical field keep the
+/// class, because each proves its own byte ASCII; any other operation that
+/// could change the field's extent or contents rejects.
+pub(super) fn validate_indexed_byte_stores(
+    unit: &PsiOptimizationUnit,
+    function: &PsiOptimizationFunction,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
+) -> Result<(), OptimizationUnitValidationError> {
+    let mut ascii = ByteSequencePredicateSet::EMPTY;
+    ascii.insert(ByteSequencePredicate::AsciiOnly);
+    for (block_position, block) in function.blocks.iter().enumerate() {
+        for (node_position, node) in block.nodes.iter().enumerate() {
+            let Operation::StructuralByteSequenceFieldByteStore {
+                destination,
+                path,
+                field,
+                ..
+            } = &node.operation
+            else {
+                continue;
+            };
+            let invalid = || OptimizationUnitValidationError::InvalidByteSequenceWrite {
+                machine: function.machine,
+                block: block.id,
+                node: u32::try_from(node_position).unwrap_or(u32::MAX),
+            };
+            let predicates = byte_field_predicates(unit, function, *destination, path, *field)
+                .ok_or_else(invalid)?;
+            let splits_scalars = predicates
+                .predicates()
+                .any(|predicate| predicate == ByteSequencePredicate::ValidUtf8)
+                && !predicates.implies(ascii);
+            if !splits_scalars {
+                continue;
+            }
+            let exact_path = super::byte_field_freshness::field_path(
+                function,
+                types,
+                *destination,
+                path,
+                *field,
+            )
+            .ok_or_else(invalid)?;
+            let establishes = |_, operation: &Operation| {
+                matches!(operation,
+                    Operation::StructuralByteSequenceFieldStore {
+                        destination: written_root, path: written, field: written_field, source, ..
+                    } if written_root == destination && written == path && written_field == field
+                        && source_predicates(
+                            unit,
+                            function,
+                            *source,
+                            function.structural_places.len().saturating_add(1),
+                            &mut Vec::new(),
+                        )
+                        .is_some_and(|available| available.implies(ascii)))
+            };
+            let invalidates = |operation: &Operation| match operation {
+                Operation::StructuralByteSequenceFieldByteStore {
+                    destination: written_root,
+                    path: written,
+                    field: written_field,
+                    ..
+                } if written_root == destination => {
+                    !(written == path && written_field == field)
+                        && super::byte_field_freshness::field_path(
+                            function,
+                            types,
+                            *destination,
+                            written,
+                            *written_field,
+                        )
+                        .is_none_or(|written| {
+                            super::byte_field_freshness::overlaps(&exact_path, &written)
+                        })
+                }
+                _ => super::byte_field_freshness::changes_length(
+                    function,
+                    types,
+                    *destination,
+                    &exact_path,
+                    operation,
+                ),
+            };
+            if !super::byte_field_freshness::established_on_every_path(
+                function,
+                predecessors,
+                (block_position, node_position),
+                establishes,
+                invalidates,
+            ) {
+                return Err(invalid());
+            }
+        }
+    }
+    Ok(())
+}
 
 pub(crate) fn replacement_preserves_predicates(
     unit: &PsiOptimizationUnit,
@@ -42,7 +156,7 @@ pub(crate) fn replacement_preserves_predicates(
             ..
         } => (
             *source,
-            field_predicates(unit, function, *destination, path, *field),
+            byte_field_predicates(unit, function, *destination, path, *field),
         ),
         _ => return false,
     };
@@ -60,7 +174,10 @@ pub(crate) fn replacement_preserves_predicates(
         .is_some_and(|available| available.implies(required))
 }
 
-fn field_predicates(
+/// The declared byte predicates of one exact relevant byte field below a
+/// structural parameter; empty for a plain carrier, `None` when the path does
+/// not resolve to a byte field.
+pub(crate) fn byte_field_predicates(
     unit: &PsiOptimizationUnit,
     function: &PsiOptimizationFunction,
     root: PlaceId,
@@ -195,7 +312,7 @@ fn derive_source_predicates(
                         if source.access != StructuralAccess::SharedBorrow {
                             return None;
                         }
-                        field_predicates(unit, function, source.place, &source.path, *field)
+                        byte_field_predicates(unit, function, source.place, &source.path, *field)
                     }
                 };
             Some(operand(left)?.concatenation(operand(right)?))
@@ -326,6 +443,118 @@ mod tests {
                 None
             );
             assert!(memo.len() <= 41);
+        }
+    }
+
+    /// The current graph, not the admitted Terminal one, must still show an
+    /// all-ASCII carrier before an indexed store into a UTF-8 field.
+    #[test]
+    fn indexed_utf8_store_needs_an_ascii_carrier_on_every_current_path() {
+        let unit = crate::tests::indexed_byte_fields::indexed_field_unit();
+        let function = unit
+            .functions
+            .iter()
+            .find(|function| function.machine == unit.entry)
+            .unwrap();
+        let types = unit
+            .structural_types
+            .iter()
+            .map(|declaration| (declaration.id, declaration))
+            .collect::<BTreeMap<_, _>>();
+        let predecessors = BTreeMap::new();
+        validate_indexed_byte_stores(&unit, function, &types, &predecessors)
+            .expect("an ASCII literal replacement dominates the store");
+        let (block, store) = function
+            .blocks
+            .iter()
+            .enumerate()
+            .find_map(|(block, owner)| {
+                owner
+                    .nodes
+                    .iter()
+                    .position(|node| {
+                        matches!(
+                            node.operation,
+                            Operation::StructuralByteSequenceFieldByteStore { .. }
+                        )
+                    })
+                    .map(|store| (block, store))
+            })
+            .unwrap();
+        let Operation::StructuralByteSequenceFieldByteStore {
+            destination, field, ..
+        } = function.blocks[block].nodes[store].operation.clone()
+        else {
+            unreachable!()
+        };
+        let replacement = function.blocks[block]
+            .nodes
+            .iter()
+            .position(|node| {
+                matches!(&node.operation,
+                    Operation::StructuralByteSequenceFieldStore { field: written, .. }
+                        if *written == field)
+            })
+            .unwrap();
+        let Operation::StructuralByteSequenceFieldStore { source, .. } =
+            function.blocks[block].nodes[replacement].operation
+        else {
+            unreachable!()
+        };
+        let accepted = |changed: &PsiOptimizationFunction| {
+            validate_indexed_byte_stores(&unit, changed, &types, &predecessors).is_ok()
+        };
+
+        // Valid UTF-8 of the same extent that is not ASCII.
+        let mut non_ascii = function.clone();
+        for node in &mut non_ascii.blocks[block].nodes {
+            if let Operation::EstablishByteSequenceLiteral { place, bytes, .. } =
+                &mut node.operation
+                && place.id == source
+            {
+                *bytes = "\u{e9}X".as_bytes().to_vec();
+            }
+        }
+        assert!(!accepted(&non_ascii));
+
+        // Without the replacement, only the declaration holds at entry.
+        let mut unestablished = function.clone();
+        unestablished.blocks[block].nodes.remove(replacement);
+        assert!(!accepted(&unestablished));
+
+        // Another store into the identical field keeps the class.
+        let mut chained = function.clone();
+        let repeated = chained.blocks[block].nodes[store].clone();
+        chained.blocks[block].nodes.insert(store, repeated);
+        assert!(accepted(&chained));
+
+        // A call that may write the root reopens the question; a shared
+        // loan does not.
+        for access in [
+            StructuralAccess::SharedBorrow,
+            StructuralAccess::MutableBorrow,
+        ] {
+            let mut called = function.clone();
+            let mut call = called.blocks[block].nodes[store].clone();
+            call.operation = Operation::CallUnit {
+                psi_operation: OperationId::new(991).unwrap(),
+                callee: function.machine,
+                arguments: Vec::new(),
+                structural_arguments: vec![terminal_psi::StructuralArgument {
+                    place: destination,
+                    access,
+                    path: Vec::new(),
+                }],
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            };
+            called.blocks[block].nodes.insert(store, call);
+            assert_eq!(
+                accepted(&called),
+                access == StructuralAccess::SharedBorrow,
+                "{access:?}"
+            );
         }
     }
 }
