@@ -501,39 +501,22 @@ fn authored_indexed_primitive_read(
     {
         return Ok(None);
     }
-    let Ok(source) = crate::emission::call_source_custody::projected_receivers::store_destination(
-        checked,
-        machine.symbol,
-        state.symbol,
-        Some(scope.preceding_statements() as usize),
-        expression,
-    ) else {
+    let Some((root, field_path)) =
+        authored_read_path(checked, state, scope, machine, expression, 0)?
+    else {
         return Ok(None);
     };
-    let indexed = source.path.iter().any(|segment| {
+    let indexed = field_path.iter().any(|segment| {
         matches!(
             segment,
-            checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(_)
+            checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_)
         )
     });
     if !indexed && !matches!(scope, ReadScope::Entry) {
         return Ok(None);
     }
-    let field_path = source
-        .path
-        .iter()
-        .map(|segment| match segment {
-            checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => Ok(
-                checked_trees::CheckedStructuralPredicatePathSegment::Field(identity.clone()),
-            ),
-            checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) => {
-                Ok(checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(*index))
-            }
-            _ => unsupported("indexed primitive read has an unsupported case projection"),
-        })
-        .collect::<Result<Vec<_>, _>>()?;
     Ok(Some((
-        source.root,
+        root,
         primitive,
         if indexed {
             ReadKind::IndexedPrimitive(field_path)
@@ -541,6 +524,105 @@ fn authored_indexed_primitive_read(
             ReadKind::OwnedField(field_path)
         },
     )))
+}
+
+/// Write destinations intentionally exclude case payloads. Reads can extend
+/// that same root/index custody through an exact nominal case and its fields;
+/// the emitting path separately requires the case to hold at the read. Do not
+/// widen assignment paths or erase the case to make these observations agree.
+fn authored_read_path(
+    checked: &CheckedTrees,
+    state: &checked_trees::state::State,
+    scope: ReadScope,
+    machine: &checked_trees::machine::Machine,
+    expression: ExpressionHandle,
+    depth: usize,
+) -> Result<
+    Option<(
+        symbols::SymbolHandle,
+        Vec<checked_trees::CheckedStructuralPredicatePathSegment>,
+    )>,
+    LoweringError,
+> {
+    use checked_trees::CheckedStructuralPredicatePathSegment as Segment;
+    if depth >= 128 || !checked.expression_table.expression_is_valid(expression) {
+        return unsupported("scalar read has a stale or cyclic projection");
+    }
+    if let Ok(source) = crate::emission::call_source_custody::projected_receivers::store_destination(
+        checked,
+        machine.symbol,
+        state.symbol,
+        Some(scope.preceding_statements() as usize),
+        expression,
+    ) {
+        let path = source
+            .path
+            .iter()
+            .map(|segment| match segment {
+                checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => {
+                    Ok(Segment::Field(identity.clone()))
+                }
+                checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) => {
+                    Ok(Segment::FixedIndex(*index))
+                }
+                _ => unsupported("indexed primitive read has an unsupported projection"),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        return Ok(Some((source.root, path)));
+    }
+    let ExpressionNode::Member(member) = checked.expression_table.expression(expression) else {
+        return Ok(None);
+    };
+    let Some((root, mut path)) =
+        authored_read_path(checked, state, scope, machine, member.receiver, depth + 1)?
+    else {
+        return Ok(None);
+    };
+    let Some(reference) =
+        validation::declared_place_type_raw(&checked.typed, machine, Some(state), member.receiver)
+            .and_then(|reference| validation::unwrapped_type_reference(&checked.typed, reference))
+    else {
+        return Ok(None);
+    };
+    let symbol = match checked.type_reference_table.type_reference(reference) {
+        checked_trees::types::TypeReferenceNode::Named { symbol, .. } => *symbol,
+        checked_trees::types::TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
+        _ => return Ok(None),
+    };
+    let Some(owner) = checked
+        .data_definitions()
+        .iter()
+        .find(|owner| symbol.is_valid() && owner.symbol == symbol)
+    else {
+        return Ok(None);
+    };
+    let Some(field) = validation::exact_data_member_field(
+        &checked.typed,
+        owner,
+        member.member_symbol,
+        member.member.as_str(),
+        member.case_variant.as_ref().map(|case| case.as_str()),
+    )
+    .filter(|field| !field.relevance.is_erased()) else {
+        return Ok(None);
+    };
+    if let Some(case_name) = &member.case_variant {
+        let Some(case) = checked
+            .data_members(owner)
+            .iter()
+            .find_map(|member| match member {
+                checked_trees::data::DataMember::Variant(case) if case.name == *case_name => {
+                    Some(case)
+                }
+                _ => None,
+            })
+        else {
+            return Ok(None);
+        };
+        path.push(Segment::Case(case.path_identity()));
+    }
+    path.push(Segment::Field(field.path_identity()));
+    Ok(Some((root, path)))
 }
 
 fn collect_owned_field(
