@@ -249,6 +249,22 @@ fn cyclic_view_parameter_is_unavailable_before_first_binding() {
 #[test]
 fn multiple_entry_cycle_cannot_bypass_view_parameter_binding() {
     let mut module = view_cycle();
+    // Observe the view directly so the bypass tests binding availability,
+    // not the separate requirement that an indexed read's length dominate it.
+    let machine = &mut module.machines[0];
+    machine.blocks[2].operations = vec![length_operation(11, 11, 2)];
+    machine
+        .structural_places
+        .retain(|place| place.id != id(3, PlaceId::new));
+    let Terminator::Jump {
+        structural_arguments,
+        ..
+    } = &mut machine.blocks[2].terminator
+    else {
+        panic!("backedge")
+    };
+    *structural_arguments = vec![view_argument(2)];
+    validate_module(&module).expect("the header binds the view on every ordinary loop entry");
     module.machines[0].blocks[0].terminator = Terminator::Conditional {
         condition: id(20, ValueId::new),
         when_true: SuccessorEdge {

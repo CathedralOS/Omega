@@ -1,12 +1,10 @@
 //! An inline byte field has no standalone structural type identity.
 //!
-//! `byte_views.md` enumerates the sources of a whole byte-view argument -
-//! immutable machine or block structural parameters, established literals and
-//! dominating subslice results - and a record field is not among them. A byte
-//! field reaches a callee parameter only through an inline presentation, which
-//! retains the owning root and path. These rows witness that no carrier lets a
-//! byte field acquire a same-shaped type declaration's identity at a path end
-//! and match the parameter directly.
+//! A byte field reaches a callee parameter through an inline presentation,
+//! which retains the owning root and path. Bounded-owner parameters additionally
+//! require the exact field capacity under `structural_access.md`. Neither
+//! presentation lets a field acquire a same-shaped declaration's identity at
+//! a path end and match the parameter directly.
 use super::{
     AdmissionProfile, ModuleError, OperationKind, ProofBundle, StructuralAccess,
     StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
@@ -16,10 +14,9 @@ use super::{
 use terminal_psi::ByteSequenceCarrier;
 
 /// Every byte carrier a field may declare. `BorrowedView` is the one the
-/// module's own `structural_types[0]` declaration shares a shape with, so it
-/// is the carrier that could be substituted; `BoundedOwned` is refused as a
-/// standalone declaration and is listed so a later carrier cannot be added
-/// without a decision about its path-end identity.
+/// module's own `structural_types[0]` declaration initially shares a shape with.
+/// `BoundedOwned` can also be declared as a whole owner, but neither carrier
+/// gives an inline field a standalone path-end type identity.
 const CARRIERS: [ByteSequenceCarrier; 2] = [
     ByteSequenceCarrier::BorrowedView {
         access: Some(terminal_psi::StructuralAccess::SharedBorrow),
@@ -172,14 +169,48 @@ fn a_bounded_owned_field_keeps_every_admitted_presentation() {
 }
 
 #[test]
-fn a_bounded_owned_carrier_has_no_standalone_type_declaration() {
-    // The complementary fence: the carrier the presentations admit cannot be
-    // declared as a module type, so it has no identity to substitute either.
+fn a_bounded_owner_parameter_requires_exact_inline_capacity_and_path() {
     let mut module = ordinary_buffer_module();
     module.structural_types[0].shape =
         StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity: 16 });
-    assert!(matches!(
-        validate_module(&module),
-        Err(ModuleError::InvalidStructuralTypeIdentity(_))
-    ));
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("a bounded-owner parameter borrows the exact inline field");
+    assert_eq!(
+        ordinary_call_argument_path(&module),
+        [StructuralPathSegment::Field("left".into())]
+    );
+
+    for capacity in [15, 17] {
+        let mut wrong_capacity = module.clone();
+        wrong_capacity.structural_types[0].shape =
+            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity });
+        assert!(
+            matches!(
+                validate_module(&wrong_capacity),
+                Err(ModuleError::InvalidStructuralArgumentPath { .. })
+            ),
+            "neither a narrower nor a wider owner may substitute for the inline field"
+        );
+    }
+
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut module.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].path.clear();
+    let outcome = validate_module(&module).map(|_| ());
+    assert!(
+        matches!(
+            outcome,
+            Err(ModuleError::InvalidStructuralArgumentPath { .. })
+        ),
+        "the enclosing record cannot replace the exact borrowed field: {outcome:?}"
+    );
 }
