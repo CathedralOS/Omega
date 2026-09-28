@@ -66,10 +66,10 @@ pub use dynamic_elf::{
 };
 pub use hosted_receiver::{HostedReceiverBinding, HostedReceiverPartitions, bind_hosted_receiver};
 pub use image_output::{
-    ExecutableImage, ExecutableImageEmissionRequest, ObjectContainer, RequestedExecutableImage,
-    RequestedExecutableImageError, can_emit_executable_image, emit_direct_executable_image,
-    emit_executable_image, emit_object_container, validate_direct_executable_image,
-    validate_executable_image,
+    ExecutableImage, ExecutableImageEmissionRequest, ImageApplicationMetadataError,
+    ObjectContainer, RequestedExecutableImage, RequestedExecutableImageError,
+    can_emit_executable_image, emit_direct_executable_image, emit_executable_image,
+    emit_object_container, validate_direct_executable_image, validate_executable_image,
 };
 
 pub use installation_record::{

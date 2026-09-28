@@ -8,7 +8,7 @@ use optimization_core::OptimizationSelections;
 use provider_planning::ProviderSelection;
 use representation_planning::OpaqueRepresentationSelection;
 
-pub use target::ApplicationIdentifier;
+pub use target::{ApplicationIdentifier, HostedApplicationIntent};
 
 /// The image facts the pipeline consumes, extracted from the augmented
 /// `Build`. ZII: the default IS the zero value's meaning.
@@ -112,15 +112,6 @@ pub struct PrivilegedServicesGrants {
     pub port_io: bool,
     /// Admit interrupt-table publication instructions (`lidt` class).
     pub interrupt_table: bool,
-}
-
-/// Portable presentation requested by the authored Console or Gui case.
-/// This does not select an execution environment or enable bundle publication
-/// independently of the selected target and requested output product.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum HostedApplicationIntent {
-    Console,
-    Gui,
 }
 
 impl Default for BuildConfig {
