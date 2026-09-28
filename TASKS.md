@@ -2443,100 +2443,6 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
 
 ## P3 - Terminal Psi, PCC, and observation
 
-- **PCC-PRODUCT-PUBLICATION.** Deliver requested Psi and standalone native evidence
-  under [optional proof products](wiki/spec/proofs/publication.md).
-  Expose the existing Terminal-only product through the project/CLI route:
-  `ProjectProduct` currently offers only Check/NativeArtifact, and command
-  `publish_compilation` rejects retained Terminal reports. Connect
-  `publish_retained_terminal_artifact` with an authored customer that publishes
-  and independently verifies `.psi` and the requested `.psi.proof`, without
-  requiring native emission. The `semantic_binding_review` test constructs an
-  in-memory report; it does not exercise command publication. Preserve optional
-  proof defaults and root-owned requests. Keep the check-only PCC refusal
-  control; a Terminal stop must likewise reject native PCC requests.
-
-  `native-artifact/src/proof.rs` builds/verifies native sidecars; compiler
-  reporting owns publication and bundle placement. Checks cover image/data
-  inventories, entry/load-map custody and
-  bounded import-thunk semantics. These coverage checks still end in
-  `Incomplete(UnsupportedEvidence { product: Native })`, not behavioral success.
-
-  Native semantic/certification owners must:
-  - Decode published instructions against the declared target's closed semantics.
-  - Reconstruct control-flow edges and entry obligations inside function regions;
-    a container entry landing on a placed boundary proves only the custody half.
-  - Establish premise availability and lowering correspondence, either by
-    translating checked Terminal obligations or proving native obligations
-    directly. Producer-report hashes or unrelated valid Psi prove neither.
-  - Return `Complete` only under a guarantee supported by that behavioral
-    evidence; unbuilt target legs remain `Incomplete`.
-
-  Reuse the existing envelope rather than putting semantic checking in
-  compiler reporting. Acceptance: artifact bytes, companion and the receiver's
-  pinned policy suffice after deleting source and Psi. Arbitrary native bytes
-  paired with valid Psi/recomputed producer hashes, tampering, relabeled profiles
-  and stale sidecars reject. Bind evidence after byte-changing finalization and
-  check permitted loading/relocation correspondence; a matching file hash does
-  not establish loaded-image semantics. Omitted dependencies must be pinned by
-  exact identity and independently possessed by the receiver; preserve
-  receiver-owned admission. Broader mathematical guarantees depend on
-  **PROOF-KERNEL-CORE**, **PROOF-CERTIFICATION-BRIDGE** and their completed
-  profiles, not a policy DSL. **MACOS-APPLICATION-PUBLICATION** owns actual bundle
-  execution, not this evidence.
-
-  Exercise request-on/request-off replacement and retry through
-  `stage_exact_bytes` / `install_staged_products`. Preserve
-  `executable_publication.rs::a_failed_pair_member_leaves_the_previous_pair_intact`;
-  receiver mismatch rejection is separate from publication atomicity. That test
-  no longer exists -- `c60792d7bd` ("repo: the compiler is tested through the
-  corpus gate alone") removed it, and only
-  `omega-rust/omega/compiler/src/report/executable_publication.rs` remains -- so the
-  atomicity it guarded is currently unguarded and this instruction cannot be
-  followed as written. Re-establish the guard as part of this item rather than
-  assuming it still holds.
-
-- **PSIIR.** Complete source-free Terminal execution and logical-work bounds
-  across canonical encoding, independent reconstruction, interpretation,
-  resource analysis, native realization and installation.
-  The [encoding contract](wiki/spec/terminal-psi/encoding.md)
-  already covers the codec's closed
-  vocabulary, envelopes and mathematical certificates; maintain that coverage
-  as the operation owners extend it, not another wire-format project.
-
-  In `terminal-fixed-fuel`, `310b1ca4ba` retained the unbounded-rank cause
-  with cycle/operation identity (`UnboundedCycleComponent{component,
-  UnboundedRank}` across whole-entry, condensed and rank-multiplied
-  interiors; `Unranked`/`InvalidRankedScc` for revisited nodes), and
-  `3f797950ea` landed conditional bounds: `parameter_requires_bound`
-  relaxes a conjunctive `requires` relation graph (`<=` transfers the
-  ceiling, `<` less one, `==` both ways), recovers one achieving simple
-  path deterministically, and binds every contract row on it as
-  `relevant_preconditions`. `52a1f10575` (macw9) landed the
-  conditional forms — a `ClauseScope` resolver discharges implication
-  premises to a fixpoint against conjunctive context and resolves
-  disjunctions in row order (max across live arm ceilings, shared transfer
-  edges at weakest strictness, unsatisfiable arms skipped), and
-  `8d8174bd0b` (macw9) added the `IntegerMath*` affine fragment:
-  literal ceilings floor-divide through a single-variable `coeff*value +
-  offset` solve, unit-coefficient var-var rows become transfer edges
-  (nonnegative constants only — slack dropped), and equalities emit both
-  feasible directions. Reuse the existing acyclic max-arm,
-  ranked-interior, and topology-derived cycle bounds. Remaining:
-  `IntegerMath*` rows outside the affine fragment,
-  guard/path-fact bounds (a separate premise channel, not contract rows),
-  and the wait/foreign-edge cause (needs semantic vocabulary first).
-  Preserve `InvocationBoundCallee` and `UnboundedCycleComponent` when
-  realization/bound evidence is unavailable; do not fabricate a ceiling.
-
-  Acceptance: discard source/producer state, independently reconstruct all
-  obligations, then interpret or lower the same artifact with exact resource
-  and installation custody. Native/ABI/final-code claims require final-realization
-  evidence, not checked API metadata or opaque supply. Preserve recompute-and-
-  compare bounds and truthful unavailable results. Specific source/native
-  gaps belong to the operation owners below and **TRANSLATION-VALIDATION** in
-  `TASKS_OPTIMIZER.md`; codec fixture drift belongs to repository closure,
-  not repeated wire-design tasks.
-
 - **GENERAL-CYCLIC-EXECUTION.** Complete
   [cyclic control](wiki/spec/terminal-psi/control_flow.md) and
   [safety/progress checking](wiki/spec/language/termination.md) for the unchanged
@@ -3300,6 +3206,88 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   `recursive_sum` sum 50/count 4, exit 70 on Linux x86-64; **SAMPLE-CORPUS** owns
   their complete sample obligations. **GENERAL-CYCLIC-EXECUTION** and
   **STATE-LOCAL-VALUE-FRONTIER** own general control/value sequencing.
+
+- **PSIIR.** Complete the remaining source-free execution and
+  [logical-work bounds](wiki/spec/resources/logical_work.md) over the same
+  canonical Terminal product, independent reconstruction, interpretation,
+  native realization and installation. Operation-specific gaps stay with their
+  owners and **TRANSLATION-VALIDATION** on `TASKS_OPTIMIZER.md`; optional work
+  bounds must not delay otherwise legal native programs or add runtime metering.
+
+  Reuse `terminal-fixed-fuel`'s
+  [outcome bounds](omega-rust/psi/representations/terminal-psi/fuel/certification/src/fuel_certification/outcome_bounds.rs):
+  acyclic maximum paths, ranked components, conditional/relational contracts,
+  linear integer math with multiple variables and carrier extremes, verified
+  block invariants and reconstructed entering-edge guards already contribute.
+  Premises retain their contract/invariant/guard origins during derivation;
+  certificate replay recomputes subject, schedule, used propositions and ceiling.
+  Remaining:
+
+  - Extend inference beyond linear forms and constant shifts, conservative
+    carrier collapse and nonnegative transfer costs. Computed arrivals,
+    structural payloads and unbounded incoming paths currently retain the type
+    maximum unless checked facts cover every entry. Preserve exact premise
+    provenance, overflow refusal and recompute-and-compare certificates.
+  - Retain finite wait/foreign-completion contracts and exact unavailable-bound
+    causes. A boundary with no in-module candidate currently contributes no
+    callee work; that is not a finite response guarantee. Preserve
+    `InvocationBoundCallee` and component-specific `Unranked`, `UnboundedRank`
+    and `OpenCalleeSet`. `omega/src/inspection/evidence.rs` still treats the
+    flat open-callee case as an error; distinguish valid unavailable bounds
+    from malformed identities or broken ranking evidence.
+
+  Acceptance: discard source/producer state, decode and independently verify,
+  then interpret/lower the same artifact with exact resources and installation
+  custody. Exercise tightened bounds and mutated premises through this route;
+  raw-module inference tests alone do not cover it. Keep whole-entry,
+  segment and analysis-catalog evidence distinct. Native/ABI claims need final
+  realization evidence, never API metadata or opaque supply. Maintain the
+  [closed encoding](wiki/spec/terminal-psi/encoding.md) with operation changes;
+  codec fixture drift belongs to repository closure. **PCC-PRODUCT-PUBLICATION**
+  owns command publication and the remaining optional-proof envelope migration.
+
+- **PCC-PRODUCT-PUBLICATION.** Deliver requested Psi and standalone native
+  evidence under [optional proof products](wiki/spec/proofs/publication.md),
+  after the immediate executable customers. Keep both requests off by default,
+  root-owned and independent of receiver policy or ordinary compiler checking.
+
+  - Expose retained Terminal publication through `omega/src/compilation/`:
+    `ProjectProduct` has only Check/NativeArtifact, and `publish_compilation`
+    rejects Terminal reports. Connect `CompileReport::publish_retained_terminal_artifact`
+    to an authored project/CLI customer publishing `.psi` and optional
+    `.psi.proof` without native emission. Preserve check-only PCC rejection
+    and Terminal-stop rejection of native PCC. Migrate `terminal-codec`'s
+    `canonical_artifact.rs`, which still requires an embedded proof section,
+    to the specified optional sidecar distribution without weakening ordinary
+    consumption or silently changing existing format markers.
+  - Complete native behavioral evidence in
+    [native-artifact's proof owner](omega-rust/omega/backend/artifacts/native-artifact/src/proof.rs).
+    Placed image/data inventories, entry/load-map custody and import-thunk
+    replay exist; even valid evidence returns `Incomplete(UnsupportedEvidence)`.
+    Decode instructions against closed target semantics, reconstruct all
+    control-flow/entry obligations, and establish premise availability and
+    Terminal-to-native correspondence or direct native proofs. Publication's
+    `validate_native_pair` accepts the bounded incomplete sidecar; a publication
+    receipt must not be presented as completed behavioral verification.
+  - Exercise actual artifact/companion request-on/off replacement and retry
+    through `platform-custody/src/file_publication.rs`. Its tests already cover
+    staging failure preserving prior destinations. Installation is sequential:
+    later failure removes the installed prefix without restoring overwritten
+    files. Preserve truthful failure, cleanup-error reporting and stale-sidecar
+    removal; never report a partially installed pair as successful. Connect
+    these controls to proof-product publication.
+
+  Acceptance: verify from artifact/companion bytes and independently pinned
+  receiver dependencies after deleting source and producer state. Native
+  verification must also work without separate Psi. Arbitrary native bytes plus
+  valid Psi/recomputed producer hashes, tampering, relabeled profiles and stale
+  sidecars reject. Bind final bytes
+  after byte-changing finalization and check permitted loading/relocation
+  correspondence. Preserve exact dependency identities and receiver-owned
+  guarantees, premises and admission. Unsupported legs remain `Incomplete`;
+  broader guarantees depend on **PROOF-KERNEL-CORE** and
+  **PROOF-CERTIFICATION-BRIDGE**, not a policy DSL or reporting-layer checker.
+  **MACOS-APPLICATION-PUBLICATION** owns actual bundle execution.
 
 ## P5 - Cathedral over general Omega primitives
 
