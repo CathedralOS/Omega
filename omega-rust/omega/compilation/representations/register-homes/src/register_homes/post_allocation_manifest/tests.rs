@@ -75,6 +75,30 @@ fn executable_runtime_spill_manifest_binds_order_and_realized_storage() {
 }
 
 #[test]
+fn runtime_split_manifest_round_trips_and_is_distinct_from_storage_steps() {
+    let identity = SelectedInstructionPlanIdentity::from_bytes([9; 32]);
+    let mut split = record();
+    split.selected_transformations =
+        vec![PostAllocationSelectedTransformation::RuntimeSplit(identity)];
+    split.identity = split.recomputed_identity();
+    assert_eq!(
+        PostAllocationOptimizationManifest::decode(&split.encode()),
+        Ok(split.clone())
+    );
+    // The same transformed identity recorded as storage or regeneration is a
+    // different custody claim, so the tag is bound into the identity.
+    for other in [
+        PostAllocationSelectedTransformation::RuntimeSpill(identity),
+        PostAllocationSelectedTransformation::RuntimeRematerialization(identity),
+    ] {
+        let mut relabeled = split.clone();
+        relabeled.selected_transformations = vec![other];
+        assert_ne!(relabeled.recomputed_identity(), split.identity);
+    }
+    assert!(split.render_text().contains("runtime-split"));
+}
+
+#[test]
 fn identity_binds_every_post_allocation_domain() {
     let baseline = record();
     assert_eq!(baseline.identity, baseline.recomputed_identity());
@@ -241,9 +265,9 @@ fn canonical_codec_round_trips_both_routes_and_rejects_corruption() {
     one_transformation.identity = one_transformation.recomputed_identity();
     let mut unknown_transformation = one_transformation.encode();
     let transformation_tag_offset = content_offset + 1 + 32 + 18 + 32 + 1 + 1 + 8;
-    unknown_transformation[transformation_tag_offset] = 14;
+    unknown_transformation[transformation_tag_offset] = 15;
     assert_eq!(
         PostAllocationOptimizationManifest::decode(&unknown_transformation),
-        Err(PostAllocationOptimizationManifestDecodeError::UnknownTransformationTag(14))
+        Err(PostAllocationOptimizationManifestDecodeError::UnknownTransformationTag(15))
     );
 }

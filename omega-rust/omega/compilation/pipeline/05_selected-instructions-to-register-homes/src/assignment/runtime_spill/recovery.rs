@@ -1,11 +1,22 @@
 //! Executable pressure recovery over a finite roster of original runtime values.
 //! Allocation chooses the values; the selected rewrite owner validates semantics.
+//!
+//! Each step takes the cheapest admissible decision. A live-range split at a
+//! fixed-view definition comes first: one copy right after the pinned write
+//! frees the pinned home for the rest of the value's range and realizes no
+//! storage. Rematerialization of a pure immediate comes next, and private
+//! storage is the fallback. The split is searched over every overlapping
+//! candidate, not only the named one, because the value that must move is
+//! usually the pinned neighbour occupying the home the failed register
+//! needs — the named register itself is typically the one with the fixed
+//! use and cannot give that home up.
 
 use super::{
     RuntimeSpillAllocation, RuntimeSpillAllocationError, RuntimeSpillFacts,
     RuntimeSpillManifestBase, RuntimeSpillSource, RuntimeSpillStep, RuntimeSpillStepRewrite,
     replay,
 };
+use optimization_core::OptimizationWorkBudget;
 use register_homes::PostAllocationSelectedTransformation;
 use selected_instructions::{
     FunctionLiveRanges, SelectedInstructionPlan, VirtualInterference, VirtualRegisterId,
@@ -16,9 +27,10 @@ use selected_instructions_to_selected_instructions::{
     SelectedProgramRef, StagedOptimizedAllocationLegality, StagedOptimizedSelectedReanalysis,
     StagedPreAllocationOptimizationRun, StagedSelectedLoweringOptimizationRun,
     ValidatedAllocationLegality, ValidatedAllocatorAvailability, ValidatedLiveRanges,
-    ValidatedLiveness, ValidatedSelectedAnalysis, analyze_allocation_legality,
-    analyze_live_ranges_reusing, analyze_liveness_reusing, rematerialize_selected_runtime_value,
-    spill_selected_runtime_value, spill_selected_runtime_value_with_span_policy,
+    ValidatedLiveness, ValidatedRuntimeSplit, ValidatedSelectedAnalysis,
+    analyze_allocation_legality, analyze_live_ranges_reusing, analyze_liveness_reusing,
+    rematerialize_selected_runtime_value, spill_selected_runtime_value,
+    spill_selected_runtime_value_with_span_policy, split_selected_runtime_value,
 };
 
 pub(crate) fn assign_source(
@@ -123,6 +135,11 @@ pub(super) fn transformations(
         .iter()
         .cloned()
         .chain(steps.iter().map(|step| match &step.rewrite {
+            RuntimeSpillStepRewrite::Split(rewrite) => {
+                PostAllocationSelectedTransformation::RuntimeSplit(
+                    rewrite.receipt().transformed_selected(),
+                )
+            }
             RuntimeSpillStepRewrite::Spill(rewrite) => {
                 PostAllocationSelectedTransformation::RuntimeSpill(
                     rewrite.receipt().transformed_selected(),
@@ -309,6 +326,45 @@ fn member_relief(
         .count()
 }
 
+/// The split decision both the producer and retained replay take at one
+/// step: among the still-available roster candidates overlapping the failed
+/// domain, in the same most-relief-then-roster order the spill choice uses,
+/// the first whose fixed-view definition the split rewrite admits. `None`
+/// means no split is admissible and the step falls through to
+/// rematerialization or storage. Sharing this one policy is what lets replay
+/// reject a recorded storage step that a cheaper split would have replaced.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn admissible_split<'roster>(
+    failure: &crate::RegisterHomeError,
+    available: impl Iterator<Item = &'roster (usize, VirtualRegisterId)>,
+    ranges: &ValidatedLiveRanges,
+    selected: &impl ValidatedSelectedAnalysis,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    budget: OptimizationWorkBudget,
+) -> Result<Option<((usize, VirtualRegisterId), ValidatedRuntimeSplit)>, RuntimeSpillAllocationError>
+{
+    let mut ordered: Vec<(usize, (usize, VirtualRegisterId))> = available
+        .copied()
+        .filter(|(function, register)| overlaps_pressure(failure, ranges, *function, *register))
+        .map(|candidate| {
+            (
+                split_domain_relief(failure, ranges, candidate.0, candidate.1),
+                candidate,
+            )
+        })
+        .collect();
+    // A stable sort keeps roster order among equal relief.
+    ordered.sort_by_key(|(relief, _)| std::cmp::Reverse(*relief));
+    for (_, (function, register)) in ordered {
+        match split_selected_runtime_value(selected, function, register, environment, budget) {
+            Ok(split) => return Ok(Some(((function, register), split))),
+            Err(error) if error.is_inadmissible() => {}
+            Err(error) => return Err(RuntimeSpillAllocationError::Split(error)),
+        }
+    }
+    Ok(None)
+}
+
 pub(crate) fn recover(
     source: StagedOptimizedAllocationLegality,
 ) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {
@@ -414,98 +470,132 @@ fn recover_over(
     let mut roster = candidates(source.base().plan());
     let mut current_ranges = source.ranges().clone();
     let mut current_liveness = source.liveness().clone();
-    while let Some(position) = candidate_position(
-        &failure,
-        &roster,
-        |(function, register)| overlaps_pressure(&failure, &current_ranges, *function, *register),
-        |(function, register)| split_domain_relief(&failure, &current_ranges, *function, *register),
-    ) {
-        let (function, register) = roster.remove(position);
+    loop {
         let selected = steps
             .last()
             .map_or_else(|| source.base(), |step| step.rewrite.selected());
-        // The cost decision: regenerating one pure immediate materialization
-        // per use is strictly cheaper than private storage plus reload pairs,
-        // so rematerialization is attempted first. Its admission failure does
-        // not commit the step; spilling the same victim remains the fallback.
-        let rewrite = match rematerialize_selected_runtime_value(
+        // The split decision comes first: one copy after a pinned definition
+        // is cheaper than any regeneration or storage, and it is committed
+        // whenever admitted. It replaces one live range by two disjoint ones
+        // joined at the copy, so no point gains a live value; the pinned
+        // segment the failed domain overlapped now ends at the copy.
+        let split = admissible_split(
+            &failure,
+            roster.iter(),
+            &current_ranges,
             &selected,
-            function,
-            register,
             environment,
             budget,
-        ) {
-            Ok(rewrite) => RuntimeSpillStepRewrite::Rematerialization(rewrite),
-            Err(_) => {
-                // The call-surviving shape first: where a clobber-set-reduced
-                // view of the victim's class survives every unit written
-                // inside a flexible-use span, the still-open reload reaches
-                // across the call — or any other unit-writing instruction —
-                // and the allocator proves whether that surviving, most often
-                // callee-saved, home is actually free. Only an assignment
-                // that succeeds commits the step, ending recovery one reload
-                // pair earlier; anything else falls back to the bounded
-                // shape, so a committed step never strands an unhomeable
-                // interval. Replay independently re-derives this exact
-                // decision.
-                if let Ok(crossing) = spill_selected_runtime_value_with_span_policy(
-                    &selected,
-                    function,
-                    register,
-                    environment,
-                    budget,
-                    RuntimeSpillSpanPolicy::UnitWriteCrossing,
-                ) {
-                    let probe = analyze(
-                        environment,
-                        source.allocator_availability(),
+        )?;
+        let (function, register, rewrite) = if let Some((candidate, split)) = split {
+            let position = roster
+                .iter()
+                .position(|entry| *entry == candidate)
+                .expect("the split candidate came from the roster");
+            roster.remove(position);
+            (
+                candidate.0,
+                candidate.1,
+                RuntimeSpillStepRewrite::Split(split),
+            )
+        } else {
+            let Some(position) = candidate_position(
+                &failure,
+                &roster,
+                |(function, register)| {
+                    overlaps_pressure(&failure, &current_ranges, *function, *register)
+                },
+                |(function, register)| {
+                    split_domain_relief(&failure, &current_ranges, *function, *register)
+                },
+            ) else {
+                break;
+            };
+            let (function, register) = roster.remove(position);
+            // The cost decision: regenerating one pure immediate materialization
+            // per use is strictly cheaper than private storage plus reload pairs,
+            // so rematerialization is attempted first. Its admission failure does
+            // not commit the step; spilling the same victim remains the fallback.
+            let rewrite = match rematerialize_selected_runtime_value(
+                &selected,
+                function,
+                register,
+                environment,
+                budget,
+            ) {
+                Ok(rewrite) => RuntimeSpillStepRewrite::Rematerialization(rewrite),
+                Err(_) => {
+                    // The call-surviving shape first: where a clobber-set-reduced
+                    // view of the victim's class survives every unit written
+                    // inside a flexible-use span, the still-open reload reaches
+                    // across the call — or any other unit-writing instruction —
+                    // and the allocator proves whether that surviving, most often
+                    // callee-saved, home is actually free. Only an assignment
+                    // that succeeds commits the step, ending recovery one reload
+                    // pair earlier; anything else falls back to the bounded
+                    // shape, so a committed step never strands an unhomeable
+                    // interval. Replay independently re-derives this exact
+                    // decision.
+                    if let Ok(crossing) = spill_selected_runtime_value_with_span_policy(
                         &selected,
-                        &current_liveness,
-                        &current_ranges,
-                        &SelectedProgramRef::new(&crossing),
-                    )?;
-                    match assign(environment, &probe.ranges, &probe.legality) {
-                        Ok(homes) => {
-                            steps.push(RuntimeSpillStep {
-                                function,
-                                register,
-                                rewrite: RuntimeSpillStepRewrite::Spill(crossing),
-                            });
-                            let manifest = project_recovery_manifest(
-                                &base,
-                                &steps,
-                                &probe.ranges,
-                                &probe.legality,
-                                &homes,
-                            )?;
-                            let result = RuntimeSpillAllocation {
-                                source,
-                                steps,
-                                facts: probe,
-                                homes,
-                                manifest,
-                            };
-                            replay::validate(&result)?;
-                            return Ok(result);
-                        }
-                        Err(crate::RegisterHomeError::NoCompatibleHome { .. }) => {}
-                        Err(error) => {
-                            return Err(RuntimeSpillAllocationError::Homes(error));
+                        function,
+                        register,
+                        environment,
+                        budget,
+                        RuntimeSpillSpanPolicy::UnitWriteCrossing,
+                    ) {
+                        let probe = analyze(
+                            environment,
+                            source.allocator_availability(),
+                            &selected,
+                            &current_liveness,
+                            &current_ranges,
+                            &SelectedProgramRef::new(&crossing),
+                        )?;
+                        match assign(environment, &probe.ranges, &probe.legality) {
+                            Ok(homes) => {
+                                steps.push(RuntimeSpillStep {
+                                    function,
+                                    register,
+                                    rewrite: RuntimeSpillStepRewrite::Spill(crossing),
+                                });
+                                let manifest = project_recovery_manifest(
+                                    &base,
+                                    &steps,
+                                    &probe.ranges,
+                                    &probe.legality,
+                                    &homes,
+                                )?;
+                                let result = RuntimeSpillAllocation {
+                                    source,
+                                    steps,
+                                    facts: probe,
+                                    homes,
+                                    manifest,
+                                };
+                                replay::validate(&result)?;
+                                return Ok(result);
+                            }
+                            Err(crate::RegisterHomeError::NoCompatibleHome { .. }) => {}
+                            Err(error) => {
+                                return Err(RuntimeSpillAllocationError::Homes(error));
+                            }
                         }
                     }
+                    match spill_selected_runtime_value(
+                        &selected,
+                        function,
+                        register,
+                        environment,
+                        budget,
+                    ) {
+                        Ok(rewrite) => RuntimeSpillStepRewrite::Spill(rewrite),
+                        Err(error) if replay::inadmissible(&error) => continue,
+                        Err(error) => return Err(RuntimeSpillAllocationError::Rewrite(error)),
+                    }
                 }
-                match spill_selected_runtime_value(
-                    &selected,
-                    function,
-                    register,
-                    environment,
-                    budget,
-                ) {
-                    Ok(rewrite) => RuntimeSpillStepRewrite::Spill(rewrite),
-                    Err(error) if replay::inadmissible(&error) => continue,
-                    Err(error) => return Err(RuntimeSpillAllocationError::Rewrite(error)),
-                }
-            }
+            };
+            (function, register, rewrite)
         };
         let facts = analyze(
             environment,

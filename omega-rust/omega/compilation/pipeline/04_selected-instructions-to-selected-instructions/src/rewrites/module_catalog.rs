@@ -175,6 +175,16 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         },
     },
     RewriteModuleRow {
+        module: "runtime_split",
+        // Register allocation's `assignment/runtime_spill` tries
+        // `split_selected_runtime_value` before any regeneration or storage
+        // and replays the same decision.
+        route: RewriteModuleRoute::Routed {
+            caller: "omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/assignment/runtime_spill/recovery.rs",
+            evidence: "split_selected_runtime_value",
+        },
+    },
+    RewriteModuleRow {
         module: "selected_lowering",
         // Its rule catalog is resolved by the `literal_folds` executor and
         // consulted during native phase selection.

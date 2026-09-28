@@ -150,6 +150,8 @@ fn replay_copy_affinities(
             });
         }
     }
+    // The same canonical (block, instruction) order compute publishes.
+    affinities.sort_unstable();
     Ok(affinities)
 }
 

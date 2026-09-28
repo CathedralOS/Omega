@@ -16,8 +16,8 @@
 //! (a conditional-branch terminator whose reached compare is compile-time
 //! constant), and `dead_compare` (a flag-publisher compare whose
 //! publication dies unread, or repeats a shadow's equivalent publication);
-//! `runtime_spill` and `runtime_rematerialization`
-//! are the recovery rewrites register assignment replays. `block_edges`,
+//! `runtime_split`, `runtime_rematerialization` and `runtime_spill` are the
+//! recovery rewrites register assignment replays, in cost order. `block_edges`,
 //! `condition_state` and `window_hazards` are the block-boundary,
 //! flag-state and hazard vocabulary those and the unexecuted families
 //! share.
@@ -44,6 +44,7 @@ mod pre_allocation;
 mod redundant_extension;
 mod runtime_rematerialization;
 mod runtime_spill;
+mod runtime_split;
 mod selected_lowering;
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support;
@@ -137,6 +138,10 @@ pub use runtime_spill::{
     RuntimeSpillError, RuntimeSpillSpanPolicy, ValidatedRuntimeSpill, spill_selected_runtime_value,
     spill_selected_runtime_value_with_span_policy, validate_runtime_spill,
     validate_runtime_spill_with_span_policy,
+};
+pub use runtime_split::{
+    RuntimeSplitError, RuntimeSplitReceipt, ValidatedRuntimeSplit, split_selected_runtime_value,
+    validate_runtime_split,
 };
 pub(crate) use selected_lowering::enabled_pair_rules;
 pub(crate) use selected_lowering::fold_selected_incoming_literal;

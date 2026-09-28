@@ -31,5 +31,10 @@ pub(super) fn derive(
             });
         }
     }
+    // Rows are canonical by (block, instruction), not by stream position:
+    // recovery inserts copies (fixed-view copies, live-range splits) with
+    // fresh identities after every existing instruction, so a block's
+    // stream order and its identity order can differ.
+    rows.sort_unstable();
     Ok(rows)
 }
