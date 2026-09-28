@@ -23,7 +23,7 @@ use crate::execution::terminal_unit::{
     Multiplicity, PermissionEventKind, PrimitiveType, SymbolHandle, TypedTrees, is_reference,
     strips_erased_parameter,
 };
-use validation::exact_compiler_intrinsic_boundary_requirement;
+use validation::exact_external_leaf_boundary_requirement;
 
 pub(in crate::execution) enum ExpectedCallValueResult<'result> {
     Scalar(PrimitiveType),
@@ -139,8 +139,11 @@ pub(in crate::execution) fn build_call_operation(
         });
     }
 
+    // A direct call to a bodyless external leaf is a boundary call on the
+    // leaf's exact satisfied requirement (see `validation`'s
+    // `intrinsic_boundaries` module); the leaf owns no body to call.
     let selected_realization =
-        exact_compiler_intrinsic_boundary_requirement(program, call.target_symbol);
+        exact_external_leaf_boundary_requirement(program, call.target_symbol);
     let direct_boundary_target = selected_realization
         .map(|(requirement, _)| requirement)
         .unwrap_or(call.target_symbol);

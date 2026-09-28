@@ -1,10 +1,166 @@
-//! Exact typed identity of compiler-intrinsic boundary realizations.
+//! Exact typed identity of external-leaf boundary realizations.
+//!
+//! A bodyless leaf `machine leaf(..) satisfies Boundary::requirement via ..;`
+//! owns no Omega body: its realization is the compiler intrinsic or the
+//! evaluated foreign binding its `via` names. A direct call to such a leaf
+//! from checked code (`ConsoleNativeProvider::write_byte(b)`, `darwin_poll(0,
+//! 0, ms)`) is therefore a boundary call, and checking plans it against the
+//! leaf's exact satisfied requirement: the requirement owns the published
+//! contract, reach, crash routes and calling-policy application; Omega settles
+//! it through the selected provider row that carries the leaf's realization
+//! (a compiler-builtin settlement or a normalized foreign import). Treating
+//! the leaf as an ordinary callee instead demands an executable body that no
+//! stage can construct, and fabricating one would discard the binding's
+//! exact ABI evidence.
+//!
+//! Two leaf families project, each only through one exact edge:
+//!
+//! - compiler-intrinsic leaves, identified by the sealed intrinsic catalog's
+//!   declaration, signature and provider (`exact_compiler_intrinsic_boundary_requirement`);
+//! - evaluated-binding leaves, whose ordinary `via <expression>` evaluates
+//!   at build time to a `ForeignBinding` value. Their declared signature is
+//!   the boundary signature, so projection requires it to equal the
+//!   requirement's runtime signature exactly
+//!   (`exact_external_leaf_boundary_requirement`).
+//!
+//! Call planning, boundary-plan collection, call-source custody, the
+//! scalar-computation exclusion and service-reach inference all apply this
+//! one join. For reach, an evaluated-binding leaf is an ordinary bodyless
+//! machine whose satisfied requirement supplies its published reach, so a
+//! call to it propagates that reach like any machine call rather than
+//! counting as authored direct boundary use; a leaf call and a field call on
+//! one requirement then publish the single reach its boundary plan needs.
+//!
+//! Honest boundaries:
+//!
+//! - The projected call resolves through the requirement's selected provider
+//!   row, so it reaches the named leaf only while that leaf's family is the
+//!   selected realization, the same premise the intrinsic route carries.
+//! - A machine holding provider fields cannot yet make a projected leaf call:
+//!   stage 05 and Terminal verification count every signature-directed
+//!   boundary call there as a provider-field obligation.
 
 use language_semantics::MachineSupplyMode;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::types::{PrimitiveType, TypeReferenceNode};
 
+/// The exact boundary requirement a direct call to a bodyless external leaf
+/// delegates to, with the leaf's attached provider (the invalid symbol for a
+/// free leaf). Checking and lowering use this join for every external leaf;
+/// the checked interpreter keeps `exact_compiler_intrinsic_boundary_requirement`
+/// because it hosts only the intrinsic catalog.
+pub fn exact_external_leaf_boundary_requirement(
+    program: &TypedTrees,
+    target_state_symbol: SymbolHandle,
+) -> Option<(SymbolHandle, SymbolHandle)> {
+    exact_compiler_intrinsic_boundary_requirement(program, target_state_symbol)
+        .or_else(|| exact_evaluated_binding_boundary_requirement(program, target_state_symbol))
+}
+
+/// An ordinary evaluated-binding leaf's exact boundary-trait requirement.
+/// The leaf carries exactly one conformance and it names its `via` producer;
+/// the requirement is monomorphic and synchronous, owns no private callback
+/// parameters, and publishes the leaf's own runtime signature.
+fn exact_evaluated_binding_boundary_requirement(
+    program: &TypedTrees,
+    target_state_symbol: SymbolHandle,
+) -> Option<(SymbolHandle, SymbolHandle)> {
+    let machine = program.machine_holding_state(target_state_symbol)?;
+    if machine.body_is_present
+        || !machine.lifetime_parameters.is_empty()
+        || !program.machine_type_parameters(machine).is_empty()
+        || !matches!(
+            machine.supply_mode,
+            MachineSupplyMode::ExternalRealization {
+                binding: None,
+                mechanism: None,
+            }
+        )
+    {
+        return None;
+    }
+    let [state] = program.machine_states(machine) else {
+        return None;
+    };
+    let [conformance] = program.machine_trait_conformances(machine) else {
+        return None;
+    };
+    if state.symbol != target_state_symbol
+        || conformance.external_binding.is_some()
+        || !conformance.via_expression.is_valid()
+        || !conformance.trait_lifetime_arguments.is_empty()
+        || !program
+            .type_reference_table
+            .type_reference_handles(conformance.arguments)
+            .is_empty()
+    {
+        return None;
+    }
+    let typed_trees::machine::SatisfiedDeclaration::Trait {
+        definition,
+        requirement,
+    } = typed_trees::machine::resolve_satisfied_declaration(program, machine, conformance)?
+    else {
+        return None;
+    };
+    (definition.symbol == conformance.symbol
+        && definition.is_boundary
+        && definition.lifetime_parameters.is_empty()
+        && program.trait_type_parameters(definition).is_empty()
+        && requirement.symbol == conformance.requirement_symbol
+        && requirement.lifetime_parameters.is_empty()
+        && program
+            .state_signature_type_parameters(requirement)
+            .is_empty()
+        && requirement.native_callback_parameters.is_empty()
+        && !requirement.suspends
+        && same_runtime_signature(
+            program,
+            (program.state_parameters(state), state.return_type),
+            (
+                program.state_signature_parameters(requirement),
+                requirement.return_type,
+            ),
+        ))
+    .then_some((requirement.symbol, machine.attached_data_symbol))
+}
+
+/// Parameter-for-parameter equality of two runtime signatures: position,
+/// receiver/const/mutable markers, relevance and normalized type identity,
+/// then the normalized result identity. A coercible or merely equally shaped
+/// signature does not qualify.
+fn same_runtime_signature(
+    program: &TypedTrees,
+    (leaf_parameters, leaf_result): (
+        &[typed_trees::signature::StateParameter],
+        typed_trees::types::TypeReferenceHandle,
+    ),
+    (requirement_parameters, requirement_result): (
+        &[typed_trees::signature::StateParameter],
+        typed_trees::types::TypeReferenceHandle,
+    ),
+) -> bool {
+    leaf_parameters.len() == requirement_parameters.len()
+        && leaf_parameters
+            .iter()
+            .zip(requirement_parameters)
+            .all(|(leaf, requirement)| {
+                !leaf.is_self
+                    && !requirement.is_self
+                    && leaf.is_const == requirement.is_const
+                    && leaf.is_mutable == requirement.is_mutable
+                    && leaf.relevance == requirement.relevance
+                    && program.normalized_type_identity(leaf.type_reference)
+                        == program.normalized_type_identity(requirement.type_reference)
+            })
+        && program.normalized_type_identity(leaf_result)
+            == program.normalized_type_identity(requirement_result)
+}
+
+/// The sealed compiler-intrinsic catalog's exact requirement edge. This is
+/// the narrower identity the checked interpreter hosts; checking and lowering
+/// consume `exact_external_leaf_boundary_requirement`.
 pub fn exact_compiler_intrinsic_boundary_requirement(
     program: &TypedTrees,
     target_state_symbol: SymbolHandle,

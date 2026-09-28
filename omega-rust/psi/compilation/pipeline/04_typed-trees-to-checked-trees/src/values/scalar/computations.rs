@@ -1008,9 +1008,16 @@ impl Builder<'_, '_> {
                 // a call computation here would demand an executable callee
                 // the candidate closure can never construct. A `boundary
                 // machine` with an authored body stays an ordinary callee —
-                // the same predicate the call operation applies.
-                if target_machine.supply_mode.is_boundary_declaration()
-                    && !target_machine.body_is_present
+                // the same predicate the call operation applies. A bodyless
+                // external leaf is the same boundary edge through its exact
+                // satisfied requirement.
+                if (target_machine.supply_mode.is_boundary_declaration()
+                    && !target_machine.body_is_present)
+                    || validation::exact_external_leaf_boundary_requirement(
+                        self.program,
+                        call.target_symbol,
+                    )
+                    .is_some()
                 {
                     return None;
                 }

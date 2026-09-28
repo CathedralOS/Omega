@@ -119,6 +119,28 @@ timeout is not a refusal**; do not pool them.
 
 ### `darwin_poll` has no checked executable body
 
+**Repaired 2026-09-28; the analysis below is the refusal as measured.** The
+two routes differed in Psi, not in native lowering. A direct call to a Console
+leaf (`ConsoleNativeProvider::write_byte(b)` in `std/console.omg`) was
+projected by `exact_compiler_intrinsic_boundary_requirement` onto its exact
+satisfied requirement and planned as a boundary call; a direct call to an
+evaluated-binding leaf had no such projection, so the field store embedded
+`darwin_poll(..)` as an ordinary scalar callee and stage 05 demanded its body.
+`exact_external_leaf_boundary_requirement` now projects both leaf families;
+the leaf call also publishes its requirement's reach, so it agrees with a
+field call on the same requirement, and settles as a normalized libSystem
+import. That import then met a second refusal, also reachable through a
+`Binding<DarwinClock>` field:
+`receiving terminal-authority policy version 7 does not classify normalized
+foreign mechanism ... required by DarwinClock::poll`. The receiving policy now
+settles the reviewed `DarwinClock` imports (`_clock_gettime_nsec_np`,
+`_mach_absolute_time`, `_poll` in `/usr/lib/libSystem.B.dylib`) to the
+explicit empty classification, as the `TimeHost` cohort does. Both controls
+below exit 0. With the qualified byte-store repair also on main, all nine
+samples now stop in Terminal verification at `InvalidProviderCandidate` for
+their stateful `sleep(&mut self, ms)` adapters; a pacing probe with no darwin
+call in it stops there on the base too.
+
 The nine are exactly the samples wired in the "Clock-bearing samples" row:
 `binary_search_viz`, `sort_visualizer`, `bouncing_console`, `ripple_field`,
 `tick_marquee`, `cellular_automaton`, `game_of_life_glider`, `langtons_ant`,
@@ -156,11 +178,13 @@ semantics; it does not reach a running program, and `window_app` never
 exposed it because `window_app` does not check at all — it is refused by the
 [named operator handle mismatch](named_operator_selected_use.md).
 
-So the Clock row's macOS leg is complete for checking and open for
-realization. Closing it wants an executable body for the `DarwinClock` leaf
-family, not more per-sample wiring; `source/library/std/clock.omg` declines
-darwin for a different stated reason (the `invokes DarwinClock` ceiling leak)
-and is right to for an additional one it does not mention.
+So the Clock row's macOS leg was complete for checking and open for
+realization. The measured conclusion that closing it wanted an executable body
+for the `DarwinClock` leaf family was wrong: the leaf needed the boundary
+projection and receiving classification described at the top of this section,
+and a fabricated body would have discarded the binding's ABI evidence.
+`source/library/std/clock.omg` still declines darwin for its own stated
+reason (the `invokes DarwinClock` ceiling leak).
 
 ## Reading this later
 

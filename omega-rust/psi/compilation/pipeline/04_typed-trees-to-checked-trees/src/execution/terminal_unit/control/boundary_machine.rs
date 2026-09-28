@@ -1,7 +1,7 @@
 //! Building boundary machines and their static boundary requirements.
 
 use crate::execution::terminal_unit::calls::{
-    exact_compiler_intrinsic_boundary_requirement, structural_scalar_signature,
+    exact_external_leaf_boundary_requirement, structural_scalar_signature,
 };
 use crate::execution::terminal_unit::types::{
     ShapeCollector, boundary_domain_requirements, fold_authorized_result_domains, is_unit,
@@ -440,9 +440,7 @@ fn static_boundary_call_targets(
     let mut requirements = Vec::new();
     for target in targets {
         requirements.push((target, target));
-        if let Some((requirement, _)) =
-            exact_compiler_intrinsic_boundary_requirement(program, target)
-        {
+        if let Some((requirement, _)) = exact_external_leaf_boundary_requirement(program, target) {
             requirements.push((requirement, target));
         }
     }

@@ -367,7 +367,7 @@ fn validate_static_receiver(
         return unsupported("nested call root has no exact nonself receiver identity");
     }
     if let Some((_, qualifier)) =
-        validation::exact_compiler_intrinsic_boundary_requirement(&checked.typed, target)
+        validation::exact_external_leaf_boundary_requirement(&checked.typed, target)
     {
         if !has_receiver || receiver == qualifier {
             return Ok(());

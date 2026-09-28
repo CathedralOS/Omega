@@ -615,8 +615,23 @@ fn direct_service_reach_for_call(program: &TypedTrees, target: SymbolHandle) -> 
     // Checked calls to an exact intrinsic realization retain the boundary
     // requirement's identity. Infer its nominal reach at the same boundary,
     // even when the realization's own declaration has no authored reach row.
-    let target = crate::exact_compiler_intrinsic_boundary_requirement(program, target)
-        .map_or(target, |(requirement, _)| requirement);
+    let intrinsic = crate::exact_compiler_intrinsic_boundary_requirement(program, target);
+    // An evaluated-binding leaf is an ordinary bodyless machine, not a
+    // boundary declaration. Its satisfied requirement supplies its published
+    // reach (foreign bindings, operational coherence), so a call to it
+    // propagates that reach like any machine call and is not newly authored
+    // direct boundary use. The call plans as a boundary call on the same
+    // requirement, so it must also publish the same reach as a field call on
+    // that requirement, or the requirement keeps no single boundary plan.
+    if intrinsic.is_none()
+        && let Some((requirement, _)) =
+            crate::exact_external_leaf_boundary_requirement(program, target)
+    {
+        let mut reach = direct_service_reach_for_call(program, requirement);
+        reach.boundary_services.clear();
+        return reach;
+    }
+    let target = intrinsic.map_or(target, |(requirement, _)| requirement);
     let mut reach = DirectServiceReach::default();
     if !target.is_valid() {
         return reach;
