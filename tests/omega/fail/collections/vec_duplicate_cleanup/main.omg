@@ -1,22 +1,18 @@
-// Vec cleanup is consumption, not idempotent disposal: `cleanup` takes the
-// linear vec by value, so a second cleanup on the same place asks the same
+// Vec cleanup is consumption, not idempotent disposal: `close` takes the
+// linear vec by value, so a second close on the same place asks the same
 // linear obligation to be supplied twice and must be rejected.
 
-data Vec [linear] {
-    items: [i32; 4];
-    length: u64 in Wrapping;
-}
-
-boundary requirement Vec::cleanup(self);
+use alloc::vec;
 
 data Main {}
 
 machine Main::main() -> i32 {
     let vec: Vec = Vec {
-        items: [0, 0, 0, 0],
-        length: 0,
+        live: 0,
+        rung: 0,
+        len: 0,
     };
-    Vec::cleanup(vec);
-    Vec::cleanup(vec);
+    Vec::close(vec);
+    Vec::close(vec);
     0
 }
