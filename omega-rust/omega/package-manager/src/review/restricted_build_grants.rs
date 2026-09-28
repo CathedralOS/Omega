@@ -236,7 +236,9 @@ pub struct CheckpointRestrictedBuildGrants {
     granted: BTreeSet<String>,
 }
 
-impl compiler::RestrictedBuildGrants for CheckpointRestrictedBuildGrants {
+impl package_compilation::build_execution::RestrictedBuildGrants
+    for CheckpointRestrictedBuildGrants
+{
     fn admit(
         &mut self,
         request: &package_compilation::build_execution::RestrictedBuildRequest,

@@ -9,12 +9,13 @@ pub use compilation_products::{
 };
 
 use artifacts::compile_timings::CompileTimings;
+use compilation_products::CheckedExecutionRequest;
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
 use package_compilation::source_assembly::ImmutableSourceParseCheckpoint;
 use std::path::Path;
 
-pub use build_evaluation::RestrictedBuildGrants;
+pub use package_compilation::build_execution::RestrictedBuildGrants;
 
 /// Inputs for checked-Psi compilation, without native publication authority.
 /// All requests use the same source identity, package admission, and
@@ -148,91 +149,6 @@ type TypedFrontierMemo = std::sync::Mutex<
     )>,
 >;
 
-pub(crate) struct CheckedChildExecution<'a> {
-    selected_target_profile: Option<target::TargetProfile>,
-    /// `None` admits the compiler host without a catalogued profile.
-    build_execution_profile: Option<target::TargetProfile>,
-    package_inputs: Option<&'a PackageCompilationInputs>,
-    build_dir: Option<&'a Path>,
-    filesystem_sponsor: Option<build_time_evaluation::BuildMachineFilesystemSponsor>,
-    evaluation_sponsor: Option<build_time_evaluation::BuildEvaluationSponsor>,
-    build_snapshot: Option<build_evaluation::BuildSnapshotRequest>,
-    optimization_rollback: crate::checked::OptimizationRollback,
-    /// Consent binding this child's projected restricted build requests join
-    /// before their own build effects execute.
-    restricted_build_grants: Option<Box<dyn RestrictedBuildGrants>>,
-    /// This child runs a discovery pass: an entry's unsettled `Service` fields
-    /// stay unestablished rather than rejecting the compile they were
-    /// discovered to nominate.
-    permit_unsettled_fused_service_fields: bool,
-}
-
-impl<'a> CheckedChildExecution<'a> {
-    /// One target of an ordinary compile: the caller's package inputs, build
-    /// staging and rollback, the compiler host as build execution profile, no
-    /// sponsors or discovery. An explicit snapshot narrows build authority;
-    /// otherwise a packaged root binding carrying the compiler-captured
-    /// canonical Source metadata index is sealed package custody, and every
-    /// build activation over it runs against a fresh private materialization
-    /// of the captured inventory with no invocation roster -- exactly what the
-    /// package manager's review route requests -- so a retained Terminal
-    /// production and the review evidence it must rejoin record the same build
-    /// observation identity. A binding without that index keeps its live root.
-    pub(crate) fn for_target(
-        selected_target_profile: Option<target::TargetProfile>,
-        package_inputs: Option<&'a PackageCompilationInputs>,
-        build_dir: &'a Path,
-        optimization_rollback: &crate::checked::OptimizationRollback,
-        build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
-    ) -> Self {
-        let automatic_snapshot = package_inputs
-            .filter(|inputs| inputs.canonical_source_metadata(inputs.root()).is_some())
-            .map(|_| build_evaluation::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>()));
-        Self {
-            selected_target_profile,
-            build_execution_profile: target::TargetProfile::host_if_supported(),
-            package_inputs,
-            build_dir: Some(build_dir),
-            filesystem_sponsor: None,
-            evaluation_sponsor: None,
-            // The request narrows authority explicitly. Never replace it with
-            // automatic package membership or silently fall back after failure.
-            build_snapshot: build_snapshot.cloned().or(automatic_snapshot),
-            optimization_rollback: optimization_rollback.clone(),
-            restricted_build_grants: None,
-            permit_unsettled_fused_service_fields: false,
-        }
-    }
-
-    pub(crate) fn package_inputs(&self) -> Option<&'a PackageCompilationInputs> {
-        self.package_inputs
-    }
-
-    /// Ordinary target compilation has no external sponsor or consent guard.
-    /// Compare its complete build inputs through their package owner, including
-    /// the effective automatic/explicit capture and the live output directory.
-    pub(crate) fn build_execution_inputs(&self) -> package_compilation::BuildExecutionInputs {
-        package_compilation::BuildExecutionInputs::for_unsponsored(
-            self.package_inputs,
-            self.build_execution_profile,
-            self.build_snapshot.as_ref(),
-            self.build_dir,
-        )
-    }
-
-    pub(crate) fn selected_target_profile(&self) -> Option<target::TargetProfile> {
-        self.selected_target_profile
-    }
-
-    pub(crate) fn optimization_rollback(&self) -> &crate::checked::OptimizationRollback {
-        &self.optimization_rollback
-    }
-
-    pub(crate) fn permit_unsettled_fused_service_fields(&self) -> bool {
-        self.permit_unsettled_fused_service_fields
-    }
-}
-
 impl PreparedCheckedSource {
     pub fn prepare(
         root_path: &Path,
@@ -288,7 +204,7 @@ impl PreparedCheckedSource {
     /// Reuse never skips the child's live package-custody validation.
     pub(crate) fn prepare_frontier(
         self,
-        child: &CheckedChildExecution<'_>,
+        child: &CheckedExecutionRequest<'_>,
     ) -> Result<(build_continuation::TypedFrontier, CompileTimings), Vec<Diagnostic>> {
         let key = package_compilation::SourceAssemblyInputs::new(
             child.package_inputs,
@@ -351,53 +267,6 @@ impl PreparedCheckedSource {
             entries.push((key, frontier.clone()));
         }
         Ok((frontier, timings))
-    }
-
-    /// Admit one child's package inputs against this source frontier. Parsing
-    /// is shared, but generated build results belong to their execution
-    /// profile and each dependency-generated bundle to one target, so both are
-    /// validated per child before any assembly uses them.
-    pub(crate) fn admit_child(
-        &self,
-        child: &CheckedChildExecution<'_>,
-    ) -> Result<(), Vec<Diagnostic>> {
-        // Validate on every child, including prepared-source reuse: parsing is
-        // shared, but generated build results belong to their execution profile.
-        // This must precede assembly of the dependency's generated declarations.
-        if let Some(inputs) = child.package_inputs {
-            if inputs.compilation_purpose() == build_declarations::DependencyPurpose::Build
-                && (child.build_execution_profile.is_none()
-                    || child.selected_target_profile != child.build_execution_profile)
-            {
-                return Err(vec![Diagnostic::error(
-                    "build-purpose package compilation requires its target to equal the admitted build execution profile",
-                )]);
-            }
-            inputs
-                .validate_dependency_generated_source_execution_profile(
-                    child.build_execution_profile,
-                )
-                .map_err(|errors| {
-                    errors
-                        .into_iter()
-                        .map(|error| Diagnostic::error(error.to_string()))
-                        .collect::<Vec<_>>()
-                })?;
-        }
-        // Each dependency-generated bundle was produced for one target; a
-        // product bundle must belong to this child's target and a build bundle
-        // to its build execution profile.
-        if let Some(inputs) = child.package_inputs {
-            inputs
-                .validate_dependency_generated_source_target(child.selected_target_profile)
-                .map_err(|errors| {
-                    errors
-                        .into_iter()
-                        .map(|error| Diagnostic::error(error.to_string()))
-                        .collect::<Vec<_>>()
-                })?;
-        }
-        Ok(())
     }
 }
 
@@ -518,7 +387,7 @@ fn compile_checked_worker(
         )]);
     }
     let package_inputs = request.package_inputs.as_ref();
-    let child = CheckedChildExecution {
+    let child = CheckedExecutionRequest {
         selected_target_profile,
         build_execution_profile: request
             .build_execution_profile
@@ -533,7 +402,7 @@ fn compile_checked_worker(
         permit_unsettled_fused_service_fields: request.permit_unsettled_fused_service_fields,
     };
     let retained_source = request.retain_prepared_source.then(|| prepared.clone());
-    prepared.admit_child(&child)?;
+    child.admit_package_inputs()?;
     let (frontier, mut timings) = prepared.prepare_frontier(&child)?;
     let build_started = std::time::Instant::now();
     let (built, sources) = build_continuation::evaluate_build_and_continue(

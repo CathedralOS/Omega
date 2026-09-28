@@ -28,7 +28,7 @@ pub use filesystem_scope::{
 pub use observation_identity::BuildObservationIdentity;
 pub use observations::*;
 pub use restricted_requests::{
-    RestrictedBuildBounds, RestrictedBuildGrant, RestrictedBuildGrantRoot,
+    RestrictedBuildBounds, RestrictedBuildGrant, RestrictedBuildGrantRoot, RestrictedBuildGrants,
     RestrictedBuildOperation, RestrictedBuildRequest,
 };
 pub use snapshot_request::{BuildSnapshotCapture, BuildSnapshotRequest};

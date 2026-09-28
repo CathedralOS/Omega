@@ -12,6 +12,20 @@ use build_time_evaluation::{
     BuildMachineFilesystemAccess, BuildMachineFilesystemGrantRoot,
 };
 
+/// Retained restricted-request consent bound by a consumer to one activation.
+/// Each projected request joins in issue order before its Build effect executes;
+/// refusal returns the consumer's diagnostics unchanged. The worker owns the
+/// guard across execution, so accepted meaning is owned rather than borrowed.
+///
+/// An absent guard is observation-only: requests remain in retained custody for
+/// review, but execution consults no accepted meaning and issues no grants.
+pub trait RestrictedBuildGrants: Send {
+    fn admit(
+        &mut self,
+        request: &RestrictedBuildRequest,
+    ) -> Result<(), Vec<diagnostics::Diagnostic>>;
+}
+
 /// The restricted host operation one admitted build activation requests.
 ///
 /// Members are the normalized review vocabulary for restricted build-time

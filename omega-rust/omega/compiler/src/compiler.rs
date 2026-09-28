@@ -6,8 +6,8 @@
 //! this file own what each call does.
 
 use crate::checked::{
-    BuiltCheckedProgram, CheckedChildExecution, CheckedCompilation, PreparedCheckedSource,
-    check_selected_execution, evaluate_build_and_continue, run_on_compile_thread,
+    BuiltCheckedProgram, CheckedCompilation, PreparedCheckedSource, check_selected_execution,
+    evaluate_build_and_continue, run_on_compile_thread,
 };
 use crate::native::produce_native_report;
 use crate::terminal::produce_terminal_report;
@@ -15,8 +15,8 @@ use crate::{CompileOutcomes, CompileReport, CompileRequest, CompileTargetOutcome
 use artifacts::compile_timings::{
     BUILD_AND_CHECKED_CONTINUATION, CompileTimings, EXECUTION_SETTLEMENT, StageMeta,
 };
-use compilation_products::CheckedProductReport;
 use compilation_products::compile_request::{SharedCompileInputs, ValidatedTargetCompilation};
+use compilation_products::{CheckedExecutionRequest, CheckedProductReport};
 use diagnostics::Diagnostic;
 use package_compilation::BuildSourceCustody;
 
@@ -61,24 +61,18 @@ fn compile_target(
 ) -> Result<CompileReport, Vec<Diagnostic>> {
     let root_path = target.options().root_path.clone();
     let build_dir = target.options().build_dir();
-    let child = CheckedChildExecution::for_target(
-        target.profile(),
-        target.package_inputs(),
-        &build_dir,
-        target.optimization_rollback(),
-        target.build_snapshot(),
-    );
-    let selected_target_profile = child.selected_target_profile();
-    let package_inputs = child.package_inputs();
-    let rollback = child.optimization_rollback().clone();
-    let permit_unsettled_fused_service_fields = child.permit_unsettled_fused_service_fields();
+    let child = target.checked_execution(&build_dir);
+    let selected_target_profile = child.selected_target_profile;
+    let package_inputs = child.package_inputs;
+    let rollback = child.optimization_rollback.clone();
+    let permit_unsettled_fused_service_fields = child.permit_unsettled_fused_service_fields;
 
     // Source assembly, Psi 02-03 and build.omg: the shared parse plus the
     // imports and dependency-generated sources this target's package inputs
     // carry, resolved and typed, the build machine evaluated, and the sources
     // it generated resolved and typed. None of it observes the target, so
     // targets with equal build inputs share one result.
-    source.admit_child(&child)?;
+    child.admit_package_inputs()?;
     let SharedBuild {
         built,
         build_sources,
@@ -154,7 +148,7 @@ impl SharedBuilds {
     fn build(
         &mut self,
         source: PreparedCheckedSource,
-        child: CheckedChildExecution<'_>,
+        child: CheckedExecutionRequest<'_>,
         root_path: &std::path::Path,
     ) -> Result<SharedBuild, Vec<Diagnostic>> {
         let inputs = child.build_execution_inputs();

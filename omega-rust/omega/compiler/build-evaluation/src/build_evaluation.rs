@@ -7,32 +7,13 @@
 use artifacts::compile_timings::CompileTimings;
 use build_time_evaluation::{BuildEvaluationSponsor, BuildMachineFilesystemSponsor};
 use diagnostics::Diagnostic;
+pub use package_compilation::build_execution::RestrictedBuildGrants;
 use package_compilation::build_execution::RestrictedBuildRequest;
 use package_compilation::{
     BuildSnapshotRequest, PackageCompilationInputs, PackageSourceConsumptionCommitment,
 };
 use std::path::Path;
 use typed_trees::TypedTrees;
-
-/// Retained restricted-request consent a consuming caller binds to one
-/// checked activation.
-///
-/// With a binding present, each restricted build-host request the admitted
-/// build machine projects joins here — in issue order — before that
-/// request's own build effect executes; a refusal fails the compile without
-/// running it. The binding owns what it consults: the compile worker runs on
-/// its own thread, so retained consent crosses as owned meaning, not a
-/// borrow.
-///
-/// `None` is observation-only: requests still project into the compile's
-/// retained custody, where a review presents or a lock retains them, but the
-/// activation admits without consulting accepted request meaning. Audit-only
-/// callers pass no binding and issue no grants.
-pub trait RestrictedBuildGrants: Send {
-    /// Join one projected restricted build request. `Err` carries the
-    /// diagnostics the checked compile returns unchanged.
-    fn admit(&mut self, request: &RestrictedBuildRequest) -> Result<(), Vec<Diagnostic>>;
-}
 
 /// Inputs to one activation. Source assembly and typing have already finished;
 /// this operation neither discovers source nor compiles generated continuations.

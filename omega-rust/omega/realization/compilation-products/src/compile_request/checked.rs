@@ -1,0 +1,105 @@
+//! Target-local checking and Build inputs, admitted before source reuse or effects.
+
+use super::ValidatedTargetCompilation;
+use diagnostics::Diagnostic;
+use optimization_core::OptimizationRollback;
+use package_compilation::build_execution::RestrictedBuildGrants;
+use package_compilation::{BuildExecutionInputs, BuildSnapshotRequest, PackageCompilationInputs};
+use std::path::Path;
+use target::TargetProfile;
+
+/// One checked activation's policy and custody inputs, not authority produced by
+/// checking. Product and Build profiles remain separate. A supplied consent
+/// guard is consumed by Build execution, never by input admission or reuse.
+pub struct CheckedExecutionRequest<'request> {
+    pub selected_target_profile: Option<TargetProfile>,
+    /// `None` admits the compiler host without a catalogued profile.
+    pub build_execution_profile: Option<TargetProfile>,
+    pub package_inputs: Option<&'request PackageCompilationInputs>,
+    pub build_dir: Option<&'request Path>,
+    pub filesystem_sponsor: Option<build_time_evaluation::BuildMachineFilesystemSponsor>,
+    pub evaluation_sponsor: Option<build_time_evaluation::BuildEvaluationSponsor>,
+    pub build_snapshot: Option<BuildSnapshotRequest>,
+    pub optimization_rollback: OptimizationRollback,
+    pub restricted_build_grants: Option<Box<dyn RestrictedBuildGrants>>,
+    /// Discovery leaves unsettled Service fields unestablished. The bound
+    /// recompile must derive or diagnose every field under its own inputs.
+    pub permit_unsettled_fused_service_fields: bool,
+}
+
+impl ValidatedTargetCompilation {
+    /// Derive ordinary checking inputs without sponsors or discovery authority.
+    /// An explicit snapshot narrows authority. Otherwise canonical package source
+    /// metadata selects a fresh private capture with no invocation roster, matching
+    /// package review's source custody; a binding without that index stays live.
+    pub fn checked_execution<'request>(
+        &'request self,
+        build_dir: &'request Path,
+    ) -> CheckedExecutionRequest<'request> {
+        let package_inputs = self.package_inputs();
+        let automatic_snapshot = package_inputs
+            .filter(|inputs| inputs.canonical_source_metadata(inputs.root()).is_some())
+            .map(|_| BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>()));
+        CheckedExecutionRequest {
+            selected_target_profile: self.profile(),
+            build_execution_profile: TargetProfile::host_if_supported(),
+            package_inputs,
+            build_dir: Some(build_dir),
+            filesystem_sponsor: None,
+            evaluation_sponsor: None,
+            // Explicit custody always wins; failed admission never falls back.
+            build_snapshot: self.build_snapshot().cloned().or(automatic_snapshot),
+            optimization_rollback: self.optimization_rollback().clone(),
+            restricted_build_grants: None,
+            permit_unsettled_fused_service_fields: false,
+        }
+    }
+}
+
+impl CheckedExecutionRequest<'_> {
+    /// Admit generated package sources for this activation before assembling or
+    /// reusing its frontend. Build-purpose packages must match the execution
+    /// profile; product bundles must match the product target. Neither check
+    /// grants Build execution or replaces the source checkpoint's custody check.
+    pub fn admit_package_inputs(&self) -> Result<(), Vec<Diagnostic>> {
+        let Some(inputs) = self.package_inputs else {
+            return Ok(());
+        };
+        if inputs.compilation_purpose() == build_declarations::DependencyPurpose::Build
+            && (self.build_execution_profile.is_none()
+                || self.selected_target_profile != self.build_execution_profile)
+        {
+            return Err(vec![Diagnostic::error(
+                "build-purpose package compilation requires its target to equal the admitted build execution profile",
+            )]);
+        }
+        inputs
+            .validate_dependency_generated_source_execution_profile(self.build_execution_profile)
+            .map_err(|errors| {
+                errors
+                    .into_iter()
+                    .map(|error| Diagnostic::error(error.to_string()))
+                    .collect::<Vec<_>>()
+            })?;
+        inputs
+            .validate_dependency_generated_source_target(self.selected_target_profile)
+            .map_err(|errors| {
+                errors
+                    .into_iter()
+                    .map(|error| Diagnostic::error(error.to_string()))
+                    .collect::<Vec<_>>()
+            })
+    }
+
+    /// Complete inputs for ordinary unsponsored multi-target Build reuse,
+    /// including automatic/explicit capture and the live output directory.
+    /// Sponsored review activations are not consumers of this reuse key.
+    pub fn build_execution_inputs(&self) -> BuildExecutionInputs {
+        BuildExecutionInputs::for_unsponsored(
+            self.package_inputs,
+            self.build_execution_profile,
+            self.build_snapshot.as_ref(),
+            self.build_dir,
+        )
+    }
+}
