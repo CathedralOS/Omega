@@ -1,8 +1,8 @@
 //! One structural argument checked against the parameter it supplies.
 
 use super::{
-    CallShape, StructuralArgumentSourcePolicy, is_structural_call_result,
-    is_unrestricted_mutable_subloan, is_unrestricted_shared_subloan,
+    CallShape, StructuralArgumentSourcePolicy, is_runtime_indexed_borrow_path,
+    is_structural_call_result, is_unrestricted_mutable_subloan, is_unrestricted_shared_subloan,
     is_unrestricted_write_only_subloan, linear_call_result, structural_access_can_supply,
     structural_occurrence_carries_qualification,
 };
@@ -198,7 +198,19 @@ pub(in crate::validation) fn validate_structural_argument(
                             || (allow_projected && ordinary_call
                                 && argument.access == StructuralAccess::SharedBorrow
                                 && is_nonempty_field_path(&argument.path)
-                                && is_record_loan(module, caller, expected, argument)))
+                                && is_record_loan(module, caller, expected, argument))
+                            // A runtime-indexed borrow of a block parameter is
+                            // the same per-element loan the machine-parameter
+                            // arm admits: the path predicate keeps Referent and
+                            // byte ranges out, and the argument checks replay
+                            // the selector's published bound.
+                            || (allow_projected
+                                && matches!(
+                                    argument.access,
+                                    StructuralAccess::SharedBorrow
+                                        | StructuralAccess::MutableBorrow
+                                )
+                                && is_runtime_indexed_borrow_path(&argument.path)))
                             && (argument.access == StructuralAccess::SharedBorrow
                                 || (ordinary_call && argument.access == StructuralAccess::Owned)
                                 || (ordinary_call && argument.access == StructuralAccess::MutableBorrow
