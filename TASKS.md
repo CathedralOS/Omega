@@ -1740,62 +1740,6 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   and compare the spec's separate-tool route. No new executor, live-host grant
   extension or persistent writable cache.
 
-## Checked boundary topology
-
-Implement the [reference-package contract](wiki/spec/packages/topology.md) as
-ordinary Omega policy/orchestration over verified component facts and provider
-mechanisms. COMPONENT-SUBSTRATE owns component completeness;
-WIRE-RUNTIME-AND-INSTALLATION owns generic executable custody. No compiler graph
-stage, topology-specific IR, or new trusted graph axiom.
-
-- **TOPOLOGY-PLAN-VERIFICATION.** Deliver the Omega build-only package and payment
-  composition project. Reuse `omega-rust/library/topology/` normalization,
-  policy, certificate, and codec implementations, plus the existing component
-  description producer/admission in compiler, build-evaluation, and
-  `backend/artifacts/component-description/`.
-
-  Reuse the structured demand/supply join through
-  `VerifiedComponent::export_contracts()` in `verified_components.rs` and the
-  `build-scope-topology` fixture. Do not replace derived contract identities
-  with surface-name hashes or rebuild the existing join.
-
-  Author the package over admitted input bytes and generic required outputs.
-  `tests/omega/packages/build-scope-topology` establishes import/output
-  plumbing, not payment-plan verification. BUILD-SNAPSHOT-OUTPUTS owns
-  confinement/publication dependencies. Dependency-adjacent live reads and
-  handwritten inventories are not substitutes for admitted facts.
-
-  Acceptance: a composition build admits three real component descriptions and
-  publishes `payments.plan`; a source-free consumer verifies it against a
-  separately supplied current TopologyRequest. Preserve the spec's
-  [policy controls](wiki/spec/packages/topology.md#diagnostics-and-implementation-acceptance):
-  missing/substituted components, stale subjects, forged completeness,
-  direct/indirect bypass, cycles, instance distinction, duplicate bindings,
-  disconnected selectors, missing policies, and corrupt plans. Unselected
-  policy executables are never loaded. Plan bytes do not establish installation.
-
-- **TOPOLOGY-PRIVATE-PIPE-INSTALLATION.** Run the
-  [three-process payment customer](wiki/spec/packages/topology.md#first-executable-realization)
-  through an Omega-authored installer and Windows/macOS providers. Dependencies:
-  TOPOLOGY-PLAN-VERIFICATION, COMPONENT-SUBSTRATE, and
-  WIRE-RUNTIME-AND-INSTALLATION. Package code owns orchestration, providers own
-  physical mechanisms, and the existing installation owner owns generic custody.
-
-  Reuse `packages/topology/src/topology_installation.rs` and its mediation,
-  frame, schema, pipe, and supervisor modules. Rust reference tests exercise
-  kernel-attested channel identity, executable admission, and cleanup; they do
-  not replace authored component programs and installer orchestration.
-  Complete explicit inheritable-handle transfer on Windows and validated/signed
-  member-image and descriptor transfer on macOS. General inheritance stays
-  disabled; each member receives exactly its admitted endpoint assignment.
-
-  Acceptance: admit exact component images and endpoint mappings before entry;
-  allow a schema-checked request/response pair per binding. Reject ungranted
-  endpoints and substituted mappings; malformed frames or peer failure close
-  the binding. Failed setup and quiescence clean the entire roster, including
-  killed members. Exercise activation/replacement custody under the installation
-  contract. Record actual Windows/macOS execution, not cross-target emission.
-
 ## Process-exit contract
 
 Finish the [canonical process-exit contract](wiki/spec/language/process_exit.md)
@@ -5170,6 +5114,65 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   reject independently. **FRAME-LAYOUT** in `TASKS_OPTIMIZER.md` owns final
   frame, probe, unwind and native replay. Do not add implicit variable-sized
   locals, provider-backed issuance, a new syntax category or an OS allocator.
+
+## Checked boundary topology
+
+Finish this later library customer under the
+[reference-package contract](wiki/spec/packages/topology.md).
+**COMPONENT-SUBSTRATE** owns component completeness;
+**WIRE-RUNTIME-AND-INSTALLATION** owns generic executable custody. Keep graph
+policy and orchestration in ordinary Omega packages; no compiler graph stage,
+topology IR or trusted graph axiom.
+
+- **TOPOLOGY-PLAN-VERIFICATION.** Connect and validate the Omega build-only
+  composer in `tests/omega/packages/build-scope-topology` and consumer in
+  `source/library/topology/verify.omg`. Reuse `omega-rust/library/topology/`'s
+  normalization, policy, certificate and codec logic and
+  `VerifiedComponent::export_contracts()`; derived contracts, not surface-name
+  hashes, join demands to supplies.
+
+  `topology-plan`'s `composition_build` test
+  `the_package_composes_and_a_source_free_consumer_verifies` targets actual
+  composition, required-output publication and independent Rust verification.
+  At `c6a81ec63ea` on macOS arm64 it fails in `copy_fixture`: committed
+  `request.bin` differs from `build_scope_inputs()`, before Omega compilation.
+  Reconcile derived inputs and rerun that test; do not claim publication passes.
+  Its admissions come from Rust-built Terminal modules, and it does not exercise
+  the Omega consumer. Join ordinary component-description production/admission;
+  **BUILD-SNAPSHOT-OUTPUTS** owns confined inputs and output publication.
+
+  Acceptance: admit three component descriptions, publish `payments.plan`, and
+  verify source-free against independently supplied current `TopologyRequest`.
+  Establish ordinary algorithm correctness evidence; resource exhaustion is
+  unsuccessful verification. Preserve the spec's
+  [controls](wiki/spec/packages/topology.md#diagnostics-and-implementation-acceptance):
+  missing/substituted components, stale subjects, forged completeness,
+  direct/indirect bypasses, cycles, distinct instances, duplicate bindings,
+  disconnected selectors, missing policies and corrupt plans. Never load
+  unselected policy code or substitute live reads/handwritten inventories for
+  admitted facts. Plan verification grants no installation authority.
+
+- **TOPOLOGY-PRIVATE-PIPE-INSTALLATION.** Run the
+  [three-process payment customer](wiki/spec/packages/topology.md#first-executable-realization)
+  with an Omega-authored installer and component programs on Windows and macOS,
+  after **TOPOLOGY-PLAN-VERIFICATION** and the shared component/installation
+  dependencies above.
+
+  Reuse `omega-rust/library/topology/src/topology_installation.rs` and its
+  mediation, frame, schema, pipe and supervisor modules. The crate's
+  `tests/installation.rs` and `tests/process_confinement.rs` exercise Unix
+  processes re-executing Rust test binaries; `LocalProcessSupervisor` is Unix-only.
+  Complete explicit Windows handle transfer and macOS validated/signed member
+  images using the existing descriptor-transfer path. Package code orchestrates;
+  providers own mechanisms. Disable general inheritance and deliver exactly the
+  admitted endpoints before application entry.
+
+  Acceptance: admit exact images/mappings; allow one outstanding schema-checked
+  request/response per binding. Ungranted endpoints and substituted mappings
+  reject; malformed frames and peer failure close the binding. Failed setup and
+  quiescence clean the entire roster, including killed members, or return retained
+  custody. Preflight replacement, quiesce the old generation, then activate the
+  new one without overlap. Record actual execution on both hosts.
 
 ## Rust compiler release closure
 
