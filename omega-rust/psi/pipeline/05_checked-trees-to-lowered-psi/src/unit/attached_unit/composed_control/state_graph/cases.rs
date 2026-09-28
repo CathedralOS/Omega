@@ -386,6 +386,7 @@ pub(super) fn validate(
                             operation,
                             CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                                 | CheckedUnitEffectOperationPlan::EstablishReference { .. }
+                                | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { .. }
                                 | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
                         ) {
                             return unsupported("Unit case return arm lost its producer");

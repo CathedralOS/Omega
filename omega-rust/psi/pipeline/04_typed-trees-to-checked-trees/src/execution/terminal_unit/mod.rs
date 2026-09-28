@@ -525,6 +525,10 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
                                 | CheckedUnitEffectOperationPlan::StructuralCall {
                                     result, ..
                                 }
+                                | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral {
+                                    result,
+                                    ..
+                                }
                                 | CheckedUnitEffectOperationPlan::EstablishViewSubslice {
                                     result,
                                     ..
@@ -603,6 +607,7 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
             }
             CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
+            | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } => {
                 retained_type_identities.insert(result.type_identity.as_str());

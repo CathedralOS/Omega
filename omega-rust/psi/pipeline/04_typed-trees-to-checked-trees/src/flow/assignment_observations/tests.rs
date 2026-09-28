@@ -99,6 +99,7 @@ fn prepared_assignments_require_exact_call_snapshot_occurrence() {
             machine_arguments: Default::default(),
             quotient_operation: None,
             private_layout_operation: None,
+            layout_query: None,
             arguments: Default::default(),
             evidence_arguments: Default::default(),
             operational_acknowledgement: Default::default(),

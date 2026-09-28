@@ -179,6 +179,7 @@ fn selected_roots(
                 | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
                 // A view-subslice local replays its own endpoints at emission.
+                | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { .. }
                 | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. } => {
                     continue;
                 }

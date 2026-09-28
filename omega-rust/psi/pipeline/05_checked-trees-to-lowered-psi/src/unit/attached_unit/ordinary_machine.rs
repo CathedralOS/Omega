@@ -778,7 +778,14 @@ pub(super) fn emit(
         .chain(primitive_local_places.iter().map(|local| local.declaration))
         .chain(literal_places.iter().copied())
         .chain(subslice_places.iter().copied())
-        .chain(structural_result_places.iter().map(|(place, _)| *place))
+        .chain(
+            structural_result_places
+                .iter()
+                .filter(|(place, _)| {
+                    !matches!(place.kind, StructuralPlaceKind::ByteSequenceLiteral { .. })
+                })
+                .map(|(place, _)| *place),
+        )
         .chain(structural_value_temporaries)
         .chain(computed_array_places)
         .collect::<Vec<_>>();
@@ -1204,6 +1211,7 @@ impl MachineEmission<'_> {
             | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
             | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
             | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
+            | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { .. }
             | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
             | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {
                 return self.emit_through_frame(operation, step.source_value_count);

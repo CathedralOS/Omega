@@ -77,7 +77,7 @@ impl StateGraphEmission<'_, '_> {
             .into_iter()
             .map(|ordinal| {
                 let result = case_emission::result(state, ordinal, operations)?;
-                Ok(evaluation.current_structural_place(result.place))
+                Ok(evaluation.current_structural_place(result.place()))
             })
             .collect::<Result<Vec<_>, LoweringError>>()?
         } else {
@@ -341,7 +341,7 @@ impl StateGraphEmission<'_, '_> {
                     continue;
                 }
                 let place = match transfer.source {
-                        checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } => edge_evaluation.current_structural_place(case_emission::result(state, binding_ordinal, operations)?.place),
+                        checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } => edge_evaluation.current_structural_place(case_emission::result(state, binding_ordinal, operations)?.place()),
                         checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index } => {
                             edge_evaluation.current_structural_place(state_parameters.get(index as usize).ok_or(
                                 LoweringError::Unsupported("Unit graph transfer source descriptor disappeared"),
@@ -369,7 +369,7 @@ impl StateGraphEmission<'_, '_> {
                                 }
                                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
                                     let produced = case_emission::result(state, binding_ordinal, operations)?;
-                                    (edge_evaluation.current_structural_place(produced.place), produced.structural_type)
+                                    (edge_evaluation.current_structural_place(produced.place()), produced.structural_type())
                                 }
                                 _ => {
                                     return unsupported(
@@ -398,7 +398,7 @@ impl StateGraphEmission<'_, '_> {
                         return unsupported("Unit graph local loan requires an activation entry home");
                     }
                     let result = case_emission::result(state, binding_ordinal, operations)?;
-                    if result.multiplicity == StructuralMultiplicity::Affine
+                    if result.multiplicity() == StructuralMultiplicity::Affine
                         && let Some(previous) =
                             self.loaned_local_homes.insert(binding_ordinal, place)
                         && previous != place

@@ -1,0 +1,58 @@
+//! A literal local establishes fresh immutable byte storage at its authored
+//! declaration. Replay joins the payload and view type before any storage or
+//! local binding is published; no caller's parameter lends it authority.
+use crate::lowering_error::{LoweringError, unsupported};
+use checked_trees::{CheckedTrees, CheckedUnitEffectOperationPlan};
+
+pub(crate) fn validate(
+    checked: &CheckedTrees,
+    state: symbols::SymbolHandle,
+    operation: &CheckedUnitEffectOperationPlan,
+) -> Result<(), LoweringError> {
+    let CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, bytes } = operation
+    else {
+        return unsupported("literal local has no establishment");
+    };
+    let (_, authored) =
+        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let Some(checked_trees::statement::StatementNode::LocalData(local)) = checked
+        .statement_table
+        .statements(authored.statement_nodes)
+        .get(result.statement_index as usize)
+    else {
+        return unsupported("literal local lost its authored declaration");
+    };
+    if local.is_mutable
+        || !local.symbol.is_valid()
+        || !checked
+            .expression_table
+            .expression_is_valid(local.initial_value)
+        || result.multiplicity != language_semantics::Multiplicity::Unrestricted
+        || checked.type_multiplicity(local.type_reference) != result.multiplicity
+    {
+        return unsupported("literal local changed its binding custody");
+    }
+    let reference = super::parameters::structural_carrier_type(checked, local.type_reference)?;
+    let checked_trees::types::TypeReferenceNode::Reference {
+        referee,
+        access: language_semantics::ReferenceAccess::Shared,
+        ..
+    } = checked.type_reference_table.type_reference(reference)
+    else {
+        return unsupported("literal local is not a shared byte view");
+    };
+    let carrier = super::parameters::structural_carrier_type(checked, *referee)?;
+    let checked_trees::types::TypeReferenceNode::Slice { element_type } =
+        checked.type_reference_table.type_reference(carrier)
+    else {
+        return unsupported("literal local is not a byte slice");
+    };
+    if checked.primitive_type_reference(*element_type)
+        != Some(checked_trees::types::PrimitiveType::U8)
+        || checked.normalized_type_identity(carrier).as_str() != result.type_identity
+        || !matches!(checked.expression_table.expression(local.initial_value), checked_trees::expression::ExpressionNode::String(authored) if authored.as_ref() == bytes.as_slice())
+    {
+        return unsupported("literal local changed its authored bytes or type");
+    }
+    Ok(())
+}

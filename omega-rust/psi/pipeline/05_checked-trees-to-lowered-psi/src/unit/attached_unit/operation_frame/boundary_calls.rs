@@ -196,7 +196,7 @@ impl OperationFrame<'_, '_> {
         if matches!(self.results, StructuralResults::Dense(_)) {
             self.operations
                 .structural_values
-                .push((result.binding_ordinal, returned));
+                .push((result.binding_ordinal, returned.into()));
         }
         self.publish_result(
             operation,
@@ -360,7 +360,7 @@ impl OperationFrame<'_, '_> {
                                 .structural_values
                                 .iter()
                                 .filter(|(ordinal, _)| *ordinal == binding_ordinal)
-                                .map(|(_, result)| result.claims.len())
+                                .map(|(_, result)| result.claims().len())
                                 .sum::<usize>()
                         })
                         .unwrap_or(0);

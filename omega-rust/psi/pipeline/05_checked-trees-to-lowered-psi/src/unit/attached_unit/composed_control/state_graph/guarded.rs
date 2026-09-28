@@ -351,7 +351,7 @@ pub(super) fn emit_return(
         .structural_values
         .iter()
         .find(|(ordinal, _)| *ordinal == result.binding_ordinal)
-        .map(|(_, value)| evaluation.current_structural_place(value.place))
+        .map(|(_, value)| evaluation.current_structural_place(value.place()))
         .ok_or(LoweringError::Unsupported(
             "ordered return value was not established",
         ))?;
@@ -377,7 +377,8 @@ pub(super) fn emit_return(
                 discard_result_on_return,
                 ..
             } => {
-                let place = case_emission::result(state, result.binding_ordinal, operations)?.place;
+                let place =
+                    case_emission::result(state, result.binding_ordinal, operations)?.place();
                 discards.push((place, *discard_result_on_return));
             }
             _ => {}

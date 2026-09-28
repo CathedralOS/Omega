@@ -537,7 +537,10 @@ pub(crate) fn lower_installation_machine_service_ceiling(
 /// The operation-owned result frontier, in the current source state's binding
 /// namespace. Declaration-only callers cannot admit claim-bearing results.
 pub(crate) struct StructuralResultCustody<'a> {
-    pub results: &'a [(u32, terminal_psi::StructuralOperationResult)],
+    pub results: &'a [(
+        u32,
+        crate::emission::operation_emission::buffer::StructuralBinding,
+    )],
     pub domains: &'a [(SemanticDomainId, StructuralDomainId)],
     pub claims: &'a [(PermissionClaimIdentity, ClaimId)],
     pub target_entry_claims: &'a [CheckedUnitEntryClaimPlan],
@@ -646,6 +649,42 @@ pub(crate) fn validate_transfer_shape(
         if let Some(binding_ordinal) = argument.source_structural_result_binding_ordinal() {
             let source =
                 structural_result_source(caller_structural_results, binding_ordinal, argument)?;
+            if let StructuralPlaceKind::ByteSequenceLiteral {
+                structural_type, ..
+            } = source.kind
+            {
+                if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow
+                    || target.access != argument.access
+                    || !argument.path.is_empty()
+                    || target.multiplicity != Multiplicity::Unrestricted
+                    || argument.type_identity != target.type_identity
+                    || structural_type != lookup_type_id(type_ids, &argument.type_identity)?
+                    || !target.qualifications.is_empty()
+                    || !target.projected_qualifications.is_empty()
+                    || target.fused_service_erasure.is_some()
+                    || target.is_self
+                    || !structural_types.iter().any(|declaration| {
+                        declaration.id == structural_type
+                            && matches!(
+                                declaration.shape,
+                                StructuralTypeShape::ByteSequence(
+                                    ByteSequenceCarrier::BorrowedView { .. }
+                                )
+                            )
+                    })
+                    || transfers.iter().any(|transfer| {
+                        arguments
+                            .get(transfer.argument_index as usize)
+                            .is_some_and(|argument| {
+                                argument.source_structural_result_binding_ordinal()
+                                    == Some(binding_ordinal)
+                            })
+                    })
+                {
+                    return unsupported("literal binding argument changed its shared byte custody");
+                }
+                continue;
+            }
             let StructuralPlaceKind::OperationResult {
                 structural_type, ..
             } = source.kind
@@ -663,6 +702,7 @@ pub(crate) fn validate_transfer_shape(
                 let (_, result) = results.next().ok_or(LoweringError::Unsupported(
                     "linear result argument has no exact completed binding",
                 ))?;
+                let result = result.operation_result()?;
                 let qualifications = target
                     .qualifications
                     .iter()
@@ -942,7 +982,10 @@ pub(crate) fn emitted_claim_transfers(
     arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
     transfers: &[checked_trees::CheckedUnitClaimTransferPlan],
     target_parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
-    completed_results: &[(u32, terminal_psi::StructuralOperationResult)],
+    completed_results: &[(
+        u32,
+        crate::emission::operation_emission::buffer::StructuralBinding,
+    )],
     claim_bindings: &[(PermissionClaimIdentity, ClaimId)],
 ) -> Result<Vec<ClaimTransfer>, LoweringError> {
     let mut emitted = transfers
@@ -972,7 +1015,7 @@ pub(crate) fn emitted_claim_transfers(
             .ok_or(LoweringError::Unsupported(
                 "Unit self argument lost its completed result claim binding",
             ))?;
-        let [binding] = result.claims.as_slice() else {
+        let [binding] = result.operation_result()?.claims.as_slice() else {
             return unsupported("Unit self argument lost its completed result claim binding");
         };
         emitted.push(ClaimTransfer {
@@ -1357,7 +1400,11 @@ fn structural_result_source<'results>(
     if (*discard
         && argument.access == checked_trees::CheckedStructuralAccess::Owned
         && argument.path.is_empty())
-        || !matches!(source.kind, StructuralPlaceKind::OperationResult { .. })
+        || !matches!(
+            source.kind,
+            StructuralPlaceKind::OperationResult { .. }
+                | StructuralPlaceKind::ByteSequenceLiteral { .. }
+        )
     {
         return unsupported("Unit structural result argument disagrees with its producer cleanup");
     }

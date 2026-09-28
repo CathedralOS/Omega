@@ -1,0 +1,21 @@
+// A primitive local and a byte literal retain distinct storage in one function.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+machine measure() -> u64 {
+    let mut count: u64 = 1;
+    let bytes: &[u8] = "abc";
+    count = bytes.len;
+    count
+}
+
+data Main { console: Binding<Console>; }
+machine Main::main(&mut self) reaches Console {
+    let count: u64 = measure();
+    transition count == 3 {
+        true -> good()
+        false -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

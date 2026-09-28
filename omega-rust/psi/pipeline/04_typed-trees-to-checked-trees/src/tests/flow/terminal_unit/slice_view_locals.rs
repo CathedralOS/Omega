@@ -186,3 +186,181 @@ fn view_local_lengths_and_reads_root_at_the_local() {
         } if read_root == root && path.is_empty()
     ));
 }
+
+/// Literal bindings use the same ordered namespace as other structural locals,
+/// even when mutable scalar storage and its update separate their declarations.
+#[test]
+fn literal_view_locals_compose_with_primitive_storage_and_scalar_completion() {
+    let checked = checked(
+        r#"
+        machine measure() -> u64 {
+            let mut count: u64 = 1;
+            let bytes: &[u8] = "abc";
+            count = bytes.len;
+            let more: &[u8] = "de";
+            more.len
+        }
+    "#,
+    );
+    let machine = machine_named(&checked, "measure");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine)
+        .expect("literal locals share ordinary scalar body planning");
+    let literals = plan
+        .operations
+        .iter()
+        .filter_map(|operation| match operation {
+            checked_trees::CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral {
+                result,
+                bytes,
+            } => Some((
+                result.statement_index,
+                result.binding_ordinal,
+                bytes.as_slice(),
+            )),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(literals, vec![(1, 0, &b"abc"[..]), (3, 1, &b"de"[..])]);
+    assert!(plan.operations.iter().any(|operation| matches!(
+        operation,
+        checked_trees::CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
+    )));
+}
+
+#[test]
+fn literal_binding_precedes_guarded_structural_result_ordinals() {
+    let checked = checked(
+        r#"
+        data Size [copy] { length: u64; }
+        machine choose(flag: bool) -> Size {
+            let bytes: &[u8] = "abc";
+            transition flag {
+                true -> (Size { length: 3 })
+                false -> (Size { length: 2 })
+            }
+        }
+    "#,
+    );
+    let machine = machine_named(&checked, "choose");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine)
+        .expect("literal prefix and guarded structural completion share one graph");
+    let entry = &plan.states[0];
+    let literal = entry
+        .operations
+        .iter()
+        .find_map(|operation| match operation {
+            checked_trees::CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral {
+                result,
+                ..
+            } => Some(result),
+            _ => None,
+        })
+        .expect("literal prefix binding");
+    assert_eq!(literal.binding_ordinal, 0);
+    let checked_trees::CheckedComposedUnitControlTerminatorPlan::Guarded { return_values, .. } =
+        &entry.terminator
+    else {
+        panic!("expected guarded structural returns");
+    };
+    let returned = return_values
+        .iter()
+        .filter_map(checked_trees::CheckedUnitEffectOperationPlan::structural_result_binding)
+        .collect::<Vec<_>>();
+    assert!(
+        !returned.is_empty(),
+        "guarded arms construct structural results"
+    );
+    assert!(
+        returned
+            .iter()
+            .all(|result| result.binding_ordinal > literal.binding_ordinal),
+        "terminator construction must not reuse the preceding literal binding"
+    );
+}
+
+#[test]
+fn literal_view_local_can_be_borrowed_by_a_boundary_before_a_state_edge() {
+    let checked = checked(
+        r#"
+        boundary trait Output { machine write(bytes: &[u8]) reaches Output; }
+        data Root {}
+        machine Root::enter() reaches Output {
+            let bytes: &[u8] = "abc";
+            Output::write(bytes);
+            transition { _ -> next(bytes) }
+            state next(bytes: &[u8]) { Output::write(bytes); }
+        }
+        "#,
+    );
+    let machine = machine_named(&checked, "enter");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine)
+        .expect("a borrowed local keeps the same call custody before a state edge");
+    assert!(plan.states[0].operations.iter().any(|operation| matches!(
+        operation,
+        checked_trees::CheckedUnitEffectOperationPlan::BoundaryCall { structural_arguments, .. }
+            if structural_arguments.iter().any(|argument|
+                argument.source_structural_result_binding_ordinal() == Some(0)
+                    && argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow)
+    )));
+}
+
+#[test]
+fn forwarding_a_nonliteral_view_still_requires_its_source_loan() {
+    let checked = checked(
+        r#"
+        boundary trait Output { machine observe(value: u64) reaches Output; }
+        data Helper {}
+        machine Helper::measure(bytes: &[u8]) reaches Output { Output::observe(bytes.len); }
+        data Root {}
+        machine Root::enter(bytes: &[u8]) reaches Output {
+            let view: &[u8] = bytes[..];
+            Helper::measure(view);
+        }
+        "#,
+    );
+    let machine = machine_named(&checked, "enter");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine)
+        .expect("the original subslice can be forwarded");
+    let borrow_state = checked
+        .facts
+        .borrow
+        .states
+        .iter()
+        .map(|(_, state)| state)
+        .find(|state| state.machine_symbol == machine && state.state_symbol == plan.state)
+        .expect("caller borrow state");
+    let loans = borrow_state.loans;
+    assert!(!checked.facts.borrow.loans.span_or_empty(loans).is_empty());
+    let mut facts = checked.facts.clone();
+    for loan in facts.borrow.loans.span_mut(loans).expect("source loans") {
+        loan.owner_symbol = symbols::SymbolHandle::invalid();
+    }
+    let rebuilt = crate::execution::terminal_unit::build_checked_unit_effect_plans(
+        &checked.typed,
+        &facts,
+        crate::execution::terminal_unit::ScalarCalleePlans {
+            boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
+            structural_returns: &facts.flow.terminal_structural_scalar_returns,
+        },
+    );
+    assert!(
+        rebuilt.for_machine(machine).is_none(),
+        "a missing loan cannot become literal custody"
+    );
+}

@@ -598,7 +598,7 @@ pub(super) fn selection_edge_discards(
         if result.statement_index >= edge.statement_ordinal {
             return unsupported("Unit graph edge precedes local establishment");
         }
-        let place = case_emission::result(state, result.binding_ordinal, operations)?.place;
+        let place = case_emission::result(state, result.binding_ordinal, operations)?.place();
         let role = selection_role(
             checked,
             machine,

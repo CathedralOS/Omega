@@ -19,7 +19,7 @@ use crate::emission::boolean_control::{
 };
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
-use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::emission::operation_emission::buffer::{OperationBuffer, StructuralBinding};
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations;
@@ -227,6 +227,47 @@ impl Evaluation {
                 return unsupported("linear local lost its exact call result custody");
             }
         }
+        self.establish_structural_binding(
+            checked,
+            state,
+            result,
+            is_statement_result,
+            produced.into(),
+            structural_types,
+            operations,
+        )
+    }
+
+    /// Bind an already established place to its authored local. Producer-specific
+    /// admission happens before this shared namespace and local-symbol step.
+    pub(crate) fn establish_structural_binding(
+        &mut self,
+        checked: &CheckedTrees,
+        state: symbols::SymbolHandle,
+        result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
+        is_statement_result: bool,
+        produced: StructuralBinding,
+        structural_types: &[StructuralTypeDeclaration],
+        operations: &mut OperationBuffer,
+    ) -> Result<(), LoweringError> {
+        let multiplicity = produced.multiplicity();
+        let mut types = structural_types
+            .iter()
+            .filter(|declaration| declaration.id == produced.structural_type());
+        let declaration = types.next().ok_or(LoweringError::Unsupported(
+            "structural binding type was not declared",
+        ))?;
+        let expected_multiplicity = match result.multiplicity {
+            Multiplicity::Affine => StructuralMultiplicity::Affine,
+            Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
+            Multiplicity::Linear => StructuralMultiplicity::Linear,
+        };
+        if types.next().is_some()
+            || declaration.identity != result.type_identity
+            || multiplicity != expected_multiplicity
+        {
+            return unsupported("structural binding changed its declared type or multiplicity");
+        }
         if operations
             .structural_values
             .iter()
@@ -284,7 +325,7 @@ impl Evaluation {
                         checked,
                         local.symbol,
                         local.type_reference,
-                        produced.place,
+                        produced.place(),
                         structural_types,
                     )?,
                 );
@@ -292,7 +333,7 @@ impl Evaluation {
             self.structural_locals.push((
                 local.symbol,
                 StructuralArgument {
-                    place: produced.place,
+                    place: produced.place(),
                     path: Vec::new(),
                     access: if shared_borrow.is_some() {
                         StructuralAccess::SharedBorrow
@@ -305,15 +346,15 @@ impl Evaluation {
             // reads observe; record the family its produced type declares.
             if let Some(carrier) =
                 crate::expression_preparation::bindings::view_locals::ViewCarrier::of(
-                    produced.structural_type,
+                    produced.structural_type(),
                     structural_types,
                 )
             {
                 self.view_locals.push(
                     crate::expression_preparation::bindings::view_locals::ViewLocalBinding {
                         symbol: local.symbol,
-                        place: produced.place,
-                        structural_type: produced.structural_type,
+                        place: produced.place(),
+                        structural_type: produced.structural_type(),
                         carrier,
                     },
                 );
@@ -323,7 +364,7 @@ impl Evaluation {
             self.structural_value_owners.push(StructuralValueOwner {
                 symbol: local_symbol,
                 statement: result.statement_index,
-                value: produced.clone(),
+                value: produced.operation_result()?.clone(),
             });
         }
         operations

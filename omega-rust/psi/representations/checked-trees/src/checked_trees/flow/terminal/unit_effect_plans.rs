@@ -135,6 +135,14 @@ pub enum CheckedUnitEffectOperationPlan {
         binding_ordinal: u32,
         loan: arena::Handle<crate::BorrowLoanFact>,
     },
+    /// Establish the immutable bytes declared by one local initializer.
+    /// The binding joins the ordinary structural namespace. Terminal retains
+    /// its self-describing literal place and Unit establishment, rather than
+    /// manufacturing an owned operation result or a borrowed parameter.
+    EstablishByteSequenceLiteral {
+        result: CheckedUnitStructuralResultBindingPlan,
+        bytes: Vec<u8>,
+    },
     /// Bind the statement's immutable view local to an exclusive range of an
     /// established view. `source` is the same `ByteSequenceSubslice` or
     /// `ElementViewSubslice` argument plan a call argument carries, with its
@@ -397,6 +405,23 @@ impl CheckedStructuralValueCall {
 }
 
 impl CheckedUnitEffectOperationPlan {
+    /// The binding this operation adds to the shared structural namespace.
+    /// Literal declarations and constructed/called values use the same dense
+    /// ordinal space; their distinct storage and ownership remain on the variant.
+    pub fn structural_result_binding(&self) -> Option<&CheckedUnitStructuralResultBindingPlan> {
+        match self {
+            Self::EstablishReference { result, .. }
+            | Self::EstablishByteSequenceLiteral { result, .. }
+            | Self::EstablishViewSubslice { result, .. }
+            | Self::EstablishStructuralValue { result, .. }
+            | Self::EstablishScalarArray { result, .. }
+            | Self::StructuralCall { result, .. }
+            | Self::BoundaryStructuralCall { result, .. }
+            | Self::MoveStructuralField { result, .. } => Some(result),
+            _ => None,
+        }
+    }
+
     /// The authored structural arguments of an ordinary call — Unit, scalar,
     /// structural or boundary — in argument order; empty for every other
     /// operation. Selected-operator calls keep their own operand lanes.

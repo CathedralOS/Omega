@@ -47,6 +47,7 @@ pub(in crate::unit::attached_unit::composed_control) fn lower(
             | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
             | CheckedUnitEffectOperationPlan::AtomicAccess(_)
             | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
+            | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { .. }
             | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. } => continue,
             _ => return unsupported("composed root retained a non-call operation"),

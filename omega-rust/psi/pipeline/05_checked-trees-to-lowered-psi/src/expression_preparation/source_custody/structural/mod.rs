@@ -136,7 +136,7 @@ pub(crate) fn validate(
     // A `&T` establishment keeps the authored reference type on its root but
     // joins the referent's structural carrier: the planned identity names the
     // record or the borrowed view's slice, not the borrow shell.
-    let view_carrier = borrowed_slice_view_referent(checked, reference);
+    let view_carrier = borrowed_element_view_referent(checked, reference);
     let carrier = shared_borrow_record_referent(checked, reference)
         .or(view_carrier)
         .unwrap_or(reference);
@@ -1747,15 +1747,37 @@ pub(crate) fn plain_record(
             })
 }
 
-/// The `[T]` carrier a borrowed `&[T]` view joins: one reference shell is the
-/// borrow itself and constraint shells qualify the slice without changing it.
-/// The byte element keeps its established `ByteSequence` carrier, whose
-/// length, read and subslice obligations are already reconstructed.
-pub(crate) fn borrowed_slice_view_referent(
+/// A non-byte slice uses the ElementView carrier. Byte slices keep their
+/// distinct ByteSequence representation and must not enter this producer lane.
+fn borrowed_element_view_referent(
+    checked: &CheckedTrees,
+    reference: checked_trees::types::TypeReferenceHandle,
+) -> Option<checked_trees::types::TypeReferenceHandle> {
+    let (carrier, element, _) = borrowed_slice_type(checked, reference)?;
+    (checked.primitive_type_reference(element) != Some(PrimitiveType::U8)).then_some(carrier)
+}
+
+/// The carrier of an actual shared slice view, including byte slices. This
+/// queries source access independently of whether Terminal uses ByteSequence
+/// or ElementView storage; mutable and write-only references cannot lend it.
+pub(crate) fn shared_slice_view_referent(
+    checked: &CheckedTrees,
+    reference: checked_trees::types::TypeReferenceHandle,
+) -> Option<checked_trees::types::TypeReferenceHandle> {
+    let (carrier, _, access) = borrowed_slice_type(checked, reference)?;
+    (access == language_semantics::ReferenceAccess::Shared).then_some(carrier)
+}
+
+/// Peel exactly one reference shell and its constraints, retaining access.
+fn borrowed_slice_type(
     checked: &CheckedTrees,
     mut reference: checked_trees::types::TypeReferenceHandle,
-) -> Option<checked_trees::types::TypeReferenceHandle> {
-    let mut borrowed = false;
+) -> Option<(
+    checked_trees::types::TypeReferenceHandle,
+    checked_trees::types::TypeReferenceHandle,
+    language_semantics::ReferenceAccess,
+)> {
+    let mut access = None;
     let mut visited = Vec::new();
     while reference.is_valid() && !visited.contains(&reference) {
         visited.push(reference);
@@ -1763,21 +1785,16 @@ pub(crate) fn borrowed_slice_view_referent(
             checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
                 reference = *base_type;
             }
-            checked_trees::types::TypeReferenceNode::Reference { referee, .. } if !borrowed => {
-                borrowed = true;
+            checked_trees::types::TypeReferenceNode::Reference {
+                referee,
+                access: borrowed_access,
+                ..
+            } if access.is_none() => {
+                access = Some(*borrowed_access);
                 reference = *referee;
             }
-            checked_trees::types::TypeReferenceNode::Slice { element_type } if borrowed => {
-                let mut element = *element_type;
-                while let checked_trees::types::TypeReferenceNode::Constrained {
-                    base_type, ..
-                } = checked.type_reference_table.type_reference(element)
-                {
-                    element = *base_type;
-                }
-                return (checked.typed.primitive_type_reference(element)
-                    != Some(PrimitiveType::U8))
-                .then_some(reference);
+            checked_trees::types::TypeReferenceNode::Slice { element_type } => {
+                return Some((reference, *element_type, access?));
             }
             _ => return None,
         }

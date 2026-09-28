@@ -265,6 +265,7 @@ pub(super) fn build(
         {
             if result.multiplicity == Multiplicity::Unrestricted
                 && !validation::is_closed_primitive_array_type(program, formal)
+                && !crate::execution::terminal_unit::types::borrowed_slice_view(program, formal)
             {
                 return None;
             }

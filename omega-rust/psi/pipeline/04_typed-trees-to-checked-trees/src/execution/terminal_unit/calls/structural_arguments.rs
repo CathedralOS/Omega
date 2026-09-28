@@ -253,6 +253,11 @@ pub(crate) fn structural_call_arguments(
         {
             if result.multiplicity == Multiplicity::Unrestricted
                 && target_machine.supply_mode != MachineSupplyMode::CheckedBody
+                && !(target_machine.supply_mode.is_boundary_declaration()
+                    && crate::execution::terminal_unit::types::borrowed_slice_view(
+                        program,
+                        target.type_reference,
+                    ))
             {
                 return None;
             }

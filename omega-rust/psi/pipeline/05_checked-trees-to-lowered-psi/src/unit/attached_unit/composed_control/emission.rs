@@ -123,7 +123,7 @@ pub(crate) fn emit_call_leaf(
                 let discard = operations
                     .structural_values
                     .iter()
-                    .find(|(_, result)| result.place == declaration.id)
+                    .find(|(_, result)| result.place() == declaration.id)
                     .and_then(|(ordinal, _)| {
                         state
                             .operations
