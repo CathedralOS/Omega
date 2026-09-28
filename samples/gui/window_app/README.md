@@ -38,17 +38,20 @@ The receiver uses the settled
 [`Service<R>` entry contract](../../../wiki/spec/build/entry_roots.md#entry-shape-and-arrival-bridge):
 public boundary requirements, intrinsically established service fields, and no
 authored `in Bound` qualification. The render loop and its storage are unchanged.
-The ordinary CLI currently rejects during fresh package checking: the receiver's
-`Clock`, `Input`, and `Gui` fields have no selected Fused providers. `Console`
-does have a selected provider. The missing selections prevent checked receiver
-shape construction; the old "0 Terminal attachment identities" diagnostic was
-a downstream symptom, not permission to invent an attachment.
+Provider selection is settled: the sample declares its own provider data and
+`provider_defaults` selections, and `omega --check` accepts the receiver's
+`Console`, `Clock`, `Input`, and `Gui` fields. The earlier "no selected Fused
+providers" reading and the older "0 Terminal attachment identities" diagnostic
+were downstream symptoms, not permission to invent an attachment. The check
+gate's actual first failure was a missing direct `core::float_operations`
+import — `std::macos_gui` imports those operations, but imports are
+nontransitive, so each sample names its own selected float operators.
 
-The next step is exact declared conformances and provider selection under the
-[selection contract](../../../wiki/spec/build/provider_selection.md).
-The historical `std/macos_gui.omg` wrapper is not already a selected conformer to
-these sample-owned boundary traits; matching method names do not supply nominal
-satisfaction. Keep the render loop and its actual storage/effects intact.
+With the review above completed, `omega --target macos_arm64` now stops in
+native production: `WindowGuiProvider::window_create` applies boundary
+operator `F64::from_i32`, whose selected provider has no requirement-level
+Terminal route for Omega to install. That producer/realization dependency is
+TASKS.md's OPERATOR-BOUNDARY-CALLS, not provider selection.
 
 Verified recipe (self-contained probe, `ddc66b61b5`, `--target macos_arm64`):
 a `pub data` provider plus `machine P::m(&mut self, ..) satisfies T::m { }`
@@ -58,16 +61,14 @@ review, and publishes native output. Every `Service` field in the program must
 route to a selected plan holding at least one checked-adapter row; leaf-only
 providers (`via Binding::..` rows alone) cannot join the Fused boundary.
 Adapters may call ordinary machines but cannot reach satisfies-leaf callees or
-foreign imports (both currently fail realization), and the entry receiver's
-carrier is limited to one provider field — `Main` holds four, so checked
-compilation still ends at "selected ProgramEntry establishment rejoins 0
-Terminal attachment identities; expected one". The multi-field attachment and
-scalar-result provider admissions are tracked on TASKS.md under
-ENTRY-CONTENT-ROOTS / TR3-TR8 / STATE-LOCAL-VALUE-FRONTIER.
+foreign imports (both currently fail realization). The probe's one-field
+carrier limit no longer binds this sample: `Main` holds four provider fields
+and checked compilation now completes.
 
-After provider wiring, complete any remaining lowering work and ordinary
-checkout-specific package review. Test-owned acceptance does not complete that
-review. No app has launched through this command yet. See
+After provider wiring, complete the OPERATOR-BOUNDARY-CALLS route above, any
+remaining lowering work, and the ordinary checkout-specific package review.
+Test-owned acceptance does not complete that review. No app has launched
+through this command yet. See
 [MACOS-APPLICATION-PUBLICATION](../../../TASKS.md#immediate-product-closure)
 for resume evidence.
 
