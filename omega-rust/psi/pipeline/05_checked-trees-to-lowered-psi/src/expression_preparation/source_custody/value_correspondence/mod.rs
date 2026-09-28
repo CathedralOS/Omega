@@ -788,6 +788,15 @@ impl Context<'_> {
                     && self.boolean(right_source, right, operands, depth + 1)
             }
             Boolean::IntegerComparison { kind, left, right } => {
+                // An empty byte literal leaves only the live-length equality:
+                // there are no indexed-byte conjuncts to reach the And arm.
+                if matches!(
+                    binary.operator,
+                    BinaryOperator::Equal | BinaryOperator::NotEqual
+                ) && self.carrier_literal_equality(source, left_source, right_source, value)
+                {
+                    return true;
+                }
                 let expected = match binary.operator {
                     BinaryOperator::Equal | BinaryOperator::NotEqual => {
                         CheckedIntegerComparisonKind::Equal

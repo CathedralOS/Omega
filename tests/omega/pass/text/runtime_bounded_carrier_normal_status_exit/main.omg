@@ -1,0 +1,55 @@
+// The normal arm replaces the bounded message with a runtime concatenation.
+// Its capacity is 32, but only the seven live bytes of "ok temp" may be printed.
+// Exact equality also observes the resulting length before accepting exit 70.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+domain [u8]::Utf8
+requires
+    valid_utf8(self);
+domain [u8; 8]::Utf8
+requires
+    valid_utf8(self);
+domain [u8; 32]::Utf8
+requires
+    valid_utf8(self);
+
+data Main {
+    console: Binding<Console>;
+    label: [u8; 8] in Utf8;
+    message: [u8; 32] in Utf8;
+    reading: i32;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.label = "temp";
+    self.reading = 85;
+
+    transition self.reading > 90 {
+        true -> high()
+        _ -> normal()
+    }
+
+    state high(&mut self) {
+        self.message = "ALERT " + self.label;
+        self.console.write_line(self.message);
+        self.console.exit_process(71);
+    }
+
+    state normal(&mut self) {
+        self.message = "ok " + self.label;
+        self.console.write_line(self.message);
+        transition self.message == "ok temp" {
+            true -> good()
+            _ -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

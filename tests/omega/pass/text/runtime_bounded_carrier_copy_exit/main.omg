@@ -1,0 +1,88 @@
+// Observe whole-byte replacement through direct copies and nested destinations.
+// Shorter and empty replacements publish their own live length. Copies preserve
+// the source and unrelated sibling storage; successful execution prints the
+// actual concatenated field rather than an unrelated constant.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+domain [u8; 32]::Utf8
+requires
+    valid_utf8(self);
+
+data Bucket {
+    text: [u8; 32] in Utf8;
+    sibling: [u8; 32] in Utf8;
+}
+
+data Main {
+    console: Binding<Console>;
+    greeting: [u8; 32] in Utf8;
+    source: [u8; 32] in Utf8;
+    bucket: Bucket;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.greeting = "Hello, " + "Ada!";
+    self.source = "Longer source";
+    self.bucket.sibling = "keep";
+    transition self.greeting == "Hello, Ada!" {
+        true -> copy()
+        false -> bad()
+    }
+
+    state copy(&mut self) {
+        self.bucket.text = self.source;
+        transition self.bucket.text == "Longer source" {
+            true -> preserved()
+            false -> bad()
+        }
+    }
+
+    state preserved(&mut self) {
+        transition self.source == "Longer source" && self.bucket.sibling == "keep" {
+            true -> shorter()
+            false -> bad()
+        }
+    }
+
+    state shorter(&mut self) {
+        self.source = "Ada";
+        transition self.bucket.text == "Longer source" {
+            true -> copy_shorter()
+            false -> bad()
+        }
+    }
+
+    state copy_shorter(&mut self) {
+        self.bucket.text = self.source;
+        transition self.bucket.text == "Ada" && self.bucket.text.len == 3 {
+            true -> empty()
+            false -> bad()
+        }
+    }
+
+    state empty(&mut self) {
+        self.source = "";
+        transition self.bucket.text == "Ada" {
+            true -> copy_empty()
+            false -> bad()
+        }
+    }
+
+    state copy_empty(&mut self) {
+        self.bucket.text = self.source;
+        transition self.bucket.text == "" && self.bucket.text.len == 0 && self.bucket.sibling == "keep" {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.write_line(self.greeting);
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
